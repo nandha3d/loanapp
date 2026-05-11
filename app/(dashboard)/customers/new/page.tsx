@@ -1,0 +1,39 @@
+import prisma from '@/lib/db';
+import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
+import CustomerForm from './CustomerForm';
+import { auth } from '@/lib/auth';
+import { redirect } from 'next/navigation';
+
+export default async function NewCustomerPage({
+  searchParams
+}: {
+  searchParams: { edit?: string }
+}) {
+  const resolvedSearchParams = await searchParams;
+  const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  
+  const [routes, agents] = await Promise.all([
+    prisma.route.findMany({ where: { tenantId, appType, status: 'active' }, orderBy: { name: 'asc' } }),
+    prisma.user.findMany({ where: { tenantId, appType, role: 'agent', status: 'active' }, orderBy: { name: 'asc' } })
+  ]);
+
+  let customer = null;
+  if (resolvedSearchParams.edit) {
+    const session = await auth();
+    const userRole = (session?.user as any)?.role;
+    if (userRole !== 'admin' && userRole !== 'superadmin' && userRole !== 'developer') {
+      redirect(`/customers/${resolvedSearchParams.edit}`);
+    }
+
+    customer = await prisma.customer.findUnique({
+      where: { id: resolvedSearchParams.edit, tenantId },
+      include: { securityCheques: true, guarantors: true }
+    });
+    if (!customer) {
+      redirect('/customers');
+    }
+  }
+
+  return <CustomerForm routes={routes} agents={agents} customer={customer} />;
+}
