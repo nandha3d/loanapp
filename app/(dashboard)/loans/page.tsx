@@ -9,9 +9,12 @@ export default async function LoansPage({
 }: {
   searchParams: { [key: string]: string | undefined }
 }) {
+  const session = await auth();
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
+  const userRole = (session?.user as any)?.role;
+  const branchId = (session?.user as any)?.branchId as string | undefined;
   
   const q = searchParams.q || '';
   const status = searchParams.status || '';
@@ -19,6 +22,10 @@ export default async function LoansPage({
   const { page, limit, skip } = parsePagination(searchParams);
 
   const where: any = { tenantId, appType };
+  // Admins are branch-scoped; superadmin/developer see all
+  if (userRole === 'admin' && branchId) {
+    where.branchId = branchId;
+  }
   if (q) {
     where.OR = [
       { loanCode: { contains: q } },

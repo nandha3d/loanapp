@@ -7,7 +7,7 @@ import { redirect } from 'next/navigation';
 export default async function AdminBranchesPage() {
   const session = await auth();
   const userRole = (session?.user as any)?.role;
-  if (userRole !== 'developer') {
+  if (userRole !== 'developer' && userRole !== 'superadmin') {
     redirect('/portal');
   }
 

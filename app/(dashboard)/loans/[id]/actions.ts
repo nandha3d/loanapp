@@ -197,6 +197,7 @@ export async function closeLoan(formData: FormData) {
   const userId = session?.user?.id;
 
   const loanId = formData.get('loanId') as string;
+  const markChequesReturned = formData.get('markChequesReturned') === '1';
 
   if (!loanId) {
     return { success: false, error: 'Invalid input' };
@@ -204,6 +205,7 @@ export async function closeLoan(formData: FormData) {
 
   const loan = await prisma.loan.findUnique({
     where: { id: loanId, tenantId },
+    include: { customer: { include: { securityCheques: true } } },
   });
 
   if (!loan) {
@@ -218,6 +220,19 @@ export async function closeLoan(formData: FormData) {
     },
   });
 
+  // Mark active security cheques as returned if confirmed
+  if (markChequesReturned && loan.customer?.securityCheques?.length) {
+    const activeChequeIds = loan.customer.securityCheques
+      .filter((c) => c.status === 'active')
+      .map((c) => c.id);
+    if (activeChequeIds.length > 0) {
+      await prisma.securityCheque.updateMany({
+        where: { id: { in: activeChequeIds } },
+        data: { status: 'returned' },
+      });
+    }
+  }
+
   await prisma.auditLog.create({
     data: {
       tenantId,
@@ -225,7 +240,7 @@ export async function closeLoan(formData: FormData) {
       action: 'update',
       entityType: 'loan',
       entityId: loanId,
-      newValue: JSON.stringify({ action: 'close', closedAt: new Date().toISOString() }),
+      newValue: JSON.stringify({ action: 'close', closedAt: new Date().toISOString(), chequesReturned: markChequesReturned }),
     },
   });
 
@@ -233,4 +248,111 @@ export async function closeLoan(formData: FormData) {
   revalidatePath('/loans');
   revalidatePath('/dashboard');
   return { success: true };
+}
+
+/**
+ * Loan Renewal
+ * - Closes the existing loan (status → "closed")
+ * - Creates a fresh loan with the same terms, same customerId
+ * - New loan starts today with a new loanCode and fresh instalment schedule
+ * - Old loanCode preserved in voucherRef for traceability
+ */
+export async function renewLoan(formData: FormData) {
+  const session = await auth();
+  const role = (session?.user as any)?.role;
+  const userId = session?.user?.id;
+  const tenantId = await getDefaultTenantId();
+
+  if (!userId || role === 'agent') {
+    return { success: false, error: 'Unauthorized' };
+  }
+
+  const loanId = formData.get('loanId') as string;
+
+  const oldLoan = await prisma.loan.findUnique({
+    where: { id: loanId, tenantId },
+  });
+
+  if (!oldLoan) return { success: false, error: 'Loan not found' };
+  if (oldLoan.status === 'settled') {
+    return { success: false, error: 'Settled loans cannot be renewed' };
+  }
+
+  // Close the old loan
+  await prisma.loan.update({
+    where: { id: loanId },
+    data: { status: 'closed', closedAt: new Date() },
+  });
+
+  // Generate new loan code using existing settings helpers
+  const { getSetting } = await import('@/lib/tenant');
+  const prefix = await getSetting(tenantId, 'loan_code_prefix', 'LN');
+  const counterStr = await getSetting(tenantId, 'loan_code_counter', '0');
+  const counter = parseInt(counterStr) + 1;
+  const loanCode = `${prefix}${String(counter).padStart(4, '0')}`;
+
+  await prisma.appSetting.upsert({
+    where: { tenantId_key: { tenantId, key: 'loan_code_counter' } },
+    create: { tenantId, key: 'loan_code_counter', value: counter.toString(), category: 'loan' },
+    update: { value: counter.toString() },
+  });
+
+  // Build new instalment schedule starting today
+  const { calculateEndDate, calculateInstalmentDates } = await import('@/lib/utils');
+  const startDate = new Date();
+  startDate.setHours(0, 0, 0, 0);
+  const endDate = calculateEndDate(startDate, oldLoan.frequency, oldLoan.tenure);
+  const instalmentDates = calculateInstalmentDates(startDate, oldLoan.frequency, oldLoan.tenure);
+  const perInstalment = Number(oldLoan.perInstalment);
+
+  const newLoan = await prisma.loan.create({
+    data: {
+      tenantId,
+      branchId: oldLoan.branchId,
+      loanCode,
+      customerId: oldLoan.customerId,
+      packageId: oldLoan.packageId,
+      loanType: oldLoan.loanType,
+      appType: oldLoan.appType,
+      collateralDetails: oldLoan.collateralDetails,
+      guarantorId: oldLoan.guarantorId,
+      principal: oldLoan.principal,
+      deduction: oldLoan.deduction,
+      disbursed: oldLoan.disbursed,
+      frequency: oldLoan.frequency,
+      tenure: oldLoan.tenure,
+      startDate,
+      endDate,
+      perInstalment: oldLoan.perInstalment,
+      penaltyRate: oldLoan.penaltyRate,
+      voucherRef: `RENEWAL_OF_${oldLoan.loanCode}`,
+      status: 'active',
+      totalInstalments: oldLoan.tenure,
+      createdById: userId,
+      instalments: {
+        create: instalmentDates.map((date, index) => ({
+          instalmentNo: index + 1,
+          dueDate: date,
+          dueAmount: perInstalment,
+          status: 'upcoming',
+        })),
+      },
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId,
+      userId,
+      action: 'create',
+      entityType: 'loan',
+      entityId: newLoan.id,
+      oldValue: JSON.stringify({ renewedFrom: loanId, oldLoanCode: oldLoan.loanCode }),
+      newValue: JSON.stringify({ loanCode, action: 'renewal' }),
+    },
+  });
+
+  revalidatePath(`/loans/${newLoan.id}`);
+  revalidatePath('/loans');
+  return { success: true, newLoanId: newLoan.id };
 }

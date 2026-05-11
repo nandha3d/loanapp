@@ -5,6 +5,21 @@ import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
+import fs from 'fs';
+import path from 'path';
+
+const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
+
+async function saveUploadedFile(file: File, subfolder: string): Promise<string> {
+  const dir = path.join(UPLOAD_DIR, subfolder);
+  fs.mkdirSync(dir, { recursive: true });
+  const ext = path.extname(file.name) || '';
+  const safeName = `${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`;
+  const filePath = path.join(dir, safeName);
+  const buffer = Buffer.from(await file.arrayBuffer());
+  fs.writeFileSync(filePath, buffer);
+  return `/uploads/${subfolder}/${safeName}`;
+}
 
 export async function saveCustomer(formData: FormData) {
   const tenantId = await getDefaultTenantId();
@@ -23,17 +38,21 @@ export async function saveCustomer(formData: FormData) {
   const isPopup = formData.get('isPopup') === 'true';
 
   const profilePhotoFile = formData.get('profilePhoto') as File | null;
-  const profilePhoto = profilePhotoFile && profilePhotoFile.size > 0 ? profilePhotoFile.name : null;
+  let profilePhoto: string | null = null;
+  if (profilePhotoFile && profilePhotoFile.size > 0) {
+    profilePhoto = await saveUploadedFile(profilePhotoFile, 'profiles');
+  }
 
   // Process documents
   const documents: any[] = [];
   const docsFiles = formData.getAll('documents') as File[];
   for (const file of docsFiles) {
     if (file && file.size > 0) {
+      const savedPath = await saveUploadedFile(file, 'kyc');
       documents.push({
         docType: 'other',
         fileName: file.name,
-        filePath: file.name, // Mock path
+        filePath: savedPath,
         fileSize: file.size
       });
     }
@@ -50,7 +69,7 @@ export async function saveCustomer(formData: FormData) {
     const gPhotoFile = formData.get(`guarantorPhoto_${g}`) as File | null;
     let gPhoto = null;
     if (gPhotoFile && gPhotoFile.size > 0) {
-      gPhoto = gPhotoFile.name;
+      gPhoto = await saveUploadedFile(gPhotoFile, 'guarantors');
     }
     if (gName && gPhone) {
       guarantors.push({ name: gName, phone: gPhone, relation: gRelation, address: gAddress, photo: gPhoto });
@@ -67,8 +86,7 @@ export async function saveCustomer(formData: FormData) {
     const file = formData.get(`chequeImage_${i}`) as File | null;
     let imagePath = null;
     if (file && file.size > 0) {
-      // Mocking file upload by saving the filename
-      imagePath = file.name;
+      imagePath = await saveUploadedFile(file, 'cheques');
     }
 
     if (bankName && chequeNumber) {
@@ -120,11 +138,23 @@ export async function saveCustomer(formData: FormData) {
     }
   } else {
     // Create new
-    // Generate Customer Code
+    // Generate Customer Code — format: <ROUTE_ABBR>-<GLOBAL_PREFIX><SEQ>
+    // e.g. if route name is "Erode" and prefix is "CUS" → ER-CUS-0001
     const prefix = await getSetting(tenantId, 'customer_code_prefix', 'CUS');
     const counterStr = await getSetting(tenantId, 'customer_code_counter', '0');
     const counter = parseInt(counterStr) + 1;
-    const customerCode = `${prefix}${String(counter).padStart(4, '0')}`;
+
+    // Derive 2-letter abbreviation from route name (first 2 uppercase letters)
+    let routeAbbr = '';
+    if (routeId) {
+      const route = await prisma.route.findUnique({ where: { id: routeId }, select: { name: true } });
+      if (route?.name) {
+        routeAbbr = route.name.replace(/[^a-zA-Z]/g, '').slice(0, 2).toUpperCase();
+      }
+    }
+    const customerCode = routeAbbr
+      ? `${routeAbbr}-${prefix}-${String(counter).padStart(4, '0')}`
+      : `${prefix}-${String(counter).padStart(4, '0')}`;
     
     // Save new counter
     await prisma.appSetting.update({
@@ -157,6 +187,17 @@ export async function saveCustomer(formData: FormData) {
       include: { route: true }
     });
     customerId = savedCustomer.id;
+
+    await prisma.auditLog.create({
+      data: {
+        tenantId,
+        userId,
+        action: 'create',
+        entityType: 'customer',
+        entityId: customerId!,
+        newValue: JSON.stringify({ customerCode, name, status: savedCustomer.status }),
+      },
+    });
   }
 
   if (isPopup) {

@@ -118,7 +118,7 @@ export default function CustomerForm({
       <div className="card-header">
         <h3>{customer ? `✏️ Edit Customer — ${customer.name}` : '➕ Register New Customer'}</h3>
       </div>
-      <form action={onSuccess ? undefined : saveCustomer} onSubmit={handleSubmit} encType="multipart/form-data">
+      <form action={onSuccess ? undefined : (saveCustomer as unknown as (formData: FormData) => Promise<void>)} onSubmit={handleSubmit} encType="multipart/form-data">
         {customer && <input type="hidden" name="id" value={customer.id} />}
         
         {/* --- Customer Photo --- */}

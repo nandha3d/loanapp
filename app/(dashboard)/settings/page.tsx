@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 
 export default async function SettingsPage() {
   const session = await auth();
+  const userRole = (session?.user as any)?.role;
   if (userRole !== 'admin' && userRole !== 'superadmin' && userRole !== 'developer') {
     redirect('/dashboard');
   }
@@ -16,7 +17,11 @@ export default async function SettingsPage() {
   const [routes, rawPackages, users, settings] = await Promise.all([
     prisma.route.findMany({ 
       where: { tenantId, appType },
-      include: { assignedAgent: true, _count: { select: { customers: true } } }
+      include: { 
+        assignedAgent: true, 
+        _count: { select: { customers: true } },
+        routeAgents: { include: { agent: { select: { id: true, name: true } } } }
+      }
     }),
     prisma.loanPackage.findMany({ where: { tenantId, appType } }),
     prisma.user.findMany({ where: { tenantId, appType } }),

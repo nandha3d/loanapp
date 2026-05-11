@@ -68,6 +68,42 @@ async function main() {
   });
   console.log('✅ Agent user created:', agent1.id);
 
+  // ── Create Developer User ──
+  const devPassword = await hash('dev123', 12);
+  await prisma.user.upsert({
+    where: { tenantId_username: { tenantId: tenant.id, username: 'developer' } },
+    update: { passwordHash: devPassword },
+    create: {
+      tenantId: tenant.id,
+      branchId: branch.id,
+      name: 'Developer',
+      phone: '9000000001',
+      username: 'developer',
+      passwordHash: devPassword,
+      role: 'developer',
+      status: 'active',
+    },
+  });
+  console.log('✅ Developer user created');
+
+  // ── Create Super Admin User ──
+  const superPassword = await hash('super123', 12);
+  await prisma.user.upsert({
+    where: { tenantId_username: { tenantId: tenant.id, username: 'superadmin' } },
+    update: { passwordHash: superPassword },
+    create: {
+      tenantId: tenant.id,
+      branchId: branch.id,
+      name: 'Super Admin',
+      phone: '9000000002',
+      username: 'superadmin',
+      passwordHash: superPassword,
+      role: 'superadmin',
+      status: 'active',
+    },
+  });
+  console.log('✅ Super admin user created');
+
   // ── Create Default Routes ──
   const routeNames = ['Erode', 'Chithode', 'Gobichettipalayam', 'Bhavani'];
   for (const name of routeNames) {
@@ -170,8 +206,10 @@ async function main() {
 
   console.log('\n🎉 Seeding complete!');
   console.log('─────────────────────────');
-  console.log('Admin login:  admin / admin123');
-  console.log('Agent login:  karthik / agent123');
+  console.log('Admin login:      admin / admin123');
+  console.log('Agent login:      karthik / agent123');
+  console.log('Developer login:  developer / dev123');
+  console.log('Superadmin login: superadmin / super123');
   console.log('─────────────────────────');
 }
 

@@ -1,6 +1,7 @@
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
+import { getAgentRouteIds } from '@/lib/access';
 import CollectionClient from './CollectionClient';
 
 export default async function CollectionPage() {
@@ -18,19 +19,25 @@ export default async function CollectionPage() {
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
-  // For agents: only their assigned customers. For admins: all.
-  const customerFilter: any = { tenantId, appType };
-  if (userRole === 'agent') {
-    customerFilter.agentId = userId;
+  // For agents: resolve all route IDs they are assigned to (primary + shared RouteAgent).
+  // For admins: all customers in the tenant/appType.
+  let customerIds: string[];
+  let agentRouteIds: string[] = [];
+
+  if (userRole === 'agent' && userId) {
+    agentRouteIds = await getAgentRouteIds(userId);
+    const customers = await prisma.customer.findMany({
+      where: { tenantId, appType, routeId: { in: agentRouteIds } },
+      select: { id: true },
+    });
+    customerIds = customers.map((c) => c.id);
+  } else {
+    const customers = await prisma.customer.findMany({
+      where: { tenantId, appType },
+      select: { id: true },
+    });
+    customerIds = customers.map((c) => c.id);
   }
-
-  // Get all customers assigned to this agent/admin
-  const customers = await prisma.customer.findMany({
-    where: customerFilter,
-    include: { route: true },
-  });
-
-  const customerIds = customers.map((c) => c.id);
 
   // Get today's due instalments for these customers
   const todayInstalments = await prisma.instalment.findMany({
@@ -79,13 +86,15 @@ export default async function CollectionPage() {
   // Combine: missed first, then today's
   const allInstalments = [...missedInstalments, ...todayInstalments];
 
-  // Get agent's route info
+  // Get agent's route info (primary + shared)
   const agentRoutes = await prisma.route.findMany({
     where: {
       tenantId,
       appType,
-      ...(userRole === 'agent' ? { assignedAgentId: userId } : {}),
       status: 'active',
+      ...(userRole === 'agent' && agentRouteIds.length > 0
+        ? { id: { in: agentRouteIds } }
+        : userRole !== 'agent' ? {} : { id: { in: [] } }),
     },
   });
 

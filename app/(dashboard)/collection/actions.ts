@@ -4,12 +4,14 @@ import prisma from '@/lib/db';
 import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth';
+import { getAgentRouteIds } from '@/lib/access';
 
 export async function submitCollectionEntry(formData: FormData) {
   const session = await auth();
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
   const userId = session?.user?.id;
+  const role = (session?.user as any)?.role;
 
   if (!userId) {
     return { success: false, error: 'Not authenticated' };
@@ -34,6 +36,18 @@ export async function submitCollectionEntry(formData: FormData) {
     return { success: false, error: 'Instalment not found' };
   }
 
+  // Agents must only collect for their assigned/shared routes
+  if (role === 'agent') {
+    const customerRouteId = instalment.loan.customer.routeId;
+    if (!customerRouteId) {
+      return { success: false, error: 'Customer has no assigned route' };
+    }
+    const routeIds = await getAgentRouteIds(userId);
+    if (!routeIds.includes(customerRouteId)) {
+      return { success: false, error: 'Unauthorized: customer is not on your assigned route' };
+    }
+  }
+
   if (instalment.status === 'paid') {
     return { success: false, error: 'Already paid' };
   }
@@ -43,9 +57,9 @@ export async function submitCollectionEntry(formData: FormData) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Find or create today's DailyCollection for this agent
+  // Find or create today's DailyCollection for this agent (scoped by tenant + appType)
   let dailyCollection = await prisma.dailyCollection.findFirst({
-    where: { agentId: userId, date: today },
+    where: { agentId: userId, date: today, tenantId, appType },
   });
 
   if (!dailyCollection) {

@@ -7,7 +7,7 @@ export default async function NotificationsPage() {
   const appType = await getUserAppType();
 
   const notifications = await prisma.systemNotification.findMany({
-    where: { tenantId },
+    where: { tenantId, appType },
     orderBy: { createdAt: 'desc' },
     take: 50,
   });

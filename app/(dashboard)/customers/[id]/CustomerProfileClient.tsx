@@ -6,10 +6,12 @@ import { formatCurrency, formatDate, getBadgeClass, getInitials, calcPercentage 
 
 export default function CustomerProfileClient({
   customer,
-  currencySymbol
+  currencySymbol,
+  userRole,
 }: {
   customer: any;
   currencySymbol: string;
+  userRole: string;
 }) {
   const [activeTab, setActiveTab] = useState('loans');
 
@@ -30,12 +32,16 @@ export default function CustomerProfileClient({
             <p style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginTop: '6px' }}>{customer.address}</p>
           </div>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
-            <Link href={`/customers/new?edit=${customer.id}`} className="btn btn-secondary btn-sm">
-              <span className="material-icons-outlined" style={{ fontSize: '14px' }}>edit</span> Edit
-            </Link>
-            <Link href={`/loans/new?customerId=${customer.id}`} className="btn btn-primary btn-sm">
-              <span className="material-icons-outlined" style={{ fontSize: '14px' }}>add</span> New Loan
-            </Link>
+            {userRole !== 'agent' && (
+              <Link href={`/customers/new?edit=${customer.id}`} className="btn btn-secondary btn-sm">
+                <span className="material-icons-outlined" style={{ fontSize: '14px' }}>edit</span> Edit
+              </Link>
+            )}
+            {userRole !== 'agent' && (
+              <Link href={`/loans/new?customerId=${customer.id}`} className="btn btn-primary btn-sm">
+                <span className="material-icons-outlined" style={{ fontSize: '14px' }}>add</span> New Loan
+              </Link>
+            )}
           </div>
         </div>
       </div>
