@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reports — LoanTrack</title>
+  <link rel="stylesheet" href="../css/styles.css"><link rel="icon" href="../assets/logo.svg">
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main-content">
+    <header class="topbar" id="topbar"></header>
+    <div class="page-content fade-up">
+      <!-- Filter Controls -->
+      <div class="card" style="margin-bottom:20px">
+        <div class="filter-bar" style="margin-bottom:0">
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary btn-sm" onclick="setPreset('today')">Today</button>
+            <button class="btn btn-secondary btn-sm" onclick="setPreset('week')">This Week</button>
+            <button class="btn btn-secondary btn-sm" onclick="setPreset('month')">This Month</button>
+            <button class="btn btn-secondary btn-sm" onclick="setPreset('custom')">Custom</button>
+          </div>
+          <input type="date" class="form-control" id="dateFrom" style="width:auto">
+          <span style="color:var(--text-secondary);font-size:.85rem">to</span>
+          <input type="date" class="form-control" id="dateTo" style="width:auto">
+          <select class="form-control" id="filterRoute" style="width:auto">
+            <option value="">All Routes</option>
+          </select>
+          <select class="form-control" id="filterAgent" style="width:auto">
+            <option value="">All Agents</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Report Cards Row 1 -->
+      <div class="grid-2" style="margin-bottom:20px">
+        <!-- Collection Efficiency -->
+        <div class="card">
+          <div class="card-header">
+            <h3>📊 Collection Efficiency</h3>
+            <div style="display:flex;gap:4px">
+              <button class="btn btn-ghost btn-sm" onclick="alert('PDF export')"><span class="material-icons-outlined" style="font-size:14px">picture_as_pdf</span></button>
+              <button class="btn btn-ghost btn-sm" onclick="alert('Excel export')"><span class="material-icons-outlined" style="font-size:14px">table_chart</span></button>
+            </div>
+          </div>
+          <div class="stats-grid" style="grid-template-columns:1fr 1fr 1fr;margin-bottom:16px">
+            <div class="stat-item"><div class="stat-value" style="font-size:1.3rem">₹28,600</div><div class="stat-label">Expected</div></div>
+            <div class="stat-item"><div class="stat-value" style="font-size:1.3rem;color:var(--success)">₹23,850</div><div class="stat-label">Collected</div></div>
+            <div class="stat-item"><div class="stat-value" style="font-size:1.3rem;color:var(--danger)">83.4%</div><div class="stat-label">Efficiency</div></div>
+          </div>
+          <div class="chart-container"><canvas id="chartEfficiency"></canvas></div>
+        </div>
+
+        <!-- Defaulter Aging -->
+        <div class="card">
+          <div class="card-header">
+            <h3>⏳ Defaulter Aging Report</h3>
+            <div style="display:flex;gap:4px">
+              <button class="btn btn-ghost btn-sm" onclick="alert('PDF export')"><span class="material-icons-outlined" style="font-size:14px">picture_as_pdf</span></button>
+              <button class="btn btn-ghost btn-sm" onclick="alert('Excel export')"><span class="material-icons-outlined" style="font-size:14px">table_chart</span></button>
+            </div>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead><tr><th>Aging Bucket</th><th>Count</th><th>Total Penalty</th><th>Customers</th></tr></thead>
+              <tbody>
+                <tr><td><span class="badge badge-pending">0–7 days</span></td><td><strong>3</strong></td><td>₹680</td><td>Govindaraj, Lakshmi, Meena</td></tr>
+                <tr><td><span class="badge badge-missed">8–30 days</span></td><td><strong>1</strong></td><td>₹1,600</td><td>Anand Babu</td></tr>
+                <tr><td><span class="badge" style="background:#450a0a;color:#fca5a5">30+ days</span></td><td><strong>0</strong></td><td>₹0</td><td>—</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="chart-container" style="height:160px;margin-top:12px"><canvas id="chartAging"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Report Cards Row 2 -->
+      <div class="grid-2" style="margin-bottom:20px">
+        <!-- Penalty Report -->
+        <div class="card">
+          <div class="card-header">
+            <h3>⚡ Penalty Report</h3>
+            <div style="display:flex;gap:4px">
+              <button class="btn btn-ghost btn-sm" onclick="alert('PDF export')"><span class="material-icons-outlined" style="font-size:14px">picture_as_pdf</span></button>
+              <button class="btn btn-ghost btn-sm" onclick="alert('Excel export')"><span class="material-icons-outlined" style="font-size:14px">table_chart</span></button>
+            </div>
+          </div>
+          <div class="stats-grid" style="grid-template-columns:1fr 1fr 1fr">
+            <div class="stat-item"><div class="stat-value" style="font-size:1.3rem;color:var(--danger)">₹2,180</div><div class="stat-label">Accrued</div></div>
+            <div class="stat-item"><div class="stat-value" style="font-size:1.3rem;color:var(--success)">₹200</div><div class="stat-label">Settled</div></div>
+            <div class="stat-item"><div class="stat-value" style="font-size:1.3rem;color:#8B5CF6">₹80</div><div class="stat-label">Waived</div></div>
+          </div>
+          <div class="chart-container" style="height:160px"><canvas id="chartPenalty"></canvas></div>
+        </div>
+
+        <!-- Loan Disbursement -->
+        <div class="card">
+          <div class="card-header">
+            <h3>💰 Loan Disbursement</h3>
+            <div style="display:flex;gap:4px">
+              <button class="btn btn-ghost btn-sm" onclick="alert('PDF export')"><span class="material-icons-outlined" style="font-size:14px">picture_as_pdf</span></button>
+              <button class="btn btn-ghost btn-sm" onclick="alert('Excel export')"><span class="material-icons-outlined" style="font-size:14px">table_chart</span></button>
+            </div>
+          </div>
+          <div class="stats-grid" style="grid-template-columns:1fr 1fr">
+            <div class="stat-item"><div class="stat-value" style="font-size:1.3rem">8</div><div class="stat-label">New Loans This Period</div></div>
+            <div class="stat-item"><div class="stat-value" style="font-size:1.3rem;color:var(--primary-dark)">₹2,15,000</div><div class="stat-label">Total Principal Out</div></div>
+          </div>
+          <div class="chart-container" style="height:160px"><canvas id="chartDisburse"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Agent Performance -->
+      <div class="card">
+        <div class="card-header">
+          <h3>👤 Agent Performance</h3>
+          <div style="display:flex;gap:4px">
+            <button class="btn btn-ghost btn-sm" onclick="alert('PDF export')"><span class="material-icons-outlined" style="font-size:14px">picture_as_pdf</span></button>
+            <button class="btn btn-ghost btn-sm" onclick="alert('Excel export')"><span class="material-icons-outlined" style="font-size:14px">table_chart</span></button>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Agent</th><th>Route</th><th>Customers</th><th>Expected</th><th>Collected</th><th>Hit Rate</th><th>Performance</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Karthik Rajan</strong></td><td>Erode</td><td>4</td><td>₹12,600</td><td>₹9,450</td><td>75%</td>
+                <td><div class="progress" style="width:120px"><div class="progress-fill" style="width:75%"></div></div></td></tr>
+              <tr><td><strong>Senthil Kumar</strong></td><td>Chithode</td><td>2</td><td>₹9,000</td><td>₹8,100</td><td>90%</td>
+                <td><div class="progress" style="width:120px"><div class="progress-fill" style="width:90%"></div></div></td></tr>
+              <tr><td><strong>Muthu Vel</strong></td><td>Gobichettipalayam</td><td>2</td><td>₹7,000</td><td>₹6,300</td><td>90%</td>
+                <td><div class="progress" style="width:120px"><div class="progress-fill" style="width:90%"></div></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<script src="../js/app.js"></script>
+<script>
+initPage('reports', 'Reports & Analytics', [{label:'Dashboard',href:'dashboard.html'},{label:'Reports'}]);
+
+const routeSel = document.getElementById('filterRoute');
+MOCK.routes.forEach(r => { const o = document.createElement('option'); o.value = r; o.textContent = r; routeSel.appendChild(o); });
+const agentSel = document.getElementById('filterAgent');
+MOCK.agents.forEach(a => { const o = document.createElement('option'); o.value = a.id; o.textContent = a.name; agentSel.appendChild(o); });
+
+function setPreset(p) {
+  const today = new Date();
+  document.querySelectorAll('.filter-bar .btn').forEach(b => b.className = 'btn btn-secondary btn-sm');
+  event.target.className = 'btn btn-primary btn-sm';
+  if (p === 'today') {
+    document.getElementById('dateFrom').valueAsDate = today;
+    document.getElementById('dateTo').valueAsDate = today;
+  } else if (p === 'week') {
+    const w = new Date(today); w.setDate(w.getDate() - 7);
+    document.getElementById('dateFrom').valueAsDate = w;
+    document.getElementById('dateTo').valueAsDate = today;
+  } else if (p === 'month') {
+    const m = new Date(today); m.setMonth(m.getMonth() - 1);
+    document.getElementById('dateFrom').valueAsDate = m;
+    document.getElementById('dateTo').valueAsDate = today;
+  }
+}
+
+// Simple Canvas Bar Charts
+function drawBarChart(canvasId, labels, datasets) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width; canvas.height = rect.height;
+  const w = canvas.width, h = canvas.height;
+  const pad = { top: 20, right: 20, bottom: 40, left: 50 };
+  const cw = w - pad.left - pad.right, ch = h - pad.top - pad.bottom;
+  const maxVal = Math.max(...datasets.flatMap(d => d.data)) * 1.1 || 100;
+  const barGroupW = cw / labels.length;
+  const barW = Math.min(barGroupW * 0.6 / datasets.length, 30);
+
+  ctx.clearRect(0, 0, w, h);
+  // Grid
+  ctx.strokeStyle = '#E2E8F0'; ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + ch - (ch / 4) * i;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(w - pad.right, y); ctx.stroke();
+    ctx.fillStyle = '#94A3B8'; ctx.font = '10px Inter'; ctx.textAlign = 'right';
+    ctx.fillText(Math.round(maxVal / 4 * i).toLocaleString(), pad.left - 6, y + 3);
+  }
+  // Bars
+  labels.forEach((label, i) => {
+    const x = pad.left + barGroupW * i + barGroupW / 2;
+    datasets.forEach((ds, j) => {
+      const bx = x - (datasets.length * barW) / 2 + j * barW;
+      const bh = (ds.data[i] / maxVal) * ch;
+      ctx.fillStyle = ds.color;
+      ctx.beginPath(); ctx.roundRect(bx, pad.top + ch - bh, barW - 2, bh, [3, 3, 0, 0]); ctx.fill();
+    });
+    ctx.fillStyle = '#64748B'; ctx.font = '10px Inter'; ctx.textAlign = 'center';
+    ctx.fillText(label, x, h - pad.bottom + 16);
+  });
+}
+
+// Draw charts after load
+setTimeout(() => {
+  drawBarChart('chartEfficiency', ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+    [{ data: [4500, 4500, 4500, 4500, 4500, 3600, 2000], color: '#E2E8F0' },
+     { data: [3800, 4200, 3900, 4100, 4000, 3200, 1600], color: '#F5A623' }]);
+  drawBarChart('chartAging', ['0-7 days', '8-30 days', '30+ days'],
+    [{ data: [3, 1, 0], color: '#F5A623' }]);
+  drawBarChart('chartPenalty', ['Accrued', 'Settled', 'Waived'],
+    [{ data: [2180, 200, 80], color: '#EF4444' }]);
+  drawBarChart('chartDisburse', ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
+    [{ data: [45000, 60000, 55000, 55000], color: '#F5A623' }]);
+}, 200);
+
+setPreset('month');
+</script>
+</body>
+</html>

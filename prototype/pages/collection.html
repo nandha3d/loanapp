@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Collection Entry — LoanTrack</title>
+  <link rel="stylesheet" href="../css/styles.css"><link rel="icon" href="../assets/logo.svg">
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main-content">
+    <header class="topbar" id="topbar"></header>
+    <div class="page-content fade-up">
+      <!-- Agent Info Bar -->
+      <div class="card" style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div class="profile-avatar" style="width:48px;height:48px;font-size:1rem">KR</div>
+          <div>
+            <h3 style="font-size:1rem">Karthik Rajan — Field Agent</h3>
+            <p style="font-size:.8rem;color:var(--text-secondary)">Route: <strong>Erode</strong> · Today: <span id="todayDate"></span></p>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <span class="badge badge-active" style="font-size:.8rem;padding:6px 14px">🟢 Online</span>
+        </div>
+      </div>
+
+      <!-- Summary Bar -->
+      <div class="summary-bar" style="margin-bottom:20px">
+        <div class="summary-item"><div class="summary-value" id="sumDue">₹0</div><div class="summary-label">Total Due Today</div></div>
+        <div class="summary-item"><div class="summary-value" id="sumCollected" style="color:#22C55E">₹0</div><div class="summary-label">Total Submitted</div></div>
+        <div class="summary-item"><div class="summary-value" id="sumRemaining" style="color:#F59E0B">₹0</div><div class="summary-label">Remaining</div></div>
+        <div class="summary-item"><div class="summary-value" id="sumCount">0/0</div><div class="summary-label">Entries Done</div></div>
+      </div>
+
+      <!-- Collection Table -->
+      <div class="card">
+        <div class="card-header">
+          <h3>📋 Today's Collection List</h3>
+          <span class="badge badge-pending" id="pendingBadge">4 Pending</span>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Customer</th><th>Loan</th><th>Due Amount</th><th>Received (₹)</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody id="collectionTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Collection Modal -->
+<div class="modal-overlay" id="collectionModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>💰 Log Collection</h3>
+      <button class="modal-close material-icons-outlined" onclick="closeModal()">close</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--bg);border-radius:var(--radius-sm);padding:14px;margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;font-size:.85rem">
+          <span><strong id="modalCustName">Customer Name</strong></span>
+          <span id="modalCustId" style="color:var(--text-secondary)">CUS001</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:.82rem;color:var(--text-secondary);margin-top:4px">
+          <span>Scheduled: Today</span>
+          <span>Due: <strong id="modalDue" style="color:var(--text)">₹300</strong></span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Received Amount (₹) *</label>
+        <input type="number" class="form-control" id="modalReceived" placeholder="Enter received amount" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Payment Mode</label>
+        <select class="form-control" id="modalMode">
+          <option value="Cash">Cash</option>
+          <option value="UPI">UPI</option>
+          <option value="Cheque">Cheque</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Remarks (optional)</label>
+        <input type="text" class="form-control" id="modalRemarks" placeholder="Any notes...">
+      </div>
+      <div style="background:#FEF3C7;border-radius:var(--radius-sm);padding:10px 14px;font-size:.78rem;color:#92400E;display:flex;align-items:center;gap:8px">
+        <span class="material-icons-outlined" style="font-size:16px">warning</span>
+        <span><strong>Warning:</strong> Once submitted, this entry cannot be reversed.</span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitCollection()"><span class="material-icons-outlined" style="font-size:16px">check</span> Submit Payment</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/app.js"></script>
+<script>
+initPage('collection', 'Collection Entry');
+document.getElementById('todayDate').textContent = todayStr();
+
+// Build today's collection list for Erode route
+const collectionItems = [
+  { custId: 'CUS001', loanId: 'LN001', due: 300, submitted: false, received: 0 },
+  { custId: 'CUS003', loanId: 'LN003', due: 1000, submitted: false, received: 0 },
+  { custId: 'CUS007', loanId: 'LN007', due: 300, submitted: false, received: 0 },
+  { custId: 'CUS008', loanId: 'LN001', due: 300, submitted: false, received: 0 },
+];
+
+let activeIdx = -1;
+
+function renderCollection() {
+  let totalDue = 0, totalCollected = 0, doneCount = 0;
+  document.getElementById('collectionTable').innerHTML = collectionItems.map((item, idx) => {
+    const c = getCustomer(item.custId);
+    totalDue += item.due;
+    if (item.submitted) { totalCollected += item.received; doneCount++; }
+    return `<tr class="${item.submitted ? 'locked' : ''}">
+      <td><strong>${c ? c.name : item.custId}</strong><br><span style="font-size:.72rem;color:var(--text-light)">${item.custId}</span></td>
+      <td><a href="loan-detail.html?id=${item.loanId}">${item.loanId}</a></td>
+      <td>${fmt(item.due)}</td>
+      <td>${item.submitted 
+        ? `<span style="font-weight:600;color:var(--success)">${fmt(item.received)}</span>` 
+        : `<input type="number" class="form-control" style="width:100px" id="recv_${idx}" placeholder="₹" value="${item.due}">`}
+      </td>
+      <td>${item.submitted 
+        ? '<span class="badge badge-paid"><span class="material-icons-outlined" style="font-size:12px">lock</span> Submitted</span>' 
+        : '<span class="badge badge-upcoming">Pending</span>'}</td>
+      <td>${item.submitted 
+        ? '<span style="color:var(--text-light);font-size:.8rem">Done</span>' 
+        : `<button class="btn btn-primary btn-sm" onclick="openModal(${idx})"><span class="material-icons-outlined" style="font-size:14px">send</span> Submit</button>`}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('sumDue').textContent = fmt(totalDue);
+  document.getElementById('sumCollected').textContent = fmt(totalCollected);
+  document.getElementById('sumRemaining').textContent = fmt(totalDue - totalCollected);
+  document.getElementById('sumCount').textContent = `${doneCount}/${collectionItems.length}`;
+  document.getElementById('pendingBadge').textContent = `${collectionItems.length - doneCount} Pending`;
+}
+
+function openModal(idx) {
+  activeIdx = idx;
+  const item = collectionItems[idx];
+  const c = getCustomer(item.custId);
+  document.getElementById('modalCustName').textContent = c ? c.name : item.custId;
+  document.getElementById('modalCustId').textContent = item.custId;
+  document.getElementById('modalDue').textContent = fmt(item.due);
+  document.getElementById('modalReceived').value = document.getElementById('recv_' + idx)?.value || item.due;
+  document.getElementById('modalRemarks').value = '';
+  document.getElementById('collectionModal').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('collectionModal').classList.remove('show');
+  activeIdx = -1;
+}
+
+function submitCollection() {
+  if (activeIdx < 0) return;
+  const amount = parseFloat(document.getElementById('modalReceived').value);
+  if (!amount || amount <= 0) { alert('Please enter a valid amount'); return; }
+  collectionItems[activeIdx].submitted = true;
+  collectionItems[activeIdx].received = amount;
+  closeModal();
+  renderCollection();
+}
+
+// Close modal on backdrop click
+document.getElementById('collectionModal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+renderCollection();
+</script>
+</body>
+</html>
