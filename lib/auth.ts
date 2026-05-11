@@ -36,6 +36,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           data: { lastLoginAt: new Date() },
         });
 
+        // Audit log login event (fire-and-forget, non-blocking)
+        prisma.auditLog.create({
+          data: {
+            tenantId: user.tenantId,
+            userId: user.id,
+            action: 'login',
+            entityType: 'user',
+            entityId: user.id,
+          },
+        }).catch(() => {});
+
         return {
           id: user.id,
           name: user.name,

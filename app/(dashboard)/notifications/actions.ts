@@ -1,14 +1,15 @@
 'use server';
 
 import prisma from '@/lib/db';
-import { getDefaultTenantId } from '@/lib/tenant';
+import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { revalidatePath } from 'next/cache';
 
 export async function markNotificationRead(id: string) {
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
 
-  await prisma.systemNotification.update({
-    where: { id, tenantId },
+  await prisma.systemNotification.updateMany({
+    where: { id, tenantId, appType },
     data: { isRead: true, readAt: new Date() },
   });
 
@@ -18,9 +19,10 @@ export async function markNotificationRead(id: string) {
 
 export async function markAllNotificationsRead() {
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
 
   await prisma.systemNotification.updateMany({
-    where: { tenantId, isRead: false },
+    where: { tenantId, appType, isRead: false },
     data: { isRead: true, readAt: new Date() },
   });
 

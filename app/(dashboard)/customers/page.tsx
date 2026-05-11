@@ -20,8 +20,14 @@ export default async function CustomersPage({
   const status = resolvedParams.status || '';
   const { page, limit, skip } = parsePagination(resolvedParams);
 
+  const branchId = (session?.user as any)?.branchId as string | undefined;
+
   // Build where clause
   const where: any = { tenantId, appType };
+  // Admins are branch-scoped; superadmin/developer see all
+  if (userRole === 'admin' && branchId) {
+    where.branchId = branchId;
+  }
   if (q) {
     where.OR = [
       { name: { contains: q } },

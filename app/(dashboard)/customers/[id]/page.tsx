@@ -2,6 +2,7 @@ import prisma from '@/lib/db';
 import { getDefaultTenantId, getSetting } from '@/lib/tenant';
 import CustomerProfileClient from './CustomerProfileClient';
 import { notFound } from 'next/navigation';
+import { auth } from '@/lib/auth';
 
 export default async function CustomerProfilePage({
   params
@@ -10,6 +11,8 @@ export default async function CustomerProfilePage({
 }) {
   const resolvedParams = await params;
   const tenantId = await getDefaultTenantId();
+  const session = await auth();
+  const userRole = (session?.user as any)?.role || 'agent';
   
   const customer = await prisma.customer.findUnique({
     where: { id: resolvedParams.id, tenantId },
@@ -32,5 +35,5 @@ export default async function CustomerProfilePage({
   // Serialize Decimal fields for client component
   const serializedCustomer = JSON.parse(JSON.stringify(customer));
 
-  return <CustomerProfileClient customer={serializedCustomer} currencySymbol={currencySymbol} />;
+  return <CustomerProfileClient customer={serializedCustomer} currencySymbol={currencySymbol} userRole={userRole} />;
 }

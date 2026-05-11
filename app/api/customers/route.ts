@@ -1,24 +1,50 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { apiSuccess, apiError } from '@/lib/utils';
-import { getDefaultTenantId } from '@/lib/tenant';
+import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { auth } from '@/lib/auth';
+import { getAgentRouteIds } from '@/lib/access';
 
 export async function GET(request: Request) {
   try {
     const session = await auth();
-    if (!session) return apiError('Unauthorized', 401);
+    if (!session?.user) return apiError('Unauthorized', 401);
+
+    const role = (session.user as any)?.role;
+    const branchId = (session.user as any)?.branchId;
+    const userId = session.user?.id;
 
     const tenantId = await getDefaultTenantId();
+    const appType = await getUserAppType();
     const { searchParams } = new URL(request.url);
     const q = searchParams.get('q');
-    
-    const where: any = { tenantId };
+
+    const where: any = { tenantId, appType };
+
+    // Branch isolation for micro lending admins
+    if (role === 'admin' && branchId) {
+      where.branchId = branchId;
+    }
+
+    // Agent can only see customers from their assigned/shared routes
+    if (role === 'agent' && userId) {
+      const routeIds = await getAgentRouteIds(userId);
+      if (routeIds.length === 0) {
+        return apiSuccess([]);
+      }
+      where.routeId = { in: routeIds };
+    }
+
+    // Block non-admin, non-superadmin, non-developer, non-agent
+    if (!['admin', 'superadmin', 'developer', 'agent'].includes(role)) {
+      return apiError('Forbidden', 403);
+    }
+
     if (q) {
       where.OR = [
         { name: { contains: q } },
         { phone: { contains: q } },
-        { customerCode: { contains: q } }
+        { customerCode: { contains: q } },
       ];
     }
 
@@ -28,10 +54,10 @@ export async function GET(request: Request) {
         route: { select: { name: true } },
         loans: {
           where: { status: 'active' },
-          select: { id: true, principal: true, status: true }
-        }
+          select: { id: true, principal: true, status: true },
+        },
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
 
     return apiSuccess(customers);

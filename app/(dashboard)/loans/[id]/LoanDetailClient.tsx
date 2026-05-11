@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { formatCurrency, formatDate, getBadgeClass, calcPercentage } from '@/lib/utils';
-import { markInstalmentPaid, waiveLoanPenalty, settleLoanPenalty, closeLoan } from './actions';
+import { markInstalmentPaid, waiveLoanPenalty, settleLoanPenalty, closeLoan, renewLoan } from './actions';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -29,6 +29,8 @@ export default function LoanDetailClient({
   const [paymentModal, setPaymentModal] = useState<any>(null);
   const [penaltyModal, setPenaltyModal] = useState<any>(null);
   const [closeModal, setCloseModal] = useState(false);
+  const [renewModal, setRenewModal] = useState(false);
+  const [chequeReturned, setChequeReturned] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Payment form state
@@ -101,9 +103,17 @@ export default function LoanDetailClient({
   };
 
   const handleCloseLoan = async () => {
+    const activeChequesCount = loan.customer?.securityCheques?.filter(
+      (c: any) => c.status === 'active'
+    ).length ?? 0;
+    if (activeChequesCount > 0 && !chequeReturned) {
+      alert('Please confirm security cheque return before closing the loan.');
+      return;
+    }
     setLoading(true);
     const fd = new FormData();
     fd.set('loanId', loan.id);
+    fd.set('markChequesReturned', chequeReturned ? '1' : '0');
     const result = await closeLoan(fd);
     setLoading(false);
     if (result.success) {
@@ -111,6 +121,20 @@ export default function LoanDetailClient({
       router.refresh();
     } else {
       alert(result.error || 'Failed to close loan');
+    }
+  };
+
+  const handleRenewLoan = async () => {
+    setLoading(true);
+    const fd = new FormData();
+    fd.set('loanId', loan.id);
+    const result = await renewLoan(fd);
+    setLoading(false);
+    if (result.success && result.newLoanId) {
+      setRenewModal(false);
+      router.push(`/loans/${result.newLoanId}`);
+    } else {
+      alert((result as any).error || 'Failed to renew loan');
     }
   };
 
@@ -245,6 +269,9 @@ export default function LoanDetailClient({
                 <button className="btn btn-danger" onClick={() => setCloseModal(true)}>
                   <span className="material-icons-outlined" style={{ fontSize: '16px' }}>lock</span> Close Loan
                 </button>
+                <button className="btn btn-secondary" onClick={() => setRenewModal(true)}>
+                  <span className="material-icons-outlined" style={{ fontSize: '16px' }}>autorenew</span> Renew Loan
+                </button>
               </div>
             </div>
           )}
@@ -367,12 +394,65 @@ export default function LoanDetailClient({
                   )}
                 </p>
               </div>
+              {/* Security cheque return checklist */}
+              {(() => {
+                const activeChqs = (loan.customer?.securityCheques ?? []).filter((c: any) => c.status === 'active');
+                if (activeChqs.length === 0) return null;
+                return (
+                  <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 'var(--radius-sm)', padding: '14px' }}>
+                    <p style={{ fontSize: '.88rem', fontWeight: 600, color: '#92400E', marginBottom: '10px' }}>
+                      ⚠️ {activeChqs.length} security cheque{activeChqs.length > 1 ? 's' : ''} on file — please return to borrower
+                    </p>
+                    <ul style={{ fontSize: '.82rem', color: '#78350F', marginBottom: '12px', paddingLeft: '18px' }}>
+                      {activeChqs.map((c: any) => (
+                        <li key={c.id}>{c.bankName} — #{c.chequeNumber}</li>
+                      ))}
+                    </ul>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '.85rem' }}>
+                      <input
+                        type="checkbox"
+                        checked={chequeReturned}
+                        onChange={(e) => setChequeReturned(e.target.checked)}
+                      />
+                      I confirm all security cheques have been returned to the borrower
+                    </label>
+                  </div>
+                );
+              })()}
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setCloseModal(false)}>Cancel</button>
               <button className="btn btn-danger" onClick={handleCloseLoan} disabled={loading}>
                 <span className="material-icons-outlined" style={{ fontSize: '16px' }}>lock</span>
                 {loading ? 'Closing...' : 'Close Loan'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Renew Loan Modal */}
+      {renewModal && (
+        <div className="modal-overlay show" onClick={(e) => { if (e.target === e.currentTarget) setRenewModal(false); }}>
+          <div className="modal">
+            <div className="modal-header">
+              <h3>🔄 Renew Loan</h3>
+              <button className="modal-close material-icons-outlined" onClick={() => setRenewModal(false)}>close</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ background: '#EFF6FF', borderRadius: 'var(--radius-sm)', padding: '16px', marginBottom: '12px' }}>
+                <p style={{ fontSize: '.9rem', fontWeight: 600, color: '#1E40AF' }}>Renew <strong>{loan.loanCode}</strong>?</p>
+                <p style={{ fontSize: '.82rem', color: '#1D4ED8', marginTop: '6px' }}>
+                  This will close the current loan and create a fresh loan with the same principal 
+                  ({loan.frequency}, {loan.tenure} instalments) starting today.
+                  The old loan code will be preserved for reference.
+                </p>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setRenewModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleRenewLoan} disabled={loading}>
+                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>autorenew</span>
+                {loading ? 'Renewing...' : 'Renew Loan'}
               </button>
             </div>
           </div>

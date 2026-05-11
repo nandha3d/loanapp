@@ -10,7 +10,8 @@ export async function getUserAppType(): Promise<string> {
   if (role === 'superadmin' || role === 'developer') {
     const cookieStore = await cookies();
     const activeApp = cookieStore.get('active_app_type')?.value;
-    if (activeApp) return activeApp;
+    const allowedAppTypes = ['microlending', 'autofinance', 'chitfunds'];
+    if (activeApp && allowedAppTypes.includes(activeApp)) return activeApp;
   }
 
   return (session?.user as any)?.appType || 'microlending';

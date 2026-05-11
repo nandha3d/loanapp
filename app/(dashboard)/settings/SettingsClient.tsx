@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { saveSystemSettings, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, deleteLoanPackage, createUser } from './actions';
+import { saveSystemSettings, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, deleteLoanPackage, createUser, assignAgentToRoute, removeAgentFromRoute } from './actions';
 import Modal from '@/components/Modal';
 
 export default function SettingsClient({ 
@@ -16,6 +16,8 @@ export default function SettingsClient({
   const [isRouteModalOpen, setIsRouteModalOpen] = useState(false);
   const [isPackageModalOpen, setIsPackageModalOpen] = useState(false);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [routeAgentModal, setRouteAgentModal] = useState<{ routeId: string; routeName: string; agents: any[] } | null>(null);
+  const [raAgentId, setRaAgentId] = useState('');
 
   const showToast = (msg: string) => {
     alert(msg); 
@@ -57,15 +59,27 @@ export default function SettingsClient({
         </div>
         <div className="table-wrapper">
           <table>
-            <thead><tr><th>Route Name</th><th>Assigned Agent</th><th>Active Customers</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Route Name</th><th>Primary Agent</th><th>Shared Agents</th><th>Customers</th><th>Actions</th></tr></thead>
             <tbody>
               {routes.map(r => (
                 <tr key={r.id}>
                   <td><strong>{r.name}</strong></td>
-                  <td>{r.assignedAgent?.name || 'Unassigned'}</td>
+                  <td>{r.assignedAgent?.name || <span style={{color:'var(--text-light)'}}>Unassigned</span>}</td>
+                  <td>
+                    <div style={{display:'flex', flexWrap:'wrap', gap:'4px'}}>
+                      {(r.routeAgents || []).map((ra: any) => (
+                        <span key={ra.agentId} style={{display:'inline-flex', alignItems:'center', gap:'3px', background:'var(--bg-muted)', borderRadius:'var(--radius-sm)', padding:'2px 6px', fontSize:'.72rem'}}>
+                          {ra.agent?.name}
+                          <button style={{background:'none', border:'none', cursor:'pointer', color:'var(--text-light)', fontSize:'12px', lineHeight:1, padding:'0 1px'}} title="Remove" onClick={async () => { if(confirm('Remove agent from route?')) { await removeAgentFromRoute(r.id, ra.agentId); window.location.reload(); } }}>✕</button>
+                        </span>
+                      ))}
+                      <button className="btn btn-ghost btn-sm" style={{fontSize:'.7rem', padding:'2px 6px'}} onClick={() => { setRouteAgentModal({ routeId: r.id, routeName: r.name, agents: r.routeAgents || [] }); setRaAgentId(''); }}>
+                        <span className="material-icons-outlined" style={{fontSize:'12px'}}>person_add</span>
+                      </button>
+                    </div>
+                  </td>
                   <td>{r._count.customers}</td>
                   <td>
-                    <button className="btn btn-ghost btn-sm">Edit</button>
                     <button className="btn btn-ghost btn-sm" style={{color:'var(--danger)'}} onClick={() => { if(confirm('Delete route?')) deleteRoute(r.id); }}>Delete</button>
                   </td>
                 </tr>
@@ -315,6 +329,25 @@ export default function SettingsClient({
           </div>
         </form>
       </Modal>
+
+      {/* RouteAgent Modal */}
+      {routeAgentModal && (
+        <Modal isOpen={true} onClose={() => setRouteAgentModal(null)} title={`Assign Agent to ${routeAgentModal.routeName}`}>
+          <div className="form-group">
+            <label className="form-label">Select Agent</label>
+            <select className="form-control" value={raAgentId} onChange={e => setRaAgentId(e.target.value)}>
+              <option value="">Choose agent...</option>
+              {users.filter(u => u.role === 'agent' && !routeAgentModal.agents.some((ra: any) => ra.agentId === u.id)).map(u => (
+                <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="form-actions" style={{marginTop:'20px'}}>
+            <button className="btn btn-primary" disabled={!raAgentId} onClick={async () => { if (!raAgentId) return; await assignAgentToRoute(routeAgentModal.routeId, raAgentId); setRouteAgentModal(null); window.location.reload(); }}>Assign</button>
+            <button className="btn btn-ghost" onClick={() => setRouteAgentModal(null)}>Cancel</button>
+          </div>
+        </Modal>
+      )}
 
     </div>
   );

@@ -4,25 +4,58 @@ import prisma from '@/lib/db';
 import { getDefaultTenantId, setSetting, getUserAppType } from '@/lib/tenant';
 import { revalidatePath } from 'next/cache';
 import { hash } from 'bcryptjs';
+import { auth } from '@/lib/auth';
 
 export async function saveSystemSettings(formData: FormData) {
   const tenantId = await getDefaultTenantId();
+  const session = await auth();
+  const userId = session?.user?.id;
   const entries = Array.from(formData.entries());
+  const saved: Record<string, string> = {};
   
   for (const [key, value] of entries) {
     if (key.startsWith('$')) continue; // Skip Next.js internal fields
     await setSetting(tenantId, key, value.toString(), 'system');
+    saved[key] = value.toString();
   }
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId,
+      userId,
+      action: 'update',
+      entityType: 'settings',
+      newValue: JSON.stringify({ category: 'system', changes: saved }),
+    },
+  });
+
   revalidatePath('/settings');
   return { success: true };
 }
 
 export async function savePenaltySettings(formData: FormData) {
   const tenantId = await getDefaultTenantId();
+  const session = await auth();
+  const userId = session?.user?.id;
+  const fields = {
+    default_penalty_per_day: formData.get('default_penalty_per_day') as string,
+    penalty_grace_period: formData.get('penalty_grace_period') as string,
+    penalty_max_cap: formData.get('penalty_max_cap') as string,
+  };
   
-  await setSetting(tenantId, 'default_penalty_per_day', formData.get('default_penalty_per_day') as string, 'penalty');
-  await setSetting(tenantId, 'penalty_grace_period', formData.get('penalty_grace_period') as string, 'penalty');
-  await setSetting(tenantId, 'penalty_max_cap', formData.get('penalty_max_cap') as string, 'penalty');
+  for (const [key, value] of Object.entries(fields)) {
+    await setSetting(tenantId, key, value, 'penalty');
+  }
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId,
+      userId,
+      action: 'update',
+      entityType: 'settings',
+      newValue: JSON.stringify({ category: 'penalty', changes: fields }),
+    },
+  });
   
   revalidatePath('/settings');
   return { success: true };
@@ -98,6 +131,8 @@ export async function deleteLoanPackage(id: string) {
 export async function createUser(formData: FormData) {
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
+  const session = await auth();
+  const actorId = session?.user?.id;
   const passwordHash = await hash(formData.get('password') as string, 12);
   
   const newUser = await prisma.user.create({
@@ -112,7 +147,66 @@ export async function createUser(formData: FormData) {
       status: 'active',
     }
   });
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId,
+      userId: actorId,
+      action: 'create',
+      entityType: 'user',
+      entityId: newUser.id,
+      newValue: JSON.stringify({ name: newUser.name, username: newUser.username, role: newUser.role }),
+    },
+  });
   
   revalidatePath('/settings');
   return { success: true, user: newUser };
+}
+
+export async function assignAgentToRoute(routeId: string, agentId: string) {
+  const session = await auth();
+  const userId = session?.user?.id;
+  const role = (session?.user as any)?.role;
+  if (!userId || (role !== 'admin' && role !== 'superadmin' && role !== 'developer')) {
+    return { success: false, error: 'Unauthorized' };
+  }
+
+  const tenantId = await getDefaultTenantId();
+
+  // Verify route belongs to tenant
+  const route = await prisma.route.findFirst({ where: { id: routeId, tenantId } });
+  if (!route) return { success: false, error: 'Route not found' };
+
+  // Verify agent belongs to tenant
+  const agent = await prisma.user.findFirst({ where: { id: agentId, tenantId, role: 'agent' } });
+  if (!agent) return { success: false, error: 'Agent not found' };
+
+  await prisma.routeAgent.upsert({
+    where: { routeId_agentId: { routeId, agentId } },
+    create: { routeId, agentId },
+    update: {},
+  });
+
+  revalidatePath('/settings');
+  return { success: true };
+}
+
+export async function removeAgentFromRoute(routeId: string, agentId: string) {
+  const session = await auth();
+  const userId = session?.user?.id;
+  const role = (session?.user as any)?.role;
+  if (!userId || (role !== 'admin' && role !== 'superadmin' && role !== 'developer')) {
+    return { success: false, error: 'Unauthorized' };
+  }
+
+  const tenantId = await getDefaultTenantId();
+
+  // Verify route belongs to tenant before deleting
+  const route = await prisma.route.findFirst({ where: { id: routeId, tenantId } });
+  if (!route) return { success: false, error: 'Route not found' };
+
+  await prisma.routeAgent.deleteMany({ where: { routeId, agentId } });
+
+  revalidatePath('/settings');
+  return { success: true };
 }

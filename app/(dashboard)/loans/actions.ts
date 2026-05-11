@@ -9,10 +9,16 @@ import { auth } from '@/lib/auth';
 
 export async function createLoan(formData: FormData) {
   const session = await auth();
+  const role = (session?.user as any)?.role;
   const createdById = session?.user?.id;
   const tenantId = await getDefaultTenantId();
-  const sessionAppType = await getUserAppType();
-  
+  const appType = await getUserAppType(); // Always derive appType from session/cookie, never from form
+
+  // Only admin, superadmin and developer can create loans
+  if (!createdById || role === 'agent') {
+    redirect('/collection');
+  }
+
   const customerId = formData.get('customerId') as string;
   const principal = Number(formData.get('principal'));
   const deduction = Number(formData.get('deduction'));
@@ -23,7 +29,6 @@ export async function createLoan(formData: FormData) {
   const penaltyRate = Number(formData.get('penaltyRate'));
   const voucherRef = formData.get('voucherRef') as string;
   const loanType = formData.get('loanType') as string || 'cheque';
-  const appType = (formData.get('appType') as string) || sessionAppType;
   const collateralDetails = formData.get('collateralDetails') as string || null;
   const guarantorName = formData.get('guarantorName') as string;
   const guarantorPhone = formData.get('guarantorPhone') as string;
@@ -66,8 +71,24 @@ export async function createLoan(formData: FormData) {
     status: 'upcoming'
   }));
 
-  // Fetch customer's agent
-  const customer = await prisma.customer.findUnique({ where: { id: customerId } });
+  // Fetch customer's agent — validate it belongs to same tenant/app
+  const customer = await prisma.customer.findFirst({
+    where: { id: customerId, tenantId, appType, status: 'active' },
+  });
+
+  if (!customer) {
+    redirect('/loans/new?error=customer_not_found');
+  }
+
+  // Validate package belongs to same tenant/app if provided
+  if (packageId) {
+    const pkg = await prisma.loanPackage.findFirst({
+      where: { id: packageId, tenantId, appType },
+    });
+    if (!pkg) {
+      redirect('/loans/new?error=package_not_found');
+    }
+  }
 
   // Create Loan & Instalments
   const loan = await prisma.loan.create({

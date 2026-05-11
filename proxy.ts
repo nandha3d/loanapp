@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const session = await auth();
   const { pathname } = request.nextUrl;
 
@@ -29,19 +29,24 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // 2. Admin Routes (/dashboard, /customers, /loans, /penalties, /reports, /settings)
-  const adminRoutes = ['/dashboard', '/customers', '/loans', '/penalties', '/reports', '/settings', '/approvals'];
-  const isAdminRoute = adminRoutes.some(route => pathname.startsWith(route));
-  
-  if (isAdminRoute) {
+  // 2. Admin-only Routes (/dashboard, /loans, /penalties, /reports, /settings)
+  const adminOnlyRoutes = ['/dashboard', '/loans', '/penalties', '/reports', '/settings'];
+  const isAdminOnlyRoute = adminOnlyRoutes.some(route => pathname.startsWith(route));
+
+  if (isAdminOnlyRoute) {
     if (role !== 'admin' && role !== 'superadmin' && role !== 'developer') {
       return NextResponse.redirect(new URL('/collection', request.url));
     }
   }
 
-  // 3. Agent Routes (/collection, /notifications)
-  // Agents can access these, Admins and Superadmins can too.
-  // We don't need a specific block here since agents are blocked from admin routes above.
+  // 3. Shared routes: /customers, /approvals, /collection, /notifications — agents allowed
+  // Agent cannot use /customers/new?edit= (direct edit), redirect to customers list
+  if (role === 'agent' && pathname.startsWith('/customers/new') && request.nextUrl.searchParams.has('edit')) {
+    return NextResponse.redirect(new URL('/customers', request.url));
+  }
+
+  // 4. Agent Routes (/collection, /notifications) — all authenticated roles allowed
+  // No additional block needed here
   
   return NextResponse.next();
 }
