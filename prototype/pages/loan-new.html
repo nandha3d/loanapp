@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Loan — LoanTrack</title>
+  <link rel="stylesheet" href="../css/styles.css"><link rel="icon" href="../assets/logo.svg">
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main-content">
+    <header class="topbar" id="topbar"></header>
+    <div class="page-content fade-up">
+      <div class="card" style="max-width:800px">
+        <div class="card-header"><h3>📝 Create New Loan</h3></div>
+        <form onsubmit="return handleLoanSubmit(event)">
+          <!-- Customer Link -->
+          <div class="form-group">
+            <label class="form-label">Customer *</label>
+            <select class="form-control" id="customer" required onchange="onCustomerSelect()">
+              <option value="">Search / Select Customer</option>
+            </select>
+          </div>
+          <div id="customerPreview" style="display:none;margin-bottom:18px" class="card" style="background:var(--bg)"></div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Loan Principal (₹) *</label>
+              <input type="number" class="form-control" id="principal" placeholder="e.g. 30000" required oninput="calcLoan()">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Deduction Amount (₹) *</label>
+              <input type="number" class="form-control" id="deduction" placeholder="e.g. 3000" required oninput="calcLoan()">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Net Cash Disbursed</label>
+            <div class="form-computed" id="netDisbursed">₹0</div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Collection Frequency *</label>
+              <select class="form-control" id="frequency" required onchange="calcLoan()">
+                <option value="Daily">Daily</option>
+                <option value="Weekly">Weekly</option>
+                <option value="Monthly">Monthly</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tenure (number of instalments) *</label>
+              <input type="number" class="form-control" id="tenure" placeholder="e.g. 100" required oninput="calcLoan()">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Start Date *</label>
+              <input type="date" class="form-control" id="startDate" required onchange="calcLoan()">
+            </div>
+            <div class="form-group">
+              <label class="form-label">End Date (auto-calculated)</label>
+              <div class="form-computed" id="endDate">—</div>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Per-Instalment Amount</label>
+              <div class="form-computed" id="perInstalment">₹0</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Penalty per Missed Payment (₹)</label>
+              <input type="number" class="form-control" id="penalty" placeholder="e.g. 50" value="50">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Debit Voucher Reference</label>
+            <input type="text" class="form-control" id="voucherRef" placeholder="Enter voucher reference">
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary"><span class="material-icons-outlined" style="font-size:16px">check</span> Create Loan</button>
+            <a href="loans.html" class="btn btn-ghost">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </main>
+</div>
+<script src="../js/app.js"></script>
+<script>
+initPage('loans', 'New Loan', [{label:'Dashboard',href:'dashboard.html'},{label:'Loans',href:'loans.html'},{label:'New Loan'}]);
+
+// Populate customer dropdown
+const custSel = document.getElementById('customer');
+MOCK.customers.forEach(c => { const o = document.createElement('option'); o.value = c.id; o.textContent = `${c.id} — ${c.name} (${c.route})`; custSel.appendChild(o); });
+
+// Pre-select from URL
+const preCustomer = getUrlParam('customer');
+if (preCustomer) { custSel.value = preCustomer; onCustomerSelect(); }
+
+// Set default start date
+document.getElementById('startDate').valueAsDate = new Date();
+
+function onCustomerSelect() {
+  const c = getCustomer(custSel.value);
+  const prev = document.getElementById('customerPreview');
+  if (c) {
+    prev.style.display = 'block';
+    prev.innerHTML = `<div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg);border-radius:var(--radius-sm)"><div class="profile-avatar" style="width:40px;height:40px;font-size:.85rem">${c.name.split(' ').map(w=>w[0]).join('').slice(0,2)}</div><div><strong>${c.name}</strong><br><span style="font-size:.78rem;color:var(--text-secondary)">${c.phone} · ${c.route} · ${c.kyc}</span></div></div>`;
+  } else { prev.style.display = 'none'; }
+}
+
+function calcLoan() {
+  const p = parseFloat(document.getElementById('principal').value) || 0;
+  const d = parseFloat(document.getElementById('deduction').value) || 0;
+  const t = parseInt(document.getElementById('tenure').value) || 0;
+  const freq = document.getElementById('frequency').value;
+  const start = document.getElementById('startDate').value;
+
+  document.getElementById('netDisbursed').textContent = fmt(p - d);
+  document.getElementById('perInstalment').textContent = t > 0 ? fmt(Math.round(p / t)) : '₹0';
+
+  if (start && t > 0) {
+    const sd = new Date(start);
+    if (freq === 'Daily') sd.setDate(sd.getDate() + t);
+    else if (freq === 'Weekly') sd.setDate(sd.getDate() + t * 7);
+    else sd.setMonth(sd.getMonth() + t);
+    document.getElementById('endDate').textContent = fmtDate(sd.toISOString().split('T')[0]);
+  } else {
+    document.getElementById('endDate').textContent = '—';
+  }
+}
+
+function handleLoanSubmit(e) {
+  e.preventDefault();
+  alert('Loan created successfully! Loan ID: LN' + String(Math.floor(Math.random()*900)+100));
+  window.location.href = 'loans.html';
+  return false;
+}
+</script>
+</body>
+</html>

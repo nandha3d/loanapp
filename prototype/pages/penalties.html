@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Penalties — LoanTrack</title>
+  <link rel="stylesheet" href="../css/styles.css"><link rel="icon" href="../assets/logo.svg">
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main-content">
+    <header class="topbar" id="topbar"></header>
+    <div class="page-content fade-up">
+      <!-- Summary KPIs -->
+      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px">
+        <div class="kpi-card">
+          <div class="kpi-icon red"><span class="material-icons-outlined">gavel</span></div>
+          <div><div class="kpi-value" style="color:var(--danger)">₹2,180</div><div class="kpi-label">Total Gross Penalty</div></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon green"><span class="material-icons-outlined">check_circle</span></div>
+          <div><div class="kpi-value" style="color:var(--success)">₹200</div><div class="kpi-label">Total Settled</div></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon purple"><span class="material-icons-outlined">money_off</span></div>
+          <div><div class="kpi-value" style="color:#8B5CF6">₹80</div><div class="kpi-label">Total Waived</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>⚖️ Penalty Overview</h3>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-secondary btn-sm" onclick="alert('Bulk waive applied to selected penalties')"><span class="material-icons-outlined" style="font-size:14px">money_off</span> Bulk Waive</button>
+            <button class="btn btn-primary btn-sm" onclick="alert('Bulk settle applied to selected penalties')"><span class="material-icons-outlined" style="font-size:14px">payments</span> Bulk Settle</button>
+          </div>
+        </div>
+        <div class="filter-bar">
+          <div class="search-input">
+            <span class="material-icons-outlined">search</span>
+            <input type="text" class="form-control" placeholder="Search loan ID or customer..." id="searchInput" oninput="filterPenalties()">
+          </div>
+          <select class="form-control" id="filterStatus" onchange="filterPenalties()" style="width:auto">
+            <option value="">All Status</option>
+            <option value="Pending">Pending</option>
+            <option value="Settled">Settled</option>
+            <option value="Waived">Waived</option>
+          </select>
+          <select class="form-control" id="filterRoute" onchange="filterPenalties()" style="width:auto">
+            <option value="">All Routes</option>
+          </select>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th><input type="checkbox" onclick="toggleAll(this)"></th><th>Loan ID</th><th>Customer</th><th>Route</th><th>Missed Days</th><th>Gross Penalty</th><th>Settled</th><th>Waived</th><th>Net Outstanding</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody id="penaltyTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Penalty Action Modal -->
+<div class="modal-overlay" id="penaltyModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>⚖️ Penalty Action</h3>
+      <button class="modal-close material-icons-outlined" onclick="closePenModal()">close</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--bg);border-radius:var(--radius-sm);padding:14px;margin-bottom:16px">
+        <p style="font-size:.85rem"><strong id="pmCust">Customer Name</strong> — <span id="pmLoan">LN001</span></p>
+        <p style="font-size:1.1rem;font-weight:700;color:var(--danger);margin-top:6px">Gross Penalty: <span id="pmGross">₹0</span></p>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Action *</label>
+        <select class="form-control" id="pmAction" onchange="toggleSettleInput()">
+          <option value="enforce">Enforce Full Penalty</option>
+          <option value="partial">Partial Settlement</option>
+          <option value="waive">Waive Entirely</option>
+        </select>
+      </div>
+      <div class="form-group" id="settleGroup" style="display:none">
+        <label class="form-label">Settlement Amount (₹)</label>
+        <input type="number" class="form-control" id="pmAmount" placeholder="Enter settlement amount">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Remarks / Notes</label>
+        <input type="text" class="form-control" id="pmRemarks" placeholder="Add notes...">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closePenModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmPenalty()"><span class="material-icons-outlined" style="font-size:16px">check</span> Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/app.js"></script>
+<script>
+initPage('penalties', 'Penalties', [{label:'Dashboard',href:'dashboard.html'},{label:'Penalties'}]);
+
+const routeSel = document.getElementById('filterRoute');
+MOCK.routes.forEach(r => { const o = document.createElement('option'); o.value = r; o.textContent = r; routeSel.appendChild(o); });
+
+function filterPenalties() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const status = document.getElementById('filterStatus').value;
+  const route = document.getElementById('filterRoute').value;
+  const filtered = MOCK.penalties.filter(p => {
+    const c = getCustomer(p.customerId);
+    if (q && !p.loanId.toLowerCase().includes(q) && !(c && c.name.toLowerCase().includes(q))) return false;
+    if (status && p.status !== status) return false;
+    if (route && c && c.route !== route) return false;
+    return true;
+  });
+  renderPenalties(filtered);
+}
+
+function renderPenalties(list) {
+  document.getElementById('penaltyTable').innerHTML = list.map((p, i) => {
+    const c = getCustomer(p.customerId);
+    const net = p.grossPenalty - p.settled - p.waived;
+    return `<tr>
+      <td><input type="checkbox" class="pen-check"></td>
+      <td><a href="loan-detail.html?id=${p.loanId}"><strong>${p.loanId}</strong></a></td>
+      <td>${c ? `<a href="customer-profile.html?id=${c.id}">${c.name}</a>` : p.customerId}</td>
+      <td>${c ? c.route : '—'}</td>
+      <td><span class="badge badge-missed">${p.missedDays} days</span></td>
+      <td style="font-weight:600;color:var(--danger)">${fmt(p.grossPenalty)}</td>
+      <td style="color:var(--success)">${fmt(p.settled)}</td>
+      <td style="color:#8B5CF6">${fmt(p.waived)}</td>
+      <td style="font-weight:700">${fmt(net)}</td>
+      <td><span class="${badgeClass(p.status)}">${p.status}</span></td>
+      <td><button class="btn btn-ghost btn-sm" onclick="openPenModal(${i})">Action</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function toggleAll(cb) { document.querySelectorAll('.pen-check').forEach(c => c.checked = cb.checked); }
+
+let activePenIdx = -1;
+function openPenModal(idx) {
+  activePenIdx = idx;
+  const p = MOCK.penalties[idx];
+  const c = getCustomer(p.customerId);
+  document.getElementById('pmCust').textContent = c ? c.name : p.customerId;
+  document.getElementById('pmLoan').textContent = p.loanId;
+  document.getElementById('pmGross').textContent = fmt(p.grossPenalty);
+  document.getElementById('pmAction').value = 'enforce';
+  document.getElementById('pmAmount').value = '';
+  document.getElementById('pmRemarks').value = '';
+  toggleSettleInput();
+  document.getElementById('penaltyModal').classList.add('show');
+}
+function closePenModal() { document.getElementById('penaltyModal').classList.remove('show'); }
+function toggleSettleInput() {
+  document.getElementById('settleGroup').style.display = document.getElementById('pmAction').value === 'partial' ? 'block' : 'none';
+}
+function confirmPenalty() {
+  const action = document.getElementById('pmAction').value;
+  const msg = action === 'enforce' ? 'Full penalty enforced!' : action === 'waive' ? 'Penalty waived!' : 'Partial settlement recorded!';
+  alert(msg);
+  closePenModal();
+}
+
+document.getElementById('penaltyModal').addEventListener('click', function(e) { if (e.target === this) closePenModal(); });
+filterPenalties();
+</script>
+</body>
+</html>
