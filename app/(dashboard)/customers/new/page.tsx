@@ -3,6 +3,7 @@ import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import CustomerForm from './CustomerForm';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
+import { getDictionary } from '@/lib/i18n';
 
 export default async function NewCustomerPage({
   searchParams
@@ -12,6 +13,7 @@ export default async function NewCustomerPage({
   const resolvedSearchParams = await searchParams;
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
+  const dict = await getDictionary(tenantId);
   
   const [routes, agents] = await Promise.all([
     prisma.route.findMany({ where: { tenantId, appType, status: 'active' }, orderBy: { name: 'asc' } }),
@@ -35,5 +37,5 @@ export default async function NewCustomerPage({
     }
   }
 
-  return <CustomerForm routes={routes} agents={agents} customer={customer} />;
+  return <CustomerForm routes={routes} agents={agents} customer={customer} dict={dict} />;
 }

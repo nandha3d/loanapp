@@ -4,10 +4,13 @@ import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { getAgentRouteIds } from '@/lib/access';
 import CollectionClient from './CollectionClient';
 
+import { getDictionary } from '@/lib/i18n';
+
 export default async function CollectionPage() {
   const session = await auth();
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
+  const dict = await getDictionary(tenantId);
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
 
   const userId = (session?.user as any)?.id;
@@ -110,6 +113,7 @@ export default async function CollectionPage() {
       agentRole={userRole || 'agent'}
       routeName={routeName}
       currencySymbol={currencySymbol}
+      dict={dict}
     />
   );
 }

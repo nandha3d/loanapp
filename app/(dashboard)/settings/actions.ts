@@ -210,3 +210,10 @@ export async function removeAgentFromRoute(routeId: string, agentId: string) {
   revalidatePath('/settings');
   return { success: true };
 }
+
+export async function updateLanguage(lang: string) {
+  const tenantId = await getDefaultTenantId();
+  await setSetting(tenantId, 'language', lang, 'system');
+  revalidatePath('/');
+  return { success: true };
+}

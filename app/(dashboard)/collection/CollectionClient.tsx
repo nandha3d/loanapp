@@ -12,12 +12,14 @@ export default function CollectionClient({
   agentRole,
   routeName,
   currencySymbol,
+  dict
 }: {
   instalments: any[];
   agentName: string;
   agentRole: string;
   routeName: string;
   currencySymbol: string;
+  dict: any;
 }) {
   const router = useRouter();
   const [modal, setModal] = useState<any>(null);
@@ -75,9 +77,9 @@ export default function CollectionClient({
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div className="profile-avatar" style={{ width: '48px', height: '48px', fontSize: '1rem' }}>{getInitials(agentName)}</div>
           <div>
-            <h3 style={{ fontSize: '1rem' }}>{agentName} — {agentRole === 'admin' ? 'Administrator' : 'Field Agent'}</h3>
+            <h3 style={{ fontSize: '1rem' }}>{agentName} — {agentRole === 'admin' ? dict.roles.admin : dict.roles.agent}</h3>
             <p style={{ fontSize: '.8rem', color: 'var(--text-secondary)' }}>
-              Route: <strong>{routeName}</strong> · Today: {todayStr}
+              {dict.collection.route}: <strong>{routeName}</strong> · Today: {todayStr}
             </p>
           </div>
         </div>
@@ -107,17 +109,17 @@ export default function CollectionClient({
       {/* Collection Table */}
       <div className="card">
         <div className="card-header">
-          <h3>📋 Today&apos;s Collection List</h3>
-          <span className="badge badge-pending">{pendingCount} Pending</span>
+          <h3>📋 {dict.collection.todaysList}</h3>
+          <span className="badge badge-pending">{pendingCount} {dict.collection.pending}</span>
         </div>
         <div className="table-wrapper">
           <table>
             <thead>
               <tr>
-                <th>Customer</th>
-                <th>Loan</th>
+                <th>{dict.customers.title}</th>
+                <th>{dict.sidebar.loans}</th>
                 <th>Due Date</th>
-                <th>Due Amount</th>
+                <th>{dict.loans.principal}</th>
                 <th>Status</th>
                 <th>Action</th>
               </tr>
@@ -129,7 +131,7 @@ export default function CollectionClient({
                 return (
                   <tr key={inst.id} style={{ opacity: isPaid ? 0.6 : 1 }}>
                     <td>
-                      <Link href={`/customers/${inst.loan.customer.id}`}>
+                      <Link href={`/customers/${inst.loan.customer.customerCode}`}>
                         <strong>{inst.loan.customer.name}</strong>
                       </Link>
                       <br />
@@ -150,11 +152,11 @@ export default function CollectionClient({
                     <td>
                       {isPaid ? (
                         <span className="badge badge-paid">
-                          <span className="material-icons-outlined" style={{ fontSize: '12px' }}>lock</span> Submitted
+                          <span className="material-icons-outlined" style={{ fontSize: '12px' }}>lock</span> {dict.collection.markPaid}
                         </span>
                       ) : (
                         <span className={getBadgeClass(isMissed ? 'missed' : 'upcoming')} style={{ textTransform: 'capitalize' }}>
-                          {isMissed ? 'Missed' : 'Pending'}
+                          {isMissed ? 'Missed' : dict.collection.pending}
                         </span>
                       )}
                     </td>
@@ -163,7 +165,7 @@ export default function CollectionClient({
                         <span style={{ color: 'var(--text-light)', fontSize: '.8rem' }}>Done</span>
                       ) : (
                         <button className="btn btn-primary btn-sm" onClick={() => openModal(inst)}>
-                          <span className="material-icons-outlined" style={{ fontSize: '14px' }}>send</span> Submit
+                          <span className="material-icons-outlined" style={{ fontSize: '14px' }}>send</span> {dict.collection.markPaid}
                         </button>
                       )}
                     </td>
@@ -173,7 +175,7 @@ export default function CollectionClient({
               {instalments.length === 0 && (
                 <tr>
                   <td colSpan={6} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-light)' }}>
-                    No collections due today. All caught up! 🎉
+                    {dict.collection.noCollections}
                   </td>
                 </tr>
               )}
@@ -187,7 +189,7 @@ export default function CollectionClient({
         <div className="modal-overlay show" onClick={(e) => { if (e.target === e.currentTarget) setModal(null); }}>
           <div className="modal">
             <div className="modal-header">
-              <h3>💰 Log Collection</h3>
+              <h3>💰 {dict.collection.title}</h3>
               <button className="modal-close material-icons-outlined" onClick={() => setModal(null)}>close</button>
             </div>
             <div className="modal-body">
@@ -202,7 +204,7 @@ export default function CollectionClient({
                 </div>
               </div>
               <div className="form-group">
-                <label className="form-label">Received Amount ({currencySymbol}) *</label>
+                <label className="form-label">{dict.collection.collected} ({currencySymbol}) *</label>
                 <input type="number" className="form-control" value={amount} onChange={(e) => setAmount(Number(e.target.value))} min={1} required />
               </div>
               <div className="form-group">
@@ -223,10 +225,10 @@ export default function CollectionClient({
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setModal(null)}>Cancel</button>
+              <button className="btn btn-secondary" onClick={() => setModal(null)}>{dict.loans.cancel}</button>
               <button className="btn btn-primary" onClick={handleSubmit} disabled={loading || amount <= 0}>
                 <span className="material-icons-outlined" style={{ fontSize: '16px' }}>check</span>
-                {loading ? 'Submitting...' : 'Submit Payment'}
+                {loading ? dict.collection.receiving : dict.collection.markPaid}
               </button>
             </div>
           </div>

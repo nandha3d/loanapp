@@ -98,6 +98,16 @@ export async function createLoan(formData: FormData) {
     }
   }
 
+  // Check for duplicate voucher reference (within the same tenant)
+  if (voucherRef) {
+    const existingLoan = await prisma.loan.findFirst({
+      where: { tenantId, voucherRef }
+    });
+    if (existingLoan) {
+      return { error: `A loan with voucher reference "${voucherRef}" already exists.` };
+    }
+  }
+
   // Create Loan & Instalments
   const loan = await prisma.loan.create({
     data: {
@@ -129,17 +139,23 @@ export async function createLoan(formData: FormData) {
     }
   });
 
-  // Log activity
-  await prisma.auditLog.create({
-    data: {
-      tenantId,
-      userId: createdById,
-      action: 'create',
-      entityType: 'loan',
-      entityId: loan.id,
-      newValue: JSON.stringify({ principal, tenure, loanCode })
+  // Log activity - only if userId is valid
+  if (createdById) {
+    try {
+      await prisma.auditLog.create({
+        data: {
+          tenantId,
+          userId: createdById,
+          action: 'create',
+          entityType: 'loan',
+          entityId: loan.id,
+          newValue: JSON.stringify({ principal, tenure, loanCode })
+        }
+      });
+    } catch (e) {
+      console.error('Failed to create audit log:', e);
     }
-  });
+  }
 
   revalidatePath('/loans');
   redirect(`/loans/${loan.id}`);

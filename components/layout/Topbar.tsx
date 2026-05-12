@@ -4,50 +4,11 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import { useState, useEffect, useRef } from 'react';
+import { updateLanguage } from '@/app/(dashboard)/settings/actions';
 
 interface BreadcrumbItem {
   label: string;
   href?: string;
-}
-
-function getPageTitle(pathname: string): string {
-  const map: Record<string, string> = {
-    '/dashboard': 'Dashboard',
-    '/collection': 'Collection Entry',
-    '/customers': 'Customers',
-    '/customers/new': 'New Customer',
-    '/loans': 'Loans',
-    '/loans/new': 'New Loan',
-    '/penalties': 'Penalties',
-    '/reports': 'Reports & Analytics',
-    '/notifications': 'Notifications',
-    '/settings': 'Settings',
-  };
-  if (map[pathname]) return map[pathname];
-  if (pathname.startsWith('/customers/')) return 'Customer';
-  if (pathname.startsWith('/loans/')) return 'Loan Detail';
-  return 'Dashboard';
-}
-
-function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
-  const parts = pathname.split('/').filter(Boolean);
-  const crumbs: BreadcrumbItem[] = [{ label: 'Dashboard', href: '/dashboard' }];
-  
-  if (parts[0] && parts[0] !== 'dashboard') {
-    const label = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-    if (parts.length > 1) {
-      crumbs.push({ label, href: `/${parts[0]}` });
-      if (parts[1] === 'new') {
-        crumbs.push({ label: 'New' });
-      } else {
-        crumbs.push({ label: parts[1] });
-      }
-    } else {
-      crumbs.push({ label });
-    }
-  }
-  
-  return crumbs;
 }
 
 function formatTodayDate(): string {
@@ -56,22 +17,62 @@ function formatTodayDate(): string {
   });
 }
 
-export default function Topbar() {
+export default function Topbar({ dict, currentLang }: { dict: any; currentLang: string }) {
   const pathname = usePathname();
   const [notifOpen, setNotifOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [todayDate, setTodayDate] = useState('');
   const notifRef = useRef<HTMLDivElement>(null);
   
+  function getPageTitle(pathname: string): string {
+    const map: Record<string, string> = {
+      '/dashboard': dict.sidebar.dashboard,
+      '/collection': dict.sidebar.collection,
+      '/customers': dict.sidebar.customers,
+      '/customers/new': dict.customers.registerTitle,
+      '/loans': dict.sidebar.loans,
+      '/loans/new': dict.loans.newLoan,
+      '/penalties': dict.sidebar.penalties,
+      '/reports': dict.sidebar.reports,
+      '/notifications': dict.sidebar.notifications,
+      '/settings': dict.sidebar.settings,
+    };
+    if (map[pathname]) return map[pathname];
+    if (pathname.startsWith('/customers/')) return dict.customers.title;
+    if (pathname.startsWith('/loans/')) return dict.sidebar.loans;
+    return dict.sidebar.dashboard;
+  }
+
+  function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
+    const parts = pathname.split('/').filter(Boolean);
+    const crumbs: BreadcrumbItem[] = [{ label: dict.sidebar.dashboard, href: '/dashboard' }];
+    
+    if (parts[0] && parts[0] !== 'dashboard') {
+      const id = parts[0];
+      const label = (dict.sidebar as any)[id] || id.charAt(0).toUpperCase() + id.slice(1);
+      
+      if (parts.length > 1) {
+        crumbs.push({ label, href: `/${parts[0]}` });
+        if (parts[1] === 'new') {
+          crumbs.push({ label: dict.loans.newLoan });
+        } else {
+          crumbs.push({ label: parts[1] });
+        }
+      } else {
+        crumbs.push({ label });
+      }
+    }
+    
+    return crumbs;
+  }
+
   const title = getPageTitle(pathname);
   const breadcrumbs = getBreadcrumbs(pathname);
 
-  // Set date only on client to avoid SSR hydration mismatch
   useEffect(() => {
     setTodayDate(formatTodayDate());
   }, []);
 
-  // Fetch unread notification count dynamically
   useEffect(() => {
     const fetchCount = async () => {
       try {
@@ -85,12 +86,10 @@ export default function Topbar() {
       }
     };
     fetchCount();
-    // Poll every 30 seconds for new notifications
     const interval = setInterval(fetchCount, 30000);
     return () => clearInterval(interval);
   }, [pathname]);
 
-  // Close notification dropdown on outside click
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
@@ -131,6 +130,17 @@ export default function Topbar() {
       </div>
 
       <div className="topbar-right">
+        <select 
+          className="form-control" 
+          style={{ width: 'auto', padding: '4px 8px', fontSize: '.85rem', marginRight: '10px' }}
+          onChange={(e) => updateLanguage(e.target.value)}
+          value={currentLang}
+        >
+          <option value="en">English</option>
+          <option value="ta">Tamil (தமிழ்)</option>
+          <option value="hi">Hindi (हिन्दी)</option>
+        </select>
+
         <span className="topbar-date">{todayDate}</span>
 
         <div className="notification-bell" ref={notifRef} onClick={(e) => { e.stopPropagation(); setNotifOpen(!notifOpen); }}>
@@ -138,8 +148,8 @@ export default function Topbar() {
           {unreadCount > 0 && <span className="badge">{unreadCount}</span>}
           <div className={`notification-dropdown ${notifOpen ? 'show' : ''}`}>
             <div className="nd-header">
-              <span>Notifications</span>
-              <Link href="/notifications" className="btn-ghost btn-sm" style={{ fontSize: '.78rem' }}>View All</Link>
+              <span>{dict.sidebar.notifications}</span>
+              <Link href="/notifications" className="btn-ghost btn-sm" style={{ fontSize: '.78rem' }}>{dict.dashboard.viewAll}</Link>
             </div>
             <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-light)', fontSize: '.85rem' }}>
               {unreadCount > 0

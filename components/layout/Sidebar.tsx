@@ -13,53 +13,47 @@ interface NavItem {
   label?: string;
   href?: string;
   adminOnly?: boolean;
-  developerOnly?: boolean;  // only visible to developer role
-  superadminOnly?: boolean; // only visible to superadmin role
-  appTypes?: string[]; // if set, only show for these appTypes
+  developerOnly?: boolean;
+  superadminOnly?: boolean;
+  appTypes?: string[];
 }
-
-const navItems: NavItem[] = [
-  { section: 'Main' },
-  { id: 'dashboard', icon: 'dashboard', label: 'Dashboard', href: '/dashboard', adminOnly: true },
-  { id: 'collection', icon: 'point_of_sale', label: 'Collection Entry', href: '/collection' },
-  { section: 'Management' },
-  { id: 'customers', icon: 'people', label: 'Customers', href: '/customers' },
-  { id: 'loans', icon: 'account_balance', label: 'Loans', href: '/loans', adminOnly: true },
-  { id: 'vehicles', icon: 'directions_car', label: 'Vehicles', href: '/vehicles', adminOnly: true, appTypes: ['autofinance'] },
-  { id: 'chits', icon: 'savings', label: 'Chit Groups', href: '/chits', adminOnly: true, appTypes: ['chitfunds'] },
-  { id: 'penalties', icon: 'gavel', label: 'Penalties', href: '/penalties', adminOnly: true },
-  { id: 'approvals', icon: 'verified', label: 'Approvals', href: '/approvals' },
-  { section: 'Insights' },
-  { id: 'reports', icon: 'bar_chart', label: 'Reports', href: '/reports', adminOnly: true },
-  { id: 'notifications', icon: 'notifications', label: 'Notifications', href: '/notifications' },
-  { id: 'settings', icon: 'settings', label: 'Settings', href: '/settings', adminOnly: true },
-  { section: 'Account' },
-  { id: 'subscription', icon: 'credit_card', label: 'My Subscription', href: '/subscription', superadminOnly: true },
-  { id: 'billing', icon: 'manage_accounts', label: 'Billing & Subscriptions', href: '/admin/billing', developerOnly: true },
-];
 
 function getInitials(name: string): string {
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 }
 
-function getRoleName(role: string): string {
-  const map: Record<string, string> = {
-    superadmin: 'Super Admin',
-    admin: 'Administrator',
-    agent: 'Field Agent',
-    borrower: 'Borrower',
-  };
-  return map[role] || role;
-}
-
-export default function Sidebar({ appType: initialAppType }: { appType?: string }) {
+export default function Sidebar({ appType: initialAppType, dict }: { appType?: string, dict: any }) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const [isOpen, setIsOpen] = useState(false);
 
+  function getRoleName(role: string): string {
+    return (dict.roles as any)[role] || role;
+  }
+
   const role = (session?.user as any)?.role || 'agent';
   const userAppType = initialAppType || (session?.user as any)?.appType || 'microlending';
   const userName = session?.user?.name || 'User';
+
+  const navItems: NavItem[] = [
+    { section: dict.sidebar.sections.main },
+    { id: 'dashboard', icon: 'dashboard', label: dict.sidebar.dashboard, href: '/dashboard', adminOnly: true },
+    { id: 'collection', icon: 'point_of_sale', label: dict.sidebar.collection, href: '/collection' },
+    { section: dict.sidebar.sections.management },
+    { id: 'customers', icon: 'people', label: dict.sidebar.customers, href: '/customers' },
+    { id: 'loans', icon: 'account_balance', label: dict.sidebar.loans, href: '/loans', adminOnly: true },
+    { id: 'vehicles', icon: 'directions_car', label: dict.sidebar.vehicles, href: '/vehicles', adminOnly: true, appTypes: ['autofinance'] },
+    { id: 'chits', icon: 'savings', label: dict.sidebar.chits, href: '/chits', adminOnly: true, appTypes: ['chitfunds'] },
+    { id: 'penalties', icon: 'gavel', label: dict.sidebar.penalties, href: '/penalties', adminOnly: true },
+    { id: 'approvals', icon: 'verified', label: dict.sidebar.approvals, href: '/approvals' },
+    { section: dict.sidebar.sections.insights },
+    { id: 'reports', icon: 'bar_chart', label: dict.sidebar.reports, href: '/reports', adminOnly: true },
+    { id: 'notifications', icon: 'notifications', label: dict.sidebar.notifications, href: '/notifications' },
+    { id: 'settings', icon: 'settings', label: dict.sidebar.settings, href: '/settings', adminOnly: true },
+    { section: dict.sidebar.sections.account },
+    { id: 'subscription', icon: 'credit_card', label: dict.sidebar.subscription, href: '/subscription', superadminOnly: true },
+    { id: 'billing', icon: 'manage_accounts', label: dict.sidebar.billing, href: '/admin/billing', developerOnly: true },
+  ];
 
   // Get app config for branding
   const appConfig = getAppConfig(userAppType);
@@ -172,7 +166,7 @@ export default function Sidebar({ appType: initialAppType }: { appType?: string 
               textDecoration: 'none',
             }}>
               <span className="material-icons-outlined" style={{ fontSize: '16px' }}>apps</span>
-              Switch Application
+              {dict.sidebar.switchApp}
             </Link>
           )}
         </div>

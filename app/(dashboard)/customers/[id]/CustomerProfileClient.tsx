@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { formatCurrency, formatDate, getBadgeClass, getInitials, calcPercentage } from '@/lib/utils';
 import { submitEditRequest } from '@/app/(dashboard)/approvals/actions';
+import { calculateCreditScore } from '@/lib/creditScore';
 
 export default function CustomerProfileClient({
   customer,
@@ -18,14 +19,38 @@ export default function CustomerProfileClient({
   const [editRequestModal, setEditRequestModal] = useState(false);
   const [editRequestLoading, setEditRequestLoading] = useState(false);
 
+  const { score, grade, stats } = calculateCreditScore(customer.loans);
+
   return (
     <>
       {/* Profile Header */}
       <div className="card" style={{ marginBottom: '20px' }}>
         <div className="profile-header">
-          <div className="profile-avatar">{getInitials(customer.name)}</div>
+          <div className="profile-avatar">
+            {customer.profilePhoto ? (
+              <img 
+                src={customer.profilePhoto} 
+                alt={customer.name} 
+                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} 
+              />
+            ) : (
+              getInitials(customer.name)
+            )}
+          </div>
           <div className="profile-info">
-            <h2>{customer.name}</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <h2 style={{ margin: 0 }}>{customer.name}</h2>
+              <div style={{ 
+                display: 'flex', alignItems: 'center', gap: '6px', 
+                background: score >= 80 ? '#DCFCE7' : score >= 50 ? '#FEF3C7' : '#FEE2E2',
+                color: score >= 80 ? '#166534' : score >= 50 ? '#92400E' : '#991B1B',
+                padding: '4px 12px', borderRadius: '20px', fontSize: '.85rem', fontWeight: 700,
+                border: '1px solid rgba(0,0,0,0.05)'
+              }}>
+                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>stars</span>
+                {score} ({grade})
+              </div>
+            </div>
             <div className="profile-meta">
               <span><span className="material-icons-outlined" style={{ fontSize: '14px' }}>badge</span> {customer.customerCode}</span>
               <span><span className="material-icons-outlined" style={{ fontSize: '14px' }}>phone</span> {customer.phone}</span>
@@ -54,12 +79,29 @@ export default function CustomerProfileClient({
         </div>
       </div>
 
+      {/* Credit Summary Bar */}
+      <div className="stats-grid" style={{ marginBottom: '20px' }}>
+        <div className="card" style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--primary-dark)' }}>{formatCurrency(stats.totalBorrowed, currencySymbol)}</div>
+          <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>Total Borrowed</div>
+        </div>
+        <div className="card" style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--success)' }}>{stats.punctuality}%</div>
+          <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>Repayment Consistency</div>
+        </div>
+        <div className="card" style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{stats.activeLoans} / {stats.closedLoans}</div>
+          <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>Active / Closed Loans</div>
+        </div>
+      </div>
+
       {/* Tabs */}
       <div className="card">
         <div className="tabs">
           <div className={`tab ${activeTab === 'loans' ? 'active' : ''}`} onClick={() => setActiveTab('loans')}>Loan History</div>
           <div className={`tab ${activeTab === 'kyc' ? 'active' : ''}`} onClick={() => setActiveTab('kyc')}>KYC Documents</div>
           <div className={`tab ${activeTab === 'cheques' ? 'active' : ''}`} onClick={() => setActiveTab('cheques')}>Security Cheques</div>
+          <div className={`tab ${activeTab === 'guarantors' ? 'active' : ''}`} onClick={() => setActiveTab('guarantors')}>Guarantors</div>
         </div>
 
         {/* Loans Tab */}
@@ -79,18 +121,21 @@ export default function CustomerProfileClient({
               </thead>
               <tbody>
                 {customer.loans.map((l: any) => {
-                  const pct = calcPercentage(l.paidCount, l.totalInstalments);
+                  const total = l.tenure;
+                  const paid = l.instalments.filter((i: any) => i.status === 'paid').length;
+                  const pct = Math.round((paid / total) * 100);
+                  
                   return (
                     <tr key={l.id}>
                       <td><Link href={`/loans/${l.id}`}><strong>{l.loanCode}</strong></Link></td>
-                      <td>{formatCurrency(l.principal, currencySymbol)}</td>
+                      <td>{formatCurrency(Number(l.principal), currencySymbol)}</td>
                       <td style={{textTransform:'capitalize'}}>{l.frequency}</td>
                       <td>{formatDate(l.startDate)}</td>
                       <td>
                         <div className="progress" style={{ width: '100px' }}>
                           <div className="progress-fill" style={{ width: `${pct}%` }}></div>
                         </div>
-                        <span className="progress-text">{pct}% ({l.paidCount}/{l.totalInstalments})</span>
+                        <span className="progress-text">{pct}% ({paid}/{total})</span>
                       </td>
                       <td><span className={getBadgeClass(l.status)} style={{textTransform:'capitalize'}}>{l.status}</span></td>
                       <td>
@@ -123,9 +168,6 @@ export default function CustomerProfileClient({
                 </p>
                 <p style={{ fontSize: '.75rem', color: 'var(--text-light)', marginTop: '4px' }}>Document uploaded via app</p>
               </div>
-              <button className="btn btn-secondary btn-sm" style={{ marginTop: '12px' }}>
-                <span className="material-icons-outlined" style={{ fontSize: '14px' }}>upload</span> Replace Document
-              </button>
             </div>
             <div style={{ flex: 1, minWidth: '250px' }}>
               <h4 style={{ marginBottom: '12px' }}>Verification Status</h4>
@@ -177,9 +219,64 @@ export default function CustomerProfileClient({
           </div>
         </div>
 
+        {/* Guarantors Tab */}
+        <div className={`tab-content ${activeTab === 'guarantors' ? 'active' : ''}`}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {customer.guarantors && customer.guarantors.length > 0 ? customer.guarantors.map((g: any) => (
+              <div key={g.id} className="card" style={{ background: 'var(--bg)', display: 'flex', gap: '20px', padding: '20px' }}>
+                <div style={{ 
+                  width: '120px', height: '150px', borderRadius: 'var(--radius-sm)', 
+                  background: 'var(--border)', flexShrink: 0, overflow: 'hidden',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  {g.photo ? (
+                    <img src={g.photo} alt={g.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <span className="material-icons-outlined" style={{ fontSize: '48px', color: 'var(--text-light)' }}>person</span>
+                  )}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '1.1rem' }}>{g.name}</h4>
+                      <span style={{ fontSize: '.85rem', color: 'var(--primary)', fontWeight: 600 }}>{g.relation || 'Relation not specified'}</span>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)', fontSize: '.9rem' }}>
+                        <span className="material-icons-outlined" style={{ fontSize: '16px' }}>phone</span>
+                        {g.phone}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                    <div>
+                      <div style={{ fontSize: '.7rem', textTransform: 'uppercase', color: 'var(--text-light)', marginBottom: '4px' }}>Aadhar Number</div>
+                      <div style={{ fontSize: '.9rem' }}>{g.aadharNumber || '—'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '.7rem', textTransform: 'uppercase', color: 'var(--text-light)', marginBottom: '4px' }}>Address</div>
+                      <div style={{ fontSize: '.9rem', lineHeight: 1.4 }}>{g.address || '—'}</div>
+                    </div>
+                  </div>
+                  {g.notes && (
+                    <div style={{ marginTop: '12px', padding: '10px', background: 'rgba(0,0,0,0.03)', borderRadius: '4px', fontSize: '.85rem', color: 'var(--text-secondary)' }}>
+                      <strong>Notes:</strong> {g.notes}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )) : (
+              <div className="empty-state" style={{ padding: '40px' }}>
+                <span className="material-icons-outlined" style={{ fontSize: '48px', color: 'var(--border)' }}>handshake</span>
+                <p style={{ marginTop: '12px', color: 'var(--text-secondary)' }}>No guarantors listed for this customer.</p>
+              </div>
+            )}
+          </div>
+        </div>
+
       </div>
 
-      {/* Request Edit Modal — agent only */}
+      {/* Request Edit Modal */}
       {editRequestModal && (
         <div className="modal-overlay show" onClick={(e) => { if (e.target === e.currentTarget) setEditRequestModal(false); }}>
           <div className="modal" style={{ maxWidth: '480px' }}>
@@ -203,7 +300,7 @@ export default function CustomerProfileClient({
             }}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <p style={{ fontSize: '.85rem', color: 'var(--text-light)' }}>
-                  Fill in the updated values for the fields you want changed. Leave a field blank to keep its current value.
+                  Fill in the updated values for the fields you want changed.
                 </p>
                 <div className="form-group">
                   <label className="form-label">Name</label>
