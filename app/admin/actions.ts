@@ -29,10 +29,17 @@ export async function manageMasterUser(formData: FormData) {
     return { success: false, error: 'Missing required fields' };
   }
 
+  // Only developers can create or edit developer accounts
+  if (role === 'developer' && userRole !== 'developer') {
+    return { success: false, error: 'Only a developer can manage developer accounts.' };
+  }
+
   const existingUsername = await prisma.user.findFirst({
     where: { username, tenantId, id: id ? { not: id } : undefined }
   });
   if (existingUsername) return { success: false, error: 'Username already taken' };
+
+  const actorId = (session?.user as any)?.id;
 
   if (id) {
     const updateData: any = { name, username, phone, role, appType, branchId, status };
@@ -43,9 +50,19 @@ export async function manageMasterUser(formData: FormData) {
       where: { id },
       data: updateData
     });
+    await prisma.auditLog.create({
+      data: {
+        tenantId,
+        userId: actorId,
+        action: 'update',
+        entityType: 'user',
+        entityId: id,
+        newValue: JSON.stringify({ name, username, role, appType, status }),
+      },
+    }).catch(() => {});
   } else {
     if (!password) return { success: false, error: 'Password is required for new users' };
-    await prisma.user.create({
+    const savedUser = await prisma.user.create({
       data: {
         tenantId,
         name,
@@ -58,6 +75,16 @@ export async function manageMasterUser(formData: FormData) {
         status
       }
     });
+    await prisma.auditLog.create({
+      data: {
+        tenantId,
+        userId: actorId,
+        action: 'create',
+        entityType: 'user',
+        entityId: savedUser.id,
+        newValue: JSON.stringify({ name, username, role, appType, status }),
+      },
+    }).catch(() => {});
   }
 
   revalidatePath('/admin/users');
@@ -81,7 +108,9 @@ export async function createBranch(formData: FormData) {
     return { success: false, error: 'Name and code are required' };
   }
 
-  await prisma.branch.create({
+  const actorId = (session?.user as any)?.id;
+
+  const branch = await prisma.branch.create({
     data: {
       tenantId,
       name,
@@ -90,6 +119,17 @@ export async function createBranch(formData: FormData) {
     }
   });
 
+  await prisma.auditLog.create({
+    data: {
+      tenantId,
+      userId: actorId,
+      action: 'create',
+      entityType: 'branch',
+      entityId: branch.id,
+      newValue: JSON.stringify({ name, code }),
+    },
+  }).catch(() => {});
+
   revalidatePath('/admin/branches');
   return { success: true };
 }
@@ -97,12 +137,26 @@ export async function createBranch(formData: FormData) {
 export async function toggleUserStatus(userId: string, newStatus: string) {
   const session = await auth();
   const role = (session?.user as any)?.role;
+  const actorId = (session?.user as any)?.id;
   if (role !== 'superadmin' && role !== 'developer') return { success: false };
+
+  const tenantId = await getDefaultTenantId();
 
   await prisma.user.update({
     where: { id: userId },
     data: { status: newStatus }
   });
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId,
+      userId: actorId,
+      action: 'update',
+      entityType: 'user',
+      entityId: userId,
+      newValue: JSON.stringify({ status: newStatus }),
+    },
+  }).catch(() => {});
 
   revalidatePath('/admin/users');
   return { success: true };

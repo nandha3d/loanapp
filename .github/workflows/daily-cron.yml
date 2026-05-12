@@ -1,0 +1,16 @@
+name: Daily Penalty Accrual
+
+on:
+  schedule:
+    - cron: '30 18 * * *'   # 18:30 UTC = midnight IST
+  workflow_dispatch:          # allow manual trigger from GitHub UI
+
+jobs:
+  accrue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call penalty accrual endpoint
+        run: |
+          curl -f -X GET \
+            "${{ secrets.APP_URL }}/api/cron/accrue-penalties" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

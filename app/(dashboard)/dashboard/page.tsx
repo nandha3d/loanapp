@@ -103,6 +103,28 @@ async function getDashboardData(tenantId: string, appType: string) {
     },
   });
 
+  // Auto Finance extras
+  let repoFlaggedCount = 0;
+  let insuranceExpiringCount = 0;
+  if (appType === 'autofinance') {
+    try {
+      const in30 = new Date();
+      in30.setDate(in30.getDate() + 30);
+      [repoFlaggedCount, insuranceExpiringCount] = await Promise.all([
+        prisma.vehicle.count({ where: { tenantId, repoFlag: true } }),
+        prisma.vehicle.count({ where: { tenantId, insuranceExpiry: { lte: in30, gte: new Date() } } }),
+      ]);
+    } catch { /* table may not exist yet */ }
+  }
+
+  // Chit Fund extras
+  let activeChitGroups = 0;
+  if (appType === 'chitfunds') {
+    try {
+      activeChitGroups = await prisma.chitGroup.count({ where: { tenantId, status: 'active' } });
+    } catch { /* table may not exist yet */ }
+  }
+
   return {
     activeLoans,
     overdueLoans,
@@ -119,6 +141,9 @@ async function getDashboardData(tenantId: string, appType: string) {
     closingThisWeek,
     routes,
     recentActivity,
+    repoFlaggedCount,
+    insuranceExpiringCount,
+    activeChitGroups,
   };
 }
 
@@ -212,6 +237,53 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Auto Finance KPIs */}
+      {appType === 'autofinance' && (
+        <div className="kpi-grid">
+          <div className="kpi-card">
+            <div className="kpi-icon red"><span className="material-icons-outlined">car_crash</span></div>
+            <div>
+              <div className="kpi-value">{data.repoFlaggedCount}</div>
+              <div className="kpi-label">Repo Flagged Vehicles</div>
+            </div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-icon orange"><span className="material-icons-outlined">policy</span></div>
+            <div>
+              <div className="kpi-value">{data.insuranceExpiringCount}</div>
+              <div className="kpi-label">Insurance Expiring (30d)</div>
+            </div>
+          </div>
+          <Link href="/vehicles?filter=repo" className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>
+            <div className="kpi-icon blue"><span className="material-icons-outlined">directions_car</span></div>
+            <div>
+              <div className="kpi-value">View Vehicles</div>
+              <div className="kpi-label">Vehicle Registry</div>
+            </div>
+          </Link>
+        </div>
+      )}
+
+      {/* Chit Fund KPIs */}
+      {appType === 'chitfunds' && (
+        <div className="kpi-grid">
+          <div className="kpi-card">
+            <div className="kpi-icon green"><span className="material-icons-outlined">savings</span></div>
+            <div>
+              <div className="kpi-value">{data.activeChitGroups}</div>
+              <div className="kpi-label">Active Chit Groups</div>
+            </div>
+          </div>
+          <Link href="/chits" className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>
+            <div className="kpi-icon blue"><span className="material-icons-outlined">groups</span></div>
+            <div>
+              <div className="kpi-value">Manage Chits</div>
+              <div className="kpi-label">Chit Fund Manager</div>
+            </div>
+          </Link>
+        </div>
+      )}
 
       <div className="grid-60-40">
         {/* Defaulter Alerts */}

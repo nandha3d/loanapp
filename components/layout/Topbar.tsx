@@ -60,10 +60,16 @@ export default function Topbar() {
   const pathname = usePathname();
   const [notifOpen, setNotifOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [todayDate, setTodayDate] = useState('');
   const notifRef = useRef<HTMLDivElement>(null);
   
   const title = getPageTitle(pathname);
   const breadcrumbs = getBreadcrumbs(pathname);
+
+  // Set date only on client to avoid SSR hydration mismatch
+  useEffect(() => {
+    setTodayDate(formatTodayDate());
+  }, []);
 
   // Fetch unread notification count dynamically
   useEffect(() => {
@@ -125,7 +131,7 @@ export default function Topbar() {
       </div>
 
       <div className="topbar-right">
-        <span className="topbar-date">{formatTodayDate()}</span>
+        <span className="topbar-date">{todayDate}</span>
 
         <div className="notification-bell" ref={notifRef} onClick={(e) => { e.stopPropagation(); setNotifOpen(!notifOpen); }}>
           <span className="material-icons-outlined">notifications</span>

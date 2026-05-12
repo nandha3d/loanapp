@@ -12,15 +12,21 @@ export default async function AdminUsersPage() {
   }
 
   const tenantId = await getDefaultTenantId();
-  
+
+  // Developer accounts are only visible to other developers
+  const userWhere: any = { tenantId };
+  if (userRole !== 'developer') {
+    userWhere.role = { not: 'developer' };
+  }
+
   const [users, branches] = await Promise.all([
     prisma.user.findMany({ 
-      where: { tenantId },
+      where: userWhere,
       include: { branch: true },
       orderBy: { name: 'asc' }
     }),
     prisma.branch.findMany({ where: { tenantId, status: 'active' } })
   ]);
 
-  return <UsersClient users={users} branches={branches} />;
+  return <UsersClient users={users} branches={branches} viewerRole={userRole} />;
 }

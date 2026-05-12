@@ -62,19 +62,15 @@ export default function AppSelectorClient({ userName, userRole }: { userName: st
               border: '1px solid rgba(255,255,255,0.1)',
               borderRadius: '16px',
               padding: '32px 24px',
-              cursor: app.id === 'chitfunds' ? 'default' : 'pointer',
+              cursor: 'pointer',
               textAlign: 'center',
               transition: 'all .3s ease',
-              opacity: app.id === 'chitfunds' ? 0.5 : 1,
               position: 'relative',
             }}
-            disabled={app.id === 'chitfunds'}
             onMouseOver={e => {
-              if (app.id !== 'chitfunds') {
-                (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.12)';
-                (e.currentTarget as HTMLElement).style.borderColor = app.primaryColor;
-                (e.currentTarget as HTMLElement).style.transform = 'translateY(-4px)';
-              }
+              (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.12)';
+              (e.currentTarget as HTMLElement).style.borderColor = app.primaryColor;
+              (e.currentTarget as HTMLElement).style.transform = 'translateY(-4px)';
             }}
             onMouseOut={e => {
               (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)';
@@ -95,15 +91,7 @@ export default function AppSelectorClient({ userName, userRole }: { userName: st
             <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '.85rem', lineHeight: 1.5 }}>
               {app.description}
             </p>
-            {app.id === 'chitfunds' && (
-              <span style={{
-                position: 'absolute', top: '12px', right: '12px',
-                background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)',
-                padding: '4px 10px', borderRadius: '20px', fontSize: '.7rem', fontWeight: 600,
-              }}>
-                Coming Soon
-              </span>
-            )}
+
           </button>
         ))}
       </div>
@@ -150,6 +138,46 @@ export default function AppSelectorClient({ userName, userRole }: { userName: st
                 <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>Manage Micro Lending branches</div>
               </div>
             </button>
+          )}
+
+          {userRole === 'developer' && (
+            <button
+              onClick={() => router.push('/admin/billing')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '12px',
+                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                padding: '16px 24px', borderRadius: '12px', color: '#fff', cursor: 'pointer',
+                transition: 'all 0.2s ease', flex: 1, minWidth: '250px'
+              }}
+              onMouseOver={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'}
+              onMouseOut={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'}
+            >
+              <span className="material-icons-outlined" style={{ color: '#27AE60' }}>credit_card</span>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontWeight: 600 }}>Billing & Subscriptions</div>
+                <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>Manage tenant plans and limits</div>
+              </div>
+            </button>
+          )}
+
+          {userRole === 'superadmin' && (
+          <button
+            onClick={() => router.push('/subscription')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '12px',
+              background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+              padding: '16px 24px', borderRadius: '12px', color: '#fff', cursor: 'pointer',
+              transition: 'all 0.2s ease', flex: 1, minWidth: '250px'
+            }}
+            onMouseOver={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'}
+            onMouseOut={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'}
+          >
+            <span className="material-icons-outlined" style={{ color: '#9B59B6' }}>receipt_long</span>
+            <div style={{ textAlign: 'left' }}>
+              <div style={{ fontWeight: 600 }}>My Subscription</div>
+              <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>View plan details and usage</div>
+            </div>
+          </button>
           )}
         </div>
       </div>

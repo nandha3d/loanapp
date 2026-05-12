@@ -5,7 +5,7 @@ import PenaltiesClient from './PenaltiesClient';
 export default async function PenaltiesPage({
   searchParams,
 }: {
-  searchParams: { [key: string]: string | undefined };
+  searchParams: Promise<{ [key: string]: string | undefined }>;
 }) {
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();

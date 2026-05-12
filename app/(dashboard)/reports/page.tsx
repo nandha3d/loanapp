@@ -5,7 +5,7 @@ import ReportsClient from './ReportsClient';
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: { [key: string]: string | undefined };
+  searchParams: Promise<{ [key: string]: string | undefined }>;
 }) {
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();

@@ -45,8 +45,8 @@ export default function CustomerForm({
   const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
   const [creatingAgent, setCreatingAgent] = useState(false);
 
-  // Customer photo
-  const [photoName, setPhotoName] = useState<string | null>(customer?.profilePhoto || null);
+  // Customer photo — track new file name; existing URL comes from customer prop
+  const [photoName, setPhotoName] = useState<string | null>(null);
 
   // --- Cheque handlers ---
   const addChequeRow = () => {
@@ -118,7 +118,7 @@ export default function CustomerForm({
       <div className="card-header">
         <h3>{customer ? `✏️ Edit Customer — ${customer.name}` : '➕ Register New Customer'}</h3>
       </div>
-      <form action={onSuccess ? undefined : (saveCustomer as unknown as (formData: FormData) => Promise<void>)} onSubmit={handleSubmit} encType="multipart/form-data">
+      <form action={onSuccess ? undefined : (saveCustomer as unknown as (formData: FormData) => Promise<void>)} onSubmit={handleSubmit}>
         {customer && <input type="hidden" name="id" value={customer.id} />}
         
         {/* --- Customer Photo --- */}
@@ -133,14 +133,21 @@ export default function CustomerForm({
               }}>
                 {photoName ? (
                   <span className="material-icons-outlined" style={{ fontSize: '40px', color: 'var(--success)' }}>check_circle</span>
+                ) : customer?.profilePhoto ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={customer.profilePhoto} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
                   <span className="material-icons-outlined" style={{ fontSize: '32px', color: 'var(--text-light)' }}>add_a_photo</span>
                 )}
               </div>
+              {/* Preserve existing photo URL on edit when no new file selected */}
+              {customer?.profilePhoto && !photoName && (
+                <input type="hidden" name="existingProfilePhoto" value={customer.profilePhoto} />
+              )}
               <input type="file" name="profilePhoto" accept="image/*" style={{ display: 'none' }}
                 onChange={e => setPhotoName(e.target.files?.[0]?.name || null)} />
               <span style={{ fontSize: '.75rem', color: 'var(--text-secondary)', display: 'block', marginTop: '6px' }}>
-                {photoName || 'Add Photo'}
+                {photoName || (customer?.profilePhoto ? 'Change Photo' : 'Add Photo')}
               </span>
             </label>
           </div>

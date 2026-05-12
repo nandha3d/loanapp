@@ -25,6 +25,7 @@ export default function LoanForm({
   agents?: any[];
 }) {
   const [loading, setLoading] = useState(false);
+  const [limitError, setLimitError] = useState<string | null>(null);
   const [localCustomers, setLocalCustomers] = useState(customers);
   const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
@@ -104,7 +105,21 @@ export default function LoanForm({
         )}
       </div>
 
-      <form action={createLoan} onSubmit={() => setLoading(true)}>
+      <form action={async (fd: FormData) => {
+        setLoading(true);
+        setLimitError(null);
+        const result = await createLoan(fd);
+        if (result && 'error' in result) {
+          setLimitError(result.error);
+          setLoading(false);
+        }
+      }}>
+        {limitError && (
+          <div style={{ background: 'var(--danger-bg, #fee2e2)', color: 'var(--danger)', padding: '12px 16px', borderRadius: 'var(--radius-sm)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span className="material-icons-outlined" style={{ fontSize: '18px' }}>block</span>
+            {limitError}
+          </div>
+        )}
         <input type="hidden" name="packageId" value={packageId} />
         <input type="hidden" name="loanType" value={loanType} />
         

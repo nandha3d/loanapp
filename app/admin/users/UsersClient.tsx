@@ -5,7 +5,7 @@ import Modal from '@/components/Modal';
 import { manageMasterUser, toggleUserStatus } from '../actions';
 import { useRouter } from 'next/navigation';
 
-export default function UsersClient({ users, branches }: { users: any[], branches: any[] }) {
+export default function UsersClient({ users, branches, viewerRole }: { users: any[], branches: any[], viewerRole: string }) {
   const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
@@ -143,6 +143,8 @@ export default function UsersClient({ users, branches }: { users: any[], branche
               <select name="role" className="form-control" defaultValue={editingUser?.role || 'agent'}>
                 <option value="admin">Admin</option>
                 <option value="agent">Agent</option>
+                {viewerRole === 'developer' && <option value="superadmin">Super Admin</option>}
+                {viewerRole === 'developer' && <option value="developer">Developer</option>}
               </select>
             </div>
           </div>

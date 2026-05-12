@@ -13,6 +13,9 @@ interface NavItem {
   label?: string;
   href?: string;
   adminOnly?: boolean;
+  developerOnly?: boolean;  // only visible to developer role
+  superadminOnly?: boolean; // only visible to superadmin role
+  appTypes?: string[]; // if set, only show for these appTypes
 }
 
 const navItems: NavItem[] = [
@@ -22,12 +25,17 @@ const navItems: NavItem[] = [
   { section: 'Management' },
   { id: 'customers', icon: 'people', label: 'Customers', href: '/customers' },
   { id: 'loans', icon: 'account_balance', label: 'Loans', href: '/loans', adminOnly: true },
+  { id: 'vehicles', icon: 'directions_car', label: 'Vehicles', href: '/vehicles', adminOnly: true, appTypes: ['autofinance'] },
+  { id: 'chits', icon: 'savings', label: 'Chit Groups', href: '/chits', adminOnly: true, appTypes: ['chitfunds'] },
   { id: 'penalties', icon: 'gavel', label: 'Penalties', href: '/penalties', adminOnly: true },
   { id: 'approvals', icon: 'verified', label: 'Approvals', href: '/approvals' },
   { section: 'Insights' },
   { id: 'reports', icon: 'bar_chart', label: 'Reports', href: '/reports', adminOnly: true },
   { id: 'notifications', icon: 'notifications', label: 'Notifications', href: '/notifications' },
   { id: 'settings', icon: 'settings', label: 'Settings', href: '/settings', adminOnly: true },
+  { section: 'Account' },
+  { id: 'subscription', icon: 'credit_card', label: 'My Subscription', href: '/subscription', superadminOnly: true },
+  { id: 'billing', icon: 'manage_accounts', label: 'Billing & Subscriptions', href: '/admin/billing', developerOnly: true },
 ];
 
 function getInitials(name: string): string {
@@ -62,10 +70,33 @@ export default function Sidebar({ appType: initialAppType }: { appType?: string 
   }, [pathname]);
 
   const filteredNav = navItems.filter(item => {
-    if (item.section) return true;
+    if (item.section) return false; // sections evaluated separately below
     if (item.adminOnly && role !== 'admin' && role !== 'superadmin' && role !== 'developer') return false;
+    if (item.developerOnly && role !== 'developer') return false;
+    if (item.superadminOnly && role !== 'superadmin') return false;
+    if (item.appTypes && !item.appTypes.includes(userAppType)) return false;
     return true;
   });
+
+  // Build final nav list preserving sections only when they have visible children
+  const navWithSections: NavItem[] = [];
+  let currentSectionItems: NavItem[] = [];
+  let currentSection: NavItem | null = null;
+
+  for (const item of navItems) {
+    if (item.section) {
+      if (currentSection && currentSectionItems.length > 0) {
+        navWithSections.push(currentSection, ...currentSectionItems);
+      }
+      currentSection = item;
+      currentSectionItems = [];
+    } else if (filteredNav.includes(item)) {
+      currentSectionItems.push(item);
+    }
+  }
+  if (currentSection && currentSectionItems.length > 0) {
+    navWithSections.push(currentSection, ...currentSectionItems);
+  }
 
   // Determine active page
   const getActiveId = () => {
@@ -107,7 +138,7 @@ export default function Sidebar({ appType: initialAppType }: { appType?: string 
         </div>
 
         <nav className="sidebar-nav">
-          {filteredNav.map((item, idx) => {
+          {navWithSections.map((item, idx) => {
             if (item.section) {
               return <div key={`section-${idx}`} className="nav-section">{item.section}</div>;
             }

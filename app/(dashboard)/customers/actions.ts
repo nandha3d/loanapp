@@ -38,9 +38,12 @@ export async function saveCustomer(formData: FormData) {
   const isPopup = formData.get('isPopup') === 'true';
 
   const profilePhotoFile = formData.get('profilePhoto') as File | null;
+  const existingProfilePhoto = formData.get('existingProfilePhoto') as string | null;
   let profilePhoto: string | null = null;
   if (profilePhotoFile && profilePhotoFile.size > 0) {
     profilePhoto = await saveUploadedFile(profilePhotoFile, 'profiles');
+  } else if (existingProfilePhoto) {
+    profilePhoto = existingProfilePhoto;
   }
 
   // Process documents
@@ -109,7 +112,7 @@ export async function saveCustomer(formData: FormData) {
       where: { id: editId, tenantId },
       data: {
         name, phone, address, routeId, agentId,
-        ...(profilePhoto ? { profilePhoto } : {})
+        profilePhoto: profilePhoto ?? undefined,
       },
       include: { route: true }
     });

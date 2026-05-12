@@ -6,10 +6,13 @@ export async function proxy(request: NextRequest) {
   const session = await auth();
   const { pathname } = request.nextUrl;
 
-  // Static assets and auth routes bypass
+  // Static assets, auth routes, and public API bypass
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/api/cron') ||
+    pathname.startsWith('/assets') ||
+    pathname === '/favicon.ico' ||
     pathname === '/login'
   ) {
     return NextResponse.next();
