@@ -1,4 +1,6 @@
 import prisma from '@/lib/db';
+import { auth } from '@/lib/auth';
+import { redirect } from 'next/navigation';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import ReportsClient from './ReportsClient';
 
@@ -7,6 +9,11 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<{ [key: string]: string | undefined }>;
 }) {
+  const session = await auth();
+  const userRole = (session?.user as any)?.role;
+  const branchId = (session?.user as any)?.branchId as string | undefined;
+  if (userRole === 'agent') redirect('/collection');
+
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
@@ -25,9 +32,13 @@ export default async function ReportsPage({
   const dateTo = new Date(toStr);
   dateTo.setHours(23, 59, 59, 999);
 
+  // Branch-scoped base filter for admin role
+  const loanBase: any = { tenantId, appType };
+  if (userRole === 'admin' && branchId) loanBase.branchId = branchId;
+
   // Build instalment filter
   const instalmentFilter: any = {
-    loan: { tenantId, appType },
+    loan: { ...loanBase },
     dueDate: { gte: dateFrom, lte: dateTo },
   };
   if (routeId) {
@@ -52,8 +63,7 @@ export default async function ReportsPage({
   // --- Defaulter Aging ---
   const overdueLoans = await prisma.loan.findMany({
     where: {
-      tenantId,
-      appType,
+      ...loanBase,
       status: { in: ['active', 'overdue'] },
       ...(routeId ? { customer: { routeId } } : {}),
     },
@@ -100,7 +110,7 @@ export default async function ReportsPage({
   // --- Penalty Report ---
   const penaltyAgg = await prisma.penalty.aggregate({
     where: {
-      loan: { tenantId, appType },
+      loan: { ...loanBase },
       createdAt: { gte: dateFrom, lte: dateTo },
     },
     _sum: { grossPenalty: true, settledAmount: true, waivedAmount: true },
@@ -113,8 +123,7 @@ export default async function ReportsPage({
 
   // --- Loan Disbursement ---
   const loanFilter: any = {
-    tenantId,
-    appType,
+    ...loanBase,
     createdAt: { gte: dateFrom, lte: dateTo },
   };
   if (routeId) loanFilter.customer = { routeId };
@@ -137,12 +146,12 @@ export default async function ReportsPage({
   const agentPerformance = await Promise.all(
     agents.map(async (agent) => {
       const agentCustomers = await prisma.customer.count({
-        where: { tenantId, appType, agentId: agent.id },
+        where: { ...loanBase, agentId: agent.id },
       });
 
       const agentInstalments = await prisma.instalment.findMany({
         where: {
-          loan: { tenantId, appType, customer: { agentId: agent.id } },
+          loan: { ...loanBase, customer: { agentId: agent.id } },
           dueDate: { gte: dateFrom, lte: dateTo },
         },
         select: { dueAmount: true, receivedAmount: true, status: true },

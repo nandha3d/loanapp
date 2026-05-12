@@ -1,4 +1,6 @@
 import prisma from '@/lib/db';
+import { auth } from '@/lib/auth';
+import { redirect } from 'next/navigation';
 import { getDefaultTenantId, getSetting } from '@/lib/tenant';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import Link from 'next/link';
@@ -8,6 +10,11 @@ export default async function ChitsPage({
 }: {
   searchParams: Promise<{ [key: string]: string | undefined }>;
 }) {
+  const session = await auth();
+  const userRole = (session?.user as any)?.role;
+  if (!session) redirect('/login');
+  if (userRole === 'agent') redirect('/collection');
+
   const tenantId = await getDefaultTenantId();
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
   const resolvedParams = await searchParams;

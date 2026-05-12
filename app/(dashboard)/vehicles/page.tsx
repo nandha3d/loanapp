@@ -1,5 +1,6 @@
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
+import { redirect } from 'next/navigation';
 import { getDefaultTenantId, getSetting } from '@/lib/tenant';
 import { formatDate } from '@/lib/utils';
 import Link from 'next/link';
@@ -13,6 +14,9 @@ export default async function VehiclesPage({
   const tenantId = await getDefaultTenantId();
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
   const userRole = (session?.user as any)?.role;
+
+  if (!session) redirect('/login');
+  if (userRole === 'agent') redirect('/collection');
 
   const resolvedParams = await searchParams;
   const q = resolvedParams.q || '';
