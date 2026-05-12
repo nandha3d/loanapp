@@ -1,5 +1,6 @@
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
+import { redirect } from 'next/navigation';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { formatCurrency, formatDate, getBadgeClass, parsePagination, paginatedResponse, calcPercentage } from '@/lib/utils';
 import Link from 'next/link';
@@ -15,6 +16,8 @@ export default async function LoansPage({
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
   const userRole = (session?.user as any)?.role;
   const branchId = (session?.user as any)?.branchId as string | undefined;
+
+  if (userRole === 'agent') redirect('/collection');
 
   const resolvedParams = await searchParams;
   const q = resolvedParams.q || '';

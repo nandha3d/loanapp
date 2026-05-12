@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { formatCurrency, formatDate, getBadgeClass, getInitials, calcPercentage } from '@/lib/utils';
+import { submitEditRequest } from '@/app/(dashboard)/approvals/actions';
 
 export default function CustomerProfileClient({
   customer,
@@ -14,6 +15,8 @@ export default function CustomerProfileClient({
   userRole: string;
 }) {
   const [activeTab, setActiveTab] = useState('loans');
+  const [editRequestModal, setEditRequestModal] = useState(false);
+  const [editRequestLoading, setEditRequestLoading] = useState(false);
 
   return (
     <>
@@ -36,6 +39,11 @@ export default function CustomerProfileClient({
               <Link href={`/customers/new?edit=${customer.id}`} className="btn btn-secondary btn-sm">
                 <span className="material-icons-outlined" style={{ fontSize: '14px' }}>edit</span> Edit
               </Link>
+            )}
+            {userRole === 'agent' && (
+              <button className="btn btn-secondary btn-sm" onClick={() => setEditRequestModal(true)}>
+                <span className="material-icons-outlined" style={{ fontSize: '14px' }}>edit_note</span> Request Edit
+              </button>
             )}
             {userRole !== 'agent' && (
               <Link href={`/loans/new?customerId=${customer.id}`} className="btn btn-primary btn-sm">
@@ -170,6 +178,72 @@ export default function CustomerProfileClient({
         </div>
 
       </div>
+
+      {/* Request Edit Modal — agent only */}
+      {editRequestModal && (
+        <div className="modal-overlay show" onClick={(e) => { if (e.target === e.currentTarget) setEditRequestModal(false); }}>
+          <div className="modal" style={{ maxWidth: '480px' }}>
+            <div className="modal-header">
+              <h3>Request Customer Edit</h3>
+              <button className="modal-close material-icons-outlined" onClick={() => setEditRequestModal(false)}>close</button>
+            </div>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              setEditRequestLoading(true);
+              const fd = new FormData(e.currentTarget);
+              fd.set('customerId', customer.id);
+              const res = await submitEditRequest(fd);
+              setEditRequestLoading(false);
+              if (res.success) {
+                setEditRequestModal(false);
+                alert('Edit request submitted. An admin will review it shortly.');
+              } else {
+                alert(res.error || 'Failed to submit request');
+              }
+            }}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <p style={{ fontSize: '.85rem', color: 'var(--text-light)' }}>
+                  Fill in the updated values for the fields you want changed. Leave a field blank to keep its current value.
+                </p>
+                <div className="form-group">
+                  <label className="form-label">Name</label>
+                  <input type="text" name="name" className="form-control" defaultValue={customer.name} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Phone</label>
+                  <input type="text" name="phone" className="form-control" defaultValue={customer.phone} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Address</label>
+                  <input type="text" name="address" className="form-control" defaultValue={customer.address} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Aadhaar Number</label>
+                  <input type="text" name="aadharNumber" className="form-control" defaultValue={customer.aadharNumber} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">KYC Status</label>
+                  <select name="kycStatus" className="form-control" defaultValue={customer.kycStatus}>
+                    <option value="pending">Pending</option>
+                    <option value="verified">Verified</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Reason for Change <span style={{ color: 'var(--danger)' }}>*</span></label>
+                  <textarea name="reason" className="form-control" rows={3} required placeholder="Briefly explain why this change is needed..." />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setEditRequestModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={editRequestLoading}>
+                  {editRequestLoading ? 'Submitting...' : 'Submit Request'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </>
   );
 }

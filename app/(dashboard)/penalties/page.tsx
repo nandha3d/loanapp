@@ -1,4 +1,6 @@
 import prisma from '@/lib/db';
+import { auth } from '@/lib/auth';
+import { redirect } from 'next/navigation';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import PenaltiesClient from './PenaltiesClient';
 
@@ -7,6 +9,11 @@ export default async function PenaltiesPage({
 }: {
   searchParams: Promise<{ [key: string]: string | undefined }>;
 }) {
+  const session = await auth();
+  const userRole = (session?.user as any)?.role;
+  const branchId = (session?.user as any)?.branchId as string | undefined;
+  if (userRole === 'agent') redirect('/collection');
+
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
@@ -16,8 +23,11 @@ export default async function PenaltiesPage({
   const status = resolvedParams.status || '';
   const routeId = resolvedParams.routeId || '';
 
-  // Build where clause
-  const where: any = { loan: { tenantId, appType } };
+  // Build where clause — scope to branch for admin role
+  const loanBase: any = { tenantId, appType };
+  if (userRole === 'admin' && branchId) loanBase.branchId = branchId;
+
+  const where: any = { loan: loanBase };
   if (status) where.status = status;
   if (q) {
     where.OR = [
@@ -42,9 +52,9 @@ export default async function PenaltiesPage({
     orderBy: { createdAt: 'desc' },
   });
 
-  // Aggregate KPIs
+  // Aggregate KPIs (same branch scope)
   const aggregates = await prisma.penalty.aggregate({
-    where: { loan: { tenantId, appType } },
+    where: { loan: loanBase },
     _sum: { grossPenalty: true, settledAmount: true, waivedAmount: true },
     _count: true,
   });

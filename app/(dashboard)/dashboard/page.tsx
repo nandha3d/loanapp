@@ -4,11 +4,19 @@ import { getDefaultTenantId, getBranding, getUserAppType } from '@/lib/tenant';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import Link from 'next/link';
 
-async function getDashboardData(tenantId: string, appType: string) {
+async function getDashboardData(tenantId: string, appType: string, adminBranchId?: string) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
+
+  // Branch-scoped base filter for admin role
+  const loanWhere: any = { tenantId, appType };
+  const customerWhere: any = { tenantId, appType };
+  if (adminBranchId) {
+    loanWhere.branchId = adminBranchId;
+    customerWhere.branchId = adminBranchId;
+  }
 
   // Get counts and aggregates
   const [
@@ -24,25 +32,24 @@ async function getDashboardData(tenantId: string, appType: string) {
     recentActivity,
   ] = await Promise.all([
     // Active loans count
-    prisma.loan.count({ where: { tenantId, appType, status: 'active' } }),
+    prisma.loan.count({ where: { ...loanWhere, status: 'active' } }),
     // Overdue loans count
-    prisma.loan.count({ where: { tenantId, appType, status: 'overdue' } }),
+    prisma.loan.count({ where: { ...loanWhere, status: 'overdue' } }),
     // Total customers
-    prisma.customer.count({ where: { tenantId, appType, status: { not: 'blacklisted' } } }),
-    // Total agents
+    prisma.customer.count({ where: { ...customerWhere, status: { not: 'blacklisted' } } }),
+    // Total agents (not branch-scoped — agents are shared)
     prisma.user.count({ where: { tenantId, appType, role: 'agent', status: 'active' } }),
     // Loans created this month
     prisma.loan.count({
       where: {
-        tenantId,
-        appType,
+        ...loanWhere,
         createdAt: { gte: new Date(today.getFullYear(), today.getMonth(), 1) },
       },
     }),
     // Today's expected instalments
     prisma.instalment.findMany({
       where: {
-        loan: { tenantId, appType },
+        loan: { ...loanWhere },
         dueDate: { gte: today, lt: tomorrow },
       },
       include: { loan: { include: { customer: true } } },
@@ -50,14 +57,14 @@ async function getDashboardData(tenantId: string, appType: string) {
     // Today's paid instalments
     prisma.instalment.count({
       where: {
-        loan: { tenantId, appType },
+        loan: { ...loanWhere },
         dueDate: { gte: today, lt: tomorrow },
         status: 'paid',
       },
     }),
     // Pending penalties
     prisma.penalty.aggregate({
-      where: { loan: { tenantId, appType }, status: 'pending' },
+      where: { loan: { ...loanWhere }, status: 'pending' },
       _sum: { grossPenalty: true },
       _count: true,
     }),
@@ -66,9 +73,12 @@ async function getDashboardData(tenantId: string, appType: string) {
       where: { tenantId, appType, status: 'active' },
       include: { assignedAgent: true, _count: { select: { customers: true } } },
     }),
-    // Recent audit log
+    // Recent audit log — exclude actions performed by developer accounts
     prisma.auditLog.findMany({
-      where: { tenantId },
+      where: {
+        tenantId,
+        user: { role: { not: 'developer' } },
+      },
       orderBy: { createdAt: 'desc' },
       take: 10,
       include: { user: true },
@@ -83,7 +93,7 @@ async function getDashboardData(tenantId: string, appType: string) {
 
   // Get defaulters (overdue customers)
   const defaulters = await prisma.loan.findMany({
-    where: { tenantId, appType, status: 'overdue' },
+    where: { ...loanWhere, status: 'overdue' },
     include: {
       customer: true,
       penalties: { where: { status: 'pending' } },
@@ -96,14 +106,13 @@ async function getDashboardData(tenantId: string, appType: string) {
   weekEnd.setDate(weekEnd.getDate() + 7);
   const closingThisWeek = await prisma.loan.count({
     where: {
-      tenantId,
-      appType,
+      ...loanWhere,
       status: 'active',
       endDate: { gte: today, lte: weekEnd },
     },
   });
 
-  // Auto Finance extras
+  // Auto Finance extras (not branch-scoped for vehicles)
   let repoFlaggedCount = 0;
   let insuranceExpiringCount = 0;
   if (appType === 'autofinance') {
@@ -152,7 +161,11 @@ export default async function DashboardPage() {
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
   const branding = await getBranding(tenantId);
-  const data = await getDashboardData(tenantId, appType);
+  const userRole = (session?.user as any)?.role;
+  const userBranchId = (session?.user as any)?.branchId as string | undefined;
+  // Scope dashboard data to branch for admin role
+  const adminBranchId = userRole === 'admin' && userBranchId ? userBranchId : undefined;
+  const data = await getDashboardData(tenantId, appType, adminBranchId);
 
   const collectionGap = data.todayExpected - data.todayCollected;
 

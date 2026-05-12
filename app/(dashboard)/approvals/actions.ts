@@ -121,3 +121,84 @@ export async function approveCustomerCreation(customerId: string) {
   revalidatePath('/dashboard');
   return { success: true };
 }
+
+// Fields an agent is allowed to request edits for
+const EDIT_REQUEST_FIELDS = ['name', 'phone', 'address', 'aadharNumber', 'kycStatus'];
+
+/**
+ * Submitted by an agent from the customer profile page.
+ * Creates a pending ApprovalRequest for admin/superadmin to review.
+ */
+export async function submitEditRequest(formData: FormData) {
+  const session = await auth();
+  const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  const userId = session?.user?.id;
+  const userRole = (session?.user as any)?.role;
+
+  if (!userId) return { success: false, error: 'Not authenticated' };
+
+  const customerId = formData.get('customerId') as string;
+  const reason = formData.get('reason') as string;
+
+  if (!customerId || !reason?.trim()) {
+    return { success: false, error: 'Customer and reason are required' };
+  }
+
+  // Verify customer belongs to this tenant
+  const customer = await prisma.customer.findFirst({
+    where: { id: customerId, tenantId, appType },
+    select: { id: true, name: true, phone: true, address: true, aadharNumber: true, kycStatus: true },
+  });
+  if (!customer) return { success: false, error: 'Customer not found' };
+
+  // Collect only the allowed changed fields from the form
+  const requestedChanges: Record<string, string> = {};
+  for (const field of EDIT_REQUEST_FIELDS) {
+    const val = formData.get(field) as string | null;
+    if (val !== null && val !== (customer as any)[field]) {
+      requestedChanges[field] = val;
+    }
+  }
+
+  if (Object.keys(requestedChanges).length === 0) {
+    return { success: false, error: 'No changes detected. Please modify at least one field.' };
+  }
+
+  // Block duplicate pending requests for the same customer
+  const existing = await prisma.approvalRequest.findFirst({
+    where: { tenantId, appType, entityId: customerId, requestType: 'customer_edit', status: 'pending' },
+  });
+  if (existing) {
+    return { success: false, error: 'An edit request is already pending for this customer.' };
+  }
+
+  await prisma.approvalRequest.create({
+    data: {
+      tenantId,
+      appType,
+      requestType: 'customer_edit',
+      entityType: 'customer',
+      entityId: customerId,
+      requestedById: userId,
+      requestedChanges: JSON.stringify(requestedChanges),
+      reason,
+      status: 'pending',
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId,
+      userId,
+      action: 'create',
+      entityType: 'approval_request',
+      entityId: customerId,
+      newValue: JSON.stringify({ requestType: 'customer_edit', changes: requestedChanges }),
+    },
+  });
+
+  revalidatePath(`/customers/${customerId}`);
+  revalidatePath('/approvals');
+  return { success: true };
+}
