@@ -2,6 +2,7 @@ import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { getDefaultTenantId, getBranding, getUserAppType } from '@/lib/tenant';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { getDictionary } from '@/lib/i18n';
 import Link from 'next/link';
 
 async function getDashboardData(tenantId: string, appType: string, adminBranchId?: string) {
@@ -161,6 +162,8 @@ export default async function DashboardPage() {
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
   const branding = await getBranding(tenantId);
+  const dict = await getDictionary(tenantId);
+  
   const userRole = (session?.user as any)?.role;
   const userBranchId = (session?.user as any)?.branchId as string | undefined;
   // Scope dashboard data to branch for admin role
@@ -179,7 +182,7 @@ export default async function DashboardPage() {
           </div>
           <div>
             <div className="kpi-value">{formatCurrency(data.todayExpected, branding.currencySymbol)}</div>
-            <div className="kpi-label">Today&apos;s Expected Collection</div>
+            <div className="kpi-label">{dict.dashboard.expectedCollection}</div>
           </div>
         </div>
         <div className="kpi-card">
@@ -188,7 +191,7 @@ export default async function DashboardPage() {
           </div>
           <div>
             <div className="kpi-value">{formatCurrency(data.todayCollected, branding.currencySymbol)}</div>
-            <div className="kpi-label">Today&apos;s Actual Collected</div>
+            <div className="kpi-label">{dict.dashboard.actualCollected}</div>
           </div>
         </div>
         <div className="kpi-card">
@@ -197,7 +200,7 @@ export default async function DashboardPage() {
           </div>
           <div>
             <div className="kpi-value">{formatCurrency(collectionGap, branding.currencySymbol)}</div>
-            <div className="kpi-label">Collection Gap</div>
+            <div className="kpi-label">{dict.dashboard.collectionGap}</div>
           </div>
         </div>
         <div className="kpi-card">
@@ -206,7 +209,7 @@ export default async function DashboardPage() {
           </div>
           <div>
             <div className="kpi-value">{data.activeLoans}</div>
-            <div className="kpi-label">Total Active Loans</div>
+            <div className="kpi-label">{dict.dashboard.activeLoans}</div>
           </div>
         </div>
       </div>
@@ -219,7 +222,7 @@ export default async function DashboardPage() {
           </div>
           <div>
             <div className="kpi-value">{data.overdueLoans}</div>
-            <div className="kpi-label">Total Defaulters</div>
+            <div className="kpi-label">{dict.dashboard.totalDefaulters}</div>
           </div>
         </div>
         <div className="kpi-card">
@@ -228,7 +231,7 @@ export default async function DashboardPage() {
           </div>
           <div>
             <div className="kpi-value">{formatCurrency(data.pendingPenaltyTotal, branding.currencySymbol)}</div>
-            <div className="kpi-label">Total Penalty Accumulated</div>
+            <div className="kpi-label">{dict.dashboard.penaltyAccumulated}</div>
           </div>
         </div>
         <div className="kpi-card">
@@ -237,7 +240,7 @@ export default async function DashboardPage() {
           </div>
           <div>
             <div className="kpi-value">{data.closingThisWeek}</div>
-            <div className="kpi-label">Loans Closing This Week</div>
+            <div className="kpi-label">{dict.dashboard.closingThisWeek}</div>
           </div>
         </div>
         <div className="kpi-card">
@@ -246,7 +249,7 @@ export default async function DashboardPage() {
           </div>
           <div>
             <div className="kpi-value">{data.recentLoans}</div>
-            <div className="kpi-label">New Loans This Month</div>
+            <div className="kpi-label">{dict.dashboard.newLoansMonth}</div>
           </div>
         </div>
       </div>
@@ -302,8 +305,8 @@ export default async function DashboardPage() {
         {/* Defaulter Alerts */}
         <div className="card">
           <div className="card-header">
-            <h3>⚠️ Defaulter Alerts</h3>
-            <Link href="/customers?filter=overdue" className="btn btn-ghost btn-sm">View All</Link>
+            <h3>⚠️ {dict.dashboard.defaulterAlerts}</h3>
+            <Link href="/customers?filter=overdue" className="btn btn-ghost btn-sm">{dict.dashboard.viewAll}</Link>
           </div>
           {data.defaulters.length > 0 ? (
             <div className="table-wrapper">
@@ -331,7 +334,7 @@ export default async function DashboardPage() {
                           {formatCurrency(totalPenalty, branding.currencySymbol)}
                         </td>
                         <td>
-                          <Link href={`/customers/${loan.customer.id}`} className="btn btn-ghost btn-sm">View</Link>
+                          <Link href={`/customers/${loan.customer.customerCode}`} className="btn btn-ghost btn-sm">View</Link>
                         </td>
                       </tr>
                     );
@@ -342,14 +345,14 @@ export default async function DashboardPage() {
           ) : (
             <div className="empty-state" style={{ padding: '24px' }}>
               <span className="material-icons-outlined" style={{ fontSize: '36px', color: 'var(--success)' }}>check_circle</span>
-              <p style={{ marginTop: '8px', fontSize: '.85rem', color: 'var(--text-secondary)' }}>No defaulters today! 🎉</p>
+              <p style={{ marginTop: '8px', fontSize: '.85rem', color: 'var(--text-secondary)' }}>{dict.dashboard.noDefaulters}</p>
             </div>
           )}
         </div>
 
         {/* Route Performance */}
         <div className="card">
-          <div className="card-header"><h3>📊 Route Performance</h3></div>
+          <div className="card-header"><h3>📊 {dict.dashboard.routePerformance}</h3></div>
           {data.routes.length > 0 ? (
             <div className="table-wrapper">
               <table>
@@ -373,8 +376,8 @@ export default async function DashboardPage() {
             </div>
           ) : (
             <div className="empty-state" style={{ padding: '24px' }}>
-              <p style={{ fontSize: '.85rem', color: 'var(--text-secondary)' }}>No routes configured yet</p>
-              <Link href="/settings" className="btn btn-primary btn-sm" style={{ marginTop: '8px' }}>Configure Routes</Link>
+              <p style={{ fontSize: '.85rem', color: 'var(--text-secondary)' }}>{dict.dashboard.noRoutes}</p>
+              <Link href="/settings" className="btn btn-primary btn-sm" style={{ marginTop: '8px' }}>{dict.dashboard.configureRoutes}</Link>
             </div>
           )}
         </div>
@@ -382,7 +385,7 @@ export default async function DashboardPage() {
 
       {/* Recent Activity */}
       <div className="card" style={{ marginTop: '20px' }}>
-        <div className="card-header"><h3>🕐 Recent Activity</h3></div>
+        <div className="card-header"><h3>🕐 {dict.dashboard.recentActivity}</h3></div>
         {data.recentActivity.length > 0 ? (
           <div>
             {data.recentActivity.map((log) => (

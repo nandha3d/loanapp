@@ -14,13 +14,25 @@ export default async function CustomerProfilePage({
   const session = await auth();
   const userRole = (session?.user as any)?.role || 'agent';
   
-  const customer = await prisma.customer.findUnique({
-    where: { id: resolvedParams.id, tenantId },
+  // Support both ID and Customer Code as slug
+  const customer = await prisma.customer.findFirst({
+    where: {
+      tenantId,
+      OR: [
+        { id: resolvedParams.id },
+        { customerCode: resolvedParams.id }
+      ]
+    },
     include: {
       route: true,
       agent: true,
       securityCheques: true,
+      guarantors: true,
       loans: {
+        include: {
+          instalments: { select: { status: true, receivedAmount: true } },
+          penalties: { select: { id: true } }
+        },
         orderBy: { createdAt: 'desc' }
       }
     }

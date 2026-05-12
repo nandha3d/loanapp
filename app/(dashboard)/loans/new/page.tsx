@@ -1,5 +1,6 @@
 import prisma from '@/lib/db';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
+import { getDictionary } from '@/lib/i18n';
 import LoanForm from './LoanForm';
 
 export default async function NewLoanPage({
@@ -10,6 +11,7 @@ export default async function NewLoanPage({
   const resolvedSearchParams = await searchParams;
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
+  const dict = await getDictionary(tenantId);
   
   const [customers, rawPackages, defaultPenalty, currencySymbol, routes, agents] = await Promise.all([
     prisma.customer.findMany({ 
@@ -44,6 +46,7 @@ export default async function NewLoanPage({
       preSelectedCustomerId={resolvedSearchParams.customerId}
       routes={routes}
       agents={agents}
+      dict={dict}
     />
   );
 }

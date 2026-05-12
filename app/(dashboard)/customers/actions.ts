@@ -101,6 +101,19 @@ export async function saveCustomer(formData: FormData) {
   let customerId = editId;
   let savedCustomer = null;
 
+  // Check for duplicate name (within the same tenant)
+  const existingName = await prisma.customer.findFirst({
+    where: { 
+      tenantId, 
+      name, 
+      id: editId ? { not: editId } : undefined 
+    }
+  });
+
+  if (existingName) {
+    return { success: false, error: `A customer named "${name}" already exists. Please verify if this is a duplicate.` };
+  }
+
   if (editId) {
     // Agents cannot edit directly
     if (userRole === 'agent') {
@@ -190,17 +203,28 @@ export async function saveCustomer(formData: FormData) {
       include: { route: true }
     });
     customerId = savedCustomer.id;
+  }
 
-    await prisma.auditLog.create({
-      data: {
-        tenantId,
-        userId,
-        action: 'create',
-        entityType: 'customer',
-        entityId: customerId!,
-        newValue: JSON.stringify({ customerCode, name, status: savedCustomer.status }),
-      },
-    });
+  // Log action - only if userId is valid
+  if (userId) {
+    try {
+      await prisma.auditLog.create({
+        data: {
+          tenantId,
+          userId,
+          action: editId ? 'update' : 'create',
+          entityType: 'customer',
+          entityId: customerId!,
+          newValue: JSON.stringify({ 
+            customerCode: savedCustomer.customerCode, 
+            name: savedCustomer.name, 
+            status: savedCustomer.status 
+          }),
+        },
+      });
+    } catch (e) {
+      console.error('Failed to create audit log:', e);
+    }
   }
 
   if (isPopup) {

@@ -1,8 +1,9 @@
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
-import { formatCurrency, getBadgeClass, parsePagination, paginatedResponse } from '@/lib/utils';
+import { formatCurrency, getBadgeClass, parsePagination, paginatedResponse, getInitials } from '@/lib/utils';
 import Link from 'next/link';
+import { calculateCreditScore } from '@/lib/creditScore';
 
 export default async function CustomersPage({
   searchParams
@@ -22,9 +23,7 @@ export default async function CustomersPage({
 
   const branchId = (session?.user as any)?.branchId as string | undefined;
 
-  // Build where clause
   const where: any = { tenantId, appType };
-  // Admins are branch-scoped; superadmin/developer see all
   if (userRole === 'admin' && branchId) {
     where.branchId = branchId;
   }
@@ -38,13 +37,11 @@ export default async function CustomersPage({
   if (routeId) where.routeId = routeId;
   if (status) where.status = status;
 
-  // Fetch routes for filter
   const routes = await prisma.route.findMany({
     where: { tenantId, appType, status: 'active' },
     orderBy: { name: 'asc' }
   });
 
-  // Fetch customers
   const [total, customers] = await Promise.all([
     prisma.customer.count({ where }),
     prisma.customer.findMany({
@@ -55,8 +52,10 @@ export default async function CustomersPage({
       include: {
         route: true,
         loans: {
-          where: { status: { notIn: ['closed', 'settled'] } },
-          take: 1
+          include: {
+            instalments: { select: { status: true, receivedAmount: true } },
+            penalties: { select: { id: true } }
+          }
         }
       }
     })
@@ -111,6 +110,7 @@ export default async function CustomersPage({
               <th>Name</th>
               <th>Phone</th>
               <th>Route</th>
+              <th>Score</th>
               <th>Active Loan</th>
               <th>Status</th>
               <th>Actions</th>
@@ -118,20 +118,46 @@ export default async function CustomersPage({
           </thead>
           <tbody>
             {customers.map(c => {
-              const loan = c.loans[0];
+              const activeLoan = c.loans.find(l => !['closed', 'settled'].includes(l.status));
+              const { score, grade } = calculateCreditScore(c.loans);
+              
               return (
                 <tr key={c.id}>
-                  <td><strong>{c.customerCode}</strong></td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div className="profile-avatar" style={{ width: '32px', height: '32px', fontSize: '.75rem', flexShrink: 0 }}>
+                        {c.profilePhoto ? (
+                          <img src={c.profilePhoto} alt={c.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+                        ) : (
+                          getInitials(c.name)
+                        )}
+                      </div>
+                      <strong>{c.customerCode}</strong>
+                    </div>
+                  </td>
                   <td>{c.name}</td>
                   <td>{c.phone}</td>
                   <td>{c.route?.name || '—'}</td>
                   <td>
-                    {loan ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ 
+                        fontWeight: 700, 
+                        color: score >= 80 ? 'var(--success)' : score >= 50 ? 'var(--warning)' : 'var(--danger)' 
+                      }}>
+                        {score}
+                      </span>
+                      <span style={{ fontSize: '.7rem', padding: '1px 4px', background: 'var(--bg)', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                        {grade}
+                      </span>
+                    </div>
+                  </td>
+                  <td>
+                    {activeLoan ? (
                       <>
-                        <Link href={`/loans/${loan.id}`}>{loan.loanCode}</Link>
+                        <Link href={`/loans/${activeLoan.id}`}>{activeLoan.loanCode}</Link>
                         <br />
                         <span style={{fontSize:'.75rem', color:'var(--text-light)'}}>
-                          {formatCurrency(loan.principal, '₹')}
+                          {formatCurrency(Number(activeLoan.principal), '₹')}
                         </span>
                       </>
                     ) : (
@@ -144,18 +170,9 @@ export default async function CustomersPage({
                     </span>
                   </td>
                   <td>
-                    <Link href={`/customers/${c.id}`} className="btn btn-ghost btn-sm">View</Link>
+                    <Link href={`/customers/${c.customerCode}`} className="btn btn-ghost btn-sm">View</Link>
                     {userRole !== 'agent' && (
                       <Link href={`/customers/new?edit=${c.id}`} className="btn btn-ghost btn-sm">Edit</Link>
-                    )}
-                    {c.status === 'pending_review' && userRole !== 'agent' && (
-                      <form action={async () => {
-                        'use server';
-                        const { approveCustomerCreation } = await import('../approvals/actions');
-                        await approveCustomerCreation(c.id);
-                      }} style={{display: 'inline'}}>
-                        <button type="submit" className="btn btn-primary btn-sm" style={{marginLeft: '8px'}}>Approve</button>
-                      </form>
                     )}
                   </td>
                 </tr>
@@ -163,7 +180,7 @@ export default async function CustomersPage({
             })}
             {customers.length === 0 && (
               <tr>
-                <td colSpan={7} style={{textAlign:'center', padding:'32px', color:'var(--text-light)'}}>
+                <td colSpan={8} style={{textAlign:'center', padding:'32px', color:'var(--text-light)'}}>
                   No customers found.
                 </td>
               </tr>

@@ -5,50 +5,45 @@ import { saveCustomer } from '../actions';
 import Modal from '@/components/Modal';
 import { createRoute, createUser } from '../../settings/actions';
 
-export default function CustomerForm({
-  routes,
-  agents,
-  customer,
-  onSuccess,
-}: {
+interface CustomerFormProps {
   routes: any[];
   agents: any[];
   customer?: any;
   onSuccess?: (customer: any) => void;
-}) {
+  dict: any;
+}
+
+export default function CustomerForm({ routes: initialRoutes, agents: initialAgents, customer, onSuccess, dict }: CustomerFormProps) {
   const [loading, setLoading] = useState(false);
-  
-  // Security cheques state
-  const [cheques, setCheques] = useState<{ id: number; bank: string; num: string; fileName?: string }[]>(
-    customer?.securityCheques?.map((c: any, i: number) => ({ id: i, bank: c.bankName, num: c.chequeNumber, fileName: c.imagePath })) 
-    || [{ id: Date.now(), bank: '', num: '' }]
-  );
-
-  // Documents state (multiple)
-  const [documents, setDocuments] = useState<{ id: number; name: string }[]>([]);
-
-  // Guarantors state
-  const [guarantors, setGuarantors] = useState<{ id: number; name: string; phone: string; address: string; relation: string; photoName?: string }[]>(
-    customer?.guarantors?.map((g: any, i: number) => ({ id: i, name: g.name, phone: g.phone, address: g.address || '', relation: g.relation || '', photoName: g.photo }))
-    || []
-  );
-
-  // Route modal
-  const [localRoutes, setLocalRoutes] = useState<any[]>(routes);
+  const [localRoutes, setLocalRoutes] = useState(initialRoutes);
+  const [localAgents, setLocalAgents] = useState(initialAgents);
   const [selectedRouteId, setSelectedRouteId] = useState(customer?.routeId || '');
+  const [selectedAgentId, setSelectedAgentId] = useState(customer?.agentId || '');
+
   const [isRouteModalOpen, setIsRouteModalOpen] = useState(false);
   const [creatingRoute, setCreatingRoute] = useState(false);
-
-  // Agent modal
-  const [localAgents, setLocalAgents] = useState<any[]>(agents);
-  const [selectedAgentId, setSelectedAgentId] = useState(customer?.agentId || '');
   const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
   const [creatingAgent, setCreatingAgent] = useState(false);
 
-  // Customer photo — track new file name; existing URL comes from customer prop
-  const [photoName, setPhotoName] = useState<string | null>(null);
+  // Customer photo — track new file for preview; existing URL comes from customer prop
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPhotoFile(file);
+      const url = URL.createObjectURL(file);
+      setPhotoPreview(url);
+    } else {
+      setPhotoFile(null);
+      setPhotoPreview(null);
+    }
+  };
 
   // --- Cheque handlers ---
+  const [cheques, setCheques] = useState<any[]>(customer?.securityCheques?.map((c: any) => ({ id: c.id, bank: c.bankName, num: c.chequeNumber, fileName: c.imagePath })) || []);
+  const [chequePreviews, setChequePreviews] = useState<Record<number, string>>({});
   const addChequeRow = () => {
     if (cheques.length >= 5) { alert('Maximum 5 cheques allowed'); return; }
     setCheques([...cheques, { id: Date.now(), bank: '', num: '' }]);
@@ -57,14 +52,30 @@ export default function CustomerForm({
   const updateCheque = (id: number, field: string, value: string) => {
     setCheques(cheques.map(c => c.id === id ? { ...c, [field]: value } : c));
   };
+  const handleChequePhotoChange = (id: number, file: File | null) => {
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setChequePreviews(prev => ({ ...prev, [id]: url }));
+      updateCheque(id, 'fileName', file.name);
+    }
+  };
 
   // --- Guarantor handlers ---
+  const [guarantors, setGuarantors] = useState<any[]>(customer?.guarantors?.map((g: any) => ({ id: g.id, name: g.name, phone: g.phone, address: g.address, relation: g.relation, photoName: g.photo })) || []);
+  const [guarantorPreviews, setGuarantorPreviews] = useState<Record<number, string>>({});
   const addGuarantor = () => {
     setGuarantors([...guarantors, { id: Date.now(), name: '', phone: '', address: '', relation: '' }]);
   };
   const removeGuarantor = (id: number) => setGuarantors(guarantors.filter(g => g.id !== id));
   const updateGuarantor = (id: number, field: string, value: string) => {
     setGuarantors(guarantors.map(g => g.id === id ? { ...g, [field]: value } : g));
+  };
+  const handleGuarantorPhotoChange = (id: number, file: File | null) => {
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setGuarantorPreviews(prev => ({ ...prev, [id]: url }));
+      updateGuarantor(id, 'photoName', file.name);
+    }
   };
 
   // --- Route create handler ---
@@ -96,6 +107,8 @@ export default function CustomerForm({
     setCreatingAgent(false);
   };
 
+  const [documents, setDocuments] = useState<any[]>([]);
+
   // --- Submit ---
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     if (onSuccess) {
@@ -106,6 +119,8 @@ export default function CustomerForm({
       const res = await saveCustomer(formData);
       if (res.success && res.customer) {
         onSuccess(res.customer);
+      } else if (res.error) {
+        alert(res.error);
       }
       setLoading(false);
     } else {
@@ -116,7 +131,7 @@ export default function CustomerForm({
   return (
     <div className="card" style={{ maxWidth: '900px' }}>
       <div className="card-header">
-        <h3>{customer ? `✏️ Edit Customer — ${customer.name}` : '➕ Register New Customer'}</h3>
+        <h3>{customer ? `✏️ ${dict.customers.editTitle} — ${customer.name}` : `➕ ${dict.customers.registerTitle}`}</h3>
       </div>
       <form action={onSuccess ? undefined : (saveCustomer as unknown as (formData: FormData) => Promise<void>)} onSubmit={handleSubmit}>
         {customer && <input type="hidden" name="id" value={customer.id} />}
@@ -131,8 +146,8 @@ export default function CustomerForm({
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 overflow: 'hidden'
               }}>
-                {photoName ? (
-                  <span className="material-icons-outlined" style={{ fontSize: '40px', color: 'var(--success)' }}>check_circle</span>
+                {photoPreview ? (
+                  <img src={photoPreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : customer?.profilePhoto ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={customer.profilePhoto} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -141,13 +156,13 @@ export default function CustomerForm({
                 )}
               </div>
               {/* Preserve existing photo URL on edit when no new file selected */}
-              {customer?.profilePhoto && !photoName && (
+              {customer?.profilePhoto && !photoFile && (
                 <input type="hidden" name="existingProfilePhoto" value={customer.profilePhoto} />
               )}
               <input type="file" name="profilePhoto" accept="image/*" style={{ display: 'none' }}
-                onChange={e => setPhotoName(e.target.files?.[0]?.name || null)} />
+                onChange={handlePhotoChange} />
               <span style={{ fontSize: '.75rem', color: 'var(--text-secondary)', display: 'block', marginTop: '6px' }}>
-                {photoName || (customer?.profilePhoto ? 'Change Photo' : 'Add Photo')}
+                {photoFile?.name || (customer?.profilePhoto ? dict.customers.changePhoto : dict.customers.addPhoto)}
               </span>
             </label>
           </div>
@@ -155,57 +170,51 @@ export default function CustomerForm({
           <div style={{ flex: 1 }}>
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">Full Name *</label>
+                <label className="form-label">{dict.customers.fullName} *</label>
                 <input type="text" name="name" className="form-control" placeholder="Enter full name" defaultValue={customer?.name} required style={{ fontSize: '1rem', padding: '12px' }} />
               </div>
               <div className="form-group">
-                <label className="form-label">Phone Number *</label>
+                <label className="form-label">{dict.customers.phone} *</label>
                 <input type="tel" name="phone" className="form-control" placeholder="Enter 10-digit phone" defaultValue={customer?.phone} required style={{ fontSize: '1rem', padding: '12px' }} />
               </div>
             </div>
+            <div className="form-group">
+              <label className="form-label">{dict.customers.address}</label>
+              <textarea name="address" className="form-control" rows={2} placeholder="Complete postal address" defaultValue={customer?.address} style={{ fontSize: '1rem', padding: '12px' }} />
+            </div>
           </div>
         </div>
-        
-        <div className="form-group">
-          <label className="form-label">Address *</label>
-          <textarea name="address" className="form-control" placeholder="Full address..." defaultValue={customer?.address} required style={{ fontSize: '1rem', padding: '12px' }}></textarea>
-        </div>
-        
-        {/* --- Route & Agent with inline create --- */}
+
         <div className="form-row">
           <div className="form-group">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <label className="form-label" style={{ margin: 0 }}>Route / Line *</label>
-              <button type="button" onClick={() => setIsRouteModalOpen(true)} className="btn btn-ghost btn-sm" style={{ padding: 0, height: 'auto', color: 'var(--primary)', fontSize: '.8rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <label className="form-label" style={{ margin: 0 }}>{dict.customers.route} *</label>
+              <button type="button" onClick={() => setIsRouteModalOpen(true)} className="btn btn-ghost btn-sm" style={{ padding: '2px 8px', fontSize: '.75rem' }}>
                 + New Route
               </button>
             </div>
             <select name="routeId" className="form-control" value={selectedRouteId} onChange={e => setSelectedRouteId(e.target.value)} required style={{ fontSize: '1rem', padding: '12px' }}>
               <option value="">Select Route</option>
-              {localRoutes.map(r => (
-                <option key={r.id} value={r.id}>{r.name}</option>
-              ))}
+              {localRoutes.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
           </div>
           <div className="form-group">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <label className="form-label" style={{ margin: 0 }}>Assigned Agent *</label>
-              <button type="button" onClick={() => setIsAgentModalOpen(true)} className="btn btn-ghost btn-sm" style={{ padding: 0, height: 'auto', color: 'var(--primary)', fontSize: '.8rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <label className="form-label" style={{ margin: 0 }}>{dict.customers.agent} *</label>
+              <button type="button" onClick={() => setIsAgentModalOpen(true)} className="btn btn-ghost btn-sm" style={{ padding: '2px 8px', fontSize: '.75rem' }}>
                 + New Agent
               </button>
             </div>
             <select name="agentId" className="form-control" value={selectedAgentId} onChange={e => setSelectedAgentId(e.target.value)} required style={{ fontSize: '1rem', padding: '12px' }}>
               <option value="">Select Agent</option>
-              {localAgents.map(a => (
-                <option key={a.id} value={a.id}>{a.name}</option>
-              ))}
+              {localAgents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
           </div>
         </div>
 
-        {/* --- Multiple Document Upload --- */}
-        <h4 style={{ margin: '24px 0 12px', fontSize: '.9rem', fontWeight: 600 }}>📄 Documents (Aadhar, PAN, etc.)</h4>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+        {/* --- KYC Documents --- */}
+        <h4 style={{ margin: '24px 0 12px', fontSize: '.9rem', fontWeight: 600 }}>📄 {dict.customers.documents}</h4>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
           {documents.map((doc, i) => (
             <div key={doc.id} style={{
               display: 'flex', alignItems: 'center', gap: '6px',
@@ -235,7 +244,7 @@ export default function CustomerForm({
         </label>
 
         {/* --- Security Cheques --- */}
-        <h4 style={{ margin: '24px 0 12px', fontSize: '.9rem', fontWeight: 600 }}>🏦 Security Cheques (up to 5)</h4>
+        <h4 style={{ margin: '24px 0 12px', fontSize: '.9rem', fontWeight: 600 }}>🏦 {dict.customers.securityCheques}</h4>
         <div>
           {cheques.map((cheque, index) => (
             <div key={cheque.id} style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '8px' }}>
@@ -244,11 +253,15 @@ export default function CustomerForm({
                 onChange={e => updateCheque(cheque.id, 'bank', e.target.value)} style={{ flex: 1, fontSize: '1rem', padding: '10px' }} />
               <input type="text" name={`chequeNumber_${index}`} className="form-control" placeholder="Cheque Number" value={cheque.num}
                 onChange={e => updateCheque(cheque.id, 'num', e.target.value)} style={{ flex: 1, fontSize: '1rem', padding: '10px' }} />
-              <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '.8rem' }}>
-                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>image</span>
-                {cheque.fileName || 'Upload'}
+              <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '.8rem', overflow: 'hidden', maxWidth: '150px' }}>
+                {chequePreviews[cheque.id] ? (
+                  <img src={chequePreviews[cheque.id]} alt="Cheque" style={{ width: '20px', height: '20px', objectFit: 'cover', borderRadius: '2px' }} />
+                ) : (
+                  <span className="material-icons-outlined" style={{ fontSize: '16px' }}>image</span>
+                )}
+                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cheque.fileName || 'Upload'}</span>
                 <input type="file" name={`chequeImage_${index}`} accept="image/*" style={{ display: 'none' }}
-                  onChange={e => updateCheque(cheque.id, 'fileName', e.target.files?.[0]?.name || '')} />
+                  onChange={e => handleChequePhotoChange(cheque.id, e.target.files?.[0] || null)} />
               </label>
               <button type="button" onClick={() => removeChequeRow(cheque.id)} style={{ color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}>
                 <span className="material-icons-outlined" style={{ fontSize: '18px' }}>delete</span>
@@ -261,7 +274,7 @@ export default function CustomerForm({
         </button>
 
         {/* --- Guarantors / Surety --- */}
-        <h4 style={{ margin: '24px 0 12px', fontSize: '.9rem', fontWeight: 600 }}>🤝 Guarantors / Surety</h4>
+        <h4 style={{ margin: '24px 0 12px', fontSize: '.9rem', fontWeight: 600 }}>🤝 {dict.customers.guarantors}</h4>
         {guarantors.map((g, index) => (
           <div key={g.id} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '14px', marginBottom: '12px', background: 'var(--bg)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
@@ -272,14 +285,14 @@ export default function CustomerForm({
             </div>
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">Name *</label>
+                <label className="form-label">{dict.customers.fullName} *</label>
                 <input type="text" name={`guarantorName_${index}`} className="form-control" placeholder="Guarantor name" value={g.name}
-                  onChange={e => updateGuarantor(g.id, 'name', e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} />
+                  onChange={e => updateGuarantor(g.id, 'name', e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} required />
               </div>
               <div className="form-group">
-                <label className="form-label">Phone *</label>
+                <label className="form-label">{dict.customers.phone} *</label>
                 <input type="tel" name={`guarantorPhone_${index}`} className="form-control" placeholder="Phone number" value={g.phone}
-                  onChange={e => updateGuarantor(g.id, 'phone', e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} />
+                  onChange={e => updateGuarantor(g.id, 'phone', e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} required />
               </div>
             </div>
             <div className="form-row">
@@ -297,10 +310,14 @@ export default function CustomerForm({
               <div className="form-group">
                 <label className="form-label">Photo</label>
                 <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', padding: '10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '.85rem' }}>
-                  <span className="material-icons-outlined" style={{ fontSize: '16px' }}>{g.photoName ? 'check_circle' : 'add_a_photo'}</span>
+                  {guarantorPreviews[g.id] ? (
+                    <img src={guarantorPreviews[g.id]} alt="Guarantor" style={{ width: '20px', height: '20px', objectFit: 'cover', borderRadius: '2px' }} />
+                  ) : (
+                    <span className="material-icons-outlined" style={{ fontSize: '16px' }}>{g.photoName ? 'check_circle' : 'add_a_photo'}</span>
+                  )}
                   {g.photoName || 'Upload Photo'}
                   <input type="file" name={`guarantorPhoto_${index}`} accept="image/*" style={{ display: 'none' }}
-                    onChange={e => updateGuarantor(g.id, 'photoName', e.target.files?.[0]?.name || '')} />
+                    onChange={e => handleGuarantorPhotoChange(g.id, e.target.files?.[0] || null)} />
                 </label>
               </div>
             </div>
@@ -317,69 +334,54 @@ export default function CustomerForm({
 
         {/* --- Submit --- */}
         <div className="form-actions" style={{ marginTop: '24px' }}>
-          <button type="submit" className="btn btn-primary" disabled={loading} style={{ padding: '12px 24px', fontSize: '1rem' }}>
-            <span className="material-icons-outlined" style={{ fontSize: '18px' }}>save</span> {loading ? 'Saving...' : 'Submit'}
+          <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: '100%', padding: '14px', fontSize: '1rem' }}>
+            {loading ? dict.customers.saving : dict.customers.submit}
           </button>
-          <a href="/customers" className="btn btn-ghost" style={{ padding: '12px 24px', fontSize: '1rem' }}>Cancel</a>
         </div>
       </form>
 
-      {/* --- Route Creation Modal --- */}
-      <Modal isOpen={isRouteModalOpen} onClose={() => setIsRouteModalOpen(false)} title="Create New Route">
-        <form onSubmit={handleCreateRoute}>
-          <div className="form-group">
-            <label className="form-label">Route Name *</label>
-            <input type="text" name="name" className="form-control" required style={{ fontSize: '1rem', padding: '12px' }} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Assigned Agent</label>
-            <select name="assignedAgentId" className="form-control" style={{ fontSize: '1rem', padding: '12px' }}>
-              <option value="">No Agent Assigned</option>
-              {localAgents.map(a => (
-                <option key={a.id} value={a.id}>{a.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="form-actions" style={{ marginTop: '20px' }}>
-            <button type="submit" className="btn btn-primary" disabled={creatingRoute} style={{ padding: '10px 20px' }}>
-              {creatingRoute ? 'Creating...' : 'Create Route'}
-            </button>
-            <button type="button" className="btn btn-ghost" onClick={() => setIsRouteModalOpen(false)}>Cancel</button>
-          </div>
-        </form>
-      </Modal>
+      {/* --- Modals --- */}
+      {isRouteModalOpen && (
+        <Modal isOpen={isRouteModalOpen} onClose={() => setIsRouteModalOpen(false)} title="Add New Route">
+          <form onSubmit={handleCreateRoute}>
+            <div className="form-group">
+              <label className="form-label">Route Name</label>
+              <input type="text" name="name" className="form-control" required />
+            </div>
+            <div className="modal-actions">
+              <button type="button" onClick={() => setIsRouteModalOpen(false)} className="btn btn-ghost">Cancel</button>
+              <button type="submit" className="btn btn-primary" disabled={creatingRoute}>
+                {creatingRoute ? 'Creating...' : 'Create Route'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
 
-      {/* --- Agent Creation Modal --- */}
-      <Modal isOpen={isAgentModalOpen} onClose={() => setIsAgentModalOpen(false)} title="Create New Agent">
-        <form onSubmit={handleCreateAgent}>
-          <div className="form-row">
+      {isAgentModalOpen && (
+        <Modal isOpen={isAgentModalOpen} onClose={() => setIsAgentModalOpen(false)} title="Add New Agent">
+          <form onSubmit={handleCreateAgent}>
             <div className="form-group">
-              <label className="form-label">Agent Name *</label>
-              <input type="text" name="name" className="form-control" required style={{ fontSize: '1rem', padding: '12px' }} />
+              <label className="form-label">Agent Name</label>
+              <input type="text" name="name" className="form-control" required />
             </div>
             <div className="form-group">
-              <label className="form-label">Phone *</label>
-              <input type="tel" name="phone" className="form-control" required style={{ fontSize: '1rem', padding: '12px' }} />
-            </div>
-          </div>
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Username *</label>
-              <input type="text" name="username" className="form-control" required style={{ fontSize: '1rem', padding: '12px' }} />
+              <label className="form-label">Email</label>
+              <input type="email" name="email" className="form-control" required />
             </div>
             <div className="form-group">
-              <label className="form-label">Password *</label>
-              <input type="password" name="password" className="form-control" required style={{ fontSize: '1rem', padding: '12px' }} />
+              <label className="form-label">Password</label>
+              <input type="password" name="password" className="form-control" required />
             </div>
-          </div>
-          <div className="form-actions" style={{ marginTop: '20px' }}>
-            <button type="submit" className="btn btn-primary" disabled={creatingAgent} style={{ padding: '10px 20px' }}>
-              {creatingAgent ? 'Creating...' : 'Create Agent'}
-            </button>
-            <button type="button" className="btn btn-ghost" onClick={() => setIsAgentModalOpen(false)}>Cancel</button>
-          </div>
-        </form>
-      </Modal>
+            <div className="modal-actions">
+              <button type="button" onClick={() => setIsAgentModalOpen(false)} className="btn btn-ghost">Cancel</button>
+              <button type="submit" className="btn btn-primary" disabled={creatingAgent}>
+                {creatingAgent ? 'Creating...' : 'Create Agent'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 }

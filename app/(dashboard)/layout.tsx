@@ -3,8 +3,9 @@ import { redirect } from 'next/navigation';
 import { SessionProvider } from 'next-auth/react';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
-import { getUserAppType } from '@/lib/tenant';
+import { getUserAppType, getDefaultTenantId } from '@/lib/tenant';
 import { getAppConfig } from '@/lib/appConfig';
+import { getDictionary, getCurrentLanguage } from '@/lib/i18n';
 
 export default async function DashboardLayout({
   children,
@@ -17,8 +18,11 @@ export default async function DashboardLayout({
     redirect('/login');
   }
 
+  const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
   const appConfig = getAppConfig(appType);
+  const dict = await getDictionary(tenantId);
+  const lang = await getCurrentLanguage(tenantId);
 
   return (
     <SessionProvider session={session}>
@@ -31,9 +35,9 @@ export default async function DashboardLayout({
           '--accent': appConfig.accentColor,
         } as React.CSSProperties}
       >
-        <Sidebar appType={appType} />
+        <Sidebar appType={appType} dict={dict} />
         <main className="main-content">
-          <Topbar />
+          <Topbar dict={dict} currentLang={lang} />
           <div className="page-content fade-up">
             {children}
           </div>
