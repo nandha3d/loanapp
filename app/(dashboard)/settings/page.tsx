@@ -8,7 +8,7 @@ export default async function SettingsPage() {
   const session = await auth();
   const userRole = (session?.user as any)?.role;
   if (userRole !== 'admin' && userRole !== 'superadmin' && userRole !== 'developer') {
-    redirect('/dashboard');
+    redirect('/collection');
   }
 
   const tenantId = await getDefaultTenantId();
