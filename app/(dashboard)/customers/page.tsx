@@ -7,7 +7,7 @@ import Link from 'next/link';
 export default async function CustomersPage({
   searchParams
 }: {
-  searchParams: { [key: string]: string | undefined }
+  searchParams: Promise<{ [key: string]: string | undefined }>
 }) {
   const session = await auth();
   const userRole = (session?.user as any)?.role || 'agent';

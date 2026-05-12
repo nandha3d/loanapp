@@ -6,6 +6,7 @@ import { calculateEndDate, calculateInstalmentDates } from '@/lib/utils';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
+import { checkLimit } from '@/lib/subscription';
 
 export async function createLoan(formData: FormData) {
   const session = await auth();
@@ -17,6 +18,13 @@ export async function createLoan(formData: FormData) {
   // Only admin, superadmin and developer can create loans
   if (!createdById || role === 'agent') {
     redirect('/collection');
+  }
+
+  // Enforce subscription loan limit
+  try {
+    await checkLimit(tenantId, 'loans');
+  } catch (err: any) {
+    return { error: err.message as string };
   }
 
   const customerId = formData.get('customerId') as string;

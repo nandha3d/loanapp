@@ -52,7 +52,7 @@ export default function ReportsClient({
     <>
       {/* Filter Controls */}
       <div className="card" style={{ marginBottom: '20px' }}>
-        <form className="filter-bar" method="GET" style={{ marginBottom: 0 }}>
+        <form className="filter-bar" method="GET" style={{ marginBottom: 0 }} suppressHydrationWarning>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button type="button" className="btn btn-primary btn-sm" onClick={() => setPreset('today')}>Today</button>
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => setPreset('week')}>This Week</button>
@@ -71,6 +71,34 @@ export default function ReportsClient({
           </select>
           <button type="submit" className="btn btn-secondary">Apply</button>
         </form>
+
+        {/* Export Buttons */}
+        <div style={{ display: 'flex', gap: '8px', marginTop: '12px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+          <a
+            href={`/api/export/collections?from=${filters.from}&to=${filters.to}`}
+            className="btn btn-secondary btn-sm"
+            download
+          >
+            <span className="material-icons-outlined" style={{ fontSize: '14px' }}>download</span>
+            Collections CSV
+          </a>
+          <a
+            href="/api/export/loans"
+            className="btn btn-secondary btn-sm"
+            download
+          >
+            <span className="material-icons-outlined" style={{ fontSize: '14px' }}>download</span>
+            Loan Register CSV
+          </a>
+          <a
+            href="/api/export/defaulters"
+            className="btn btn-secondary btn-sm"
+            download
+          >
+            <span className="material-icons-outlined" style={{ fontSize: '14px' }}>download</span>
+            Defaulters CSV
+          </a>
+        </div>
       </div>
 
       {/* Row 1: Collection Efficiency + Defaulter Aging */}

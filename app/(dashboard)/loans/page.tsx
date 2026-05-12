@@ -7,7 +7,7 @@ import Link from 'next/link';
 export default async function LoansPage({
   searchParams
 }: {
-  searchParams: { [key: string]: string | undefined }
+  searchParams: Promise<{ [key: string]: string | undefined }>
 }) {
   const session = await auth();
   const tenantId = await getDefaultTenantId();
@@ -15,11 +15,12 @@ export default async function LoansPage({
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
   const userRole = (session?.user as any)?.role;
   const branchId = (session?.user as any)?.branchId as string | undefined;
-  
-  const q = searchParams.q || '';
-  const status = searchParams.status || '';
-  const frequency = searchParams.frequency || '';
-  const { page, limit, skip } = parsePagination(searchParams);
+
+  const resolvedParams = await searchParams;
+  const q = resolvedParams.q || '';
+  const status = resolvedParams.status || '';
+  const frequency = resolvedParams.frequency || '';
+  const { page, limit, skip } = parsePagination(resolvedParams);
 
   const where: any = { tenantId, appType };
   // Admins are branch-scoped; superadmin/developer see all
