@@ -6,7 +6,7 @@ import LoanForm from './LoanForm';
 export default async function NewLoanPage({
   searchParams
 }: {
-  searchParams: { customerId?: string }
+  searchParams: Promise<{ customerId?: string }>
 }) {
   const resolvedSearchParams = await searchParams;
   const tenantId = await getDefaultTenantId();

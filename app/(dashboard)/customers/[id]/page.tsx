@@ -7,7 +7,7 @@ import { auth } from '@/lib/auth';
 export default async function CustomerProfilePage({
   params
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
   const resolvedParams = await params;
   const tenantId = await getDefaultTenantId();

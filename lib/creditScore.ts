@@ -2,14 +2,13 @@
  * Calculates a credit score from 0 to 100 for a customer based on loan performance.
  */
 export function calculateCreditScore(loans: any[]) {
-  if (!loans || loans.length === 0) return { score: 0, grade: 'N/A', stats: { totalBorrowed: 0, totalPaid: 0, punctuality: 0 } };
+  if (!loans || loans.length === 0) return { score: 300, grade: 'N/A', stats: { totalBorrowed: 0, totalPaid: 0, punctuality: 0 } };
 
   let totalPoints = 0;
   const totalLoans = loans.length;
   const closedLoans = loans.filter(l => l.status === 'closed').length;
   
-  // 1. Punctuality (50 points)
-  // Calculated as (On-time instalments / Total instalments due)
+  // 1. Punctuality (50% weight)
   let totalInstalmentsDue = 0;
   let totalOnTimePayments = 0;
   let totalBorrowed = 0;
@@ -20,37 +19,40 @@ export function calculateCreditScore(loans: any[]) {
     const instalments = loan.instalments || [];
     const penaltyCount = loan.penalties?.length || 0;
     
-    totalInstalmentsDue += loan.tenure;
+    totalInstalmentsDue += loan.totalInstalments || loan.tenure;
     const paidInstalments = instalments.filter((i: any) => i.status === 'paid').length;
     
-    // Simple logic: every penalty is a missed/late payment
-    // Every paid instalment that wasn't penalized is considered on-time
-    totalOnTimePayments += Math.max(0, paidInstalments - penaltyCount);
+    // Penalize missed/partial payments more heavily
+    const missed = instalments.filter((i: any) => i.status === 'missed').length;
+    const partial = instalments.filter((i: any) => i.status === 'partial').length;
+    
+    totalOnTimePayments += Math.max(0, paidInstalments - (missed * 1.5) - (partial * 0.5));
     
     instalments.forEach((i: any) => {
-      if (i.status === 'paid') totalPaid += Number(i.amountPaid);
+      if (i.status === 'paid') totalPaid += Number(i.receivedAmount);
     });
   });
 
-  const punctualityRatio = totalInstalmentsDue > 0 ? totalOnTimePayments / totalInstalmentsDue : 1;
+  const punctualityRatio = totalInstalmentsDue > 0 ? Math.max(0, totalOnTimePayments / totalInstalmentsDue) : 1;
   totalPoints += punctualityRatio * 50;
 
-  // 2. Completion (30 points)
-  const completionRatio = closedLoans / totalLoans;
+  // 2. Completion (30% weight)
+  const completionRatio = totalLoans > 0 ? closedLoans / totalLoans : 0;
   totalPoints += completionRatio * 30;
 
-  // 3. Volume / Stability (20 points)
-  // Reward for high volume of successfully managed debt
+  // 3. Volume / Stability (20% weight)
   const volumeBonus = Math.min(20, (totalBorrowed / 100000) * 20);
   totalPoints += volumeBonus;
 
-  const score = Math.round(totalPoints);
+  // Map 0-100 points to 300-850 range
+  const score = 300 + Math.round(totalPoints * 5.5);
   
-  let grade = 'D';
-  if (score >= 90) grade = 'A+';
-  else if (score >= 80) grade = 'A';
-  else if (score >= 70) grade = 'B';
-  else if (score >= 50) grade = 'C';
+  let grade = 'Poor';
+  if (score >= 750) grade = 'Excellent';
+  else if (score >= 650) grade = 'Good';
+  else if (score >= 550) grade = 'Fair';
+  else if (score >= 450) grade = 'Poor';
+  else grade = 'Very Poor';
 
   return {
     score,

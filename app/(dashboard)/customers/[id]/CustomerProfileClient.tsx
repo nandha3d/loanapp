@@ -6,6 +6,43 @@ import { formatCurrency, formatDate, getBadgeClass, getInitials, calcPercentage 
 import { submitEditRequest } from '@/app/(dashboard)/approvals/actions';
 import { calculateCreditScore } from '@/lib/creditScore';
 
+const CreditScoreGauge = ({ score, grade }: { score: number, grade: string }) => {
+  const min = 300;
+  const max = 850;
+  const pct = Math.max(0, Math.min(100, ((score - min) / (max - min)) * 100));
+  const rotation = (pct * 1.8) - 90;
+  
+  const getScoreColor = (s: number) => {
+    if (s < 500) return '#EF4444';
+    if (s < 650) return '#F59E0B';
+    if (s < 750) return '#EAB308';
+    return '#16A34A';
+  };
+
+  return (
+    <div style={{ textAlign: 'center', width: '140px' }}>
+      <div style={{ position: 'relative', height: '70px', overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end' }}>
+        <svg viewBox="0 0 100 55" style={{ width: '120px' }}>
+          <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="#F1F5F9" strokeWidth="10" strokeLinecap="round" />
+          <path d="M 10 50 A 40 40 0 0 1 30 15.3" fill="none" stroke="#EF4444" strokeWidth="10" />
+          <path d="M 30 15.3 A 40 40 0 0 1 50 10" fill="none" stroke="#F59E0B" strokeWidth="10" />
+          <path d="M 50 10 A 40 40 0 0 1 70 15.3" fill="none" stroke="#EAB308" strokeWidth="10" />
+          <path d="M 70 15.3 A 40 40 0 0 1 90 50" fill="none" stroke="#16A34A" strokeWidth="10" />
+          <g style={{ transform: `rotate(${rotation}deg)`, transformOrigin: '50px 50px', transition: 'all 1s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
+            <circle cx="50" cy="10" r="5" fill="#FFF" stroke={getScoreColor(score)} strokeWidth="2" />
+          </g>
+        </svg>
+        <div style={{ position: 'absolute', bottom: '2px', fontSize: '1.6rem', fontWeight: 900, color: 'var(--text-primary)', letterSpacing: '-0.5px' }}>{score}</div>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.55rem', color: 'var(--text-light)', marginTop: '-2px', padding: '0 15px', fontWeight: 600 }}>
+        <span>300</span>
+        <span>850</span>
+      </div>
+      <div style={{ fontSize: '.75rem', fontWeight: 800, color: getScoreColor(score), textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>{grade}</div>
+    </div>
+  );
+};
+
 export default function CustomerProfileClient({
   customer,
   currencySymbol,
@@ -42,13 +79,13 @@ export default function CustomerProfileClient({
               <h2 style={{ margin: 0 }}>{customer.name}</h2>
               <div style={{ 
                 display: 'flex', alignItems: 'center', gap: '6px', 
-                background: score >= 80 ? '#DCFCE7' : score >= 50 ? '#FEF3C7' : '#FEE2E2',
-                color: score >= 80 ? '#166534' : score >= 50 ? '#92400E' : '#991B1B',
+                background: score >= 750 ? '#DCFCE7' : score >= 650 ? '#FEF3C7' : '#FEE2E2',
+                color: score >= 750 ? '#166534' : score >= 650 ? '#92400E' : '#991B1B',
                 padding: '4px 12px', borderRadius: '20px', fontSize: '.85rem', fontWeight: 700,
                 border: '1px solid rgba(0,0,0,0.05)'
               }}>
                 <span className="material-icons-outlined" style={{ fontSize: '16px' }}>stars</span>
-                {score} ({grade})
+                {grade}
               </div>
             </div>
             <div className="profile-meta">
@@ -80,16 +117,19 @@ export default function CustomerProfileClient({
       </div>
 
       {/* Credit Summary Bar */}
-      <div className="stats-grid" style={{ marginBottom: '20px' }}>
-        <div className="card" style={{ textAlign: 'center' }}>
+      <div className="stats-grid" style={{ marginBottom: '20px', gridTemplateColumns: 'repeat(4, 1fr)' }}>
+        <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px' }}>
+          <CreditScoreGauge score={score} grade={grade} />
+        </div>
+        <div className="card" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--primary-dark)' }}>{formatCurrency(stats.totalBorrowed, currencySymbol)}</div>
           <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>Total Borrowed</div>
         </div>
-        <div className="card" style={{ textAlign: 'center' }}>
+        <div className="card" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--success)' }}>{stats.punctuality}%</div>
           <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>Repayment Consistency</div>
         </div>
-        <div className="card" style={{ textAlign: 'center' }}>
+        <div className="card" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{stats.activeLoans} / {stats.closedLoans}</div>
           <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>Active / Closed Loans</div>
         </div>

@@ -27,6 +27,7 @@ export async function saveCustomer(formData: FormData) {
   const session = await auth();
   const userRole = (session?.user as any)?.role || 'agent';
   const userId = session?.user?.id;
+  const userBranchId = (session?.user as any)?.branchId || null;
   const editId = formData.get('id') as string | null;
   
   const name = formData.get('name') as string;
@@ -188,6 +189,7 @@ export async function saveCustomer(formData: FormData) {
         routeId,
         agentId,
         appType,
+        branchId: userBranchId,
         status: userRole === 'agent' ? 'pending_review' : 'active',
         ...(profilePhoto ? { profilePhoto } : {}),
         securityCheques: {
@@ -232,7 +234,7 @@ export async function saveCustomer(formData: FormData) {
   }
 
   revalidatePath('/customers');
-  redirect(`/customers/${customerId}`);
+  redirect(`/customers/${savedCustomer.customerCode}`);
 }
 
 export async function requestCustomerEdit(customerId: string, requestedChanges: any, reason: string) {

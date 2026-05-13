@@ -5,6 +5,50 @@ import { formatCurrency, formatDate, getBadgeClass, calcPercentage } from '@/lib
 import { markInstalmentPaid, waiveLoanPenalty, settleLoanPenalty, closeLoan, renewLoan } from './actions';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { calculateCreditScore } from '@/lib/creditScore';
+
+const CreditScoreGauge = ({ score, grade }: { score: number, grade: string }) => {
+  const min = 300;
+  const max = 850;
+  const pct = Math.max(0, Math.min(100, ((score - min) / (max - min)) * 100));
+  // Map pct to degrees: 0% -> -90deg, 100% -> 90deg
+  const rotation = (pct * 1.8) - 90;
+  
+  const getScoreColor = (s: number) => {
+    if (s < 500) return '#EF4444';
+    if (s < 650) return '#F59E0B';
+    if (s < 750) return '#EAB308';
+    return '#16A34A';
+  };
+
+  return (
+    <div style={{ textAlign: 'center', width: '120px' }}>
+      <div style={{ position: 'relative', height: '65px', overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end' }}>
+        <svg viewBox="0 0 100 55" style={{ width: '110px' }}>
+          {/* Background Track */}
+          <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="#F1F5F9" strokeWidth="10" strokeLinecap="round" />
+          
+          {/* Colored Segments */}
+          <path d="M 10 50 A 40 40 0 0 1 30 15.3" fill="none" stroke="#EF4444" strokeWidth="10" />
+          <path d="M 30 15.3 A 40 40 0 0 1 50 10" fill="none" stroke="#F59E0B" strokeWidth="10" />
+          <path d="M 50 10 A 40 40 0 0 1 70 15.3" fill="none" stroke="#EAB308" strokeWidth="10" />
+          <path d="M 70 15.3 A 40 40 0 0 1 90 50" fill="none" stroke="#16A34A" strokeWidth="10" />
+          
+          {/* Indicator Dot */}
+          <g style={{ transform: `rotate(${rotation}deg)`, transformOrigin: '50px 50px', transition: 'all 1s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
+            <circle cx="50" cy="10" r="5" fill="#FFF" stroke={getScoreColor(score)} strokeWidth="2" />
+          </g>
+        </svg>
+        <div style={{ position: 'absolute', bottom: '2px', fontSize: '1.4rem', fontWeight: 900, color: 'var(--text-primary)', letterSpacing: '-0.5px' }}>{score}</div>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.55rem', color: 'var(--text-light)', marginTop: '-2px', padding: '0 12px', fontWeight: 600 }}>
+        <span>300</span>
+        <span>850</span>
+      </div>
+      <div style={{ fontSize: '.68rem', fontWeight: 800, color: getScoreColor(score), textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>{grade}</div>
+    </div>
+  );
+};
 
 export default function LoanDetailClient({
   loan,
@@ -20,7 +64,11 @@ export default function LoanDetailClient({
   const missedInstalments = loan.instalments.filter((i: any) => i.status === 'missed');
   const missedCount = missedInstalments.length;
   
-  const totalPenalty = loan.penalties.reduce((sum: number, p: any) => sum + Number(p.grossPenalty), 0);
+  // Total Penalty is dynamically calculated from missed days, or from recorded penalties if higher
+  const recordedPenalty = loan.penalties.reduce((sum: number, p: any) => sum + Number(p.grossPenalty), 0);
+  const potentialPenalty = missedCount * Number(loan.penaltyRate);
+  const totalPenalty = Math.max(recordedPenalty, potentialPenalty);
+
   const settledPenalty = loan.penalties.reduce((sum: number, p: any) => sum + Number(p.settledAmount), 0);
   const waivedPenalty = loan.penalties.reduce((sum: number, p: any) => sum + Number(p.waivedAmount), 0);
   const netPenalty = totalPenalty - settledPenalty - waivedPenalty;
@@ -83,6 +131,8 @@ export default function LoanDetailClient({
     setLoading(true);
     const fd = new FormData();
     fd.set('penaltyId', penaltyModal.id);
+    fd.set('loanId', loan.id);
+    fd.set('grossPenalty', String(penaltyModal.grossPenalty));
     fd.set('notes', penNotes);
 
     let result;
@@ -138,42 +188,245 @@ export default function LoanDetailClient({
     }
   };
 
-  const totalCollected = Number(loan.totalCollected);
-  const totalDue = loan.instalments.reduce((s: number, i: any) => s + Number(i.dueAmount), 0);
-  const outstanding = totalDue - totalCollected;
+  const totalCollected = Number(loan.totalCollected || 0);
+  const totalRepayable = Number(loan.perInstalment) * loan.totalInstalments;
+  const outstanding = totalRepayable - totalCollected;
+
+  // Use shared credit score logic
+  const { score: creditScore, grade: creditGrade } = calculateCreditScore(loan.customer.loans || []);
 
   return (
     <>
-      <div className="card" style={{ marginBottom: '20px' }}>
-        <div className="loan-header">
-          <div className="loan-info">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <h2>{loan.loanCode}</h2>
-              <span className={getBadgeClass(loan.status)} style={{textTransform:'capitalize'}}>{loan.status}</span>
-            </div>
-            <p style={{ fontSize: '.85rem', color: 'var(--text-secondary)' }}>
-              Customer: <Link href={`/customers/${loan.customerId}`}>{loan.customer.name}</Link>
-            </p>
-            <div className="loan-meta">
-              <div className="meta-item"><div className="meta-label">Principal</div><div className="meta-value">{formatCurrency(loan.principal, currencySymbol)}</div></div>
-              <div className="meta-item"><div className="meta-label">Disbursed</div><div className="meta-value">{formatCurrency(loan.disbursed, currencySymbol)}</div></div>
-              <div className="meta-item"><div className="meta-label">Frequency</div><div className="meta-value" style={{textTransform:'capitalize'}}>{loan.frequency}</div></div>
-              <div className="meta-item"><div className="meta-label">Start Date</div><div className="meta-value">{formatDate(loan.startDate)}</div></div>
-              <div className="meta-item"><div className="meta-label">Per Instalment</div><div className="meta-value">{formatCurrency(loan.perInstalment, currencySymbol)}</div></div>
-              <div className="meta-item"><div className="meta-label">Tenure</div><div className="meta-value">{loan.tenure} {loan.frequency === 'daily' ? 'days' : loan.frequency === 'weekly' ? 'weeks' : 'months'}</div></div>
-              <div className="meta-item"><div className="meta-label">Total Collected</div><div className="meta-value" style={{color:'var(--success)'}}>{formatCurrency(totalCollected, currencySymbol)}</div></div>
-              <div className="meta-item"><div className="meta-label">Outstanding</div><div className="meta-value" style={{color: outstanding > 0 ? 'var(--danger)' : 'var(--success)'}}>{formatCurrency(outstanding, currencySymbol)}</div></div>
-            </div>
+      <style>{`
+        .loan-top-card { display: flex; flex-direction: column; gap: 16px; }
+        .loan-top-header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 4px; }
+        .loan-main-row { display: flex; gap: 24px; align-items: center; justify-content: space-between; }
+        
+        .avatar-col { flex: 0 0 140px; display: flex; flex-direction: column; align-items: center; gap: 10px; padding-right: 32px; border-right: 1px solid var(--border); }
+        .meta-col { flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px 24px; padding: 0 10px; }
+        .heatmap-col { flex: 2.2; min-width: 0; padding: 0 20px; border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
+        .stats-col { flex: 0 0 auto; display: flex; gap: 24px; align-items: center; padding-left: 20px; }
+        
+        .cm-label { font-size: .78rem; color: var(--text-light); text-transform: uppercase; letter-spacing: .5px; line-height: 1.2; }
+        .cm-value { font-size: 1.05rem; font-weight: 700; margin-top: 3px; white-space: nowrap; }
+
+        .heatmap-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid #F1F5F9; padding-bottom: 8px; }
+        .heatmap-legend { display: flex; gap: 10px; fontSize: .68rem; color: var(--text-secondary); fontWeight: 600; }
+        .heatmap-grid-container { display: flex; gap: 4px; flex-wrap: wrap; }
+        .month-block { display: flex; flex-direction: column; gap: 4px; }
+        .month-name { fontSize: .65rem; fontWeight: 800; color: var(--primary); text-transform: uppercase; marginBottom: 2px; }
+        .day-labels { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; marginBottom: 4px; }
+        .day-label { fontSize: .45rem; color: var(--text-light); textAlign: center; fontWeight: 800; opacity: 0.6; text-transform: uppercase; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+        
+        @media (max-width: 1400px) {
+          .meta-col { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 1200px) {
+          .loan-main-row { flex-wrap: wrap; }
+          .heatmap-col { border: none; flex: 1 1 100%; order: 3; margin-top: 16px; padding: 16px 0; border-top: 1px solid var(--border); }
+          .stats-col { order: 2; }
+        }
+        @media (max-width: 768px) {
+          .meta-col { grid-template-columns: repeat(2, 1fr); }
+          .avatar-col { border: none; padding-right: 0; width: 100%; margin-bottom: 16px; }
+          .stats-col { width: 100%; justify-content: center; }
+        }
+      `}</style>
+      
+      <div className="card" style={{ marginBottom: '16px', padding: '12px 16px' }}>
+        <div className="loan-top-card">
+          {/* Row 1: Header Info */}
+          <div className="loan-top-header">
+            <h2 style={{ fontSize: '1.1rem', margin: 0, fontWeight: 800, color: 'var(--primary)' }}>{loan.loanCode}</h2>
+            <span className={getBadgeClass(loan.status)} style={{ textTransform: 'capitalize', fontSize: '.7rem', padding: '3px 10px', borderRadius: '4px' }}>{loan.status}</span>
+            <span style={{ fontSize: '.7rem', color: 'var(--text-light)', marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>calendar_today</span>
+              <span style={{ textTransform: 'capitalize' }}>{loan.frequency} Schedule</span>
+            </span>
           </div>
-          <div style={{ textAlign: 'center', minWidth: '120px' }}>
-            <div style={{ position: 'relative', width: '100px', height: '100px', margin: '0 auto' }}>
-              <svg viewBox="0 0 36 36" style={{ width: '100px', height: '100px', transform: 'rotate(-90deg)' }}>
-                <circle cx="18" cy="18" r="15.9" fill="none" stroke="#E2E8F0" strokeWidth="3" />
-                <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--primary)" strokeWidth="3" strokeDasharray={`${pct}, 100`} strokeLinecap="round" />
-              </svg>
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', fontWeight: 700 }}>{pct}%</div>
+
+          <div className="loan-main-row">
+            {/* Column 0: Avatar */}
+            <div className="avatar-col">
+              <div style={{ width: '68px', height: '68px', borderRadius: '16px', overflow: 'hidden', border: '2px solid var(--border)', background: '#F8FAFC', marginBottom: '4px' }}>
+                {loan.customer.profilePhoto ? (
+                  <img src={loan.customer.profilePhoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-light)' }}>
+                    <span className="material-icons" style={{ fontSize: '32px' }}>person</span>
+                  </div>
+                )}
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <Link href={`/customers/${loan.customer.customerCode}`} style={{ color: 'var(--text-primary)', fontWeight: 800, fontSize: '.8rem', display: 'block' }}>{loan.customer.name}</Link>
+                <div style={{ fontSize: '.6rem', color: 'var(--text-light)', fontWeight: 700, marginTop: '2px' }}>{loan.customer.customerCode}</div>
+              </div>
             </div>
-            <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)', marginTop: '6px' }}>{loan.paidCount}/{loan.totalInstalments} paid</div>
+
+            {/* Column 1: Meta Grid */}
+            <div className="meta-col">
+              <div><div className="cm-label">Principal</div><div className="cm-value">{formatCurrency(loan.principal, currencySymbol)}</div></div>
+              <div><div className="cm-label">Repayable</div><div className="cm-value" style={{ color: 'var(--primary)' }}>{formatCurrency(totalRepayable, currencySymbol)}</div></div>
+              <div><div className="cm-label">Disbursed</div><div className="cm-value">{formatCurrency(loan.disbursed, currencySymbol)}</div></div>
+              <div><div className="cm-label">Frequency</div><div className="cm-value" style={{ textTransform: 'capitalize' }}>{loan.frequency}</div></div>
+              <div><div className="cm-label">Tenure</div><div className="cm-value">{loan.tenure} {loan.frequency === 'daily' ? 'days' : loan.frequency === 'weekly' ? 'wks' : 'mos'}</div></div>
+              <div><div className="cm-label">Start Date</div><div className="cm-value">{formatDate(loan.startDate)}</div></div>
+              <div><div className="cm-label">Per Inst.</div><div className="cm-value">{formatCurrency(loan.perInstalment, currencySymbol)}</div></div>
+              <div><div className="cm-label">Collected</div><div className="cm-value" style={{ color: 'var(--success)' }}>{formatCurrency(totalCollected, currencySymbol)}</div></div>
+              <div><div className="cm-label">Outstanding</div><div className="cm-value" style={{ color: outstanding > 0 ? 'var(--danger)' : 'var(--success)' }}>{formatCurrency(outstanding, currencySymbol)}</div></div>
+            </div>
+
+            {/* Column 2: Heatmap */}
+            <div className="heatmap-col">
+              {(() => {
+                const instalments = loan.instalments as any[];
+                if (!instalments.length) return <p style={{ fontSize: '.7rem', color: 'var(--text-light)' }}>No data</p>;
+
+                const loanStartDate = new Date(instalments[0].dueDate);
+                const loanEndDate = new Date(instalments[instalments.length - 1].dueDate);
+
+                const getColor = (status: string, received: number, due: number) => {
+                  if (status === 'paid') return (due > 0 && received / due >= 1) ? '#16A34A' : '#4ADE80';
+                  if (status === 'partial') return '#F59E0B';
+                  if (status === 'missed') return '#EF4444';
+                  return '#E2E8F0';
+                };
+
+                if (loan.frequency === 'daily') {
+                  const dateMap: Record<string, any> = {};
+                  instalments.forEach(inst => {
+                    const d = new Date(inst.dueDate);
+                    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+                    dateMap[key] = inst;
+                  });
+
+                  // Get all unique months in the range
+                  const months: { month: string, year: number, monthIdx: number }[] = [];
+                  let curr = new Date(Date.UTC(loanStartDate.getUTCFullYear(), loanStartDate.getUTCMonth(), 1));
+                  const last = new Date(Date.UTC(loanEndDate.getUTCFullYear(), loanEndDate.getUTCMonth(), 1));
+                  
+                  while (curr <= last) {
+                    months.push({
+                      month: curr.toLocaleString('default', { month: 'short', timeZone: 'UTC' }),
+                      year: curr.getUTCFullYear(),
+                      monthIdx: curr.getUTCMonth()
+                    });
+                    curr = new Date(Date.UTC(curr.getUTCFullYear(), curr.getUTCMonth() + 1, 1));
+                  }
+
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                      <div className="heatmap-header">
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <span className="material-icons-outlined" style={{ fontSize: '14px', color: 'var(--text-light)' }}>calendar_view_month</span>
+                          <span style={{ fontSize: '.72rem', fontWeight: 800, color: 'var(--text-secondary)' }}>ACTIVITY TRACKER</span>
+                        </div>
+                        <div className="heatmap-legend">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><div style={{ width: '8px', height: '8px', borderRadius: '2px', background: '#16A34A' }} /> Paid</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><div style={{ width: '8px', height: '8px', borderRadius: '2px', background: '#F59E0B' }} /> Partial</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><div style={{ width: '8px', height: '8px', borderRadius: '2px', background: '#EF4444' }} /> Missed</div>
+                        </div>
+                      </div>
+                      
+                      <div style={{ overflowX: 'auto', paddingBottom: '4px' }}>
+                        <div style={{ display: 'flex', gap: '20px' }}>
+                          {months.map((m, mi) => {
+                            // Generate full calendar grid for this month
+                            const firstDay = new Date(Date.UTC(m.year, m.monthIdx, 1));
+                            const lastDay = new Date(Date.UTC(m.year, m.monthIdx + 1, 0));
+                            
+                            // Start grid from the previous Monday
+                            const gridStart = new Date(firstDay);
+                            gridStart.setUTCDate(gridStart.getUTCDate() - ((gridStart.getUTCDay() + 6) % 7));
+                            
+                            // End grid at the following Sunday
+                            const gridEnd = new Date(lastDay);
+                            gridEnd.setUTCDate(gridEnd.getUTCDate() + (7 - (gridEnd.getUTCDay() === 0 ? 7 : gridEnd.getUTCDay())));
+
+                            const weeks = [];
+                            let iter = new Date(gridStart);
+                            while (iter <= gridEnd) {
+                              const week = [];
+                              for (let i = 0; i < 7; i++) {
+                                week.push(new Date(iter));
+                                iter.setUTCDate(iter.getUTCDate() + 1);
+                              }
+                              weeks.push(week);
+                            }
+
+                            return (
+                              <div key={mi} className="month-block" style={{ minWidth: '120px' }}>
+                                <div className="month-name">{m.month} {m.year}</div>
+                                <div className="day-labels">
+                                  {['M','T','W','T','F','S','S'].map((d, i) => (
+                                    <div key={i} className="day-label">{d}</div>
+                                  ))}
+                                </div>
+                                <div className="calendar-grid">
+                                  {weeks.flat().map((day, di) => {
+                                    const key = `${day.getUTCFullYear()}-${String(day.getUTCMonth() + 1).padStart(2, '0')}-${String(day.getUTCDate()).padStart(2, '0')}`;
+                                    const inst = dateMap[key];
+                                    const inLoanRange = day >= loanStartDate && day <= loanEndDate;
+                                    const inMonthRange = day.getUTCMonth() === m.monthIdx;
+                                    
+                                    if (!inMonthRange) return <div key={di} style={{ width: '14px', height: '14px' }} />;
+
+                                    return (
+                                      <div key={di}
+                                        title={inst ? `#${inst.instalmentNo} ${formatDate(inst.dueDate)}` : (inLoanRange ? formatDate(day) : '')}
+                                        style={{
+                                          width: `14px`, height: `14px`, borderRadius: '2px',
+                                          backgroundColor: inst ? getColor(inst.status, Number(inst.receivedAmount), Number(inst.dueAmount)) : (inLoanRange ? '#F1F5F9' : '#E2E8F0'),
+                                          border: inst ? 'none' : (inLoanRange ? '1px solid #E2E8F0' : 'none'),
+                                          opacity: inLoanRange ? 1 : 0.3,
+                                        }}
+                                      />
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                } else {
+                  return (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', padding: '8px 0' }}>
+                      {instalments.map((inst: any) => {
+                        let bg = '#E2E8F0';
+                        if (inst.status === 'paid') bg = '#16A34A';
+                        else if (inst.status === 'partial') bg = '#F59E0B';
+                        else if (inst.status === 'missed') bg = '#EF4444';
+                        return (
+                          <div key={inst.id} title={`#${inst.instalmentNo}`} style={{ width: '18px', height: '18px', borderRadius: '3px', backgroundColor: bg }} />
+                        );
+                      })}
+                    </div>
+                  );
+                }
+              })()}
+            </div>
+
+            {/* Column 3: Stats (Progress + Credit Score) */}
+            <div className="stats-col">
+              {/* Progress Ring */}
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ position: 'relative', width: '64px', height: '64px', margin: '0 auto' }}>
+                  <svg viewBox="0 0 36 36" style={{ width: '64px', height: '64px', transform: 'rotate(-90deg)' }}>
+                    <circle cx="18" cy="18" r="15.9" fill="none" stroke="#F1F5F9" strokeWidth="4" />
+                    <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--primary)" strokeWidth="4" strokeDasharray={`${pct}, 100`} strokeLinecap="round" />
+                  </svg>
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.85rem', fontWeight: 800 }}>{pct}%</div>
+                </div>
+                <div style={{ fontSize: '.6rem', color: 'var(--text-secondary)', marginTop: '4px', fontWeight: 700, textTransform: 'uppercase' }}>{loan.paidCount}/{loan.totalInstalments} Paid</div>
+              </div>
+
+              {/* Credit Score Gauge */}
+              <CreditScoreGauge score={creditScore} grade={creditGrade} />
+            </div>
           </div>
         </div>
       </div>
@@ -187,6 +440,7 @@ export default function LoanDetailClient({
                 <tr>
                   <th>#</th>
                   <th>Date</th>
+                  <th>Time</th>
                   <th>Due</th>
                   <th>Received</th>
                   <th>Status</th>
@@ -196,10 +450,14 @@ export default function LoanDetailClient({
               <tbody>
                 {loan.instalments.map((inst: any) => {
                   const canPay = true;
+                  const collectedTime = inst.receivedAt ? new Date(inst.receivedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : null;
                   return (
                     <tr key={inst.id} style={{ opacity: inst.status === 'paid' ? 0.6 : 1 }}>
                       <td>{inst.instalmentNo}</td>
                       <td>{formatDate(inst.dueDate)}</td>
+                      <td style={{ fontSize: '.78rem', color: 'var(--text-secondary)' }}>
+                        {collectedTime || '—'}
+                      </td>
                       <td>{formatCurrency(inst.dueAmount, currencySymbol)}</td>
                       <td>{Number(inst.receivedAmount) > 0 ? formatCurrency(inst.receivedAmount, currencySymbol) : '—'}</td>
                       <td>
@@ -212,11 +470,6 @@ export default function LoanDetailClient({
                           <button className="btn btn-primary btn-sm" onClick={() => openPaymentModal(inst)} style={{ padding: '8px 12px', minHeight: '36px' }}>
                             <span className="material-icons-outlined" style={{ fontSize: '14px' }}>{inst.status === 'paid' ? 'edit' : 'payments'}</span> {inst.status === 'paid' ? 'Edit' : 'Pay'}
                           </button>
-                        )}
-                        {inst.status === 'paid' && inst.receivedAt && (
-                          <span style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>
-                            {formatDate(inst.receivedAt)}
-                          </span>
                         )}
                       </td>
                     </tr>
@@ -231,11 +484,43 @@ export default function LoanDetailClient({
           <div className="card" style={{ marginBottom: '20px' }}>
             <div className="card-header"><h3>⚡ Penalty Summary</h3></div>
             <div className="stats-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-              <div className="stat-item"><div className="stat-value" style={{ color: 'var(--danger)' }}>{missedCount}</div><div className="stat-label">Missed Days</div></div>
-              <div className="stat-item"><div className="stat-value" style={{ color: 'var(--danger)' }}>{formatCurrency(totalPenalty, currencySymbol)}</div><div className="stat-label">Total Penalty</div></div>
-              <div className="stat-item"><div className="stat-value" style={{ color: 'var(--success)' }}>{formatCurrency(settledPenalty + waivedPenalty, currencySymbol)}</div><div className="stat-label">Settled + Waived</div></div>
-              <div className="stat-item"><div className="stat-value" style={{ color: 'var(--primary-dark)' }}>{formatCurrency(netPenalty, currencySymbol)}</div><div className="stat-label">Net Due</div></div>
+              <div className="stat-item">
+                <div className="stat-value" style={{ color: 'var(--danger)' }}>{missedCount}</div>
+                <div className="stat-label">Missed Days</div>
+              </div>
+              <div className="stat-item" title={`Missed Days (${missedCount}) x Penalty Rate (${formatCurrency(loan.penaltyRate, currencySymbol)})`}>
+                <div className="stat-value" style={{ color: 'var(--danger)' }}>{formatCurrency(totalPenalty, currencySymbol)}</div>
+                <div className="stat-label">Total Penalty</div>
+                <div style={{fontSize:'.6rem', opacity: .7, marginTop: '2px'}}>({missedCount}d × {formatCurrency(loan.penaltyRate, currencySymbol)})</div>
+              </div>
+              <div className="stat-item">
+                <div className="stat-value" style={{ color: 'var(--success)' }}>{formatCurrency(settledPenalty + waivedPenalty, currencySymbol)}</div>
+                <div className="stat-label">Settled + Waived</div>
+              </div>
+              <div className="stat-item">
+                <div className="stat-value" style={{ color: 'var(--primary-dark)' }}>{formatCurrency(netPenalty, currencySymbol)}</div>
+                <div className="stat-label">Net Due</div>
+              </div>
             </div>
+            
+            {netPenalty > 0 && (
+              <div style={{ marginTop: '16px', display: 'flex', gap: '8px' }}>
+                <button 
+                  className="btn btn-ghost btn-sm" 
+                  style={{ flex: 1, border: '1px solid var(--border)', color: 'var(--text-light)' }}
+                  onClick={() => openPenaltyModal({ id: 'new', grossPenalty: netPenalty, settledAmount: 0, waivedAmount: 0 }, 'waive')}
+                >
+                  <span className="material-icons-outlined" style={{ fontSize: '14px' }}>money_off</span> Waive Penalty
+                </button>
+                <button 
+                  className="btn btn-ghost btn-sm" 
+                  style={{ flex: 1, border: '1px solid var(--border)', color: 'var(--primary)' }}
+                  onClick={() => openPenaltyModal({ id: 'new', grossPenalty: netPenalty, settledAmount: 0, waivedAmount: 0 }, 'settle')}
+                >
+                  <span className="material-icons-outlined" style={{ fontSize: '14px' }}>payments</span> Settle Penalty
+                </button>
+              </div>
+            )}
             {loan.penalties.length > 0 && (
               <div style={{ marginTop: '12px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
                 {loan.penalties.map((p: any) => {
@@ -265,7 +550,10 @@ export default function LoanDetailClient({
           {loan.status !== 'closed' && (
             <div className="card" style={{ marginBottom: '20px' }}>
               <div className="card-header"><h3>🔧 Admin Actions</h3></div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+                <Link href={`/loans/${loan.id}/edit`} className="btn btn-ghost" style={{ justifyContent: 'center', border: '1px solid var(--border)' }}>
+                  <span className="material-icons-outlined" style={{ fontSize: '16px' }}>edit</span> Edit Loan
+                </Link>
                 <button className="btn btn-danger" onClick={() => setCloseModal(true)}>
                   <span className="material-icons-outlined" style={{ fontSize: '16px' }}>lock</span> Close Loan
                 </button>
