@@ -23,19 +23,24 @@ export default async function CustomersPage({
 
   const branchId = (session?.user as any)?.branchId as string | undefined;
 
-  const where: any = { tenantId, appType };
+  const where: any = { tenantId, appType, AND: [] };
   if (userRole === 'admin' && branchId) {
-    where.branchId = branchId;
+    // Include records belonging to admin's branch OR records with no branch assigned
+    where.AND.push({ OR: [{ branchId }, { branchId: null }] });
   }
   if (q) {
-    where.OR = [
-      { name: { contains: q } },
-      { customerCode: { contains: q } },
-      { phone: { contains: q } }
-    ];
+    where.AND.push({
+      OR: [
+        { name: { contains: q } },
+        { customerCode: { contains: q } },
+        { phone: { contains: q } }
+      ]
+    });
   }
   if (routeId) where.routeId = routeId;
   if (status) where.status = status;
+  // Clean up empty AND array
+  if (where.AND.length === 0) delete where.AND;
 
   const routes = await prisma.route.findMany({
     where: { tenantId, appType, status: 'active' },

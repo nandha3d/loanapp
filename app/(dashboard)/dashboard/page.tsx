@@ -16,8 +16,10 @@ async function getDashboardData(tenantId: string, appType: string, adminBranchId
   const loanWhere: any = { tenantId, appType };
   const customerWhere: any = { tenantId, appType };
   if (adminBranchId) {
-    loanWhere.branchId = adminBranchId;
-    customerWhere.branchId = adminBranchId;
+    // Include records from admin's branch AND unscoped (null branchId) records
+    const branchFilter = { OR: [{ branchId: adminBranchId }, { branchId: null }] };
+    Object.assign(loanWhere, branchFilter);
+    Object.assign(customerWhere, branchFilter);
   }
 
   // Get counts and aggregates

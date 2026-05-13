@@ -2,7 +2,7 @@
 
 import prisma from '@/lib/db';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
-import { calculateEndDate, calculateInstalmentDates } from '@/lib/utils';
+import { calculateEndDate, calculateInstalmentDates, formatDateISO } from '@/lib/utils';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
@@ -13,7 +13,8 @@ export async function createLoan(formData: FormData) {
   const role = (session?.user as any)?.role;
   const createdById = session?.user?.id;
   const tenantId = await getDefaultTenantId();
-  const appType = await getUserAppType(); // Always derive appType from session/cookie, never from form
+  const appType = await getUserAppType();
+  const userBranchId = (session?.user as any)?.branchId || null;
 
   // Only admin, superadmin and developer can create loans
   if (!createdById || role === 'agent') {
@@ -52,9 +53,10 @@ export async function createLoan(formData: FormData) {
   const counter = parseInt(counterStr) + 1;
   const loanCode = `${prefix}${String(counter).padStart(4, '0')}`;
   
-  await prisma.appSetting.update({
+  await prisma.appSetting.upsert({
     where: { tenantId_key: { tenantId, key: 'loan_code_counter' } },
-    data: { value: counter.toString() }
+    update: { value: counter.toString() },
+    create: { tenantId, key: 'loan_code_counter', value: counter.toString(), group: 'system' }
   });
 
   // Create guarantor if provided
@@ -85,7 +87,15 @@ export async function createLoan(formData: FormData) {
   });
 
   if (!customer) {
-    redirect('/loans/new?error=customer_not_found');
+    return { error: 'Customer not found or inactive. Please select a valid customer.' };
+  }
+
+  // Validate createdById references a real user in the DB
+  if (createdById) {
+    const creatorExists = await prisma.user.findUnique({ where: { id: createdById }, select: { id: true } });
+    if (!creatorExists) {
+      return { error: 'Your session is stale. Please log out and log in again.' };
+    }
   }
 
   // Validate package belongs to same tenant/app if provided
@@ -112,7 +122,7 @@ export async function createLoan(formData: FormData) {
   const loan = await prisma.loan.create({
     data: {
       tenantId,
-      branchId: customer?.branchId,
+      branchId: customer?.branchId || userBranchId,
       loanCode,
       customerId,
       packageId,
@@ -159,4 +169,137 @@ export async function createLoan(formData: FormData) {
 
   revalidatePath('/loans');
   redirect(`/loans/${loan.id}`);
+}
+
+export async function updateLoan(formData: FormData) {
+  const session = await auth();
+  const role = (session?.user as any)?.role;
+  const userId = session?.user?.id;
+  const tenantId = await getDefaultTenantId();
+
+  if (!userId || role === 'agent') {
+    return { error: 'Unauthorized' };
+  }
+
+  const loanId = formData.get('loanId') as string;
+  const principal = Number(formData.get('principal'));
+  const deduction = Number(formData.get('deduction'));
+  const frequency = formData.get('frequency') as string;
+  const tenure = Number(formData.get('tenure'));
+  const startDateStr = formData.get('startDate') as string;
+  const penaltyRate = Number(formData.get('penaltyRate'));
+  const voucherRef = formData.get('voucherRef') as string;
+  const loanType = formData.get('loanType') as string;
+  const collateralDetails = formData.get('collateralDetails') as string;
+  const guarantorName = formData.get('guarantorName') as string;
+  const guarantorPhone = formData.get('guarantorPhone') as string;
+
+  const startDate = new Date(startDateStr);
+  const endDate = calculateEndDate(startDate, frequency, tenure);
+  const disbursed = principal - deduction;
+  const perInstalment = Math.round(principal / tenure);
+
+  // Fetch loan to ensure it exists and belongs to tenant
+  const loan = await prisma.loan.findFirst({
+    where: { id: loanId, tenantId },
+    include: { guarantor: true }
+  });
+
+  if (!loan) return { error: 'Loan not found' };
+
+  // Check if core fields changed
+  const coreChanged = 
+    Number(loan.principal) !== principal ||
+    Number(loan.tenure) !== tenure ||
+    loan.frequency !== frequency ||
+    formatDateISO(new Date(loan.startDate)) !== startDateStr;
+
+  // Update or Create guarantor
+  let guarantorId = loan.guarantorId;
+  if (guarantorName && guarantorPhone) {
+    if (loan.guarantor) {
+      await prisma.guarantor.update({
+        where: { id: loan.guarantorId! },
+        data: { name: guarantorName, phone: guarantorPhone }
+      });
+    } else {
+      const g = await prisma.guarantor.create({
+        data: {
+          customerId: loan.customerId,
+          name: guarantorName,
+          phone: guarantorPhone
+        }
+      });
+      guarantorId = g.id;
+    }
+  }
+
+  // Update Loan
+  await prisma.loan.update({
+    where: { id: loanId },
+    data: {
+      principal,
+      deduction,
+      disbursed,
+      frequency,
+      tenure,
+      startDate,
+      endDate,
+      perInstalment,
+      penaltyRate,
+      voucherRef,
+      loanType,
+      collateralDetails,
+      guarantorId,
+      totalInstalments: tenure
+    }
+  });
+
+  // Regenerate schedule if core fields changed
+  if (coreChanged) {
+    // Delete existing instalments (Caution: This removes payment history for this loan)
+    await prisma.loanInstalment.deleteMany({
+      where: { loanId }
+    });
+
+    const instalmentDates = calculateInstalmentDates(startDate, frequency, tenure);
+    const instalments = instalmentDates.map((date, index) => ({
+      loanId,
+      instalmentNo: index + 1,
+      dueDate: date,
+      dueAmount: perInstalment,
+      status: 'upcoming'
+    }));
+
+    await prisma.loanInstalment.createMany({
+      data: instalments
+    });
+
+    // Reset paid count
+    await prisma.loan.update({
+      where: { id: loanId },
+      data: { paidCount: 0 }
+    });
+  }
+
+  // Log activity
+  try {
+    await prisma.auditLog.create({
+      data: {
+        tenantId,
+        userId,
+        action: 'update',
+        entityType: 'loan',
+        entityId: loanId,
+        newValue: JSON.stringify({ principal, tenure, coreChanged })
+      }
+    });
+  } catch (e) {
+    console.error('Failed to create audit log:', e);
+  }
+
+  revalidatePath(`/loans/${loanId}`);
+  revalidatePath('/loans');
+  
+  return { success: true };
 }

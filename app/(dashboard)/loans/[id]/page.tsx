@@ -6,16 +6,21 @@ import { notFound } from 'next/navigation';
 export default async function LoanDetailPage({
   params
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
   const resolvedParams = await params;
   const tenantId = await getDefaultTenantId();
   
-  const loan = await prisma.loan.findUnique({
+  const loan = await prisma.loan.findFirst({
     where: { id: resolvedParams.id, tenantId },
     include: {
       customer: {
-        include: { securityCheques: true }
+        include: { 
+          securityCheques: true,
+          loans: {
+            include: { instalments: true, penalties: true }
+          }
+        }
       },
       instalments: {
         orderBy: { instalmentNo: 'asc' }
@@ -35,3 +40,4 @@ export default async function LoanDetailPage({
 
   return <LoanDetailClient loan={serializedLoan} currencySymbol={currencySymbol} />;
 }
+

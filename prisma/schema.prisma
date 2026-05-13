@@ -1,5 +1,3 @@
-// ===== LoanTrack — Prisma Schema (MySQL) =====
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,54 +7,48 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ───────────────────────────────────────────────
-// Multi-Tenancy & Organization
-// ───────────────────────────────────────────────
-
 model Tenant {
-  id        String   @id @default(cuid())
-  name      String   @default("LoanTrack")
-  slug      String   @unique @default("default")
-  status    String   @default("active") // active | suspended
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  branches  Branch[]
-  users     User[]
-  settings  AppSetting[]
-  routes    Route[]
-  customers Customer[]
-  loans     Loan[]
-  loanPackages LoanPackage[]
-  collections DailyCollection[]
-  notifications SystemNotification[]
-  auditLogs AuditLog[]
+  id                    String                 @id @default(cuid())
+  name                  String                 @default("LoanTrack")
+  slug                  String                 @unique @default("default")
+  status                String                 @default("active")
+  createdAt             DateTime               @default(now()) @map("created_at")
+  updatedAt             DateTime               @updatedAt @map("updated_at")
+  settings              AppSetting[]
+  auditLogs             AuditLog[]
+  branches              Branch[]
+  chitGroups            ChitGroup[]
+  customers             Customer[]
+  collections           DailyCollection[]
+  loanPackages          LoanPackage[]
+  loans                 Loan[]
   notificationTemplates NotificationTemplate[]
-  chitGroups ChitGroup[]
-  vehicles  Vehicle[]
-  subscription TenantSubscription?
+  routes                Route[]
+  notifications         SystemNotification[]
+  subscription          TenantSubscription?
+  users                 User[]
+  vehicles              Vehicle[]
 
   @@map("tenants")
 }
 
 model Branch {
-  id        String   @id @default(cuid())
-  tenantId  String   @map("tenant_id")
-  name      String
-  code      String?
-  address   String?  @db.Text
-  phone     String?
-  status    String   @default("active") // active | inactive
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  users     User[]
-  routes    Route[]
-  customers Customer[]
-  loans     Loan[]
+  id          String            @id @default(cuid())
+  tenantId    String            @map("tenant_id")
+  name        String
+  code        String?
+  address     String?           @db.Text
+  phone       String?
+  status      String            @default("active")
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  chitGroups  ChitGroup[]
+  customers   Customer[]
   collections DailyCollection[]
-  chitGroups ChitGroup[]
+  loans       Loan[]
+  routes      Route[]
+  users       User[]
 
   @@unique([tenantId, code])
   @@map("branches")
@@ -67,159 +59,143 @@ model AppSetting {
   tenantId  String   @map("tenant_id")
   key       String
   value     String   @db.Text
-  group     String   @default("general") // general | branding | penalty | collection | system
+  group     String   @default("general")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
-
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, key])
   @@map("app_settings")
 }
 
-// ───────────────────────────────────────────────
-// Users & Authentication
-// ───────────────────────────────────────────────
-
 model User {
-  id           String   @id @default(cuid())
-  tenantId     String   @map("tenant_id")
-  branchId     String?  @map("branch_id")
-  name         String
-  phone        String
-  email        String?
-  username     String
-  passwordHash String   @map("password_hash")
-  role         String   @default("agent") // superadmin | admin | agent | borrower
-  appType      String   @default("microlending") @map("app_type") // microlending | autofinance | chitfunds
-  status       String   @default("active") // active | inactive | suspended
-  avatar       String?
-  lastLoginAt  DateTime? @map("last_login_at")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-
-  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch       Branch?  @relation(fields: [branchId], references: [id])
-
-  // Relations
-  assignedRoutes Route[]
-  assignedCustomers Customer[] @relation("AgentCustomers")
-  createdLoans  Loan[]       @relation("LoanCreator")
-  collectionEntries CollectionEntry[]
-  settledPenalties Penalty[]  @relation("PenaltySettler")
-  dailyCollections DailyCollection[]
-  auditLogs    AuditLog[]
-  routeAgents  RouteAgent[]
-  approvalRequestsMade ApprovalRequest[] @relation("Requester")
+  id                       String            @id @default(cuid())
+  tenantId                 String            @map("tenant_id")
+  branchId                 String?           @map("branch_id")
+  name                     String
+  phone                    String
+  email                    String?
+  username                 String
+  passwordHash             String            @map("password_hash")
+  role                     String            @default("agent")
+  appType                  String            @default("microlending") @map("app_type")
+  status                   String            @default("active")
+  avatar                   String?
+  lastLoginAt              DateTime?         @map("last_login_at")
+  createdAt                DateTime          @default(now()) @map("created_at")
+  updatedAt                DateTime          @updatedAt @map("updated_at")
+  approvalRequestsMade     ApprovalRequest[] @relation("Requester")
   approvalRequestsReviewed ApprovalRequest[] @relation("Reviewer")
-  vehicleRepoFlags Vehicle[]           @relation("VehicleRepoFlag")
+  auditLogs                AuditLog[]
+  collectionEntries        CollectionEntry[]
+  assignedCustomers        Customer[]        @relation("AgentCustomers")
+  dailyCollections         DailyCollection[]
+  createdLoans             Loan[]            @relation("LoanCreator")
+  settledPenalties         Penalty[]         @relation("PenaltySettler")
+  routeAgents              RouteAgent[]
+  assignedRoutes           Route[]
+  branch                   Branch?           @relation(fields: [branchId], references: [id])
+  tenant                   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  vehicleRepoFlags         Vehicle[]         @relation("VehicleRepoFlag")
 
   @@unique([tenantId, username])
   @@unique([tenantId, phone])
+  @@index([branchId], map: "users_branch_id_fkey")
   @@map("users")
 }
 
-// ───────────────────────────────────────────────
-// Routes / Collection Lines
-// ───────────────────────────────────────────────
-
 model Route {
-  id             String   @id @default(cuid())
-  tenantId       String   @map("tenant_id")
-  branchId       String?  @map("branch_id")
-  name           String
-  assignedAgentId String? @map("assigned_agent_id")
-  status         String   @default("active") // active | inactive
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-
-  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch         Branch?  @relation(fields: [branchId], references: [id])
-  assignedAgent  User?    @relation(fields: [assignedAgentId], references: [id])
-  appType        String   @default("microlending") @map("app_type") // microlending | autofinance | chitfunds
-  customers      Customer[]
+  id               String            @id @default(cuid())
+  tenantId         String            @map("tenant_id")
+  branchId         String?           @map("branch_id")
+  name             String
+  assignedAgentId  String?           @map("assigned_agent_id")
+  status           String            @default("active")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  appType          String            @default("microlending") @map("app_type")
+  customers        Customer[]
   dailyCollections DailyCollection[]
-  routeAgents    RouteAgent[]
+  routeAgents      RouteAgent[]
+  assignedAgent    User?             @relation(fields: [assignedAgentId], references: [id])
+  branch           Branch?           @relation(fields: [branchId], references: [id])
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  @@index([assignedAgentId], map: "routes_assigned_agent_id_fkey")
+  @@index([branchId], map: "routes_branch_id_fkey")
+  @@index([tenantId], map: "routes_tenant_id_fkey")
   @@map("routes")
 }
 
-// ───────────────────────────────────────────────
-// Customer / Borrower Management
-// ───────────────────────────────────────────────
-
 model Customer {
-  id           String   @id @default(cuid())
-  tenantId     String   @map("tenant_id")
-  branchId     String?  @map("branch_id")
-  customerCode String   @map("customer_code")
-  name         String
-  phone        String
-  address      String?  @db.Text
-  aadharNumber String?  @map("aadhar_number")
-  routeId      String?  @map("route_id")
-  agentId      String?  @map("agent_id")
-  kycStatus    String   @default("pending") // pending | verified | rejected
-  profilePhoto String?  @map("profile_photo")
-  userId       String?  @unique @map("user_id") // Link to borrower user account
-  status       String   @default("active") // active | overdue | closed | blacklisted
-  notes        String?  @db.Text
-  appType      String   @default("microlending") @map("app_type") // microlending | autofinance | chitfunds
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-
-  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch       Branch?  @relation(fields: [branchId], references: [id])
-  route        Route?   @relation(fields: [routeId], references: [id])
-  agent        User?    @relation("AgentCustomers", fields: [agentId], references: [id])
-
-  kycDocuments   KycDocument[]
-  securityCheques SecurityCheque[]
-  loans          Loan[]
-  penalties      Penalty[]
-  guarantors     Guarantor[]
-  vehicles         Vehicle[]
-  chitGroupMembers ChitMember[]
+  id                String            @id @default(cuid())
+  tenantId          String            @map("tenant_id")
+  branchId          String?           @map("branch_id")
+  customerCode      String            @map("customer_code")
+  name              String
+  phone             String
+  address           String?           @db.Text
+  aadharNumber      String?           @map("aadhar_number")
+  routeId           String?           @map("route_id")
+  agentId           String?           @map("agent_id")
+  kycStatus         String            @default("pending")
+  profilePhoto      String?           @map("profile_photo")
+  userId            String?           @unique @map("user_id")
+  status            String            @default("active")
+  notes             String?           @db.Text
+  appType           String            @default("microlending") @map("app_type")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+  chitGroupMembers  ChitMember[]
   collectionEntries CollectionEntry[]
+  agent             User?             @relation("AgentCustomers", fields: [agentId], references: [id])
+  branch            Branch?           @relation(fields: [branchId], references: [id])
+  route             Route?            @relation(fields: [routeId], references: [id])
+  tenant            Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  guarantors        Guarantor[]
+  kycDocuments      KycDocument[]
+  loans             Loan[]
+  penalties         Penalty[]
+  securityCheques   SecurityCheque[]
+  vehicles          Vehicle[]
 
   @@unique([tenantId, customerCode])
+  @@index([agentId], map: "customers_agent_id_fkey")
+  @@index([branchId], map: "customers_branch_id_fkey")
+  @@index([routeId], map: "customers_route_id_fkey")
   @@map("customers")
 }
 
 model KycDocument {
-  id          String   @id @default(cuid())
-  customerId  String   @map("customer_id")
-  docType     String   @map("doc_type") // aadhar | pan | photo | other
-  fileName    String   @map("file_name")
-  filePath    String   @map("file_path")
-  fileSize    Int?     @map("file_size")
-  uploadedAt  DateTime @default(now()) @map("uploaded_at")
+  id         String   @id @default(cuid())
+  customerId String   @map("customer_id")
+  docType    String   @map("doc_type")
+  fileName   String   @map("file_name")
+  filePath   String   @map("file_path")
+  fileSize   Int?     @map("file_size")
+  uploadedAt DateTime @default(now()) @map("uploaded_at")
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
-  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-
+  @@index([customerId], map: "kyc_documents_customer_id_fkey")
   @@map("kyc_documents")
 }
 
 model SecurityCheque {
-  id          String   @id @default(cuid())
-  customerId  String   @map("customer_id")
-  bankName    String   @map("bank_name")
-  chequeNumber String  @map("cheque_number")
-  amount      Decimal? @db.Decimal(12, 2)
-  imagePath   String?  @map("image_path")
-  status      String   @default("active") // active | used | returned | cancelled
-  notes       String?
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id           String   @id @default(cuid())
+  customerId   String   @map("customer_id")
+  bankName     String   @map("bank_name")
+  chequeNumber String   @map("cheque_number")
+  amount       Decimal? @db.Decimal(12, 2)
+  imagePath    String?  @map("image_path")
+  status       String   @default("active")
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
-  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-
+  @@index([customerId], map: "security_cheques_customer_id_fkey")
   @@map("security_cheques")
 }
-
-// ───────────────────────────────────────────────
-// Loan Management
-// ───────────────────────────────────────────────
 
 model LoanPackage {
   id            String   @id @default(cuid())
@@ -227,87 +203,90 @@ model LoanPackage {
   name          String
   principal     Decimal  @db.Decimal(12, 2)
   deduction     Decimal  @db.Decimal(12, 2)
-  frequency     String   // daily | weekly | monthly
-  tenure        Int      // number of instalments
+  frequency     String
+  tenure        Int
   perInstalment Decimal  @map("per_instalment") @db.Decimal(12, 2)
   penaltyRate   Decimal  @map("penalty_rate") @db.Decimal(12, 2)
-  appType       String   @default("microlending") @map("app_type") // microlending | autofinance | chitfunds
-  status        String   @default("active") // active | inactive
+  appType       String   @default("microlending") @map("app_type")
+  status        String   @default("active")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
-
   tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   loans         Loan[]
 
+  @@index([tenantId], map: "loan_packages_tenant_id_fkey")
   @@map("loan_packages")
 }
 
 model Loan {
-  id              String   @id @default(cuid())
-  tenantId        String   @map("tenant_id")
-  branchId        String?  @map("branch_id")
-  loanCode        String   @map("loan_code")
-  customerId      String   @map("customer_id")
-  packageId       String?  @map("package_id")
-  loanType        String   @default("cheque") @map("loan_type") // cheque | gold | property
-  appType         String   @default("microlending") @map("app_type") // microlending | autofinance
-  collateralDetails String? @map("collateral_details") @db.Text
-  guarantorId     String?  @map("guarantor_id")
-  principal       Decimal  @db.Decimal(12, 2)
-  deduction       Decimal  @db.Decimal(12, 2)
-  disbursed       Decimal  @db.Decimal(12, 2)
-  frequency       String   // daily | weekly | monthly
-  tenure          Int
-  startDate       DateTime @map("start_date") @db.Date
-  endDate         DateTime? @map("end_date") @db.Date
-  perInstalment   Decimal  @map("per_instalment") @db.Decimal(12, 2)
-  penaltyRate     Decimal  @map("penalty_rate") @db.Decimal(12, 2)
-  voucherRef      String?  @map("voucher_ref")
-  status          String   @default("active") // active | overdue | closed | settled
-  paidCount       Int      @default(0) @map("paid_count")
-  totalInstalments Int     @map("total_instalments")
-  totalCollected  Decimal  @default(0) @map("total_collected") @db.Decimal(12, 2)
-  closedAt        DateTime? @map("closed_at")
-  createdById     String?  @map("created_by_id")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
-
-  tenant          Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch          Branch?     @relation(fields: [branchId], references: [id])
-  customer        Customer    @relation(fields: [customerId], references: [id])
-  package         LoanPackage? @relation(fields: [packageId], references: [id])
-  createdBy       User?       @relation("LoanCreator", fields: [createdById], references: [id])
-  guarantor       Guarantor?  @relation(fields: [guarantorId], references: [id])
-  instalments       Instalment[]
-  penalties         Penalty[]
-  collaterals       LoanCollateral[]
+  id                String            @id @default(cuid())
+  tenantId          String            @map("tenant_id")
+  branchId          String?           @map("branch_id")
+  loanCode          String            @map("loan_code")
+  customerId        String            @map("customer_id")
+  packageId         String?           @map("package_id")
+  loanType          String            @default("cheque") @map("loan_type")
+  appType           String            @default("microlending") @map("app_type")
+  collateralDetails String?           @map("collateral_details") @db.Text
+  guarantorId       String?           @map("guarantor_id")
+  principal         Decimal           @db.Decimal(12, 2)
+  deduction         Decimal           @db.Decimal(12, 2)
+  disbursed         Decimal           @db.Decimal(12, 2)
+  frequency         String
+  tenure            Int
+  startDate         DateTime          @map("start_date") @db.Date
+  endDate           DateTime?         @map("end_date") @db.Date
+  perInstalment     Decimal           @map("per_instalment") @db.Decimal(12, 2)
+  penaltyRate       Decimal           @map("penalty_rate") @db.Decimal(12, 2)
+  voucherRef        String?           @map("voucher_ref")
+  status            String            @default("active")
+  paidCount         Int               @default(0) @map("paid_count")
+  totalInstalments  Int               @map("total_instalments")
+  totalCollected    Decimal           @default(0.00) @map("total_collected") @db.Decimal(12, 2)
+  closedAt          DateTime?         @map("closed_at")
+  createdById       String?           @map("created_by_id")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
   collectionEntries CollectionEntry[]
+  instalments       Instalment[]
+  collaterals       LoanCollateral[]
+  branch            Branch?           @relation(fields: [branchId], references: [id])
+  createdBy         User?             @relation("LoanCreator", fields: [createdById], references: [id])
+  customer          Customer          @relation(fields: [customerId], references: [id])
+  guarantor         Guarantor?        @relation(fields: [guarantorId], references: [id])
+  package           LoanPackage?      @relation(fields: [packageId], references: [id])
+  tenant            Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  penalties         Penalty[]
   vehicle           Vehicle?
 
   @@unique([tenantId, loanCode])
+  @@index([branchId], map: "loans_branch_id_fkey")
+  @@index([createdById], map: "loans_created_by_id_fkey")
+  @@index([customerId], map: "loans_customer_id_fkey")
+  @@index([guarantorId], map: "loans_guarantor_id_fkey")
+  @@index([packageId], map: "loans_package_id_fkey")
   @@map("loans")
 }
 
 model Instalment {
-  id              String   @id @default(cuid())
-  loanId          String   @map("loan_id")
-  instalmentNo    Int      @map("instalment_no")
-  dueDate         DateTime @map("due_date") @db.Date
-  dueAmount       Decimal  @map("due_amount") @db.Decimal(12, 2)
-  receivedAmount  Decimal  @default(0) @map("received_amount") @db.Decimal(12, 2)
-  paymentMode     String?  @map("payment_mode") // cash | upi | cheque | bank_transfer
-  status          String   @default("upcoming") // upcoming | paid | missed | partial
-  receivedAt      DateTime? @map("received_at")
-  agentId         String?  @map("agent_id")
-  remarks         String?  @db.Text
-  lockedAt        DateTime? @map("locked_at")
-  penaltyApplied  Boolean  @default(false) @map("penalty_applied")
-  collectionEntryId String? @unique @map("collection_entry_id")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
-
-  loan            Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  collectionEntry CollectionEntry? @relation(fields: [collectionEntryId], references: [id])
+  id                String           @id @default(cuid())
+  loanId            String           @map("loan_id")
+  instalmentNo      Int              @map("instalment_no")
+  dueDate           DateTime         @map("due_date") @db.Date
+  dueAmount         Decimal          @map("due_amount") @db.Decimal(12, 2)
+  receivedAmount    Decimal          @default(0.00) @map("received_amount") @db.Decimal(12, 2)
+  paymentMode       String?          @map("payment_mode")
+  status            String           @default("upcoming")
+  receivedAt        DateTime?        @map("received_at")
+  agentId           String?          @map("agent_id")
+  remarks           String?          @db.Text
+  lockedAt          DateTime?        @map("locked_at")
+  penaltyApplied    Boolean          @default(false) @map("penalty_applied")
+  collectionEntryId String?          @unique @map("collection_entry_id")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+  collectionEntry   CollectionEntry? @relation(fields: [collectionEntryId], references: [id])
+  loan              Loan             @relation(fields: [loanId], references: [id], onDelete: Cascade)
 
   @@unique([loanId, instalmentNo])
   @@index([dueDate])
@@ -315,103 +294,97 @@ model Instalment {
   @@map("instalments")
 }
 
-// ───────────────────────────────────────────────
-// Penalty Management
-// ───────────────────────────────────────────────
-
 model Penalty {
-  id             String   @id @default(cuid())
-  loanId         String   @map("loan_id")
-  customerId     String   @map("customer_id")
-  missedDays     Int      @default(0) @map("missed_days")
-  grossPenalty   Decimal  @default(0) @map("gross_penalty") @db.Decimal(12, 2)
-  settledAmount  Decimal  @default(0) @map("settled_amount") @db.Decimal(12, 2)
-  waivedAmount   Decimal  @default(0) @map("waived_amount") @db.Decimal(12, 2)
-  status         String   @default("pending") // pending | settled | waived | partial
-  settledById    String?  @map("settled_by_id")
-  notes          String?  @db.Text
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id            String   @id @default(cuid())
+  loanId        String   @map("loan_id")
+  customerId    String   @map("customer_id")
+  missedDays    Int      @default(0) @map("missed_days")
+  grossPenalty  Decimal  @default(0.00) @map("gross_penalty") @db.Decimal(12, 2)
+  settledAmount Decimal  @default(0.00) @map("settled_amount") @db.Decimal(12, 2)
+  waivedAmount  Decimal  @default(0.00) @map("waived_amount") @db.Decimal(12, 2)
+  status        String   @default("pending")
+  settledById   String?  @map("settled_by_id")
+  notes         String?  @db.Text
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  customer      Customer @relation(fields: [customerId], references: [id])
+  loan          Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  settledBy     User?    @relation("PenaltySettler", fields: [settledById], references: [id])
 
-  loan           Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  customer       Customer @relation(fields: [customerId], references: [id])
-  settledBy      User?    @relation("PenaltySettler", fields: [settledById], references: [id])
-
+  @@index([customerId], map: "penalties_customer_id_fkey")
+  @@index([loanId], map: "penalties_loan_id_fkey")
+  @@index([settledById], map: "penalties_settled_by_id_fkey")
   @@map("penalties")
 }
 
-// ───────────────────────────────────────────────
-// Collection / Daily Ledger
-// ───────────────────────────────────────────────
-
 model DailyCollection {
-  id             String   @id @default(cuid())
-  tenantId       String   @map("tenant_id")
-  branchId       String?  @map("branch_id")
-  agentId        String   @map("agent_id")
-  routeId        String?  @map("route_id")
-  date           DateTime @db.Date
-  totalExpected  Decimal  @default(0) @map("total_expected") @db.Decimal(12, 2)
-  totalCollected Decimal  @default(0) @map("total_collected") @db.Decimal(12, 2)
-  entriesCount   Int      @default(0) @map("entries_count")
-  appType        String   @default("microlending") @map("app_type") // microlending | autofinance | chitfunds
-  status         String   @default("open") // open | locked
-  lockedAt       DateTime? @map("locked_at")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-
-  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch         Branch?  @relation(fields: [branchId], references: [id])
-  agent          User     @relation(fields: [agentId], references: [id])
-  route          Route?   @relation(fields: [routeId], references: [id])
+  id             String            @id @default(cuid())
+  tenantId       String            @map("tenant_id")
+  branchId       String?           @map("branch_id")
+  agentId        String            @map("agent_id")
+  routeId        String?           @map("route_id")
+  date           DateTime          @db.Date
+  totalExpected  Decimal           @default(0.00) @map("total_expected") @db.Decimal(12, 2)
+  totalCollected Decimal           @default(0.00) @map("total_collected") @db.Decimal(12, 2)
+  entriesCount   Int               @default(0) @map("entries_count")
+  appType        String            @default("microlending") @map("app_type")
+  status         String            @default("open")
+  lockedAt       DateTime?         @map("locked_at")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
   entries        CollectionEntry[]
+  agent          User              @relation(fields: [agentId], references: [id])
+  branch         Branch?           @relation(fields: [branchId], references: [id])
+  route          Route?            @relation(fields: [routeId], references: [id])
+  tenant         Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([agentId, date])
   @@index([date])
+  @@index([branchId], map: "daily_collections_branch_id_fkey")
+  @@index([routeId], map: "daily_collections_route_id_fkey")
+  @@index([tenantId], map: "daily_collections_tenant_id_fkey")
   @@map("daily_collections")
 }
 
 model CollectionEntry {
-  id              String   @id @default(cuid())
-  collectionId    String   @map("collection_id")
-  customerId      String   @map("customer_id")
-  loanId          String   @map("loan_id")
-  dueAmount       Decimal  @map("due_amount") @db.Decimal(12, 2)
-  receivedAmount  Decimal  @map("received_amount") @db.Decimal(12, 2)
-  paymentMode     String   @default("cash") @map("payment_mode") // cash | upi | cheque
-  remarks         String?  @db.Text
-  agentId         String   @map("agent_id")
-  submittedAt     DateTime @default(now()) @map("submitted_at")
-  isLocked        Boolean  @default(true) @map("is_locked")
+  id             String          @id @default(cuid())
+  collectionId   String          @map("collection_id")
+  customerId     String          @map("customer_id")
+  loanId         String          @map("loan_id")
+  dueAmount      Decimal         @map("due_amount") @db.Decimal(12, 2)
+  receivedAmount Decimal         @map("received_amount") @db.Decimal(12, 2)
+  paymentMode    String          @default("cash") @map("payment_mode")
+  remarks        String?         @db.Text
+  agentId        String          @map("agent_id")
+  submittedAt    DateTime        @default(now()) @map("submitted_at")
+  isLocked       Boolean         @default(true) @map("is_locked")
+  agent          User            @relation(fields: [agentId], references: [id])
+  collection     DailyCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  customer       Customer        @relation(fields: [customerId], references: [id])
+  loan           Loan            @relation(fields: [loanId], references: [id])
+  instalment     Instalment?
 
-  collection      DailyCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
-  agent           User     @relation(fields: [agentId], references: [id])
-  customer        Customer @relation(fields: [customerId], references: [id])
-  loan            Loan     @relation(fields: [loanId], references: [id])
-  instalment      Instalment?
-
+  @@index([agentId], map: "collection_entries_agent_id_fkey")
+  @@index([collectionId], map: "collection_entries_collection_id_fkey")
+  @@index([customerId], map: "collection_entries_customer_id_fkey")
+  @@index([loanId], map: "collection_entries_loan_id_fkey")
   @@map("collection_entries")
 }
 
-// ───────────────────────────────────────────────
-// Notifications
-// ───────────────────────────────────────────────
-
 model SystemNotification {
-  id        String   @id @default(cuid())
-  tenantId  String   @map("tenant_id")
-  appType   String   @default("microlending") @map("app_type") // microlending | autofinance | chitfunds
-  type      String   // warning | info | danger | success
+  id        String    @id @default(cuid())
+  tenantId  String    @map("tenant_id")
+  appType   String    @default("microlending") @map("app_type")
+  type      String
   icon      String?
   title     String?
-  message   String   @db.Text
+  message   String    @db.Text
   link      String?
-  isRead    Boolean  @default(false) @map("is_read")
+  isRead    Boolean   @default(false) @map("is_read")
   readAt    DateTime? @map("read_at")
   expiresAt DateTime? @map("expires_at")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now()) @map("created_at")
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, appType, isRead])
   @@index([createdAt])
@@ -421,48 +394,39 @@ model SystemNotification {
 model NotificationTemplate {
   id        String   @id @default(cuid())
   tenantId  String   @map("tenant_id")
-  name      String   // payment_reminder | overdue_alert | loan_created etc.
-  channel   String   // sms | whatsapp | email
+  name      String
+  channel   String
   subject   String?
-  body      String   @db.Text // Supports {{variable}} placeholders
+  body      String   @db.Text
   isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
-
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, name, channel])
   @@map("notification_templates")
 }
 
-// ───────────────────────────────────────────────
-// Audit Trail
-// ───────────────────────────────────────────────
-
 model AuditLog {
-  id          String   @id @default(cuid())
-  tenantId    String   @map("tenant_id")
-  userId      String?  @map("user_id")
-  action      String   // create | update | delete | login | logout | etc.
-  entityType  String   @map("entity_type") // customer | loan | collection | penalty | etc.
-  entityId    String?  @map("entity_id")
-  oldValue    String?  @map("old_value") @db.Text
-  newValue    String?  @map("new_value") @db.Text
-  ipAddress   String?  @map("ip_address")
-  userAgent   String?  @map("user_agent") @db.Text
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user        User?    @relation(fields: [userId], references: [id])
+  id         String   @id @default(cuid())
+  tenantId   String   @map("tenant_id")
+  userId     String?  @map("user_id")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String?  @map("entity_id")
+  oldValue   String?  @map("old_value") @db.Text
+  newValue   String?  @map("new_value") @db.Text
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent") @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user       User?    @relation(fields: [userId], references: [id])
 
   @@index([tenantId, entityType])
   @@index([createdAt])
+  @@index([userId], map: "audit_logs_user_id_fkey")
   @@map("audit_logs")
 }
-
-// ───────────────────────────────────────────────
-// Guarantors / Surety
-// ───────────────────────────────────────────────
 
 model Guarantor {
   id           String   @id @default(cuid())
@@ -471,61 +435,54 @@ model Guarantor {
   phone        String
   address      String?  @db.Text
   aadharNumber String?  @map("aadhar_number")
-  photo        String?  // file path to guarantor photo
-  relation     String?  // friend | relative | business_partner | other
+  photo        String?
+  relation     String?
   notes        String?  @db.Text
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
-
   customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   loans        Loan[]
 
+  @@index([customerId], map: "guarantors_customer_id_fkey")
   @@map("guarantors")
 }
-
-// ───────────────────────────────────────────────
-// Loan Collateral Documents
-// ───────────────────────────────────────────────
 
 model LoanCollateral {
   id          String   @id @default(cuid())
   loanId      String   @map("loan_id")
-  docType     String   @map("doc_type") // gold_photo | property_doc | vehicle_rc | insurance | other
+  docType     String   @map("doc_type")
   fileName    String   @map("file_name")
   filePath    String   @map("file_path")
   fileSize    Int?     @map("file_size")
   description String?
   uploadedAt  DateTime @default(now()) @map("uploaded_at")
-
   loan        Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
 
+  @@index([loanId], map: "loan_collaterals_loan_id_fkey")
   @@map("loan_collaterals")
 }
 
-// ───────────────────────────────────────────────
-// Approval Workflow & Shared Routes
-// ───────────────────────────────────────────────
-
 model ApprovalRequest {
-  id               String   @id @default(cuid())
-  tenantId         String   @map("tenant_id")
-  appType          String   @map("app_type")
-  requestType      String   @map("request_type") // customer_edit | customer_delete | loan_edit
-  entityType       String   @map("entity_type") // customer | loan
-  entityId         String   @map("entity_id")
-  requestedById    String   @map("requested_by_id")
-  requestedChanges String   @db.Text @map("requested_changes") // JSON
-  reason           String?  @db.Text
-  status           String   @default("pending") // pending | approved | rejected
-  reviewedById     String?  @map("reviewed_by_id")
+  id               String    @id @default(cuid())
+  tenantId         String    @map("tenant_id")
+  appType          String    @map("app_type")
+  requestType      String    @map("request_type")
+  entityType       String    @map("entity_type")
+  entityId         String    @map("entity_id")
+  requestedById    String    @map("requested_by_id")
+  requestedChanges String    @map("requested_changes") @db.Text
+  reason           String?   @db.Text
+  status           String    @default("pending")
+  reviewedById     String?   @map("reviewed_by_id")
   reviewedAt       DateTime? @map("reviewed_at")
-  reviewNotes      String?  @db.Text @map("review_notes")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  reviewNotes      String?   @map("review_notes") @db.Text
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  requestedBy      User      @relation("Requester", fields: [requestedById], references: [id])
+  reviewedBy       User?     @relation("Reviewer", fields: [reviewedById], references: [id])
 
-  requestedBy      User     @relation("Requester", fields: [requestedById], references: [id])
-  reviewedBy       User?    @relation("Reviewer", fields: [reviewedById], references: [id])
-
+  @@index([requestedById], map: "approval_requests_requested_by_id_fkey")
+  @@index([reviewedById], map: "approval_requests_reviewed_by_id_fkey")
   @@map("approval_requests")
 }
 
@@ -535,157 +492,142 @@ model RouteAgent {
   agentId    String   @map("agent_id")
   isPrimary  Boolean  @default(false) @map("is_primary")
   assignedAt DateTime @default(now()) @map("assigned_at")
-
-  route      Route    @relation(fields: [routeId], references: [id], onDelete: Cascade)
   agent      User     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  route      Route    @relation(fields: [routeId], references: [id], onDelete: Cascade)
 
   @@unique([routeId, agentId])
+  @@index([agentId], map: "route_agents_agent_id_fkey")
   @@map("route_agents")
 }
-
-// ───────────────────────────────────────────────
-// Auto Finance — Vehicle Details
-// ───────────────────────────────────────────────
 
 model Vehicle {
   id              String    @id @default(cuid())
   tenantId        String    @map("tenant_id")
   appType         String    @default("autofinance") @map("app_type")
   customerId      String    @map("customer_id")
-  loanId          String?   @unique @map("loan_id")
   registrationNo  String    @map("registration_no")
   make            String
   model           String
   year            Int?
   color           String?
-  vehicleType     String    @default("two_wheeler") @map("vehicle_type") // two_wheeler | four_wheeler | commercial
   engineNo        String?   @map("engine_no")
   chassisNo       String?   @map("chassis_no")
   insuranceExpiry DateTime? @map("insurance_expiry") @db.Date
-  insurancePath   String?   @map("insurance_path")
   rcDocPath       String?   @map("rc_doc_path")
-  repoFlag        Boolean   @default(false) @map("repo_flag")
-  repoFlaggedAt   DateTime? @map("repo_flagged_at")
-  repoFlaggedById String?   @map("repo_flagged_by_id")
   status          String    @default("active")
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
-
-  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  insurancePath   String?   @map("insurance_path")
+  loanId          String?   @unique @map("loan_id")
+  repoFlag        Boolean   @default(false) @map("repo_flag")
+  repoFlaggedAt   DateTime? @map("repo_flagged_at")
+  repoFlaggedById String?   @map("repo_flagged_by_id")
+  vehicleType     String    @default("two_wheeler") @map("vehicle_type")
   customer        Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
   loan            Loan?     @relation(fields: [loanId], references: [id])
   repoFlaggedBy   User?     @relation("VehicleRepoFlag", fields: [repoFlaggedById], references: [id])
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, appType, registrationNo])
   @@index([customerId])
   @@index([repoFlag])
+  @@index([repoFlaggedById], map: "vehicles_repo_flagged_by_id_fkey")
   @@map("vehicles")
 }
 
-// ───────────────────────────────────────────────
-// Chit Fund — Full Auction Module (Phase 3)
-// ───────────────────────────────────────────────
-
 model ChitGroup {
-  id             String   @id @default(cuid())
-  tenantId       String   @map("tenant_id")
-  branchId       String?  @map("branch_id")
-  appType        String   @default("chitfunds") @map("app_type")
+  id             String        @id @default(cuid())
+  tenantId       String        @map("tenant_id")
+  branchId       String?       @map("branch_id")
+  appType        String        @default("chitfunds") @map("app_type")
   name           String
-  chitValue      Decimal  @map("chit_value") @db.Decimal(14, 2)
-  monthlyContrib Decimal  @map("monthly_contrib") @db.Decimal(14, 2)
-  totalMembers   Int      @map("total_members")
-  durationMonths Int      @map("duration_months")
-  commissionPct  Decimal  @default(5) @map("commission_pct") @db.Decimal(5, 2)
-  startDate      DateTime @map("start_date") @db.Date
-  status         String   @default("active") // active | completed | cancelled
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-
-  tenant         Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch         Branch?     @relation(fields: [branchId], references: [id])
-  members        ChitMember[]
+  chitValue      Decimal       @map("chit_value") @db.Decimal(14, 2)
+  monthlyContrib Decimal       @map("monthly_contrib") @db.Decimal(14, 2)
+  totalMembers   Int           @map("total_members")
+  durationMonths Int           @map("duration_months")
+  commissionPct  Decimal       @default(5.00) @map("commission_pct") @db.Decimal(5, 2)
+  startDate      DateTime      @map("start_date") @db.Date
+  status         String        @default("active")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
   auctions       ChitAuction[]
+  branch         Branch?       @relation(fields: [branchId], references: [id])
+  tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  members        ChitMember[]
 
   @@index([tenantId, appType, status])
+  @@index([branchId], map: "chit_groups_branch_id_fkey")
   @@map("chit_groups")
 }
 
 model ChitMember {
-  id           String    @id @default(cuid())
-  chitGroupId  String    @map("chit_group_id")
-  customerId   String    @map("customer_id")
-  memberNumber Int       @map("member_number")
-  hasWon       Boolean   @default(false) @map("has_won")
-  wonAt        DateTime? @map("won_at")
-  joinedAt     DateTime  @default(now()) @map("joined_at")
-
-  chitGroup      ChitGroup   @relation(fields: [chitGroupId], references: [id], onDelete: Cascade)
-  customer       Customer    @relation(fields: [customerId], references: [id])
-  subscriptions  ChitSubscription[]
-  wonAuctions    ChitAuction[] @relation("AuctionWinner")
+  id            String             @id @default(cuid())
+  chitGroupId   String             @map("chit_group_id")
+  customerId    String             @map("customer_id")
+  memberNumber  Int                @map("member_number")
+  hasWon        Boolean            @default(false) @map("has_won")
+  wonAt         DateTime?          @map("won_at")
+  joinedAt      DateTime           @default(now()) @map("joined_at")
+  wonAuctions   ChitAuction[]      @relation("AuctionWinner")
+  chitGroup     ChitGroup          @relation(fields: [chitGroupId], references: [id], onDelete: Cascade)
+  customer      Customer           @relation(fields: [customerId], references: [id])
+  subscriptions ChitSubscription[]
 
   @@unique([chitGroupId, customerId])
   @@unique([chitGroupId, memberNumber])
+  @@index([customerId], map: "chit_members_customer_id_fkey")
   @@map("chit_members")
 }
 
 model ChitAuction {
-  id             String    @id @default(cuid())
-  chitGroupId    String    @map("chit_group_id")
-  periodNumber   Int       @map("period_number")
-  auctionDate    DateTime  @map("auction_date") @db.Date
-  winnerMemberId String?   @map("winner_member_id")
-  prizeAmount    Decimal?  @map("prize_amount") @db.Decimal(14, 2)
-  bidDiscount    Decimal?  @map("bid_discount") @db.Decimal(14, 2)
-  commission     Decimal?  @db.Decimal(14, 2)
-  dividend       Decimal?  @db.Decimal(14, 2)
-  status         String    @default("pending") // pending | completed
-  createdAt      DateTime  @default(now()) @map("created_at")
-
+  id             String      @id @default(cuid())
+  chitGroupId    String      @map("chit_group_id")
+  periodNumber   Int         @map("period_number")
+  auctionDate    DateTime    @map("auction_date") @db.Date
+  winnerMemberId String?     @map("winner_member_id")
+  prizeAmount    Decimal?    @map("prize_amount") @db.Decimal(14, 2)
+  bidDiscount    Decimal?    @map("bid_discount") @db.Decimal(14, 2)
+  commission     Decimal?    @db.Decimal(14, 2)
+  dividend       Decimal?    @db.Decimal(14, 2)
+  status         String      @default("pending")
+  createdAt      DateTime    @default(now()) @map("created_at")
   chitGroup      ChitGroup   @relation(fields: [chitGroupId], references: [id], onDelete: Cascade)
   winnerMember   ChitMember? @relation("AuctionWinner", fields: [winnerMemberId], references: [id])
 
   @@unique([chitGroupId, periodNumber])
+  @@index([winnerMemberId], map: "chit_auctions_winner_member_id_fkey")
   @@map("chit_auctions")
 }
 
 model ChitSubscription {
-  id           String    @id @default(cuid())
-  memberId     String    @map("member_id")
-  periodNumber Int       @map("period_number")
-  dueDate      DateTime  @map("due_date") @db.Date
-  dueAmount    Decimal   @map("due_amount") @db.Decimal(14, 2)
-  paidAmount   Decimal   @default(0) @map("paid_amount") @db.Decimal(14, 2)
-  status       String    @default("upcoming") // upcoming | paid | missed
-  paidAt       DateTime? @map("paid_at")
-
+  id           String     @id @default(cuid())
+  memberId     String     @map("member_id")
+  periodNumber Int        @map("period_number")
+  dueDate      DateTime   @map("due_date") @db.Date
+  dueAmount    Decimal    @map("due_amount") @db.Decimal(14, 2)
+  paidAmount   Decimal    @default(0.00) @map("paid_amount") @db.Decimal(14, 2)
+  status       String     @default("upcoming")
+  paidAt       DateTime?  @map("paid_at")
   member       ChitMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@index([memberId, periodNumber])
   @@map("chit_subscriptions")
 }
 
-// ───────────────────────────────────────────────
-// Subscription / Billing (Phase 5)
-// ───────────────────────────────────────────────
-
 model TenantSubscription {
   id               String    @id @default(cuid())
   tenantId         String    @unique @map("tenant_id")
-  plan             String    @default("trial") // trial | basic | pro | enterprise
-  status           String    @default("active") // active | expired | cancelled
+  plan             String    @default("trial")
+  status           String    @default("active")
   maxActiveLoans   Int       @default(50) @map("max_active_loans")
   maxAgents        Int       @default(3) @map("max_agents")
-  enabledModules   String    @default("microlending") @map("enabled_modules") // comma-separated
+  enabledModules   String    @default("microlending") @map("enabled_modules")
   trialEndsAt      DateTime? @map("trial_ends_at")
   currentPeriodEnd DateTime? @map("current_period_end")
   razorpaySubId    String?   @map("razorpay_sub_id")
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
-
   tenant           Tenant    @relation(fields: [tenantId], references: [id])
 
   @@map("tenant_subscriptions")
 }
-

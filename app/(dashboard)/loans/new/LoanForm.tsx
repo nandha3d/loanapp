@@ -372,7 +372,7 @@ export default function LoanForm({
 
       <Modal isOpen={isCustomerModalOpen} onClose={() => setIsCustomerModalOpen(false)} title={dict.customers.registerTitle}>
         {routes && agents ? (
-          <CustomerForm routes={routes} agents={agents} onSuccess={handleCustomerCreated} />
+          <CustomerForm routes={routes} agents={agents} onSuccess={handleCustomerCreated} dict={dict} />
         ) : (
           <p>Loading form...</p>
         )}

@@ -95,27 +95,39 @@ export async function waiveLoanPenalty(formData: FormData) {
   const waivedAmount = Number(formData.get('waivedAmount'));
   const notes = formData.get('notes') as string || null;
 
-  if (!penaltyId) {
-    return { success: false, error: 'Invalid input' };
+  let penalty;
+  if (penaltyId === 'new') {
+    const loanId = formData.get('loanId') as string;
+    const grossPenalty = Number(formData.get('grossPenalty'));
+    penalty = await prisma.penalty.create({
+      data: {
+        tenantId,
+        loanId,
+        grossPenalty,
+        missedDays: Math.round(grossPenalty / 10), // Rough estimate for display
+        status: 'pending',
+      }
+    });
+  } else {
+    penalty = await prisma.penalty.findUnique({
+      where: { id: penaltyId },
+      include: { loan: true },
+    });
   }
 
-  const penalty = await prisma.penalty.findUnique({
-    where: { id: penaltyId },
-    include: { loan: true },
-  });
-
-  if (!penalty || penalty.loan.tenantId !== tenantId) {
+  if (!penalty || (penaltyId !== 'new' && (penalty as any).loan.tenantId !== tenantId)) {
     return { success: false, error: 'Penalty not found' };
   }
 
+  const pid = penalty.id;
   const grossPenalty = Number(penalty.grossPenalty);
-  const existingSettled = Number(penalty.settledAmount);
+  const existingSettled = Number(penalty.settledAmount || 0);
   const newWaived = waivedAmount > 0 ? waivedAmount : grossPenalty - existingSettled;
   const totalResolved = existingSettled + newWaived;
   const newStatus = totalResolved >= grossPenalty ? 'waived' : 'partial';
 
   await prisma.penalty.update({
-    where: { id: penaltyId },
+    where: { id: pid },
     data: {
       waivedAmount: newWaived,
       status: newStatus,
@@ -130,7 +142,7 @@ export async function waiveLoanPenalty(formData: FormData) {
       userId,
       action: 'update',
       entityType: 'penalty',
-      entityId: penaltyId,
+      entityId: pid,
       newValue: JSON.stringify({ action: 'waive', waivedAmount: newWaived }),
     },
   });
@@ -148,28 +160,41 @@ export async function settleLoanPenalty(formData: FormData) {
   const settledAmount = Number(formData.get('settledAmount'));
   const notes = formData.get('notes') as string || null;
 
-  if (!penaltyId || !settledAmount || settledAmount <= 0) {
-    return { success: false, error: 'Invalid input' };
+  let penalty;
+  if (penaltyId === 'new') {
+    const loanId = formData.get('loanId') as string;
+    const grossPenalty = Number(formData.get('grossPenalty'));
+    penalty = await prisma.penalty.create({
+      data: {
+        tenantId,
+        loanId,
+        grossPenalty,
+        missedDays: Math.round(grossPenalty / 10),
+        status: 'pending',
+      }
+    });
+  } else {
+    penalty = await prisma.penalty.findUnique({
+      where: { id: penaltyId },
+      include: { loan: true },
+    });
   }
 
-  const penalty = await prisma.penalty.findUnique({
-    where: { id: penaltyId },
-    include: { loan: true },
-  });
-
-  if (!penalty || penalty.loan.tenantId !== tenantId) {
+  if (!penalty || (penaltyId !== 'new' && (penalty as any).loan.tenantId !== tenantId)) {
     return { success: false, error: 'Penalty not found' };
   }
 
+  const pid = penalty.id;
   const grossPenalty = Number(penalty.grossPenalty);
-  const existingWaived = Number(penalty.waivedAmount);
-  const totalResolved = settledAmount + existingWaived;
+  const existingWaived = Number(penalty.waivedAmount || 0);
+  const newSettled = settledAmount > 0 ? settledAmount : grossPenalty - existingWaived;
+  const totalResolved = existingWaived + newSettled;
   const newStatus = totalResolved >= grossPenalty ? 'settled' : 'partial';
 
   await prisma.penalty.update({
-    where: { id: penaltyId },
+    where: { id: pid },
     data: {
-      settledAmount,
+      settledAmount: newSettled,
       status: newStatus,
       settledById: userId,
       notes,
@@ -182,8 +207,8 @@ export async function settleLoanPenalty(formData: FormData) {
       userId,
       action: 'update',
       entityType: 'penalty',
-      entityId: penaltyId,
-      newValue: JSON.stringify({ action: 'settle', settledAmount }),
+      entityId: pid,
+      newValue: JSON.stringify({ action: 'settle', settledAmount: newSettled }),
     },
   });
 
@@ -293,7 +318,7 @@ export async function renewLoan(formData: FormData) {
 
   await prisma.appSetting.upsert({
     where: { tenantId_key: { tenantId, key: 'loan_code_counter' } },
-    create: { tenantId, key: 'loan_code_counter', value: counter.toString(), category: 'loan' },
+    create: { tenantId, key: 'loan_code_counter', value: counter.toString(), group: 'system' },
     update: { value: counter.toString() },
   });
 

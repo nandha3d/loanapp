@@ -8,7 +8,7 @@ import { getDictionary } from '@/lib/i18n';
 export default async function NewCustomerPage({
   searchParams
 }: {
-  searchParams: { edit?: string }
+  searchParams: Promise<{ edit?: string }>
 }) {
   const resolvedSearchParams = await searchParams;
   const tenantId = await getDefaultTenantId();

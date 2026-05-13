@@ -1,6 +1,7 @@
 import prisma from './db';
 import { auth } from './auth';
 import { cookies } from 'next/headers';
+import { cache } from 'react';
 
 export async function getUserAppType(): Promise<string> {
   const session = await auth();
@@ -18,18 +19,13 @@ export async function getUserAppType(): Promise<string> {
 }
 
 // ─── Tenant Context ───────────────────────────
-// For standalone: returns the single default tenant
-// For SaaS: will resolve tenant from subdomain/session
+// Request-scoped cache: safe for serverless/edge — no stale data across requests
 
-let cachedTenantId: string | null = null;
-
-export async function getDefaultTenantId(): Promise<string> {
-  if (cachedTenantId) return cachedTenantId;
+export const getDefaultTenantId = cache(async (): Promise<string> => {
   const tenant = await prisma.tenant.findFirst({ where: { slug: 'default' } });
   if (!tenant) throw new Error('Default tenant not found. Run: npx prisma db seed');
-  cachedTenantId = tenant.id;
   return tenant.id;
-}
+});
 
 export async function getTenantSettings(tenantId: string) {
   const settings = await prisma.appSetting.findMany({ where: { tenantId } });

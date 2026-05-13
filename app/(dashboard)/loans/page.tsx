@@ -25,20 +25,23 @@ export default async function LoansPage({
   const frequency = resolvedParams.frequency || '';
   const { page, limit, skip } = parsePagination(resolvedParams);
 
-  const where: any = { tenantId, appType };
+  const where: any = { tenantId, appType, AND: [] };
   // Admins are branch-scoped; superadmin/developer see all
   if (userRole === 'admin' && branchId) {
-    where.branchId = branchId;
+    where.AND.push({ OR: [{ branchId }, { branchId: null }] });
   }
   if (q) {
-    where.OR = [
-      { loanCode: { contains: q } },
-      { customer: { name: { contains: q } } },
-      { customer: { customerCode: { contains: q } } }
-    ];
+    where.AND.push({
+      OR: [
+        { loanCode: { contains: q } },
+        { customer: { name: { contains: q } } },
+        { customer: { customerCode: { contains: q } } }
+      ]
+    });
   }
   if (status) where.status = status;
   if (frequency) where.frequency = frequency;
+  if (where.AND.length === 0) delete where.AND;
 
   const [total, loans] = await Promise.all([
     prisma.loan.count({ where }),
@@ -115,7 +118,7 @@ export default async function LoansPage({
                 <tr key={l.id}>
                   <td><strong>{l.loanCode}</strong></td>
                   <td>
-                    <Link href={`/customers/${l.customer.id}`}>{l.customer.name}</Link>
+                    <Link href={`/customers/${l.customer.customerCode}`}>{l.customer.name}</Link>
                     <br />
                     <span style={{fontSize:'.75rem', color:'var(--text-light)'}}>{l.customer.customerCode}</span>
                   </td>
@@ -134,7 +137,10 @@ export default async function LoansPage({
                     </span>
                   </td>
                   <td>
-                    <Link href={`/loans/${l.id}`} className="btn btn-ghost btn-sm">View</Link>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <Link href={`/loans/${l.id}`} className="btn btn-ghost btn-sm">View</Link>
+                      <Link href={`/loans/${l.id}/edit`} className="btn btn-ghost btn-sm" style={{ color: 'var(--primary)' }}>Edit</Link>
+                    </div>
                   </td>
                 </tr>
               );
