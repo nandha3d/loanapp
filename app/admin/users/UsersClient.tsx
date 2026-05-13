@@ -5,12 +5,12 @@ import Modal from '@/components/Modal';
 import { manageMasterUser, toggleUserStatus } from '../actions';
 import { useRouter } from 'next/navigation';
 
-export default function UsersClient({ users, branches, viewerRole }: { users: any[], branches: any[], viewerRole: string }) {
+export default function UsersClient({ users, branches, viewerRole, defaultAppType }: { users: any[], branches: any[], viewerRole: string, defaultAppType: string }) {
   const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [selectedAppType, setSelectedAppType] = useState('microlending');
+  const [selectedAppType, setSelectedAppType] = useState(defaultAppType);
 
   const handleEdit = (u: any) => {
     setEditingUser(u);
@@ -20,7 +20,7 @@ export default function UsersClient({ users, branches, viewerRole }: { users: an
 
   const handleOpenNew = () => {
     setEditingUser(null);
-    setSelectedAppType('microlending');
+    setSelectedAppType(defaultAppType);
     setIsModalOpen(true);
   };
 

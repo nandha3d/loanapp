@@ -9,8 +9,7 @@ export async function proxy(request: NextRequest) {
   // Static assets, auth routes, and public API bypass
   if (
     pathname.startsWith('/_next') ||
-    pathname.startsWith('/api/auth') ||
-    pathname.startsWith('/api/cron') ||
+    pathname.startsWith('/api') ||
     pathname.startsWith('/assets') ||
     pathname === '/favicon.ico' ||
     pathname === '/login'

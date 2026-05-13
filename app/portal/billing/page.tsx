@@ -4,13 +4,7 @@ import { getDefaultTenantId } from '@/lib/tenant';
 import { getSubscription } from '@/lib/subscription';
 import { formatDate } from '@/lib/utils';
 import Link from 'next/link';
-
-const PLAN_FEATURES: Record<string, { loans: number; agents: number; modules: string[] }> = {
-  trial: { loans: 50, agents: 3, modules: ['microlending'] },
-  basic: { loans: 200, agents: 10, modules: ['microlending', 'autofinance'] },
-  pro: { loans: 1000, agents: 50, modules: ['microlending', 'autofinance', 'chitfunds'] },
-  enterprise: { loans: 999999, agents: 999, modules: ['microlending', 'autofinance', 'chitfunds'] },
-};
+import { PLAN_FEATURES } from '@/lib/plans';
 
 export default async function PortalBillingPage() {
   const session = await auth();

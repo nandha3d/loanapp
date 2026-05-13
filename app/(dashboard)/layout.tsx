@@ -6,6 +6,7 @@ import Topbar from '@/components/layout/Topbar';
 import { getUserAppType, getDefaultTenantId } from '@/lib/tenant';
 import { getAppConfig } from '@/lib/appConfig';
 import { getDictionary, getCurrentLanguage } from '@/lib/i18n';
+import { getEnabledModules } from '@/lib/moduleGate';
 
 export default async function DashboardLayout({
   children,
@@ -23,6 +24,7 @@ export default async function DashboardLayout({
   const appConfig = getAppConfig(appType);
   const dict = await getDictionary(tenantId);
   const lang = await getCurrentLanguage(tenantId);
+  const enabledModules = await getEnabledModules(tenantId);
 
   return (
     <SessionProvider session={session}>
@@ -35,7 +37,7 @@ export default async function DashboardLayout({
           '--accent': appConfig.accentColor,
         } as React.CSSProperties}
       >
-        <Sidebar appType={appType} dict={dict} />
+        <Sidebar appType={appType} enabledModules={enabledModules} dict={dict} />
         <main className="main-content">
           <Topbar dict={dict} currentLang={lang} />
           <div className="page-content fade-up">

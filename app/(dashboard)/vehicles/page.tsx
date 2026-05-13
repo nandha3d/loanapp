@@ -1,7 +1,8 @@
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
-import { getDefaultTenantId, getSetting } from '@/lib/tenant';
+import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
+import { requireModule } from '@/lib/moduleGate';
 import { formatDate } from '@/lib/utils';
 import Link from 'next/link';
 
@@ -12,6 +13,8 @@ export default async function VehiclesPage({
 }) {
   const session = await auth();
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  await requireModule(tenantId, 'autofinance');
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
   const userRole = (session?.user as any)?.role;
 
@@ -22,7 +25,7 @@ export default async function VehiclesPage({
   const q = resolvedParams.q || '';
   const filter = resolvedParams.filter || ''; // '' | 'repo' | 'insurance_expiring'
 
-  const where: any = { tenantId, appType: 'autofinance' };
+  const where: any = { tenantId, appType };
   if (q) {
     where.OR = [
       { registrationNo: { contains: q } },
@@ -53,11 +56,11 @@ export default async function VehiclesPage({
           loan: { select: { id: true, loanCode: true, status: true } },
         },
       }),
-      prisma.vehicle.count({ where: { tenantId, appType: 'autofinance', repoFlag: true } }),
+      prisma.vehicle.count({ where: { tenantId, appType, repoFlag: true } }),
       prisma.vehicle.count({
         where: {
           tenantId,
-          appType: 'autofinance',
+          appType,
           insuranceExpiry: { lte: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), gte: new Date() },
         },
       }),

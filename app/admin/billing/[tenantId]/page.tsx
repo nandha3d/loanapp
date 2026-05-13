@@ -2,9 +2,10 @@ import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { redirect, notFound } from 'next/navigation';
 import { updateSubscription } from '../billingActions';
+import { MODULE_LABELS, PLAN_LABELS } from '@/lib/plans';
 
-const PLANS = ['trial', 'basic', 'pro', 'enterprise'];
-const MODULES = ['microlending', 'autofinance', 'chitfunds'];
+const PLANS = Object.keys(PLAN_LABELS);
+const MODULES = Object.keys(MODULE_LABELS);
 
 export default async function TenantBillingPage({ params }: { params: { tenantId: string } }) {
   const { tenantId } = await params;
@@ -33,7 +34,7 @@ export default async function TenantBillingPage({ params }: { params: { tenantId
         <div className="form-group" style={{ marginBottom: '16px' }}>
           <label className="form-label">Plan</label>
           <select name="plan" className="form-control" defaultValue={sub?.plan || 'trial'}>
-            {PLANS.map((p) => <option key={p} value={p}>{p}</option>)}
+            {PLANS.map((p) => <option key={p} value={p}>{PLAN_LABELS[p]}</option>)}
           </select>
         </div>
 
@@ -68,7 +69,7 @@ export default async function TenantBillingPage({ params }: { params: { tenantId
                   value={m}
                   defaultChecked={enabledModulesList.includes(m)}
                 />
-                {m}
+                {MODULE_LABELS[m]}
               </label>
             ))}
           </div>

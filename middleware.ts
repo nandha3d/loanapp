@@ -18,8 +18,7 @@ export default auth((req) => {
   // Public: bypass static assets, auth routes, and login page
   if (
     pathname.startsWith('/_next') ||
-    pathname.startsWith('/api/auth') ||
-    pathname.startsWith('/api/cron') ||
+    pathname.startsWith('/api') ||
     pathname.startsWith('/assets') ||
     pathname.startsWith('/uploads') ||
     pathname === '/favicon.ico' ||

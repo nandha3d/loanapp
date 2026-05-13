@@ -31,6 +31,7 @@ export async function createLoan(formData: FormData) {
   const customerId = formData.get('customerId') as string;
   const principal = Number(formData.get('principal'));
   const deduction = Number(formData.get('deduction'));
+  const deductionType = (formData.get('deductionType') as string) || 'fixed';
   const frequency = formData.get('frequency') as string;
   const tenure = Number(formData.get('tenure'));
   const startDateStr = formData.get('startDate') as string;
@@ -132,6 +133,7 @@ export async function createLoan(formData: FormData) {
       guarantorId,
       principal,
       deduction,
+      deductionType,
       disbursed,
       frequency,
       tenure,
@@ -258,7 +260,7 @@ export async function updateLoan(formData: FormData) {
   // Regenerate schedule if core fields changed
   if (coreChanged) {
     // Delete existing instalments (Caution: This removes payment history for this loan)
-    await prisma.loanInstalment.deleteMany({
+    await prisma.instalment.deleteMany({
       where: { loanId }
     });
 
@@ -271,7 +273,7 @@ export async function updateLoan(formData: FormData) {
       status: 'upcoming'
     }));
 
-    await prisma.loanInstalment.createMany({
+    await prisma.instalment.createMany({
       data: instalments
     });
 

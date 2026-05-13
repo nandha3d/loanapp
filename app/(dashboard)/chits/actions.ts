@@ -1,10 +1,11 @@
 'use server';
 
 import prisma from '@/lib/db';
-import { getDefaultTenantId } from '@/lib/tenant';
+import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
+import { requireModule } from '@/lib/moduleGate';
 
 async function requireAdmin() {
   const session = await auth();
@@ -16,6 +17,8 @@ async function requireAdmin() {
 export async function createChitGroup(formData: FormData) {
   const session = await requireAdmin();
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  await requireModule(tenantId, 'chitfunds');
   const userId = session.user?.id;
 
   const name = formData.get('name') as string;
@@ -36,6 +39,7 @@ export async function createChitGroup(formData: FormData) {
   const chitGroup = await prisma.chitGroup.create({
     data: {
       tenantId,
+      appType,
       name,
       chitValue,
       monthlyContrib,
@@ -115,6 +119,7 @@ export async function recordAuctionWinner(
 ) {
   const session = await requireAdmin();
   const tenantId = await getDefaultTenantId();
+  await requireModule(tenantId, 'chitfunds');
 
   const auction = await prisma.chitAuction.findUnique({
     where: { id: auctionId },
@@ -175,6 +180,7 @@ export async function recordChitPayment(
 ) {
   const session = await requireAdmin();
   const tenantId = await getDefaultTenantId();
+  await requireModule(tenantId, 'chitfunds');
 
   // Security: verify subscription belongs to this tenant by joining through ChitGroup
   const sub = await prisma.chitSubscription.findFirst({

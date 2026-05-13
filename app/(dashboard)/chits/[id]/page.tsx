@@ -1,5 +1,6 @@
 import prisma from '@/lib/db';
-import { getDefaultTenantId, getSetting } from '@/lib/tenant';
+import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
+import { requireModule } from '@/lib/moduleGate';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import ChitGroupDetailClient from './ChitGroupDetailClient';
@@ -7,12 +8,14 @@ import ChitGroupDetailClient from './ChitGroupDetailClient';
 export default async function ChitGroupDetailPage({ params }: { params: { id: string } }) {
   const { id } = await params;
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  await requireModule(tenantId, 'chitfunds');
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
 
   let group: any = null;
   try {
     group = await prisma.chitGroup.findFirst({
-      where: { id, tenantId },
+      where: { id, tenantId, appType },
       include: {
         members: {
           orderBy: { memberNumber: 'asc' },

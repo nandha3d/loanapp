@@ -18,6 +18,7 @@ export default function SettingsClient({
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [routeAgentModal, setRouteAgentModal] = useState<{ routeId: string; routeName: string; agents: any[] } | null>(null);
   const [raAgentId, setRaAgentId] = useState('');
+  const [packageDeductionType, setPackageDeductionType] = useState<'fixed' | 'percentage'>('fixed');
 
   const showToast = (msg: string) => {
     alert(msg); 
@@ -261,6 +262,35 @@ export default function SettingsClient({
               <label className="form-label">Deduction Amount</label>
               <input type="number" name="deduction" className="form-control" required />
             </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Deduction Type</label>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {(['fixed', 'percentage'] as const).map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setPackageDeductionType(type)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 'var(--radius-sm)',
+                    cursor: 'pointer',
+                    border: packageDeductionType === type ? '2px solid var(--primary)' : '2px solid var(--border)',
+                    background: packageDeductionType === type ? 'var(--primary-light)' : 'var(--bg)',
+                    color: packageDeductionType === type ? 'var(--primary-dark)' : 'var(--text)',
+                    fontWeight: packageDeductionType === type ? 700 : 400,
+                  }}
+                >
+                  {type === 'fixed' ? `${currencySymbol} Fixed Amount` : '% Percentage'}
+                </button>
+              ))}
+            </div>
+            <input type="hidden" name="deductionType" value={packageDeductionType} />
+            {packageDeductionType === 'percentage' && (
+              <p style={{ marginTop: '6px', fontSize: '.75rem', color: 'var(--text-light)' }}>
+                Enter deduction as a percent. The saved package stores the computed fixed amount.
+              </p>
+            )}
           </div>
           <div className="form-row">
             <div className="form-group">

@@ -99,10 +99,16 @@ export async function waiveLoanPenalty(formData: FormData) {
   if (penaltyId === 'new') {
     const loanId = formData.get('loanId') as string;
     const grossPenalty = Number(formData.get('grossPenalty'));
+    const loan = await prisma.loan.findFirst({
+      where: { id: loanId, tenantId },
+      select: { id: true, customerId: true },
+    });
+    if (!loan) return { success: false, error: 'Loan not found' };
+
     penalty = await prisma.penalty.create({
       data: {
-        tenantId,
-        loanId,
+        loanId: loan.id,
+        customerId: loan.customerId,
         grossPenalty,
         missedDays: Math.round(grossPenalty / 10), // Rough estimate for display
         status: 'pending',
@@ -132,6 +138,7 @@ export async function waiveLoanPenalty(formData: FormData) {
       waivedAmount: newWaived,
       status: newStatus,
       settledById: userId,
+      settledAt: newStatus === 'waived' ? new Date() : null,
       notes,
     },
   });
@@ -164,10 +171,16 @@ export async function settleLoanPenalty(formData: FormData) {
   if (penaltyId === 'new') {
     const loanId = formData.get('loanId') as string;
     const grossPenalty = Number(formData.get('grossPenalty'));
+    const loan = await prisma.loan.findFirst({
+      where: { id: loanId, tenantId },
+      select: { id: true, customerId: true },
+    });
+    if (!loan) return { success: false, error: 'Loan not found' };
+
     penalty = await prisma.penalty.create({
       data: {
-        tenantId,
-        loanId,
+        loanId: loan.id,
+        customerId: loan.customerId,
         grossPenalty,
         missedDays: Math.round(grossPenalty / 10),
         status: 'pending',
@@ -197,6 +210,7 @@ export async function settleLoanPenalty(formData: FormData) {
       settledAmount: newSettled,
       status: newStatus,
       settledById: userId,
+      settledAt: newStatus === 'settled' ? new Date() : null,
       notes,
     },
   });
@@ -343,6 +357,7 @@ export async function renewLoan(formData: FormData) {
       guarantorId: oldLoan.guarantorId,
       principal: oldLoan.principal,
       deduction: oldLoan.deduction,
+      deductionType: oldLoan.deductionType,
       disbursed: oldLoan.disbursed,
       frequency: oldLoan.frequency,
       tenure: oldLoan.tenure,

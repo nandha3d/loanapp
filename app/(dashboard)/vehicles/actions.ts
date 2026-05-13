@@ -5,6 +5,7 @@ import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
+import { requireModule } from '@/lib/moduleGate';
 
 async function requireAdmin() {
   const session = await auth();
@@ -16,6 +17,8 @@ async function requireAdmin() {
 export async function createVehicle(formData: FormData) {
   const session = await requireAdmin();
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  await requireModule(tenantId, 'autofinance');
 
   const customerId = formData.get('customerId') as string;
   const loanId = (formData.get('loanId') as string) || null;
@@ -45,6 +48,7 @@ export async function createVehicle(formData: FormData) {
   const vehicle = await prisma.vehicle.create({
     data: {
       tenantId,
+      appType,
       customerId,
       loanId,
       make,
@@ -79,6 +83,7 @@ export async function createVehicle(formData: FormData) {
 export async function updateVehicle(formData: FormData) {
   const session = await requireAdmin();
   const tenantId = await getDefaultTenantId();
+  await requireModule(tenantId, 'autofinance');
   const vehicleId = formData.get('vehicleId') as string;
 
   // Security: verify vehicle belongs to this tenant
@@ -120,6 +125,8 @@ export async function updateVehicle(formData: FormData) {
 export async function flagForRepo(vehicleId: string, reason: string) {
   const session = await requireAdmin();
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  await requireModule(tenantId, 'autofinance');
   const userId = session.user?.id as string;
 
   const vehicle = await prisma.vehicle.findFirst({ where: { id: vehicleId, tenantId } });
@@ -137,7 +144,7 @@ export async function flagForRepo(vehicleId: string, reason: string) {
   await prisma.systemNotification.create({
     data: {
       tenantId,
-      appType: 'autofinance',
+      appType,
       type: 'danger',
       icon: 'directions_car',
       title: 'Repo Flag Set',
@@ -164,6 +171,7 @@ export async function flagForRepo(vehicleId: string, reason: string) {
 export async function clearRepoFlag(vehicleId: string) {
   const session = await requireAdmin();
   const tenantId = await getDefaultTenantId();
+  await requireModule(tenantId, 'autofinance');
 
   await prisma.vehicle.update({
     where: { id: vehicleId },

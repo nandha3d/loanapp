@@ -2,6 +2,7 @@ import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
+import { ensurePendingPenaltiesForMissedLoans } from '@/lib/penalties';
 import PenaltiesClient from './PenaltiesClient';
 
 export default async function PenaltiesPage({
@@ -26,6 +27,13 @@ export default async function PenaltiesPage({
   // Build where clause — scope to branch for admin role
   const loanBase: any = { tenantId, appType };
   if (userRole === 'admin' && branchId) loanBase.branchId = branchId;
+
+  await ensurePendingPenaltiesForMissedLoans({
+    tenantId,
+    appType,
+    branchId: userRole === 'admin' ? branchId : undefined,
+    routeId: routeId || undefined,
+  });
 
   const where: any = { loan: loanBase };
   if (status) where.status = status;

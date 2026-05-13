@@ -34,7 +34,13 @@ export async function settlePenalty(formData: FormData) {
 
   await prisma.penalty.update({
     where: { id: penaltyId },
-    data: { settledAmount, status: newStatus, settledById: userId, notes },
+    data: {
+      settledAmount,
+      status: newStatus,
+      settledById: userId,
+      settledAt: newStatus === 'settled' ? new Date() : null,
+      notes,
+    },
   });
 
   await prisma.auditLog.create({
@@ -72,7 +78,7 @@ export async function waivePenalty(formData: FormData) {
 
   await prisma.penalty.update({
     where: { id: penaltyId },
-    data: { waivedAmount, status: 'waived', settledById: userId, notes },
+    data: { waivedAmount, status: 'waived', settledById: userId, settledAt: new Date(), notes },
   });
 
   await prisma.auditLog.create({

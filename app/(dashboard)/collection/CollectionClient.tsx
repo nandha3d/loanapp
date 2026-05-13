@@ -129,7 +129,7 @@ export default function CollectionClient({
                 const isPaid = inst.status === 'paid' || inst.status === 'partial' || submittedIds.has(inst.id);
                 const isMissed = new Date(inst.dueDate) < new Date(new Date().toDateString());
                 return (
-                  <tr key={inst.id} style={{ opacity: isPaid ? 0.6 : 1 }}>
+                  <tr key={inst.id} className="collection-entry" style={{ opacity: isPaid ? 0.6 : 1 }}>
                     <td>
                       <Link href={`/customers/${inst.loan.customer.customerCode}`}>
                         <strong>{inst.loan.customer.name}</strong>

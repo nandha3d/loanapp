@@ -233,6 +233,13 @@ export default function LoanDetailClient({
           .stats-col { width: 100%; justify-content: center; }
         }
       `}</style>
+
+      <div style={{ marginBottom: '12px' }}>
+        <Link href="/loans" className="btn btn-ghost btn-sm">
+          <span className="material-icons-outlined" style={{ fontSize: '16px' }}>arrow_back</span>
+          Back to Loans
+        </Link>
+      </div>
       
       <div className="card" style={{ marginBottom: '16px', padding: '12px 16px' }}>
         <div className="loan-top-card">
@@ -482,7 +489,13 @@ export default function LoanDetailClient({
 
         <div>
           <div className="card" style={{ marginBottom: '20px' }}>
-            <div className="card-header"><h3>⚡ Penalty Summary</h3></div>
+            <div className="card-header">
+              <h3>⚡ Penalty Summary</h3>
+              <Link href={`/penalties?q=${encodeURIComponent(loan.loanCode)}`} className="btn btn-ghost btn-sm">
+                <span className="material-icons-outlined" style={{ fontSize: '14px' }}>open_in_new</span>
+                View in Penalties
+              </Link>
+            </div>
             <div className="stats-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
               <div className="stat-item">
                 <div className="stat-value" style={{ color: 'var(--danger)' }}>{missedCount}</div>
@@ -674,7 +687,7 @@ export default function LoanDetailClient({
             </div>
             <div className="modal-body">
               <div style={{ background: '#FEF2F2', borderRadius: 'var(--radius-sm)', padding: '16px', marginBottom: '16px' }}>
-                <p style={{ fontSize: '.9rem', fontWeight: 600, color: '#991B1B' }}>Are you sure you want to close this loan?</p>
+                <p style={{ fontSize: '.9rem', fontWeight: 600, color: 'var(--danger)' }}>Are you sure you want to close this loan?</p>
                 <p style={{ fontSize: '.82rem', color: '#B91C1C', marginTop: '6px' }}>
                   This will permanently mark <strong>{loan.loanCode}</strong> as closed. 
                   {loan.paidCount < loan.totalInstalments && (

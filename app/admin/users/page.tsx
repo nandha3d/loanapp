@@ -1,5 +1,5 @@
 import prisma from '@/lib/db';
-import { getDefaultTenantId } from '@/lib/tenant';
+import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import UsersClient from './UsersClient';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
@@ -12,6 +12,7 @@ export default async function AdminUsersPage() {
   }
 
   const tenantId = await getDefaultTenantId();
+  const defaultAppType = await getUserAppType();
 
   // Developer accounts are only visible to other developers
   const userWhere: any = { tenantId };
@@ -28,5 +29,5 @@ export default async function AdminUsersPage() {
     prisma.branch.findMany({ where: { tenantId, status: 'active' } })
   ]);
 
-  return <UsersClient users={users} branches={branches} viewerRole={userRole} />;
+  return <UsersClient users={users} branches={branches} viewerRole={userRole} defaultAppType={defaultAppType} />;
 }

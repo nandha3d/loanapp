@@ -203,6 +203,7 @@ model LoanPackage {
   name          String
   principal     Decimal  @db.Decimal(12, 2)
   deduction     Decimal  @db.Decimal(12, 2)
+  deductionType String   @default("fixed") @map("deduction_type")
   frequency     String
   tenure        Int
   perInstalment Decimal  @map("per_instalment") @db.Decimal(12, 2)
@@ -231,6 +232,7 @@ model Loan {
   guarantorId       String?           @map("guarantor_id")
   principal         Decimal           @db.Decimal(12, 2)
   deduction         Decimal           @db.Decimal(12, 2)
+  deductionType     String            @default("fixed") @map("deduction_type")
   disbursed         Decimal           @db.Decimal(12, 2)
   frequency         String
   tenure            Int
@@ -304,6 +306,7 @@ model Penalty {
   waivedAmount  Decimal  @default(0.00) @map("waived_amount") @db.Decimal(12, 2)
   status        String   @default("pending")
   settledById   String?  @map("settled_by_id")
+  settledAt     DateTime? @map("settled_at")
   notes         String?  @db.Text
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")

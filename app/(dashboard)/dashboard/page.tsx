@@ -32,6 +32,7 @@ async function getDashboardData(tenantId: string, appType: string, adminBranchId
     todayInstalments,
     todayPaidInstalments,
     pendingPenalties,
+    pendingApprovals,
     routes,
     recentActivity,
   ] = await Promise.all([
@@ -39,8 +40,8 @@ async function getDashboardData(tenantId: string, appType: string, adminBranchId
     prisma.loan.count({ where: { ...loanWhere, status: 'active' } }),
     // Overdue loans count
     prisma.loan.count({ where: { ...loanWhere, status: 'overdue' } }),
-    // Total customers
-    prisma.customer.count({ where: { ...customerWhere, status: { not: 'blacklisted' } } }),
+    // Active customers
+    prisma.customer.count({ where: { ...customerWhere, status: 'active' } }),
     // Total agents (not branch-scoped — agents are shared)
     prisma.user.count({ where: { tenantId, appType, role: 'agent', status: 'active' } }),
     // Loans created this month
@@ -72,6 +73,8 @@ async function getDashboardData(tenantId: string, appType: string, adminBranchId
       _sum: { grossPenalty: true },
       _count: true,
     }),
+    // Pending approvals
+    prisma.approvalRequest.count({ where: { tenantId, appType, status: 'pending' } }),
     // Routes with agent info
     prisma.route.findMany({
       where: { tenantId, appType, status: 'active' },
@@ -150,6 +153,7 @@ async function getDashboardData(tenantId: string, appType: string, adminBranchId
     totalTodayInstalments: todayInstalments.length,
     pendingPenaltyTotal: Number(pendingPenalties._sum.grossPenalty || 0),
     pendingPenaltyCount: pendingPenalties._count,
+    pendingApprovals,
     defaulters,
     closingThisWeek,
     routes,
@@ -181,7 +185,7 @@ export default async function DashboardPage() {
     <>
       {/* KPI Row 1 */}
       <div className="kpi-grid">
-        <div className="kpi-card">
+        <Link href="/collection" className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>
           <div className="kpi-icon green">
             <span className="material-icons-outlined">trending_up</span>
           </div>
@@ -189,8 +193,8 @@ export default async function DashboardPage() {
             <div className="kpi-value">{formatCurrency(data.todayExpected, branding.currencySymbol)}</div>
             <div className="kpi-label">{dict.dashboard.expectedCollection}</div>
           </div>
-        </div>
-        <div className="kpi-card">
+        </Link>
+        <Link href="/collection" className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>
           <div className="kpi-icon orange">
             <span className="material-icons-outlined">account_balance_wallet</span>
           </div>
@@ -198,8 +202,8 @@ export default async function DashboardPage() {
             <div className="kpi-value">{formatCurrency(data.todayCollected, branding.currencySymbol)}</div>
             <div className="kpi-label">{dict.dashboard.actualCollected}</div>
           </div>
-        </div>
-        <div className="kpi-card">
+        </Link>
+        <Link href="/collection" className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>
           <div className="kpi-icon red">
             <span className="material-icons-outlined">trending_down</span>
           </div>
@@ -207,21 +211,21 @@ export default async function DashboardPage() {
             <div className="kpi-value">{formatCurrency(collectionGap, branding.currencySymbol)}</div>
             <div className="kpi-label">{dict.dashboard.collectionGap}</div>
           </div>
-        </div>
-        <div className="kpi-card">
+        </Link>
+        <Link href="/customers" className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>
           <div className="kpi-icon blue">
-            <span className="material-icons-outlined">credit_card</span>
+            <span className="material-icons-outlined">groups</span>
           </div>
           <div>
-            <div className="kpi-value">{data.activeLoans}</div>
-            <div className="kpi-label">{dict.dashboard.activeLoans}</div>
+            <div className="kpi-value">{data.totalCustomers}</div>
+            <div className="kpi-label">Active Customers</div>
           </div>
-        </div>
+        </Link>
       </div>
 
       {/* KPI Row 2 */}
       <div className="kpi-grid">
-        <div className="kpi-card">
+        <Link href="/loans?status=overdue" className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>
           <div className="kpi-icon red">
             <span className="material-icons-outlined">warning</span>
           </div>
@@ -229,8 +233,8 @@ export default async function DashboardPage() {
             <div className="kpi-value">{data.overdueLoans}</div>
             <div className="kpi-label">{dict.dashboard.totalDefaulters}</div>
           </div>
-        </div>
-        <div className="kpi-card">
+        </Link>
+        <Link href="/penalties?status=pending" className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>
           <div className="kpi-icon purple">
             <span className="material-icons-outlined">gavel</span>
           </div>
@@ -238,16 +242,16 @@ export default async function DashboardPage() {
             <div className="kpi-value">{formatCurrency(data.pendingPenaltyTotal, branding.currencySymbol)}</div>
             <div className="kpi-label">{dict.dashboard.penaltyAccumulated}</div>
           </div>
-        </div>
-        <div className="kpi-card">
+        </Link>
+        <Link href="/approvals?status=pending" className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>
           <div className="kpi-icon blue">
-            <span className="material-icons-outlined">event</span>
+            <span className="material-icons-outlined">approval</span>
           </div>
           <div>
-            <div className="kpi-value">{data.closingThisWeek}</div>
-            <div className="kpi-label">{dict.dashboard.closingThisWeek}</div>
+            <div className="kpi-value">{data.pendingApprovals}</div>
+            <div className="kpi-label">Pending Approvals</div>
           </div>
-        </div>
+        </Link>
         <div className="kpi-card">
           <div className="kpi-icon green">
             <span className="material-icons-outlined">add_circle</span>
