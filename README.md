@@ -2,6 +2,16 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+## Setup
+
+Generate a production-safe auth secret before deployment:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Set the output as `AUTH_SECRET` in `.env.local`.
+
 First, run the development server:
 
 ```bash

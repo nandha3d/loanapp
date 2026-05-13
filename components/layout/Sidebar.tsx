@@ -22,7 +22,7 @@ function getInitials(name: string): string {
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 }
 
-export default function Sidebar({ appType: initialAppType, dict }: { appType?: string, dict: any }) {
+export default function Sidebar({ appType: initialAppType, enabledModules = ['microlending'], dict }: { appType?: string, enabledModules?: string[], dict: any }) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const [isOpen, setIsOpen] = useState(false);
@@ -68,7 +68,7 @@ export default function Sidebar({ appType: initialAppType, dict }: { appType?: s
     if (item.adminOnly && role !== 'admin' && role !== 'superadmin' && role !== 'developer') return false;
     if (item.developerOnly && role !== 'developer') return false;
     if (item.superadminOnly && role !== 'superadmin') return false;
-    if (item.appTypes && !item.appTypes.includes(userAppType)) return false;
+    if (item.appTypes && !item.appTypes.some((type) => enabledModules.includes(type))) return false;
     return true;
   });
 
@@ -109,6 +109,7 @@ export default function Sidebar({ appType: initialAppType, dict }: { appType?: s
       {/* Mobile overlay */}
       {isOpen && (
         <div
+          className="sidebar-overlay"
           style={{
             position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)',
             zIndex: 45, display: 'block',

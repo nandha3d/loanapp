@@ -2,26 +2,7 @@ import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { getDefaultTenantId } from '@/lib/tenant';
-
-const PLAN_LABELS: Record<string, string> = {
-  trial: 'Trial',
-  basic: 'Basic',
-  pro: 'Pro',
-  enterprise: 'Enterprise',
-};
-
-const PLAN_COLORS: Record<string, string> = {
-  trial: 'var(--warning)',
-  basic: 'var(--info, #2980B9)',
-  pro: 'var(--success)',
-  enterprise: '#7B2FBE',
-};
-
-const MODULE_LABELS: Record<string, string> = {
-  microlending: 'Micro Lending',
-  autofinance: 'Auto Finance',
-  chitfunds: 'Chit Funds',
-};
+import { MODULE_LABELS, PLAN_COLORS, PLAN_LABELS } from '@/lib/plans';
 
 export default async function MySubscriptionPage() {
   const session = await auth();
@@ -95,8 +76,8 @@ export default async function MySubscriptionPage() {
               <div key={key} style={{
                 display: 'flex', alignItems: 'center', gap: '8px',
                 padding: '10px 18px', borderRadius: '8px',
-                background: isEnabled ? 'rgba(var(--success-rgb, 39,174,96), 0.1)' : 'var(--bg-secondary, #f5f5f5)',
-                border: `1px solid ${isEnabled ? 'var(--success)' : 'var(--border-color, #e0e0e0)'}`,
+                background: isEnabled ? 'var(--success-bg)' : 'var(--bg)',
+                border: `1px solid ${isEnabled ? 'var(--success)' : 'var(--border)'}`,
                 color: isEnabled ? 'var(--success)' : 'var(--text-light)',
                 fontWeight: 500,
               }}>

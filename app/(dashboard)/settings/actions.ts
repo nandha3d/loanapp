@@ -95,13 +95,20 @@ export async function deleteRoute(id: string) {
 export async function createLoanPackage(formData: FormData) {
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
+  const principal = Number(formData.get('principal'));
+  const deductionType = (formData.get('deductionType') as string) || 'fixed';
+  const deductionInput = Number(formData.get('deduction'));
+  const deduction = deductionType === 'percentage'
+    ? Math.round((principal * deductionInput) / 100)
+    : deductionInput;
   
   await prisma.loanPackage.create({
     data: {
       tenantId,
       name: formData.get('name') as string,
-      principal: Number(formData.get('principal')),
-      deduction: Number(formData.get('deduction')),
+      principal,
+      deduction,
+      deductionType,
       frequency: formData.get('frequency') as string,
       tenure: Number(formData.get('tenure')),
       perInstalment: Number(formData.get('perInstalment')),

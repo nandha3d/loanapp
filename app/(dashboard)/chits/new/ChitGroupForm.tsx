@@ -6,8 +6,10 @@ import { useRouter } from 'next/navigation';
 
 export default function ChitGroupForm({
   customers,
+  currencySymbol,
 }: {
   customers: { id: string; name: string; customerCode: string }[];
+  currencySymbol: string;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -66,12 +68,12 @@ export default function ChitGroupForm({
         </div>
 
         <div className="form-group">
-          <label className="form-label">Chit Value (₹) *</label>
+          <label className="form-label">Chit Value ({currencySymbol}) *</label>
           <input name="chitValue" type="number" className="form-control" required min="1000" placeholder="e.g. 100000" />
         </div>
 
         <div className="form-group">
-          <label className="form-label">Monthly Contribution (₹) *</label>
+          <label className="form-label">Monthly Contribution ({currencySymbol}) *</label>
           <input name="monthlyContrib" type="number" className="form-control" required min="100" placeholder="e.g. 5000" />
         </div>
 

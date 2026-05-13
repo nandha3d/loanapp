@@ -1,6 +1,6 @@
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
-import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
+import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { formatCurrency, getBadgeClass, parsePagination, paginatedResponse, getInitials } from '@/lib/utils';
 import Link from 'next/link';
 import { calculateCreditScore } from '@/lib/creditScore';
@@ -14,6 +14,7 @@ export default async function CustomersPage({
   const userRole = (session?.user as any)?.role || 'agent';
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
+  const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
   
   const resolvedParams = await searchParams;
   const q = resolvedParams.q || '';
@@ -162,7 +163,7 @@ export default async function CustomersPage({
                         <Link href={`/loans/${activeLoan.id}`}>{activeLoan.loanCode}</Link>
                         <br />
                         <span style={{fontSize:'.75rem', color:'var(--text-light)'}}>
-                          {formatCurrency(Number(activeLoan.principal), '₹')}
+                          {formatCurrency(Number(activeLoan.principal), currencySymbol)}
                         </span>
                       </>
                     ) : (

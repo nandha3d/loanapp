@@ -1,7 +1,8 @@
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
-import { getDefaultTenantId, getSetting } from '@/lib/tenant';
+import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
+import { requireModule } from '@/lib/moduleGate';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import Link from 'next/link';
 
@@ -16,12 +17,14 @@ export default async function ChitsPage({
   if (userRole === 'agent') redirect('/collection');
 
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  await requireModule(tenantId, 'chitfunds');
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
   const resolvedParams = await searchParams;
   const status = resolvedParams.status || '';
   const q = resolvedParams.q || '';
 
-  const where: any = { tenantId };
+  const where: any = { tenantId, appType };
   if (status) where.status = status;
   if (q) where.name = { contains: q };
 
@@ -40,8 +43,8 @@ export default async function ChitsPage({
           auctions: { where: { status: 'completed' }, select: { id: true } },
         },
       }),
-      prisma.chitGroup.count({ where: { tenantId, status: 'active' } }),
-      prisma.chitGroup.count({ where: { tenantId, status: 'completed' } }),
+      prisma.chitGroup.count({ where: { tenantId, appType, status: 'active' } }),
+      prisma.chitGroup.count({ where: { tenantId, appType, status: 'completed' } }),
     ]);
   } catch (e: any) {
     dbError = e.message || 'Database tables not yet migrated. Run: npx prisma migrate deploy';

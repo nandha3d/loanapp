@@ -138,7 +138,7 @@ export default function PenaltiesClient({
                   <tr key={p.id}>
                     <td><Link href={`/loans/${p.loan.id}`}><strong>{p.loan.loanCode}</strong></Link></td>
                     <td>
-                      <Link href={`/customers/${p.customer.id}`}>{p.customer.name}</Link>
+                      <Link href={`/customers/${p.customer.customerCode}`}>{p.customer.name}</Link>
                       <br /><span style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>{p.customer.customerCode}</span>
                     </td>
                     <td>{p.customer.route?.name || '—'}</td>

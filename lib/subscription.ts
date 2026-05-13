@@ -1,6 +1,7 @@
 import prisma from '@/lib/db';
+import { getEnabledModules } from '@/lib/moduleGate';
 
-export async function checkLimit(tenantId: string, resource: 'loans' | 'agents') {
+export async function checkLimit(tenantId: string, resource: 'loans' | 'agents' | 'vehicles' | 'chits') {
   const sub = await prisma.tenantSubscription.findUnique({ where: { tenantId } });
   // If no subscription record exists, apply permissive defaults
   if (!sub) return;
@@ -20,6 +21,16 @@ export async function checkLimit(tenantId: string, resource: 'loans' | 'agents')
     if (count >= sub.maxAgents) {
       throw new Error(`Agent limit reached (${sub.maxAgents}). Upgrade your plan to add more agents.`);
     }
+  }
+
+  if (resource === 'vehicles') {
+    const enabled = await getEnabledModules(tenantId);
+    if (!enabled.includes('autofinance')) throw new Error('Auto Finance module not enabled on your plan.');
+  }
+
+  if (resource === 'chits') {
+    const enabled = await getEnabledModules(tenantId);
+    if (!enabled.includes('chitfunds')) throw new Error('Chit Funds module not enabled on your plan.');
   }
 }
 

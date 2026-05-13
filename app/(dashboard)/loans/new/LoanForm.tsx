@@ -33,6 +33,7 @@ export default function LoanForm({
   const [loading, setLoading] = useState(false);
   const [limitError, setLimitError] = useState<string | null>(null);
   const [localCustomers, setLocalCustomers] = useState(customers);
+  const [localPackages, setLocalPackages] = useState(packages);
   const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   
@@ -40,7 +41,8 @@ export default function LoanForm({
   const [loadingHistory, setLoadingHistory] = useState(false);
 
   const [principal, setPrincipal] = useState<number | ''>('');
-  const [deduction, setDeduction] = useState<number | ''>('');
+  const [deductionType, setDeductionType] = useState<'fixed' | 'percentage'>('fixed');
+  const [deductionInput, setDeductionInput] = useState<number | ''>('');
   const [frequency, setFrequency] = useState('daily');
   const [tenure, setTenure] = useState<number | ''>('');
   const [startDate, setStartDate] = useState(formatDateISO(new Date()));
@@ -52,6 +54,10 @@ export default function LoanForm({
 
   const [guarantorName, setGuarantorName] = useState('');
   const [guarantorPhone, setGuarantorPhone] = useState('');
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [templateSaved, setTemplateSaved] = useState(false);
 
   useEffect(() => {
     if (preSelectedCustomerId) {
@@ -92,10 +98,11 @@ export default function LoanForm({
   const handlePackageChange = (id: string) => {
     setPackageId(id);
     if (!id) return;
-    const pkg = packages.find(p => p.id === id);
+    const pkg = localPackages.find(p => p.id === id);
     if (pkg) {
       setPrincipal(Number(pkg.principal));
-      setDeduction(Number(pkg.deduction));
+      setDeductionType(pkg.deductionType || 'fixed');
+      setDeductionInput(Number(pkg.deduction));
       setFrequency(pkg.frequency);
       setTenure(pkg.tenure);
       setPenalty(Number(pkg.penaltyRate));
@@ -103,7 +110,9 @@ export default function LoanForm({
   };
 
   const p = Number(principal) || 0;
-  const d = Number(deduction) || 0;
+  const d = deductionType === 'percentage'
+    ? Math.round(p * (Number(deductionInput) || 0) / 100)
+    : Number(deductionInput) || 0;
   const t = Number(tenure) || 0;
   
   const netDisbursed = p - d;
@@ -121,10 +130,10 @@ export default function LoanForm({
       <div className="card">
         <div className="card-header" style={{ flexWrap: 'wrap', gap: '10px' }}>
           <h3>📝 {dict.loans.createTitle}</h3>
-          {packages.length > 0 && (
+          {localPackages.length > 0 && (
             <select className="form-control" style={{ width: 'auto', fontSize: '1rem', padding: '10px' }} onChange={e => handlePackageChange(e.target.value)} value={packageId}>
               <option value="">{dict.loans.applyTemplate}</option>
-              {packages.map(pkg => (
+              {localPackages.map(pkg => (
                 <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
               ))}
             </select>
@@ -148,6 +157,8 @@ export default function LoanForm({
           )}
           <input type="hidden" name="packageId" value={packageId} />
           <input type="hidden" name="loanType" value={loanType} />
+          <input type="hidden" name="deduction" value={d} />
+          <input type="hidden" name="deductionType" value={deductionType} />
           
           <div className="form-group">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -170,7 +181,7 @@ export default function LoanForm({
           </div>
 
           {selectedCustomer && (
-            <div style={{ block: 'block', marginBottom: '18px' }} className="card">
+            <div style={{ display: 'block', marginBottom: '18px' }} className="card">
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)' }}>
                 <div className="profile-avatar" style={{ width: '40px', height: '40px', fontSize: '.85rem' }}>
                   {selectedCustomer.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
@@ -216,10 +227,42 @@ export default function LoanForm({
               <label className="form-label">{dict.loans.principal} ({currencySymbol}) *</label>
               <input type="number" name="principal" className="form-control" placeholder={dict.creditInsights.placeholders.principal} value={principal} onChange={e => setPrincipal(e.target.value ? Number(e.target.value) : '')} required style={{ fontSize: '1.1rem', padding: '12px' }} />
             </div>
-            <div className="form-group">
-              <label className="form-label">{dict.loans.deduction} ({currencySymbol}) *</label>
-              <input type="number" name="deduction" className="form-control" placeholder={dict.creditInsights.placeholders.deduction} value={deduction} onChange={e => setDeduction(e.target.value ? Number(e.target.value) : '')} required style={{ fontSize: '1.1rem', padding: '12px' }} />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Deduction Type</label>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {(['fixed', 'percentage'] as const).map(type => (
+                <button key={type} type="button"
+                  onClick={() => { setDeductionType(type); setDeductionInput(''); }}
+                  style={{
+                    padding: '8px 16px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                    border: deductionType === type ? '2px solid var(--primary)' : '2px solid var(--border)',
+                    background: deductionType === type ? 'var(--primary-light)' : 'var(--bg)',
+                    color: deductionType === type ? 'var(--primary-dark)' : 'var(--text)',
+                    fontWeight: deductionType === type ? 700 : 400,
+                  }}
+                >{type === 'fixed' ? `${currencySymbol} Fixed Amount` : '% Percentage'}</button>
+              ))}
             </div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">
+              {deductionType === 'percentage'
+                ? `Deduction % (= ${currencySymbol}${d.toLocaleString()})`
+                : `${dict.loans.deduction} (${currencySymbol})`} *
+            </label>
+            <input
+              type="number"
+              name="deductionInput"
+              className="form-control"
+              placeholder={deductionType === 'percentage' ? 'e.g. 10 (for 10%)' : dict.creditInsights.placeholders.deduction}
+              value={deductionInput}
+              onChange={e => setDeductionInput(e.target.value ? Number(e.target.value) : '')}
+              required
+              style={{ fontSize: '1.1rem', padding: '12px' }}
+            />
           </div>
 
           <div className="form-group">
@@ -290,6 +333,71 @@ export default function LoanForm({
             </button>
             <Link href="/loans" className="btn btn-ghost" style={{ padding: '12px 24px', fontSize: '1rem' }}>{dict.loans.cancel}</Link>
           </div>
+          {!packageId && principal && deductionInput !== '' && tenure && (
+            <div style={{ marginTop: '12px', borderTop: '1px dashed var(--border)', paddingTop: '12px' }}>
+              {!showSaveTemplate ? (
+                <button type="button" className="btn btn-ghost btn-sm"
+                  onClick={() => setShowSaveTemplate(true)}
+                  style={{ color: 'var(--primary)' }}>
+                  <span className="material-icons-outlined" style={{ fontSize: '16px' }}>bookmark_add</span>
+                  Save these settings as a reusable template
+                </button>
+              ) : (
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Template name"
+                    value={templateName}
+                    onChange={e => setTemplateName(e.target.value)}
+                    style={{ flex: 1, minWidth: '200px' }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    disabled={!templateName.trim() || savingTemplate || templateSaved}
+                    onClick={async () => {
+                      if (!templateName.trim()) return;
+                      setSavingTemplate(true);
+                      const res = await fetch('/api/packages', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          name: templateName.trim(),
+                          principal: Number(principal),
+                          deduction: deductionType === 'percentage' ? Number(deductionInput) : d,
+                          deductionType,
+                          frequency,
+                          tenure: Number(tenure),
+                          penaltyRate: penalty,
+                        }),
+                      });
+                      setSavingTemplate(false);
+                      const saved = await res.json();
+                      if (saved.success) {
+                        setLocalPackages(prev => [...prev, saved.data]);
+                        setTemplateSaved(true);
+                        setShowSaveTemplate(false);
+                        setPackageId(saved.data.id);
+                      }
+                    }}
+                  >
+                    {savingTemplate ? 'Saving...' : 'Save Template'}
+                  </button>
+                  <button type="button" className="btn btn-ghost btn-sm"
+                    onClick={() => { setShowSaveTemplate(false); setTemplateName(''); }}>
+                    Cancel
+                  </button>
+                  {templateSaved && (
+                    <span style={{ color: 'var(--success)', fontSize: '.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span className="material-icons-outlined" style={{ fontSize: '14px' }}>check_circle</span>
+                      Template saved!
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </form>
       </div>
 
@@ -353,11 +461,7 @@ export default function LoanForm({
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontWeight: 600 }}>{formatCurrency(Number(l.principal), currencySymbol)}</div>
-                    <span style={{ 
-                      fontSize: '.7rem', padding: '2px 6px', borderRadius: '4px',
-                      background: l.status === 'closed' ? '#dcfce7' : '#fef9c3',
-                      color: l.status === 'closed' ? '#166534' : '#854d0e'
-                    }}>
+                    <span className={`badge ${l.status === 'closed' ? 'badge-closed' : l.status === 'overdue' ? 'badge-overdue' : 'badge-pending'}`} style={{ fontSize: '.7rem', padding: '2px 6px', borderRadius: '4px' }}>
                       {l.status}
                     </span>
                   </div>
