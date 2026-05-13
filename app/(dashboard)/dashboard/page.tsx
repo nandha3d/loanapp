@@ -4,6 +4,7 @@ import { getDefaultTenantId, getBranding, getUserAppType } from '@/lib/tenant';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { getDictionary } from '@/lib/i18n';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
 async function getDashboardData(tenantId: string, appType: string, adminBranchId?: string) {
   const today = new Date();
@@ -159,12 +160,14 @@ async function getDashboardData(tenantId: string, appType: string, adminBranchId
 
 export default async function DashboardPage() {
   const session = await auth();
+  const userRole = (session?.user as any)?.role;
+  if (userRole === 'agent') redirect('/collection');
+
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
   const branding = await getBranding(tenantId);
   const dict = await getDictionary(tenantId);
-  
-  const userRole = (session?.user as any)?.role;
+
   const userBranchId = (session?.user as any)?.branchId as string | undefined;
   // Scope dashboard data to branch for admin role
   const adminBranchId = userRole === 'admin' && userBranchId ? userBranchId : undefined;
