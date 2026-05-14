@@ -27,10 +27,13 @@ interface Vehicle {
 export default function VehicleDetailClient({
   vehicle,
   formatDate,
+  dict,
 }: {
   vehicle: Vehicle;
   formatDate: (d: Date | null) => string;
+  dict: any;
 }) {
+  const d = dict.vehicles;
   const router = useRouter();
   const [showRepoModal, setShowRepoModal] = useState(false);
   const [repoReason, setRepoReason] = useState('');
@@ -59,7 +62,7 @@ export default function VehicleDetailClient({
           <h3>
             🚗 {vehicle.make} {vehicle.model}
             {vehicle.repoFlag && (
-              <span className="badge badge-danger" style={{ marginLeft: '10px' }}>REPO FLAGGED</span>
+              <span className="badge badge-danger" style={{ marginLeft: '10px' }}>{d.repo} FLAGGED</span>
             )}
           </h3>
           <p style={{ color: 'var(--text-secondary)', fontSize: '.85rem', marginTop: '4px' }}>
@@ -70,12 +73,12 @@ export default function VehicleDetailClient({
           {vehicle.repoFlag ? (
             <button className="btn btn-secondary btn-sm" onClick={handleClearRepo} disabled={loading}>
               <span className="material-icons-outlined" style={{ fontSize: '16px' }}>flag</span>
-              Clear Repo Flag
+              {d.clearRepoFlag}
             </button>
           ) : (
             <button className="btn btn-danger btn-sm" onClick={() => setShowRepoModal(true)}>
               <span className="material-icons-outlined" style={{ fontSize: '16px' }}>car_crash</span>
-              Flag for Repo
+              {d.flagForRepo}
             </button>
           )}
         </div>
@@ -83,34 +86,34 @@ export default function VehicleDetailClient({
 
       {vehicle.repoFlag && (
         <div className="alert alert-danger" style={{ marginBottom: '16px', padding: '12px 16px', background: '#fff0f0', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', color: 'var(--danger)' }}>
-          <strong>⚠️ Repo Flag Active</strong>
-          {vehicle.repoFlaggedAt && <span> — Flagged on {formatDate(vehicle.repoFlaggedAt)}</span>}
-          {vehicle.repoFlaggedBy && <span> by {vehicle.repoFlaggedBy.name}</span>}
+          <strong>⚠️ {d.repoFlagActive}</strong>
+          {vehicle.repoFlaggedAt && <span> — {d.flaggedOn} {formatDate(vehicle.repoFlaggedAt)}</span>}
+          {vehicle.repoFlaggedBy && <span> {d.by} {vehicle.repoFlaggedBy.name}</span>}
         </div>
       )}
 
       <div className="grid-2" style={{ gap: '20px' }}>
         <div className="card">
-          <div className="card-header"><h3>Vehicle Details</h3></div>
+          <div className="card-header"><h3>{d.vehicleDetails}</h3></div>
           <table style={{ width: '100%' }}>
             <tbody>
-              <tr><td style={{ color: 'var(--text-secondary)', width: '40%' }}>Registration No</td><td><strong>{vehicle.registrationNo}</strong></td></tr>
-              <tr><td style={{ color: 'var(--text-secondary)' }}>Make / Model</td><td>{vehicle.make} {vehicle.model}</td></tr>
-              <tr><td style={{ color: 'var(--text-secondary)' }}>Year</td><td>{vehicle.year || '—'}</td></tr>
-              <tr><td style={{ color: 'var(--text-secondary)' }}>Type</td><td>{vehicle.vehicleType.replace('_', ' ')}</td></tr>
-              <tr><td style={{ color: 'var(--text-secondary)' }}>Color</td><td>{vehicle.color || '—'}</td></tr>
-              <tr><td style={{ color: 'var(--text-secondary)' }}>Engine No</td><td>{vehicle.engineNo || '—'}</td></tr>
-              <tr><td style={{ color: 'var(--text-secondary)' }}>Chassis No</td><td>{vehicle.chassisNo || '—'}</td></tr>
+              <tr><td style={{ color: 'var(--text-secondary)', width: '40%' }}>{d.registrationNoLabel}</td><td><strong>{vehicle.registrationNo}</strong></td></tr>
+              <tr><td style={{ color: 'var(--text-secondary)' }}>{d.makeModel}</td><td>{vehicle.make} {vehicle.model}</td></tr>
+              <tr><td style={{ color: 'var(--text-secondary)' }}>{d.year}</td><td>{vehicle.year || '—'}</td></tr>
+              <tr><td style={{ color: 'var(--text-secondary)' }}>{d.type}</td><td>{vehicle.vehicleType.replace('_', ' ')}</td></tr>
+              <tr><td style={{ color: 'var(--text-secondary)' }}>{d.color}</td><td>{vehicle.color || '—'}</td></tr>
+              <tr><td style={{ color: 'var(--text-secondary)' }}>{d.engineNo}</td><td>{vehicle.engineNo || '—'}</td></tr>
+              <tr><td style={{ color: 'var(--text-secondary)' }}>{d.chassisNo}</td><td>{vehicle.chassisNo || '—'}</td></tr>
             </tbody>
           </table>
         </div>
 
         <div className="card">
-          <div className="card-header"><h3>Insurance & Documents</h3></div>
+          <div className="card-header"><h3>{d.insuranceDocs}</h3></div>
           <table style={{ width: '100%' }}>
             <tbody>
               <tr>
-                <td style={{ color: 'var(--text-secondary)', width: '40%' }}>Insurance Expiry</td>
+                <td style={{ color: 'var(--text-secondary)', width: '40%' }}>{d.insuranceExpiry}</td>
                 <td>
                   {vehicle.insuranceExpiry ? (
                     <span style={{ color: new Date(vehicle.insuranceExpiry) < new Date(Date.now() + 30 * 86400000) ? 'var(--danger)' : 'var(--success)' }}>
@@ -119,20 +122,20 @@ export default function VehicleDetailClient({
                   ) : '—'}
                 </td>
               </tr>
-              <tr><td style={{ color: 'var(--text-secondary)' }}>RC Document</td><td>{vehicle.rcDocPath ? <a href={vehicle.rcDocPath} target="_blank" rel="noopener noreferrer">View RC</a> : '—'}</td></tr>
-              <tr><td style={{ color: 'var(--text-secondary)' }}>Insurance Doc</td><td>{vehicle.insurancePath ? <a href={vehicle.insurancePath} target="_blank" rel="noopener noreferrer">View Insurance</a> : '—'}</td></tr>
+              <tr><td style={{ color: 'var(--text-secondary)' }}>{d.rcDocument}</td><td>{vehicle.rcDocPath ? <a href={vehicle.rcDocPath} target="_blank" rel="noopener noreferrer">{d.viewRC}</a> : '—'}</td></tr>
+              <tr><td style={{ color: 'var(--text-secondary)' }}>{d.insuranceDoc}</td><td>{vehicle.insurancePath ? <a href={vehicle.insurancePath} target="_blank" rel="noopener noreferrer">{d.viewInsurance}</a> : '—'}</td></tr>
             </tbody>
           </table>
 
-          <div className="card-header" style={{ marginTop: '16px' }}><h3>Linked Records</h3></div>
+          <div className="card-header" style={{ marginTop: '16px' }}><h3>{d.linkedRecords}</h3></div>
           <table style={{ width: '100%' }}>
             <tbody>
               <tr>
-                <td style={{ color: 'var(--text-secondary)', width: '40%' }}>Customer</td>
+                <td style={{ color: 'var(--text-secondary)', width: '40%' }}>{d.customer}</td>
                 <td><a href={`/customers/${vehicle.customer.id}`}>{vehicle.customer.name}</a> <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>({vehicle.customer.customerCode})</span></td>
               </tr>
               <tr>
-                <td style={{ color: 'var(--text-secondary)' }}>Loan</td>
+                <td style={{ color: 'var(--text-secondary)' }}>{d.loan}</td>
                 <td>{vehicle.loan ? <a href={`/loans/${vehicle.loan.id}`}>{vehicle.loan.loanCode}</a> : '—'}</td>
               </tr>
             </tbody>
@@ -144,22 +147,22 @@ export default function VehicleDetailClient({
       {showRepoModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div className="card" style={{ width: '400px', padding: '24px' }}>
-            <h3 style={{ marginBottom: '12px' }}>Flag for Repossession</h3>
+            <h3 style={{ marginBottom: '12px' }}>{d.flagForRepossession}</h3>
             <p style={{ fontSize: '.85rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
               This will flag vehicle <strong>{vehicle.registrationNo}</strong> for repossession and send a notification.
             </p>
             <textarea
               className="form-control"
-              placeholder="Reason for repossession..."
+              placeholder={d.reasonPlaceholder}
               value={repoReason}
               onChange={(e) => setRepoReason(e.target.value)}
               rows={3}
               style={{ marginBottom: '16px', width: '100%' }}
             />
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-              <button className="btn btn-secondary btn-sm" onClick={() => setShowRepoModal(false)}>Cancel</button>
+              <button className="btn btn-secondary btn-sm" onClick={() => setShowRepoModal(false)}>{d.cancel}</button>
               <button className="btn btn-danger btn-sm" onClick={handleFlagRepo} disabled={loading || !repoReason.trim()}>
-                {loading ? 'Flagging...' : 'Flag for Repo'}
+                {loading ? d.flagging : d.flagForRepo}
               </button>
             </div>
           </div>

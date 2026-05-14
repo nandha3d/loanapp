@@ -8,9 +8,11 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 interface ChitGroupDetailClientProps {
   group: any;
   currencySymbol: string;
+  dict: any;
 }
 
-export default function ChitGroupDetailClient({ group, currencySymbol }: ChitGroupDetailClientProps) {
+export default function ChitGroupDetailClient({ group, currencySymbol, dict }: ChitGroupDetailClientProps) {
+  const d = dict.chits;
   const router = useRouter();
   const [auctionModal, setAuctionModal] = useState<any>(null);
   const [paymentModal, setPaymentModal] = useState<any>(null);
@@ -59,39 +61,39 @@ export default function ChitGroupDetailClient({ group, currencySymbol }: ChitGro
       <div className="kpi-grid" style={{ marginBottom: '20px' }}>
         <div className="kpi-card">
           <div className="kpi-icon green"><span className="material-icons-outlined">savings</span></div>
-          <div><div className="kpi-value">{formatCurrency(Number(group.chitValue), currencySymbol)}</div><div className="kpi-label">Chit Value</div></div>
+          <div><div className="kpi-value">{formatCurrency(Number(group.chitValue), currencySymbol)}</div><div className="kpi-label">{d.chitValue}</div></div>
         </div>
         <div className="kpi-card">
           <div className="kpi-icon blue"><span className="material-icons-outlined">payments</span></div>
-          <div><div className="kpi-value">{formatCurrency(Number(group.monthlyContrib), currencySymbol)}</div><div className="kpi-label">Monthly Contribution</div></div>
+          <div><div className="kpi-value">{formatCurrency(Number(group.monthlyContrib), currencySymbol)}</div><div className="kpi-label">{d.monthlyContribution}</div></div>
         </div>
         <div className="kpi-card">
           <div className="kpi-icon orange"><span className="material-icons-outlined">groups</span></div>
-          <div><div className="kpi-value">{group.members.length}/{group.totalMembers}</div><div className="kpi-label">Members Enrolled</div></div>
+          <div><div className="kpi-value">{group.members.length}/{group.totalMembers}</div><div className="kpi-label">{d.membersEnrolled}</div></div>
         </div>
         <div className="kpi-card">
           <div className="kpi-icon purple"><span className="material-icons-outlined">gavel</span></div>
-          <div><div className="kpi-value">{completedAuctions.length}/{group.durationMonths}</div><div className="kpi-label">Auctions Completed</div></div>
+          <div><div className="kpi-value">{completedAuctions.length}/{group.durationMonths}</div><div className="kpi-label">{d.auctionsCompleted}</div></div>
         </div>
       </div>
 
       <div className="grid-60-40">
         {/* Auctions */}
         <div className="card">
-          <div className="card-header"><h3>🔨 Auction History</h3></div>
+          <div className="card-header"><h3>🔨 {d.auctionHistory}</h3></div>
           {group.auctions.length === 0 ? (
-            <p style={{ padding: '16px', color: 'var(--text-secondary)' }}>No auctions yet.</p>
+            <p style={{ padding: '16px', color: 'var(--text-secondary)' }}>{d.noAuctions}</p>
           ) : (
             <div className="table-wrapper">
               <table>
                 <thead>
                   <tr>
-                    <th>Period</th>
-                    <th>Date</th>
-                    <th>Winner</th>
-                    <th>Prize</th>
-                    <th>Dividend</th>
-                    <th>Status</th>
+                    <th>{d.period}</th>
+                    <th>{d.date}</th>
+                    <th>{d.winner}</th>
+                    <th>{d.prize}</th>
+                    <th>{d.dividend}</th>
+                    <th>{d.status}</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -115,7 +117,7 @@ export default function ChitGroupDetailClient({ group, currencySymbol }: ChitGro
                               setError('');
                             }}
                           >
-                            Record Winner
+                            {d.recordWinner}
                           </button>
                         )}
                       </td>
@@ -129,17 +131,17 @@ export default function ChitGroupDetailClient({ group, currencySymbol }: ChitGro
 
         {/* Members */}
         <div className="card">
-          <div className="card-header"><h3>👥 Members</h3></div>
+          <div className="card-header"><h3>👥 {d.members}</h3></div>
           {group.members.length === 0 ? (
-            <p style={{ padding: '16px', color: 'var(--text-secondary)' }}>No members enrolled.</p>
+            <p style={{ padding: '16px', color: 'var(--text-secondary)' }}>{d.noMembers}</p>
           ) : (
             <div className="table-wrapper">
               <table>
                 <thead>
                   <tr>
                     <th>#</th>
-                    <th>Customer</th>
-                    <th>Won</th>
+                    <th>{d.customer}</th>
+                    <th>{d.won}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -150,7 +152,7 @@ export default function ChitGroupDetailClient({ group, currencySymbol }: ChitGro
                         <a href={`/customers/${m.customer.id}`}>{m.customer.name}</a>
                         <br /><span style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>{m.customer.customerCode}</span>
                       </td>
-                      <td>{m.hasWon ? <span className="badge badge-success">Won {formatDate(m.wonAt)}</span> : <span className="badge badge-secondary">Pending</span>}</td>
+                      <td>{m.hasWon ? <span className="badge badge-success">{d.won} {formatDate(m.wonAt)}</span> : <span className="badge badge-secondary">{d.pending}</span>}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -162,17 +164,17 @@ export default function ChitGroupDetailClient({ group, currencySymbol }: ChitGro
 
       {/* Subscription Payments */}
       <div className="card" style={{ marginTop: '20px' }}>
-        <div className="card-header"><h3>💳 Member Payments</h3></div>
+        <div className="card-header"><h3>💳 {d.memberPayments}</h3></div>
         <div className="table-wrapper">
           <table>
             <thead>
               <tr>
-                <th>Member</th>
-                <th>Period</th>
-                <th>Due Date</th>
-                <th>Due Amount</th>
-                <th>Paid</th>
-                <th>Status</th>
+                <th>{d.member}</th>
+                <th>{d.period}</th>
+                <th>{d.dueDate}</th>
+                <th>{d.dueAmount}</th>
+                <th>{d.paid}</th>
+                <th>{d.status}</th>
                 <th></th>
               </tr>
             </thead>
@@ -196,7 +198,7 @@ export default function ChitGroupDetailClient({ group, currencySymbol }: ChitGro
                             setError('');
                           }}
                         >
-                          Record Payment
+                          {d.recordPayment}
                         </button>
                       )}
                     </td>
@@ -212,19 +214,19 @@ export default function ChitGroupDetailClient({ group, currencySymbol }: ChitGro
       {auctionModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div className="card" style={{ width: '440px', padding: '24px' }}>
-            <h3 style={{ marginBottom: '12px' }}>Record Auction Winner — Period {auctionModal.periodNumber}</h3>
+            <h3 style={{ marginBottom: '12px' }}>{d.recordWinner} — Period {auctionModal.periodNumber}</h3>
             {error && <p style={{ color: 'var(--danger)', marginBottom: '10px', fontSize: '.85rem' }}>{error}</p>}
             <div className="form-group" style={{ marginBottom: '12px' }}>
-              <label className="form-label">Winner</label>
+              <label className="form-label">{d.winner}</label>
               <select className="form-control" value={winnerId} onChange={(e) => setWinnerId(e.target.value)}>
-                <option value="">Select member</option>
+                <option value="">{d.selectMember}</option>
                 {group.members.filter((m: any) => !m.hasWon).map((m: any) => (
                   <option key={m.id} value={m.id}>{m.memberNumber}. {m.customer.name}</option>
                 ))}
               </select>
             </div>
             <div className="form-group" style={{ marginBottom: '16px' }}>
-              <label className="form-label">Prize Amount ({currencySymbol})</label>
+              <label className="form-label">{d.prizeAmount} ({currencySymbol})</label>
               <input type="number" className="form-control" value={prizeAmount} onChange={(e) => setPrizeAmount(Number(e.target.value))} max={Number(group.chitValue)} />
               {prizeAmount < Number(group.chitValue) && (
                 <p style={{ fontSize: '.78rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
@@ -233,9 +235,9 @@ export default function ChitGroupDetailClient({ group, currencySymbol }: ChitGro
               )}
             </div>
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-              <button className="btn btn-secondary btn-sm" onClick={() => setAuctionModal(null)}>Cancel</button>
+              <button className="btn btn-secondary btn-sm" onClick={() => setAuctionModal(null)}>{d.cancel}</button>
               <button className="btn btn-primary btn-sm" onClick={handleRecordWinner} disabled={loading || !winnerId}>
-                {loading ? 'Saving...' : 'Record Winner'}
+                {loading ? d.saving : d.recordWinner}
               </button>
             </div>
           </div>
@@ -246,16 +248,16 @@ export default function ChitGroupDetailClient({ group, currencySymbol }: ChitGro
       {paymentModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div className="card" style={{ width: '380px', padding: '24px' }}>
-            <h3 style={{ marginBottom: '12px' }}>Record Payment — Period {paymentModal.periodNumber}</h3>
+            <h3 style={{ marginBottom: '12px' }}>{d.recordPayment} — Period {paymentModal.periodNumber}</h3>
             {error && <p style={{ color: 'var(--danger)', marginBottom: '10px', fontSize: '.85rem' }}>{error}</p>}
             <div className="form-group" style={{ marginBottom: '16px' }}>
-              <label className="form-label">Amount Paid ({currencySymbol})</label>
+              <label className="form-label">{d.amountPaid} ({currencySymbol})</label>
               <input type="number" className="form-control" value={payAmount} onChange={(e) => setPayAmount(Number(e.target.value))} />
             </div>
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-              <button className="btn btn-secondary btn-sm" onClick={() => setPaymentModal(null)}>Cancel</button>
+              <button className="btn btn-secondary btn-sm" onClick={() => setPaymentModal(null)}>{d.cancel}</button>
               <button className="btn btn-primary btn-sm" onClick={handleRecordPayment} disabled={loading || payAmount <= 0}>
-                {loading ? 'Saving...' : 'Record Payment'}
+                {loading ? d.saving : d.recordPayment}
               </button>
             </div>
           </div>

@@ -7,9 +7,13 @@ import { hash } from 'bcryptjs';
 import { auth } from '@/lib/auth';
 
 export async function saveSystemSettings(formData: FormData) {
-  const tenantId = await getDefaultTenantId();
   const session = await auth();
+  const role = (session?.user as any)?.role;
   const userId = session?.user?.id;
+  if (!userId || !['admin', 'superadmin', 'developer'].includes(role)) {
+    return { success: false, error: 'Unauthorized' };
+  }
+  const tenantId = await getDefaultTenantId();
   const entries = Array.from(formData.entries());
   const saved: Record<string, string> = {};
   
@@ -34,9 +38,13 @@ export async function saveSystemSettings(formData: FormData) {
 }
 
 export async function savePenaltySettings(formData: FormData) {
-  const tenantId = await getDefaultTenantId();
   const session = await auth();
+  const role = (session?.user as any)?.role;
   const userId = session?.user?.id;
+  if (!userId || !['admin', 'superadmin', 'developer'].includes(role)) {
+    return { success: false, error: 'Unauthorized' };
+  }
+  const tenantId = await getDefaultTenantId();
   const fields = {
     default_penalty_per_day: formData.get('default_penalty_per_day') as string,
     penalty_grace_period: formData.get('penalty_grace_period') as string,
@@ -62,6 +70,12 @@ export async function savePenaltySettings(formData: FormData) {
 }
 
 export async function createRoute(formData: FormData) {
+  const session = await auth();
+  const role = (session?.user as any)?.role;
+  const userId = session?.user?.id;
+  if (!userId || !['admin', 'superadmin', 'developer'].includes(role)) {
+    return { success: false, error: 'Unauthorized' };
+  }
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
   
@@ -80,6 +94,12 @@ export async function createRoute(formData: FormData) {
 }
 
 export async function deleteRoute(id: string) {
+  const session = await auth();
+  const role = (session?.user as any)?.role;
+  const userId = session?.user?.id;
+  if (!userId || !['admin', 'superadmin', 'developer'].includes(role)) {
+    return { success: false, error: 'Unauthorized' };
+  }
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
 
@@ -93,6 +113,12 @@ export async function deleteRoute(id: string) {
 }
 
 export async function createLoanPackage(formData: FormData) {
+  const session = await auth();
+  const role = (session?.user as any)?.role;
+  const userId = session?.user?.id;
+  if (!userId || !['admin', 'superadmin', 'developer'].includes(role)) {
+    return { success: false, error: 'Unauthorized' };
+  }
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
   const principal = Number(formData.get('principal'));
@@ -123,6 +149,12 @@ export async function createLoanPackage(formData: FormData) {
 }
 
 export async function deleteLoanPackage(id: string) {
+  const session = await auth();
+  const role = (session?.user as any)?.role;
+  const userId = session?.user?.id;
+  if (!userId || !['admin', 'superadmin', 'developer'].includes(role)) {
+    return { success: false, error: 'Unauthorized' };
+  }
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
 
@@ -136,10 +168,22 @@ export async function deleteLoanPackage(id: string) {
 }
 
 export async function createUser(formData: FormData) {
+  const session = await auth();
+  const role = (session?.user as any)?.role;
+  const actorId = session?.user?.id;
+  if (!actorId || !['admin', 'superadmin', 'developer'].includes(role)) {
+    return { success: false, error: 'Unauthorized' };
+  }
+  // Agents can only be created by admins/superadmins — prevent privilege escalation
+  const requestedRole = formData.get('role') as string;
+  if (requestedRole === 'superadmin' && role !== 'superadmin' && role !== 'developer') {
+    return { success: false, error: 'Only a superadmin can create superadmin accounts' };
+  }
+  if (requestedRole === 'developer' && role !== 'developer') {
+    return { success: false, error: 'Only a developer can create developer accounts' };
+  }
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
-  const session = await auth();
-  const actorId = session?.user?.id;
   const passwordHash = await hash(formData.get('password') as string, 12);
   
   const newUser = await prisma.user.create({
@@ -148,7 +192,7 @@ export async function createUser(formData: FormData) {
       name: formData.get('name') as string,
       phone: formData.get('phone') as string,
       username: formData.get('username') as string,
-      role: formData.get('role') as string,
+      role: requestedRole,
       appType: appType,
       passwordHash,
       status: 'active',

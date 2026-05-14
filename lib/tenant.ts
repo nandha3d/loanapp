@@ -1,11 +1,62 @@
 import prisma from './db';
 import { auth } from './auth';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { cache } from 'react';
+import { assertTenantSubscriptionAccess } from './subscription';
+
+type SessionUserContext = {
+  appType?: string | null;
+  role?: string | null;
+  tenantId?: string | null;
+};
+
+const TENANT_BYPASS_ROLES = new Set(['superadmin', 'developer']);
+
+function normalizeHost(host: string | null | undefined): string | null {
+  if (!host) return null;
+  return host.toLowerCase().split(':')[0] || null;
+}
+
+export function extractTenantSlugFromHost(
+  host: string | null | undefined,
+  rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || process.env.APP_ROOT_DOMAIN || '',
+): string | null {
+  const hostname = normalizeHost(host);
+  if (!hostname || hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+    return null;
+  }
+
+  const normalizedRoot = normalizeHost(rootDomain);
+  if (normalizedRoot) {
+    if (hostname === normalizedRoot) return null;
+    if (hostname.endsWith(`.${normalizedRoot}`)) {
+      const slug = hostname.slice(0, -(normalizedRoot.length + 1)).split('.')[0];
+      return slug || null;
+    }
+    return null;
+  }
+
+  const labels = hostname.split('.');
+  return labels.length > 2 ? labels[0] : null;
+}
+
+export function isTenantHostAllowedForSession({
+  requestedTenantId,
+  sessionTenantId,
+  role,
+}: {
+  requestedTenantId?: string | null;
+  sessionTenantId?: string | null;
+  role?: string | null;
+}): boolean {
+  if (!requestedTenantId || !sessionTenantId || requestedTenantId === sessionTenantId) return true;
+  return TENANT_BYPASS_ROLES.has(role || '');
+}
 
 export async function getUserAppType(): Promise<string> {
   const session = await auth();
-  const role = (session?.user as any)?.role;
+  const user = session?.user as SessionUserContext | undefined;
+  const role = user?.role;
   
   // If superadmin or developer, check cookie first
   if (role === 'superadmin' || role === 'developer') {
@@ -15,17 +66,60 @@ export async function getUserAppType(): Promise<string> {
     if (activeApp && allowedAppTypes.includes(activeApp)) return activeApp;
   }
 
-  return (session?.user as any)?.appType || 'microlending';
+  return user?.appType || 'microlending';
 }
 
 // ─── Tenant Context ───────────────────────────
 // Request-scoped cache: safe for serverless/edge — no stale data across requests
 
-export const getDefaultTenantId = cache(async (): Promise<string> => {
+async function getFallbackDefaultTenantId(): Promise<string> {
   const tenant = await prisma.tenant.findFirst({ where: { slug: 'default' } });
   if (!tenant) throw new Error('Default tenant not found. Run: npx prisma db seed');
   return tenant.id;
+}
+
+export async function getTenantIdFromHost(host: string | null | undefined): Promise<string | null> {
+  const slug = extractTenantSlugFromHost(host);
+  if (!slug) return null;
+
+  const tenant = await prisma.tenant.findUnique({
+    where: { slug },
+    select: { id: true, status: true },
+  });
+  if (!tenant || tenant.status !== 'active') return null;
+  return tenant.id;
+}
+
+export const getCurrentTenantId = cache(async (): Promise<string> => {
+  const session = await auth();
+  const user = session?.user as SessionUserContext | undefined;
+  const headerStore = await headers();
+  const requestedTenantId = await getTenantIdFromHost(headerStore.get('host'));
+  const pathname = headerStore.get('x-loantrack-path') || '';
+
+  if (!isTenantHostAllowedForSession({
+    requestedTenantId,
+    sessionTenantId: user?.tenantId,
+    role: user?.role,
+  })) {
+    throw new Error('Tenant host does not match the authenticated user.');
+  }
+
+  const tenantId = user?.tenantId && !TENANT_BYPASS_ROLES.has(user.role || '')
+    ? user.tenantId
+    : requestedTenantId || user?.tenantId || await getFallbackDefaultTenantId();
+
+  if (
+    !pathname.startsWith('/subscription') &&
+    !pathname.startsWith('/portal') &&
+    !pathname.startsWith('/admin')
+  ) {
+    await assertTenantSubscriptionAccess(tenantId);
+  }
+  return tenantId;
 });
+
+export const getDefaultTenantId = getCurrentTenantId;
 
 export async function getTenantSettings(tenantId: string) {
   const settings = await prisma.appSetting.findMany({ where: { tenantId } });

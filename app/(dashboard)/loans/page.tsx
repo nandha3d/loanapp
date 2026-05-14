@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { formatCurrency, formatDate, getBadgeClass, parsePagination, paginatedResponse, calcPercentage } from '@/lib/utils';
 import Link from 'next/link';
+import { getDictionary } from '@/lib/i18n';
 
 export default async function LoansPage({
   searchParams
@@ -14,6 +15,7 @@ export default async function LoansPage({
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
+  const dict = await getDictionary(tenantId);
   const userRole = (session?.user as any)?.role;
   const branchId = (session?.user as any)?.branchId as string | undefined;
 
@@ -61,9 +63,9 @@ export default async function LoansPage({
   return (
     <div className="card">
       <div className="card-header">
-        <h3>💰 Loan Registry</h3>
+        <h3>💰 {dict.loansList.title}</h3>
         <Link href="/loans/new" className="btn btn-primary btn-sm">
-          <span className="material-icons-outlined" style={{fontSize:'16px'}}>add</span> New Loan
+          <span className="material-icons-outlined" style={{fontSize:'16px'}}>add</span> {dict.loansList.newLoan}
         </Link>
       </div>
 
@@ -74,26 +76,26 @@ export default async function LoansPage({
             type="text" 
             name="q" 
             className="form-control" 
-            placeholder="Search by Customer or Loan ID..." 
+            placeholder={dict.loansList.searchPlaceholder} 
             defaultValue={q}
           />
         </div>
         <select name="status" className="form-control" style={{width:'auto'}} defaultValue={status}>
-          <option value="">All Status</option>
-          <option value="active">Active</option>
-          <option value="overdue">Overdue</option>
-          <option value="settled">Settled</option>
-          <option value="closed">Closed</option>
+          <option value="">{dict.loansList.allStatus}</option>
+          <option value="active">{dict.loansList.active}</option>
+          <option value="overdue">{dict.loansList.overdue}</option>
+          <option value="settled">{dict.loansList.settled}</option>
+          <option value="closed">{dict.loansList.closed}</option>
         </select>
         <select name="frequency" className="form-control" style={{width:'auto'}} defaultValue={frequency}>
-          <option value="">All Frequencies</option>
-          <option value="daily">Daily</option>
-          <option value="weekly">Weekly</option>
-          <option value="monthly">Monthly</option>
+          <option value="">{dict.loansList.allFrequencies}</option>
+          <option value="daily">{dict.loansList.daily}</option>
+          <option value="weekly">{dict.loansList.weekly}</option>
+          <option value="monthly">{dict.loansList.monthly}</option>
         </select>
-        <button type="submit" className="btn btn-secondary">Filter</button>
+        <button type="submit" className="btn btn-secondary">{dict.loansList.filter}</button>
         {(q || status || frequency) && (
-          <Link href="/loans" className="btn btn-ghost">Clear</Link>
+          <Link href="/loans" className="btn btn-ghost">{dict.loansList.clear}</Link>
         )}
       </form>
 
@@ -101,14 +103,14 @@ export default async function LoansPage({
         <table>
           <thead>
             <tr>
-              <th>Loan ID</th>
-              <th>Customer</th>
-              <th>Principal</th>
-              <th>Frequency</th>
-              <th>Start Date</th>
-              <th>Progress</th>
-              <th>Status</th>
-              <th>Action</th>
+              <th>{dict.loansList.loanId}</th>
+              <th>{dict.loansList.customer}</th>
+              <th>{dict.loansList.principal}</th>
+              <th>{dict.loansList.frequency}</th>
+              <th>{dict.loansList.startDate}</th>
+              <th>{dict.loansList.progress}</th>
+              <th>{dict.loansList.status}</th>
+              <th>{dict.loansList.action}</th>
             </tr>
           </thead>
           <tbody>
@@ -138,8 +140,8 @@ export default async function LoansPage({
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      <Link href={`/loans/${l.id}`} className="btn btn-ghost btn-sm">View</Link>
-                      <Link href={`/loans/${l.id}/edit`} className="btn btn-ghost btn-sm" style={{ color: 'var(--primary)' }}>Edit</Link>
+                      <Link href={`/loans/${l.id}`} className="btn btn-ghost btn-sm">{dict.loansList.view}</Link>
+                      <Link href={`/loans/${l.id}/edit`} className="btn btn-ghost btn-sm" style={{ color: 'var(--primary)' }}>{dict.loansList.edit}</Link>
                     </div>
                   </td>
                 </tr>
@@ -158,7 +160,7 @@ export default async function LoansPage({
 
       {total > 0 && (
         <div className="pagination">
-          <span>Showing {skip + 1}–{Math.min(skip + limit, total)} of {total} loans</span>
+          <span>Showing {skip + 1}–{Math.min(skip + limit, total)} of {total} {dict.loansList.title.toLowerCase()}</span>
           <div className="pages">
             <Link 
               href={`/loans?page=${page > 1 ? page - 1 : 1}&q=${q}&status=${status}&frequency=${frequency}`} 

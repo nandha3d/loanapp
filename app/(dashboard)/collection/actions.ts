@@ -53,114 +53,112 @@ export async function submitCollectionEntry(formData: FormData) {
   }
 
   const dueAmount = Number(instalment.dueAmount);
-  const newStatus = receivedAmount >= dueAmount ? 'paid' : 'partial';
+  const currentReceived = Number(instalment.receivedAmount) || 0;
+  const paymentAmount = receivedAmount; // the new payment being submitted
+  const newTotal = currentReceived + paymentAmount;
+  const newStatus = newTotal >= dueAmount ? 'paid' : 'partial';
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Find or create today's DailyCollection for this agent (scoped by tenant + appType)
-  let dailyCollection = await prisma.dailyCollection.findFirst({
-    where: { agentId: userId, date: today, tenantId, appType },
-  });
+  await prisma.$transaction(async (tx) => {
+    // Find or create today's DailyCollection for this agent (scoped by tenant + appType)
+    let dailyCollection = await tx.dailyCollection.findFirst({
+      where: { agentId: userId, date: today, tenantId, appType },
+    });
 
-  if (!dailyCollection) {
-    dailyCollection = await prisma.dailyCollection.create({
+    if (!dailyCollection) {
+      dailyCollection = await tx.dailyCollection.create({
+        data: {
+          tenantId,
+          branchId: instalment.loan.branchId,
+          agentId: userId,
+          routeId: instalment.loan.customer.routeId,
+          date: today,
+          totalExpected: 0,
+          totalCollected: 0,
+          entriesCount: 0,
+          appType,
+          status: 'open',
+        },
+      });
+    }
+
+    // Create collection entry
+    const entry = await tx.collectionEntry.create({
       data: {
-        tenantId,
-        branchId: instalment.loan.branchId,
+        collectionId: dailyCollection.id,
+        customerId: instalment.loan.customerId,
+        loanId: instalment.loanId,
+        dueAmount,
+        receivedAmount: paymentAmount,
+        paymentMode,
+        remarks,
         agentId: userId,
-        routeId: instalment.loan.customer.routeId,
-        date: today,
-        totalExpected: 0,
-        totalCollected: 0,
-        entriesCount: 0,
-        appType,
-        status: 'open',
       },
     });
-  }
 
-  // Create collection entry
-  const entry = await prisma.collectionEntry.create({
-    data: {
-      collectionId: dailyCollection.id,
-      customerId: instalment.loan.customerId,
-      loanId: instalment.loanId,
-      dueAmount,
-      receivedAmount,
-      paymentMode,
-      remarks,
-      agentId: userId,
-    },
-  });
-
-  // Update instalment
-  await prisma.instalment.update({
-    where: { id: instalmentId },
-    data: {
-      receivedAmount,
-      paymentMode,
-      remarks,
-      status: newStatus,
-      receivedAt: new Date(),
-      agentId: userId,
-      collectionEntryId: entry.id,
-    },
-  });
-
-  // Recalculate loan totals
-  const allInstalments = await prisma.instalment.findMany({
-    where: { loanId: instalment.loanId },
-  });
-
-  const paidCount = allInstalments.filter(
-    (i) => i.id === instalmentId ? newStatus === 'paid' : i.status === 'paid'
-  ).length;
-
-  const totalCollected = allInstalments.reduce((sum, i) => {
-    if (i.id === instalmentId) return sum + receivedAmount;
-    return sum + Number(i.receivedAmount);
-  }, 0);
-
-  const allPaid = paidCount === allInstalments.length;
-
-  await prisma.loan.update({
-    where: { id: instalment.loanId },
-    data: {
-      paidCount,
-      totalCollected,
-      ...(allPaid ? { status: 'closed', closedAt: new Date() } : {}),
-    },
-  });
-
-  // Update daily collection totals
-  const allEntries = await prisma.collectionEntry.findMany({
-    where: { collectionId: dailyCollection.id },
-  });
-
-  await prisma.dailyCollection.update({
-    where: { id: dailyCollection.id },
-    data: {
-      totalCollected: allEntries.reduce((s, e) => s + Number(e.receivedAmount), 0),
-      totalExpected: allEntries.reduce((s, e) => s + Number(e.dueAmount), 0),
-      entriesCount: allEntries.length,
-    },
-  });
-
-  // Audit log
-  await prisma.auditLog.create({
-    data: {
-      tenantId,
-      userId,
-      action: 'create',
-      entityType: 'collection',
-      entityId: entry.id,
-      newValue: JSON.stringify({
-        customer: instalment.loan.customer.name,
-        loanCode: instalment.loan.loanCode,
-        receivedAmount,
+    // Update instalment — accumulate, do not overwrite
+    await tx.instalment.update({
+      where: { id: instalmentId },
+      data: {
+        receivedAmount: { increment: paymentAmount },
         paymentMode,
-      }),
-    },
+        remarks,
+        status: newStatus,
+        receivedAt: new Date(),
+        agentId: userId,
+        collectionEntryId: entry.id,
+      },
+    });
+
+    // Recalculate loan totals from fresh instalment data
+    const allInstalments = await tx.instalment.findMany({
+      where: { loanId: instalment.loanId },
+    });
+
+    const paidCount = allInstalments.filter(i => i.status === 'paid').length;
+    const totalCollected = allInstalments.reduce((sum, i) => sum + Number(i.receivedAmount), 0);
+    const allPaid = paidCount === allInstalments.length;
+
+    await tx.loan.update({
+      where: { id: instalment.loanId },
+      data: {
+        paidCount,
+        totalCollected,
+        ...(allPaid ? { status: 'closed', closedAt: new Date() } : {}),
+      },
+    });
+
+    // Update daily collection totals
+    const allEntries = await tx.collectionEntry.findMany({
+      where: { collectionId: dailyCollection.id },
+    });
+
+    await tx.dailyCollection.update({
+      where: { id: dailyCollection.id },
+      data: {
+        totalCollected: allEntries.reduce((s, e) => s + Number(e.receivedAmount), 0),
+        totalExpected: allEntries.reduce((s, e) => s + Number(e.dueAmount), 0),
+        entriesCount: allEntries.length,
+      },
+    });
+
+    // Audit log
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        userId,
+        action: 'create',
+        entityType: 'collection',
+        entityId: entry.id,
+        newValue: JSON.stringify({
+          customer: instalment.loan.customer.name,
+          loanCode: instalment.loan.loanCode,
+          receivedAmount: paymentAmount,
+          paymentMode,
+        }),
+      },
+    });
   });
 
   revalidatePath('/collection');

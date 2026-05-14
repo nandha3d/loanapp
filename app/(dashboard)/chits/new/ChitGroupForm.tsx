@@ -7,10 +7,13 @@ import { useRouter } from 'next/navigation';
 export default function ChitGroupForm({
   customers,
   currencySymbol,
+  dict,
 }: {
   customers: { id: string; name: string; customerCode: string }[];
   currencySymbol: string;
+  dict: any;
 }) {
+  const d = dict.chits;
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -45,7 +48,7 @@ export default function ChitGroupForm({
     try {
       await createChitGroup(fd);
     } catch (err: any) {
-      setError(err.message || 'Failed to create chit group');
+      setError(err.message || d.failed);
       setLoading(false);
     }
   };
@@ -57,28 +60,28 @@ export default function ChitGroupForm({
 
   return (
     <form onSubmit={handleSubmit} className="card" style={{ maxWidth: '700px' }}>
-      <div className="card-header"><h3>Create Chit Group</h3></div>
+      <div className="card-header"><h3>{d.createGroup}</h3></div>
 
       {error && <div className="alert alert-danger" style={{ margin: '0 0 16px', padding: '10px 14px', background: '#fff0f0', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', color: 'var(--danger)' }}>{error}</div>}
 
       <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
         <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-          <label className="form-label">Group Name *</label>
+          <label className="form-label">{d.groupName} *</label>
           <input name="name" type="text" className="form-control" required placeholder="e.g. January 2026 Group" />
         </div>
 
         <div className="form-group">
-          <label className="form-label">Chit Value ({currencySymbol}) *</label>
+          <label className="form-label">{d.chitValue} ({currencySymbol}) *</label>
           <input name="chitValue" type="number" className="form-control" required min="1000" placeholder="e.g. 100000" />
         </div>
 
         <div className="form-group">
-          <label className="form-label">Monthly Contribution ({currencySymbol}) *</label>
+          <label className="form-label">{d.monthlyContribution} ({currencySymbol}) *</label>
           <input name="monthlyContrib" type="number" className="form-control" required min="100" placeholder="e.g. 5000" />
         </div>
 
         <div className="form-group">
-          <label className="form-label">Total Members *</label>
+          <label className="form-label">{d.totalMembers} *</label>
           <input
             name="totalMembers"
             type="number"
@@ -92,26 +95,26 @@ export default function ChitGroupForm({
         </div>
 
         <div className="form-group">
-          <label className="form-label">Commission % *</label>
+          <label className="form-label">{d.commission} *</label>
           <input name="commissionPct" type="number" className="form-control" defaultValue="5" step="0.5" min="0" max="20" />
         </div>
 
         <div className="form-group">
-          <label className="form-label">Start Date *</label>
+          <label className="form-label">{d.startDate} *</label>
           <input name="startDate" type="date" className="form-control" required />
         </div>
       </div>
 
       <div style={{ marginBottom: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-          <h4 style={{ margin: 0 }}>Members ({selectedMembers.length}/{totalMembers})</h4>
+          <h4 style={{ margin: 0 }}>{d.members} ({selectedMembers.length}/{totalMembers})</h4>
           <button
             type="button"
             className="btn btn-secondary btn-sm"
             onClick={addMemberSlot}
             disabled={selectedMembers.length >= totalMembers}
           >
-            + Add Member
+            + {d.addMember}
           </button>
         </div>
         {selectedMembers.map((memberId, idx) => (
@@ -123,7 +126,7 @@ export default function ChitGroupForm({
               onChange={(e) => updateMember(idx, e.target.value)}
               required
             >
-              <option value="">Select Customer</option>
+              <option value="">{d.selectCustomer}</option>
               {availableCustomers(idx).map((c) => (
                 <option key={c.id} value={c.id}>{c.name} ({c.customerCode})</option>
               ))}
@@ -134,15 +137,15 @@ export default function ChitGroupForm({
           </div>
         ))}
         {selectedMembers.length === 0 && (
-          <p style={{ color: 'var(--text-secondary)', fontSize: '.85rem' }}>Click &ldquo;Add Member&rdquo; to enroll customers.</p>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '.85rem' }}>{d.clickAddMember}</p>
         )}
       </div>
 
       <div style={{ display: 'flex', gap: '8px' }}>
         <button type="submit" className="btn btn-primary" disabled={loading || selectedMembers.filter(Boolean).length !== totalMembers}>
-          {loading ? 'Creating...' : 'Create Chit Group'}
+        {loading ? d.creating : d.createGroup}
         </button>
-        <button type="button" className="btn btn-secondary" onClick={() => router.back()}>Cancel</button>
+        <button type="button" className="btn btn-secondary" onClick={() => router.back()}>{d.cancel}</button>
       </div>
     </form>
   );

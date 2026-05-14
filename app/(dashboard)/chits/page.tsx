@@ -5,6 +5,7 @@ import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { requireModule } from '@/lib/moduleGate';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import Link from 'next/link';
+import { getDictionary } from '@/lib/i18n';
 
 export default async function ChitsPage({
   searchParams,
@@ -18,6 +19,7 @@ export default async function ChitsPage({
 
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
+  const dict = await getDictionary(tenantId);
   await requireModule(tenantId, 'chitfunds');
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
   const resolvedParams = await searchParams;
@@ -63,56 +65,56 @@ export default async function ChitsPage({
       <div className="kpi-grid" style={{ marginBottom: '20px' }}>
         <div className="kpi-card">
           <div className="kpi-icon green"><span className="material-icons-outlined">savings</span></div>
-          <div><div className="kpi-value">{activeCount}</div><div className="kpi-label">Active Chit Groups</div></div>
+          <div><div className="kpi-value">{activeCount}</div><div className="kpi-label">{dict.chits.activeGroups}</div></div>
         </div>
         <div className="kpi-card">
           <div className="kpi-icon blue"><span className="material-icons-outlined">check_circle</span></div>
-          <div><div className="kpi-value">{completedCount}</div><div className="kpi-label">Completed Groups</div></div>
+          <div><div className="kpi-value">{completedCount}</div><div className="kpi-label">{dict.chits.completedGroups}</div></div>
         </div>
         <div className="kpi-card">
           <div className="kpi-icon orange"><span className="material-icons-outlined">groups</span></div>
-          <div><div className="kpi-value">{groups.reduce((s, g) => s + g._count.members, 0)}</div><div className="kpi-label">Total Members</div></div>
+          <div><div className="kpi-value">{groups.reduce((s, g) => s + g._count.members, 0)}</div><div className="kpi-label">{dict.chits.totalMembers}</div></div>
         </div>
       </div>
 
       <div className="card">
         <div className="card-header">
-          <h3>💰 Chit Fund Groups</h3>
+          <h3>💰 {dict.chits.chitFundGroups}</h3>
           <Link href="/chits/new" className="btn btn-primary btn-sm">
-            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>add</span> New Chit Group
+            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>add</span> {dict.chits.newChitGroup}
           </Link>
         </div>
 
         <form method="GET" className="filter-bar" style={{ marginBottom: '16px' }}>
-          <input name="q" type="text" className="form-control" placeholder="Search by name..." defaultValue={q} style={{ maxWidth: '240px' }} />
+          <input name="q" type="text" className="form-control" placeholder={dict.chits.searchPlaceholder} defaultValue={q} style={{ maxWidth: '240px' }} />
           <select name="status" className="form-control" style={{ width: 'auto' }} defaultValue={status}>
-            <option value="">All Status</option>
-            <option value="active">Active</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
+            <option value="">{dict.chits.allStatus}</option>
+            <option value="active">{dict.chits.active}</option>
+            <option value="completed">{dict.chits.completed}</option>
+            <option value="cancelled">{dict.chits.cancelled}</option>
           </select>
-          <button type="submit" className="btn btn-secondary">Filter</button>
+          <button type="submit" className="btn btn-secondary">{dict.chits.filter}</button>
         </form>
 
         {groups.length === 0 ? (
           <div className="empty-state">
             <span className="material-icons-outlined" style={{ fontSize: '48px', color: 'var(--text-light)' }}>savings</span>
-            <p>No chit groups found.</p>
-            <Link href="/chits/new" className="btn btn-primary btn-sm">Create First Group</Link>
+            <p>{dict.chits.noChits}</p>
+            <Link href="/chits/new" className="btn btn-primary btn-sm">{dict.chits.createFirst}</Link>
           </div>
         ) : (
           <div className="table-wrapper">
             <table>
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Chit Value</th>
-                  <th>Monthly</th>
-                  <th>Members</th>
-                  <th>Auctions Done</th>
-                  <th>Start Date</th>
-                  <th>Status</th>
-                  <th>Action</th>
+                  <th>{dict.chits.name}</th>
+                  <th>{dict.chits.chitValue}</th>
+                  <th>{dict.chits.monthly}</th>
+                  <th>{dict.chits.members}</th>
+                  <th>{dict.chits.auctionsDone}</th>
+                  <th>{dict.chits.startDate}</th>
+                  <th>{dict.chits.status}</th>
+                  <th>{dict.chits.action}</th>
                 </tr>
               </thead>
               <tbody>
@@ -125,7 +127,7 @@ export default async function ChitsPage({
                     <td>{g.auctions.length} / {g.durationMonths}</td>
                     <td>{formatDate(g.startDate)}</td>
                     <td><span className={`badge badge-${g.status === 'active' ? 'success' : g.status === 'completed' ? 'info' : 'secondary'}`}>{g.status}</span></td>
-                    <td><Link href={`/chits/${g.id}`} className="btn btn-ghost btn-sm">View</Link></td>
+                    <td><Link href={`/chits/${g.id}`} className="btn btn-ghost btn-sm">{dict.chits.view}</Link></td>
                   </tr>
                 ))}
               </tbody>

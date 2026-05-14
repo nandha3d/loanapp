@@ -47,7 +47,7 @@ export async function manageMasterUser(formData: FormData) {
       updateData.passwordHash = await bcrypt.hash(password, 10);
     }
     await prisma.user.update({
-      where: { id },
+      where: { id, tenantId },
       data: updateData
     });
     await prisma.auditLog.create({

@@ -3,6 +3,7 @@ import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import ApprovalsClient from './ApprovalsClient';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
+import { getDictionary } from '@/lib/i18n';
 
 export default async function ApprovalsPage() {
   const session = await auth();
@@ -15,6 +16,7 @@ export default async function ApprovalsPage() {
 
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
+  const dict = await getDictionary(tenantId);
   
   const where: any = { tenantId, appType };
   if (userRole === 'agent') {
@@ -30,5 +32,5 @@ export default async function ApprovalsPage() {
     orderBy: { createdAt: 'desc' }
   });
 
-  return <ApprovalsClient requests={requests} userRole={userRole} />;
+  return <ApprovalsClient requests={requests} userRole={userRole} dict={dict} />;
 }

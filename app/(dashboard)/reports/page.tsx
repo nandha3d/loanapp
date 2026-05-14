@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import ReportsClient from './ReportsClient';
+import { getDictionary } from '@/lib/i18n';
 
 export default async function ReportsPage({
   searchParams,
@@ -17,6 +18,7 @@ export default async function ReportsPage({
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
+  const dict = await getDictionary(tenantId);
 
   // Parse date range
   const now = new Date();
@@ -197,6 +199,7 @@ export default async function ReportsPage({
       agents={agents}
       currencySymbol={currencySymbol}
       filters={{ from: fromStr, to: toStr, routeId, agentId }}
+      dict={dict}
     />
   );
 }

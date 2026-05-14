@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { markNotificationRead, markAllNotificationsRead } from './actions';
 import { useRouter } from 'next/navigation';
 
+
 const iconColorMap: Record<string, string> = {
   warning: '#F59E0B',
   danger: '#EF4444',
@@ -18,23 +19,26 @@ const defaultIconMap: Record<string, string> = {
   success: 'check_circle',
 };
 
-function timeAgo(dateStr: string): string {
+function timeAgo(dateStr: string, d: any): string {
   const now = new Date();
   const date = new Date(dateStr);
   const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-  if (diff < 60) return 'Just now';
-  if (diff < 3600) return `${Math.floor(diff / 60)} minutes ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`;
-  if (diff < 172800) return 'Yesterday';
-  return `${Math.floor(diff / 86400)} days ago`;
+  if (diff < 60) return d.justNow;
+  if (diff < 3600) return `${Math.floor(diff / 60)} ${d.minutesAgo}`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} ${d.hoursAgo}`;
+  if (diff < 172800) return d.yesterday;
+  return `${Math.floor(diff / 86400)} ${d.daysAgo}`;
 }
 
 export default function NotificationsClient({
   notifications,
+  dict,
 }: {
   notifications: any[];
+  dict: any;
 }) {
+  const d = dict.notifications;
   const router = useRouter();
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(false);
@@ -61,11 +65,11 @@ export default function NotificationsClient({
   };
 
   const filterButtons = [
-    { key: 'all', label: 'All' },
-    { key: 'warning', label: '⚠️ Warnings' },
-    { key: 'danger', label: '🔴 Critical' },
-    { key: 'info', label: 'ℹ️ Info' },
-    { key: 'success', label: '✅ Success' },
+    { key: 'all', label: d.all },
+    { key: 'warning', label: d.warnings },
+    { key: 'danger', label: d.critical },
+    { key: 'info', label: d.infoLabel },
+    { key: 'success', label: d.successLabel },
   ];
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
@@ -73,10 +77,10 @@ export default function NotificationsClient({
   return (
     <div className="card">
       <div className="card-header">
-        <h3>🔔 Notifications {unreadCount > 0 && <span className="badge badge-pending" style={{ marginLeft: '8px' }}>{unreadCount} unread</span>}</h3>
+        <h3>🔔 {d.title} {unreadCount > 0 && <span className="badge badge-pending" style={{ marginLeft: '8px' }}>{unreadCount} {d.unread}</span>}</h3>
         <button className="btn btn-ghost btn-sm" onClick={handleMarkAllRead} disabled={loading || unreadCount === 0}>
           <span className="material-icons-outlined" style={{ fontSize: '14px' }}>done_all</span>
-          {loading ? 'Marking...' : 'Mark All Read'}
+          {loading ? d.marking : d.markAllRead}
         </button>
       </div>
 
@@ -131,12 +135,12 @@ export default function NotificationsClient({
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                   <h4 style={{ fontSize: '.9rem', fontWeight: 600 }}>
-                    {n.title || 'Notification'}
+                    {n.title || d.notificationFallback}
                     {!n.isRead && (
                       <span style={{ width: '8px', height: '8px', background: 'var(--primary)', borderRadius: '50%', display: 'inline-block', marginLeft: '6px' }} />
                     )}
                   </h4>
-                  <span style={{ fontSize: '.72rem', color: 'var(--text-light)', whiteSpace: 'nowrap' }}>{timeAgo(n.createdAt)}</span>
+                  <span style={{ fontSize: '.72rem', color: 'var(--text-light)', whiteSpace: 'nowrap' }}>{timeAgo(n.createdAt, d)}</span>
                 </div>
                 <p style={{ fontSize: '.82rem', color: 'var(--text-secondary)', marginTop: '4px' }}>{n.message}</p>
               </div>
@@ -145,7 +149,7 @@ export default function NotificationsClient({
         })}
         {filtered.length === 0 && (
           <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-light)', fontSize: '.85rem' }}>
-            No notifications found.
+            {d.noNotificationsFound}
           </div>
         )}
       </div>

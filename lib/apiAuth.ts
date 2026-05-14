@@ -1,5 +1,5 @@
 import { auth } from '@/lib/auth';
-import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
+import { getCurrentTenantId, getUserAppType } from '@/lib/tenant';
 import { apiError } from '@/lib/utils';
 
 export const ADMIN_API_ROLES = ['admin', 'superadmin', 'developer'];
@@ -24,7 +24,7 @@ export async function requireApiContext(allowedRoles: string[] = AUTHENTICATED_A
   const role = (session.user as { role?: string })?.role || '';
   if (!allowedRoles.includes(role)) return { response: apiError('Forbidden', 403) };
 
-  const tenantId = await getDefaultTenantId();
+  const tenantId = await getCurrentTenantId();
   const appType = await getUserAppType();
 
   return {

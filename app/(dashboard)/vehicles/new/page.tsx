@@ -2,11 +2,13 @@ import prisma from '@/lib/db';
 import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { requireModule } from '@/lib/moduleGate';
 import VehicleForm from './VehicleForm';
+import { getDictionary } from '@/lib/i18n';
 
 export default async function NewVehiclePage() {
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
   await requireModule(tenantId, 'autofinance');
+  const dict = await getDictionary(tenantId);
 
   const [customers, loans] = await Promise.all([
     prisma.customer.findMany({
@@ -23,7 +25,7 @@ export default async function NewVehiclePage() {
 
   return (
     <div>
-      <VehicleForm customers={customers} loans={loans} />
+      <VehicleForm customers={customers} loans={loans} dict={dict} />
     </div>
   );
 }

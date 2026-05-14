@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { ensurePendingPenaltiesForMissedLoans } from '@/lib/penalties';
 import PenaltiesClient from './PenaltiesClient';
+import { getDictionary } from '@/lib/i18n';
 
 export default async function PenaltiesPage({
   searchParams,
@@ -18,6 +19,7 @@ export default async function PenaltiesPage({
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
+  const dict = await getDictionary(tenantId);
 
   const resolvedParams = await searchParams;
   const q = resolvedParams.q || '';
@@ -89,6 +91,7 @@ export default async function PenaltiesPage({
       routes={routes}
       currencySymbol={currencySymbol}
       filters={{ q, status, routeId }}
+      dict={dict}
     />
   );
 }
