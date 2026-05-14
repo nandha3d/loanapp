@@ -5,13 +5,18 @@ import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth';
 import { getAgentRouteIds } from '@/lib/access';
+import {
+  allocatePaymentsAcrossInstalments,
+  describeAllocationForPayment,
+  reallocateLoanRepayments,
+} from '@/lib/repayments';
 
 export async function submitCollectionEntry(formData: FormData) {
   const session = await auth();
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
   const userId = session?.user?.id;
-  const role = (session?.user as any)?.role;
+  const role = (session?.user as { role?: string })?.role;
 
   if (!userId) {
     return { success: false, error: 'Not authenticated' };
@@ -19,14 +24,13 @@ export async function submitCollectionEntry(formData: FormData) {
 
   const instalmentId = formData.get('instalmentId') as string;
   const receivedAmount = Number(formData.get('receivedAmount'));
-  const paymentMode = formData.get('paymentMode') as string || 'cash';
-  const remarks = formData.get('remarks') as string || null;
+  const paymentMode = (formData.get('paymentMode') as string) || 'cash';
+  const remarks = (formData.get('remarks') as string) || null;
 
   if (!instalmentId || !receivedAmount || receivedAmount <= 0) {
     return { success: false, error: 'Invalid amount' };
   }
 
-  // Fetch instalment with loan
   const instalment = await prisma.instalment.findUnique({
     where: { id: instalmentId },
     include: { loan: { include: { customer: true } } },
@@ -36,7 +40,6 @@ export async function submitCollectionEntry(formData: FormData) {
     return { success: false, error: 'Instalment not found' };
   }
 
-  // Agents must only collect for their assigned/shared routes
   if (role === 'agent') {
     const customerRouteId = instalment.loan.customer.routeId;
     if (!customerRouteId) {
@@ -48,22 +51,13 @@ export async function submitCollectionEntry(formData: FormData) {
     }
   }
 
-  if (instalment.status === 'paid') {
-    return { success: false, error: 'Already paid' };
-  }
-
-  const dueAmount = Number(instalment.dueAmount);
-  const currentReceived = Number(instalment.receivedAmount) || 0;
-  const paymentAmount = receivedAmount; // the new payment being submitted
-  const newTotal = currentReceived + paymentAmount;
-  const newStatus = newTotal >= dueAmount ? 'paid' : 'partial';
+  const paymentAmount = receivedAmount;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   await prisma.$transaction(async (tx) => {
-    // Find or create today's DailyCollection for this agent (scoped by tenant + appType)
     let dailyCollection = await tx.dailyCollection.findFirst({
-      where: { agentId: userId, date: today, tenantId, appType },
+      where: { agentId: userId, date: today, tenantId },
     });
 
     if (!dailyCollection) {
@@ -83,53 +77,38 @@ export async function submitCollectionEntry(formData: FormData) {
       });
     }
 
-    // Create collection entry
+    const [loanInstalments, existingEntries] = await Promise.all([
+      tx.instalment.findMany({
+        where: { loanId: instalment.loanId },
+        orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
+        select: { id: true, instalmentNo: true, dueDate: true, dueAmount: true },
+      }),
+      tx.collectionEntry.findMany({
+        where: { loanId: instalment.loanId },
+        select: { receivedAmount: true },
+      }),
+    ]);
+    const previousTotal = existingEntries.reduce((sum, entry) => sum + Number(entry.receivedAmount), 0);
+    const beforeAllocation = allocatePaymentsAcrossInstalments(loanInstalments, previousTotal);
+    const afterAllocation = allocatePaymentsAcrossInstalments(loanInstalments, previousTotal + paymentAmount);
+    const allocationRemark = describeAllocationForPayment(beforeAllocation, afterAllocation);
+    const mergedRemarks = [remarks, allocationRemark].filter(Boolean).join(' | ');
+
     const entry = await tx.collectionEntry.create({
       data: {
         collectionId: dailyCollection.id,
         customerId: instalment.loan.customerId,
         loanId: instalment.loanId,
-        dueAmount,
+        dueAmount: Number(instalment.dueAmount),
         receivedAmount: paymentAmount,
         paymentMode,
-        remarks,
+        remarks: mergedRemarks,
         agentId: userId,
       },
     });
 
-    // Update instalment — accumulate, do not overwrite
-    await tx.instalment.update({
-      where: { id: instalmentId },
-      data: {
-        receivedAmount: { increment: paymentAmount },
-        paymentMode,
-        remarks,
-        status: newStatus,
-        receivedAt: new Date(),
-        agentId: userId,
-        collectionEntryId: entry.id,
-      },
-    });
+    await reallocateLoanRepayments(tx, instalment.loanId);
 
-    // Recalculate loan totals from fresh instalment data
-    const allInstalments = await tx.instalment.findMany({
-      where: { loanId: instalment.loanId },
-    });
-
-    const paidCount = allInstalments.filter(i => i.status === 'paid').length;
-    const totalCollected = allInstalments.reduce((sum, i) => sum + Number(i.receivedAmount), 0);
-    const allPaid = paidCount === allInstalments.length;
-
-    await tx.loan.update({
-      where: { id: instalment.loanId },
-      data: {
-        paidCount,
-        totalCollected,
-        ...(allPaid ? { status: 'closed', closedAt: new Date() } : {}),
-      },
-    });
-
-    // Update daily collection totals
     const allEntries = await tx.collectionEntry.findMany({
       where: { collectionId: dailyCollection.id },
     });
@@ -137,13 +116,12 @@ export async function submitCollectionEntry(formData: FormData) {
     await tx.dailyCollection.update({
       where: { id: dailyCollection.id },
       data: {
-        totalCollected: allEntries.reduce((s, e) => s + Number(e.receivedAmount), 0),
-        totalExpected: allEntries.reduce((s, e) => s + Number(e.dueAmount), 0),
+        totalCollected: allEntries.reduce((sum, entryItem) => sum + Number(entryItem.receivedAmount), 0),
+        totalExpected: allEntries.reduce((sum, entryItem) => sum + Number(entryItem.dueAmount), 0),
         entriesCount: allEntries.length,
       },
     });
 
-    // Audit log
     await tx.auditLog.create({
       data: {
         tenantId,
@@ -156,6 +134,7 @@ export async function submitCollectionEntry(formData: FormData) {
           loanCode: instalment.loan.loanCode,
           receivedAmount: paymentAmount,
           paymentMode,
+          allocation: allocationRemark,
         }),
       },
     });
@@ -163,5 +142,6 @@ export async function submitCollectionEntry(formData: FormData) {
 
   revalidatePath('/collection');
   revalidatePath('/dashboard');
+  revalidatePath(`/loans/${instalment.loanId}`);
   return { success: true };
 }

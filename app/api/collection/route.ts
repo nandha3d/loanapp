@@ -2,6 +2,11 @@ import prisma from '@/lib/db';
 import { AUTHENTICATED_API_ROLES, isApiError, requireApiContext, scopedBranchWhere } from '@/lib/apiAuth';
 import { getAgentRouteIds } from '@/lib/access';
 import { apiCreated, apiError, apiSuccess } from '@/lib/utils';
+import {
+  allocatePaymentsAcrossInstalments,
+  describeAllocationForPayment,
+  reallocateLoanRepayments,
+} from '@/lib/repayments';
 
 function parseDay(value: string | null) {
   const day = value ? new Date(value) : new Date();
@@ -87,93 +92,83 @@ export async function POST(request: Request) {
       const routeIds = await getAgentRouteIds(context.userId);
       if (!customerRouteId || !routeIds.includes(customerRouteId)) return apiError('Forbidden', 403);
     }
-    if (instalment.status === 'paid') return apiError('Already paid', 409);
 
-    const dueAmount = Number(instalment.dueAmount);
-    const newStatus = receivedAmount >= dueAmount ? 'paid' : 'partial';
     const today = parseDay(null);
+    const entry = await prisma.$transaction(async (tx) => {
+      let dailyCollection = await tx.dailyCollection.findFirst({
+        where: { agentId: context.userId, date: today, tenantId: context.tenantId },
+      });
+      if (!dailyCollection) {
+        dailyCollection = await tx.dailyCollection.create({
+          data: {
+            tenantId: context.tenantId,
+            branchId: instalment.loan.branchId,
+            agentId: context.userId,
+            routeId: instalment.loan.customer.routeId,
+            date: today,
+            totalExpected: 0,
+            totalCollected: 0,
+            entriesCount: 0,
+            appType: context.appType,
+            status: 'open',
+          },
+        });
+      }
 
-    let dailyCollection = await prisma.dailyCollection.findFirst({
-      where: { agentId: context.userId, date: today, tenantId: context.tenantId, appType: context.appType },
-    });
-    if (!dailyCollection) {
-      dailyCollection = await prisma.dailyCollection.create({
+      const [loanInstalments, existingEntries] = await Promise.all([
+        tx.instalment.findMany({
+          where: { loanId: instalment.loanId },
+          orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
+          select: { id: true, instalmentNo: true, dueDate: true, dueAmount: true },
+        }),
+        tx.collectionEntry.findMany({
+          where: { loanId: instalment.loanId },
+          select: { receivedAmount: true },
+        }),
+      ]);
+      const previousTotal = existingEntries.reduce((sum, item) => sum + Number(item.receivedAmount), 0);
+      const beforeAllocation = allocatePaymentsAcrossInstalments(loanInstalments, previousTotal);
+      const afterAllocation = allocatePaymentsAcrossInstalments(loanInstalments, previousTotal + receivedAmount);
+      const allocationRemark = describeAllocationForPayment(beforeAllocation, afterAllocation);
+      const mergedRemarks = [remarks, allocationRemark].filter(Boolean).join(' | ');
+
+      const created = await tx.collectionEntry.create({
         data: {
-          tenantId: context.tenantId,
-          branchId: instalment.loan.branchId,
+          collectionId: dailyCollection.id,
+          customerId: instalment.loan.customerId,
+          loanId: instalment.loanId,
+          dueAmount: Number(instalment.dueAmount),
+          receivedAmount,
+          paymentMode,
+          remarks: mergedRemarks,
           agentId: context.userId,
-          routeId: instalment.loan.customer.routeId,
-          date: today,
-          totalExpected: 0,
-          totalCollected: 0,
-          entriesCount: 0,
-          appType: context.appType,
-          status: 'open',
         },
       });
-    }
 
-    const entry = await prisma.collectionEntry.create({
-      data: {
-        collectionId: dailyCollection.id,
-        customerId: instalment.loan.customerId,
-        loanId: instalment.loanId,
-        dueAmount,
-        receivedAmount,
-        paymentMode,
-        remarks,
-        agentId: context.userId,
-      },
-    });
+      await reallocateLoanRepayments(tx, instalment.loanId);
 
-    await prisma.instalment.update({
-      where: { id: instalmentId },
-      data: {
-        receivedAmount,
-        paymentMode,
-        remarks,
-        status: newStatus,
-        receivedAt: new Date(),
-        agentId: context.userId,
-        collectionEntryId: entry.id,
-      },
-    });
+      const allEntries = await tx.collectionEntry.findMany({ where: { collectionId: dailyCollection.id } });
+      await tx.dailyCollection.update({
+        where: { id: dailyCollection.id },
+        data: {
+          totalCollected: allEntries.reduce((sum, item) => sum + Number(item.receivedAmount), 0),
+          totalExpected: allEntries.reduce((sum, item) => sum + Number(item.dueAmount), 0),
+          entriesCount: allEntries.length,
+        },
+      });
 
-    const allInstalments = await prisma.instalment.findMany({ where: { loanId: instalment.loanId } });
-    const paidCount = allInstalments.filter((item) => item.id === instalmentId ? newStatus === 'paid' : item.status === 'paid').length;
-    const totalCollected = allInstalments.reduce((sum, item) => {
-      if (item.id === instalmentId) return sum + receivedAmount;
-      return sum + Number(item.receivedAmount);
-    }, 0);
+      await tx.auditLog.create({
+        data: {
+          tenantId: context.tenantId,
+          userId: context.userId,
+          action: 'create',
+          entityType: 'collection',
+          entityId: created.id,
+          newValue: JSON.stringify({ instalmentId, receivedAmount, paymentMode, allocation: allocationRemark }),
+        },
+      });
 
-    await prisma.loan.update({
-      where: { id: instalment.loanId },
-      data: {
-        paidCount,
-        totalCollected,
-        ...(paidCount === allInstalments.length ? { status: 'closed', closedAt: new Date() } : {}),
-      },
-    });
-
-    const allEntries = await prisma.collectionEntry.findMany({ where: { collectionId: dailyCollection.id } });
-    await prisma.dailyCollection.update({
-      where: { id: dailyCollection.id },
-      data: {
-        totalCollected: allEntries.reduce((sum, item) => sum + Number(item.receivedAmount), 0),
-        totalExpected: allEntries.reduce((sum, item) => sum + Number(item.dueAmount), 0),
-        entriesCount: allEntries.length,
-      },
-    });
-
-    await prisma.auditLog.create({
-      data: {
-        tenantId: context.tenantId,
-        userId: context.userId,
-        action: 'create',
-        entityType: 'collection',
-        entityId: entry.id,
-        newValue: JSON.stringify({ instalmentId, receivedAmount, paymentMode }),
-      },
+      return created;
     });
 
     return apiCreated(entry);
