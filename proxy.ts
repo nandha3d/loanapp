@@ -28,9 +28,10 @@ const PUBLIC_PREFIXES = [
   '/_next',
   '/api',
   '/assets',
+  '/fonts',
 ];
 
-function isPublicPath(pathname: string): boolean {
+export function isPublicPath(pathname: string): boolean {
   return (
     pathname === '/favicon.ico' ||
     pathname === '/login' ||
@@ -115,5 +116,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|assets).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|assets|fonts).*)'],
 };
