@@ -163,32 +163,38 @@ export default function CollectionClient({
     setLoading(true);
     const fd = new FormData();
     fd.set('instalmentId', modal.id);
-    
+
     const isEditRequest = modal.receivedAmount > 0 && !isAdmin;
 
-    if (isEditRequest) {
-      fd.set('requestedAmount', String(amount));
-      fd.set('reason', reason);
-      const result = await requestCollectionEdit(fd);
-      setLoading(false);
-      if (result.success) {
-        setModal(null);
-        alert('Edit request submitted successfully.');
+    try {
+      if (isEditRequest) {
+        fd.set('requestedAmount', String(amount));
+        fd.set('reason', reason);
+        const result = await requestCollectionEdit(fd);
+        setLoading(false);
+        if (result.success) {
+          setModal(null);
+          alert('Edit request submitted successfully.');
+        } else {
+          alert(result.error || 'Failed to submit request');
+        }
       } else {
-        alert(result.error || 'Failed to submit request');
+        fd.set('receivedAmount', String(amount));
+        fd.set('paymentMode', mode);
+        fd.set('remarks', remarks);
+        const result = await submitCollectionEntry(fd);
+        setLoading(false);
+        if (result.success) {
+          setModal(null);
+          router.refresh();
+        } else {
+          alert(result.error || 'Failed to submit');
+        }
       }
-    } else {
-      fd.set('receivedAmount', String(amount));
-      fd.set('paymentMode', mode);
-      fd.set('remarks', remarks);
-      const result = await submitCollectionEntry(fd);
+    } catch (err) {
       setLoading(false);
-      if (result.success) {
-        setModal(null);
-        router.refresh();
-      } else {
-        alert(result.error || 'Failed to submit');
-      }
+      const message = err instanceof Error ? err.message : 'An unexpected error occurred';
+      alert(message);
     }
   };
 
