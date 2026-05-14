@@ -130,11 +130,12 @@ export default function Topbar({ dict, currentLang }: { dict: any; currentLang: 
       </div>
 
       <div className="topbar-right">
-        <select 
-          className="form-control" 
+        <select
+          className="form-control"
           style={{ width: 'auto', padding: '4px 8px', fontSize: '.85rem', marginRight: '10px' }}
           onChange={(e) => updateLanguage(e.target.value)}
           value={currentLang}
+          suppressHydrationWarning
         >
           <option value="en">English</option>
           <option value="ta">Tamil (தமிழ்)</option>

@@ -33,6 +33,17 @@ type RouteOption = {
   name: string;
 };
 
+type CustomerOverdueGroup = {
+  customerId: string;
+  customerName: string;
+  customerCode: string;
+  routeName: string;
+  instalments: CollectionRow[];
+  totalOutstanding: number;
+  totalOverdue: number;
+  maxDaysOverdue: number;
+};
+
 export default function CollectionClient({
   todayInstalments,
   overdueInstalments,
@@ -55,7 +66,7 @@ export default function CollectionClient({
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'today' | 'overdue'>('today');
   const [modal, setModal] = useState<CollectionRow | null>(null);
-  const [overdueDetail, setOverdueDetail] = useState<CollectionRow | null>(null);
+  const [overdueCustomerGroup, setOverdueCustomerGroup] = useState<CustomerOverdueGroup | null>(null);
   const [loading, setLoading] = useState(false);
   const [amount, setAmount] = useState(0);
   const [mode, setMode] = useState('cash');
@@ -100,6 +111,36 @@ export default function CollectionClient({
       maxDays: overdueInstalments.reduce((max, row) => Math.max(max, row.daysOverdue), 0),
     };
   }, [overdueInstalments]);
+
+  const groupedOverdue = useMemo<CustomerOverdueGroup[]>(() => {
+    const map = new Map<string, CustomerOverdueGroup>();
+    const rows = activeTab === 'overdue' ? filteredRows : [];
+    for (const row of rows) {
+      const cid = row.loan.customer.id;
+      if (!map.has(cid)) {
+        map.set(cid, {
+          customerId: cid,
+          customerName: row.loan.customer.name,
+          customerCode: row.loan.customer.customerCode,
+          routeName: row.loan.customer.route?.name || '-',
+          instalments: [],
+          totalOutstanding: 0,
+          totalOverdue: 0,
+          maxDaysOverdue: 0,
+        });
+      }
+      const g = map.get(cid)!;
+      g.instalments.push(row);
+      g.totalOutstanding += row.outstandingAmount;
+      g.totalOverdue += row.overdueAmount;
+      g.maxDaysOverdue = Math.max(g.maxDaysOverdue, row.daysOverdue);
+    }
+    // sort each customer's instalments oldest-first
+    for (const g of map.values()) {
+      g.instalments.sort((a, b) => b.daysOverdue - a.daysOverdue);
+    }
+    return Array.from(map.values()).sort((a, b) => b.maxDaysOverdue - a.maxDaysOverdue);
+  }, [activeTab, filteredRows]);
 
   const todayStr = new Date().toLocaleDateString('en-IN', {
     weekday: 'long',
@@ -242,8 +283,8 @@ export default function CollectionClient({
     </div>
   );
 
-  const renderOverdueCards = (rows: CollectionRow[]) => {
-    if (rows.length === 0) {
+  const renderOverdueCards = (groups: CustomerOverdueGroup[]) => {
+    if (groups.length === 0) {
       return (
         <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-light)' }}>
           <span className="material-icons-outlined" style={{ fontSize: '36px', display: 'block', marginBottom: '8px' }}>check_circle</span>
@@ -253,85 +294,83 @@ export default function CollectionClient({
     }
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {rows.map((instalment) => {
-          const isPaid = instalment.receivedAmount > 0;
-          const isSettled = instalment.outstandingAmount <= 0;
-          return (
-            <div
-              key={instalment.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '12px 16px',
-                borderRadius: 'var(--radius-sm)',
-                background: 'var(--bg)',
-                border: '1px solid var(--border)',
-                opacity: isSettled ? 0.62 : 1,
-                transition: 'box-shadow .15s',
-              }}
-            >
-              {/* Avatar */}
-              <div
-                className="profile-avatar"
-                style={{ width: '38px', height: '38px', fontSize: '.8rem', flexShrink: 0 }}
-              >
-                {getInitials(instalment.loan.customer.name)}
-              </div>
-
-              {/* Customer info */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <Link href={`/customers/${instalment.loan.customer.customerCode}`} style={{ fontWeight: 600, fontSize: '.92rem' }}>
-                  {instalment.loan.customer.name}
-                </Link>
-                <div style={{ fontSize: '.72rem', color: 'var(--text-light)', marginTop: '2px' }}>
-                  {instalment.loan.customer.customerCode} · {instalment.loan.customer.route?.name || '-'}
-                  {' · '}
-                  <Link href={`/loans/${instalment.loan.id}`} style={{ color: 'var(--primary)' }}>
-                    {instalment.loan.loanCode}
-                  </Link>
-                  {' #'}{instalment.instalmentNo}
-                </div>
-              </div>
-
-              {/* Days overdue badge */}
-              {instalment.daysOverdue > 0 && (
-                <span
-                  style={{
-                    flexShrink: 0,
-                    fontSize: '.72rem',
-                    fontWeight: 700,
-                    padding: '3px 8px',
-                    borderRadius: '20px',
-                    background: 'rgba(var(--danger-rgb, 239,68,68),.12)',
-                    color: 'var(--danger)',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {instalment.daysOverdue}d overdue
-                </span>
-              )}
-
-              {/* Outstanding amount */}
-              <div style={{ textAlign: 'right', flexShrink: 0, minWidth: '80px' }}>
-                <div style={{ fontWeight: 700, color: instalment.outstandingAmount > 0 ? 'var(--danger)' : 'var(--success)', fontSize: '.92rem' }}>
-                  {formatCurrency(instalment.outstandingAmount, currencySymbol)}
-                </div>
-                <div style={{ fontSize: '.7rem', color: 'var(--text-light)' }}>outstanding</div>
-              </div>
-
-              {/* Details button */}
-              <button
-                className="btn btn-ghost btn-sm"
-                style={{ flexShrink: 0 }}
-                onClick={() => setOverdueDetail(instalment)}
-              >
-                <span className="material-icons-outlined" style={{ fontSize: '14px' }}>info</span>
-                Details
-              </button>
+        {groups.map((group) => (
+          <div
+            key={group.customerId}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '12px 16px',
+              borderRadius: 'var(--radius-sm)',
+              background: 'var(--bg)',
+              border: '1px solid var(--border)',
+            }}
+          >
+            {/* Avatar */}
+            <div className="profile-avatar" style={{ width: '40px', height: '40px', fontSize: '.8rem', flexShrink: 0 }}>
+              {getInitials(group.customerName)}
             </div>
-          );
-        })}
+
+            {/* Customer info */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <Link href={`/customers/${group.customerCode}`} style={{ fontWeight: 600, fontSize: '.92rem' }}>
+                {group.customerName}
+              </Link>
+              <div style={{ fontSize: '.72rem', color: 'var(--text-light)', marginTop: '2px' }}>
+                {group.customerCode} · {group.routeName}
+              </div>
+            </div>
+
+            {/* Missed count */}
+            <span style={{
+              flexShrink: 0,
+              fontSize: '.72rem',
+              fontWeight: 600,
+              padding: '3px 8px',
+              borderRadius: '20px',
+              background: 'rgba(245,158,11,.12)',
+              color: 'var(--warning, #D97706)',
+              whiteSpace: 'nowrap',
+            }}>
+              {group.instalments.length} missed
+            </span>
+
+            {/* Max days overdue */}
+            {group.maxDaysOverdue > 0 && (
+              <span style={{
+                flexShrink: 0,
+                fontSize: '.72rem',
+                fontWeight: 700,
+                padding: '3px 8px',
+                borderRadius: '20px',
+                background: 'rgba(239,68,68,.1)',
+                color: 'var(--danger)',
+                whiteSpace: 'nowrap',
+              }}>
+                {group.maxDaysOverdue}d overdue
+              </span>
+            )}
+
+            {/* Total outstanding */}
+            <div style={{ textAlign: 'right', flexShrink: 0, minWidth: '88px' }}>
+              <div style={{ fontWeight: 700, color: 'var(--danger)', fontSize: '.92rem' }}>
+                {formatCurrency(group.totalOutstanding, currencySymbol)}
+              </div>
+              <div style={{ fontSize: '.7rem', color: 'var(--text-light)' }}>outstanding</div>
+            </div>
+
+            {/* Details button */}
+            <button
+              className="btn btn-ghost btn-sm"
+              style={{ flexShrink: 0 }}
+              onClick={() => setOverdueCustomerGroup(group)}
+            >
+              <span className="material-icons-outlined" style={{ fontSize: '14px' }}>receipt_long</span>
+              Details
+            </button>
+          </div>
+        ))}
       </div>
     );
   };
@@ -353,24 +392,39 @@ export default function CollectionClient({
 
       <div className="summary-bar" style={{ marginBottom: '20px' }}>
         <div className="summary-item">
-          <div className="summary-value">{formatCurrency(todayTotals.due, currencySymbol)}</div>
+          <div className="summary-item-icon" style={{ background: 'rgba(249,115,22,.12)' }}>
+            <span className="material-icons-outlined" style={{ color: 'var(--primary)', fontSize: '18px' }}>today</span>
+          </div>
           <div className="summary-label">Today Due</div>
+          <div className="summary-value">{formatCurrency(todayTotals.due, currencySymbol)}</div>
         </div>
         <div className="summary-item">
+          <div className="summary-item-icon" style={{ background: 'rgba(16,185,129,.12)' }}>
+            <span className="material-icons-outlined" style={{ color: 'var(--success)', fontSize: '18px' }}>check_circle</span>
+          </div>
+          <div className="summary-label">Collected Today</div>
           <div className="summary-value" style={{ color: 'var(--success)' }}>{formatCurrency(todayTotals.collected, currencySymbol)}</div>
-          <div className="summary-label">Adjusted Today</div>
         </div>
         <div className="summary-item">
-          <div className="summary-value" style={{ color: 'var(--warning, #F59E0B)' }}>{formatCurrency(todayTotals.outstanding, currencySymbol)}</div>
+          <div className="summary-item-icon" style={{ background: 'rgba(245,158,11,.12)' }}>
+            <span className="material-icons-outlined" style={{ color: '#D97706', fontSize: '18px' }}>account_balance_wallet</span>
+          </div>
           <div className="summary-label">Today Balance</div>
+          <div className="summary-value" style={{ color: '#D97706' }}>{formatCurrency(todayTotals.outstanding, currencySymbol)}</div>
         </div>
         <div className="summary-item">
-          <div className="summary-value" style={{ color: 'var(--danger)' }}>{formatCurrency(overdueTotals.amount, currencySymbol)}</div>
+          <div className="summary-item-icon" style={{ background: 'rgba(239,68,68,.12)' }}>
+            <span className="material-icons-outlined" style={{ color: 'var(--danger)', fontSize: '18px' }}>warning_amber</span>
+          </div>
           <div className="summary-label">Overdue ({overdueTotals.count})</div>
+          <div className="summary-value" style={{ color: 'var(--danger)' }}>{formatCurrency(overdueTotals.amount, currencySymbol)}</div>
         </div>
         <div className="summary-item">
-          <div className="summary-value">{overdueTotals.maxDays}d</div>
+          <div className="summary-item-icon" style={{ background: 'rgba(99,102,241,.12)' }}>
+            <span className="material-icons-outlined" style={{ color: '#6366F1', fontSize: '18px' }}>schedule</span>
+          </div>
           <div className="summary-label">Oldest Due</div>
+          <div className="summary-value" style={{ color: '#6366F1' }}>{overdueTotals.maxDays}d</div>
         </div>
       </div>
 
@@ -413,83 +467,155 @@ export default function CollectionClient({
           <button type="button" className="btn btn-ghost" onClick={clearFilters}>Clear</button>
         </div>
 
-        {activeTab === 'today' ? renderRows(filteredRows) : renderOverdueCards(filteredRows)}
+        {activeTab === 'today' ? renderRows(filteredRows) : renderOverdueCards(groupedOverdue)}
       </div>
 
-      {/* ── Overdue Detail Popup ─────────────────────────────── */}
-      {overdueDetail && (
+      {/* ── Overdue Customer Detail Popup ─────────────────── */}
+      {overdueCustomerGroup && (
         <div
           className="modal-overlay show"
-          onClick={(e) => { if (e.target === e.currentTarget) setOverdueDetail(null); }}
+          onClick={(e) => { if (e.target === e.currentTarget) setOverdueCustomerGroup(null); }}
         >
-          <div className="modal" style={{ maxWidth: '420px' }}>
+          <div className="modal" style={{ maxWidth: '620px', width: '95vw' }}>
             <div className="modal-header">
-              <h3 style={{ fontSize: '1rem' }}>Instalment Details</h3>
-              <button className="modal-close material-icons-outlined" onClick={() => setOverdueDetail(null)}>close</button>
-            </div>
-            <div className="modal-body" style={{ padding: '16px 20px' }}>
-              {/* Customer & loan */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-                <div className="profile-avatar" style={{ width: '42px', height: '42px', fontSize: '.85rem', flexShrink: 0 }}>
-                  {getInitials(overdueDetail.loan.customer.name)}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div className="profile-avatar" style={{ width: '36px', height: '36px', fontSize: '.8rem', flexShrink: 0 }}>
+                  {getInitials(overdueCustomerGroup.customerName)}
                 </div>
                 <div>
-                  <Link
-                    href={`/customers/${overdueDetail.loan.customer.customerCode}`}
-                    style={{ fontWeight: 700, fontSize: '.95rem' }}
-                    onClick={() => setOverdueDetail(null)}
-                  >
-                    {overdueDetail.loan.customer.name}
-                  </Link>
-                  <div style={{ fontSize: '.75rem', color: 'var(--text-light)', marginTop: '2px' }}>
-                    {overdueDetail.loan.customer.customerCode} · {overdueDetail.loan.customer.route?.name || '-'}
+                  <h3 style={{ fontSize: '1rem', margin: 0 }}>
+                    <Link
+                      href={`/customers/${overdueCustomerGroup.customerCode}`}
+                      onClick={() => setOverdueCustomerGroup(null)}
+                    >
+                      {overdueCustomerGroup.customerName}
+                    </Link>
+                  </h3>
+                  <div style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>
+                    {overdueCustomerGroup.customerCode} · {overdueCustomerGroup.routeName}
                   </div>
                 </div>
               </div>
+              <button className="modal-close material-icons-outlined" onClick={() => setOverdueCustomerGroup(null)}>close</button>
+            </div>
 
-              {/* Key-value grid */}
+            <div className="modal-body" style={{ padding: '0', maxHeight: '70vh', overflowY: 'auto' }}>
+              {/* Summary row */}
               <div style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '10px',
+                display: 'flex',
+                gap: '0',
+                borderBottom: '1px solid var(--border)',
                 background: 'var(--bg)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '14px',
-                marginBottom: '16px',
               }}>
                 {[
-                  { label: 'Loan', value: <Link href={`/loans/${overdueDetail.loan.id}`} style={{ color: 'var(--primary)' }} onClick={() => setOverdueDetail(null)}>{overdueDetail.loan.loanCode}</Link> },
-                  { label: 'Instalment', value: `#${overdueDetail.instalmentNo}` },
-                  { label: 'Due Date', value: formatDate(overdueDetail.dueDate) },
-                  { label: 'Days Overdue', value: <span style={{ color: 'var(--danger)', fontWeight: 700 }}>{overdueDetail.daysOverdue}d</span> },
-                  { label: 'Due Amount', value: formatCurrency(overdueDetail.dueAmount, currencySymbol) },
-                  { label: 'Received', value: overdueDetail.receivedAmount > 0 ? formatCurrency(overdueDetail.receivedAmount, currencySymbol) : '-' },
-                  { label: 'Outstanding', value: <span style={{ color: overdueDetail.outstandingAmount > 0 ? 'var(--danger)' : 'var(--success)', fontWeight: 700 }}>{formatCurrency(overdueDetail.outstandingAmount, currencySymbol)}</span> },
-                  { label: 'Overdue Amount', value: overdueDetail.overdueAmount > 0 ? <span style={{ color: 'var(--danger)' }}>{formatCurrency(overdueDetail.overdueAmount, currencySymbol)}</span> : '-' },
-                ].map(({ label, value }) => (
-                  <div key={label}>
-                    <div style={{ fontSize: '.7rem', color: 'var(--text-light)', marginBottom: '2px' }}>{label}</div>
-                    <div style={{ fontSize: '.85rem', fontWeight: 500 }}>{value}</div>
+                  { label: 'Missed Instalments', value: String(overdueCustomerGroup.instalments.length) },
+                  { label: 'Oldest Due', value: `${overdueCustomerGroup.maxDaysOverdue}d` },
+                  { label: 'Total Outstanding', value: formatCurrency(overdueCustomerGroup.totalOutstanding, currencySymbol), danger: true },
+                ].map(({ label, value, danger }) => (
+                  <div key={label} style={{ flex: 1, padding: '12px 16px', textAlign: 'center', borderRight: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: '.72rem', color: 'var(--text-light)', marginBottom: '2px' }}>{label}</div>
+                    <div style={{ fontWeight: 700, fontSize: '.95rem', color: danger ? 'var(--danger)' : 'var(--text)' }}>{value}</div>
                   </div>
                 ))}
               </div>
 
-              {/* Status */}
-              <div style={{ display: 'flex', justifyContent: 'center' }}>
-                <span className={getBadgeClass(overdueDetail.status)} style={{ textTransform: 'capitalize', fontSize: '.8rem', padding: '4px 14px' }}>
-                  {overdueDetail.status}
-                </span>
+              {/* Per-instalment list */}
+              <div style={{ padding: '8px 0' }}>
+                {overdueCustomerGroup.instalments.map((inst, idx) => {
+                  const isPaid = inst.receivedAmount > 0;
+                  return (
+                    <div
+                      key={inst.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '10px 16px',
+                        borderBottom: idx < overdueCustomerGroup.instalments.length - 1 ? '1px solid var(--border)' : 'none',
+                      }}
+                    >
+                      {/* Instalment number */}
+                      <div style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '50%',
+                        background: 'var(--border)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '.7rem',
+                        fontWeight: 700,
+                        flexShrink: 0,
+                        color: 'var(--text-secondary)',
+                      }}>
+                        #{inst.instalmentNo}
+                      </div>
+
+                      {/* Date + loan */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '.85rem', fontWeight: 600 }}>{formatDate(inst.dueDate)}</div>
+                        <div style={{ fontSize: '.72rem', color: 'var(--text-light)', marginTop: '1px' }}>
+                          <Link href={`/loans/${inst.loan.id}`} style={{ color: 'var(--primary)' }} onClick={() => setOverdueCustomerGroup(null)}>
+                            {inst.loan.loanCode}
+                          </Link>
+                          {' · '}
+                          <span className={getBadgeClass(inst.status)} style={{ textTransform: 'capitalize', fontSize: '.68rem', padding: '1px 6px' }}>
+                            {inst.status}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Due / outstanding */}
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <div style={{ fontSize: '.82rem', color: 'var(--text-secondary)' }}>Due: {formatCurrency(inst.dueAmount, currencySymbol)}</div>
+                        <div style={{ fontSize: '.82rem', fontWeight: 700, color: inst.outstandingAmount > 0 ? 'var(--danger)' : 'var(--success)' }}>
+                          {formatCurrency(inst.outstandingAmount, currencySymbol)}
+                        </div>
+                      </div>
+
+                      {/* Days overdue */}
+                      {inst.daysOverdue > 0 && (
+                        <span style={{
+                          flexShrink: 0,
+                          fontSize: '.7rem',
+                          fontWeight: 700,
+                          padding: '2px 7px',
+                          borderRadius: '12px',
+                          background: 'rgba(239,68,68,.1)',
+                          color: 'var(--danger)',
+                          whiteSpace: 'nowrap',
+                        }}>
+                          {inst.daysOverdue}d
+                        </span>
+                      )}
+
+                      {/* Pay button */}
+                      {isPaid ? (
+                        isAdmin ? (
+                          <button className="btn btn-ghost btn-sm" style={{ flexShrink: 0 }}
+                            onClick={() => { setOverdueCustomerGroup(null); openModal(inst); }}>
+                            <span className="material-icons-outlined" style={{ fontSize: '13px' }}>edit</span> Edit
+                          </button>
+                        ) : (
+                          <button className="btn btn-ghost btn-sm" style={{ flexShrink: 0 }}
+                            onClick={() => { setOverdueCustomerGroup(null); openModal(inst); }}>
+                            <span className="material-icons-outlined" style={{ fontSize: '13px' }}>history_edu</span> Request
+                          </button>
+                        )
+                      ) : (
+                        <button className="btn btn-primary btn-sm" style={{ flexShrink: 0 }}
+                          onClick={() => { setOverdueCustomerGroup(null); openModal(inst); }}>
+                          <span className="material-icons-outlined" style={{ fontSize: '13px' }}>payments</span> Pay
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
+
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setOverdueDetail(null)}>Close</button>
-              <button
-                className="btn btn-primary"
-                onClick={() => { setOverdueDetail(null); openModal(overdueDetail); }}
-              >
-                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>payments</span>
-                {overdueDetail.receivedAmount > 0 ? (isAdmin ? 'Edit Payment' : 'Request Edit') : 'Pay Now'}
-              </button>
+              <button className="btn btn-secondary" onClick={() => setOverdueCustomerGroup(null)}>Close</button>
             </div>
           </div>
         </div>
