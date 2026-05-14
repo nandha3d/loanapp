@@ -115,21 +115,15 @@ export async function POST(request: Request) {
         });
       }
 
-      const [loanInstalments, existingEntries] = await Promise.all([
+      const [loanInstalments] = await Promise.all([
         tx.instalment.findMany({
           where: { loanId: instalment.loanId },
           orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
-          select: { id: true, instalmentNo: true, dueDate: true, dueAmount: true },
-        }),
-        tx.collectionEntry.findMany({
-          where: { loanId: instalment.loanId },
-          select: { receivedAmount: true },
+          select: { id: true, instalmentNo: true, dueDate: true, dueAmount: true, receivedAmount: true },
         }),
       ]);
-      const previousTotal = existingEntries.reduce((sum, item) => sum + Number(item.receivedAmount), 0);
-      const beforeAllocation = allocatePaymentsAcrossInstalments(loanInstalments, previousTotal);
-      const afterAllocation = allocatePaymentsAcrossInstalments(loanInstalments, previousTotal + receivedAmount);
-      const allocationRemark = describeAllocationForPayment(beforeAllocation, afterAllocation);
+
+      const allocationRemark = `Direct payment for instalment #${instalment.instalmentNo} (+₹${receivedAmount})`;
       const mergedRemarks = [remarks, allocationRemark].filter(Boolean).join(' | ');
 
       const created = await tx.collectionEntry.create({
@@ -143,6 +137,15 @@ export async function POST(request: Request) {
           remarks: mergedRemarks,
           agentId: context.userId,
         },
+      });
+
+      // Directly update the instalment receivedAmount
+      await tx.instalment.update({
+        where: { id: instalment.id },
+        data: { 
+          receivedAmount: { increment: receivedAmount },
+          receivedAt: new Date()
+        }
       });
 
       await reallocateLoanRepayments(tx, instalment.loanId);

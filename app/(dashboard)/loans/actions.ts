@@ -119,6 +119,40 @@ export async function createLoan(formData: FormData) {
     }
   }
 
+  // ── Automatic Template Logic ─────────────────────────────────────────────
+  // Check if a package exists for this tenure/frequency combination.
+  // If not, create one automatically with the requested naming convention.
+  const frequencyLabel = frequency.charAt(0).toUpperCase() + frequency.slice(1);
+  const unitLabel = frequency === 'daily' ? 'Day' : frequency === 'weekly' ? 'Week' : 'Month';
+  const generatedName = `${tenure}-${unitLabel} ${frequencyLabel}`;
+
+  let finalPackageId = packageId;
+  const existingPkg = await prisma.loanPackage.findFirst({
+    where: { tenantId, appType, frequency, tenure, status: 'active' }
+  });
+
+  if (!existingPkg) {
+    const newPkg = await prisma.loanPackage.create({
+      data: {
+        tenantId,
+        appType,
+        name: generatedName,
+        principal,
+        deduction,
+        deductionType,
+        frequency,
+        tenure,
+        perInstalment,
+        penaltyRate,
+        status: 'active'
+      }
+    });
+    finalPackageId = newPkg.id;
+  } else {
+    finalPackageId = existingPkg.id;
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   // Create Loan & Instalments
   const loan = await prisma.loan.create({
     data: {
@@ -126,7 +160,7 @@ export async function createLoan(formData: FormData) {
       branchId: customer?.branchId || userBranchId,
       loanCode,
       customerId,
-      packageId,
+      packageId: finalPackageId,
       loanType,
       appType,
       collateralDetails,

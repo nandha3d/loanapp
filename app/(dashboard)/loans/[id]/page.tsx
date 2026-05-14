@@ -3,6 +3,7 @@ import { getDefaultTenantId, getSetting } from '@/lib/tenant';
 import LoanDetailClient from './LoanDetailClient';
 import { notFound } from 'next/navigation';
 import { getDictionary } from '@/lib/i18n';
+import { auth } from '@/lib/auth';
 
 export default async function LoanDetailPage({
   params
@@ -36,10 +37,20 @@ export default async function LoanDetailPage({
   }
 
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
+  const session = await auth();
+  const role = (session?.user as any)?.role || 'agent';
+  const userId = session?.user?.id;
 
   // Serialize Decimal fields for client component
   const serializedLoan = JSON.parse(JSON.stringify(loan));
 
-  return <LoanDetailClient loan={serializedLoan} currencySymbol={currencySymbol} dict={dict} />;
+  return (
+    <LoanDetailClient 
+      loan={serializedLoan} 
+      currencySymbol={currencySymbol} 
+      dict={dict} 
+      userRole={role}
+      userId={userId}
+    />
+  );
 }
-

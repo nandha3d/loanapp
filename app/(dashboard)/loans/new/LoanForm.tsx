@@ -100,12 +100,8 @@ export default function LoanForm({
     if (!id) return;
     const pkg = localPackages.find(p => p.id === id);
     if (pkg) {
-      setPrincipal(Number(pkg.principal));
-      setDeductionType(pkg.deductionType || 'fixed');
-      setDeductionInput(Number(pkg.deduction));
       setFrequency(pkg.frequency);
       setTenure(pkg.tenure);
-      setPenalty(Number(pkg.penaltyRate));
     }
   };
 
@@ -130,14 +126,12 @@ export default function LoanForm({
       <div className="card">
         <div className="card-header" style={{ flexWrap: 'wrap', gap: '10px' }}>
           <h3>📝 {dict.loans.createTitle}</h3>
-          {localPackages.length > 0 && (
-            <select className="form-control" style={{ width: 'auto', fontSize: '1rem', padding: '10px' }} onChange={e => handlePackageChange(e.target.value)} value={packageId}>
-              <option value="">{dict.loans.applyTemplate}</option>
-              {localPackages.map(pkg => (
-                <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
-              ))}
-            </select>
-          )}
+          <select className="form-control" style={{ width: 'auto', fontSize: '1rem', padding: '10px' }} onChange={e => handlePackageChange(e.target.value)} value={packageId}>
+            <option value="">Premade Template</option>
+            {localPackages.map(pkg => (
+              <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
+            ))}
+          </select>
         </div>
 
         <form action={async (fd: FormData) => {
@@ -333,71 +327,6 @@ export default function LoanForm({
             </button>
             <Link href="/loans" className="btn btn-ghost" style={{ padding: '12px 24px', fontSize: '1rem' }}>{dict.loans.cancel}</Link>
           </div>
-          {!packageId && principal && deductionInput !== '' && tenure && (
-            <div style={{ marginTop: '12px', borderTop: '1px dashed var(--border)', paddingTop: '12px' }}>
-              {!showSaveTemplate ? (
-                <button type="button" className="btn btn-ghost btn-sm"
-                  onClick={() => setShowSaveTemplate(true)}
-                  style={{ color: 'var(--primary)' }}>
-                  <span className="material-icons-outlined" style={{ fontSize: '16px' }}>bookmark_add</span>
-                  Save these settings as a reusable template
-                </button>
-              ) : (
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="Template name"
-                    value={templateName}
-                    onChange={e => setTemplateName(e.target.value)}
-                    style={{ flex: 1, minWidth: '200px' }}
-                  />
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm"
-                    disabled={!templateName.trim() || savingTemplate || templateSaved}
-                    onClick={async () => {
-                      if (!templateName.trim()) return;
-                      setSavingTemplate(true);
-                      const res = await fetch('/api/packages', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          name: templateName.trim(),
-                          principal: Number(principal),
-                          deduction: deductionType === 'percentage' ? Number(deductionInput) : d,
-                          deductionType,
-                          frequency,
-                          tenure: Number(tenure),
-                          penaltyRate: penalty,
-                        }),
-                      });
-                      setSavingTemplate(false);
-                      const saved = await res.json();
-                      if (saved.success) {
-                        setLocalPackages(prev => [...prev, saved.data]);
-                        setTemplateSaved(true);
-                        setShowSaveTemplate(false);
-                        setPackageId(saved.data.id);
-                      }
-                    }}
-                  >
-                    {savingTemplate ? 'Saving...' : 'Save Template'}
-                  </button>
-                  <button type="button" className="btn btn-ghost btn-sm"
-                    onClick={() => { setShowSaveTemplate(false); setTemplateName(''); }}>
-                    Cancel
-                  </button>
-                  {templateSaved && (
-                    <span style={{ color: 'var(--success)', fontSize: '.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span className="material-icons-outlined" style={{ fontSize: '14px' }}>check_circle</span>
-                      Template saved!
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
         </form>
       </div>
 

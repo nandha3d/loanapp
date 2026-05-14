@@ -5,6 +5,7 @@ import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth';
 import { decryptAadharNumber, encryptAadharNumber, isMaskedAadharNumber } from '@/lib/pii';
+import { submitCollectionEntry } from '@/app/(dashboard)/collection/actions';
 
 // Fields an agent is allowed to request changes to on a customer record
 const CUSTOMER_EDIT_ALLOW_LIST = new Set([
@@ -56,12 +57,16 @@ export async function reviewRequest(formData: FormData) {
         }
       }
 
-      if (Object.keys(safeChanges).length > 0) {
-        await prisma.customer.update({
-          where: { id: request.entityId },
-          data: safeChanges,
-        });
-      }
+      await prisma.customer.update({
+        where: { id: request.entityId },
+        data: safeChanges,
+      });
+    } else if (request.requestType === 'edit_collection') {
+      const { requestedAmount } = JSON.parse(request.requestedChanges);
+      const fd = new FormData();
+      fd.set('instalmentId', request.entityId);
+      fd.set('receivedAmount', String(requestedAmount));
+      await submitCollectionEntry(fd);
     }
   }
 
