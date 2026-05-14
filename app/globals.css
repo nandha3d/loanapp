@@ -1,7 +1,14 @@
 /* ===== LoanTrack Design System ===== */
 /* Ported exactly from prototype — DO NOT change colors */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-@import url('https://fonts.googleapis.com/icon?family=Material+Icons+Outlined');
+
+@font-face {
+  font-family: 'Material Icons Outlined';
+  font-style: normal;
+  font-weight: 400;
+  src: url('/fonts/MaterialIconsOutlined-Regular.otf') format('opentype');
+  font-display: block;
+}
 
 :root {
   --primary: #F5A623; --primary-dark: #E8930C; --primary-light: #FFF3E0;
@@ -18,6 +25,23 @@ html { font-size: 14px; }
 body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; min-height: 100vh; }
 a { color: var(--primary-dark); text-decoration: none; }
 a:hover { text-decoration: underline; }
+
+.material-icons-outlined {
+  font-family: 'Material Icons Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-feature-settings: 'liga';
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
 
 /* ===== Login Page ===== */
 .login-wrapper { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #1A1D23 0%, #2D1F0E 50%, #1A1D23 100%); position: relative; overflow: hidden; }
