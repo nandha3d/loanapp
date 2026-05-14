@@ -4,10 +4,10 @@ import prisma from '@/lib/db';
 import { getDefaultTenantId } from '@/lib/tenant';
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth';
+import { submitCollectionEntry } from '@/app/(dashboard)/collection/actions';
 
 export async function markInstalmentPaid(formData: FormData) {
   const session = await auth();
-  const tenantId = await getDefaultTenantId();
   const userId = session?.user?.id;
   const role = (session?.user as any)?.role;
 
@@ -15,78 +15,8 @@ export async function markInstalmentPaid(formData: FormData) {
     return { success: false, error: 'Unauthorized' };
   }
 
-  const instalmentId = formData.get('instalmentId') as string;
-  const receivedAmount = Number(formData.get('receivedAmount'));
-  const paymentMode = formData.get('paymentMode') as string || 'cash';
-  const remarks = formData.get('remarks') as string || null;
-
-  if (!instalmentId || !receivedAmount || receivedAmount <= 0) {
-    return { success: false, error: 'Invalid input' };
-  }
-
-  const instalment = await prisma.instalment.findUnique({
-    where: { id: instalmentId },
-    include: { loan: true },
-  });
-
-  if (!instalment || instalment.loan.tenantId !== tenantId) {
-    return { success: false, error: 'Instalment not found' };
-  }
-
-  const dueAmount = Number(instalment.dueAmount);
-  const currentReceived = Number(instalment.receivedAmount) || 0;
-  const newTotal = currentReceived + receivedAmount;
-  const newStatus = newTotal >= dueAmount ? 'paid' : 'partial';
-
-  await prisma.$transaction(async (tx) => {
-    // Accumulate receivedAmount — do not overwrite partial payments
-    await tx.instalment.update({
-      where: { id: instalmentId },
-      data: {
-        receivedAmount: { increment: receivedAmount },
-        paymentMode,
-        remarks,
-        status: newStatus,
-        receivedAt: new Date(),
-        agentId: userId,
-      },
-    });
-
-    // Recalculate loan totals from fresh instalment data
-    const allInstalments = await tx.instalment.findMany({
-      where: { loanId: instalment.loanId },
-    });
-
-    const paidCount = allInstalments.filter(i => i.status === 'paid').length;
-    const totalCollected = allInstalments.reduce((sum, i) => sum + Number(i.receivedAmount), 0);
-    const allPaid = paidCount === allInstalments.length;
-
-    await tx.loan.update({
-      where: { id: instalment.loanId },
-      data: {
-        paidCount,
-        totalCollected,
-        ...(allPaid ? { status: 'closed', closedAt: new Date() } : {}),
-      },
-    });
-
-    await tx.auditLog.create({
-      data: {
-        tenantId,
-        userId,
-        action: 'update',
-        entityType: 'instalment',
-        entityId: instalmentId,
-        newValue: JSON.stringify({ receivedAmount, paymentMode, status: newStatus }),
-      },
-    });
-  });
-
-  revalidatePath(`/loans/${instalment.loanId}`);
-  revalidatePath('/dashboard');
-  return { success: true };
+  return submitCollectionEntry(formData);
 }
-
 export async function waiveLoanPenalty(formData: FormData) {
   const session = await auth();
   const tenantId = await getDefaultTenantId();
