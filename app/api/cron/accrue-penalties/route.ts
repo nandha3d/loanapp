@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
+import { cleanupExpiredRateLimits } from '@/lib/rateLimit';
 
 /**
  * GET /api/cron/accrue-penalties
@@ -15,11 +16,13 @@ import prisma from '@/lib/db';
 export async function GET(req: NextRequest) {
   // Validate cron secret (must be set in env)
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const authHeader = req.headers.get('authorization');
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+  if (!cronSecret) {
+    return NextResponse.json({ error: 'CRON_SECRET is not configured' }, { status: 500 });
+  }
+
+  const authHeader = req.headers.get('authorization');
+  if (authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const today = new Date();
@@ -136,12 +139,17 @@ export async function GET(req: NextRequest) {
     });
     // ─────────────────────────────────────────────────────────────────
 
+    // ── Cleanup expired rate-limit rows ──────────────────────────────────
+    const rateLimitCleaned = await cleanupExpiredRateLimits();
+    // ─────────────────────────────────────────────────────────────────────
+
     return NextResponse.json({
       ok: true,
       loansProcessed: loanMap.size,
       penaltiesCreated: created,
       penaltiesUpdated: updated,
       dailyCollectionsLocked: locked.count,
+      rateLimitRecordsCleaned: rateLimitCleaned,
       runAt: new Date().toISOString(),
     });
   } catch (err) {

@@ -91,7 +91,7 @@ export default async function PortalBillingPage() {
                   <div style={{ fontWeight: 700, textTransform: 'capitalize', marginBottom: '8px' }}>{p}</div>
                   <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{f.loans === 999999 ? 'Unlimited' : f.loans} loans</div>
                   <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '12px' }}>{f.agents === 999 ? 'Unlimited' : f.agents} agents</div>
-                  <a href="mailto:support@loantrack.app?subject=Upgrade%20to%20{p}" className="btn btn-primary btn-sm" style={{ width: '100%', textAlign: 'center' }}>
+                  <a href={`mailto:support@loantrack.app?subject=Upgrade%20to%20${p}`} className="btn btn-primary btn-sm" style={{ width: '100%', textAlign: 'center' }}>
                     Upgrade
                   </a>
                 </div>

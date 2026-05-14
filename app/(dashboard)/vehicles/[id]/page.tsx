@@ -4,10 +4,12 @@ import { formatDate } from '@/lib/utils';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import VehicleDetailClient from './VehicleDetailClient';
+import { getDictionary } from '@/lib/i18n';
 
 export default async function VehicleDetailPage({ params }: { params: { id: string } }) {
   const { id } = await params;
   const tenantId = await getDefaultTenantId();
+  const dict = await getDictionary(tenantId);
 
   let vehicle: any = null;
   try {
@@ -28,12 +30,13 @@ export default async function VehicleDetailPage({ params }: { params: { id: stri
       <div style={{ marginBottom: '16px' }}>
         <Link href="/vehicles" className="btn btn-ghost btn-sm">
           <span className="material-icons-outlined" style={{ fontSize: '16px' }}>arrow_back</span>
-          Back to Vehicles
+          {dict.vehicles.backToVehicles}
         </Link>
       </div>
       <VehicleDetailClient
         vehicle={vehicle as any}
         formatDate={(d) => (d ? formatDate(d) : '—')}
+        dict={dict}
       />
     </div>
   );

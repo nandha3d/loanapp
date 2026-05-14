@@ -1,13 +1,56 @@
 import prisma from '@/lib/db';
 import { getEnabledModules } from '@/lib/moduleGate';
 
+export type TenantSubscriptionAccess = {
+  plan: string;
+  status: string;
+  trialEndsAt?: Date | null;
+};
+
+export function isTenantTrialExpired(sub: TenantSubscriptionAccess | null | undefined, now = new Date()): boolean {
+  if (!sub || sub.plan !== 'trial' || !sub.trialEndsAt) return false;
+  return sub.trialEndsAt.getTime() < now.getTime();
+}
+
+export function normalizeRazorpaySubscriptionStatus(event: string): string {
+  switch (event) {
+    case 'subscription.activated':
+    case 'subscription.charged':
+      return 'active';
+    case 'subscription.halted':
+      return 'past_due';
+    case 'subscription.cancelled':
+      return 'cancelled';
+    default:
+      return 'unknown';
+  }
+}
+
+export async function assertTenantSubscriptionAccess(tenantId: string): Promise<void> {
+  const sub = await prisma.tenantSubscription.findUnique({ where: { tenantId } });
+  if (!sub) return;
+
+  if (isTenantTrialExpired(sub)) {
+    throw new Error('Your trial has expired. Please upgrade your subscription to continue.');
+  }
+
+  if (sub.status === 'past_due') {
+    // Allow continued access during a grace period if one is configured
+    const gracePeriodEnd = (sub as any).gracePeriodEnd as Date | null | undefined;
+    if (gracePeriodEnd && gracePeriodEnd > new Date()) return;
+    throw new Error('Your subscription payment is overdue. Please update your payment method to continue.');
+  }
+
+  if (sub.status !== 'active') {
+    throw new Error('Your subscription is inactive. Please contact the administrator.');
+  }
+}
+
 export async function checkLimit(tenantId: string, resource: 'loans' | 'agents' | 'vehicles' | 'chits') {
   const sub = await prisma.tenantSubscription.findUnique({ where: { tenantId } });
   // If no subscription record exists, apply permissive defaults
   if (!sub) return;
-  if (sub.status !== 'active') {
-    throw new Error('Your subscription is inactive. Please contact the administrator.');
-  }
+  await assertTenantSubscriptionAccess(tenantId);
 
   if (resource === 'loans') {
     const count = await prisma.loan.count({ where: { tenantId, status: 'active' } });

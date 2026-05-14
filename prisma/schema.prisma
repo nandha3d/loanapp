@@ -341,7 +341,7 @@ model DailyCollection {
   route          Route?            @relation(fields: [routeId], references: [id])
   tenant         Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  @@unique([agentId, date])
+  @@unique([tenantId, appType, agentId, date])
   @@index([date])
   @@index([branchId], map: "daily_collections_branch_id_fkey")
   @@index([routeId], map: "daily_collections_route_id_fkey")
@@ -628,9 +628,43 @@ model TenantSubscription {
   trialEndsAt      DateTime? @map("trial_ends_at")
   currentPeriodEnd DateTime? @map("current_period_end")
   razorpaySubId    String?   @map("razorpay_sub_id")
+  gracePeriodEnd   DateTime? @map("grace_period_end")
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
   tenant           Tenant    @relation(fields: [tenantId], references: [id])
 
   @@map("tenant_subscriptions")
+}
+
+/// Distributed rate-limit tracking backed by MySQL.
+/// Rows are keyed on a composite string (e.g. "login:127.0.0.1:alice")
+/// and expire automatically via the cleanup cron job.
+model RateLimit {
+  id          Int      @id @default(autoincrement())
+  /// Composite key, e.g. "login:ip:username" or "route:upload:ip"
+  key         String   @unique @map("rate_key") @db.VarChar(512)
+  count       Int      @default(1)
+  windowStart DateTime @map("window_start")
+  expiresAt   DateTime @map("expires_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@index([expiresAt])
+  @@map("rate_limits")
+}
+
+/// Idempotency log for incoming webhooks — prevents duplicate processing.
+model WebhookEvent {
+  id          String   @id @default(cuid())
+  provider    String   // e.g. "razorpay"
+  eventId     String   @map("event_id") @db.VarChar(255)
+  event       String   @db.VarChar(128)
+  payload     String   @db.Text
+  status      String   @default("processed") @db.VarChar(32)
+  processedAt DateTime @default(now()) @map("processed_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([provider, eventId], name: "provider_eventId")
+  @@index([createdAt])
+  @@map("webhook_events")
 }

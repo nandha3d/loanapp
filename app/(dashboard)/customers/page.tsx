@@ -4,6 +4,7 @@ import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { formatCurrency, getBadgeClass, parsePagination, paginatedResponse, getInitials } from '@/lib/utils';
 import Link from 'next/link';
 import { calculateCreditScore } from '@/lib/creditScore';
+import { getDictionary } from '@/lib/i18n';
 
 export default async function CustomersPage({
   searchParams
@@ -15,6 +16,7 @@ export default async function CustomersPage({
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
+  const dict = await getDictionary(tenantId);
   
   const resolvedParams = await searchParams;
   const q = resolvedParams.q || '';
@@ -72,9 +74,9 @@ export default async function CustomersPage({
   return (
     <div className="card">
       <div className="card-header">
-        <h3>👥 Customer Directory</h3>
+        <h3>👥 {dict.customersList.title}</h3>
         <Link href="/customers/new" className="btn btn-primary btn-sm">
-          <span className="material-icons-outlined" style={{fontSize:'16px'}}>add</span> New Customer
+          <span className="material-icons-outlined" style={{fontSize:'16px'}}>add</span> {dict.customersList.newCustomer}
         </Link>
       </div>
 
@@ -85,26 +87,26 @@ export default async function CustomersPage({
             type="text" 
             name="q" 
             className="form-control" 
-            placeholder="Search by name, ID, or phone..." 
+            placeholder={dict.customersList.searchPlaceholder} 
             defaultValue={q}
           />
         </div>
         <select name="routeId" className="form-control" style={{width:'auto'}} defaultValue={routeId}>
-          <option value="">All Routes</option>
+          <option value="">{dict.customersList.allRoutes}</option>
           {routes.map(r => (
             <option key={r.id} value={r.id}>{r.name}</option>
           ))}
         </select>
         <select name="status" className="form-control" style={{width:'auto'}} defaultValue={status}>
-          <option value="">All Status</option>
-          <option value="active">Active</option>
-          <option value="overdue">Overdue</option>
-          <option value="closed">Closed</option>
-          <option value="blacklisted">Blacklisted</option>
+          <option value="">{dict.customersList.allStatus}</option>
+          <option value="active">{dict.customersList.active}</option>
+          <option value="overdue">{dict.customersList.overdue}</option>
+          <option value="closed">{dict.customersList.closed}</option>
+          <option value="blacklisted">{dict.customersList.blacklisted}</option>
         </select>
-        <button type="submit" className="btn btn-secondary">Filter</button>
+        <button type="submit" className="btn btn-secondary">{dict.customersList.filter}</button>
         {(q || routeId || status) && (
-          <Link href="/customers" className="btn btn-ghost">Clear</Link>
+          <Link href="/customers" className="btn btn-ghost">{dict.customersList.clear}</Link>
         )}
       </form>
 
@@ -112,14 +114,14 @@ export default async function CustomersPage({
         <table>
           <thead>
             <tr>
-              <th>Customer ID</th>
-              <th>Name</th>
-              <th>Phone</th>
-              <th>Route</th>
-              <th>Score</th>
-              <th>Active Loan</th>
-              <th>Status</th>
-              <th>Actions</th>
+              <th>{dict.customersList.customerId}</th>
+              <th>{dict.customersList.name}</th>
+              <th>{dict.customersList.phone}</th>
+              <th>{dict.customersList.route}</th>
+              <th>{dict.customersList.score}</th>
+              <th>{dict.customersList.activeLoan}</th>
+              <th>{dict.customersList.status}</th>
+              <th>{dict.customersList.action}</th>
             </tr>
           </thead>
           <tbody>
@@ -167,7 +169,7 @@ export default async function CustomersPage({
                         </span>
                       </>
                     ) : (
-                      <span style={{color:'var(--text-light)'}}>None</span>
+                      <span style={{color:'var(--text-light)'}}>{dict.customersList.none}</span>
                     )}
                   </td>
                   <td>
@@ -176,9 +178,9 @@ export default async function CustomersPage({
                     </span>
                   </td>
                   <td>
-                    <Link href={`/customers/${c.customerCode}`} className="btn btn-ghost btn-sm">View</Link>
+                    <Link href={`/customers/${c.customerCode}`} className="btn btn-ghost btn-sm">{dict.customersList.view}</Link>
                     {userRole !== 'agent' && (
-                      <Link href={`/customers/new?edit=${c.id}`} className="btn btn-ghost btn-sm">Edit</Link>
+                      <Link href={`/customers/new?edit=${c.id}`} className="btn btn-ghost btn-sm">{dict.customersList.edit}</Link>
                     )}
                   </td>
                 </tr>
@@ -197,7 +199,7 @@ export default async function CustomersPage({
 
       {total > 0 && (
         <div className="pagination">
-          <span>Showing {skip + 1}–{Math.min(skip + limit, total)} of {total} customers</span>
+          <span>Showing {skip + 1}–{Math.min(skip + limit, total)} of {total} {dict.customersList.title.toLowerCase()}</span>
           <div className="pages">
             <Link 
               href={`/customers?page=${page > 1 ? page - 1 : 1}&q=${q}&routeId=${routeId}&status=${status}`} 

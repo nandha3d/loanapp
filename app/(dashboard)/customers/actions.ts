@@ -7,18 +7,28 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import fs from 'fs';
 import path from 'path';
+import { encryptAadharNumber } from '@/lib/pii';
 
-const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
+const UPLOAD_DIR = path.join(process.cwd(), 'private', 'uploads');
 
-async function saveUploadedFile(file: File, subfolder: string): Promise<string> {
-  const dir = path.join(UPLOAD_DIR, subfolder);
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+
+async function saveUploadedFile(file: File, tenantId: string, subfolder: string): Promise<string> {
+  if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+    throw new Error(`File type not allowed: ${file.type}. Only JPEG, PNG, WebP, and PDF are accepted.`);
+  }
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error('File exceeds the 5 MB limit.');
+  }
+  const dir = path.join(UPLOAD_DIR, tenantId, subfolder);
   fs.mkdirSync(dir, { recursive: true });
-  const ext = path.extname(file.name) || '';
+  const ext = path.extname(file.name).replace(/[^a-zA-Z0-9.]/g, '').toLowerCase() || '';
   const safeName = `${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`;
   const filePath = path.join(dir, safeName);
   const buffer = Buffer.from(await file.arrayBuffer());
   fs.writeFileSync(filePath, buffer);
-  return `/uploads/${subfolder}/${safeName}`;
+  return `/api/files/${tenantId}/${subfolder}/${safeName}`;
 }
 
 export async function saveCustomer(formData: FormData) {
@@ -33,16 +43,34 @@ export async function saveCustomer(formData: FormData) {
   const name = formData.get('name') as string;
   const phone = formData.get('phone') as string;
   const address = formData.get('address') as string;
+  const aadharNumberField = formData.get('aadharNumber') as string | null;
+  const encryptedAadharNumber = aadharNumberField !== null
+    ? encryptAadharNumber(aadharNumberField)
+    : undefined;
   const routeId = formData.get('routeId') as string;
   const agentId = formData.get('agentId') as string;
 
   const isPopup = formData.get('isPopup') === 'true';
 
+  // Validate routeId belongs to this tenant + appType
+  if (routeId) {
+    const route = await prisma.route.findFirst({ where: { id: routeId, tenantId, appType } });
+    if (!route) return { success: false, error: 'Invalid route selection' };
+  }
+
+  // Validate agentId belongs to this tenant and is an active agent
+  if (agentId) {
+    const agent = await prisma.user.findFirst({
+      where: { id: agentId, tenantId, role: 'agent', status: 'active' },
+    });
+    if (!agent) return { success: false, error: 'Invalid agent selection' };
+  }
+
   const profilePhotoFile = formData.get('profilePhoto') as File | null;
   const existingProfilePhoto = formData.get('existingProfilePhoto') as string | null;
   let profilePhoto: string | null = null;
   if (profilePhotoFile && profilePhotoFile.size > 0) {
-    profilePhoto = await saveUploadedFile(profilePhotoFile, 'profiles');
+    profilePhoto = await saveUploadedFile(profilePhotoFile, tenantId, 'profiles');
   } else if (existingProfilePhoto) {
     profilePhoto = existingProfilePhoto;
   }
@@ -52,7 +80,7 @@ export async function saveCustomer(formData: FormData) {
   const docsFiles = formData.getAll('documents') as File[];
   for (const file of docsFiles) {
     if (file && file.size > 0) {
-      const savedPath = await saveUploadedFile(file, 'kyc');
+      const savedPath = await saveUploadedFile(file, tenantId, 'kyc');
       documents.push({
         docType: 'other',
         fileName: file.name,
@@ -73,7 +101,7 @@ export async function saveCustomer(formData: FormData) {
     const gPhotoFile = formData.get(`guarantorPhoto_${g}`) as File | null;
     let gPhoto = null;
     if (gPhotoFile && gPhotoFile.size > 0) {
-      gPhoto = await saveUploadedFile(gPhotoFile, 'guarantors');
+      gPhoto = await saveUploadedFile(gPhotoFile, tenantId, 'guarantors');
     }
     if (gName && gPhone) {
       guarantors.push({ name: gName, phone: gPhone, relation: gRelation, address: gAddress, photo: gPhoto });
@@ -90,7 +118,7 @@ export async function saveCustomer(formData: FormData) {
     const file = formData.get(`chequeImage_${i}`) as File | null;
     let imagePath = null;
     if (file && file.size > 0) {
-      imagePath = await saveUploadedFile(file, 'cheques');
+      imagePath = await saveUploadedFile(file, tenantId, 'cheques');
     }
 
     if (bankName && chequeNumber) {
@@ -126,6 +154,7 @@ export async function saveCustomer(formData: FormData) {
       where: { id: editId, tenantId },
       data: {
         name, phone, address, routeId, agentId,
+        ...(encryptedAadharNumber !== undefined ? { aadharNumber: encryptedAadharNumber } : {}),
         profilePhoto: profilePhoto ?? undefined,
       },
       include: { route: true }
@@ -186,6 +215,7 @@ export async function saveCustomer(formData: FormData) {
         name,
         phone,
         address,
+        ...(encryptedAadharNumber !== undefined ? { aadharNumber: encryptedAadharNumber } : {}),
         routeId,
         agentId,
         appType,
@@ -247,6 +277,12 @@ export async function requestCustomerEdit(customerId: string, requestedChanges: 
     return { success: false, error: 'Unauthorized' };
   }
 
+  // Verify the customer belongs to this tenant before accepting the request
+  const customer = await prisma.customer.findFirst({ where: { id: customerId, tenantId } });
+  if (!customer) {
+    return { success: false, error: 'Customer not found' };
+  }
+
   await prisma.approvalRequest.create({
     data: {
       tenantId,
@@ -255,7 +291,12 @@ export async function requestCustomerEdit(customerId: string, requestedChanges: 
       entityType: 'customer',
       entityId: customerId,
       requestedById: userId,
-      requestedChanges: JSON.stringify(requestedChanges),
+      requestedChanges: JSON.stringify({
+        ...requestedChanges,
+        ...(requestedChanges?.aadharNumber !== undefined
+          ? { aadharNumber: encryptAadharNumber(String(requestedChanges.aadharNumber || '')) }
+          : {}),
+      }),
       reason,
       status: 'pending'
     }

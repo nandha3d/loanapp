@@ -13,6 +13,7 @@ export default function ReportsClient({
   agents,
   currencySymbol,
   filters,
+  dict,
 }: {
   collectionEfficiency: { expected: number; collected: number; efficiency: number };
   agingBuckets: {
@@ -27,7 +28,9 @@ export default function ReportsClient({
   agents: any[];
   currencySymbol: string;
   filters: { from: string; to: string; routeId: string; agentId: string };
+  dict: any;
 }) {
+  const d = dict.reports;
   const setPreset = (preset: string) => {
     const today = new Date();
     let from: string;
@@ -54,22 +57,22 @@ export default function ReportsClient({
       <div className="card" style={{ marginBottom: '20px' }}>
         <form className="filter-bar" method="GET" style={{ marginBottom: 0 }} suppressHydrationWarning>
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button type="button" className="btn btn-primary btn-sm" onClick={() => setPreset('today')}>Today</button>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setPreset('week')}>This Week</button>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setPreset('month')}>This Month</button>
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => setPreset('today')}>{d.today}</button>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setPreset('week')}>{d.thisWeek}</button>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setPreset('month')}>{d.thisMonth}</button>
           </div>
           <input type="date" name="from" className="form-control" style={{ width: 'auto' }} defaultValue={filters.from} />
-          <span style={{ color: 'var(--text-secondary)', fontSize: '.85rem' }}>to</span>
+          <span style={{ color: 'var(--text-secondary)', fontSize: '.85rem' }}>{d.to}</span>
           <input type="date" name="to" className="form-control" style={{ width: 'auto' }} defaultValue={filters.to} />
           <select name="routeId" className="form-control" style={{ width: 'auto' }} defaultValue={filters.routeId}>
-            <option value="">All Routes</option>
+            <option value="">{d.allRoutes}</option>
             {routes.map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
           </select>
           <select name="agentId" className="form-control" style={{ width: 'auto' }} defaultValue={filters.agentId}>
-            <option value="">All Agents</option>
+            <option value="">{d.allAgents}</option>
             {agents.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
-          <button type="submit" className="btn btn-secondary">Apply</button>
+          <button type="submit" className="btn btn-secondary">{d.apply}</button>
         </form>
 
         {/* Export Buttons */}
@@ -80,7 +83,7 @@ export default function ReportsClient({
             download
           >
             <span className="material-icons-outlined" style={{ fontSize: '14px' }}>download</span>
-            Collections CSV
+            {d.collectionsCSV}
           </a>
           <a
             href="/api/export/loans"
@@ -88,7 +91,7 @@ export default function ReportsClient({
             download
           >
             <span className="material-icons-outlined" style={{ fontSize: '14px' }}>download</span>
-            Loan Register CSV
+            {d.loanRegisterCSV}
           </a>
           <a
             href="/api/export/defaulters"
@@ -96,7 +99,7 @@ export default function ReportsClient({
             download
           >
             <span className="material-icons-outlined" style={{ fontSize: '14px' }}>download</span>
-            Defaulters CSV
+            {d.defaultersCSV}
           </a>
         </div>
       </div>
@@ -105,60 +108,60 @@ export default function ReportsClient({
       <div className="grid-2" style={{ marginBottom: '20px' }}>
         {/* Collection Efficiency */}
         <div className="card">
-          <div className="card-header"><h3>📊 Collection Efficiency</h3></div>
+          <div className="card-header"><h3>📊 {d.collectionEfficiency}</h3></div>
           <div className="stats-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr', marginBottom: '16px' }}>
             <div className="stat-item">
               <div className="stat-value" style={{ fontSize: '1.3rem' }}>{formatCurrency(collectionEfficiency.expected, currencySymbol)}</div>
-              <div className="stat-label">Expected</div>
+              <div className="stat-label">{d.expected}</div>
             </div>
             <div className="stat-item">
               <div className="stat-value" style={{ fontSize: '1.3rem', color: 'var(--success)' }}>{formatCurrency(collectionEfficiency.collected, currencySymbol)}</div>
-              <div className="stat-label">Collected</div>
+              <div className="stat-label">{d.collected}</div>
             </div>
             <div className="stat-item">
               <div className="stat-value" style={{ fontSize: '1.3rem', color: collectionEfficiency.efficiency >= 80 ? 'var(--success)' : 'var(--danger)' }}>
                 {collectionEfficiency.efficiency}%
               </div>
-              <div className="stat-label">Efficiency</div>
+              <div className="stat-label">{d.efficiency}</div>
             </div>
           </div>
           {/* Visual bar */}
           <div style={{ background: 'var(--bg)', borderRadius: 'var(--radius-sm)', padding: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.78rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-              <span>Collection Progress</span>
+              <span>{d.collectionProgress}</span>
               <span>{collectionEfficiency.efficiency}%</span>
             </div>
             <div className="progress" style={{ width: '100%', height: '12px' }}>
               <div className="progress-fill" style={{ width: `${Math.min(collectionEfficiency.efficiency, 100)}%` }} />
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.72rem', color: 'var(--text-light)', marginTop: '6px' }}>
-              <span>Gap: {formatCurrency(collectionEfficiency.expected - collectionEfficiency.collected, currencySymbol)}</span>
-              <span>Target: {formatCurrency(collectionEfficiency.expected, currencySymbol)}</span>
+              <span>{d.gap}: {formatCurrency(collectionEfficiency.expected - collectionEfficiency.collected, currencySymbol)}</span>
+              <span>{d.target}: {formatCurrency(collectionEfficiency.expected, currencySymbol)}</span>
             </div>
           </div>
         </div>
 
         {/* Defaulter Aging */}
         <div className="card">
-          <div className="card-header"><h3>⏳ Defaulter Aging Report</h3></div>
+          <div className="card-header"><h3>⏳ {d.defaulterAging}</h3></div>
           <div className="table-wrapper">
             <table>
-              <thead><tr><th>Aging Bucket</th><th>Count</th><th>Total Penalty</th><th>Customers</th></tr></thead>
+              <thead><tr><th>{d.agingBucket}</th><th>{d.count}</th><th>{d.totalPenalty}</th><th>{d.customers}</th></tr></thead>
               <tbody>
                 <tr>
-                  <td><span className="badge badge-pending">0–7 days</span></td>
+                  <td><span className="badge badge-pending">{d.aging1}</span></td>
                   <td><strong>{agingBuckets.short.count}</strong></td>
                   <td>{formatCurrency(agingBuckets.short.penalty, currencySymbol)}</td>
                   <td>{agingBuckets.short.customers.join(', ') || '—'}</td>
                 </tr>
                 <tr>
-                  <td><span className="badge badge-missed">8–30 days</span></td>
+                  <td><span className="badge badge-missed">{d.aging2}</span></td>
                   <td><strong>{agingBuckets.medium.count}</strong></td>
                   <td>{formatCurrency(agingBuckets.medium.penalty, currencySymbol)}</td>
                   <td>{agingBuckets.medium.customers.join(', ') || '—'}</td>
                 </tr>
                 <tr>
-                  <td><span className="badge" style={{ background: '#450a0a', color: '#fca5a5' }}>30+ days</span></td>
+                  <td><span className="badge" style={{ background: '#450a0a', color: '#fca5a5' }}>{d.aging3}</span></td>
                   <td><strong>{agingBuckets.long.count}</strong></td>
                   <td>{formatCurrency(agingBuckets.long.penalty, currencySymbol)}</td>
                   <td>{agingBuckets.long.customers.join(', ') || '—'}</td>
@@ -173,50 +176,50 @@ export default function ReportsClient({
       <div className="grid-2" style={{ marginBottom: '20px' }}>
         {/* Penalty Report */}
         <div className="card">
-          <div className="card-header"><h3>⚡ Penalty Report</h3></div>
+          <div className="card-header"><h3>⚡ {d.penaltyReport}</h3></div>
           <div className="stats-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
             <div className="stat-item">
               <div className="stat-value" style={{ fontSize: '1.3rem', color: 'var(--danger)' }}>{formatCurrency(penaltyReport.accrued, currencySymbol)}</div>
-              <div className="stat-label">Accrued</div>
+              <div className="stat-label">{d.accrued}</div>
             </div>
             <div className="stat-item">
               <div className="stat-value" style={{ fontSize: '1.3rem', color: 'var(--success)' }}>{formatCurrency(penaltyReport.settled, currencySymbol)}</div>
-              <div className="stat-label">Settled</div>
+              <div className="stat-label">{d.settled}</div>
             </div>
             <div className="stat-item">
               <div className="stat-value" style={{ fontSize: '1.3rem', color: '#8B5CF6' }}>{formatCurrency(penaltyReport.waived, currencySymbol)}</div>
-              <div className="stat-label">Waived</div>
+              <div className="stat-label">{d.waived}</div>
             </div>
           </div>
           <div style={{ marginTop: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', padding: '16px' }}>
             <div style={{ fontSize: '.82rem', color: 'var(--text-secondary)' }}>
-              Net Outstanding: <strong style={{ color: 'var(--danger)' }}>{formatCurrency(penaltyReport.accrued - penaltyReport.settled - penaltyReport.waived, currencySymbol)}</strong>
+              {d.netOutstanding}: <strong style={{ color: 'var(--danger)' }}>{formatCurrency(penaltyReport.accrued - penaltyReport.settled - penaltyReport.waived, currencySymbol)}</strong>
             </div>
             <div className="progress" style={{ width: '100%', height: '8px', marginTop: '8px' }}>
               <div className="progress-fill" style={{ width: `${penaltyReport.accrued > 0 ? calcPercentage(penaltyReport.settled + penaltyReport.waived, penaltyReport.accrued) : 0}%`, background: 'var(--success)' }} />
             </div>
             <div style={{ fontSize: '.72rem', color: 'var(--text-light)', marginTop: '4px' }}>
-              {penaltyReport.accrued > 0 ? calcPercentage(penaltyReport.settled + penaltyReport.waived, penaltyReport.accrued) : 0}% resolved
+              {penaltyReport.accrued > 0 ? calcPercentage(penaltyReport.settled + penaltyReport.waived, penaltyReport.accrued) : 0}% {d.resolved}
             </div>
           </div>
         </div>
 
         {/* Loan Disbursement */}
         <div className="card">
-          <div className="card-header"><h3>💰 Loan Disbursement</h3></div>
+          <div className="card-header"><h3>💰 {d.loanDisbursement}</h3></div>
           <div className="stats-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
             <div className="stat-item">
               <div className="stat-value" style={{ fontSize: '1.8rem' }}>{disbursement.count}</div>
-              <div className="stat-label">New Loans This Period</div>
+              <div className="stat-label">{d.newLoansThisPeriod}</div>
             </div>
             <div className="stat-item">
               <div className="stat-value" style={{ fontSize: '1.3rem', color: 'var(--primary-dark)' }}>{formatCurrency(disbursement.totalPrincipal, currencySymbol)}</div>
-              <div className="stat-label">Total Principal Out</div>
+              <div className="stat-label">{d.totalPrincipalOut}</div>
             </div>
           </div>
           <div style={{ marginTop: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', padding: '16px' }}>
             <div style={{ fontSize: '.82rem', color: 'var(--text-secondary)' }}>
-              Average Loan Size: <strong>{disbursement.count > 0 ? formatCurrency(Math.round(disbursement.totalPrincipal / disbursement.count), currencySymbol) : '—'}</strong>
+              {d.avgLoanSize}: <strong>{disbursement.count > 0 ? formatCurrency(Math.round(disbursement.totalPrincipal / disbursement.count), currencySymbol) : '—'}</strong>
             </div>
           </div>
         </div>
@@ -224,11 +227,11 @@ export default function ReportsClient({
 
       {/* Agent Performance */}
       <div className="card">
-        <div className="card-header"><h3>👤 Agent Performance</h3></div>
+        <div className="card-header"><h3>👤 {d.performance}</h3></div>
         <div className="table-wrapper">
           <table>
             <thead>
-              <tr><th>Agent</th><th>Route</th><th>Customers</th><th>Expected</th><th>Collected</th><th>Hit Rate</th><th>Performance</th></tr>
+              <tr><th>{d.agent}</th><th>{d.route}</th><th>{d.customers}</th><th>{d.expected}</th><th>{d.collected}</th><th>{d.hitRate}</th><th>{d.performance}</th></tr>
             </thead>
             <tbody>
               {agentPerformance.map((a) => (
@@ -248,7 +251,7 @@ export default function ReportsClient({
               ))}
               {agentPerformance.length === 0 && (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-light)' }}>No agents found</td>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-light)' }}>{d.noAgents}</td>
                 </tr>
               )}
             </tbody>

@@ -201,9 +201,10 @@ export async function updateLoan(formData: FormData) {
   const disbursed = principal - deduction;
   const perInstalment = Math.round(principal / tenure);
 
-  // Fetch loan to ensure it exists and belongs to tenant
+  // Fetch loan to ensure it exists and belongs to tenant (scope by appType too)
+  const appType = await getUserAppType();
   const loan = await prisma.loan.findFirst({
-    where: { id: loanId, tenantId },
+    where: { id: loanId, tenantId, appType },
     include: { guarantor: true }
   });
 
@@ -259,28 +260,37 @@ export async function updateLoan(formData: FormData) {
 
   // Regenerate schedule if core fields changed
   if (coreChanged) {
-    // Delete existing instalments (Caution: This removes payment history for this loan)
-    await prisma.instalment.deleteMany({
-      where: { loanId }
+    // Block reschedule if any payments have been recorded
+    const paidInstalments = await prisma.instalment.count({
+      where: { loanId, status: { in: ['paid', 'partial'] } },
     });
+    if (paidInstalments > 0) {
+      return {
+        error:
+          'Cannot reschedule a loan that already has payment history. ' +
+          'Please close and renew this loan instead.',
+      };
+    }
 
-    const instalmentDates = calculateInstalmentDates(startDate, frequency, tenure);
-    const instalments = instalmentDates.map((date, index) => ({
-      loanId,
-      instalmentNo: index + 1,
-      dueDate: date,
-      dueAmount: perInstalment,
-      status: 'upcoming'
-    }));
+    await prisma.$transaction(async (tx) => {
+      await tx.instalment.deleteMany({ where: { loanId } });
 
-    await prisma.instalment.createMany({
-      data: instalments
-    });
+      const instalmentDates = calculateInstalmentDates(startDate, frequency, tenure);
+      const instalments = instalmentDates.map((date, index) => ({
+        loanId,
+        instalmentNo: index + 1,
+        dueDate: date,
+        dueAmount: perInstalment,
+        status: 'upcoming',
+      }));
 
-    // Reset paid count
-    await prisma.loan.update({
-      where: { id: loanId },
-      data: { paidCount: 0 }
+      await tx.instalment.createMany({ data: instalments });
+
+      // Reset paid count
+      await tx.loan.update({
+        where: { id: loanId },
+        data: { paidCount: 0 },
+      });
     });
   }
 

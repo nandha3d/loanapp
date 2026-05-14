@@ -5,6 +5,7 @@ import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { requireModule } from '@/lib/moduleGate';
 import { formatDate } from '@/lib/utils';
 import Link from 'next/link';
+import { getDictionary } from '@/lib/i18n';
 
 export default async function VehiclesPage({
   searchParams,
@@ -16,6 +17,7 @@ export default async function VehiclesPage({
   const appType = await getUserAppType();
   await requireModule(tenantId, 'autofinance');
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
+  const dict = await getDictionary(tenantId);
   const userRole = (session?.user as any)?.role;
 
   if (!session) redirect('/login');
@@ -83,56 +85,56 @@ export default async function VehiclesPage({
       <div className="kpi-grid" style={{ marginBottom: '20px' }}>
         <div className="kpi-card">
           <div className="kpi-icon blue"><span className="material-icons-outlined">directions_car</span></div>
-          <div><div className="kpi-value">{vehicles.length}</div><div className="kpi-label">Total Vehicles</div></div>
+          <div><div className="kpi-value">{vehicles.length}</div><div className="kpi-label">{dict.vehicles.totalVehicles}</div></div>
         </div>
         <div className="kpi-card">
           <div className="kpi-icon red"><span className="material-icons-outlined">car_crash</span></div>
-          <div><div className="kpi-value">{repoCount}</div><div className="kpi-label">Repo Flagged</div></div>
+          <div><div className="kpi-value">{repoCount}</div><div className="kpi-label">{dict.vehicles.repoFlagged}</div></div>
         </div>
         <div className="kpi-card">
           <div className="kpi-icon orange"><span className="material-icons-outlined">policy</span></div>
-          <div><div className="kpi-value">{insuranceExpiringCount}</div><div className="kpi-label">Insurance Expiring (30d)</div></div>
+          <div><div className="kpi-value">{insuranceExpiringCount}</div><div className="kpi-label">{dict.vehicles.insuranceExpiring30d}</div></div>
         </div>
       </div>
 
       <div className="card">
         <div className="card-header">
-          <h3>🚗 Vehicle Registry</h3>
+          <h3>🚗 {dict.vehicles.vehicleRegistry}</h3>
           <Link href="/vehicles/new" className="btn btn-primary btn-sm">
-            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>add</span> Add Vehicle
+            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>add</span> {dict.vehicles.addVehicleBtn}
           </Link>
         </div>
 
         {/* Filters */}
         <form method="GET" className="filter-bar" style={{ marginBottom: '16px' }}>
-          <input name="q" type="text" className="form-control" placeholder="Search reg, make, customer..." defaultValue={q} style={{ maxWidth: '280px' }} />
+          <input name="q" type="text" className="form-control" placeholder={dict.vehicles.searchPlaceholder} defaultValue={q} style={{ maxWidth: '280px' }} />
           <select name="filter" className="form-control" style={{ width: 'auto' }} defaultValue={filter}>
-            <option value="">All Vehicles</option>
-            <option value="repo">Repo Flagged</option>
-            <option value="insurance_expiring">Insurance Expiring (30d)</option>
+            <option value="">{dict.vehicles.allVehicles}</option>
+            <option value="repo">{dict.vehicles.repoFlagged}</option>
+            <option value="insurance_expiring">{dict.vehicles.insuranceExpiring30d}</option>
           </select>
-          <button type="submit" className="btn btn-secondary">Filter</button>
+          <button type="submit" className="btn btn-secondary">{dict.vehicles.filter}</button>
         </form>
 
         {vehicles.length === 0 ? (
           <div className="empty-state">
             <span className="material-icons-outlined" style={{ fontSize: '48px', color: 'var(--text-light)' }}>directions_car</span>
-            <p>No vehicles found.</p>
-            <Link href="/vehicles/new" className="btn btn-primary btn-sm">Add First Vehicle</Link>
+            <p>{dict.vehicles.noVehicles}</p>
+            <Link href="/vehicles/new" className="btn btn-primary btn-sm">{dict.vehicles.addFirst}</Link>
           </div>
         ) : (
           <div className="table-wrapper">
             <table>
               <thead>
                 <tr>
-                  <th>Registration</th>
-                  <th>Vehicle</th>
-                  <th>Type</th>
-                  <th>Customer</th>
-                  <th>Loan</th>
-                  <th>Insurance Expiry</th>
-                  <th>Status</th>
-                  <th>Action</th>
+                  <th>{dict.vehicles.registration}</th>
+                  <th>{dict.vehicles.vehicle}</th>
+                  <th>{dict.vehicles.type}</th>
+                  <th>{dict.vehicles.customer}</th>
+                  <th>{dict.vehicles.loan}</th>
+                  <th>{dict.vehicles.insuranceExpiry}</th>
+                  <th>{dict.vehicles.status}</th>
+                  <th>{dict.vehicles.action}</th>
                 </tr>
               </thead>
               <tbody>
@@ -141,7 +143,7 @@ export default async function VehiclesPage({
                     <td>
                       <strong>{v.registrationNo}</strong>
                       {v.repoFlag && (
-                        <span className="badge badge-danger" style={{ marginLeft: '6px', fontSize: '.65rem' }}>REPO</span>
+                        <span className="badge badge-danger" style={{ marginLeft: '6px', fontSize: '.65rem' }}>{dict.vehicles.repo}</span>
                       )}
                     </td>
                     <td>{v.make} {v.model} {v.year ? `(${v.year})` : ''}</td>
@@ -163,7 +165,7 @@ export default async function VehiclesPage({
                       ) : '—'}
                     </td>
                     <td><span className={`badge badge-${v.repoFlag ? 'danger' : v.status === 'active' ? 'success' : 'secondary'}`}>{v.repoFlag ? 'Repo' : v.status}</span></td>
-                    <td><Link href={`/vehicles/${v.id}`} className="btn btn-ghost btn-sm">View</Link></td>
+                    <td><Link href={`/vehicles/${v.id}`} className="btn btn-ghost btn-sm">{dict.vehicles.view}</Link></td>
                   </tr>
                 ))}
               </tbody>

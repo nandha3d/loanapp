@@ -2,6 +2,7 @@ import prisma from '@/lib/db';
 import { ADMIN_API_ROLES, AUTHENTICATED_API_ROLES, isApiError, requireApiContext, scopedBranchWhere } from '@/lib/apiAuth';
 import { getAgentRouteIds } from '@/lib/access';
 import { apiError, apiSuccess } from '@/lib/utils';
+import { decryptAadharNumber, encryptAadharNumber, maskAadharNumber } from '@/lib/pii';
 
 const CUSTOMER_UPDATE_FIELDS = ['name', 'phone', 'address', 'aadharNumber', 'kycStatus'] as const;
 
@@ -41,7 +42,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
     const customer = await findScopedCustomer(id, context);
     if (!customer) return apiError('Customer not found', 404);
-    return apiSuccess(customer);
+    return apiSuccess({
+      ...customer,
+      aadharNumber: maskAadharNumber(decryptAadharNumber(customer.aadharNumber)),
+      guarantors: customer.guarantors.map((guarantor) => ({
+        ...guarantor,
+        aadharNumber: maskAadharNumber(decryptAadharNumber(guarantor.aadharNumber)),
+      })),
+    });
   } catch (error: any) {
     return apiError(error.message, 500);
   }
@@ -61,6 +69,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     for (const field of CUSTOMER_UPDATE_FIELDS) {
       if (body[field] !== undefined) data[field] = body[field];
     }
+    if (data.aadharNumber !== undefined) {
+      data.aadharNumber = encryptAadharNumber(String(data.aadharNumber || ''));
+    }
 
     const updated = await prisma.customer.update({ where: { id: existing.id }, data });
     await prisma.auditLog.create({
@@ -75,7 +86,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       },
     });
 
-    return apiSuccess(updated);
+    return apiSuccess({
+      ...updated,
+      aadharNumber: maskAadharNumber(decryptAadharNumber(updated.aadharNumber)),
+    });
   } catch (error: any) {
     return apiError(error.message, 500);
   }

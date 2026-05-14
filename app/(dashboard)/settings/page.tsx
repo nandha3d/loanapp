@@ -3,6 +3,7 @@ import { getDefaultTenantId, getTenantSettings, getUserAppType } from '@/lib/ten
 import SettingsClient from './SettingsClient';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
+import { getDictionary } from '@/lib/i18n';
 
 export default async function SettingsPage() {
   const session = await auth();
@@ -13,6 +14,7 @@ export default async function SettingsPage() {
 
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
+  const dict = await getDictionary(tenantId);
   
   const [routes, rawPackages, users, settings] = await Promise.all([
     prisma.route.findMany({ 
@@ -43,6 +45,7 @@ export default async function SettingsPage() {
       users={users} 
       settings={settings} 
       currencySymbol={settings.currency_symbol || '₹'}
+      dict={dict}
     />
   );
 }

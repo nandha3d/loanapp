@@ -8,8 +8,9 @@ import { Suspense } from 'react';
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get('callbackUrl') || '/';
-  
+  const rawCallbackUrl = searchParams.get('callbackUrl') || '/';
+  const callbackUrl = rawCallbackUrl.startsWith('/') ? rawCallbackUrl : '/';
+
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -38,16 +39,6 @@ function LoginForm() {
     } catch {
       setError('An unexpected error occurred');
       setLoading(false);
-    }
-  };
-
-  const setDemoCredentials = (role: 'admin' | 'agent') => {
-    if (role === 'admin') {
-      setUsername('admin');
-      setPassword('admin123');
-    } else {
-      setUsername('karthik');
-      setPassword('agent123');
     }
   };
 
@@ -112,17 +103,7 @@ function LoginForm() {
           </button>
         </form>
 
-        <div style={{ marginTop: '24px', textAlign: 'center' }}>
-          <p style={{ fontSize: '.78rem', color: 'var(--text-light)', marginBottom: '10px' }}>Demo Login Credentials</p>
-          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-            <button className="btn btn-secondary btn-sm" onClick={() => setDemoCredentials('admin')}>
-              <span className="material-icons-outlined" style={{ fontSize: '14px' }}>admin_panel_settings</span> Admin
-            </button>
-            <button className="btn btn-secondary btn-sm" onClick={() => setDemoCredentials('agent')}>
-              <span className="material-icons-outlined" style={{ fontSize: '14px' }}>person</span> Agent
-            </button>
-          </div>
-        </div>
+
       </div>
     </div>
   );

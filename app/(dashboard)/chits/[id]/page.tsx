@@ -4,6 +4,7 @@ import { requireModule } from '@/lib/moduleGate';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import ChitGroupDetailClient from './ChitGroupDetailClient';
+import { getDictionary } from '@/lib/i18n';
 
 export default async function ChitGroupDetailPage({ params }: { params: { id: string } }) {
   const { id } = await params;
@@ -11,6 +12,7 @@ export default async function ChitGroupDetailPage({ params }: { params: { id: st
   const appType = await getUserAppType();
   await requireModule(tenantId, 'chitfunds');
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
+  const dict = await getDictionary(tenantId);
 
   let group: any = null;
   try {
@@ -50,7 +52,7 @@ export default async function ChitGroupDetailPage({ params }: { params: { id: st
           <span className={`badge badge-${group.status === 'active' ? 'success' : 'secondary'}`} style={{ marginLeft: '8px' }}>{group.status}</span>
         </div>
       </div>
-      <ChitGroupDetailClient group={group} currencySymbol={currencySymbol} />
+      <ChitGroupDetailClient group={group} currencySymbol={currencySymbol} dict={dict} />
     </div>
   );
 }

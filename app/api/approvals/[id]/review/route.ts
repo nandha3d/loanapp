@@ -1,6 +1,7 @@
 import prisma from '@/lib/db';
 import { ADMIN_API_ROLES, isApiError, requireApiContext } from '@/lib/apiAuth';
 import { apiError, apiSuccess } from '@/lib/utils';
+import { encryptAadharNumber } from '@/lib/pii';
 
 const CUSTOMER_EDIT_ALLOW_LIST = new Set(['name', 'phone', 'address', 'aadharNumber', 'kycStatus', 'photo']);
 
@@ -28,7 +29,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const requested = JSON.parse(approval.requestedChanges);
       const safeChanges: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(requested)) {
-        if (CUSTOMER_EDIT_ALLOW_LIST.has(key)) safeChanges[key] = value;
+        if (CUSTOMER_EDIT_ALLOW_LIST.has(key)) {
+          safeChanges[key] = key === 'aadharNumber'
+            ? encryptAadharNumber(String(value || ''))
+            : value;
+        }
       }
       if (Object.keys(safeChanges).length > 0) {
         await prisma.customer.update({ where: { id: approval.entityId }, data: safeChanges });

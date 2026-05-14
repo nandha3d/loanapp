@@ -3,6 +3,8 @@ import { getDefaultTenantId, getSetting } from '@/lib/tenant';
 import CustomerProfileClient from './CustomerProfileClient';
 import { notFound } from 'next/navigation';
 import { auth } from '@/lib/auth';
+import { decryptAadharNumber, maskAadharNumber } from '@/lib/pii';
+import { getDictionary } from '@/lib/i18n';
 
 export default async function CustomerProfilePage({
   params
@@ -13,6 +15,7 @@ export default async function CustomerProfilePage({
   const tenantId = await getDefaultTenantId();
   const session = await auth();
   const userRole = (session?.user as any)?.role || 'agent';
+  const dict = await getDictionary(tenantId);
   
   // Support both ID and Customer Code as slug
   const customer = await prisma.customer.findFirst({
@@ -46,6 +49,11 @@ export default async function CustomerProfilePage({
 
   // Serialize Decimal fields for client component
   const serializedCustomer = JSON.parse(JSON.stringify(customer));
+  serializedCustomer.aadharNumber = maskAadharNumber(decryptAadharNumber(customer.aadharNumber));
+  serializedCustomer.guarantors = serializedCustomer.guarantors?.map((guarantor: any) => ({
+    ...guarantor,
+    aadharNumber: maskAadharNumber(decryptAadharNumber(guarantor.aadharNumber)),
+  }));
 
-  return <CustomerProfileClient customer={serializedCustomer} currencySymbol={currencySymbol} userRole={userRole} />;
+  return <CustomerProfileClient customer={serializedCustomer} currencySymbol={currencySymbol} userRole={userRole} dict={dict} />;
 }

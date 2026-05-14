@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
+import { checkRateLimit, getClientIp, routeKey } from '@/lib/rateLimit';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -15,6 +16,16 @@ export async function POST(req: NextRequest) {
   const tenantId = (session.user as any).tenantId;
   if (!tenantId) {
     return NextResponse.json({ error: 'Tenant not resolved' }, { status: 400 });
+  }
+
+  // Rate limit: 20 uploads per IP per 10 minutes
+  const ip = getClientIp(req);
+  const rl = await checkRateLimit(routeKey('upload', ip), { limit: 20, windowMs: 10 * 60 * 1000 });
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many uploads. Please wait before trying again.' },
+      { status: 429 },
+    );
   }
 
   let formData: FormData;
@@ -41,15 +52,15 @@ export async function POST(req: NextRequest) {
   const ext = path.extname(file.name).replace(/[^a-zA-Z0-9.]/g, '').toLowerCase() || '.bin';
   const safeName = `${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`;
 
-  // Scope files by tenantId — prevents cross-tenant access
-  const uploadDir = path.join(process.cwd(), 'public', 'uploads', tenantId);
+  // Scope files by tenantId in private dir — never publicly accessible
+  const uploadDir = path.join(process.cwd(), 'private', 'uploads', tenantId);
   await mkdir(uploadDir, { recursive: true });
 
   const buffer = Buffer.from(await file.arrayBuffer());
   const filePath = path.join(uploadDir, safeName);
   await writeFile(filePath, buffer);
 
-  const url = `/uploads/${tenantId}/${safeName}`;
+  const url = `/api/files/${tenantId}/${safeName}`;
 
   return NextResponse.json({ url, filename: safeName });
 }

@@ -10,6 +10,7 @@ declare module 'next-auth' {
       branchId: string | null;
       phone: string;
       username: string;
+      appType: string;
     } & DefaultSession['user'];
   }
 
@@ -19,6 +20,7 @@ declare module 'next-auth' {
     branchId?: string | null;
     phone?: string;
     username?: string;
+    appType?: string;
   }
 }
 
@@ -30,5 +32,6 @@ declare module 'next-auth/jwt' {
     branchId?: string | null;
     phone?: string;
     username?: string;
+    appType?: string;
   }
 }

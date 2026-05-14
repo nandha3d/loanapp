@@ -9,6 +9,11 @@ export async function markInstalmentPaid(formData: FormData) {
   const session = await auth();
   const tenantId = await getDefaultTenantId();
   const userId = session?.user?.id;
+  const role = (session?.user as any)?.role;
+
+  if (!userId || role === 'agent') {
+    return { success: false, error: 'Unauthorized' };
+  }
 
   const instalmentId = formData.get('instalmentId') as string;
   const receivedAmount = Number(formData.get('receivedAmount'));
@@ -29,56 +34,52 @@ export async function markInstalmentPaid(formData: FormData) {
   }
 
   const dueAmount = Number(instalment.dueAmount);
-  const newStatus = receivedAmount >= dueAmount ? 'paid' : 'partial';
+  const currentReceived = Number(instalment.receivedAmount) || 0;
+  const newTotal = currentReceived + receivedAmount;
+  const newStatus = newTotal >= dueAmount ? 'paid' : 'partial';
 
-  // Update instalment
-  await prisma.instalment.update({
-    where: { id: instalmentId },
-    data: {
-      receivedAmount,
-      paymentMode,
-      remarks,
-      status: newStatus,
-      receivedAt: new Date(),
-      agentId: userId,
-    },
-  });
+  await prisma.$transaction(async (tx) => {
+    // Accumulate receivedAmount — do not overwrite partial payments
+    await tx.instalment.update({
+      where: { id: instalmentId },
+      data: {
+        receivedAmount: { increment: receivedAmount },
+        paymentMode,
+        remarks,
+        status: newStatus,
+        receivedAt: new Date(),
+        agentId: userId,
+      },
+    });
 
-  // Update loan totals
-  const allInstalments = await prisma.instalment.findMany({
-    where: { loanId: instalment.loanId },
-  });
+    // Recalculate loan totals from fresh instalment data
+    const allInstalments = await tx.instalment.findMany({
+      where: { loanId: instalment.loanId },
+    });
 
-  const paidCount = allInstalments.filter(
-    (i) => i.id === instalmentId ? newStatus === 'paid' : i.status === 'paid'
-  ).length;
+    const paidCount = allInstalments.filter(i => i.status === 'paid').length;
+    const totalCollected = allInstalments.reduce((sum, i) => sum + Number(i.receivedAmount), 0);
+    const allPaid = paidCount === allInstalments.length;
 
-  const totalCollected = allInstalments.reduce((sum, i) => {
-    if (i.id === instalmentId) return sum + receivedAmount;
-    return sum + Number(i.receivedAmount);
-  }, 0);
+    await tx.loan.update({
+      where: { id: instalment.loanId },
+      data: {
+        paidCount,
+        totalCollected,
+        ...(allPaid ? { status: 'closed', closedAt: new Date() } : {}),
+      },
+    });
 
-  const allPaid = paidCount === allInstalments.length;
-
-  await prisma.loan.update({
-    where: { id: instalment.loanId },
-    data: {
-      paidCount,
-      totalCollected,
-      ...(allPaid ? { status: 'closed', closedAt: new Date() } : {}),
-    },
-  });
-
-  // Audit log
-  await prisma.auditLog.create({
-    data: {
-      tenantId,
-      userId,
-      action: 'update',
-      entityType: 'instalment',
-      entityId: instalmentId,
-      newValue: JSON.stringify({ receivedAmount, paymentMode, status: newStatus }),
-    },
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        userId,
+        action: 'update',
+        entityType: 'instalment',
+        entityId: instalmentId,
+        newValue: JSON.stringify({ receivedAmount, paymentMode, status: newStatus }),
+      },
+    });
   });
 
   revalidatePath(`/loans/${instalment.loanId}`);
@@ -90,6 +91,11 @@ export async function waiveLoanPenalty(formData: FormData) {
   const session = await auth();
   const tenantId = await getDefaultTenantId();
   const userId = session?.user?.id;
+  const role = (session?.user as any)?.role;
+
+  if (!userId || role === 'agent') {
+    return { success: false, error: 'Unauthorized' };
+  }
 
   const penaltyId = formData.get('penaltyId') as string;
   const waivedAmount = Number(formData.get('waivedAmount'));
@@ -162,6 +168,11 @@ export async function settleLoanPenalty(formData: FormData) {
   const session = await auth();
   const tenantId = await getDefaultTenantId();
   const userId = session?.user?.id;
+  const role = (session?.user as any)?.role;
+
+  if (!userId || role === 'agent') {
+    return { success: false, error: 'Unauthorized' };
+  }
 
   const penaltyId = formData.get('penaltyId') as string;
   const settledAmount = Number(formData.get('settledAmount'));
@@ -234,6 +245,11 @@ export async function closeLoan(formData: FormData) {
   const session = await auth();
   const tenantId = await getDefaultTenantId();
   const userId = session?.user?.id;
+  const role = (session?.user as any)?.role;
+
+  if (!userId || role === 'agent') {
+    return { success: false, error: 'Unauthorized' };
+  }
 
   const loanId = formData.get('loanId') as string;
   const markChequesReturned = formData.get('markChequesReturned') === '1';

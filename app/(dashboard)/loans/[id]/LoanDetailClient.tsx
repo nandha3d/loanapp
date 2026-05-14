@@ -52,11 +52,14 @@ const CreditScoreGauge = ({ score, grade }: { score: number, grade: string }) =>
 
 export default function LoanDetailClient({
   loan,
-  currencySymbol
+  currencySymbol,
+  dict,
 }: {
   loan: any;
   currencySymbol: string;
+  dict: any;
 }) {
+  const d = dict.loanDetail;
   const router = useRouter();
   const pct = calcPercentage(loan.paidCount, loan.totalInstalments);
   
@@ -112,7 +115,7 @@ export default function LoanDetailClient({
       setPaymentModal(null);
       router.refresh();
     } else {
-      alert(result.error || 'Failed to record payment');
+      alert(result.error || d.failedToRecordPayment);
     }
   };
 
@@ -148,7 +151,7 @@ export default function LoanDetailClient({
       setPenaltyModal(null);
       router.refresh();
     } else {
-      alert(result.error || 'Failed to process penalty');
+      alert(result.error || d.failedToProcessPenalty);
     }
   };
 
@@ -157,7 +160,7 @@ export default function LoanDetailClient({
       (c: any) => c.status === 'active'
     ).length ?? 0;
     if (activeChequesCount > 0 && !chequeReturned) {
-      alert('Please confirm security cheque return before closing the loan.');
+      alert(d.pleaseConfirmCheque);
       return;
     }
     setLoading(true);
@@ -170,7 +173,7 @@ export default function LoanDetailClient({
       setCloseModal(false);
       router.refresh();
     } else {
-      alert(result.error || 'Failed to close loan');
+      alert(result.error || d.failedToCloseLoan);
     }
   };
 
@@ -184,7 +187,7 @@ export default function LoanDetailClient({
       setRenewModal(false);
       router.push(`/loans/${result.newLoanId}`);
     } else {
-      alert((result as any).error || 'Failed to renew loan');
+      alert((result as any).error || d.failedToRenewLoan);
     }
   };
 
@@ -237,7 +240,7 @@ export default function LoanDetailClient({
       <div style={{ marginBottom: '12px' }}>
         <Link href="/loans" className="btn btn-ghost btn-sm">
           <span className="material-icons-outlined" style={{ fontSize: '16px' }}>arrow_back</span>
-          Back to Loans
+          {d.backToLoans}
         </Link>
       </div>
       
@@ -249,7 +252,7 @@ export default function LoanDetailClient({
             <span className={getBadgeClass(loan.status)} style={{ textTransform: 'capitalize', fontSize: '.7rem', padding: '3px 10px', borderRadius: '4px' }}>{loan.status}</span>
             <span style={{ fontSize: '.7rem', color: 'var(--text-light)', marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span className="material-icons-outlined" style={{ fontSize: '16px' }}>calendar_today</span>
-              <span style={{ textTransform: 'capitalize' }}>{loan.frequency} Schedule</span>
+              <span style={{ textTransform: 'capitalize' }}>{loan.frequency} {d.schedule}</span>
             </span>
           </div>
 
@@ -273,15 +276,15 @@ export default function LoanDetailClient({
 
             {/* Column 1: Meta Grid */}
             <div className="meta-col">
-              <div><div className="cm-label">Principal</div><div className="cm-value">{formatCurrency(loan.principal, currencySymbol)}</div></div>
-              <div><div className="cm-label">Repayable</div><div className="cm-value" style={{ color: 'var(--primary)' }}>{formatCurrency(totalRepayable, currencySymbol)}</div></div>
-              <div><div className="cm-label">Disbursed</div><div className="cm-value">{formatCurrency(loan.disbursed, currencySymbol)}</div></div>
-              <div><div className="cm-label">Frequency</div><div className="cm-value" style={{ textTransform: 'capitalize' }}>{loan.frequency}</div></div>
-              <div><div className="cm-label">Tenure</div><div className="cm-value">{loan.tenure} {loan.frequency === 'daily' ? 'days' : loan.frequency === 'weekly' ? 'wks' : 'mos'}</div></div>
-              <div><div className="cm-label">Start Date</div><div className="cm-value">{formatDate(loan.startDate)}</div></div>
-              <div><div className="cm-label">Per Inst.</div><div className="cm-value">{formatCurrency(loan.perInstalment, currencySymbol)}</div></div>
-              <div><div className="cm-label">Collected</div><div className="cm-value" style={{ color: 'var(--success)' }}>{formatCurrency(totalCollected, currencySymbol)}</div></div>
-              <div><div className="cm-label">Outstanding</div><div className="cm-value" style={{ color: outstanding > 0 ? 'var(--danger)' : 'var(--success)' }}>{formatCurrency(outstanding, currencySymbol)}</div></div>
+              <div><div className="cm-label">{d.principal}</div><div className="cm-value">{formatCurrency(loan.principal, currencySymbol)}</div></div>
+              <div><div className="cm-label">{d.repayable}</div><div className="cm-value" style={{ color: 'var(--primary)' }}>{formatCurrency(totalRepayable, currencySymbol)}</div></div>
+              <div><div className="cm-label">{d.disbursed}</div><div className="cm-value">{formatCurrency(loan.disbursed, currencySymbol)}</div></div>
+              <div><div className="cm-label">{d.frequency}</div><div className="cm-value" style={{ textTransform: 'capitalize' }}>{loan.frequency}</div></div>
+              <div><div className="cm-label">{d.tenure}</div><div className="cm-value">{loan.tenure} {loan.frequency === 'daily' ? d.daysSuffix : loan.frequency === 'weekly' ? d.weeksSuffix : d.monthsSuffix}</div></div>
+              <div><div className="cm-label">{d.startDate}</div><div className="cm-value">{formatDate(loan.startDate)}</div></div>
+              <div><div className="cm-label">{d.perInst}</div><div className="cm-value">{formatCurrency(loan.perInstalment, currencySymbol)}</div></div>
+              <div><div className="cm-label">{d.collected}</div><div className="cm-value" style={{ color: 'var(--success)' }}>{formatCurrency(totalCollected, currencySymbol)}</div></div>
+              <div><div className="cm-label">{d.outstanding}</div><div className="cm-value" style={{ color: outstanding > 0 ? 'var(--danger)' : 'var(--success)' }}>{formatCurrency(outstanding, currencySymbol)}</div></div>
             </div>
 
             {/* Column 2: Heatmap */}
@@ -327,12 +330,12 @@ export default function LoanDetailClient({
                       <div className="heatmap-header">
                         <div style={{ display: 'flex', gap: '4px' }}>
                           <span className="material-icons-outlined" style={{ fontSize: '14px', color: 'var(--text-light)' }}>calendar_view_month</span>
-                          <span style={{ fontSize: '.72rem', fontWeight: 800, color: 'var(--text-secondary)' }}>ACTIVITY TRACKER</span>
+                          <span style={{ fontSize: '.72rem', fontWeight: 800, color: 'var(--text-secondary)' }}>{d.activityTracker}</span>
                         </div>
                         <div className="heatmap-legend">
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><div style={{ width: '8px', height: '8px', borderRadius: '2px', background: '#16A34A' }} /> Paid</div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><div style={{ width: '8px', height: '8px', borderRadius: '2px', background: '#F59E0B' }} /> Partial</div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><div style={{ width: '8px', height: '8px', borderRadius: '2px', background: '#EF4444' }} /> Missed</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><div style={{ width: '8px', height: '8px', borderRadius: '2px', background: '#16A34A' }} /> {d.paid}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><div style={{ width: '8px', height: '8px', borderRadius: '2px', background: '#F59E0B' }} /> {d.partial}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><div style={{ width: '8px', height: '8px', borderRadius: '2px', background: '#EF4444' }} /> {d.missed}</div>
                         </div>
                       </div>
                       
@@ -428,7 +431,7 @@ export default function LoanDetailClient({
                   </svg>
                   <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.85rem', fontWeight: 800 }}>{pct}%</div>
                 </div>
-                <div style={{ fontSize: '.6rem', color: 'var(--text-secondary)', marginTop: '4px', fontWeight: 700, textTransform: 'uppercase' }}>{loan.paidCount}/{loan.totalInstalments} Paid</div>
+                <div style={{ fontSize: '.6rem', color: 'var(--text-secondary)', marginTop: '4px', fontWeight: 700, textTransform: 'uppercase' }}>{loan.paidCount}/{loan.totalInstalments} {d.paid}</div>
               </div>
 
               {/* Credit Score Gauge */}
@@ -440,18 +443,18 @@ export default function LoanDetailClient({
 
       <div className="grid-60-40">
         <div className="card">
-          <div className="card-header"><h3>📅 Payment Schedule</h3></div>
+          <div className="card-header"><h3>📅 {d.paymentSchedule}</h3></div>
           <div className="table-wrapper" style={{ maxHeight: '500px', overflowY: 'auto' }}>
             <table>
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>Date</th>
-                  <th>Time</th>
-                  <th>Due</th>
-                  <th>Received</th>
-                  <th>Status</th>
-                  <th>Action</th>
+                  <th>{d.date}</th>
+                  <th>{d.time}</th>
+                  <th>{d.due}</th>
+                  <th>{d.received}</th>
+                  <th>{d.status}</th>
+                  <th>{d.action}</th>
                 </tr>
               </thead>
               <tbody>
@@ -475,7 +478,7 @@ export default function LoanDetailClient({
                       <td>
                         {canPay && loan.status !== 'closed' && (
                           <button className="btn btn-primary btn-sm" onClick={() => openPaymentModal(inst)} style={{ padding: '8px 12px', minHeight: '36px' }}>
-                            <span className="material-icons-outlined" style={{ fontSize: '14px' }}>{inst.status === 'paid' ? 'edit' : 'payments'}</span> {inst.status === 'paid' ? 'Edit' : 'Pay'}
+                            <span className="material-icons-outlined" style={{ fontSize: '14px' }}>{inst.status === 'paid' ? 'edit' : 'payments'}</span> {inst.status === 'paid' ? d.edit : d.pay}
                           </button>
                         )}
                       </td>
@@ -490,29 +493,29 @@ export default function LoanDetailClient({
         <div>
           <div className="card" style={{ marginBottom: '20px' }}>
             <div className="card-header">
-              <h3>⚡ Penalty Summary</h3>
+              <h3>⚡ {d.penaltySummary}</h3>
               <Link href={`/penalties?q=${encodeURIComponent(loan.loanCode)}`} className="btn btn-ghost btn-sm">
                 <span className="material-icons-outlined" style={{ fontSize: '14px' }}>open_in_new</span>
-                View in Penalties
+                {d.viewInPenalties}
               </Link>
             </div>
             <div className="stats-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
               <div className="stat-item">
                 <div className="stat-value" style={{ color: 'var(--danger)' }}>{missedCount}</div>
-                <div className="stat-label">Missed Days</div>
+                <div className="stat-label">{d.missedDays}</div>
               </div>
               <div className="stat-item" title={`Missed Days (${missedCount}) x Penalty Rate (${formatCurrency(loan.penaltyRate, currencySymbol)})`}>
                 <div className="stat-value" style={{ color: 'var(--danger)' }}>{formatCurrency(totalPenalty, currencySymbol)}</div>
-                <div className="stat-label">Total Penalty</div>
+                <div className="stat-label">{d.totalPenalty}</div>
                 <div style={{fontSize:'.6rem', opacity: .7, marginTop: '2px'}}>({missedCount}d × {formatCurrency(loan.penaltyRate, currencySymbol)})</div>
               </div>
               <div className="stat-item">
                 <div className="stat-value" style={{ color: 'var(--success)' }}>{formatCurrency(settledPenalty + waivedPenalty, currencySymbol)}</div>
-                <div className="stat-label">Settled + Waived</div>
+                <div className="stat-label">{d.settledWaived}</div>
               </div>
               <div className="stat-item">
                 <div className="stat-value" style={{ color: 'var(--primary-dark)' }}>{formatCurrency(netPenalty, currencySymbol)}</div>
-                <div className="stat-label">Net Due</div>
+                <div className="stat-label">{d.netDue}</div>
               </div>
             </div>
             
@@ -523,14 +526,14 @@ export default function LoanDetailClient({
                   style={{ flex: 1, border: '1px solid var(--border)', color: 'var(--text-light)' }}
                   onClick={() => openPenaltyModal({ id: 'new', grossPenalty: netPenalty, settledAmount: 0, waivedAmount: 0 }, 'waive')}
                 >
-                  <span className="material-icons-outlined" style={{ fontSize: '14px' }}>money_off</span> Waive Penalty
+                  <span className="material-icons-outlined" style={{ fontSize: '14px' }}>money_off</span> {d.waisePenalty}
                 </button>
                 <button 
                   className="btn btn-ghost btn-sm" 
                   style={{ flex: 1, border: '1px solid var(--border)', color: 'var(--primary)' }}
                   onClick={() => openPenaltyModal({ id: 'new', grossPenalty: netPenalty, settledAmount: 0, waivedAmount: 0 }, 'settle')}
                 >
-                  <span className="material-icons-outlined" style={{ fontSize: '14px' }}>payments</span> Settle Penalty
+                  <span className="material-icons-outlined" style={{ fontSize: '14px' }}>payments</span> {d.settlePenalty}
                 </button>
               </div>
             )}
@@ -547,8 +550,8 @@ export default function LoanDetailClient({
                       <div style={{ display: 'flex', gap: '4px' }}>
                         {p.status === 'pending' && (
                           <>
-                            <button className="btn btn-ghost btn-sm" style={{ fontSize: '.72rem' }} onClick={() => openPenaltyModal(p, 'settle')}>Settle</button>
-                            <button className="btn btn-ghost btn-sm" style={{ fontSize: '.72rem', color: 'var(--text-light)' }} onClick={() => openPenaltyModal(p, 'waive')}>Waive</button>
+                            <button className="btn btn-ghost btn-sm" style={{ fontSize: '.72rem' }} onClick={() => openPenaltyModal(p, 'settle')}>{d.settle}</button>
+                            <button className="btn btn-ghost btn-sm" style={{ fontSize: '.72rem', color: 'var(--text-light)' }} onClick={() => openPenaltyModal(p, 'waive')}>{d.waive}</button>
                           </>
                         )}
                         <span className={getBadgeClass(p.status)} style={{textTransform:'capitalize', fontSize: '.7rem'}}>{p.status}</span>
@@ -562,23 +565,23 @@ export default function LoanDetailClient({
 
           {loan.status !== 'closed' && (
             <div className="card" style={{ marginBottom: '20px' }}>
-              <div className="card-header"><h3>🔧 Admin Actions</h3></div>
+              <div className="card-header"><h3>🔧 {d.adminActions}</h3></div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
                 <Link href={`/loans/${loan.id}/edit`} className="btn btn-ghost" style={{ justifyContent: 'center', border: '1px solid var(--border)' }}>
-                  <span className="material-icons-outlined" style={{ fontSize: '16px' }}>edit</span> Edit Loan
+                  <span className="material-icons-outlined" style={{ fontSize: '16px' }}>edit</span> {d.editLoan}
                 </Link>
                 <button className="btn btn-danger" onClick={() => setCloseModal(true)}>
-                  <span className="material-icons-outlined" style={{ fontSize: '16px' }}>lock</span> Close Loan
+                  <span className="material-icons-outlined" style={{ fontSize: '16px' }}>lock</span> {d.closeLoan}
                 </button>
                 <button className="btn btn-secondary" onClick={() => setRenewModal(true)}>
-                  <span className="material-icons-outlined" style={{ fontSize: '16px' }}>autorenew</span> Renew Loan
+                  <span className="material-icons-outlined" style={{ fontSize: '16px' }}>autorenew</span> {d.renewLoan}
                 </button>
               </div>
             </div>
           )}
 
           <div className="card">
-            <div className="card-header"><h3>📄 Security Cheques</h3></div>
+            <div className="card-header"><h3>📄 {d.securityCheques}</h3></div>
             <div>
               {loan.customer.securityCheques.map((ch: any) => (
                 <div key={ch.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: '.82rem' }}>
@@ -587,7 +590,7 @@ export default function LoanDetailClient({
                 </div>
               ))}
               {loan.customer.securityCheques.length === 0 && (
-                <p style={{ color: 'var(--text-light)', fontSize: '.85rem' }}>No cheques registered</p>
+                <p style={{ color: 'var(--text-light)', fontSize: '.85rem' }}>{d.noCheques}</p>
               )}
             </div>
           </div>
@@ -599,7 +602,7 @@ export default function LoanDetailClient({
         <div className="modal-overlay show" onClick={(e) => { if (e.target === e.currentTarget) setPaymentModal(null); }}>
           <div className="modal">
             <div className="modal-header">
-              <h3>💰 Record Payment</h3>
+              <h3>💰 {d.submit}</h3>
               <button className="modal-close material-icons-outlined" onClick={() => setPaymentModal(null)}>close</button>
             </div>
             <div className="modal-body">
@@ -609,33 +612,33 @@ export default function LoanDetailClient({
                   <span style={{ color: 'var(--text-secondary)' }}>Instalment #{paymentModal.instalmentNo}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.82rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                  <span>Due: {formatDate(paymentModal.dueDate)}</span>
-                  <span>Amount: <strong style={{ color: 'var(--text)' }}>{formatCurrency(paymentModal.dueAmount, currencySymbol)}</strong></span>
+                  <span>{d.dueDateLabel}: {formatDate(paymentModal.dueDate)}</span>
+                  <span>{d.amountLabel}: <strong style={{ color: 'var(--text)' }}>{formatCurrency(paymentModal.dueAmount, currencySymbol)}</strong></span>
                 </div>
               </div>
               <div className="form-group">
-                <label className="form-label">Received Amount ({currencySymbol}) *</label>
+                <label className="form-label">{d.receivedAmount} ({currencySymbol}) *</label>
                 <input type="number" className="form-control" style={{ fontSize: '1.1rem', padding: '12px' }} value={payAmount} onChange={(e) => setPayAmount(Number(e.target.value))} min={0} required />
               </div>
               <div className="form-group">
-                <label className="form-label">Payment Mode</label>
+                <label className="form-label">{d.paymentMode}</label>
                 <select className="form-control" style={{ fontSize: '1rem', padding: '12px' }} value={payMode} onChange={(e) => setPayMode(e.target.value)}>
-                  <option value="cash">Cash</option>
-                  <option value="upi">UPI</option>
-                  <option value="cheque">Cheque</option>
-                  <option value="bank_transfer">Bank Transfer</option>
+                  <option value="cash">{d.cash}</option>
+                  <option value="upi">{d.upi}</option>
+                  <option value="cheque">{d.cheque}</option>
+                  <option value="bank_transfer">{d.bankTransfer}</option>
                 </select>
               </div>
               <div className="form-group">
-                <label className="form-label">Remarks (optional)</label>
-                <input type="text" className="form-control" style={{ fontSize: '1rem', padding: '12px' }} value={payRemarks} onChange={(e) => setPayRemarks(e.target.value)} placeholder="Any notes..." />
+                <label className="form-label">{d.remarksOptional}</label>
+                <input type="text" className="form-control" style={{ fontSize: '1rem', padding: '12px' }} value={payRemarks} onChange={(e) => setPayRemarks(e.target.value)} placeholder={d.notesPlaceholder} />
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" style={{ padding: '10px 16px', fontSize: '1rem' }} onClick={() => setPaymentModal(null)}>Cancel</button>
+              <button className="btn btn-secondary" style={{ padding: '10px 16px', fontSize: '1rem' }} onClick={() => setPaymentModal(null)}>{d.cancel}</button>
               <button className="btn btn-primary" style={{ padding: '10px 16px', fontSize: '1rem' }} onClick={handleSubmitPayment} disabled={loading || payAmount < 0}>
                 <span className="material-icons-outlined" style={{ fontSize: '18px' }}>check</span>
-                {loading ? 'Submitting...' : 'Submit Payment'}
+                {loading ? d.submitting : d.submitPayment}
               </button>
             </div>
           </div>
@@ -647,30 +650,30 @@ export default function LoanDetailClient({
         <div className="modal-overlay show" onClick={(e) => { if (e.target === e.currentTarget) setPenaltyModal(null); }}>
           <div className="modal">
             <div className="modal-header">
-              <h3>⚖️ {penAction === 'waive' ? 'Waive' : 'Settle'} Penalty</h3>
+              <h3>⚖️ {penAction === 'waive' ? d.waive : d.settle} {d.penaltySummary}</h3>
               <button className="modal-close material-icons-outlined" onClick={() => setPenaltyModal(null)}>close</button>
             </div>
             <div className="modal-body">
               <div style={{ background: 'var(--bg)', borderRadius: 'var(--radius-sm)', padding: '14px', marginBottom: '16px' }}>
                 <p style={{ fontSize: '.85rem' }}><strong>{loan.customer.name}</strong> — {loan.loanCode}</p>
                 <p style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--danger)', marginTop: '6px' }}>
-                  Gross Penalty: {formatCurrency(penaltyModal.grossPenalty, currencySymbol)}
+                  {d.grossPenalty}: {formatCurrency(penaltyModal.grossPenalty, currencySymbol)}
                 </p>
               </div>
               <div className="form-group">
-                <label className="form-label">{penAction === 'waive' ? 'Waive' : 'Settlement'} Amount ({currencySymbol})</label>
+                <label className="form-label">{penAction === 'waive' ? d.waive : d.settlement} {d.amountLabel} ({currencySymbol})</label>
                 <input type="number" className="form-control" value={penAmount} onChange={(e) => setPenAmount(Number(e.target.value))} min={0} />
               </div>
               <div className="form-group">
-                <label className="form-label">Notes</label>
-                <input type="text" className="form-control" value={penNotes} onChange={(e) => setPenNotes(e.target.value)} placeholder="Add notes..." />
+                <label className="form-label">{d.notes}</label>
+                <input type="text" className="form-control" value={penNotes} onChange={(e) => setPenNotes(e.target.value)} placeholder={d.notesPlaceholder} />
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setPenaltyModal(null)}>Cancel</button>
+              <button className="btn btn-secondary" onClick={() => setPenaltyModal(null)}>{d.cancel}</button>
               <button className="btn btn-primary" onClick={handleSubmitPenalty} disabled={loading}>
                 <span className="material-icons-outlined" style={{ fontSize: '16px' }}>check</span>
-                {loading ? 'Processing...' : 'Confirm'}
+                {loading ? d.submitting : d.settle}
               </button>
             </div>
           </div>
@@ -682,16 +685,16 @@ export default function LoanDetailClient({
         <div className="modal-overlay show" onClick={(e) => { if (e.target === e.currentTarget) setCloseModal(false); }}>
           <div className="modal">
             <div className="modal-header">
-              <h3>🔒 Close Loan</h3>
+              <h3>🔒 {d.closeLoan}</h3>
               <button className="modal-close material-icons-outlined" onClick={() => setCloseModal(false)}>close</button>
             </div>
             <div className="modal-body">
               <div style={{ background: '#FEF2F2', borderRadius: 'var(--radius-sm)', padding: '16px', marginBottom: '16px' }}>
-                <p style={{ fontSize: '.9rem', fontWeight: 600, color: 'var(--danger)' }}>Are you sure you want to close this loan?</p>
+                <p style={{ fontSize: '.9rem', fontWeight: 600, color: 'var(--danger)' }}>{d.confirmCloseLoan}</p>
                 <p style={{ fontSize: '.82rem', color: '#B91C1C', marginTop: '6px' }}>
                   This will permanently mark <strong>{loan.loanCode}</strong> as closed. 
                   {loan.paidCount < loan.totalInstalments && (
-                    <span> {loan.totalInstalments - loan.paidCount} instalments are still unpaid.</span>
+                    <span> {loan.totalInstalments - loan.paidCount} {d.instalmentUnpaid}</span>
                   )}
                 </p>
               </div>
@@ -702,7 +705,7 @@ export default function LoanDetailClient({
                 return (
                   <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 'var(--radius-sm)', padding: '14px' }}>
                     <p style={{ fontSize: '.88rem', fontWeight: 600, color: '#92400E', marginBottom: '10px' }}>
-                      ⚠️ {activeChqs.length} security cheque{activeChqs.length > 1 ? 's' : ''} on file — please return to borrower
+                      ⚠️ {activeChqs.length} {d.chequeOnFile}
                     </p>
                     <ul style={{ fontSize: '.82rem', color: '#78350F', marginBottom: '12px', paddingLeft: '18px' }}>
                       {activeChqs.map((c: any) => (
@@ -715,17 +718,17 @@ export default function LoanDetailClient({
                         checked={chequeReturned}
                         onChange={(e) => setChequeReturned(e.target.checked)}
                       />
-                      I confirm all security cheques have been returned to the borrower
+                      {d.chequeReturnConfirm}
                     </label>
                   </div>
                 );
               })()}
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setCloseModal(false)}>Cancel</button>
+              <button className="btn btn-secondary" onClick={() => setCloseModal(false)}>{d.cancel}</button>
               <button className="btn btn-danger" onClick={handleCloseLoan} disabled={loading}>
                 <span className="material-icons-outlined" style={{ fontSize: '16px' }}>lock</span>
-                {loading ? 'Closing...' : 'Close Loan'}
+                {loading ? d.closing : d.closeLoan}
               </button>
             </div>
           </div>
@@ -736,7 +739,7 @@ export default function LoanDetailClient({
         <div className="modal-overlay show" onClick={(e) => { if (e.target === e.currentTarget) setRenewModal(false); }}>
           <div className="modal">
             <div className="modal-header">
-              <h3>🔄 Renew Loan</h3>
+              <h3>🔄 {d.renewLoan}</h3>
               <button className="modal-close material-icons-outlined" onClick={() => setRenewModal(false)}>close</button>
             </div>
             <div className="modal-body">
@@ -750,10 +753,10 @@ export default function LoanDetailClient({
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setRenewModal(false)}>Cancel</button>
+              <button className="btn btn-secondary" onClick={() => setRenewModal(false)}>{d.cancel}</button>
               <button className="btn btn-primary" onClick={handleRenewLoan} disabled={loading}>
                 <span className="material-icons-outlined" style={{ fontSize: '16px' }}>autorenew</span>
-                {loading ? 'Renewing...' : 'Renew Loan'}
+                {loading ? d.renewing : d.renewLoan}
               </button>
             </div>
           </div>

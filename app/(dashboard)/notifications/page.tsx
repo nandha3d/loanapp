@@ -1,10 +1,12 @@
 import prisma from '@/lib/db';
 import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import NotificationsClient from './NotificationsClient';
+import { getDictionary } from '@/lib/i18n';
 
 export default async function NotificationsPage() {
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
+  const dict = await getDictionary(tenantId);
 
   const notifications = await prisma.systemNotification.findMany({
     where: { tenantId, appType },
@@ -14,5 +16,5 @@ export default async function NotificationsPage() {
 
   const serialized = JSON.parse(JSON.stringify(notifications));
 
-  return <NotificationsClient notifications={serialized} />;
+  return <NotificationsClient notifications={serialized} dict={dict} />;
 }

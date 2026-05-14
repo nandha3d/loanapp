@@ -51,6 +51,22 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (body.status === 'paid' || body.status === 'partial') data.receivedAt = new Date();
 
     const updated = await prisma.instalment.update({ where: { id }, data });
+
+    // Recalculate loan aggregate totals after instalment change
+    const allInstalments = await prisma.instalment.findMany({ where: { loanId: instalment.loanId } });
+    const paidCount = allInstalments.filter(i => i.status === 'paid').length;
+    const totalCollected = allInstalments.reduce((sum, i) => sum + Number(i.receivedAmount), 0);
+    const allPaid = paidCount === allInstalments.length && allInstalments.length > 0;
+
+    await prisma.loan.update({
+      where: { id: instalment.loanId },
+      data: {
+        paidCount,
+        totalCollected,
+        ...(allPaid ? { status: 'closed', closedAt: new Date() } : {}),
+      },
+    });
+
     return apiSuccess(updated);
   } catch (error: any) {
     return apiError(error.message, 500);

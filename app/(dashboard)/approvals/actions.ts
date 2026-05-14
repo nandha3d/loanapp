@@ -4,6 +4,7 @@ import prisma from '@/lib/db';
 import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth';
+import { decryptAadharNumber, encryptAadharNumber, isMaskedAadharNumber } from '@/lib/pii';
 
 // Fields an agent is allowed to request changes to on a customer record
 const CUSTOMER_EDIT_ALLOW_LIST = new Set([
@@ -49,7 +50,9 @@ export async function reviewRequest(formData: FormData) {
       const safeChanges: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(rawChanges)) {
         if (CUSTOMER_EDIT_ALLOW_LIST.has(key)) {
-          safeChanges[key] = value;
+          safeChanges[key] = key === 'aadharNumber'
+            ? encryptAadharNumber(String(value || ''))
+            : value;
         }
       }
 
@@ -156,8 +159,14 @@ export async function submitEditRequest(formData: FormData) {
   const requestedChanges: Record<string, string> = {};
   for (const field of EDIT_REQUEST_FIELDS) {
     const val = formData.get(field) as string | null;
-    if (val !== null && val !== (customer as any)[field]) {
-      requestedChanges[field] = val;
+    if (field === 'aadharNumber' && isMaskedAadharNumber(val)) continue;
+    const existingValue = field === 'aadharNumber'
+      ? decryptAadharNumber(customer.aadharNumber)
+      : (customer as any)[field];
+    if (val !== null && val !== existingValue) {
+      requestedChanges[field] = field === 'aadharNumber'
+        ? encryptAadharNumber(val) || ''
+        : val;
     }
   }
 
