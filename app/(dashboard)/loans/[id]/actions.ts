@@ -4,7 +4,8 @@ import prisma from '@/lib/db';
 import { getDefaultTenantId } from '@/lib/tenant';
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth';
-import { submitCollectionEntry } from '@/app/(dashboard)/collection/actions';
+import { submitCollectionEntry, requestCollectionEdit } from '@/app/(dashboard)/collection/actions';
+export { requestCollectionEdit };
 
 export async function markInstalmentPaid(formData: FormData) {
   const session = await auth();

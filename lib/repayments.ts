@@ -122,7 +122,7 @@ export async function reallocateLoanRepayments(
     tx.instalment.findMany({
       where: { loanId },
       orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
-      select: { id: true, instalmentNo: true, dueDate: true, dueAmount: true },
+      select: { id: true, instalmentNo: true, dueDate: true, dueAmount: true, receivedAmount: true, receivedAt: true },
     }),
     tx.collectionEntry.findMany({
       where: { loanId },
@@ -130,20 +130,62 @@ export async function reallocateLoanRepayments(
     }),
   ]);
 
-  const totalCollected = entries.reduce((sum, entry) => sum + Number(entry.receivedAmount), 0);
-  const allocations = allocatePaymentsAcrossInstalments(instalments, totalCollected, now);
-  const summary = summarizeAllocations(allocations);
+  const today = startOfDay(now);
+  const summary = {
+    paidCount: 0,
+    totalCollected: 0,
+    totalDue: instalments.reduce((sum, i) => sum + Number(i.dueAmount), 0),
+    outstandingAmount: 0,
+    overdueAmount: 0,
+    overdueCount: 0,
+    loanStatus: 'active' as 'active' | 'overdue' | 'closed',
+    allocations: [] as AllocatedInstalment[],
+  };
 
-  for (const allocation of allocations) {
+  for (const inst of instalments) {
+    const dueAmount = asNumber(inst.dueAmount);
+    const receivedAmount = asNumber(inst.receivedAmount);
+    const dueDate = startOfDay(new Date(inst.dueDate));
+    const isPastDue = dueDate.getTime() < today.getTime();
+    
+    let status: 'paid' | 'partial' | 'missed' | 'upcoming' = 'upcoming';
+    if (receivedAmount >= dueAmount) status = 'paid';
+    else if (receivedAmount > 0) status = 'partial';
+    else if (isPastDue) status = 'missed';
+
     await tx.instalment.update({
-      where: { id: allocation.id },
-      data: {
-        receivedAmount: allocation.receivedAmount,
-        status: allocation.status,
-        receivedAt: allocation.receivedAmount > 0 ? now : null,
+      where: { id: inst.id },
+      data: { 
+        status,
+        receivedAt: receivedAmount > 0 ? (inst.receivedAt || now) : null // Keep original if exists
       },
     });
+
+    if (status === 'paid') summary.paidCount++;
+    summary.totalCollected += receivedAmount;
+    summary.outstandingAmount += Math.max(0, dueAmount - receivedAmount);
+    if (isPastDue && receivedAmount < dueAmount) {
+      summary.overdueAmount += (dueAmount - receivedAmount);
+      summary.overdueCount++;
+    }
+
+    // Prepare allocation object for the summary/return
+    summary.allocations.push({
+      ...inst,
+      dueAmount,
+      receivedAmount,
+      outstandingAmount: Math.max(0, dueAmount - receivedAmount),
+      overdueAmount: isPastDue ? Math.max(0, dueAmount - receivedAmount) : 0,
+      daysOverdue: isPastDue ? Math.floor((today.getTime() - dueDate.getTime()) / (24 * 60 * 60 * 1000)) : 0,
+      status,
+    });
   }
+
+  summary.loanStatus = summary.paidCount === instalments.length && instalments.length > 0
+    ? 'closed'
+    : summary.overdueAmount > 0
+      ? 'overdue'
+      : 'active';
 
   await tx.loan.update({
     where: { id: loanId },
@@ -162,12 +204,16 @@ export function describeAllocationForPayment(
   before: AllocatedInstalment[],
   after: AllocatedInstalment[],
 ): string {
+  // Find which instalment got the payment
   const beforeMap = new Map(before.map((item) => [item.id, item.receivedAmount]));
   const changed = after
     .filter((item) => item.receivedAmount > (beforeMap.get(item.id) || 0))
-    .map((item) => `#${item.instalmentNo} ${item.status} ${item.receivedAmount}/${item.dueAmount}`);
+    .map((item) => {
+      const added = item.receivedAmount - (beforeMap.get(item.id) || 0);
+      return `#${item.instalmentNo} +₹${added} (Total: ₹${item.receivedAmount}/${item.dueAmount})`;
+    });
 
   return changed.length > 0
-    ? `Auto-allocated across instalments: ${changed.join(', ')}`
-    : 'Payment recorded; no instalment allocation changed.';
+    ? `Direct payment applied: ${changed.join(', ')}`
+    : 'Payment recorded.';
 }

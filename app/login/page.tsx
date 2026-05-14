@@ -72,6 +72,7 @@ function LoginForm() {
               onChange={(e) => setUsername(e.target.value)}
               required
               autoComplete="username"
+              suppressHydrationWarning
             />
           </div>
           <div className="form-group">
@@ -85,6 +86,7 @@ function LoginForm() {
               onChange={(e) => setPassword(e.target.value)}
               required
               autoComplete="current-password"
+              suppressHydrationWarning
             />
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
