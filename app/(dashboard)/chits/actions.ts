@@ -36,6 +36,15 @@ export async function createChitGroup(formData: FormData) {
     throw new Error(`Expected ${totalMembers} members, got ${memberIds.length}`);
   }
 
+  // Validate all members belong to this tenant/app and are active customers
+  const validCustomers = await prisma.customer.findMany({
+    where: { id: { in: memberIds }, tenantId, appType, status: 'active' },
+    select: { id: true },
+  });
+  if (validCustomers.length !== memberIds.length) {
+    throw new Error('One or more chit members are invalid or inactive for this tenant/app.');
+  }
+
   const chitGroup = await prisma.chitGroup.create({
     data: {
       tenantId,
@@ -153,8 +162,8 @@ export async function recordAuctionWinner(
         status: 'completed',
       },
     }),
-    prisma.chitMember.update({
-      where: { id: winnerMemberId },
+    prisma.chitMember.updateMany({
+      where: { id: winnerMemberId, chitGroup: { tenantId } },
       data: { hasWon: true, wonAt: new Date() },
     }),
   ]);

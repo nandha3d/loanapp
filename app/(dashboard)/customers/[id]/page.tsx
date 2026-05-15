@@ -1,5 +1,6 @@
 import prisma from '@/lib/db';
 import { getDefaultTenantId, getSetting } from '@/lib/tenant';
+import { redirect } from 'next/navigation';
 import CustomerProfileClient from './CustomerProfileClient';
 import { notFound } from 'next/navigation';
 import { auth } from '@/lib/auth';
@@ -44,6 +45,13 @@ export default async function CustomerProfilePage({
   if (!customer) {
     notFound();
   }
+
+  // ── Canonical Redirect ─────────────────────────────────────────────────────
+  // If the URL uses the UUID instead of the customerCode, redirect to canonical.
+  if (resolvedParams.id === customer.id && customer.customerCode !== customer.id) {
+    redirect(`/customers/${customer.customerCode}`);
+  }
+  // ───────────────────────────────────────────────────────────────────────────
 
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
 

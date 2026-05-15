@@ -16,7 +16,7 @@ export default async function SettingsPage() {
   const appType = await getUserAppType();
   const dict = await getDictionary(tenantId);
   
-  const [routes, rawPackages, users, settings] = await Promise.all([
+  const [routes, rawPackages, users, settings, currentUser] = await Promise.all([
     prisma.route.findMany({ 
       where: { tenantId, appType },
       include: { 
@@ -27,7 +27,8 @@ export default async function SettingsPage() {
     }),
     prisma.loanPackage.findMany({ where: { tenantId, appType } }),
     prisma.user.findMany({ where: { tenantId, appType } }),
-    getTenantSettings(tenantId)
+    getTenantSettings(tenantId),
+    prisma.user.findUnique({ where: { id: session?.user?.id } })
   ]);
 
   const packages = rawPackages.map(p => ({
@@ -46,6 +47,7 @@ export default async function SettingsPage() {
       settings={settings} 
       currencySymbol={settings.currency_symbol || '₹'}
       dict={dict}
+      currentUser={currentUser}
     />
   );
 }

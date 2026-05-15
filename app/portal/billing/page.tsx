@@ -1,10 +1,12 @@
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { getDefaultTenantId } from '@/lib/tenant';
-import { getSubscription } from '@/lib/subscription';
+import { getSubscription, normalizeEnabledModules } from '@/lib/subscription';
 import { formatDate } from '@/lib/utils';
 import Link from 'next/link';
 import { PLAN_FEATURES } from '@/lib/plans';
+import { CheckoutButton } from './CheckoutButton';
+import prisma from '@/lib/db';
 
 export default async function PortalBillingPage() {
   const session = await auth();
@@ -18,7 +20,16 @@ export default async function PortalBillingPage() {
 
   const plan = sub?.plan || 'trial';
   const features = PLAN_FEATURES[plan] || PLAN_FEATURES.trial;
-  const enabledModulesList = sub?.enabledModules?.split(',') || ['microlending'];
+  const enabledModulesList = normalizeEnabledModules(sub?.enabledModules);
+
+  // Fetch Invoices
+  let invoices: any[] = [];
+  if (sub) {
+    invoices = await prisma.billingInvoice.findMany({
+      where: { subscriptionId: sub.id },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 
   return (
     <div style={{ maxWidth: '700px', margin: '0 auto', padding: '24px' }}>
@@ -91,14 +102,53 @@ export default async function PortalBillingPage() {
                   <div style={{ fontWeight: 700, textTransform: 'capitalize', marginBottom: '8px' }}>{p}</div>
                   <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{f.loans === 999999 ? 'Unlimited' : f.loans} loans</div>
                   <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '12px' }}>{f.agents === 999 ? 'Unlimited' : f.agents} agents</div>
-                  <a href={`mailto:support@loantrack.app?subject=Upgrade%20to%20${p}`} className="btn btn-primary btn-sm" style={{ width: '100%', textAlign: 'center' }}>
-                    Upgrade
-                  </a>
+                  <CheckoutButton planId={p} />
                 </div>
               ))}
           </div>
         </div>
       )}
+
+      {/* Invoice History */}
+      <div className="card" style={{ marginTop: '20px' }}>
+        <div className="card-header">
+          <h3>Invoice History</h3>
+        </div>
+        {invoices.length === 0 ? (
+          <p style={{ color: 'var(--text-secondary)', padding: '16px', textAlign: 'center' }}>
+            No invoices found.
+          </p>
+        ) : (
+          <table className="table" style={{ width: '100%' }}>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th style={{ textAlign: 'right' }}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invoices.map((inv) => (
+                <tr key={inv.id}>
+                  <td>{formatDate(inv.createdAt)}</td>
+                  <td>{(inv.total / 100).toFixed(2)}</td>
+                  <td>
+                    <span className={`badge badge-${inv.status === 'paid' ? 'success' : 'danger'}`}>
+                      {inv.status}
+                    </span>
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    <a href={`/api/portal/invoices/${inv.id}`} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline">
+                      Download
+                    </a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 }

@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { verifyRazorpayWebhookSignature } from '@/lib/razorpay';
 import { normalizeRazorpaySubscriptionStatus } from '@/lib/subscription';
+import { PLAN_FEATURES, PLAN_PRICING } from '@/lib/plans';
 import { checkRateLimit, getClientIp, routeKey } from '@/lib/rateLimit';
+import crypto from 'node:crypto';
+
+type RazorpayPaymentEntity = {
+  amount?: number; // in paise
+  tax?: number;    // in paise
+};
 
 type RazorpaySubscriptionEntity = {
   id?: string;
@@ -15,6 +22,9 @@ type RazorpayWebhookPayload = {
   payload?: {
     subscription?: {
       entity?: RazorpaySubscriptionEntity;
+    };
+    payment?: {
+      entity?: RazorpayPaymentEntity;
     };
   };
 };
@@ -59,7 +69,11 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Idempotency: deduplicate on the Razorpay event ID ────────────────────
-  const razorpayEventId = request.headers.get('x-razorpay-event-id') ?? null;
+  let razorpayEventId = request.headers.get('x-razorpay-event-id') ?? null;
+  if (!razorpayEventId) {
+    const payloadHash = crypto.createHash('sha256').update(rawBody).digest('hex');
+    razorpayEventId = `fallback_${event}_${payloadHash}`;
+  }
   if (razorpayEventId) {
     const existing = await prisma.webhookEvent.findUnique({
       where: { provider_eventId: { provider: 'razorpay', eventId: razorpayEventId } },
@@ -79,12 +93,32 @@ export async function POST(request: NextRequest) {
   const data: {
     status: string;
     currentPeriodEnd?: Date;
+    gracePeriodEnd?: Date;
   } = {
     status: normalizeRazorpaySubscriptionStatus(event),
   };
 
   if (subscription?.current_end) {
     data.currentPeriodEnd = new Date(subscription.current_end * 1000);
+  }
+
+  // Grace Period handling for halted subscriptions
+  if (event === 'subscription.halted') {
+    data.status = 'past_due';
+    
+    // Get plan details to determine grace period
+    const existingSub = await prisma.tenantSubscription.findUnique({
+      where: { razorpaySubId },
+    });
+    
+    let graceDays = 7;
+    if (existingSub && existingSub.plan) {
+      graceDays = PLAN_FEATURES[existingSub.plan]?.gracePeriodDays || 7;
+    }
+    
+    const graceEnd = new Date();
+    graceEnd.setDate(graceEnd.getDate() + graceDays);
+    data.gracePeriodEnd = graceEnd;
   }
 
   const updated = await prisma.tenantSubscription.updateMany({
@@ -103,6 +137,39 @@ export async function POST(request: NextRequest) {
         status: 'processed',
       },
     }).catch(() => {}); // non-blocking — don't fail the response
+  }
+
+  // ── Invoice Generation ───────────────────────────────────────────────────
+  if (event === 'subscription.charged') {
+    const tenantSub = await prisma.tenantSubscription.findUnique({
+      where: { razorpaySubId },
+    });
+    if (tenantSub) {
+      // Create invoice record
+      const paymentEntity = payload.payload?.payment?.entity;
+      const planPricing = PLAN_PRICING[tenantSub.plan ?? ''] ?? PLAN_PRICING['basic'];
+      // Razorpay amounts are in paise (1/100 rupee); fall back to plan pricing config
+      const invoiceAmount = paymentEntity?.amount != null
+        ? Math.round(paymentEntity.amount / 100)
+        : planPricing.amount;
+      const invoiceTax = paymentEntity?.tax != null
+        ? Math.round(paymentEntity.tax / 100)
+        : planPricing.tax;
+      const invoiceTotal = invoiceAmount + invoiceTax;
+      await prisma.billingInvoice.create({
+        data: {
+          tenantId: tenantSub.tenantId,
+          subscriptionId: tenantSub.id,
+          amount: invoiceAmount,
+          tax: invoiceTax,
+          total: invoiceTotal,
+          status: 'paid',
+          dueDate: new Date(),
+          paidAt: new Date(),
+          billingPeriod: new Date().toISOString().slice(0, 7), // YYYY-MM
+        }
+      });
+    }
   }
 
   return NextResponse.json({

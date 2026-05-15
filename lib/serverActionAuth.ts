@@ -1,44 +1,47 @@
 import { auth } from '@/lib/auth';
-import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
+import { getDefaultTenantId } from '@/lib/tenant';
 
-export type ServerActionContext = {
+export type ActionContext = {
   userId: string;
   tenantId: string;
-  appType: string;
   role: string;
-  branchId: string | null;
 };
 
-export const ADMIN_ROLES = ['admin', 'superadmin', 'developer'];
-export const ALL_ROLES = ['admin', 'superadmin', 'developer', 'agent'];
+export type ActionResponse<T = any> = {
+  success: boolean;
+  data?: T;
+  error?: string;
+};
 
 /**
- * Resolves and validates the current user context for a server action.
- * Returns the context if the user has an allowed role, or null if unauthorized.
- *
- * Usage:
- *   const ctx = await getServerActionContext(ADMIN_ROLES);
- *   if (!ctx) return { success: false, error: 'Unauthorized' };
+ * Validates the user session and tenant context for server actions.
+ * @param allowedRoles Array of roles permitted to execute this action. If empty, all authenticated users are allowed.
  */
-export async function getServerActionContext(
-  allowedRoles: string[] = ALL_ROLES,
-): Promise<ServerActionContext | null> {
-  const session = await auth();
-  if (!session?.user?.id) return null;
+export async function withActionAuth<T>(
+  allowedRoles: string[] = [],
+  action: (context: ActionContext) => Promise<ActionResponse<T>>
+): Promise<ActionResponse<T>> {
+  try {
+    const session = await auth();
+    const userId = session?.user?.id;
+    const role = (session?.user as any)?.role;
+    
+    if (!userId || !role) {
+      return { success: false, error: 'Unauthorized: No active session' };
+    }
 
-  const role = (session.user as any)?.role as string || '';
-  if (!allowedRoles.includes(role)) return null;
+    if (allowedRoles.length > 0 && !allowedRoles.includes(role)) {
+      return { success: false, error: 'Forbidden: Insufficient permissions' };
+    }
 
-  const [tenantId, appType] = await Promise.all([
-    getDefaultTenantId(),
-    getUserAppType(),
-  ]);
+    const tenantId = await getDefaultTenantId();
+    if (!tenantId) {
+      return { success: false, error: 'Invalid tenant context' };
+    }
 
-  return {
-    userId: session.user.id,
-    role,
-    branchId: (session.user as any)?.branchId ?? null,
-    tenantId,
-    appType,
-  };
+    return await action({ userId, tenantId, role });
+  } catch (error: any) {
+    console.error('[Server Action Error]', error);
+    return { success: false, error: error.message || 'An unexpected server error occurred' };
+  }
 }

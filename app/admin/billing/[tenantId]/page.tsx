@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { redirect, notFound } from 'next/navigation';
 import { updateSubscription } from '../billingActions';
 import { MODULE_LABELS, PLAN_LABELS } from '@/lib/plans';
+import { normalizeEnabledModules } from '@/lib/subscription';
 
 const PLANS = Object.keys(PLAN_LABELS);
 const MODULES = Object.keys(MODULE_LABELS);
@@ -20,7 +21,7 @@ export default async function TenantBillingPage({ params }: { params: { tenantId
   if (!tenant) notFound();
 
   const sub = tenant.subscription;
-  const enabledModulesList = sub?.enabledModules?.split(',') || ['microlending'];
+  const enabledModulesList = normalizeEnabledModules(sub?.enabledModules);
 
   return (
     <div className="card" style={{ maxWidth: '560px' }}>

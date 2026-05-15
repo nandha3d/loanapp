@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import fs from 'fs';
 import path from 'path';
+import prisma from '@/lib/db';
 
 const PRIVATE_DIR = path.join(process.cwd(), 'private', 'uploads');
 
@@ -61,6 +62,17 @@ export async function GET(
   const ext = path.extname(resolved).toLowerCase();
   const contentType = MIME_MAP[ext] || 'application/octet-stream';
   const filename = segments[segments.length - 1];
+
+  // Audit log
+  prisma.auditLog.create({
+    data: {
+      tenantId: sessionTenantId,
+      userId: session.user.id,
+      action: 'file_download',
+      entityType: 'file',
+      entityId: segments.join('/'),
+    },
+  }).catch(() => {}); // fire and forget
 
   return new NextResponse(buffer, {
     headers: {

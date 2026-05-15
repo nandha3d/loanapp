@@ -65,6 +65,16 @@ export async function proxy(request: NextRequest) {
     return nextWithTenantHeaders(request, tenantSlug);
   }
 
+  const requestedTenantId = await getTenantIdForSlug(tenantSlug);
+  if (tenantSlug && !requestedTenantId) {
+    const rootUrl = new URL(request.url);
+    const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || process.env.APP_ROOT_DOMAIN || 'localhost:3000';
+    rootUrl.host = rootDomain;
+    rootUrl.pathname = '/not-found';
+    rootUrl.searchParams.set('tenant', tenantSlug);
+    return NextResponse.redirect(rootUrl);
+  }
+
   const session = await auth();
   const user = session?.user as ProxySessionUser | undefined;
 
@@ -72,7 +82,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  const requestedTenantId = await getTenantIdForSlug(tenantSlug);
+  // Reuse the requestedTenantId from above
   if (!isTenantHostAllowedForSession({
     requestedTenantId,
     sessionTenantId: user.tenantId,

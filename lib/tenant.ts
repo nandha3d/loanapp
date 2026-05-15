@@ -12,6 +12,16 @@ type SessionUserContext = {
 
 const TENANT_BYPASS_ROLES = new Set(['superadmin', 'developer']);
 
+export const RESERVED_SLUGS = [
+  'www', 'api', 'admin', 'app', 'portal',
+  'support', 'static', 'assets'
+];
+
+export function isReservedSlug(slug: string | null): boolean {
+  if (!slug) return false;
+  return RESERVED_SLUGS.includes(slug.toLowerCase());
+}
+
 function normalizeHost(host: string | null | undefined): string | null {
   if (!host) return null;
   return host.toLowerCase().split(':')[0] || null;

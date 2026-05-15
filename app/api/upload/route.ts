@@ -3,9 +3,7 @@ import { auth } from '@/lib/auth';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { checkRateLimit, getClientIp, routeKey } from '@/lib/rateLimit';
-
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
-const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
+import { ALLOWED_UPLOAD_MIME_TYPES, MAX_UPLOAD_SIZE_BYTES, validateFileBytes } from '@/lib/fileUpload';
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -40,11 +38,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No file provided' }, { status: 400 });
   }
 
-  if (!ALLOWED_TYPES.includes(file.type)) {
+  if (!ALLOWED_UPLOAD_MIME_TYPES.includes(file.type)) {
     return NextResponse.json({ error: 'File type not allowed. Only JPEG, PNG, WebP, and PDF are accepted.' }, { status: 400 });
   }
 
-  if (file.size > MAX_SIZE_BYTES) {
+  if (file.size > MAX_UPLOAD_SIZE_BYTES) {
     return NextResponse.json({ error: 'File exceeds the 5 MB limit.' }, { status: 400 });
   }
 
@@ -57,6 +55,11 @@ export async function POST(req: NextRequest) {
   await mkdir(uploadDir, { recursive: true });
 
   const buffer = Buffer.from(await file.arrayBuffer());
+
+  if (!validateFileBytes(buffer, file.type)) {
+    return NextResponse.json({ error: 'Invalid file signature. File may be corrupted or spoofed.' }, { status: 400 });
+  }
+
   const filePath = path.join(uploadDir, safeName);
   await writeFile(filePath, buffer);
 

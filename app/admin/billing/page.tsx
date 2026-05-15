@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { formatDate } from '@/lib/utils';
 import Link from 'next/link';
+import { normalizeEnabledModules } from '@/lib/subscription';
 
 export default async function AdminBillingPage() {
   const session = await auth();
@@ -60,7 +61,7 @@ export default async function AdminBillingPage() {
                   </td>
                   <td>{sub?.maxActiveLoans ?? '—'}</td>
                   <td>{sub?.maxAgents ?? '—'}</td>
-                  <td style={{ fontSize: '.78rem' }}>{sub?.enabledModules || '—'}</td>
+                  <td style={{ fontSize: '.78rem' }}>{sub?.enabledModules ? normalizeEnabledModules(sub.enabledModules).join(', ') : '—'}</td>
                   <td>{sub?.currentPeriodEnd ? formatDate(sub.currentPeriodEnd) : sub?.trialEndsAt ? `Trial ends ${formatDate(sub.trialEndsAt)}` : '—'}</td>
                   <td>
                     <Link href={`/admin/billing/${t.id}`} className="btn btn-ghost btn-sm">Manage</Link>

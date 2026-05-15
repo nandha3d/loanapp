@@ -1,5 +1,5 @@
 import prisma from '@/lib/db';
-import { getEnabledModules } from '@/lib/moduleGate';
+import { getEnabledModules } from './moduleGate';
 
 export type TenantSubscriptionAccess = {
   plan: string;
@@ -24,6 +24,15 @@ export function normalizeRazorpaySubscriptionStatus(event: string): string {
     default:
       return 'unknown';
   }
+}
+
+export function normalizeEnabledModules(rawModules: any): string[] {
+  if (!rawModules) return ['microlending'];
+  if (Array.isArray(rawModules)) return rawModules as string[];
+  if (typeof rawModules === 'string') {
+    return rawModules.split(',').map((m) => m.trim()).filter(Boolean);
+  }
+  return ['microlending'];
 }
 
 export async function assertTenantSubscriptionAccess(tenantId: string): Promise<void> {
@@ -86,7 +95,7 @@ export async function upsertSubscription(tenantId: string, data: {
   status: string;
   maxActiveLoans: number;
   maxAgents: number;
-  enabledModules: string;
+  enabledModules: any;
   trialEndsAt?: Date | null;
   currentPeriodEnd?: Date | null;
   razorpaySubId?: string | null;

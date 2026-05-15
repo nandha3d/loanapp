@@ -11,6 +11,8 @@ import {
   describeAllocationForPayment,
   reallocateLoanRepayments,
 } from '@/lib/repayments';
+import { sendPaymentReceipt } from '@/lib/sms';
+import { recordPaymentLedger } from '@/lib/paymentService';
 
 /**
  * Atomically gets or creates the DailyCollection for (tenantId, appType, agentId, today).
@@ -26,21 +28,19 @@ async function getOrCreateDailyCollection(
   routeId: string | null,
 ): Promise<{ id: string }> {
   const newId = randomUUID();
-  await prisma.$executeRawUnsafe(
-    `INSERT INTO daily_collections
+  await prisma.$executeRaw`
+    INSERT INTO daily_collections
        (id, tenant_id, app_type, agent_id, branch_id, route_id,
         date, total_expected, total_collected, entries_count, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, CURDATE(), 0, 0, 0, 'open', NOW(), NOW())
-     ON DUPLICATE KEY UPDATE id = id`,
-    newId, tenantId, appType, agentId, branchId ?? null, routeId ?? null,
-  );
+     VALUES (${newId}, ${tenantId}, ${appType}, ${agentId}, ${branchId ?? null}, ${routeId ?? null}, CURDATE(), 0, 0, 0, 'open', NOW(), NOW())
+     ON DUPLICATE KEY UPDATE id = id
+  `;
 
-  const rows = await prisma.$queryRawUnsafe<{ id: string }[]>(
-    `SELECT id FROM daily_collections
-     WHERE tenant_id = ? AND app_type = ? AND agent_id = ? AND date = CURDATE()
-     LIMIT 1`,
-    tenantId, appType, agentId,
-  );
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT id FROM daily_collections
+     WHERE tenant_id = ${tenantId} AND app_type = ${appType} AND agent_id = ${agentId} AND date = CURDATE()
+     LIMIT 1
+  `;
 
   if (!rows[0]) throw new Error('DailyCollection not found after upsert');
   return rows[0];
@@ -120,6 +120,7 @@ export async function submitCollectionEntry(formData: FormData) {
 
     const entry = await tx.collectionEntry.create({
       data: {
+        tenantId,
         collectionId: dailyCollectionRow.id,
         customerId: instalment.loan.customerId,
         loanId: instalment.loanId,
@@ -129,6 +130,15 @@ export async function submitCollectionEntry(formData: FormData) {
         remarks: mergedRemarks,
         agentId: userId,
       },
+    });
+
+    // Create Payment + PaymentAllocation via shared service
+    await recordPaymentLedger(tx, {
+      tenantId,
+      loanId: instalment.loanId,
+      instalmentId: instalment.id,
+      amount: delta,
+      paymentMode,
     });
 
     // Directly update the instalment receivedAmount
@@ -178,6 +188,17 @@ export async function submitCollectionEntry(formData: FormData) {
   revalidatePath('/collection');
   revalidatePath('/dashboard');
   revalidatePath(`/loans/${instalment.loanId}`);
+
+  // ── Send Notification (Fire and Forget) ──────────────────────────────────
+  if (instalment.loan.customer.phone && delta > 0) {
+    sendPaymentReceipt(
+      instalment.loan.customer.phone,
+      delta,
+      instalment.loan.loanCode,
+      tenantId
+    ).catch(err => console.error('Failed to send payment receipt SMS', err));
+  }
+
   return { success: true };
 }
 

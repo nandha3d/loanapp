@@ -7,6 +7,7 @@ import {
   describeAllocationForPayment,
   reallocateLoanRepayments,
 } from '@/lib/repayments';
+import { recordPaymentLedger } from '@/lib/paymentService';
 
 function parseDay(value: string | null) {
   const day = value ? new Date(value) : new Date();
@@ -128,6 +129,7 @@ export async function POST(request: Request) {
 
       const created = await tx.collectionEntry.create({
         data: {
+          tenantId: context.tenantId,
           collectionId: dailyCollection.id,
           customerId: instalment.loan.customerId,
           loanId: instalment.loanId,
@@ -137,6 +139,15 @@ export async function POST(request: Request) {
           remarks: mergedRemarks,
           agentId: context.userId,
         },
+      });
+
+      // Create Payment + PaymentAllocation via shared service
+      await recordPaymentLedger(tx, {
+        tenantId: context.tenantId,
+        loanId: instalment.loanId,
+        instalmentId: instalment.id,
+        amount: receivedAmount,
+        paymentMode,
       });
 
       // Directly update the instalment receivedAmount

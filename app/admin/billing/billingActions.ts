@@ -21,7 +21,7 @@ export async function updateSubscription(formData: FormData) {
   const status = formData.get('status') as string;
   const maxActiveLoans = parseInt(formData.get('maxActiveLoans') as string);
   const maxAgents = parseInt(formData.get('maxAgents') as string);
-  const enabledModules = formData.getAll('enabledModules').join(',');
+  const enabledModules = formData.getAll('enabledModules');
   const trialEndsAtStr = formData.get('trialEndsAt') as string | null;
   const currentPeriodEndStr = formData.get('currentPeriodEnd') as string | null;
   const razorpaySubId = (formData.get('razorpaySubId') as string) || null;

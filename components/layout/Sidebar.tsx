@@ -52,6 +52,7 @@ export default function Sidebar({ appType: initialAppType, enabledModules = ['mi
     { id: 'settings', icon: 'settings', label: dict.sidebar.settings, href: '/settings', adminOnly: true },
     { section: dict.sidebar.sections.account },
     { id: 'subscription', icon: 'credit_card', label: dict.sidebar.subscription, href: '/subscription', superadminOnly: true },
+    { id: 'portal-billing', icon: 'receipt_long', label: 'Billing & Invoices', href: '/portal/billing', superadminOnly: true },
     { id: 'billing', icon: 'manage_accounts', label: dict.sidebar.billing, href: '/admin/billing', developerOnly: true },
   ];
 

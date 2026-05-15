@@ -198,6 +198,29 @@ export async function closeLoan(formData: FormData) {
     return { success: false, error: 'Loan not found' };
   }
 
+  // Phase 1.4: Full-settlement validation
+  const instalments = await prisma.instalment.findMany({
+    where: { loanId }
+  });
+  const unpaidInstalments = instalments.some(i => !['paid', 'waived'].includes(i.status));
+  if (unpaidInstalments) {
+    return { success: false, error: 'Cannot close loan with unpaid or upcoming instalments' };
+  }
+
+  const pendingPenalties = await prisma.penalty.findMany({
+    where: { loanId, status: { in: ['pending', 'partial'] } }
+  });
+  if (pendingPenalties.length > 0) {
+    return { success: false, error: 'Cannot close loan with outstanding penalties' };
+  }
+
+  const pendingApprovals = await prisma.approvalRequest.findMany({
+    where: { entityId: loanId, entityType: 'loan', status: 'pending' }
+  });
+  if (pendingApprovals.length > 0) {
+    return { success: false, error: 'Cannot close loan with pending approval requests' };
+  }
+
   await prisma.loan.update({
     where: { id: loanId },
     data: {
@@ -264,82 +287,93 @@ export async function renewLoan(formData: FormData) {
     return { success: false, error: 'Settled loans cannot be renewed' };
   }
 
-  // Close the old loan
-  await prisma.loan.update({
-    where: { id: loanId },
-    data: { status: 'closed', closedAt: new Date() },
-  });
-
-  // Generate new loan code using existing settings helpers
+  // Phase 1.5: Make renewLoan transaction-safe
   const { getSetting } = await import('@/lib/tenant');
   const prefix = await getSetting(tenantId, 'loan_code_prefix', 'LN');
-  const counterStr = await getSetting(tenantId, 'loan_code_counter', '0');
-  const counter = parseInt(counterStr) + 1;
-  const loanCode = `${prefix}${String(counter).padStart(4, '0')}`;
-
-  await prisma.appSetting.upsert({
-    where: { tenantId_key: { tenantId, key: 'loan_code_counter' } },
-    create: { tenantId, key: 'loan_code_counter', value: counter.toString(), group: 'system' },
-    update: { value: counter.toString() },
-  });
-
-  // Build new instalment schedule starting today
   const { calculateEndDate, calculateInstalmentDates } = await import('@/lib/utils');
-  const startDate = new Date();
-  startDate.setHours(0, 0, 0, 0);
-  const endDate = calculateEndDate(startDate, oldLoan.frequency, oldLoan.tenure);
-  const instalmentDates = calculateInstalmentDates(startDate, oldLoan.frequency, oldLoan.tenure);
-  const perInstalment = Number(oldLoan.perInstalment);
 
-  const newLoan = await prisma.loan.create({
-    data: {
-      tenantId,
-      branchId: oldLoan.branchId,
-      loanCode,
-      customerId: oldLoan.customerId,
-      packageId: oldLoan.packageId,
-      loanType: oldLoan.loanType,
-      appType: oldLoan.appType,
-      collateralDetails: oldLoan.collateralDetails,
-      guarantorId: oldLoan.guarantorId,
-      principal: oldLoan.principal,
-      deduction: oldLoan.deduction,
-      deductionType: oldLoan.deductionType,
-      disbursed: oldLoan.disbursed,
-      frequency: oldLoan.frequency,
-      tenure: oldLoan.tenure,
-      startDate,
-      endDate,
-      perInstalment: oldLoan.perInstalment,
-      penaltyRate: oldLoan.penaltyRate,
-      voucherRef: `RENEWAL_OF_${oldLoan.loanCode}`,
-      status: 'active',
-      totalInstalments: oldLoan.tenure,
-      createdById: userId,
-      instalments: {
-        create: instalmentDates.map((date, index) => ({
-          instalmentNo: index + 1,
-          dueDate: date,
-          dueAmount: perInstalment,
-          status: 'upcoming',
-        })),
+  const result = await prisma.$transaction(async (tx) => {
+    // 1. Close the old loan
+    await tx.loan.update({
+      where: { id: loanId },
+      data: { status: 'closed', closedAt: new Date() },
+    });
+
+    // 2. Generate new loan code
+    const counterSetting = await tx.appSetting.findUnique({
+      where: { tenantId_key: { tenantId, key: 'loan_code_counter' } }
+    });
+    const counterStr = counterSetting ? counterSetting.value : '0';
+    const counter = parseInt(counterStr) + 1;
+    const loanCode = `${prefix}${String(counter).padStart(4, '0')}`;
+
+    await tx.appSetting.upsert({
+      where: { tenantId_key: { tenantId, key: 'loan_code_counter' } },
+      create: { tenantId, key: 'loan_code_counter', value: counter.toString(), group: 'system' },
+      update: { value: counter.toString() },
+    });
+
+    // 3. Build new instalment schedule starting today
+    const startDate = new Date();
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = calculateEndDate(startDate, oldLoan.frequency, oldLoan.tenure);
+    const instalmentDates = calculateInstalmentDates(startDate, oldLoan.frequency, oldLoan.tenure);
+    const perInstalment = Number(oldLoan.perInstalment);
+
+    // 4. Create new loan
+    const newLoan = await tx.loan.create({
+      data: {
+        tenantId,
+        branchId: oldLoan.branchId,
+        loanCode,
+        customerId: oldLoan.customerId,
+        packageId: oldLoan.packageId,
+        loanType: oldLoan.loanType,
+        appType: oldLoan.appType,
+        collateralDetails: oldLoan.collateralDetails,
+        guarantorId: oldLoan.guarantorId,
+        principal: oldLoan.principal,
+        deduction: oldLoan.deduction,
+        deductionType: oldLoan.deductionType,
+        disbursed: oldLoan.disbursed,
+        frequency: oldLoan.frequency,
+        tenure: oldLoan.tenure,
+        startDate,
+        endDate,
+        perInstalment: oldLoan.perInstalment,
+        penaltyRate: oldLoan.penaltyRate,
+        voucherRef: `RENEWAL_OF_${oldLoan.loanCode}`,
+        status: 'active',
+        totalInstalments: oldLoan.tenure,
+        createdById: userId,
+        instalments: {
+          create: instalmentDates.map((date, index) => ({
+            instalmentNo: index + 1,
+            dueDate: date,
+            dueAmount: perInstalment,
+            status: 'upcoming' as const,
+          })),
+        },
       },
-    },
+    });
+
+    // 5. Audit Log
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        userId,
+        action: 'create',
+        entityType: 'loan',
+        entityId: newLoan.id,
+        oldValue: JSON.stringify({ renewedFrom: loanId, oldLoanCode: oldLoan.loanCode }),
+        newValue: JSON.stringify({ loanCode, action: 'renewal' }),
+      },
+    });
+
+    return newLoan;
   });
 
-  await prisma.auditLog.create({
-    data: {
-      tenantId,
-      userId,
-      action: 'create',
-      entityType: 'loan',
-      entityId: newLoan.id,
-      oldValue: JSON.stringify({ renewedFrom: loanId, oldLoanCode: oldLoan.loanCode }),
-      newValue: JSON.stringify({ loanCode, action: 'renewal' }),
-    },
-  });
-
-  revalidatePath(`/loans/${newLoan.id}`);
+  revalidatePath(`/loans/${result.id}`);
   revalidatePath('/loans');
-  return { success: true, newLoanId: newLoan.id };
+  return { success: true, newLoanId: result.id };
 }

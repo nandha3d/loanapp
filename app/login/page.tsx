@@ -13,6 +13,9 @@ function LoginForm() {
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [totpCode, setTotpCode] = useState('');
+  const [show2fa, setShow2fa] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -25,10 +28,22 @@ function LoginForm() {
       const result = await signIn('credentials', {
         username,
         password,
+        rememberMe: rememberMe ? 'true' : 'false',
+        totpCode,
         redirect: false,
       });
 
       if (result?.error) {
+        if (result.error.includes('2FA_REQUIRED')) {
+          setShow2fa(true);
+          setLoading(false);
+          return;
+        }
+        if (result.error.includes('INVALID_TOTP')) {
+          setError('Invalid 2FA code');
+          setLoading(false);
+          return;
+        }
         setError('Invalid username or password');
         setLoading(false);
         return;
@@ -89,9 +104,31 @@ function LoginForm() {
               suppressHydrationWarning
             />
           </div>
+
+          {show2fa && (
+            <div className="form-group" style={{ animation: 'slideDown 0.3s ease-out' }}>
+              <label className="form-label" htmlFor="totpCode">2FA Code (Authenticator App)</label>
+              <input
+                type="text"
+                id="totpCode"
+                className="form-control"
+                placeholder="Enter 6-digit code"
+                value={totpCode}
+                onChange={(e) => setTotpCode(e.target.value)}
+                required
+                maxLength={6}
+                autoComplete="one-time-code"
+                autoFocus
+              />
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
             <label className="checkbox-label">
-              <input type="checkbox" defaultChecked /> Remember me
+              <input 
+                type="checkbox" 
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)} 
+              /> Remember me
             </label>
           </div>
           <button

@@ -8,17 +8,15 @@ import { auth } from '@/lib/auth';
 import fs from 'fs';
 import path from 'path';
 import { encryptAadharNumber } from '@/lib/pii';
+import { ALLOWED_UPLOAD_MIME_TYPES, MAX_UPLOAD_SIZE_BYTES, validateFileBytes } from '@/lib/fileUpload';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'private', 'uploads');
 
-const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
-
 async function saveUploadedFile(file: File, tenantId: string, subfolder: string): Promise<string> {
-  if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+  if (!ALLOWED_UPLOAD_MIME_TYPES.includes(file.type)) {
     throw new Error(`File type not allowed: ${file.type}. Only JPEG, PNG, WebP, and PDF are accepted.`);
   }
-  if (file.size > MAX_FILE_SIZE) {
+  if (file.size > MAX_UPLOAD_SIZE_BYTES) {
     throw new Error('File exceeds the 5 MB limit.');
   }
   const dir = path.join(UPLOAD_DIR, tenantId, subfolder);
@@ -27,6 +25,9 @@ async function saveUploadedFile(file: File, tenantId: string, subfolder: string)
   const safeName = `${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`;
   const filePath = path.join(dir, safeName);
   const buffer = Buffer.from(await file.arrayBuffer());
+  if (!validateFileBytes(buffer, file.type)) {
+    throw new Error('Invalid file signature. File may be corrupted or spoofed.');
+  }
   fs.writeFileSync(filePath, buffer);
   return `/api/files/${tenantId}/${subfolder}/${safeName}`;
 }

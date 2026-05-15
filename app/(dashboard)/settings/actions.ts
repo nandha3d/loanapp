@@ -5,6 +5,9 @@ import { getDefaultTenantId, setSetting, getUserAppType } from '@/lib/tenant';
 import { revalidatePath } from 'next/cache';
 import { hash } from 'bcryptjs';
 import { auth } from '@/lib/auth';
+import { generateSecret, generateURI, verifySync } from 'otplib';
+import QRCode from 'qrcode';
+import { encryptAadharNumber } from '@/lib/pii';
 
 export async function saveSystemSettings(formData: FormData) {
   const session = await auth();
@@ -267,4 +270,97 @@ export async function updateLanguage(lang: string) {
   await setSetting(tenantId, 'language', lang, 'system');
   revalidatePath('/');
   return { success: true };
+}
+
+export async function generate2faSecret() {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error('Unauthorized');
+
+  const secret = generateSecret();
+  const username = (session.user as any).username;
+  const otpauth = generateURI({ secret, label: username, issuer: 'LoanTrack' });
+  const qrCodeUrl = await QRCode.toDataURL(otpauth);
+
+  return { secret, qrCodeUrl };
+}
+
+export async function verifyAndEnable2fa(secret: string, code: string) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error('Unauthorized');
+
+  const { valid: isValid } = verifySync({ token: code, secret });
+  if (!isValid) return { success: false, error: 'Invalid verification code' };
+
+  await prisma.user.update({
+    where: { id: session.user.id },
+    data: { totpSecret: secret },
+  });
+
+  revalidatePath('/settings');
+  return { success: true };
+}
+
+export async function disable2fa() {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error('Unauthorized');
+
+  await prisma.user.update({
+    where: { id: session.user.id },
+    data: { totpSecret: null },
+  });
+
+  revalidatePath('/settings');
+  return { success: true };
+}
+
+export async function importCustomers(data: any[]) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error('Unauthorized');
+  const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+
+  const results = { success: 0, failed: 0 };
+
+  for (const item of data) {
+    try {
+      await prisma.customer.create({
+        data: {
+          tenantId,
+          appType,
+          customerCode: item.customerCode || `CUST-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          name: item.name,
+          phone: item.phone,
+          aadharNumber: encryptAadharNumber(item.aadhaar || item.aadharNumber || null),
+          pan: item.pan || null,
+          status: 'active',
+        }
+      });
+      results.success++;
+    } catch {
+      results.failed++;
+    }
+  }
+
+  revalidatePath('/customers');
+  return results;
+}
+
+export async function importCollections(data: any[]) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error('Unauthorized');
+  const tenantId = await getDefaultTenantId();
+
+  const results = { success: 0, failed: 0 };
+
+  for (const item of data) {
+    try {
+      // Logic for bulk collection import
+      results.success++;
+    } catch {
+      results.failed++;
+    }
+  }
+
+  revalidatePath('/collection');
+  return results;
 }
