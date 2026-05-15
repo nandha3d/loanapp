@@ -1,5 +1,6 @@
 generator client {
   provider      = "prisma-client-js"
+  output        = "../prisma/generated-client"
   binaryTargets = ["native", "debian-openssl-1.1.x", "debian-openssl-3.0.x", "rhel-openssl-3.0.x"]
 }
 
@@ -728,21 +729,21 @@ model PaymentAllocation {
 }
 
 model BillingInvoice {
-  id            String    @id @default(cuid())
-  tenantId      String    @map("tenant_id")
+  id             String    @id @default(cuid())
+  tenantId       String    @map("tenant_id")
   subscriptionId String?   @map("subscription_id")
-  amount        Decimal   @db.Decimal(12, 2)
-  tax           Decimal   @default(0.00) @db.Decimal(12, 2)
-  total         Decimal   @default(0.00) @db.Decimal(12, 2)
-  status        String    @default("pending")
-  dueDate       DateTime  @map("due_date")
-  paidAt        DateTime? @map("paid_at")
-  razorpayId    String?   @map("razorpay_id")
-  invoiceUrl    String?   @map("invoice_url")
-  billingPeriod String    @map("billing_period")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
-  tenant        Tenant    @relation(fields: [tenantId], references: [id])
+  amount         Decimal   @db.Decimal(12, 2)
+  tax            Decimal   @default(0.00) @db.Decimal(12, 2)
+  total          Decimal   @default(0.00) @db.Decimal(12, 2)
+  status         String    @default("pending")
+  dueDate        DateTime  @map("due_date")
+  paidAt         DateTime? @map("paid_at")
+  razorpayId     String?   @map("razorpay_id")
+  invoiceUrl     String?   @map("invoice_url")
+  billingPeriod  String    @map("billing_period")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  tenant         Tenant    @relation(fields: [tenantId], references: [id])
 
   @@index([tenantId])
   @@map("billing_invoices")

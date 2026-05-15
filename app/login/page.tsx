@@ -2,15 +2,8 @@
 
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense } from 'react';
 
 function LoginForm() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const rawCallbackUrl = searchParams.get('callbackUrl') || '/';
-  const callbackUrl = rawCallbackUrl.startsWith('/') ? rawCallbackUrl : '/';
-
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [totpCode, setTotpCode] = useState('');
@@ -25,32 +18,18 @@ function LoginForm() {
     setLoading(true);
 
     try {
-      const result = await signIn('credentials', {
+      const params = new URLSearchParams(window.location.search);
+      const rawCallbackUrl = params.get('callbackUrl') || '/';
+      const callbackUrl = rawCallbackUrl.startsWith('/') ? rawCallbackUrl : '/';
+
+      await signIn('credentials', {
         username,
         password,
         rememberMe: rememberMe ? 'true' : 'false',
         totpCode,
-        redirect: false,
+        redirect: true,
+        callbackUrl,
       });
-
-      if (result?.error) {
-        if (result.error.includes('2FA_REQUIRED')) {
-          setShow2fa(true);
-          setLoading(false);
-          return;
-        }
-        if (result.error.includes('INVALID_TOTP')) {
-          setError('Invalid 2FA code');
-          setLoading(false);
-          return;
-        }
-        setError('Invalid username or password');
-        setLoading(false);
-        return;
-      }
-
-      router.push(callbackUrl);
-      router.refresh();
     } catch {
       setError('An unexpected error occurred');
       setLoading(false);
@@ -149,15 +128,5 @@ function LoginForm() {
 }
 
 export default function LoginPage() {
-  return (
-    <Suspense fallback={
-      <div className="login-wrapper">
-        <div className="login-card">
-          <div style={{ textAlign: 'center', padding: '40px' }}>Loading...</div>
-        </div>
-      </div>
-    }>
-      <LoginForm />
-    </Suspense>
-  );
+  return <LoginForm />;
 }

@@ -28,12 +28,23 @@ RAZORPAY_WEBHOOK_SECRET="..."
 CRON_SECRET="your-strong-random-secret"
 ```
 
-### Build & Deploy
+### Standard Build & Deploy
 1. Run `npm install`.
 2. Generate Prisma client: `npx prisma generate`.
 3. Apply migrations: `npx prisma migrate deploy`.
 4. Build: `npm run build`.
 5. Start: `npm run start`.
+
+### Standalone Deployment (Hostinger / VPS)
+For environments where you need a portable build (like Hostinger), use the provided `deploy_prep.bat` script:
+
+1. Run `deploy_prep.bat` on your local Windows machine.
+2. Go to the `.next/standalone/loanapp` directory.
+3. Zip the **contents** of this folder.
+4. Upload and extract the zip to your server's root.
+5. In your server terminal, run `node server.js`.
+
+This method is "link-free" and avoids common Prisma path-mangling issues on Windows.
 
 ## 2. Error Tracking & Monitoring
 
