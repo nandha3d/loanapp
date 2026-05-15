@@ -20,7 +20,20 @@ export default async function ChitsPage({
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
   const dict = await getDictionary(tenantId);
-  await requireModule(tenantId, 'chitfunds');
+  try {
+    await requireModule(tenantId, 'chitfunds');
+  } catch {
+    return (
+      <div className="card" style={{ textAlign: 'center', padding: '60px 24px' }}>
+        <span className="material-icons-outlined" style={{ fontSize: '48px', color: 'var(--border)' }}>lock</span>
+        <h3 style={{ margin: '16px 0 8px' }}>Module Not Enabled</h3>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '20px' }}>
+          The Chit Funds module is not included in your current subscription plan.
+        </p>
+        <Link href="/subscription" className="btn btn-primary">View Subscription</Link>
+      </div>
+    );
+  }
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
   const resolvedParams = await searchParams;
   const status = resolvedParams.status || '';

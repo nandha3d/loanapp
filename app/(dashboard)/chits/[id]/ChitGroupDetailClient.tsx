@@ -149,7 +149,7 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
                     <tr key={m.id}>
                       <td>{m.memberNumber}</td>
                       <td>
-                        <a href={`/customers/${m.customer.id}`}>{m.customer.name}</a>
+                        <a href={`/customers/${m.customer.customerCode}`}>{m.customer.name}</a>
                         <br /><span style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>{m.customer.customerCode}</span>
                       </td>
                       <td>{m.hasWon ? <span className="badge badge-success">{d.won} {formatDate(m.wonAt)}</span> : <span className="badge badge-secondary">{d.pending}</span>}</td>

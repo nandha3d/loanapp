@@ -132,7 +132,7 @@ export default function VehicleDetailClient({
             <tbody>
               <tr>
                 <td style={{ color: 'var(--text-secondary)', width: '40%' }}>{d.customer}</td>
-                <td><a href={`/customers/${vehicle.customer.id}`}>{vehicle.customer.name}</a> <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>({vehicle.customer.customerCode})</span></td>
+                <td><a href={`/customers/${vehicle.customer.customerCode}`}>{vehicle.customer.name}</a> <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>({vehicle.customer.customerCode})</span></td>
               </tr>
               <tr>
                 <td style={{ color: 'var(--text-secondary)' }}>{d.loan}</td>

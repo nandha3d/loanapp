@@ -15,7 +15,20 @@ export default async function VehiclesPage({
   const session = await auth();
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
-  await requireModule(tenantId, 'autofinance');
+  try {
+    await requireModule(tenantId, 'autofinance');
+  } catch {
+    return (
+      <div className="card" style={{ textAlign: 'center', padding: '60px 24px' }}>
+        <span className="material-icons-outlined" style={{ fontSize: '48px', color: 'var(--border)' }}>lock</span>
+        <h3 style={{ margin: '16px 0 8px' }}>Module Not Enabled</h3>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '20px' }}>
+          The Auto Finance module is not included in your current subscription plan.
+        </p>
+        <Link href="/subscription" className="btn btn-primary">View Subscription</Link>
+      </div>
+    );
+  }
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
   const dict = await getDictionary(tenantId);
   const userRole = (session?.user as any)?.role;
@@ -149,7 +162,7 @@ export default async function VehiclesPage({
                     <td>{v.make} {v.model} {v.year ? `(${v.year})` : ''}</td>
                     <td><span className="badge badge-info">{v.vehicleType.replace('_', ' ')}</span></td>
                     <td>
-                      <Link href={`/customers/${v.customer.id}`}>{v.customer.name}</Link>
+                      <Link href={`/customers/${v.customer.customerCode}`}>{v.customer.name}</Link>
                       <br /><span style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>{v.customer.customerCode}</span>
                     </td>
                     <td>
