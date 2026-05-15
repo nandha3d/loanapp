@@ -18,12 +18,12 @@ export async function settlePenalty(formData: FormData) {
     return { success: false, error: 'Invalid input' };
   }
 
-  const penalty = await prisma.penalty.findUnique({
-    where: { id: penaltyId },
+  const penalty = await prisma.penalty.findFirst({
+    where: { id: penaltyId, loan: { tenantId } },
     include: { loan: true },
   });
 
-  if (!penalty || penalty.loan.tenantId !== tenantId) {
+  if (!penalty) {
     return { success: false, error: 'Penalty not found' };
   }
 

@@ -244,69 +244,70 @@ export async function updateLoan(formData: FormData) {
 
   if (!loan) return { error: 'Loan not found' };
 
-  // Check if core fields changed
+  // 1. Pre-validation: Check if core fields changed and guard financial activity
   const coreChanged = 
     Number(loan.principal) !== principal ||
     Number(loan.tenure) !== tenure ||
     loan.frequency !== frequency ||
     formatDateISO(new Date(loan.startDate)) !== startDateStr;
 
-  // Update or Create guarantor
-  let guarantorId = loan.guarantorId;
-  if (guarantorName && guarantorPhone) {
-    if (loan.guarantor) {
-      await prisma.guarantor.update({
-        where: { id: loan.guarantorId! },
-        data: { name: guarantorName, phone: guarantorPhone }
-      });
-    } else {
-      const g = await prisma.guarantor.create({
-        data: {
-          customerId: loan.customerId,
-          name: guarantorName,
-          phone: guarantorPhone
-        }
-      });
-      guarantorId = g.id;
-    }
-  }
-
-  // Update Loan
-  await prisma.loan.update({
-    where: { id: loanId },
-    data: {
-      principal,
-      deduction,
-      disbursed,
-      frequency,
-      tenure,
-      startDate,
-      endDate,
-      perInstalment,
-      penaltyRate,
-      voucherRef,
-      loanType,
-      collateralDetails,
-      guarantorId,
-      totalInstalments: tenure
-    }
-  });
-
-  // Regenerate schedule if core fields changed
   if (coreChanged) {
-    // Block reschedule if any payments have been recorded
-    const paidInstalments = await prisma.instalment.count({
-      where: { loanId, status: { in: ['paid', 'partial'] } },
-    });
-    if (paidInstalments > 0) {
+    // Phase 1.6: Guard instalment regeneration after financial activity
+    const { hasFinancialActivity } = await import('@/lib/repayments');
+    if (await hasFinancialActivity(loanId)) {
       return {
         error:
           'Cannot reschedule a loan that already has payment history. ' +
           'Please close and renew this loan instead.',
       };
     }
+  }
 
-    await prisma.$transaction(async (tx) => {
+  // 2. Wrap all modifications in a transaction (Phase 1.3)
+  await prisma.$transaction(async (tx) => {
+    // Update or Create guarantor
+    let currentGuarantorId = loan.guarantorId;
+    if (guarantorName && guarantorPhone) {
+      if (loan.guarantor) {
+        await tx.guarantor.update({
+          where: { id: loan.guarantorId! },
+          data: { name: guarantorName, phone: guarantorPhone }
+        });
+      } else {
+        const g = await tx.guarantor.create({
+          data: {
+            customerId: loan.customerId,
+            name: guarantorName,
+            phone: guarantorPhone
+          }
+        });
+        currentGuarantorId = g.id;
+      }
+    }
+
+    // Update Loan
+    await tx.loan.update({
+      where: { id: loanId },
+      data: {
+        principal,
+        deduction,
+        disbursed,
+        frequency,
+        tenure,
+        startDate,
+        endDate,
+        perInstalment,
+        penaltyRate,
+        voucherRef,
+        loanType,
+        collateralDetails,
+        guarantorId: currentGuarantorId,
+        totalInstalments: tenure
+      }
+    });
+
+    // Regenerate schedule if core fields changed
+    if (coreChanged) {
       await tx.instalment.deleteMany({ where: { loanId } });
 
       const instalmentDates = calculateInstalmentDates(startDate, frequency, tenure);
@@ -315,7 +316,7 @@ export async function updateLoan(formData: FormData) {
         instalmentNo: index + 1,
         dueDate: date,
         dueAmount: perInstalment,
-        status: 'upcoming',
+        status: 'upcoming' as const,
       }));
 
       await tx.instalment.createMany({ data: instalments });
@@ -325,8 +326,8 @@ export async function updateLoan(formData: FormData) {
         where: { id: loanId },
         data: { paidCount: 0 },
       });
-    });
-  }
+    }
+  });
 
   // Log activity
   try {

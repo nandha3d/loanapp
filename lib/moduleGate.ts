@@ -1,13 +1,11 @@
 import prisma from '@/lib/db';
+import { normalizeEnabledModules } from './subscription';
 
 const DEFAULT_MODULES = ['microlending'];
 
 export async function getEnabledModules(tenantId: string): Promise<string[]> {
   const sub = await prisma.tenantSubscription.findUnique({ where: { tenantId } });
-  if (!sub?.enabledModules) return DEFAULT_MODULES;
-
-  const modules = sub.enabledModules.split(',').map((module) => module.trim()).filter(Boolean);
-  return modules.length > 0 ? modules : DEFAULT_MODULES;
+  return normalizeEnabledModules(sub?.enabledModules);
 }
 
 export async function requireModule(tenantId: string, module: string): Promise<void> {

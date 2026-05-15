@@ -39,6 +39,19 @@ function asNumber(value: number | Prisma.Decimal | string): number {
   return Number(value);
 }
 
+/**
+ * Checks if a loan has any associated financial activity (e.g. CollectionEntry records).
+ * This acts as a guard to prevent modification of schedules that have already been paid against.
+ */
+export async function hasFinancialActivity(loanId: string): Promise<boolean> {
+  // Use dynamic import to avoid circular dependency issues at the module level
+  const { default: prismaDb } = await import('@/lib/db');
+  const count = await prismaDb.collectionEntry.count({
+    where: { loanId },
+  });
+  return count > 0;
+}
+
 function compareInstalments(a: AllocationInputInstalment, b: AllocationInputInstalment): number {
   const dueDelta = new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
   if (dueDelta !== 0) return dueDelta;

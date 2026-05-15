@@ -1,13 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { saveSystemSettings, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, deleteLoanPackage, createUser, assignAgentToRoute, removeAgentFromRoute } from './actions';
+import { saveSystemSettings, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, deleteLoanPackage, createUser, assignAgentToRoute, removeAgentFromRoute, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections } from './actions';
 import Modal from '@/components/Modal';
 
 export default function SettingsClient({ 
-  routes, packages, users, settings, currencySymbol, dict 
+  routes, packages, users, settings, currencySymbol, dict, currentUser
 }: { 
-  routes: any[], packages: any[], users: any[], settings: Record<string, string>, currencySymbol: string, dict: any
+  routes: any[], packages: any[], users: any[], settings: Record<string, string>, currencySymbol: string, dict: any, currentUser: any
 }) {
   const d = dict.settings;
   const [activeTab, setActiveTab] = useState('routes');
@@ -20,6 +20,13 @@ export default function SettingsClient({
   const [routeAgentModal, setRouteAgentModal] = useState<{ routeId: string; routeName: string; agents: any[] } | null>(null);
   const [raAgentId, setRaAgentId] = useState('');
   const [packageDeductionType, setPackageDeductionType] = useState<'fixed' | 'percentage'>('fixed');
+
+  // 2FA state
+  const [is2faModalOpen, setIs2faModalOpen] = useState(false);
+  const [qrCode, setQrCode] = useState('');
+  const [tempSecret, setTempSecret] = useState('');
+  const [totpCode, setTotpCode] = useState('');
+  const [isEnabling, setIsEnabling] = useState(false);
 
   const showToast = (msg: string) => {
     alert(msg); 
@@ -48,7 +55,9 @@ export default function SettingsClient({
         <div className={`tab ${activeTab === 'penalty' ? 'active' : ''}`} onClick={() => setActiveTab('penalty')}>{d.tabPenalty}</div>
         <div className={`tab ${activeTab === 'packages' ? 'active' : ''}`} onClick={() => setActiveTab('packages')}>{d.tabPackages}</div>
         <div className={`tab ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>{d.tabUsers}</div>
+        <div className={`tab ${activeTab === 'bulk' ? 'active' : ''}`} onClick={() => setActiveTab('bulk')}>Bulk Tools</div>
         <div className={`tab ${activeTab === 'system' ? 'active' : ''}`} onClick={() => setActiveTab('system')}>{d.tabSystem}</div>
+        <div className={`tab ${activeTab === 'security' ? 'active' : ''}`} onClick={() => setActiveTab('security')}>Security</div>
       </div>
 
       {/* Routes Tab */}
@@ -222,6 +231,68 @@ export default function SettingsClient({
         </form>
       </div>
 
+      {/* Bulk Tools Tab */}
+      <div className={`tab-content ${activeTab === 'bulk' ? 'active' : ''}`}>
+        <div className="card-header"><h3>📦 Bulk Data Tools</h3></div>
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', maxWidth:'800px'}}>
+          <div className="card" style={{padding:'20px', border:'1px solid var(--border)'}}>
+            <h4>Import Customers</h4>
+            <p style={{fontSize:'.85rem', color:'var(--text-light)', marginBottom:'15px'}}>Upload a JSON file with customer records.</p>
+            <input type="file" accept=".json" onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              const text = await file.text();
+              try {
+                const data = JSON.parse(text);
+                const res = await importCustomers(data);
+                alert(`Import complete: ${res.success} succeeded, ${res.failed} failed.`);
+              } catch {
+                alert('Invalid JSON file');
+              }
+            }} />
+          </div>
+          <div className="card" style={{padding:'20px', border:'1px solid var(--border)'}}>
+            <h4>Import Collections</h4>
+            <p style={{fontSize:'.85rem', color:'var(--text-light)', marginBottom:'15px'}}>Upload a JSON file with payment history.</p>
+            <input type="file" accept=".json" disabled />
+          </div>
+        </div>
+      </div>
+
+      {/* Security Tab */}
+      <div className={`tab-content ${activeTab === 'security' ? 'active' : ''}`}>
+        <div className="card-header"><h3>🔒 Security & 2FA</h3></div>
+        <div style={{maxWidth:'600px'}}>
+          <p style={{marginBottom:'20px', color:'var(--text-secondary)'}}>
+            Two-Factor Authentication (2FA) adds an extra layer of security to your account. 
+            Once enabled, you will need to enter a code from your authenticator app (like Google Authenticator or Authy) to log in.
+          </p>
+          
+          <div className="settings-item" style={{border:'1px solid var(--border)', padding:'20px', borderRadius:'var(--radius)'}}>
+            <div className="si-info">
+              <h4>Two-Factor Authentication</h4>
+              <p>{currentUser?.totpSecret ? 'Status: ENABLED' : 'Status: DISABLED'}</p>
+            </div>
+            <div>
+              {currentUser?.totpSecret ? (
+                <button className="btn btn-ghost btn-sm" style={{color:'var(--danger)'}} onClick={async () => { if(confirm('Are you sure you want to disable 2FA?')) { await disable2fa(); window.location.reload(); } }}>
+                  Disable 2FA
+                </button>
+              ) : (
+                <button className="btn btn-primary btn-sm" onClick={async () => {
+                  const { secret, qrCodeUrl } = await generate2faSecret();
+                  setTempSecret(secret);
+                  setQrCode(qrCodeUrl);
+                  setIs2faModalOpen(true);
+                }}>
+                  Enable 2FA
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* --- Modals --- */}
       
       {/* Route Modal */}
@@ -379,6 +450,42 @@ export default function SettingsClient({
           </div>
         </Modal>
       )}
+
+      {/* 2FA Modal */}
+      <Modal isOpen={is2faModalOpen} onClose={() => setIs2faModalOpen(false)} title="Enable Two-Factor Authentication">
+        <div style={{textAlign:'center'}}>
+          <p style={{marginBottom:'15px', fontSize:'.9rem'}}>Scan this QR code with your authenticator app:</p>
+          {qrCode && <img src={qrCode} alt="QR Code" style={{width:'200px', height:'200px', margin:'0 auto 15px', border:'8px solid #fff', borderRadius:'var(--radius)'}} />}
+          <p style={{fontSize:'.8rem', color:'var(--text-light)', marginBottom:'20px'}}>Secret Key: <code>{tempSecret}</code></p>
+          
+          <div className="form-group" style={{textAlign:'left'}}>
+            <label className="form-label">Enter 6-digit code from app</label>
+            <input 
+              type="text" 
+              className="form-control" 
+              placeholder="000000" 
+              maxLength={6} 
+              value={totpCode} 
+              onChange={e => setTotpCode(e.target.value)}
+            />
+          </div>
+          
+          <div className="form-actions" style={{marginTop:'20px'}}>
+            <button className="btn btn-primary" style={{width:'100%'}} disabled={totpCode.length !== 6 || isEnabling} onClick={async () => {
+              setIsEnabling(true);
+              const res = await verifyAndEnable2fa(tempSecret, totpCode);
+              if (res.success) {
+                window.location.reload();
+              } else {
+                alert(res.error);
+                setIsEnabling(false);
+              }
+            }}>
+              {isEnabling ? 'Verifying...' : 'Verify & Enable'}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
     </div>
   );

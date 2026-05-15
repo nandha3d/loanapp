@@ -58,7 +58,7 @@ export async function reviewRequest(formData: FormData) {
       }
 
       await prisma.customer.update({
-        where: { id: request.entityId },
+        where: { id: request.entityId, tenantId },
         data: safeChanges,
       });
     } else if (request.requestType === 'edit_collection') {

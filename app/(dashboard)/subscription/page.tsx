@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { getDefaultTenantId } from '@/lib/tenant';
 import { MODULE_LABELS, PLAN_COLORS, PLAN_LABELS } from '@/lib/plans';
+import { normalizeEnabledModules } from '@/lib/subscription';
 
 export default async function MySubscriptionPage() {
   const session = await auth();
@@ -13,7 +14,7 @@ export default async function MySubscriptionPage() {
   const sub = await prisma.tenantSubscription.findUnique({ where: { tenantId } });
   const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
 
-  const enabledModules = sub?.enabledModules?.split(',').filter(Boolean) || ['microlending'];
+  const enabledModules = normalizeEnabledModules(sub?.enabledModules);
 
   const planColor = PLAN_COLORS[sub?.plan || 'trial'];
   const planLabel = PLAN_LABELS[sub?.plan || 'trial'];

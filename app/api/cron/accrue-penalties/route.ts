@@ -29,6 +29,29 @@ export async function GET(req: NextRequest) {
   today.setHours(0, 0, 0, 0);
 
   try {
+    // Phase 1.8: Cron locking to prevent concurrent accrual runs
+    const lockId = 'penalty_accrual';
+    const lockExpiryMinutes = 5;
+    const now = new Date();
+
+    const existingLock = await prisma.cronLock.findUnique({ where: { id: lockId } });
+    if (existingLock && existingLock.expiresAt > now) {
+      return NextResponse.json({ message: 'Cron job already running or recently completed.' }, { status: 429 });
+    }
+
+    await prisma.cronLock.upsert({
+      where: { id: lockId },
+      create: {
+        id: lockId,
+        lockedAt: now,
+        expiresAt: new Date(now.getTime() + lockExpiryMinutes * 60000),
+      },
+      update: {
+        lockedAt: now,
+        expiresAt: new Date(now.getTime() + lockExpiryMinutes * 60000),
+      },
+    });
+
     // Find all instalments that are overdue and unpaid
     const overdueInstalments = await prisma.instalment.findMany({
       where: {

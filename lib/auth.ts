@@ -2,6 +2,7 @@ import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import { compare } from 'bcryptjs';
 import prisma from './db';
+import { verifySync } from 'otplib';
 import { checkRateLimit, getClientIp, loginIpKey, loginUserKey } from './rateLimit';
 
 const LOGIN_MAX_ATTEMPTS = Number(process.env.LOGIN_MAX_ATTEMPTS || 10);
@@ -64,6 +65,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       credentials: {
         username: { label: 'Username', type: 'text' },
         password: { label: 'Password', type: 'password' },
+        rememberMe: { label: 'Remember Me', type: 'text' },
+        totpCode: { label: 'TOTP Code', type: 'text' },
       },
       async authorize(credentials, request) {
         if (!credentials?.username || !credentials?.password) return null;
@@ -99,8 +102,26 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         if (!user || user.tenant.status !== 'active') return null;
 
+        if (!tenantIdFromHost && process.env.ALLOW_ROOT_DOMAIN_LOGIN === 'false') {
+          return null; // Block login on root domain if disabled
+        }
+
         const isValid = await compare(credentials.password as string, user.passwordHash);
         if (!isValid) return null;
+
+        // ── 2FA Verification ─────────────────────────────────────────────────
+        if (user.totpSecret) {
+          const totpCode = credentials.totpCode as string;
+          if (!totpCode) {
+            // Signal to the frontend that 2FA is required
+            throw new Error('2FA_REQUIRED');
+          }
+          const { valid: isTotpValid } = verifySync({ token: totpCode, secret: user.totpSecret });
+          if (!isTotpValid) {
+            throw new Error('INVALID_TOTP');
+          }
+        }
+        // ─────────────────────────────────────────────────────────────────────
 
         // Update last login
         await prisma.user.update({
@@ -129,6 +150,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           branchId: user.branchId,
           phone: user.phone,
           username: user.username,
+          rememberMe: credentials.rememberMe === 'true',
         };
       },
     }),
@@ -144,6 +166,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.phone = authorizedUser.phone;
         token.username = authorizedUser.username;
         token.userId = user.id;
+        
+        // Handle dynamic expiration based on Remember Me
+        const rememberMe = (user as any).rememberMe;
+        if (!rememberMe) {
+          token.exp = Math.floor(Date.now() / 1000) + (24 * 60 * 60); // 24 hours
+        } else {
+          token.exp = Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60); // 30 days
+        }
       }
       return token;
     },
@@ -165,6 +195,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   session: {
     strategy: 'jwt',
-    maxAge: 24 * 60 * 60, // 24 hours
+    maxAge: 30 * 24 * 60 * 60, // 30 days globally, overridden in jwt callback
   },
 });
