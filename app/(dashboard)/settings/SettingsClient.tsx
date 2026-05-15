@@ -56,7 +56,9 @@ export default function SettingsClient({
         <div className={`tab ${activeTab === 'packages' ? 'active' : ''}`} onClick={() => setActiveTab('packages')}>{d.tabPackages}</div>
         <div className={`tab ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>{d.tabUsers}</div>
         <div className={`tab ${activeTab === 'bulk' ? 'active' : ''}`} onClick={() => setActiveTab('bulk')}>Bulk Tools</div>
-        <div className={`tab ${activeTab === 'system' ? 'active' : ''}`} onClick={() => setActiveTab('system')}>{d.tabSystem}</div>
+        {currentUser?.role === 'developer' && (
+          <div className={`tab ${activeTab === 'system' ? 'active' : ''}`} onClick={() => setActiveTab('system')}>{d.tabSystem}</div>
+        )}
         <div className={`tab ${activeTab === 'security' ? 'active' : ''}`} onClick={() => setActiveTab('security')}>Security</div>
       </div>
 
@@ -165,7 +167,7 @@ export default function SettingsClient({
           <table>
             <thead><tr><th>{d.user}</th><th>{d.phone}</th><th>{d.role}</th><th>{d.status}</th><th>{d.actions}</th></tr></thead>
             <tbody>
-              {users.map(u => (
+              {users.filter(u => u.role !== 'developer' || currentUser?.role === 'developer').map(u => (
                 <tr key={u.id}>
                   <td><strong>{u.name}</strong><br/><span style={{fontSize:'.72rem',color:'var(--text-light)'}}>{u.username}</span></td>
                   <td>{u.phone}</td>
@@ -185,51 +187,53 @@ export default function SettingsClient({
       </div>
 
       {/* System Tab */}
-      <div className={`tab-content ${activeTab === 'system' ? 'active' : ''}`}>
-        <div className="card-header"><h3>⚙️ {d.systemTitle}</h3></div>
-        <form onSubmit={handleSystemSubmit}>
-          <div className="settings-list" style={{maxWidth:'600px'}}>
-            <div className="settings-item">
-              <div className="si-info"><h4>{d.appName}</h4><p>{d.appNameDesc}</p></div>
-              <input type="text" name="app_name" className="form-control" style={{width:'200px'}} defaultValue={settings.app_name || 'LoanTrack'} required />
+      {currentUser?.role === 'developer' && (
+        <div className={`tab-content ${activeTab === 'system' ? 'active' : ''}`}>
+          <div className="card-header"><h3>⚙️ {d.systemTitle}</h3></div>
+          <form onSubmit={handleSystemSubmit}>
+            <div className="settings-list" style={{maxWidth:'600px'}}>
+              <div className="settings-item">
+                <div className="si-info"><h4>{d.appName}</h4><p>{d.appNameDesc}</p></div>
+                <input type="text" name="app_name" className="form-control" style={{width:'200px'}} defaultValue={settings.app_name || 'LoanTrack'} required />
+              </div>
+              <div className="settings-item">
+                <div className="si-info"><h4>{d.currency}</h4><p>{d.currencyDesc}</p></div>
+                <input type="text" name="currency" className="form-control" style={{width:'200px'}} defaultValue={settings.currency || 'INR'} required />
+              </div>
+              <div className="settings-item">
+                <div className="si-info"><h4>{d.currencySymbol}</h4><p>{d.currencySymbolDesc}</p></div>
+                <input type="text" name="currency_symbol" className="form-control" style={{width:'200px'}} defaultValue={settings.currency_symbol || '₹'} required />
+              </div>
+              <div className="settings-item">
+                <div className="si-info"><h4>{d.timezone}</h4><p>{d.timezoneDesc}</p></div>
+                <select name="timezone" className="form-control" style={{width:'200px'}} defaultValue={settings.timezone || 'Asia/Kolkata'}>
+                  <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
+                  <option value="UTC">UTC</option>
+                </select>
+              </div>
+              <div className="settings-item">
+                <div className="si-info"><h4>{d.midnightCutoff}</h4><p>{d.midnightCutoffDesc}</p></div>
+                <select name="midnight_cutoff" className="form-control" style={{width:'200px'}} defaultValue={settings.midnight_cutoff || 'true'}>
+                  <option value="true">{d.enabled}</option>
+                  <option value="false">{d.disabled}</option>
+                </select>
+              </div>
+              <div className="settings-item">
+                <div className="si-info"><h4>{d.allowWeekendCollection}</h4><p>{d.allowWeekendDesc}</p></div>
+                <select name="allow_weekend_collection" className="form-control" style={{width:'200px'}} defaultValue={settings.allow_weekend_collection || 'false'}>
+                  <option value="true">{d.yes}</option>
+                  <option value="false">{d.no}</option>
+                </select>
+              </div>
             </div>
-            <div className="settings-item">
-              <div className="si-info"><h4>{d.currency}</h4><p>{d.currencyDesc}</p></div>
-              <input type="text" name="currency" className="form-control" style={{width:'200px'}} defaultValue={settings.currency || 'INR'} required />
+            <div style={{marginTop:'20px'}}>
+              <button type="submit" className="btn btn-primary" disabled={loading}>
+                <span className="material-icons-outlined" style={{fontSize:'16px'}}>save</span> {loading ? d.saving : d.save}
+              </button>
             </div>
-            <div className="settings-item">
-              <div className="si-info"><h4>{d.currencySymbol}</h4><p>{d.currencySymbolDesc}</p></div>
-              <input type="text" name="currency_symbol" className="form-control" style={{width:'200px'}} defaultValue={settings.currency_symbol || '₹'} required />
-            </div>
-            <div className="settings-item">
-              <div className="si-info"><h4>{d.timezone}</h4><p>{d.timezoneDesc}</p></div>
-              <select name="timezone" className="form-control" style={{width:'200px'}} defaultValue={settings.timezone || 'Asia/Kolkata'}>
-                <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
-                <option value="UTC">UTC</option>
-              </select>
-            </div>
-            <div className="settings-item">
-              <div className="si-info"><h4>{d.midnightCutoff}</h4><p>{d.midnightCutoffDesc}</p></div>
-              <select name="midnight_cutoff" className="form-control" style={{width:'200px'}} defaultValue={settings.midnight_cutoff || 'true'}>
-                <option value="true">{d.enabled}</option>
-                <option value="false">{d.disabled}</option>
-              </select>
-            </div>
-            <div className="settings-item">
-              <div className="si-info"><h4>{d.allowWeekendCollection}</h4><p>{d.allowWeekendDesc}</p></div>
-              <select name="allow_weekend_collection" className="form-control" style={{width:'200px'}} defaultValue={settings.allow_weekend_collection || 'false'}>
-                <option value="true">{d.yes}</option>
-                <option value="false">{d.no}</option>
-              </select>
-            </div>
-          </div>
-          <div style={{marginTop:'20px'}}>
-            <button type="submit" className="btn btn-primary" disabled={loading}>
-              <span className="material-icons-outlined" style={{fontSize:'16px'}}>save</span> {loading ? d.saving : d.save}
-            </button>
-          </div>
-        </form>
-      </div>
+          </form>
+        </div>
+      )}
 
       {/* Bulk Tools Tab */}
       <div className={`tab-content ${activeTab === 'bulk' ? 'active' : ''}`}>
@@ -418,6 +422,9 @@ export default function SettingsClient({
               <select name="role" className="form-control">
                 <option value="agent">{d.fieldAgent}</option>
                 <option value="admin">{d.administrator}</option>
+                {currentUser?.role === 'developer' && (
+                  <option value="developer">Developer</option>
+                )}
               </select>
             </div>
           </div>
