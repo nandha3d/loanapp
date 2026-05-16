@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { checkLimit } from '@/lib/subscription';
+import { getActiveBranchId } from '@/lib/branch';
 import fs from 'fs';
 import path from 'path';
 import { encryptAadharNumber } from '@/lib/pii';
@@ -40,11 +41,14 @@ export async function createLoan(formData: FormData) {
   const createdById = session?.user?.id;
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
-  const userBranchId = (session?.user as any)?.branchId || null;
+  const activeBranchId = await getActiveBranchId();
 
-  // Only admin, superadmin and developer can create loans
-  if (!createdById || role === 'agent') {
+  if (!createdById || !['admin', 'superadmin', 'developer', 'agent'].includes(role)) {
     redirect('/collection');
+  }
+
+  if (role !== 'developer' && !activeBranchId) {
+    return { error: 'No active branch selected.' };
   }
 
   // Enforce subscription loan limit
@@ -185,6 +189,9 @@ export async function createLoan(formData: FormData) {
   if (!customer) {
     return { error: 'Customer not found or inactive. Please select a valid customer.' };
   }
+  if (activeBranchId && customer.branchId && customer.branchId !== activeBranchId) {
+    return { error: 'Customer is not in the active branch.' };
+  }
 
   // Validate createdById references a real user in the DB
   if (createdById) {
@@ -274,7 +281,7 @@ export async function createLoan(formData: FormData) {
   const loan = await prisma.loan.create({
     data: {
       tenantId,
-      branchId: customer?.branchId || userBranchId,
+      branchId: activeBranchId,
       loanCode,
       customerId,
       packageId: finalPackageId,
@@ -294,7 +301,7 @@ export async function createLoan(formData: FormData) {
       penaltyRate,
       voucherRef,
       totalPayable,
-      status: 'active',
+      status: role === 'agent' ? 'pending_review' : 'active',
       totalInstalments: tenure,
       createdById,
       instalments: {
@@ -322,6 +329,20 @@ export async function createLoan(formData: FormData) {
     } catch (e) {
       console.error('Failed to create audit log:', e);
     }
+  }
+
+  if (role === 'agent' && activeBranchId) {
+    await prisma.systemNotification.create({
+      data: {
+        tenantId,
+        appType,
+        type: 'loan_review',
+        icon: 'assignment',
+        title: 'Loan pending review',
+        message: `Agent submitted loan ${loanCode} for approval.`,
+        link: `/loans/${loan.id}`,
+      },
+    }).catch(() => {});
   }
 
   revalidatePath('/loans');

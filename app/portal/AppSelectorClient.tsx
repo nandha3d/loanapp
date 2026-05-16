@@ -5,8 +5,19 @@ import { selectApp } from './actions';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 
-export default function AppSelectorClient({ userName, userRole }: { userName: string, userRole: string }) {
-  const apps = Object.values(APP_CONFIGS);
+export default function AppSelectorClient({ 
+  userName, 
+  userRole, 
+  enabledModules 
+}: { 
+  userName: string, 
+  userRole: string, 
+  enabledModules: string[] 
+}) {
+  const apps = Object.values(APP_CONFIGS).filter(app => {
+    if (userRole === 'developer') return true;
+    return enabledModules.includes(app.id);
+  });
   const router = useRouter();
 
   const handleSelectApp = async (appType: AppType) => {

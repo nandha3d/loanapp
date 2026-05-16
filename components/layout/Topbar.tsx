@@ -17,7 +17,15 @@ function formatTodayDate(): string {
   });
 }
 
-export default function Topbar({ dict, currentLang }: { dict: any; currentLang: string }) {
+export default function Topbar({
+  dict,
+  currentLang,
+  branchSwitcher,
+}: {
+  dict: any;
+  currentLang: string;
+  branchSwitcher?: React.ReactNode;
+}) {
   const pathname = usePathname();
   const [notifOpen, setNotifOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -130,6 +138,8 @@ export default function Topbar({ dict, currentLang }: { dict: any; currentLang: 
       </div>
 
       <div className="topbar-right">
+        {branchSwitcher}
+
         <select
           className="form-control"
           style={{ width: 'auto', padding: '4px 8px', fontSize: '.85rem', marginRight: '10px' }}

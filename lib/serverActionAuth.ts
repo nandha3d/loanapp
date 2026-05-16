@@ -1,10 +1,14 @@
 import { auth } from '@/lib/auth';
 import { getDefaultTenantId } from '@/lib/tenant';
+import { getActiveBranchId, getActiveModules } from '@/lib/branch';
+import type { ModuleKey } from '@/types/modules';
 
 export type ActionContext = {
   userId: string;
   tenantId: string;
   role: string;
+  branchId: string | null;
+  modules: ModuleKey[];
 };
 
 export type ActionResponse<T = any> = {
@@ -39,7 +43,10 @@ export async function withActionAuth<T>(
       return { success: false, error: 'Invalid tenant context' };
     }
 
-    return await action({ userId, tenantId, role });
+    const branchId = await getActiveBranchId();
+    const modules = await getActiveModules();
+
+    return await action({ userId, tenantId, role, branchId, modules });
   } catch (error: any) {
     console.error('[Server Action Error]', error);
     return { success: false, error: error.message || 'An unexpected server error occurred' };

@@ -1,6 +1,6 @@
 import prisma from './db';
 import { auth } from './auth';
-import { cookies, headers } from 'next/headers';
+import { headers } from 'next/headers';
 import { cache } from 'react';
 import { assertTenantSubscriptionAccess } from './subscription';
 
@@ -67,13 +67,16 @@ export async function getUserAppType(): Promise<string> {
   const session = await auth();
   const user = session?.user as SessionUserContext | undefined;
   const role = user?.role;
-  
-  // If superadmin or developer, check cookie first
-  if (role === 'superadmin' || role === 'developer') {
-    const cookieStore = await cookies();
-    const activeApp = cookieStore.get('active_app_type')?.value;
-    const allowedAppTypes = ['microlending', 'autofinance', 'chitfunds'];
-    if (activeApp && allowedAppTypes.includes(activeApp)) return activeApp;
+
+  if (role === 'developer') return 'microlending';
+
+  if (role === 'superadmin') {
+    const { getActiveBranchId, getBranchEnabledModules } = await import('./branch');
+    const branchId = await getActiveBranchId();
+    if (branchId) {
+      const modules = await getBranchEnabledModules(branchId);
+      if (modules.length > 0) return modules[0];
+    }
   }
 
   return user?.appType || 'microlending';
@@ -122,7 +125,8 @@ export const getCurrentTenantId = cache(async (): Promise<string> => {
   if (
     !pathname.startsWith('/subscription') &&
     !pathname.startsWith('/portal') &&
-    !pathname.startsWith('/admin')
+    !pathname.startsWith('/admin') &&
+    !pathname.startsWith('/branch-requests')
   ) {
     await assertTenantSubscriptionAccess(tenantId);
   }

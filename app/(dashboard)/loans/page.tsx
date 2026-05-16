@@ -1,25 +1,20 @@
 import prisma from '@/lib/db';
-import { auth } from '@/lib/auth';
-import { redirect } from 'next/navigation';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { formatCurrency, formatDate, getBadgeClass, parsePagination, paginatedResponse, calcPercentage } from '@/lib/utils';
 import Link from 'next/link';
 import { getDictionary } from '@/lib/i18n';
+import { getActiveBranchId } from '@/lib/branch';
 
 export default async function LoansPage({
   searchParams
 }: {
   searchParams: Promise<{ [key: string]: string | undefined }>
 }) {
-  const session = await auth();
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
   const dict = await getDictionary(tenantId);
-  const userRole = (session?.user as any)?.role;
-  const branchId = (session?.user as any)?.branchId as string | undefined;
-
-  if (userRole === 'agent') redirect('/collection');
+  const branchId = await getActiveBranchId();
 
   const resolvedParams = await searchParams;
   const q = resolvedParams.q || '';
@@ -28,9 +23,8 @@ export default async function LoansPage({
   const { page, limit, skip } = parsePagination(resolvedParams);
 
   const where: any = { tenantId, appType, AND: [] };
-  // Admins are branch-scoped; superadmin/developer see all
-  if (userRole === 'admin' && branchId) {
-    where.AND.push({ OR: [{ branchId }, { branchId: null }] });
+  if (branchId) {
+    where.AND.push({ branchId });
   }
   if (q) {
     where.AND.push({

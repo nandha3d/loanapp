@@ -3,6 +3,9 @@ import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import UsersClient from './UsersClient';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
+import { PLAN_FEATURES } from '@/lib/plans';
+import { normalizeEnabledModules } from '@/lib/subscription';
+import { normalizeModuleList } from '@/types/modules';
 
 export default async function AdminUsersPage() {
   const session = await auth();
@@ -14,20 +17,79 @@ export default async function AdminUsersPage() {
   const tenantId = await getDefaultTenantId();
   const defaultAppType = await getUserAppType();
 
-  // Developer accounts are only visible to other developers
-  const userWhere: any = { tenantId };
+  // If developer, we want to see all tenants/users
+  const userWhere: any = userRole === 'developer' ? {} : { tenantId };
   if (userRole !== 'developer') {
     userWhere.role = { not: 'developer' };
   }
 
-  const [users, branches] = await Promise.all([
+  const branchWhere: any = userRole === 'developer' ? {} : { tenantId };
+
+  const [users, branches, subscriptions] = await Promise.all([
     prisma.user.findMany({ 
       where: userWhere,
-      include: { branch: true },
+      include: { branch: true, userBranchModules: true },
       orderBy: { name: 'asc' }
     }),
-    prisma.branch.findMany({ where: { tenantId, status: 'active' } })
+    prisma.branch.findMany({
+      where: branchWhere,
+      include: { _count: { select: { users: true, routes: true, customers: true, loans: true } } },
+      orderBy: { name: 'asc' },
+    }),
+    prisma.tenantSubscription.findMany(),
   ]);
 
-  return <UsersClient users={users} branches={branches} viewerRole={userRole} defaultAppType={defaultAppType} />;
+  const currentSubscription = subscriptions.find(s => s.tenantId === tenantId);
+  const planKey = currentSubscription?.plan || 'trial';
+  const planModules = normalizeEnabledModules(currentSubscription?.enabledModules || PLAN_FEATURES[planKey]?.modules);
+
+  const superadmins = users
+    .filter((user) => user.role === 'superadmin')
+    .map((superadmin) => {
+      const saTenantId = superadmin.tenantId;
+      const saSubscription = subscriptions.find(s => s.tenantId === saTenantId);
+      const ownedBranches = branches.filter((branch) => branch.tenantId === saTenantId && branch.superadminId === superadmin.id);
+      const branchIds = new Set(ownedBranches.map((branch) => branch.id));
+      const admins = users.filter((user) => user.role === 'admin' && user.branchId && branchIds.has(user.branchId));
+      const agents = users.filter((user) => user.role === 'agent' && user.branchId && branchIds.has(user.branchId));
+      
+      // Use subscription modules instead of branch modules for the summary card
+      const saPlanKey = saSubscription?.plan || 'trial';
+      const modules = normalizeEnabledModules(saSubscription?.enabledModules || PLAN_FEATURES[saPlanKey]?.modules);
+
+      return {
+        id: superadmin.id,
+        tenantId: saTenantId,
+        name: superadmin.name,
+        username: superadmin.username,
+        phone: superadmin.phone,
+        status: superadmin.status,
+        subscription: saSubscription,
+        branches: ownedBranches.map((branch) => ({
+          id: branch.id,
+          name: branch.name,
+          code: branch.code,
+          enabledModules: normalizeModuleList(branch.enabledModules),
+          usersCount: branch._count.users,
+          routesCount: branch._count.routes,
+          customersCount: branch._count.customers,
+          loansCount: branch._count.loans,
+        })),
+        adminCount: admins.length,
+        agentCount: agents.length,
+        modules,
+      };
+    });
+
+  return (
+    <UsersClient
+      users={users}
+      branches={branches}
+      viewerRole={userRole}
+      defaultAppType={defaultAppType}
+      subscription={currentSubscription}
+      planModules={planModules}
+      superadmins={superadmins}
+    />
+  );
 }

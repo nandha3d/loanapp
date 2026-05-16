@@ -5,6 +5,7 @@ import { formatCurrency, getBadgeClass, parsePagination, paginatedResponse, getI
 import Link from 'next/link';
 import { calculateCreditScore } from '@/lib/creditScore';
 import { getDictionary } from '@/lib/i18n';
+import { getActiveBranchId } from '@/lib/branch';
 
 export default async function CustomersPage({
   searchParams
@@ -24,12 +25,11 @@ export default async function CustomersPage({
   const status = resolvedParams.status || '';
   const { page, limit, skip } = parsePagination(resolvedParams);
 
-  const branchId = (session?.user as any)?.branchId as string | undefined;
+  const branchId = await getActiveBranchId();
 
   const where: any = { tenantId, appType, AND: [] };
-  if (userRole === 'admin' && branchId) {
-    // Include records belonging to admin's branch OR records with no branch assigned
-    where.AND.push({ OR: [{ branchId }, { branchId: null }] });
+  if (branchId) {
+    where.AND.push({ branchId });
   }
   if (q) {
     where.AND.push({

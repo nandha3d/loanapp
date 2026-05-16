@@ -4,6 +4,7 @@ import { apiSuccess, apiError } from '@/lib/utils';
 import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { auth } from '@/lib/auth';
 import { getAgentRouteIds } from '@/lib/access';
+import { getActiveBranchId } from '@/lib/branch';
 
 export async function GET(request: Request) {
   try {
@@ -11,7 +12,7 @@ export async function GET(request: Request) {
     if (!session?.user) return apiError('Unauthorized', 401);
 
     const role = (session.user as any)?.role;
-    const branchId = (session.user as any)?.branchId;
+    const branchId = await getActiveBranchId();
     const userId = session.user?.id;
 
     const tenantId = await getDefaultTenantId();
@@ -21,8 +22,7 @@ export async function GET(request: Request) {
 
     const where: any = { tenantId, appType };
 
-    // Branch isolation for micro lending admins
-    if (role === 'admin' && branchId) {
+    if (branchId) {
       where.branchId = branchId;
     }
 

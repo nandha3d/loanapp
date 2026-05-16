@@ -8,6 +8,7 @@ declare module 'next-auth' {
       role: string;
       tenantId: string;
       branchId: string | null;
+      activeBranchId: string | null;
       phone: string;
       username: string;
       appType: string;
@@ -18,6 +19,7 @@ declare module 'next-auth' {
     role?: string;
     tenantId?: string;
     branchId?: string | null;
+    activeBranchId?: string | null;
     phone?: string;
     username?: string;
     appType?: string;
@@ -30,6 +32,7 @@ declare module 'next-auth/jwt' {
     role?: string;
     tenantId?: string;
     branchId?: string | null;
+    activeBranchId?: string | null;
     phone?: string;
     username?: string;
     appType?: string;

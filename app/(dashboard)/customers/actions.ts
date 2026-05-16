@@ -9,6 +9,7 @@ import fs from 'fs';
 import path from 'path';
 import { encryptAadharNumber } from '@/lib/pii';
 import { ALLOWED_UPLOAD_MIME_TYPES, MAX_UPLOAD_SIZE_BYTES, validateFileBytes } from '@/lib/fileUpload';
+import { getActiveBranchId } from '@/lib/branch';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'private', 'uploads');
 
@@ -38,7 +39,7 @@ export async function saveCustomer(formData: FormData) {
   const session = await auth();
   const userRole = (session?.user as any)?.role || 'agent';
   const userId = session?.user?.id;
-  const userBranchId = (session?.user as any)?.branchId || null;
+  const activeBranchId = await getActiveBranchId();
   const editId = formData.get('id') as string | null;
   
   const name = formData.get('name') as string;
@@ -220,7 +221,7 @@ export async function saveCustomer(formData: FormData) {
         routeId,
         agentId,
         appType,
-        branchId: userBranchId,
+        branchId: activeBranchId,
         status: userRole === 'agent' ? 'pending_review' : 'active',
         ...(profilePhoto ? { profilePhoto } : {}),
         securityCheques: {

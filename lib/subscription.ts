@@ -5,25 +5,19 @@ export type TenantSubscriptionAccess = {
   plan: string;
   status: string;
   trialEndsAt?: Date | null;
+  currentPeriodEnd?: Date | null;
 };
 
 export function isTenantTrialExpired(sub: TenantSubscriptionAccess | null | undefined, now = new Date()): boolean {
   if (!sub || sub.plan !== 'trial' || !sub.trialEndsAt) return false;
-  return sub.trialEndsAt.getTime() < now.getTime();
+  return new Date(sub.trialEndsAt).getTime() < now.getTime();
 }
 
-export function normalizeRazorpaySubscriptionStatus(event: string): string {
-  switch (event) {
-    case 'subscription.activated':
-    case 'subscription.charged':
-      return 'active';
-    case 'subscription.halted':
-      return 'past_due';
-    case 'subscription.cancelled':
-      return 'cancelled';
-    default:
-      return 'unknown';
-  }
+export function isTenantSubscriptionExpired(sub: TenantSubscriptionAccess | null | undefined, now = new Date()): boolean {
+  if (!sub) return false;
+  if (sub.status === 'expired' || sub.status === 'cancelled') return true;
+  if (sub.currentPeriodEnd && new Date(sub.currentPeriodEnd).getTime() < now.getTime()) return true;
+  return false;
 }
 
 export function normalizeEnabledModules(rawModules: any): string[] {
@@ -43,29 +37,20 @@ export async function assertTenantSubscriptionAccess(tenantId: string): Promise<
     throw new Error('Your trial has expired. Please upgrade your subscription to continue.');
   }
 
+  const isExpired = isTenantSubscriptionExpired(sub);
+  if (isExpired) {
+    throw new Error('Your subscription has expired or been cancelled. Please renew to continue.');
+  }
+
   if (sub.status === 'past_due') {
-    // Allow continued access during a grace period if one is configured
     const gracePeriodEnd = (sub as any).gracePeriodEnd as Date | null | undefined;
     if (gracePeriodEnd && gracePeriodEnd > new Date()) return;
     throw new Error('Your subscription payment is overdue. Please update your payment method to continue.');
-  }
-
-  if (sub.status === 'expired') {
-    throw new Error('Your subscription has expired. Please renew to continue.');
-  }
-
-  if (sub.status === 'cancelled') {
-    throw new Error('Your subscription has been cancelled. Please contact support.');
-  }
-
-  if (sub.status !== 'active') {
-    throw new Error('Your subscription is currently inactive. Please contact the administrator.');
   }
 }
 
 export async function checkLimit(tenantId: string, resource: 'loans' | 'agents' | 'vehicles' | 'chits') {
   const sub = await prisma.tenantSubscription.findUnique({ where: { tenantId } });
-  // If no subscription record exists, apply permissive defaults
   if (!sub) return;
   await assertTenantSubscriptionAccess(tenantId);
 
@@ -98,16 +83,7 @@ export async function getSubscription(tenantId: string) {
   return prisma.tenantSubscription.findUnique({ where: { tenantId } });
 }
 
-export async function upsertSubscription(tenantId: string, data: {
-  plan: string;
-  status: string;
-  maxActiveLoans: number;
-  maxAgents: number;
-  enabledModules: any;
-  trialEndsAt?: Date | null;
-  currentPeriodEnd?: Date | null;
-  razorpaySubId?: string | null;
-}) {
+export async function upsertSubscription(tenantId: string, data: any) {
   return prisma.tenantSubscription.upsert({
     where: { tenantId },
     update: data,

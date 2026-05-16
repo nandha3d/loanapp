@@ -1,5 +1,6 @@
 import { auth } from '@/lib/auth';
 import { getCurrentTenantId, getUserAppType } from '@/lib/tenant';
+import { getActiveBranchId } from '@/lib/branch';
 import { apiError } from '@/lib/utils';
 
 export const ADMIN_API_ROLES = ['admin', 'superadmin', 'developer'];
@@ -26,12 +27,13 @@ export async function requireApiContext(allowedRoles: string[] = AUTHENTICATED_A
 
   const tenantId = await getCurrentTenantId();
   const appType = await getUserAppType();
+  const branchId = await getActiveBranchId();
 
   return {
     context: {
       role,
       userId: session.user.id,
-      branchId: (session.user as { branchId?: string | null })?.branchId || null,
+      branchId,
       tenantId,
       appType,
     },
@@ -39,7 +41,7 @@ export async function requireApiContext(allowedRoles: string[] = AUTHENTICATED_A
 }
 
 export function scopedBranchWhere(context: ApiContext) {
-  return context.role === 'admin' && context.branchId ? { branchId: context.branchId } : {};
+  return context.branchId ? { branchId: context.branchId } : {};
 }
 
 export function isApiError(result: ApiContextResult): result is { response: Response } {

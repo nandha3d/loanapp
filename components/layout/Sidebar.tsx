@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import { useState, useEffect } from 'react';
 import { getAppConfig } from '@/lib/appConfig';
+import { MODULE_ROUTES, normalizeModuleList } from '@/types/modules';
 
 interface NavItem {
   section?: string;
@@ -41,7 +42,7 @@ export default function Sidebar({ appType: initialAppType, enabledModules = ['mi
     { id: 'collection', icon: 'point_of_sale', label: dict.sidebar.collection, href: '/collection' },
     { section: dict.sidebar.sections.management },
     { id: 'customers', icon: 'people', label: dict.sidebar.customers, href: '/customers' },
-    { id: 'loans', icon: 'account_balance', label: dict.sidebar.loans, href: '/loans', adminOnly: true },
+    { id: 'loans', icon: 'account_balance', label: dict.sidebar.loans, href: '/loans' },
     { id: 'vehicles', icon: 'directions_car', label: dict.sidebar.vehicles, href: '/vehicles', adminOnly: true, appTypes: ['autofinance'] },
     { id: 'chits', icon: 'savings', label: dict.sidebar.chits, href: '/chits', adminOnly: true, appTypes: ['chitfunds'] },
     { id: 'penalties', icon: 'gavel', label: dict.sidebar.penalties, href: '/penalties', adminOnly: true },
@@ -69,6 +70,14 @@ export default function Sidebar({ appType: initialAppType, enabledModules = ['mi
     if (item.adminOnly && role !== 'admin' && role !== 'superadmin' && role !== 'developer') return false;
     if (item.developerOnly && role !== 'developer') return false;
     if (item.superadminOnly && role !== 'superadmin') return false;
+    const activeModules = normalizeModuleList(enabledModules);
+    const alwaysVisible = ['/dashboard', '/collection', '/approvals', '/settings', '/notifications', '/subscription', '/portal', '/admin'];
+    if (item.href && !alwaysVisible.some((path) => item.href!.startsWith(path))) {
+      const routeEnabled = activeModules.some((module) =>
+        MODULE_ROUTES[module].some((route) => item.href!.startsWith(route)),
+      );
+      if (!routeEnabled) return false;
+    }
     if (item.appTypes && !item.appTypes.some((type) => enabledModules.includes(type))) return false;
     return true;
   });

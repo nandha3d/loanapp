@@ -7,7 +7,7 @@ const css = readFileSync(join(root, 'app', 'globals.css'), 'utf8');
 const materialFontPath = join(root, 'public', 'fonts', 'MaterialIconsOutlined-Regular.otf');
 
 assert.ok(existsSync(materialFontPath), 'Material Icons font should be bundled locally');
-assert.match(css, /@font-face\s*{[^}]*font-family:\s*['"]Material Icons Outlined['"]/s);
+assert.match(css, /@font-face\s*{[\s\S]*?font-family:\s*['"]Material Icons Outlined['"]/);
 assert.match(css, /\/fonts\/MaterialIconsOutlined-Regular\.otf/);
 assert.match(css, /(^|[^-])font-feature-settings:\s*['"]liga['"]/);
 

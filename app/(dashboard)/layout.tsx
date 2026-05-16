@@ -1,5 +1,6 @@
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
 import { SessionProvider } from 'next-auth/react';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
@@ -7,6 +8,11 @@ import { getUserAppType, getDefaultTenantId } from '@/lib/tenant';
 import { getAppConfig } from '@/lib/appConfig';
 import { getDictionary, getCurrentLanguage } from '@/lib/i18n';
 import { getEnabledModules } from '@/lib/moduleGate';
+import BranchSwitcher from '@/components/layout/BranchSwitcher';
+import { getActiveBranchId, getSuperadminBranches } from '@/lib/branch';
+import { isRouteEnabledForModules, normalizeModuleList } from '@/types/modules';
+import { getSubscription, isTenantSubscriptionExpired } from '@/lib/subscription';
+import Link from 'next/link';
 
 export default async function DashboardLayout({
   children,
@@ -25,6 +31,30 @@ export default async function DashboardLayout({
   const dict = await getDictionary(tenantId);
   const lang = await getCurrentLanguage(tenantId);
   const enabledModules = await getEnabledModules(tenantId);
+  const headerStore = await headers();
+  const pathname = headerStore.get('x-loantrack-path') || '';
+  const user = session.user as any;
+  const role = user.role as string;
+  const userId = user.id as string;
+  let branches: { id: string; name: string; enabledModules: string[] }[] = [];
+  let activeBranchId: string | null = null;
+
+  if (role === 'superadmin') {
+    const rawBranches = await getSuperadminBranches(tenantId, userId);
+    branches = rawBranches.map((branch) => ({
+      id: branch.id,
+      name: branch.name,
+      enabledModules: normalizeModuleList(branch.enabledModules),
+    }));
+    activeBranchId = await getActiveBranchId();
+  }
+
+  if (role !== 'developer' && pathname && !isRouteEnabledForModules(pathname, enabledModules)) {
+    redirect(role === 'agent' ? '/collection' : '/dashboard');
+  }
+
+  const sub = await getSubscription(tenantId);
+  const isExpired = isTenantSubscriptionExpired(sub);
 
   return (
     <SessionProvider session={session}>
@@ -39,8 +69,39 @@ export default async function DashboardLayout({
       >
         <Sidebar appType={appType} enabledModules={enabledModules} dict={dict} />
         <main className="main-content">
-          <Topbar dict={dict} currentLang={lang} />
-          <div className="page-content fade-up">
+          <Topbar
+            dict={dict}
+            currentLang={lang}
+            branchSwitcher={<BranchSwitcher branches={branches} activeBranchId={activeBranchId} />}
+          />
+          <div className="page-content fade-up" style={{ position: 'relative' }}>
+            {isExpired && (
+              <div style={{
+                background: '#fff3cd',
+                color: '#856404',
+                padding: '12px 20px',
+                borderRadius: '8px',
+                border: '1px solid #ffeeba',
+                marginBottom: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span className="material-icons-outlined">warning</span>
+                  <div>
+                    <strong style={{ display: 'block' }}>Subscription Expired</strong>
+                    <span style={{ fontSize: '0.9rem' }}>Your subscription has expired. Access is now read-only. Please renew to resume operations.</span>
+                  </div>
+                </div>
+                {role === 'superadmin' && (
+                  <Link href="/subscription" className="btn btn-sm" style={{ background: '#856404', color: '#fff', border: 'none' }}>
+                    Renew Now
+                  </Link>
+                )}
+              </div>
+            )}
             {children}
           </div>
         </main>
