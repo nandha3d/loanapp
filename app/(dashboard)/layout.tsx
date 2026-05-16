@@ -65,7 +65,7 @@ export default async function DashboardLayout({
         '--accent': appConfig.accentColor,
       } as React.CSSProperties}
     >
-      <Sidebar appType={appType} enabledModules={enabledModules} dict={dict} />
+      <Sidebar appType={appType} enabledModules={enabledModules} dict={dict} role={role} userName={user.name || 'User'} />
       <main className="main-content">
         <Topbar
           dict={dict}

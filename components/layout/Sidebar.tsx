@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useSession, signOut } from 'next-auth/react';
 import { useState, useEffect } from 'react';
 import { getAppConfig } from '@/lib/appConfig';
 import { MODULE_ROUTES, normalizeModuleList } from '@/types/modules';
@@ -23,18 +22,27 @@ function getInitials(name: string): string {
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 }
 
-export default function Sidebar({ appType: initialAppType, enabledModules = ['microlending'], dict }: { appType?: string, enabledModules?: string[], dict: any }) {
+export default function Sidebar({
+  appType: initialAppType,
+  enabledModules = ['microlending'],
+  dict,
+  role,
+  userName,
+}: {
+  appType?: string;
+  enabledModules?: string[];
+  dict: any;
+  role: string;
+  userName: string;
+}) {
   const pathname = usePathname();
-  const { data: session } = useSession();
   const [isOpen, setIsOpen] = useState(false);
 
   function getRoleName(role: string): string {
     return (dict.roles as any)[role] || role;
   }
 
-  const role = (session?.user as any)?.role || 'agent';
-  const userAppType = initialAppType || (session?.user as any)?.appType || 'microlending';
-  const userName = session?.user?.name || 'User';
+  const userAppType = initialAppType || 'microlending';
 
   const navItems: NavItem[] = [
     { section: dict.sidebar.sections.main },
