@@ -14,6 +14,7 @@ export default function AppSelectorClient({
   userRole: string, 
   enabledModules: string[] 
 }) {
+  console.log('AppSelectorClient Render:', { userName, userRole, enabledModules });
   const apps = Object.values(APP_CONFIGS).filter(app => {
     if (userRole === 'developer') return true;
     return enabledModules.includes(app.id);

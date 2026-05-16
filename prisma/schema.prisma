@@ -1,7 +1,7 @@
 generator client {
   provider        = "prisma-client-js"
-  binaryTargets   = ["native", "debian-openssl-1.1.x", "debian-openssl-3.0.x", "linux-musl-openssl-3.0.x", "rhel-openssl-1.1.x", "rhel-openssl-3.0.x"]
   previewFeatures = ["driverAdapters"]
+  binaryTargets   = ["native", "debian-openssl-1.1.x", "debian-openssl-3.0.x", "linux-musl-openssl-3.0.x", "rhel-openssl-1.1.x", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
@@ -16,13 +16,16 @@ model Tenant {
   status                String                 @default("active")
   createdAt             DateTime               @default(now()) @map("created_at")
   updatedAt             DateTime               @updatedAt @map("updated_at")
+  deletedAt             DateTime?              @map("deleted_at")
   settings              AppSetting[]
   auditLogs             AuditLog[]
+  billingInvoices       BillingInvoice[]
+  branchRequests        BranchRequest[]
   branches              Branch[]
   chitGroups            ChitGroup[]
+  collectionEntries     CollectionEntry[]
   customers             Customer[]
   collections           DailyCollection[]
-  collectionEntries     CollectionEntry[]
   loanPackages          LoanPackage[]
   loans                 Loan[]
   notificationTemplates NotificationTemplate[]
@@ -31,9 +34,6 @@ model Tenant {
   subscription          TenantSubscription?
   users                 User[]
   vehicles              Vehicle[]
-  deletedAt             DateTime?              @map("deleted_at")
-  billingInvoices       BillingInvoice[]
-  branchRequests        BranchRequest[]
 
   @@map("tenants")
 }
@@ -41,25 +41,25 @@ model Tenant {
 model Branch {
   id             String             @id @default(cuid())
   tenantId       String             @map("tenant_id")
-  superadminId   String?            @map("superadmin_id")
   name           String
   code           String?
   address        String?            @db.Text
   phone          String?
   status         String             @default("active")
-  enabledModules Json               @default("[]") @map("enabled_modules")
   createdAt      DateTime           @default(now()) @map("created_at")
   updatedAt      DateTime           @updatedAt @map("updated_at")
+  superadminId   String?            @map("superadmin_id")
+  enabledModules String             @default(dbgenerated("(json_array())")) @map("enabled_modules") @db.LongText
+  branchRequests BranchRequest[]
+  superadmin     User?              @relation("SuperadminBranches", fields: [superadminId], references: [id])
   tenant         Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  superadmin     User?              @relation("SuperadminBranches", fields: [superadminId], references: [id], onDelete: SetNull)
   chitGroups     ChitGroup[]
   customers      Customer[]
   collections    DailyCollection[]
   loans          Loan[]
   routes         Route[]
-  users          User[]
-  branchRequests BranchRequest[]
   userModules    UserBranchModule[]
+  users          User[]
 
   @@unique([tenantId, code])
   @@index([superadminId], map: "branches_superadmin_id_fkey")
@@ -81,40 +81,40 @@ model AppSetting {
 }
 
 model User {
-  id                       String            @id @default(cuid())
-  tenantId                 String            @map("tenant_id")
-  branchId                 String?           @map("branch_id")
+  id                       String             @id @default(cuid())
+  tenantId                 String             @map("tenant_id")
+  branchId                 String?            @map("branch_id")
   name                     String
   phone                    String
   email                    String?
   username                 String
-  passwordHash             String            @map("password_hash")
-  totpSecret               String?           @map("totp_secret")
-  role                     String            @default("agent")
-  appType                  String            @default("microlending") @map("app_type")
-  status                   String            @default("active")
+  passwordHash             String             @map("password_hash")
+  role                     String             @default("agent")
+  appType                  String             @default("microlending") @map("app_type")
+  status                   String             @default("active")
   avatar                   String?
-  lastLoginAt              DateTime?         @map("last_login_at")
-  createdAt                DateTime          @default(now()) @map("created_at")
-  updatedAt                DateTime          @updatedAt @map("updated_at")
-  approvalRequestsMade     ApprovalRequest[] @relation("Requester")
-  approvalRequestsReviewed ApprovalRequest[] @relation("Reviewer")
+  lastLoginAt              DateTime?          @map("last_login_at")
+  createdAt                DateTime           @default(now()) @map("created_at")
+  updatedAt                DateTime           @updatedAt @map("updated_at")
+  deletedAt                DateTime?          @map("deleted_at")
+  totpSecret               String?            @map("totp_secret")
+  approvalRequestsMade     ApprovalRequest[]  @relation("Requester")
+  approvalRequestsReviewed ApprovalRequest[]  @relation("Reviewer")
   auditLogs                AuditLog[]
+  branchRequestsMade       BranchRequest[]    @relation("BranchRequestsMade")
+  branchRequestsReviewed   BranchRequest[]    @relation("BranchRequestsReviewed")
+  superadminBranches       Branch[]           @relation("SuperadminBranches")
   collectionEntries        CollectionEntry[]
-  assignedCustomers        Customer[]        @relation("AgentCustomers")
+  assignedCustomers        Customer[]         @relation("AgentCustomers")
   dailyCollections         DailyCollection[]
-  createdLoans             Loan[]            @relation("LoanCreator")
-  settledPenalties         Penalty[]         @relation("PenaltySettler")
+  createdLoans             Loan[]             @relation("LoanCreator")
+  settledPenalties         Penalty[]          @relation("PenaltySettler")
   routeAgents              RouteAgent[]
   assignedRoutes           Route[]
-  branch                   Branch?           @relation(fields: [branchId], references: [id])
-  tenant                   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  vehicleRepoFlags         Vehicle[]         @relation("VehicleRepoFlag")
-  superadminBranches       Branch[]          @relation("SuperadminBranches")
-  branchRequestsMade       BranchRequest[]   @relation("BranchRequestsMade")
-  branchRequestsReviewed   BranchRequest[]   @relation("BranchRequestsReviewed")
   userBranchModules        UserBranchModule[]
-  deletedAt                DateTime?         @map("deleted_at")
+  branch                   Branch?            @relation(fields: [branchId], references: [id])
+  tenant                   Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  vehicleRepoFlags         Vehicle[]          @relation("VehicleRepoFlag")
 
   @@unique([tenantId, username])
   @@unique([tenantId, phone])
@@ -128,7 +128,7 @@ model BranchRequest {
   requestedById    String    @map("requested_by_id")
   branchId         String?   @map("branch_id")
   branchName       String?   @map("branch_name")
-  requestedModules Json      @map("requested_modules")
+  requestedModules String    @map("requested_modules") @db.LongText
   reason           String?   @db.Text
   status           String    @default("pending")
   reviewedById     String?   @map("reviewed_by_id")
@@ -136,14 +136,15 @@ model BranchRequest {
   reviewedAt       DateTime? @map("reviewed_at")
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
-  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch           Branch?   @relation(fields: [branchId], references: [id])
   requestedBy      User      @relation("BranchRequestsMade", fields: [requestedById], references: [id])
   reviewedBy       User?     @relation("BranchRequestsReviewed", fields: [reviewedById], references: [id])
-  branch           Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  @@index([tenantId])
-  @@index([requestedById])
-  @@index([branchId])
+  @@index([branchId], map: "branch_requests_branchId_idx")
+  @@index([requestedById], map: "branch_requests_requestedById_idx")
+  @@index([reviewedById], map: "branch_requests_reviewed_by_id_fkey")
+  @@index([tenantId], map: "branch_requests_tenantId_idx")
   @@map("branch_requests")
 }
 
@@ -151,14 +152,14 @@ model UserBranchModule {
   id             String   @id @default(cuid())
   userId         String   @map("user_id")
   branchId       String   @map("branch_id")
-  enabledModules Json     @map("enabled_modules")
+  enabledModules String   @map("enabled_modules") @db.LongText
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   branch         Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, branchId])
-  @@index([branchId])
+  @@index([branchId], map: "user_branch_modules_branchId_idx")
   @@map("user_branch_modules")
 }
 
@@ -194,7 +195,6 @@ model Customer {
   phone             String
   address           String?           @db.Text
   aadharNumber      String?           @map("aadhar_number")
-  pan               String?           @map("pan")
   routeId           String?           @map("route_id")
   agentId           String?           @map("agent_id")
   kycStatus         String            @default("pending")
@@ -205,6 +205,8 @@ model Customer {
   appType           String            @default("microlending") @map("app_type")
   createdAt         DateTime          @default(now()) @map("created_at")
   updatedAt         DateTime          @updatedAt @map("updated_at")
+  deletedAt         DateTime?         @map("deleted_at")
+  pan               String?           @map("pan")
   chitGroupMembers  ChitMember[]
   collectionEntries CollectionEntry[]
   agent             User?             @relation("AgentCustomers", fields: [agentId], references: [id])
@@ -217,7 +219,6 @@ model Customer {
   penalties         Penalty[]
   securityCheques   SecurityCheque[]
   vehicles          Vehicle[]
-  deletedAt         DateTime?         @map("deleted_at")
 
   @@unique([tenantId, customerCode])
   @@index([agentId], map: "customers_agent_id_fkey")
@@ -249,13 +250,14 @@ model SecurityCheque {
   imagePath    String?  @map("image_path")
   status       String   @default("active")
   notes        String?
-  loanId       String?  @map("loan_id")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
+  loanId       String?  @map("loan_id")
   customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   loan         Loan?    @relation(fields: [loanId], references: [id])
 
   @@index([customerId], map: "security_cheques_customer_id_fkey")
+  @@index([loanId], map: "security_cheques_loan_id_fkey")
   @@map("security_cheques")
 }
 
@@ -265,7 +267,6 @@ model LoanPackage {
   name          String
   principal     Decimal  @db.Decimal(12, 2)
   deduction     Decimal  @db.Decimal(12, 2)
-  deductionType String   @default("fixed") @map("deduction_type")
   frequency     String
   tenure        Int
   perInstalment Decimal  @map("per_instalment") @db.Decimal(12, 2)
@@ -274,6 +275,7 @@ model LoanPackage {
   status        String   @default("active")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
+  deductionType String   @default("fixed") @map("deduction_type")
   tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   loans         Loan[]
 
@@ -294,7 +296,6 @@ model Loan {
   guarantorId       String?           @map("guarantor_id")
   principal         Decimal           @db.Decimal(12, 2)
   deduction         Decimal           @db.Decimal(12, 2)
-  deductionType     String            @default("fixed") @map("deduction_type")
   disbursed         Decimal           @db.Decimal(12, 2)
   frequency         String
   tenure            Int
@@ -302,31 +303,32 @@ model Loan {
   endDate           DateTime?         @map("end_date") @db.Date
   perInstalment     Decimal           @map("per_instalment") @db.Decimal(12, 2)
   penaltyRate       Decimal           @map("penalty_rate") @db.Decimal(12, 2)
-  totalPayable      Decimal           @default(0.00) @map("total_payable") @db.Decimal(12, 2)
   voucherRef        String?           @map("voucher_ref")
   status            String            @default("active")
   paidCount         Int               @default(0) @map("paid_count")
   totalInstalments  Int               @map("total_instalments")
   totalCollected    Decimal           @default(0.00) @map("total_collected") @db.Decimal(12, 2)
   closedAt          DateTime?         @map("closed_at")
-  npaClassifiedAt   DateTime?         @map("npa_classified_at")
-  npaStatus         String?           @map("npa_status")
-  deletedAt         DateTime?         @map("deleted_at")
   createdById       String?           @map("created_by_id")
   createdAt         DateTime          @default(now()) @map("created_at")
   updatedAt         DateTime          @updatedAt @map("updated_at")
+  deductionType     String            @default("fixed") @map("deduction_type")
+  deletedAt         DateTime?         @map("deleted_at")
+  npaClassifiedAt   DateTime?         @map("npa_classified_at")
+  npaStatus         String?           @map("npa_status")
+  totalPayable      Decimal           @default(0.00) @map("total_payable") @db.Decimal(12, 2)
   collectionEntries CollectionEntry[]
   instalments       Instalment[]
   collaterals       LoanCollateral[]
-  payments          Payment[]
-  securityCheques   SecurityCheque[]
   branch            Branch?           @relation(fields: [branchId], references: [id])
   createdBy         User?             @relation("LoanCreator", fields: [createdById], references: [id])
   customer          Customer          @relation(fields: [customerId], references: [id])
   guarantor         Guarantor?        @relation(fields: [guarantorId], references: [id])
   package           LoanPackage?      @relation(fields: [packageId], references: [id])
   tenant            Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  payments          Payment[]
   penalties         Penalty[]
+  securityCheques   SecurityCheque[]
   vehicle           Vehicle?
 
   @@unique([tenantId, loanCode])
@@ -357,8 +359,8 @@ model Instalment {
   updatedAt          DateTime            @updatedAt @map("updated_at")
   collectionEntry    CollectionEntry?    @relation(fields: [collectionEntryId], references: [id])
   loan               Loan                @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  penalties          Penalty[]
   paymentAllocations PaymentAllocation[]
+  penalties          Penalty[]
 
   @@unique([loanId, instalmentNo])
   @@index([dueDate])
@@ -376,19 +378,20 @@ model Penalty {
   waivedAmount  Decimal     @default(0.00) @map("waived_amount") @db.Decimal(12, 2)
   status        String      @default("pending")
   settledById   String?     @map("settled_by_id")
-  settledAt     DateTime?   @map("settled_at")
-  instalmentId  String?     @map("instalment_id")
   notes         String?     @db.Text
   createdAt     DateTime    @default(now()) @map("created_at")
   updatedAt     DateTime    @updatedAt @map("updated_at")
+  settledAt     DateTime?   @map("settled_at")
+  instalmentId  String?     @map("instalment_id")
   customer      Customer    @relation(fields: [customerId], references: [id])
-  loan          Loan        @relation(fields: [loanId], references: [id], onDelete: Cascade)
   instalment    Instalment? @relation(fields: [instalmentId], references: [id])
+  loan          Loan        @relation(fields: [loanId], references: [id], onDelete: Cascade)
   settledBy     User?       @relation("PenaltySettler", fields: [settledById], references: [id])
 
   @@index([customerId], map: "penalties_customer_id_fkey")
   @@index([loanId], map: "penalties_loan_id_fkey")
   @@index([settledById], map: "penalties_settled_by_id_fkey")
+  @@index([instalmentId], map: "penalties_instalment_id_fkey")
   @@map("penalties")
 }
 
@@ -418,12 +421,12 @@ model DailyCollection {
   @@index([branchId], map: "daily_collections_branch_id_fkey")
   @@index([routeId], map: "daily_collections_route_id_fkey")
   @@index([tenantId], map: "daily_collections_tenant_id_fkey")
+  @@index([agentId])
   @@map("daily_collections")
 }
 
 model CollectionEntry {
   id             String          @id @default(cuid())
-  tenantId       String          @map("tenant_id")
   collectionId   String          @map("collection_id")
   customerId     String          @map("customer_id")
   loanId         String          @map("loan_id")
@@ -434,12 +437,13 @@ model CollectionEntry {
   agentId        String          @map("agent_id")
   submittedAt    DateTime        @default(now()) @map("submitted_at")
   isLocked       Boolean         @default(true) @map("is_locked")
+  tenantId       String?         @map("tenant_id")
   agent          User            @relation(fields: [agentId], references: [id])
   collection     DailyCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
   customer       Customer        @relation(fields: [customerId], references: [id])
   loan           Loan            @relation(fields: [loanId], references: [id])
+  tenant         Tenant?         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   instalment     Instalment?
-  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([agentId], map: "collection_entries_agent_id_fkey")
   @@index([collectionId], map: "collection_entries_collection_id_fkey")
@@ -627,9 +631,9 @@ model ChitGroup {
   commissionPct  Decimal       @default(5.00) @map("commission_pct") @db.Decimal(5, 2)
   startDate      DateTime      @map("start_date") @db.Date
   status         String        @default("active")
-  deletedAt      DateTime?     @map("deleted_at")
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
+  deletedAt      DateTime?     @map("deleted_at")
   auctions       ChitAuction[]
   branch         Branch?       @relation(fields: [branchId], references: [id])
   tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -701,13 +705,13 @@ model TenantSubscription {
   status           String    @default("active")
   maxActiveLoans   Int       @default(50) @map("max_active_loans")
   maxAgents        Int       @default(3) @map("max_agents")
-  enabledModules   Json      @map("enabled_modules")
+  enabledModules   String    @map("enabled_modules") @db.LongText
   trialEndsAt      DateTime? @map("trial_ends_at")
   currentPeriodEnd DateTime? @map("current_period_end")
   razorpaySubId    String?   @unique @map("razorpay_sub_id")
-  gracePeriodEnd   DateTime? @map("grace_period_end")
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
+  gracePeriodEnd   DateTime? @map("grace_period_end")
   tenant           Tenant    @relation(fields: [tenantId], references: [id])
 
   @@map("tenant_subscriptions")
@@ -733,7 +737,7 @@ model RateLimit {
 /// Idempotency log for incoming webhooks — prevents duplicate processing.
 model WebhookEvent {
   id          String   @id @default(cuid())
-  provider    String // e.g. "razorpay"
+  provider    String
   eventId     String   @map("event_id") @db.VarChar(255)
   event       String   @db.VarChar(128)
   payload     String   @db.Text
@@ -757,8 +761,8 @@ model Payment {
   status          String              @default("completed")
   createdAt       DateTime            @default(now()) @map("created_at")
   updatedAt       DateTime            @updatedAt @map("updated_at")
-  loan            Loan                @relation(fields: [loanId], references: [id])
   allocations     PaymentAllocation[]
+  loan            Loan                @relation(fields: [loanId], references: [id])
 
   @@index([loanId])
   @@index([tenantId])
@@ -771,8 +775,8 @@ model PaymentAllocation {
   instalmentId String     @map("instalment_id")
   amount       Decimal    @db.Decimal(12, 2)
   createdAt    DateTime   @default(now()) @map("created_at")
-  payment      Payment    @relation(fields: [paymentId], references: [id], onDelete: Cascade)
   instalment   Instalment @relation(fields: [instalmentId], references: [id])
+  payment      Payment    @relation(fields: [paymentId], references: [id], onDelete: Cascade)
 
   @@index([paymentId])
   @@index([instalmentId])
@@ -780,21 +784,21 @@ model PaymentAllocation {
 }
 
 model BillingInvoice {
-  id            String    @id @default(cuid())
-  tenantId      String    @map("tenant_id")
+  id             String    @id @default(cuid())
+  tenantId       String    @map("tenant_id")
+  amount         Decimal   @db.Decimal(12, 2)
+  status         String    @default("pending")
+  dueDate        DateTime  @map("due_date")
+  paidAt         DateTime? @map("paid_at")
+  razorpayId     String?   @map("razorpay_id")
+  invoiceUrl     String?   @map("invoice_url")
+  billingPeriod  String    @map("billing_period")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  tax            Decimal   @default(0.00) @db.Decimal(12, 2)
+  total          Decimal   @default(0.00) @db.Decimal(12, 2)
   subscriptionId String?   @map("subscription_id")
-  amount        Decimal   @db.Decimal(12, 2)
-  tax           Decimal   @default(0.00) @db.Decimal(12, 2)
-  total         Decimal   @default(0.00) @db.Decimal(12, 2)
-  status        String    @default("pending")
-  dueDate       DateTime  @map("due_date")
-  paidAt        DateTime? @map("paid_at")
-  razorpayId    String?   @map("razorpay_id")
-  invoiceUrl    String?   @map("invoice_url")
-  billingPeriod String    @map("billing_period")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
-  tenant        Tenant    @relation(fields: [tenantId], references: [id])
+  tenant         Tenant    @relation(fields: [tenantId], references: [id])
 
   @@index([tenantId])
   @@map("billing_invoices")
