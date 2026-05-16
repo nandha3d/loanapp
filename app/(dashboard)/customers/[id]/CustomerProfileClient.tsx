@@ -32,9 +32,9 @@ const CreditScoreGauge = ({ score, grade }: { score: number, grade: string }) =>
             <circle cx="50" cy="10" r="5" fill="#FFF" stroke={getScoreColor(score)} strokeWidth="2" />
           </g>
         </svg>
-        <div style={{ position: 'absolute', bottom: '2px', fontSize: '1.6rem', fontWeight: 900, color: 'var(--text-primary)', letterSpacing: '-0.5px' }}>{score}</div>
+        <div style={{ position: 'absolute', bottom: '2px', fontSize: '1.8rem', fontWeight: 900, color: 'var(--text)', letterSpacing: '-0.5px' }}>{score}</div>
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.55rem', color: 'var(--text-light)', marginTop: '-2px', padding: '0 15px', fontWeight: 600 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.55rem', color: 'var(--text-light)', marginTop: '-8px', padding: '0 8px', fontWeight: 700, width: '120px', margin: '0 auto' }}>
         <span>300</span>
         <span>850</span>
       </div>
@@ -66,20 +66,23 @@ export default function CustomerProfileClient({
       {/* Profile Header */}
       <div className="card" style={{ marginBottom: '20px' }}>
         <div className="profile-header">
-          <div className="profile-avatar">
+          <div className="profile-avatar" style={{ width: '140px', height: '140px', borderRadius: '16px', overflow: 'hidden', border: '3px solid var(--border)', flexShrink: 0 }}>
             {customer.profilePhoto ? (
               <img 
                 src={customer.profilePhoto} 
                 alt={customer.name} 
-                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} 
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
               />
             ) : (
-              getInitials(customer.name)
+              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-alt)', fontSize: '2.5rem', fontWeight: 800 }}>
+                {getInitials(customer.name)}
+              </div>
             )}
           </div>
           <div className="profile-info">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <h2 style={{ margin: 0 }}>{customer.name}</h2>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '16px', marginBottom: '8px' }}>
+              <h1 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 900 }}>{customer.name}</h1>
+              <div style={{ fontSize: '1rem', color: 'var(--text-light)', fontWeight: 600 }}>[{customer.customerCode}]</div>
               <div style={{ 
                 display: 'flex', alignItems: 'center', gap: '6px', 
                 background: score >= 750 ? '#DCFCE7' : score >= 650 ? '#FEF3C7' : '#FEE2E2',
@@ -91,11 +94,10 @@ export default function CustomerProfileClient({
                 {grade}
               </div>
             </div>
-            <div className="profile-meta">
-              <span><span className="material-icons-outlined" style={{ fontSize: '14px' }}>badge</span> {customer.customerCode}</span>
-              <span><span className="material-icons-outlined" style={{ fontSize: '14px' }}>phone</span> {customer.phone}</span>
-              <span><span className="material-icons-outlined" style={{ fontSize: '14px' }}>location_on</span> {customer.route?.name || d.noRoute}</span>
-              <span><span className={getBadgeClass(customer.kycStatus)} style={{textTransform:'capitalize'}}>{customer.kycStatus}</span></span>
+            <div className="profile-meta" style={{ display: 'flex', gap: '20px', fontSize: '.9rem', color: 'var(--text-secondary)' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span className="material-icons-outlined" style={{ fontSize: '16px' }}>phone</span> {customer.phone}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span className="material-icons-outlined" style={{ fontSize: '16px' }}>location_on</span> {customer.route?.name || d.noRoute}</span>
+              <span><span className={getBadgeClass(customer.kycStatus)} style={{textTransform:'capitalize', padding: '2px 10px', borderRadius: '4px'}}>{customer.kycStatus}</span></span>
             </div>
             <p style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginTop: '6px' }}>{customer.address}</p>
           </div>

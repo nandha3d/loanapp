@@ -21,6 +21,7 @@ export default function LoanEditForm({
 
   // Form State
   const [principal, setPrincipal] = useState<number | ''>(Number(loan.principal));
+  const [interestType, setInterestType] = useState(loan.deductionType || 'upfront_fixed');
   const [deduction, setDeduction] = useState<number | ''>(Number(loan.deduction));
   const [frequency, setFrequency] = useState(loan.frequency);
   const [tenure, setTenure] = useState<number | ''>(Number(loan.tenure));
@@ -28,17 +29,121 @@ export default function LoanEditForm({
   const [penalty, setPenalty] = useState<number>(Number(loan.penaltyRate));
   const [loanType, setLoanType] = useState(loan.loanType || 'cheque');
   const [collateralDetails, setCollateralDetails] = useState(loan.collateralDetails || '');
+  
+  // Dynamic Collateral states
+  const [chequeBankName, setChequeBankName] = useState('');
+  const [chequeNumber, setChequeNumber] = useState('');
+  const [chequeAmount, setChequeAmount] = useState<number | ''>('');
+  const [goldGrams, setGoldGrams] = useState<number | ''>('');
+  const [goldCarat, setGoldCarat] = useState('22K');
+  const [goldItems, setGoldItems] = useState('');
+  const [propertyType, setPropertyType] = useState('residential');
+  const [propertyValue, setPropertyValue] = useState<number | ''>('');
+  const [propertyAddress, setPropertyAddress] = useState('');
+
+  // Initial parse of collateral
+  useEffect(() => {
+    try {
+      if (loan.collateralDetails) {
+        const col = JSON.parse(loan.collateralDetails);
+        if (loan.loanType === 'cheque') {
+          setChequeBankName(col.bankName || '');
+          setChequeNumber(col.chequeNumber || '');
+          setChequeAmount(col.chequeAmount || '');
+        } else if (loan.loanType === 'gold') {
+          setGoldGrams(col.grams || '');
+          setGoldCarat(col.carat || '22K');
+          setGoldItems(col.items || '');
+        } else if (loan.loanType === 'property') {
+          setPropertyType(col.type || 'residential');
+          setPropertyValue(col.value || '');
+          setPropertyAddress(col.address || '');
+        }
+      }
+    } catch(e) {}
+  }, [loan.collateralDetails, loan.loanType]);
   const [guarantorName, setGuarantorName] = useState(loan.guarantor?.name || '');
   const [guarantorPhone, setGuarantorPhone] = useState(loan.guarantor?.phone || '');
+  const [guarantorAadhar, setGuarantorAadhar] = useState(loan.guarantor?.aadharNumber || '');
+  const [guarantorAddress, setGuarantorAddress] = useState(loan.guarantor?.address || '');
+  const [guarantorRelation, setGuarantorRelation] = useState(loan.guarantor?.relation || '');
+  const [guarantorPhoto, setGuarantorPhoto] = useState<File | null>(null);
+  const [guarantorPhotoPreview, setGuarantorPhotoPreview] = useState<string | null>(loan.guarantor?.photo || null);
   const [voucherRef, setVoucherRef] = useState(loan.voucherRef || '');
+  
+  // --- Cheque handlers ---
+  const [cheques, setCheques] = useState<any[]>(loan.securityCheques?.map((c: any) => ({ id: c.id, bank: c.bankName, num: c.chequeNumber, fileName: c.imagePath })) || []);
+  const [chequePreviews, setChequePreviews] = useState<Record<number, string>>({});
+  const addChequeRow = () => {
+    if (cheques.length >= 5) { alert('Maximum 5 cheques allowed'); return; }
+    setCheques([...cheques, { id: Date.now(), bank: '', num: '' }]);
+  };
+  const removeChequeRow = (id: number) => setCheques(cheques.filter(c => c.id !== id));
+  const updateCheque = (id: number, field: string, value: string) => {
+    setCheques(cheques.map(c => c.id === id ? { ...c, [field]: value } : c));
+  };
+  const handleChequePhotoChange = (id: number, file: File | null) => {
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setChequePreviews(prev => ({ ...prev, [id]: url }));
+      updateCheque(id, 'fileName', file.name);
+    }
+  };
 
-  // Computed values
-  const p = Number(principal) || 0;
-  const d = Number(deduction) || 0;
-  const t = Number(tenure) || 0;
-  const netDisbursed = p - d;
-  const perInstalment = t > 0 ? Math.round(p / t) : 0;
-  const endDate = startDate && t > 0 ? calculateEndDate(new Date(startDate), frequency, t) : null;
+  // API Calculated Data
+  const [calculatedData, setCalculatedData] = useState<{
+    disbursedAmount: number;
+    totalPayable: number;
+    perInstalment: number;
+    endDate: string | null;
+  }>({
+    disbursedAmount: Number(loan.disbursed),
+    totalPayable: Number(loan.totalPayable),
+    perInstalment: Number(loan.perInstalment),
+    endDate: loan.endDate ? formatDateISO(new Date(loan.endDate)) : null
+  });
+
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (!principal || !tenure || !startDate) return;
+      try {
+        const res = await fetch('/api/loans/calculate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            principal,
+            interestType,
+            interestRate: deduction,
+            frequency,
+            tenure,
+            startDate
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          setCalculatedData({
+            disbursedAmount: data.disbursedAmount || data.netDisbursed || 0,
+            totalPayable: data.totalPayable || 0,
+            perInstalment: data.perInstalment || 0,
+            endDate: data.endDate || null
+          });
+        }
+      } catch (e) {
+        console.error('Calculation failed', e);
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [principal, interestType, deduction, frequency, tenure, startDate]);
+
+  const handleGuarantorPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setGuarantorPhoto(file);
+      setGuarantorPhotoPreview(URL.createObjectURL(file));
+    }
+  };
+
+  // Removed static computed values, using calculatedData from API
 
   const loanTypeLabels: Record<string, string> = {
     cheque: dict.loans.chequeBased,
@@ -53,15 +158,30 @@ export default function LoanEditForm({
     // Explicitly append all fields since it's a client form with state
     fd.set('loanId', loan.id);
     fd.set('principal', principal.toString());
+    fd.set('deductionType', interestType);
     fd.set('deduction', deduction.toString());
     fd.set('frequency', frequency);
     fd.set('tenure', tenure.toString());
     fd.set('startDate', startDate);
     fd.set('penaltyRate', penalty.toString());
     fd.set('loanType', loanType);
-    fd.set('collateralDetails', collateralDetails);
+    
+    // Process collateral JSON
+    let colObj: any = {};
+    if (loanType === 'cheque') {
+      colObj = { bankName: chequeBankName, chequeNumber, chequeAmount };
+    } else if (loanType === 'gold') {
+      colObj = { grams: goldGrams, carat: goldCarat, items: goldItems };
+    } else if (loanType === 'property') {
+      colObj = { type: propertyType, value: propertyValue, address: propertyAddress };
+    }
+    fd.set('collateralDetails', JSON.stringify(colObj));
     fd.set('guarantorName', guarantorName);
     fd.set('guarantorPhone', guarantorPhone);
+    fd.set('guarantorAadhar', guarantorAadhar);
+    fd.set('guarantorAddress', guarantorAddress);
+    fd.set('guarantorRelation', guarantorRelation);
+    if (guarantorPhoto) fd.set('guarantorPhoto', guarantorPhoto);
     fd.set('voucherRef', voucherRef);
     
     const result = await updateLoan(fd);
@@ -90,11 +210,23 @@ export default function LoanEditForm({
           </div>
         )}
 
+        <div style={{ marginBottom: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
+          <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1rem', color: 'var(--primary-dark)' }}>
+            <span className="material-icons-outlined">person</span> 👤 Customer Information
+          </h4>
+        </div>
+
         <div className="form-group">
           <label className="form-label">{dict.customers.fullName}</label>
           <div className="form-computed" style={{ background: '#F1F5F9', fontWeight: 700 }}>
             {loan.customer.name} ({loan.customer.customerCode})
           </div>
+        </div>
+
+        <div style={{ marginTop: '32px', marginBottom: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
+          <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1rem', color: 'var(--primary-dark)' }}>
+            <span className="material-icons-outlined">settings</span> ⚙️ Loan Configuration
+          </h4>
         </div>
 
         <div className="form-group">
@@ -120,20 +252,43 @@ export default function LoanEditForm({
           </div>
         </div>
 
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">{dict.loans.principal} ({currencySymbol}) *</label>
-            <input type="number" name="principal" className="form-control" value={principal} onChange={e => setPrincipal(e.target.value ? Number(e.target.value) : '')} required style={{ fontSize: '1.1rem', padding: '12px' }} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">{dict.loans.deduction} ({currencySymbol}) *</label>
-            <input type="number" name="deduction" className="form-control" value={deduction} onChange={e => setDeduction(e.target.value ? Number(e.target.value) : '')} required style={{ fontSize: '1.1rem', padding: '12px' }} />
+        <div className="form-group">
+          <label className="form-label">Repayment Plan Model *</label>
+          <div style={{ display: 'flex', gap: '4px', background: 'var(--bg-alt)', padding: '4px', borderRadius: 'var(--radius-sm)', marginBottom: '16px' }}>
+            {[
+              { id: 'upfront_fixed', label: 'Upfront Fixed ⬇️', icon: 'money_off' },
+              { id: 'upfront_percentage', label: 'Upfront % 📉', icon: 'percent' },
+              { id: 'emi_flat', label: 'EMI Flat 📈', icon: 'add_chart' },
+              { id: 'emi_floating', label: 'EMI Floating 🌀', icon: 'trending_up' },
+            ].map(type => (
+              <button
+                key={type.id}
+                type="button"
+                onClick={() => setInterestType(type.id)}
+                style={{
+                  flex: 1, padding: '10px 4px', borderRadius: 'var(--radius-xs)', fontSize: '.75rem', fontWeight: 700,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', border: 'none',
+                  background: interestType === type.id ? 'var(--primary)' : 'transparent',
+                  color: interestType === type.id ? '#FFF' : 'var(--text-secondary)',
+                  cursor: 'pointer', transition: 'all .2s'
+                }}
+              >
+                <span className="material-icons-outlined" style={{ fontSize: '18px' }}>{type.icon}</span>
+                {type.label}
+              </button>
+            ))}
           </div>
         </div>
 
-        <div className="form-group">
-          <label className="form-label">{dict.loans.netDisbursed}</label>
-          <div className="form-computed">{currencySymbol}{netDisbursed.toLocaleString()}</div>
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">{interestType.startsWith('upfront') ? 'Deduction Amount/Rate' : 'Interest Rate (%)'} *</label>
+            <input type="number" name="deduction" className="form-control" value={deduction} onChange={e => setDeduction(e.target.value ? Number(e.target.value) : '')} required style={{ fontSize: '1.1rem', padding: '12px' }} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">{dict.loans.netDisbursed}</label>
+            <div className="form-computed" style={{ color: 'var(--primary)', fontWeight: 800 }}>{currencySymbol}{(calculatedData.disbursedAmount || 0).toLocaleString()}</div>
+          </div>
         </div>
 
         <div className="form-row">
@@ -142,6 +297,7 @@ export default function LoanEditForm({
             <select name="frequency" className="form-control" value={frequency} onChange={e => setFrequency(e.target.value)} required style={{ fontSize: '1rem', padding: '12px' }}>
               <option value="daily">{dict.creditInsights.daily}</option>
               <option value="weekly">{dict.creditInsights.weekly}</option>
+              <option value="biweekly">Bi-weekly (14 days)</option>
               <option value="monthly">{dict.creditInsights.monthly}</option>
             </select>
           </div>
@@ -158,14 +314,14 @@ export default function LoanEditForm({
           </div>
           <div className="form-group">
             <label className="form-label">{dict.loans.endDate}</label>
-            <div className="form-computed">{endDate ? endDate.toISOString().split('T')[0] : '—'}</div>
+            <div className="form-computed">{calculatedData.endDate || '—'}</div>
           </div>
         </div>
 
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">{dict.loans.perInstalment}</label>
-            <div className="form-computed">{currencySymbol}{perInstalment.toLocaleString()}</div>
+            <div className="form-computed" style={{ fontWeight: 800 }}>{currencySymbol}{calculatedData.perInstalment.toLocaleString()}</div>
           </div>
           <div className="form-group">
             <label className="form-label">{dict.loans.penaltyMissed} ({currencySymbol})</label>
@@ -173,29 +329,166 @@ export default function LoanEditForm({
           </div>
         </div>
 
-        <h4 style={{ margin: '24px 0 12px', fontSize: '.9rem', fontWeight: 600 }}>{dict.loans.guarantorHeader}</h4>
+        <div style={{ marginTop: '32px', marginBottom: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
+          <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1rem', color: 'var(--primary-dark)' }}>
+            <span className="material-icons-outlined">verified_user</span> 🛡️ Guarantor Details
+          </h4>
+        </div>
+
         <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '14px', background: 'var(--bg)', marginBottom: '20px' }}>
+          <div className="form-group">
+            <label className="form-label">Guarantor Name</label>
+            <input type="text" name="guarantorName" className="form-control" value={guarantorName} onChange={e => setGuarantorName(e.target.value)} />
+          </div>
           <div className="form-row">
             <div className="form-group">
-              <label className="form-label">{dict.loans.guarantorName}</label>
-              <input type="text" name="guarantorName" className="form-control" value={guarantorName} onChange={e => setGuarantorName(e.target.value)} />
+              <label className="form-label">{dict.loans.guarantorPhone} *</label>
+              <input type="tel" name="guarantorPhone" className="form-control" value={guarantorPhone} onChange={e => setGuarantorPhone(e.target.value)} />
             </div>
             <div className="form-group">
-              <label className="form-label">{dict.loans.guarantorPhone}</label>
-              <input type="tel" name="guarantorPhone" className="form-control" value={guarantorPhone} onChange={e => setGuarantorPhone(e.target.value)} />
+              <label className="form-label">Aadhar Number</label>
+              <input type="text" name="guarantorAadhar" className="form-control" value={guarantorAadhar} onChange={e => setGuarantorAadhar(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Relation</label>
+              <select name="guarantorRelation" className="form-control" value={guarantorRelation} onChange={e => setGuarantorRelation(e.target.value)}>
+                <option value="">Select Relation</option>
+                <option value="Friend">Friend</option>
+                <option value="Relative">Relative</option>
+                <option value="Colleague">Colleague</option>
+                <option value="Business Partner">Business Partner</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Guarantor Address</label>
+            <textarea name="guarantorAddress" className="form-control" rows={2} value={guarantorAddress} onChange={e => setGuarantorAddress(e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Guarantor Photo</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+              <div style={{ 
+                width: '140px', height: '140px', borderRadius: '12px', 
+                border: '2px dashed var(--border)', background: 'var(--bg)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden'
+              }}>
+                {guarantorPhotoPreview ? (
+                  <img src={guarantorPhotoPreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <span className="material-icons-outlined" style={{ fontSize: '48px', color: 'var(--text-light)' }}>add_a_photo</span>
+                )}
+              </div>
+              <div>
+                <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', display: 'inline-block', marginBottom: '8px' }}>
+                  Change Photo
+                  <input type="file" name="guarantorPhoto" accept="image/*" style={{ display: 'none' }} onChange={handleGuarantorPhotoChange} />
+                </label>
+                <p style={{ fontSize: '.75rem', color: 'var(--text-secondary)', margin: 0 }}>Upload a clear passport size photo.</p>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="form-group">
-          <label className="form-label">Collateral Details</label>
-          <textarea 
-            name="collateralDetails" 
-            className="form-control" 
-            rows={2} 
-            value={collateralDetails}
-            onChange={e => setCollateralDetails(e.target.value)}
-          />
+        <div style={{ marginTop: '32px', marginBottom: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
+          <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1rem', color: 'var(--primary-dark)' }}>
+            <span className="material-icons-outlined">security</span> 🏦 Collateral & Cheques
+          </h4>
+        </div>
+
+        <div style={{ marginTop: '24px', marginBottom: '20px' }}>
+          <h4 style={{ margin: '0 0 12px', fontSize: '.9rem', fontWeight: 600 }}>🏦 Security Cheques</h4>
+          <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '14px', background: 'var(--bg)' }}>
+            {cheques.map((cheque, index) => (
+              <div key={cheque.id} style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '8px' }}>
+                <div style={{ width: '24px', textAlign: 'center', fontWeight: 600, color: 'var(--primary)' }}>{index + 1}</div>
+                <input type="text" name={`bankName_${index}`} className="form-control" placeholder="Bank Name" value={cheque.bank}
+                  onChange={e => updateCheque(cheque.id, 'bank', e.target.value)} style={{ flex: 1, fontSize: '1rem', padding: '10px' }} />
+                <input type="text" name={`chequeNumber_${index}`} className="form-control" placeholder="Cheque Number" value={cheque.num}
+                  onChange={e => updateCheque(cheque.id, 'num', e.target.value)} style={{ flex: 1, fontSize: '1rem', padding: '10px' }} />
+                <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '.8rem', overflow: 'hidden', maxWidth: '150px' }}>
+                  {chequePreviews[cheque.id] ? (
+                    <img src={chequePreviews[cheque.id]} alt="Cheque" style={{ width: '20px', height: '20px', objectFit: 'cover', borderRadius: '2px' }} />
+                  ) : (
+                    <span className="material-icons-outlined" style={{ fontSize: '16px' }}>image</span>
+                  )}
+                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cheque.fileName || 'Upload'}</span>
+                  <input type="file" name={`chequeImage_${index}`} accept="image/*" style={{ display: 'none' }}
+                    onChange={e => handleChequePhotoChange(cheque.id, e.target.files?.[0] || null)} />
+                </label>
+                <button type="button" onClick={() => removeChequeRow(cheque.id)} style={{ color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}>
+                  <span className="material-icons-outlined" style={{ fontSize: '18px' }}>delete</span>
+                </button>
+              </div>
+            ))}
+            <button type="button" className="btn btn-secondary btn-sm" onClick={addChequeRow} style={{ marginTop: '8px', padding: '8px 14px' }}>
+              <span className="material-icons-outlined" style={{ fontSize: '14px' }}>add</span> Add Cheque
+            </button>
+          </div>
+        </div>
+
+        <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', marginBottom: '16px' }}>
+          <h4 style={{ margin: '0 0 16px', fontSize: '.95rem', fontWeight: 600 }}>{loanTypeLabels[loanType]} Details</h4>
+          
+          {loanType === 'cheque' && (
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Bank Name</label>
+                <input type="text" className="form-control" value={chequeBankName} onChange={e=>setChequeBankName(e.target.value)} placeholder="e.g. HDFC Bank" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Cheque Number</label>
+                <input type="text" className="form-control" value={chequeNumber} onChange={e=>setChequeNumber(e.target.value)} placeholder="000000" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Cheque Amount</label>
+                <input type="number" className="form-control" value={chequeAmount} onChange={e=>setChequeAmount(e.target.value ? Number(e.target.value) : '')} placeholder="Amount" />
+              </div>
+            </div>
+          )}
+
+          {loanType === 'gold' && (
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Total Weight (Grams)</label>
+                <input type="number" className="form-control" value={goldGrams} onChange={e=>setGoldGrams(e.target.value ? Number(e.target.value) : '')} placeholder="e.g. 24.5" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Purity (Carat)</label>
+                <select className="form-control" value={goldCarat} onChange={e=>setGoldCarat(e.target.value)}>
+                  <option value="18K">18K</option>
+                  <option value="20K">20K</option>
+                  <option value="22K">22K</option>
+                  <option value="24K">24K</option>
+                </select>
+              </div>
+              <div className="form-group" style={{ flex: '1 1 100%' }}>
+                <label className="form-label">Items Description</label>
+                <input type="text" className="form-control" value={goldItems} onChange={e=>setGoldItems(e.target.value)} placeholder="e.g. 2 Bangles, 1 Chain" />
+              </div>
+            </div>
+          )}
+
+          {loanType === 'property' && (
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Property Type</label>
+                <select className="form-control" value={propertyType} onChange={e=>setPropertyType(e.target.value)}>
+                  <option value="residential">Residential</option>
+                  <option value="commercial">Commercial</option>
+                  <option value="land">Land</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Estimated Value ({currencySymbol})</label>
+                <input type="number" className="form-control" value={propertyValue} onChange={e=>setPropertyValue(e.target.value ? Number(e.target.value) : '')} placeholder="Approx value" />
+              </div>
+              <div className="form-group" style={{ flex: '1 1 100%' }}>
+                <label className="form-label">Property Address</label>
+                <textarea className="form-control" rows={2} value={propertyAddress} onChange={e=>setPropertyAddress(e.target.value)} placeholder="Full address of the property" />
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="form-group">

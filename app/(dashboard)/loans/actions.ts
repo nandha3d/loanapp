@@ -7,6 +7,32 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { checkLimit } from '@/lib/subscription';
+import fs from 'fs';
+import path from 'path';
+import { encryptAadharNumber } from '@/lib/pii';
+import { ALLOWED_UPLOAD_MIME_TYPES, MAX_UPLOAD_SIZE_BYTES, validateFileBytes } from '@/lib/fileUpload';
+
+const UPLOAD_DIR = path.join(process.cwd(), 'private', 'uploads');
+
+async function saveUploadedFile(file: File, tenantId: string, subfolder: string): Promise<string> {
+  if (!ALLOWED_UPLOAD_MIME_TYPES.includes(file.type)) {
+    throw new Error(`File type not allowed: ${file.type}. Only JPEG, PNG, WebP, and PDF are accepted.`);
+  }
+  if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+    throw new Error('File exceeds the 5 MB limit.');
+  }
+  const dir = path.join(UPLOAD_DIR, tenantId, subfolder);
+  fs.mkdirSync(dir, { recursive: true });
+  const ext = path.extname(file.name).replace(/[^a-zA-Z0-9.]/g, '').toLowerCase() || '';
+  const safeName = `${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`;
+  const filePath = path.join(dir, safeName);
+  const buffer = Buffer.from(await file.arrayBuffer());
+  if (!validateFileBytes(buffer, file.type)) {
+    throw new Error('Invalid file signature. File may be corrupted or spoofed.');
+  }
+  fs.writeFileSync(filePath, buffer);
+  return `/api/files/${tenantId}/${subfolder}/${safeName}`;
+}
 
 export async function createLoan(formData: FormData) {
   const session = await auth();
@@ -29,24 +55,71 @@ export async function createLoan(formData: FormData) {
   }
 
   const customerId = formData.get('customerId') as string;
-  const principal = Number(formData.get('principal'));
-  const deduction = Number(formData.get('deduction'));
-  const deductionType = (formData.get('deductionType') as string) || 'fixed';
+  const principal = Number(formData.get('principal')) || 0;
+  const interestType = (formData.get('deductionType') as string) || 'upfront_fixed';
+  // Note: we still use 'deduction' name from form for the rate/amount input to match DB if needed,
+  // but let's treat it as the rate/amount.
+  const rate = Number(formData.get('deduction')) || 0;
   const frequency = formData.get('frequency') as string;
-  const tenure = Number(formData.get('tenure'));
+  const tenure = Number(formData.get('tenure')) || 1;
   const startDateStr = formData.get('startDate') as string;
   const packageId = formData.get('packageId') as string || null;
-  const penaltyRate = Number(formData.get('penaltyRate'));
+  const penaltyRate = Number(formData.get('penaltyRate')) || 0;
   const voucherRef = formData.get('voucherRef') as string;
   const loanType = formData.get('loanType') as string || 'cheque';
   const collateralDetails = formData.get('collateralDetails') as string || null;
+  const guarantorIdFromForm = formData.get('guarantorId') as string || null;
   const guarantorName = formData.get('guarantorName') as string;
   const guarantorPhone = formData.get('guarantorPhone') as string;
+  const guarantorAadhar = formData.get('guarantorAadhar') as string;
+  const guarantorAddress = formData.get('guarantorAddress') as string;
+  const guarantorRelation = formData.get('guarantorRelation') as string;
+  const guarantorPhotoFile = formData.get('guarantorPhoto') as File | null;
 
   const startDate = new Date(startDateStr);
   const endDate = calculateEndDate(startDate, frequency, tenure);
-  const disbursed = principal - deduction;
-  const perInstalment = Math.round(principal / tenure);
+
+  let disbursed = principal;
+  let totalPayable = principal;
+  let perInstalment = 0;
+  let deduction = 0; // actual amount deducted upfront
+
+  if (interestType === 'upfront_fixed') {
+    deduction = rate;
+    disbursed = principal - deduction;
+    totalPayable = principal;
+    perInstalment = Math.round(principal / tenure);
+  } else if (interestType === 'upfront_percentage') {
+    deduction = principal * (rate / 100);
+    disbursed = principal - deduction;
+    totalPayable = principal;
+    perInstalment = Math.round(principal / tenure);
+  } else if (interestType === 'emi_flat') {
+    const interestAmount = principal * (rate / 100);
+    disbursed = principal;
+    totalPayable = principal + interestAmount;
+    perInstalment = Math.round(totalPayable / tenure);
+  } else if (interestType === 'emi_floating') {
+    let periodsPerYear = 12;
+    if (frequency === 'daily') periodsPerYear = 365;
+    else if (frequency === 'weekly') periodsPerYear = 52;
+    else if (frequency === 'biweekly') periodsPerYear = 26;
+
+    const r = (rate / 100) / periodsPerYear;
+    disbursed = principal;
+    if (r === 0) {
+      perInstalment = Math.round(principal / tenure);
+    } else {
+      const emi = principal * r * Math.pow(1 + r, tenure) / (Math.pow(1 + r, tenure) - 1);
+      perInstalment = Math.round(emi);
+    }
+    totalPayable = perInstalment * tenure;
+  }
+
+  // Ensure totalPayable matches perInstalment * tenure for EMI types
+  if (interestType === 'emi_flat' || interestType === 'emi_floating') {
+    totalPayable = perInstalment * tenure;
+  }
 
   // Generate Loan Code
   const prefix = await getSetting(tenantId, 'loan_code_prefix', 'LN');
@@ -60,17 +133,39 @@ export async function createLoan(formData: FormData) {
     create: { tenantId, key: 'loan_code_counter', value: counter.toString(), group: 'system' }
   });
 
-  // Create guarantor if provided
-  let guarantorId = null;
+  // Create or Update guarantor if provided
+  let guarantorId = guarantorIdFromForm;
   if (guarantorName && guarantorPhone) {
-    const guarantor = await prisma.guarantor.create({
-      data: {
-        customerId,
-        name: guarantorName,
-        phone: guarantorPhone,
+    let gPhoto = null;
+    if (guarantorPhotoFile && guarantorPhotoFile.size > 0) {
+      try {
+        gPhoto = await saveUploadedFile(guarantorPhotoFile, tenantId, 'guarantors');
+      } catch (e) {
+        console.error('Failed to upload guarantor photo:', e);
       }
-    });
-    guarantorId = guarantor.id;
+    }
+
+    const gData = {
+      customerId,
+      name: guarantorName,
+      phone: guarantorPhone,
+      aadharNumber: guarantorAadhar ? encryptAadharNumber(guarantorAadhar) : null,
+      address: guarantorAddress || null,
+      relation: guarantorRelation || null,
+      photo: gPhoto || undefined
+    };
+
+    if (guarantorId) {
+      await prisma.guarantor.update({
+        where: { id: guarantorId },
+        data: gData
+      });
+    } else {
+      const guarantor = await prisma.guarantor.create({
+        data: gData
+      });
+      guarantorId = guarantor.id;
+    }
   }
 
   // Calculate Instalment Dates
@@ -139,7 +234,7 @@ export async function createLoan(formData: FormData) {
         name: generatedName,
         principal,
         deduction,
-        deductionType,
+        deductionType: interestType,
         frequency,
         tenure,
         perInstalment,
@@ -152,6 +247,28 @@ export async function createLoan(formData: FormData) {
     finalPackageId = existingPkg.id;
   }
   // ─────────────────────────────────────────────────────────────────────────
+
+  // Process security cheques
+  const cheques: any[] = [];
+  let i = 0;
+  while (formData.has(`bankName_${i}`)) {
+    const bankName = formData.get(`bankName_${i}`) as string;
+    const chequeNumber = formData.get(`chequeNumber_${i}`) as string;
+    const file = formData.get(`chequeImage_${i}`) as File | null;
+    let imagePath = null;
+    if (file && file.size > 0) {
+      try {
+        imagePath = await saveUploadedFile(file, tenantId, 'cheques');
+      } catch (e) {
+        console.error('Failed to upload cheque photo:', e);
+      }
+    }
+
+    if (bankName && chequeNumber) {
+      cheques.push({ bankName, chequeNumber, imagePath, customerId });
+    }
+    i++;
+  }
 
   // Create Loan & Instalments
   const loan = await prisma.loan.create({
@@ -167,7 +284,7 @@ export async function createLoan(formData: FormData) {
       guarantorId,
       principal,
       deduction,
-      deductionType,
+      deductionType: interestType,
       disbursed,
       frequency,
       tenure,
@@ -176,11 +293,15 @@ export async function createLoan(formData: FormData) {
       perInstalment,
       penaltyRate,
       voucherRef,
+      totalPayable,
       status: 'active',
       totalInstalments: tenure,
       createdById,
       instalments: {
         create: instalments
+      },
+      securityCheques: {
+        create: cheques
       }
     }
   });
@@ -218,22 +339,66 @@ export async function updateLoan(formData: FormData) {
   }
 
   const loanId = formData.get('loanId') as string;
-  const principal = Number(formData.get('principal'));
-  const deduction = Number(formData.get('deduction'));
+  const principal = Number(formData.get('principal')) || 0;
+  const interestType = (formData.get('deductionType') as string) || 'upfront_fixed';
+  const rate = Number(formData.get('deduction')) || 0;
   const frequency = formData.get('frequency') as string;
-  const tenure = Number(formData.get('tenure'));
+  const tenure = Number(formData.get('tenure')) || 1;
   const startDateStr = formData.get('startDate') as string;
-  const penaltyRate = Number(formData.get('penaltyRate'));
+  const penaltyRate = Number(formData.get('penaltyRate')) || 0;
   const voucherRef = formData.get('voucherRef') as string;
   const loanType = formData.get('loanType') as string;
   const collateralDetails = formData.get('collateralDetails') as string;
   const guarantorName = formData.get('guarantorName') as string;
   const guarantorPhone = formData.get('guarantorPhone') as string;
+  const guarantorAadhar = formData.get('guarantorAadhar') as string;
+  const guarantorAddress = formData.get('guarantorAddress') as string;
+  const guarantorRelation = formData.get('guarantorRelation') as string;
+  const guarantorPhotoFile = formData.get('guarantorPhoto') as File | null;
 
   const startDate = new Date(startDateStr);
   const endDate = calculateEndDate(startDate, frequency, tenure);
-  const disbursed = principal - deduction;
-  const perInstalment = Math.round(principal / tenure);
+
+  let disbursed = principal;
+  let totalPayable = principal;
+  let perInstalment = 0;
+  let deduction = 0;
+
+  if (interestType === 'upfront_fixed') {
+    deduction = rate;
+    disbursed = principal - deduction;
+    totalPayable = principal;
+    perInstalment = Math.round(principal / tenure);
+  } else if (interestType === 'upfront_percentage') {
+    deduction = principal * (rate / 100);
+    disbursed = principal - deduction;
+    totalPayable = principal;
+    perInstalment = Math.round(principal / tenure);
+  } else if (interestType === 'emi_flat') {
+    const interestAmount = principal * (rate / 100);
+    disbursed = principal;
+    totalPayable = principal + interestAmount;
+    perInstalment = Math.round(totalPayable / tenure);
+  } else if (interestType === 'emi_floating') {
+    let periodsPerYear = 12;
+    if (frequency === 'daily') periodsPerYear = 365;
+    else if (frequency === 'weekly') periodsPerYear = 52;
+    else if (frequency === 'biweekly') periodsPerYear = 26;
+
+    const r = (rate / 100) / periodsPerYear;
+    disbursed = principal;
+    if (r === 0) {
+      perInstalment = Math.round(principal / tenure);
+    } else {
+      const emi = principal * r * Math.pow(1 + r, tenure) / (Math.pow(1 + r, tenure) - 1);
+      perInstalment = Math.round(emi);
+    }
+    totalPayable = perInstalment * tenure;
+  }
+
+  if (interestType === 'emi_flat' || interestType === 'emi_floating') {
+    totalPayable = perInstalment * tenure;
+  }
 
   // Fetch loan to ensure it exists and belongs to tenant (scope by appType too)
   const appType = await getUserAppType();
@@ -268,17 +433,37 @@ export async function updateLoan(formData: FormData) {
     // Update or Create guarantor
     let currentGuarantorId = loan.guarantorId;
     if (guarantorName && guarantorPhone) {
+      let gPhoto = loan.guarantor?.photo || null;
+      if (guarantorPhotoFile && guarantorPhotoFile.size > 0) {
+        try {
+          gPhoto = await saveUploadedFile(guarantorPhotoFile, tenantId, 'guarantors');
+        } catch (e) {
+          console.error('Failed to upload guarantor photo:', e);
+        }
+      }
+
       if (loan.guarantor) {
         await tx.guarantor.update({
           where: { id: loan.guarantorId! },
-          data: { name: guarantorName, phone: guarantorPhone }
+          data: { 
+            name: guarantorName, 
+            phone: guarantorPhone,
+            aadharNumber: guarantorAadhar ? encryptAadharNumber(guarantorAadhar) : undefined,
+            address: guarantorAddress || undefined,
+            relation: guarantorRelation || undefined,
+            photo: gPhoto
+          }
         });
       } else {
         const g = await tx.guarantor.create({
           data: {
             customerId: loan.customerId,
             name: guarantorName,
-            phone: guarantorPhone
+            phone: guarantorPhone,
+            aadharNumber: guarantorAadhar ? encryptAadharNumber(guarantorAadhar) : null,
+            address: guarantorAddress || null,
+            relation: guarantorRelation || null,
+            photo: gPhoto
           }
         });
         currentGuarantorId = g.id;
@@ -291,6 +476,7 @@ export async function updateLoan(formData: FormData) {
       data: {
         principal,
         deduction,
+        deductionType: interestType,
         disbursed,
         frequency,
         tenure,
@@ -301,6 +487,7 @@ export async function updateLoan(formData: FormData) {
         voucherRef,
         loanType,
         collateralDetails,
+        totalPayable,
         guarantorId: currentGuarantorId,
         totalInstalments: tenure
       }
