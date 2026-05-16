@@ -16,7 +16,7 @@ export default async function NewLoanPage({
   const [customers, rawPackages, defaultPenalty, currencySymbol, routes, agents] = await Promise.all([
     prisma.customer.findMany({ 
       where: { tenantId, appType, status: 'active' }, 
-      include: { route: true },
+      include: { route: true, guarantors: true },
       orderBy: { name: 'asc' } 
     }),
     prisma.loanPackage.findMany({ 

@@ -85,6 +85,7 @@ export function calculateEndDate(startDate: Date, frequency: string, tenure: num
   const end = new Date(startDate);
   if (frequency === 'daily') end.setDate(end.getDate() + tenure);
   else if (frequency === 'weekly') end.setDate(end.getDate() + tenure * 7);
+  else if (frequency === 'biweekly') end.setDate(end.getDate() + tenure * 14);
   else end.setMonth(end.getMonth() + tenure);
   return end;
 }
@@ -95,6 +96,7 @@ export function calculateInstalmentDates(startDate: Date, frequency: string, ten
     const d = new Date(startDate);
     if (frequency === 'daily') d.setDate(d.getDate() + i);
     else if (frequency === 'weekly') d.setDate(d.getDate() + i * 7);
+    else if (frequency === 'biweekly') d.setDate(d.getDate() + i * 14);
     else d.setMonth(d.getMonth() + i);
     dates.push(d);
   }

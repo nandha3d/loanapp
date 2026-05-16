@@ -41,24 +41,6 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
     }
   };
 
-  // --- Cheque handlers ---
-  const [cheques, setCheques] = useState<any[]>(customer?.securityCheques?.map((c: any) => ({ id: c.id, bank: c.bankName, num: c.chequeNumber, fileName: c.imagePath })) || []);
-  const [chequePreviews, setChequePreviews] = useState<Record<number, string>>({});
-  const addChequeRow = () => {
-    if (cheques.length >= 5) { alert('Maximum 5 cheques allowed'); return; }
-    setCheques([...cheques, { id: Date.now(), bank: '', num: '' }]);
-  };
-  const removeChequeRow = (id: number) => setCheques(cheques.filter(c => c.id !== id));
-  const updateCheque = (id: number, field: string, value: string) => {
-    setCheques(cheques.map(c => c.id === id ? { ...c, [field]: value } : c));
-  };
-  const handleChequePhotoChange = (id: number, file: File | null) => {
-    if (file) {
-      const url = URL.createObjectURL(file);
-      setChequePreviews(prev => ({ ...prev, [id]: url }));
-      updateCheque(id, 'fileName', file.name);
-    }
-  };
 
   // --- Guarantor handlers ---
   const [guarantors, setGuarantors] = useState<any[]>(customer?.guarantors?.map((g: any) => ({ id: g.id, name: g.name, phone: g.phone, address: g.address, relation: g.relation, photoName: g.photo })) || []);
@@ -179,6 +161,10 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
               </div>
             </div>
             <div className="form-group">
+              <label className="form-label">Aadhar Number</label>
+              <input type="text" name="aadharNumber" className="form-control" placeholder="12-digit Aadhar number" defaultValue={customer?.aadharNumber} style={{ fontSize: '1rem', padding: '12px' }} />
+            </div>
+            <div className="form-group">
               <label className="form-label">{dict.customers.address}</label>
               <textarea name="address" className="form-control" rows={2} placeholder="Complete postal address" defaultValue={customer?.address} style={{ fontSize: '1rem', padding: '12px' }} />
             </div>
@@ -243,35 +229,6 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
             }} />
         </label>
 
-        {/* --- Security Cheques --- */}
-        <h4 style={{ margin: '24px 0 12px', fontSize: '.9rem', fontWeight: 600 }}>🏦 {dict.customers.securityCheques}</h4>
-        <div>
-          {cheques.map((cheque, index) => (
-            <div key={cheque.id} style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '8px' }}>
-              <div style={{ width: '24px', textAlign: 'center', fontWeight: 600, color: 'var(--primary)' }}>{index + 1}</div>
-              <input type="text" name={`bankName_${index}`} className="form-control" placeholder="Bank Name" value={cheque.bank}
-                onChange={e => updateCheque(cheque.id, 'bank', e.target.value)} style={{ flex: 1, fontSize: '1rem', padding: '10px' }} />
-              <input type="text" name={`chequeNumber_${index}`} className="form-control" placeholder="Cheque Number" value={cheque.num}
-                onChange={e => updateCheque(cheque.id, 'num', e.target.value)} style={{ flex: 1, fontSize: '1rem', padding: '10px' }} />
-              <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '.8rem', overflow: 'hidden', maxWidth: '150px' }}>
-                {chequePreviews[cheque.id] ? (
-                  <img src={chequePreviews[cheque.id]} alt="Cheque" style={{ width: '20px', height: '20px', objectFit: 'cover', borderRadius: '2px' }} />
-                ) : (
-                  <span className="material-icons-outlined" style={{ fontSize: '16px' }}>image</span>
-                )}
-                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cheque.fileName || 'Upload'}</span>
-                <input type="file" name={`chequeImage_${index}`} accept="image/*" style={{ display: 'none' }}
-                  onChange={e => handleChequePhotoChange(cheque.id, e.target.files?.[0] || null)} />
-              </label>
-              <button type="button" onClick={() => removeChequeRow(cheque.id)} style={{ color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}>
-                <span className="material-icons-outlined" style={{ fontSize: '18px' }}>delete</span>
-              </button>
-            </div>
-          ))}
-        </div>
-        <button type="button" className="btn btn-secondary btn-sm" onClick={addChequeRow} style={{ marginTop: '8px', padding: '8px 14px' }}>
-          <span className="material-icons-outlined" style={{ fontSize: '14px' }}>add</span> Add Cheque
-        </button>
 
         {/* --- Guarantors / Surety --- */}
         <h4 style={{ margin: '24px 0 12px', fontSize: '.9rem', fontWeight: 600 }}>🤝 {dict.customers.guarantors}</h4>
