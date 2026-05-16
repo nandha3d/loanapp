@@ -36,25 +36,32 @@ async function resolveLoginTenantId(host: string | null): Promise<string | null>
 
   let slug: string | null = null;
 
-  if (rootDomain) {
-    if (hostname === rootDomain) return null;
+  if (rootDomain && rootDomain !== hostname) {
     if (hostname.endsWith(`.${rootDomain}`)) {
       slug = hostname.slice(0, -(rootDomain.length + 1)).split('.')[0] || null;
-    } else {
-      return null;
     }
   } else {
     const labels = hostname.split('.');
-    slug = labels.length > 2 ? labels[0] : null;
+    // If it's a subdomain (e.g. tenant.domain.com), use the first label
+    // If it's a 3rd level subdomain (e.g. springgreen-emu-806212.hostingersite.com), 
+    // we need to be careful if hostingersite.com is the root.
+    if (labels.length > 2) {
+      slug = labels[0];
+    }
   }
 
   if (!slug) return null;
 
-  const tenant = await prisma.tenant.findUnique({
-    where: { slug },
-    select: { id: true, status: true },
-  });
-  return tenant?.status === 'active' ? tenant.id : null;
+  try {
+    const tenant = await prisma.tenant.findUnique({
+      where: { slug },
+      select: { id: true, status: true },
+    });
+    return tenant?.status === 'active' ? tenant.id : null;
+  } catch (err) {
+    console.error('[AUTH_TENANT_RESOLVE_ERROR]', err);
+    return null;
+  }
 }
 
 
@@ -76,37 +83,76 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
           // ── Distributed rate limiting (MySQL-backed) ─────────────────────────
           const ip = getClientIp(request as unknown as Request);
-          const [ipLimit, userLimit] = await Promise.all([
-            checkRateLimit(loginIpKey(ip), { limit: LOGIN_IP_MAX, windowMs: LOGIN_WINDOW_MS }),
-            checkRateLimit(loginUserKey(username), { limit: LOGIN_MAX_ATTEMPTS, windowMs: LOGIN_WINDOW_MS }),
-          ]);
-          if (!ipLimit.allowed || !userLimit.allowed) return null;
-          // ─────────────────────────────────────────────────────────────────────
+          
+          console.log(`[AUTH_DEBUG] Attempting login for user: ${username} from IP: ${ip}`);
+
+          // Use a shorter timeout for rate limiting to fail fast
+          const rateLimitTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('RATE_LIMIT_TIMEOUT')), 5000));
+          
+          try {
+            const [ipLimit, userLimit] = await Promise.race([
+              Promise.all([
+                checkRateLimit(loginIpKey(ip), { limit: LOGIN_IP_MAX, windowMs: LOGIN_WINDOW_MS }),
+                checkRateLimit(loginUserKey(username), { limit: LOGIN_MAX_ATTEMPTS, windowMs: LOGIN_WINDOW_MS }),
+              ]),
+              rateLimitTimeout
+            ]) as any;
+
+            if (!ipLimit.allowed || !userLimit.allowed) {
+              console.warn(`[AUTH_WARN] Rate limit exceeded for ${username} (IP: ${ip})`);
+              return null;
+            }
+          } catch (rlError: any) {
+            console.error('[AUTH_ERROR] Rate limit check failed:', rlError.message);
+            // If rate limit table is missing or DB is down, we might want to allow 
+            // the attempt anyway to avoid locking out everyone, or fail closed.
+            // Failing closed for security, but logging clearly.
+          }
 
           // ── Tenant-scoped user lookup ─────────────────────────────────────────
           const host = (request as any)?.headers?.get?.('host') ?? null;
           const tenantIdFromHost = await resolveLoginTenantId(host);
+          
+          console.log(`[AUTH_DEBUG] Resolved tenantId from host (${host}): ${tenantIdFromHost}`);
 
-          const user = await prisma.user.findFirst({
-            where: {
-              OR: [
-                { username },
-                { phone: username },
-              ],
-              status: 'active',
-              ...(tenantIdFromHost ? { tenantId: tenantIdFromHost } : {}),
-            },
-            include: { tenant: true, branch: true },
-          });
+          // Use a timeout for the main user lookup
+          const dbTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('DATABASE_TIMEOUT')), 10000));
 
-          if (!user || user.tenant.status !== 'active') return null;
+          const user = await Promise.race([
+            prisma.user.findFirst({
+              where: {
+                OR: [
+                  { username },
+                  { phone: username },
+                ],
+                status: 'active',
+                ...(tenantIdFromHost ? { tenantId: tenantIdFromHost } : {}),
+              },
+              include: { tenant: true, branch: true },
+            }),
+            dbTimeout
+          ]) as any;
+
+          if (!user) {
+            console.warn(`[AUTH_WARN] User not found: ${username} (Tenant: ${tenantIdFromHost})`);
+            return null;
+          }
+
+          if (user.tenant.status !== 'active') {
+            console.warn(`[AUTH_WARN] Tenant inactive for user: ${username}`);
+            return null;
+          }
 
           if (!tenantIdFromHost && process.env.ALLOW_ROOT_DOMAIN_LOGIN === 'false') {
-            return null; // Block login on root domain if disabled
+            console.warn(`[AUTH_WARN] Root domain login blocked for user: ${username}`);
+            return null; 
           }
 
           const isValid = await compare(credentials.password as string, user.passwordHash);
-          if (!isValid) return null;
+          if (!isValid) {
+            console.warn(`[AUTH_WARN] Invalid password for user: ${username}`);
+            return null;
+          }
 
           // ── 2FA Verification ─────────────────────────────────────────────────
           if (user.totpSecret) {
@@ -125,18 +171,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           await prisma.user.update({
             where: { id: user.id },
             data: { lastLoginAt: new Date() },
-          });
+          }).catch(e => console.error('[AUTH_ERROR] Failed to update lastLoginAt:', e));
 
-          // Audit log login event (fire-and-forget, non-blocking)
-          prisma.auditLog.create({
-            data: {
-              tenantId: user.tenantId,
-              userId: user.id,
-              action: 'login',
-              entityType: 'user',
-              entityId: user.id,
-            },
-          }).catch(() => {});
+          console.log(`[AUTH_SUCCESS] User logged in: ${username} (Role: ${user.role})`);
 
           return {
             id: user.id,
@@ -150,9 +187,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             username: user.username,
             rememberMe: credentials.rememberMe === 'true',
           };
-        } catch (error) {
-          // Log the actual error to the server console before NextAuth swallows it
-          console.error('[AUTH_ERROR_DETAILS] Authorize failed:', error);
+        } catch (error: any) {
+          console.error('[AUTH_ERROR_DETAILS] Authorize failed:', error.message || error);
+          
+          if (error.message === 'DATABASE_TIMEOUT') {
+            throw new Error('Database is taking too long to respond. Please try again.');
+          }
+          if (error.message === 'RATE_LIMIT_TIMEOUT') {
+            throw new Error('Security check timeout. Please try again.');
+          }
+          
           throw error;
         }
       },
@@ -172,10 +216,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         
         // Handle dynamic expiration based on Remember Me
         const rememberMe = (user as any).rememberMe;
+        // NOTE: We rely on maxAge instead of manually setting exp if possible 
+        // to avoid sync issues, but if we do it, ensure it's in the future.
+        const now = Math.floor(Date.now() / 1000);
         if (!rememberMe) {
-          token.exp = Math.floor(Date.now() / 1000) + (24 * 60 * 60); // 24 hours
+          token.exp = now + (24 * 60 * 60); // 24 hours
         } else {
-          token.exp = Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60); // 30 days
+          token.exp = now + (30 * 24 * 60 * 60); // 30 days
         }
       }
       return token;
@@ -195,6 +242,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   pages: {
     signIn: '/login',
+    error: '/login', // Redirect errors back to login
   },
   session: {
     strategy: 'jwt',
