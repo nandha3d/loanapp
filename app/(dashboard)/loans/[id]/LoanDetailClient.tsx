@@ -33,9 +33,9 @@ const CreditScoreGauge = ({ score, grade }: { score: number, grade: string }) =>
             <circle cx="50" cy="10" r="5" fill="#FFF" stroke={getScoreColor(score)} strokeWidth="2" />
           </g>
         </svg>
-        <div style={{ position: 'absolute', bottom: '2px', fontSize: '1.4rem', fontWeight: 900, color: 'var(--text-primary)', letterSpacing: '-0.5px' }}>{score}</div>
+        <div style={{ position: 'absolute', bottom: '2px', fontSize: '1.6rem', fontWeight: 900, color: 'var(--text)', letterSpacing: '-0.5px' }}>{score}</div>
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.55rem', color: 'var(--text-light)', marginTop: '-2px', padding: '0 12px', fontWeight: 600 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.55rem', color: 'var(--text-light)', marginTop: '-8px', padding: '0 8px', fontWeight: 700, width: '110px', margin: '0 auto' }}>
         <span>300</span>
         <span>850</span>
       </div>
@@ -238,7 +238,15 @@ export default function LoanDetailClient({
       <div className="card" style={{ marginBottom: '16px', padding: '12px 16px' }}>
         <div className="loan-top-card">
           <div className="loan-top-header">
-            <h2 style={{ fontSize: '1.1rem', margin: 0, fontWeight: 800, color: 'var(--primary)' }}>{loan.loanCode}</h2>
+            <h2 style={{ fontSize: '1.1rem', margin: 0, fontWeight: 800, color: 'var(--primary)' }}>
+              {loan.loanCode} 
+              <span style={{ color: 'var(--text-light)', fontWeight: 400, marginLeft: '8px' }}>
+                [{loan.customer.customerCode}]
+              </span>
+              <span style={{ color: 'var(--text)', fontWeight: 700, marginLeft: '8px' }}>
+                {loan.customer.name}
+              </span>
+            </h2>
             <span className={getBadgeClass(loan.status)} style={{ textTransform: 'capitalize', fontSize: '.7rem', padding: '3px 10px', borderRadius: '4px' }}>{loan.status}</span>
             <span style={{ fontSize: '.7rem', color: 'var(--text-light)', marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span className="material-icons-outlined" style={{ fontSize: '16px' }}>calendar_today</span>
@@ -248,18 +256,14 @@ export default function LoanDetailClient({
 
           <div className="loan-main-row">
             <div className="avatar-col">
-              <div style={{ width: '68px', height: '68px', borderRadius: '16px', overflow: 'hidden', border: '2px solid var(--border)', background: '#F8FAFC', marginBottom: '4px' }}>
+              <div style={{ width: '140px', height: '140px', borderRadius: '16px', overflow: 'hidden', border: '2px solid var(--border)', background: '#F8FAFC', marginBottom: '4px' }}>
                 {loan.customer.profilePhoto ? (
                   <img src={loan.customer.profilePhoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
                   <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-light)' }}>
-                    <span className="material-icons" style={{ fontSize: '32px' }}>person</span>
+                    <span className="material-icons" style={{ fontSize: '48px' }}>person</span>
                   </div>
                 )}
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <Link href={`/customers/${loan.customer.customerCode}`} style={{ color: 'var(--text-primary)', fontWeight: 800, fontSize: '.8rem', display: 'block' }}>{loan.customer.name}</Link>
-                <div style={{ fontSize: '.6rem', color: 'var(--text-light)', fontWeight: 700, marginTop: '2px' }}>{loan.customer.customerCode}</div>
               </div>
             </div>
 
@@ -399,14 +403,56 @@ export default function LoanDetailClient({
           )}
 
           <div className="card">
-            <div className="card-header"><h3>📄 {d.securityCheques}</h3></div>
-            <div>
-              {loan.customer.securityCheques.map((ch: any) => (
-                <div key={ch.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: '.82rem' }}>
-                  <span>{ch.bankName} — {ch.chequeNumber}</span>
-                  <span className={getBadgeClass(ch.status)}>{ch.status}</span>
-                </div>
-              ))}
+            <div className="card-header"><h3>📄 Collateral Details ({loan.loanType})</h3></div>
+            <div style={{ padding: '0 16px 16px' }}>
+              {(() => {
+                let col: any = {};
+                try {
+                  if (loan.collateralDetails) col = JSON.parse(loan.collateralDetails);
+                } catch(e) {}
+
+                if (loan.loanType === 'gold') {
+                  return (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '.85rem' }}>
+                      <div><strong style={{ color: 'var(--text-secondary)' }}>Weight:</strong><br />{col.grams || '—'} g</div>
+                      <div><strong style={{ color: 'var(--text-secondary)' }}>Purity:</strong><br />{col.carat || '—'}</div>
+                      <div style={{ gridColumn: '1 / -1' }}><strong style={{ color: 'var(--text-secondary)' }}>Items:</strong><br />{col.items || '—'}</div>
+                    </div>
+                  );
+                }
+                
+                if (loan.loanType === 'property') {
+                  return (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '.85rem' }}>
+                      <div><strong style={{ color: 'var(--text-secondary)' }}>Type:</strong><br /><span style={{ textTransform: 'capitalize' }}>{col.type || '—'}</span></div>
+                      <div><strong style={{ color: 'var(--text-secondary)' }}>Est. Value:</strong><br />{formatCurrency(col.value || 0, currencySymbol)}</div>
+                      <div style={{ gridColumn: '1 / -1' }}><strong style={{ color: 'var(--text-secondary)' }}>Address:</strong><br />{col.address || '—'}</div>
+                    </div>
+                  );
+                }
+
+                // Default to Cheque (shows both legacy relational cheques and new JSON format)
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {col.bankName && (
+                      <div style={{ fontSize: '.85rem' }}>
+                        <div><strong style={{ color: 'var(--text-secondary)' }}>Bank:</strong> {col.bankName}</div>
+                        <div><strong style={{ color: 'var(--text-secondary)' }}>Cheque No:</strong> {col.chequeNumber}</div>
+                        <div><strong style={{ color: 'var(--text-secondary)' }}>Amount:</strong> {formatCurrency(col.chequeAmount || 0, currencySymbol)}</div>
+                      </div>
+                    )}
+                    {loan.customer?.securityCheques?.map((ch: any) => (
+                      <div key={ch.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: '1px solid var(--border)', fontSize: '.82rem' }}>
+                        <span>{ch.bankName} — {ch.chequeNumber}</span>
+                        <span className={getBadgeClass(ch.status)}>{ch.status}</span>
+                      </div>
+                    ))}
+                    {!col.bankName && (!loan.customer?.securityCheques || loan.customer.securityCheques.length === 0) && (
+                      <p style={{ fontSize: '.8rem', color: 'var(--text-light)', margin: 0 }}>No collateral recorded.</p>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
