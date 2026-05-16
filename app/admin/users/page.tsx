@@ -5,7 +5,7 @@ import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { PLAN_FEATURES } from '@/lib/plans';
 import { normalizeEnabledModules } from '@/lib/subscription';
-import { normalizeModuleList } from '@/types/modules';
+import { normalizeModuleList, type ModuleKey } from '@/types/modules';
 
 export default async function AdminUsersPage() {
   const session = await auth();
@@ -55,7 +55,7 @@ export default async function AdminUsersPage() {
       
       // Use subscription modules instead of branch modules for the summary card
       const saPlanKey = saSubscription?.plan || 'trial';
-      const modules = normalizeEnabledModules(saSubscription?.enabledModules || PLAN_FEATURES[saPlanKey]?.modules);
+      const modules = normalizeEnabledModules(saSubscription?.enabledModules || PLAN_FEATURES[saPlanKey]?.modules) as ModuleKey[];
 
       return {
         id: superadmin.id,

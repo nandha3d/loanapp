@@ -18,15 +18,19 @@ export async function manageMasterUser(formData: FormData) {
   }
 
   const id = formData.get('id') as string | null;
+  const role = formData.get('role') as string;
   let tenantId = actorTenantId;
   
   if (id) {
     const user = await prisma.user.findUnique({ where: { id }, select: { tenantId: true } });
     if (user) tenantId = user.tenantId;
+  } else if (role === 'superadmin') {
+    // New Superadmin starts a new tenant
+    tenantId = `tnt_${Math.random().toString(36).substring(2, 9)}`;
   }
 
-  // Subscription expiry check (Developers bypass)
-  if (userRole !== 'developer') {
+  // Subscription expiry check (Developers bypass, or if new tenant)
+  if (userRole !== 'developer' && id) {
     try {
       await assertTenantSubscriptionAccess(tenantId);
     } catch (err: any) {
@@ -37,7 +41,6 @@ export async function manageMasterUser(formData: FormData) {
   const username = formData.get('username') as string;
   const phone = formData.get('phone') as string;
   const password = formData.get('password') as string;
-  const role = formData.get('role') as string;
   const requestedAppType = formData.get('appType') as string;
   const branchId = formData.get('branchId') as string || null;
   const status = formData.get('status') as string || 'active';
@@ -146,9 +149,17 @@ export async function manageMasterUser(formData: FormData) {
 
   if (savedUserId) {
     if (role === 'superadmin' && requestedModules.length > 0) {
-      await prisma.tenantSubscription.update({
+      await prisma.tenantSubscription.upsert({
         where: { tenantId },
-        data: { enabledModules: requestedModules }
+        update: { enabledModules: requestedModules },
+        create: { 
+          tenantId, 
+          enabledModules: requestedModules,
+          plan: 'trial',
+          status: 'active',
+          maxActiveLoans: 100,
+          maxAgents: 5
+        }
       });
     }
 
@@ -294,14 +305,14 @@ export async function assignAdminModules(data: {
   const session = await auth();
   const userRole = (session?.user as any)?.role;
 
-  if (userRole !== 'superadmin') {
-    return { success: false, error: 'Unauthorized. Super Admin only.' };
+  if (userRole !== 'superadmin' && userRole !== 'developer') {
+    return { success: false, error: 'Unauthorized.' };
   }
 
   const admin = await prisma.user.findFirst({
     where: {
       id: data.adminUserId,
-      tenantId,
+      tenantId: userRole === 'developer' ? undefined : tenantId,
       branchId: data.branchId,
       role: 'admin',
     },
@@ -311,8 +322,7 @@ export async function assignAdminModules(data: {
   const branch = await prisma.branch.findFirst({
     where: {
       id: data.branchId,
-      tenantId,
-      superadminId: (session?.user as any)?.id,
+      tenantId: userRole === 'developer' ? undefined : tenantId,
     },
     select: { enabledModules: true },
   });
@@ -332,7 +342,8 @@ export async function assignAdminModules(data: {
     },
   });
 
-  revalidatePath('/settings');
+  revalidatePath('/admin/users');
+  revalidatePath('/portal');
   return { success: true };
 }
 

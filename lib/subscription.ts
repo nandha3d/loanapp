@@ -20,6 +20,20 @@ export function isTenantSubscriptionExpired(sub: TenantSubscriptionAccess | null
   return false;
 }
 
+export function normalizeRazorpaySubscriptionStatus(event: string): string {
+  switch (event) {
+    case 'subscription.activated':
+    case 'subscription.charged':
+      return 'active';
+    case 'subscription.halted':
+      return 'past_due';
+    case 'subscription.cancelled':
+      return 'cancelled';
+    default:
+      return 'unknown';
+  }
+}
+
 export function normalizeEnabledModules(rawModules: any): string[] {
   if (!rawModules) return ['microlending'];
   if (Array.isArray(rawModules)) return rawModules as string[];
@@ -30,6 +44,7 @@ export function normalizeEnabledModules(rawModules: any): string[] {
 }
 
 export async function assertTenantSubscriptionAccess(tenantId: string): Promise<void> {
+  if (!tenantId) return;
   const sub = await prisma.tenantSubscription.findUnique({ where: { tenantId } });
   if (!sub) return;
 
@@ -50,6 +65,7 @@ export async function assertTenantSubscriptionAccess(tenantId: string): Promise<
 }
 
 export async function checkLimit(tenantId: string, resource: 'loans' | 'agents' | 'vehicles' | 'chits') {
+  if (!tenantId) return;
   const sub = await prisma.tenantSubscription.findUnique({ where: { tenantId } });
   if (!sub) return;
   await assertTenantSubscriptionAccess(tenantId);
@@ -79,7 +95,8 @@ export async function checkLimit(tenantId: string, resource: 'loans' | 'agents' 
   }
 }
 
-export async function getSubscription(tenantId: string) {
+export async function getSubscription(tenantId: string | null | undefined) {
+  if (!tenantId) return null;
   return prisma.tenantSubscription.findUnique({ where: { tenantId } });
 }
 
