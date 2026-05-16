@@ -1,4 +1,4 @@
-import prisma from './db';
+// Prisma is imported dynamically inside functions to prevent Edge Runtime errors in middleware
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -91,6 +91,7 @@ export async function checkRateLimit(
   const windowStart = now;
   const expiresAt = new Date(now.getTime() + options.windowMs);
 
+  const prisma = (await import('./db')).default;
   // Atomic upsert: insert or reset/increment depending on whether window expired
   await prisma.$executeRaw`
     INSERT INTO rate_limits (rate_key, count, window_start, expires_at, created_at, updated_at)
@@ -127,6 +128,7 @@ export async function checkRateLimit(
  * Returns the number of rows deleted.
  */
 export async function cleanupExpiredRateLimits(): Promise<number> {
+  const prisma = (await import('./db')).default;
   const result = await prisma.rateLimit.deleteMany({
     where: { expiresAt: { lt: new Date() } },
   });

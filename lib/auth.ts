@@ -1,7 +1,7 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import { compare } from 'bcryptjs';
-import prisma from './db';
+// Prisma is imported dynamically inside functions to prevent Edge Runtime errors in middleware
 import { verifySync } from 'otplib';
 import { checkRateLimit, getClientIp, loginIpKey, loginUserKey } from './rateLimit';
 
@@ -53,6 +53,7 @@ async function resolveLoginTenantId(host: string | null): Promise<string | null>
   if (!slug) return null;
 
   try {
+    const prisma = (await import('./db')).default;
     const tenant = await prisma.tenant.findUnique({
       where: { slug },
       select: { id: true, status: true },
@@ -118,6 +119,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           // Use a timeout for the main user lookup
           const dbTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('DATABASE_TIMEOUT')), 10000));
 
+          const prisma = (await import('./db')).default;
           const user = await Promise.race([
             prisma.user.findFirst({
               where: {

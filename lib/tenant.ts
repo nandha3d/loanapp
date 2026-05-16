@@ -1,6 +1,6 @@
 import prisma from './db';
 import { auth } from './auth';
-import { headers } from 'next/headers';
+import { headers, cookies } from 'next/headers';
 import { cache } from 'react';
 import { assertTenantSubscriptionAccess } from './subscription';
 
@@ -67,6 +67,11 @@ export async function getUserAppType(): Promise<string> {
   const session = await auth();
   const user = session?.user as SessionUserContext | undefined;
   const role = user?.role;
+
+  // 1. Check if an app was explicitly selected in the portal
+  const cookieStore = await cookies();
+  const activeApp = cookieStore.get('active_app_type')?.value;
+  if (activeApp) return activeApp;
 
   if (role === 'developer') return 'microlending';
 
