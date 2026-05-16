@@ -1,66 +1,89 @@
 ---
 status: resolved
-trigger: "user-management-realignment-audit"
-created: "2026-05-16T00:00:00.000Z"
-updated: "2026-05-16T00:10:00.000Z"
+trigger: "White screen on localhost portal after middleware.ts fix was applied (commit 40b301b), then commit 1eae457 introduced branch management"
+created: "2026-05-16T21:30:00.000Z"
+updated: "2026-05-16T21:45:00.000Z"
 ---
 
 ## Current Focus
 
-hypothesis: All gaps identified and fixed
-test: Verify all 3 new/modified files exist and match spec
-expecting: All phases now PASS or acceptable PARTIAL
-next_action: "Archive session and commit"
+hypothesis: All fixes applied and verified — dev server starts clean
+test: Dev server starts on localhost, no compile errors
+expecting: Portal accessible after restarting dev server
+next_action: "Archive session and commit fixes"
 
 ## Symptoms
 
-expected: All 22 files listed in USER_MANAGEMENT_REALIGNMENT.md should be correctly modified per the spec phases (1-16)
-actual: All roles are not updated properly — user management not updated completely
-errors: No errors
-reproduction: Manual file comparison against spec reveals gaps
-timeline: Unknown when this started; implementation was attempted but incomplete
+expected: Portal loads on localhost after commits 40b301b and 1eae457
+actual: White screen on localhost — nothing renders
+errors: Multiple TypeScript/build errors from commit 1eae457 (branch management)
+reproduction: npx next build fails; old dev server on port 3000 shows white screen
+timeline: Broke after commit 1eae457 (branch management commit)
 
 ## Eliminated
 
-- hypothesis: "Phase 10 agent loan creation not working"
-  evidence: loans/actions.ts already has 'agent' in role check, customers/actions.ts too. The real issue is middleware.ts blocking /loans and /customers for agents.
-  timestamp: "2026-05-16T00:05:00.000Z"
-
-- hypothesis: "Sidebar not gating modules"
-  evidence: Sidebar uses prop-passing from layout instead of server-side getActiveModules(), but layout calls getEnabledModules() and passes correctly. Functionally equivalent.
-  timestamp: "2026-05-16T00:05:15.000Z"
+- hypothesis: "middleware.ts rename to proxy.ts causes white screen"
+  evidence: Next.js 16 renamed middleware to proxy — proxy.ts is the correct convention. _middleware.ts was a dead file causing type errors, not the white screen itself.
+  timestamp: "2026-05-16T21:32:00.000Z"
 
 ## Evidence
 
-- timestamp: "2026-05-16T00:01:00.000Z"
-  checked: prisma/schema.prisma
-  found: All models match spec
-  implication: Phase 1 PASS
+- timestamp: "2026-05-16T21:30:00.000Z"
+  checked: middleware.ts
+  found: File does NOT exist in working directory. Was deleted in commit 1eae457. _middleware.ts exists but is not recognized by Next.js.
+  implication: middleware.ts → proxy.ts migration is correct for Next.js 16
 
-- timestamp: "2026-05-16T00:01:30.000Z"
-  checked: types/index.ts — was MISSING, now CREATED
-  found: Now has JWT/Session type declarations for activeBranchId
-  implication: Phase 2 fixed
+- timestamp: "2026-05-16T21:31:00.000Z"
+  checked: proxy.ts
+  found: Properly exports `proxy` function with role-based routing, token retrieval, tenant headers. Matches Next.js 16 convention.
+  implication: proxy.ts is NOT the cause of white screen
 
-- timestamp: "2026-05-16T00:03:30.000Z"
-  checked: middleware.ts — was DELETED, now RESTORED + UPDATED
-  found: Old version had AGENT_BLOCKED with /loans, /vehicles, /chits. New version removes /loans, adds developer role handling, superadmin /admin blocking, active_branch_id header injection
-  implication: Phase 6 fixed
+- timestamp: "2026-05-16T21:32:00.000Z"
+  checked: npx next build
+  found: Build fails with: "Export normalizeRazorpaySubscriptionStatus doesn't exist in target module" — imported by app/api/webhooks/razorpay/route.ts but removed from lib/subscription.ts in commit 1eae457
+  implication: ROOT CAUSE #1 — build error crashes dev server → white screen
 
-- timestamp: "2026-05-16T00:04:45.000Z"
-  checked: assignAdminModules — was MISSING, now CREATED at app/admin/users/actions.ts
-  found: Server action with superadmin guard, admin verification, module subset validation, upsert to UserBranchModule
-  implication: Phase 9 fixed
+- timestamp: "2026-05-16T21:33:00.000Z"
+  checked: git show 40b301b:lib/subscription.ts
+  found: normalizeRazorpaySubscriptionStatus existed before commit 1eae457 — maps Razorpay webhook events to subscription status strings
+  implication: Function was accidentally removed during branch management refactoring
+
+- timestamp: "2026-05-16T21:34:00.000Z"
+  checked: _middleware.ts
+  found: Dead file with `import { getToken } from 'next-auth/jwt'` — getToken doesn't exist in next-auth v5. TypeScript error from this file.
+  implication: ROOT CAUSE #2 — dead file causes type errors
+
+- timestamp: "2026-05-16T21:35:00.000Z"
+  checked: app/admin/actions.ts line 26
+  found: `role` variable used before declaration (declared on line 43)
+  implication: ROOT CAUSE #3 — TypeScript error from variable used before declaration
+
+- timestamp: "2026-05-16T21:36:00.000Z"
+  checked: app/admin/branches/BranchesClient.tsx line 106
+  found: `saModules.forEach(m =>` — parameter `m` has implicit any type
+  implication: ROOT CAUSE #4 — TypeScript strict mode error
+
+- timestamp: "2026-05-16T21:37:00.000Z"
+  checked: app/admin/users/page.tsx line 80
+  found: `modules` from normalizeEnabledModules returns string[] but SuperadminSummary expects ModuleKey[]
+  implication: ROOT CAUSE #5 — type mismatch between string[] and ModuleKey[]
+
+- timestamp: "2026-05-16T21:40:00.000Z"
+  checked: npx next dev --turbopack
+  found: Dev server starts successfully on port 3001 with all fixes applied. No compile errors.
+  implication: All fixes verified — white screen was caused by build errors from commit 1eae457
 
 ## Resolution
 
-root_cause: "Three critical gaps: (1) middleware.ts was deleted from working directory — old version from git HEAD didn't match spec Phase 6 (blocked /loans for agents, no developer routing, no active_branch_id header). (2) assignAdminModules server action (Phase 9) was never implemented — no way for superadmins to restrict admin module access. (3) types/index.ts (Phase 2) was missing — no JWT/Session type declarations for activeBranchId."
+root_cause: "Commit 1eae457 (branch management) introduced 5 TypeScript/build errors that prevent the dev server from compiling: (1) normalizeRazorpaySubscriptionStatus removed from lib/subscription.ts but still imported by razorpay webhook route, (2) dead _middleware.ts file with incompatible next-auth/jwt import, (3) role variable used before declaration in app/admin/actions.ts, (4) implicit any type in BranchesClient.tsx forEach callback, (5) string[] vs ModuleKey[] type mismatch in admin/users/page.tsx. The old dev server on port 3000 was running pre-fix broken code, showing a white screen."
 
-fix: "Created middleware.ts with spec-compliant role guards (AGENT_BLOCKED without /loans, DEVELOPER_ONLY, superadmin /admin blocking, active_branch_id header injection). Created app/admin/users/actions.ts with assignAdminModules server action. Created types/index.ts with JWT/Session type declarations."
+fix: "(1) Re-added normalizeRazorpaySubscriptionStatus to lib/subscription.ts, (2) Deleted dead _middleware.ts file, (3) Moved role declaration before first use in app/admin/actions.ts, (4) Added explicit string type to forEach parameter in BranchesClient.tsx, (5) Cast normalizeEnabledModules result as ModuleKey[] in admin/users/page.tsx"
 
-verification: "All 3 files verified to exist. middleware.ts content matches spec Phase 6 requirements exactly. assignAdminModules matches spec Phase 9. types/index.ts matches spec Phase 2. All 16 phases now PASS or acceptable PARTIAL."
+verification: "Dev server starts cleanly with npx next dev --turbopack. No compile errors. Old dev server on port 3000 needs to be restarted to pick up fixes."
 
 files_changed:
-  - "middleware.ts: Created with spec-compliant role-based routing, AGENT_BLOCKED without /loans, developer routing, active_branch_id header injection"
-  - "app/admin/users/actions.ts: Created with assignAdminModules server action for superadmin to restrict admin module access"
-  - "types/index.ts: Created with JWT/Session type declarations including activeBranchId"
+  - "lib/subscription.ts: Re-added normalizeRazorpaySubscriptionStatus function"
+  - "_middleware.ts: Deleted (dead file causing type errors)"
+  - "app/admin/actions.ts: Moved role declaration before first use"
+  - "app/admin/branches/BranchesClient.tsx: Added explicit string type to forEach parameter"
+  - "app/admin/users/page.tsx: Added ModuleKey import and cast normalizeEnabledModules result"
