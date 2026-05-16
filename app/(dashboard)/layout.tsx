@@ -1,7 +1,6 @@
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
-import { SessionProvider } from 'next-auth/react';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
 import { getUserAppType, getDefaultTenantId } from '@/lib/tenant';
@@ -57,55 +56,53 @@ export default async function DashboardLayout({
   const isExpired = isTenantSubscriptionExpired(sub);
 
   return (
-    <SessionProvider session={session}>
-      <div 
-        className="app-layout"
-        style={{ 
-          '--primary': appConfig.primaryColor,
-          '--primary-dark': appConfig.primaryDark,
-          '--primary-light': appConfig.primaryLight,
-          '--accent': appConfig.accentColor,
-        } as React.CSSProperties}
-      >
-        <Sidebar appType={appType} enabledModules={enabledModules} dict={dict} />
-        <main className="main-content">
-          <Topbar
-            dict={dict}
-            currentLang={lang}
-            branchSwitcher={<BranchSwitcher branches={branches} activeBranchId={activeBranchId} />}
-          />
-          <div className="page-content fade-up" style={{ position: 'relative' }}>
-            {isExpired && (
-              <div style={{
-                background: '#fff3cd',
-                color: '#856404',
-                padding: '12px 20px',
-                borderRadius: '8px',
-                border: '1px solid #ffeeba',
-                marginBottom: '20px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span className="material-icons-outlined">warning</span>
-                  <div>
-                    <strong style={{ display: 'block' }}>Subscription Expired</strong>
-                    <span style={{ fontSize: '0.9rem' }}>Your subscription has expired. Access is now read-only. Please renew to resume operations.</span>
-                  </div>
+    <div 
+      className="app-layout"
+      style={{ 
+        '--primary': appConfig.primaryColor,
+        '--primary-dark': appConfig.primaryDark,
+        '--primary-light': appConfig.primaryLight,
+        '--accent': appConfig.accentColor,
+      } as React.CSSProperties}
+    >
+      <Sidebar appType={appType} enabledModules={enabledModules} dict={dict} />
+      <main className="main-content">
+        <Topbar
+          dict={dict}
+          currentLang={lang}
+          branchSwitcher={<BranchSwitcher branches={branches} activeBranchId={activeBranchId} />}
+        />
+        <div className="page-content fade-up" style={{ position: 'relative' }}>
+          {isExpired && (
+            <div style={{
+              background: '#fff3cd',
+              color: '#856404',
+              padding: '12px 20px',
+              borderRadius: '8px',
+              border: '1px solid #ffeeba',
+              marginBottom: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span className="material-icons-outlined">warning</span>
+                <div>
+                  <strong style={{ display: 'block' }}>Subscription Expired</strong>
+                  <span style={{ fontSize: '0.9rem' }}>Your subscription has expired. Access is now read-only. Please renew to resume operations.</span>
                 </div>
-                {role === 'superadmin' && (
-                  <Link href="/subscription" className="btn btn-sm" style={{ background: '#856404', color: '#fff', border: 'none' }}>
-                    Renew Now
-                  </Link>
-                )}
               </div>
-            )}
-            {children}
-          </div>
-        </main>
-      </div>
-    </SessionProvider>
+              {role === 'superadmin' && (
+                <Link href="/subscription" className="btn btn-sm" style={{ background: '#856404', color: '#fff', border: 'none' }}>
+                  Renew Now
+                </Link>
+              )}
+            </div>
+          )}
+          {children}
+        </div>
+      </main>
+    </div>
   );
 }

@@ -13,24 +13,37 @@ export default async function SuperAdminPortal() {
   }
 
   const role = (session.user as any)?.role;
-  const tenantId = await getDefaultTenantId();
   
-  const subscription = await prisma.tenantSubscription.findUnique({
-    where: { tenantId },
-    select: { enabledModules: true },
-  });
-  const enabledModules = normalizeModuleList(subscription?.enabledModules);
+  let tenantId: string | null = null;
+  try {
+    tenantId = await getDefaultTenantId();
+  } catch (err) {
+    // No default tenant found
+  }
+  
+  let enabledModules: string[] = [];
+  
+  if (tenantId) {
+    const subscription = await prisma.tenantSubscription.findUnique({
+      where: { tenantId },
+      select: { enabledModules: true },
+    });
+    enabledModules = normalizeModuleList(subscription?.enabledModules);
+  } else if (role === 'developer') {
+    enabledModules = []; 
+  }
 
-  // Non-superadmins go straight to their assigned app
   if (role !== 'superadmin' && role !== 'developer') {
     redirect('/dashboard');
   }
 
   return (
-    <AppSelectorClient 
-      userName={session.user.name || 'Admin'} 
-      userRole={role} 
-      enabledModules={enabledModules} 
-    />
+    <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
+      <AppSelectorClient 
+        userName={session.user.name || 'Admin'} 
+        userRole={role} 
+        enabledModules={enabledModules} 
+      />
+    </div>
   );
 }
