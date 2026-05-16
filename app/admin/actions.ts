@@ -5,6 +5,7 @@ import { getDefaultTenantId } from '@/lib/tenant';
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
+import { checkLimit } from '@/lib/subscription';
 
 export async function manageMasterUser(formData: FormData) {
   const tenantId = await getDefaultTenantId();
@@ -62,6 +63,16 @@ export async function manageMasterUser(formData: FormData) {
     }).catch(() => {});
   } else {
     if (!password) return { success: false, error: 'Password is required for new users' };
+    
+    // Enforce agent limit if applicable
+    if (role === 'agent') {
+      try {
+        await checkLimit(tenantId, 'agents');
+      } catch (err: any) {
+        return { success: false, error: err.message };
+      }
+    }
+
     const savedUser = await prisma.user.create({
       data: {
         tenantId,

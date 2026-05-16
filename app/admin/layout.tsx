@@ -53,11 +53,7 @@ export default async function AdminLayout({
                 Branches
               </Link>
             )}
-            <div className="nav-section">Billing</div>
-            <Link href="/admin/billing">
-              <span className="material-icons-outlined">credit_card</span>
-              Subscriptions
-            </Link>
+            {/* Billing section removed as it is accessible via portal */}
           </nav>
 
           <div className="sidebar-footer">

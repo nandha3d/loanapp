@@ -50,8 +50,16 @@ export async function assertTenantSubscriptionAccess(tenantId: string): Promise<
     throw new Error('Your subscription payment is overdue. Please update your payment method to continue.');
   }
 
+  if (sub.status === 'expired') {
+    throw new Error('Your subscription has expired. Please renew to continue.');
+  }
+
+  if (sub.status === 'cancelled') {
+    throw new Error('Your subscription has been cancelled. Please contact support.');
+  }
+
   if (sub.status !== 'active') {
-    throw new Error('Your subscription is inactive. Please contact the administrator.');
+    throw new Error('Your subscription is currently inactive. Please contact the administrator.');
   }
 }
 
