@@ -1,16 +1,22 @@
-import prisma from '@/lib/db';
-import { normalizeEnabledModules } from './subscription';
+import { getActiveModules } from './branch';
+import type { ModuleKey } from '@/types/modules';
 
-const DEFAULT_MODULES = ['microlending'];
-
-export async function getEnabledModules(tenantId: string): Promise<string[]> {
-  const sub = await prisma.tenantSubscription.findUnique({ where: { tenantId } });
-  return normalizeEnabledModules(sub?.enabledModules);
+export async function assertModuleEnabled(module: ModuleKey): Promise<void> {
+  const modules = await getActiveModules();
+  if (!modules.includes(module)) {
+    throw new Error(`Module '${module}' is not enabled for this branch`);
+  }
 }
 
-export async function requireModule(tenantId: string, module: string): Promise<void> {
-  const enabled = await getEnabledModules(tenantId);
-  if (!enabled.includes(module)) {
-    throw new Error(`The "${module}" module is not enabled on your subscription. Please upgrade your plan.`);
-  }
+export async function isModuleEnabled(module: ModuleKey): Promise<boolean> {
+  const modules = await getActiveModules();
+  return modules.includes(module);
+}
+
+export async function getEnabledModules(_tenantId?: string): Promise<ModuleKey[]> {
+  return getActiveModules();
+}
+
+export async function requireModule(_tenantId: string, module: ModuleKey): Promise<void> {
+  return assertModuleEnabled(module);
 }

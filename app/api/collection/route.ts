@@ -85,7 +85,7 @@ export async function POST(request: Request) {
     if (!instalment || instalment.loan.tenantId !== context.tenantId || instalment.loan.appType !== context.appType) {
       return apiError('Instalment not found', 404);
     }
-    if (context.role === 'admin' && context.branchId && instalment.loan.branchId !== context.branchId) {
+    if (context.branchId && instalment.loan.branchId !== context.branchId) {
       return apiError('Forbidden', 403);
     }
     if (context.role === 'agent') {
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
     const today = parseDay(null);
     const entry = await prisma.$transaction(async (tx) => {
       let dailyCollection = await tx.dailyCollection.findFirst({
-        where: { agentId: context.userId, date: today, tenantId: context.tenantId },
+        where: { agentId: context.userId, date: today, tenantId: context.tenantId, appType: context.appType },
       });
       if (!dailyCollection) {
         dailyCollection = await tx.dailyCollection.create({

@@ -5,6 +5,7 @@ import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { ensurePendingPenaltiesForMissedLoans } from '@/lib/penalties';
 import PenaltiesClient from './PenaltiesClient';
 import { getDictionary } from '@/lib/i18n';
+import { getActiveBranchId } from '@/lib/branch';
 
 export default async function PenaltiesPage({
   searchParams,
@@ -13,7 +14,7 @@ export default async function PenaltiesPage({
 }) {
   const session = await auth();
   const userRole = (session?.user as any)?.role;
-  const branchId = (session?.user as any)?.branchId as string | undefined;
+  const branchId = await getActiveBranchId();
   if (userRole === 'agent') redirect('/collection');
 
   const tenantId = await getDefaultTenantId();
@@ -26,14 +27,13 @@ export default async function PenaltiesPage({
   const status = resolvedParams.status || '';
   const routeId = resolvedParams.routeId || '';
 
-  // Build where clause — scope to branch for admin role
   const loanBase: any = { tenantId, appType };
-  if (userRole === 'admin' && branchId) loanBase.branchId = branchId;
+  if (branchId) loanBase.branchId = branchId;
 
   await ensurePendingPenaltiesForMissedLoans({
     tenantId,
     appType,
-    branchId: userRole === 'admin' ? branchId : undefined,
+    branchId: branchId || undefined,
     routeId: routeId || undefined,
   });
 

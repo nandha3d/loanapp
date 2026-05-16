@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import ReportsClient from './ReportsClient';
 import { getDictionary } from '@/lib/i18n';
+import { getActiveBranchId } from '@/lib/branch';
 
 export default async function ReportsPage({
   searchParams,
@@ -12,7 +13,7 @@ export default async function ReportsPage({
 }) {
   const session = await auth();
   const userRole = (session?.user as any)?.role;
-  const branchId = (session?.user as any)?.branchId as string | undefined;
+  const branchId = await getActiveBranchId();
   if (userRole === 'agent') redirect('/collection');
 
   const tenantId = await getDefaultTenantId();
@@ -34,9 +35,8 @@ export default async function ReportsPage({
   const dateTo = new Date(toStr);
   dateTo.setHours(23, 59, 59, 999);
 
-  // Branch-scoped base filter for admin role
   const loanBase: any = { tenantId, appType };
-  if (userRole === 'admin' && branchId) loanBase.branchId = branchId;
+  if (branchId) loanBase.branchId = branchId;
 
   // Build instalment filter
   const instalmentFilter: any = {

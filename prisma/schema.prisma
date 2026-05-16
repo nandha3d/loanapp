@@ -33,29 +33,36 @@ model Tenant {
   vehicles              Vehicle[]
   deletedAt             DateTime?              @map("deleted_at")
   billingInvoices       BillingInvoice[]
+  branchRequests        BranchRequest[]
 
   @@map("tenants")
 }
 
 model Branch {
-  id          String            @id @default(cuid())
-  tenantId    String            @map("tenant_id")
-  name        String
-  code        String?
-  address     String?           @db.Text
-  phone       String?
-  status      String            @default("active")
-  createdAt   DateTime          @default(now()) @map("created_at")
-  updatedAt   DateTime          @updatedAt @map("updated_at")
-  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  chitGroups  ChitGroup[]
-  customers   Customer[]
-  collections DailyCollection[]
-  loans       Loan[]
-  routes      Route[]
-  users       User[]
+  id             String             @id @default(cuid())
+  tenantId       String             @map("tenant_id")
+  superadminId   String?            @map("superadmin_id")
+  name           String
+  code           String?
+  address        String?            @db.Text
+  phone          String?
+  status         String             @default("active")
+  enabledModules Json               @default("[]") @map("enabled_modules")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+  tenant         Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  superadmin     User?              @relation("SuperadminBranches", fields: [superadminId], references: [id], onDelete: SetNull)
+  chitGroups     ChitGroup[]
+  customers      Customer[]
+  collections    DailyCollection[]
+  loans          Loan[]
+  routes         Route[]
+  users          User[]
+  branchRequests BranchRequest[]
+  userModules    UserBranchModule[]
 
   @@unique([tenantId, code])
+  @@index([superadminId], map: "branches_superadmin_id_fkey")
   @@map("branches")
 }
 
@@ -103,12 +110,56 @@ model User {
   branch                   Branch?           @relation(fields: [branchId], references: [id])
   tenant                   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   vehicleRepoFlags         Vehicle[]         @relation("VehicleRepoFlag")
+  superadminBranches       Branch[]          @relation("SuperadminBranches")
+  branchRequestsMade       BranchRequest[]   @relation("BranchRequestsMade")
+  branchRequestsReviewed   BranchRequest[]   @relation("BranchRequestsReviewed")
+  userBranchModules        UserBranchModule[]
   deletedAt                DateTime?         @map("deleted_at")
 
   @@unique([tenantId, username])
   @@unique([tenantId, phone])
   @@index([branchId], map: "users_branch_id_fkey")
   @@map("users")
+}
+
+model BranchRequest {
+  id               String    @id @default(cuid())
+  tenantId         String    @map("tenant_id")
+  requestedById    String    @map("requested_by_id")
+  branchId         String?   @map("branch_id")
+  branchName       String?   @map("branch_name")
+  requestedModules Json      @map("requested_modules")
+  reason           String?   @db.Text
+  status           String    @default("pending")
+  reviewedById     String?   @map("reviewed_by_id")
+  reviewNote       String?   @map("review_note") @db.Text
+  reviewedAt       DateTime? @map("reviewed_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  requestedBy      User      @relation("BranchRequestsMade", fields: [requestedById], references: [id])
+  reviewedBy       User?     @relation("BranchRequestsReviewed", fields: [reviewedById], references: [id])
+  branch           Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([requestedById])
+  @@index([branchId])
+  @@map("branch_requests")
+}
+
+model UserBranchModule {
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  branchId       String   @map("branch_id")
+  enabledModules Json     @map("enabled_modules")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch         Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, branchId])
+  @@index([branchId])
+  @@map("user_branch_modules")
 }
 
 model Route {

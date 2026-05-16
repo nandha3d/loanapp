@@ -21,13 +21,14 @@ async function main() {
   // ── Create Default Branch ──
   const branch = await prisma.branch.upsert({
     where: { tenantId_code: { tenantId: tenant.id, code: 'HQ' } },
-    update: {},
+    update: { enabledModules: ['microlending'] },
     create: {
       tenantId: tenant.id,
       name: 'Head Office',
       code: 'HQ',
       address: 'Main Branch',
       status: 'active',
+      enabledModules: ['microlending'],
     },
   });
   console.log('✅ Branch created:', branch.id);
@@ -88,7 +89,7 @@ async function main() {
 
   // ── Create Super Admin User ──
   const superPassword = await hash('super123', 12);
-  await prisma.user.upsert({
+  const superadmin = await prisma.user.upsert({
     where: { tenantId_username: { tenantId: tenant.id, username: 'superadmin' } },
     update: { passwordHash: superPassword },
     create: {
@@ -105,6 +106,44 @@ async function main() {
   console.log('✅ Super admin user created');
 
   // ── Create Default Routes ──
+  await prisma.branch.update({
+    where: { id: branch.id },
+    data: { superadminId: superadmin.id },
+  });
+
+  const erodeBranch = await prisma.branch.upsert({
+    where: { tenantId_code: { tenantId: tenant.id, code: 'ERODE' } },
+    update: {
+      superadminId: superadmin.id,
+      enabledModules: ['autofinance', 'chitfunds'],
+    },
+    create: {
+      tenantId: tenant.id,
+      superadminId: superadmin.id,
+      name: 'Erode',
+      code: 'ERODE',
+      enabledModules: ['autofinance', 'chitfunds'],
+      status: 'active',
+    },
+  });
+
+  const namakkalBranch = await prisma.branch.upsert({
+    where: { tenantId_code: { tenantId: tenant.id, code: 'NAMAKKAL' } },
+    update: {
+      superadminId: superadmin.id,
+      enabledModules: ['microlending'],
+    },
+    create: {
+      tenantId: tenant.id,
+      superadminId: superadmin.id,
+      name: 'Namakkal',
+      code: 'NAMAKKAL',
+      enabledModules: ['microlending'],
+      status: 'active',
+    },
+  });
+  console.log('Example module branches created:', erodeBranch.id, namakkalBranch.id);
+
   const routeNames = ['Erode', 'Chithode', 'Gobichettipalayam', 'Bhavani'];
   for (const name of routeNames) {
     await prisma.route.upsert({

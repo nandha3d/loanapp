@@ -4,6 +4,7 @@ import { getDefaultTenantId, getBranding, getUserAppType } from '@/lib/tenant';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { getActiveBranchId } from '@/lib/branch';
 
 type DashboardInstalment = {
   id: string;
@@ -38,14 +39,14 @@ function daysBetween(from: Date, to: Date) {
   return Math.max(0, Math.floor((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000)));
 }
 
-async function getDashboardData(tenantId: string, appType: string, adminBranchId?: string) {
+async function getDashboardData(tenantId: string, appType: string, branchId?: string | null) {
   const today = startOfDay();
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
   const weekStart = new Date(today);
   weekStart.setDate(weekStart.getDate() - 6);
 
-  const branchFilter = adminBranchId ? { OR: [{ branchId: adminBranchId }, { branchId: null }] } : {};
+  const branchFilter = branchId ? { branchId } : {};
   const loanWhere: any = { tenantId, appType, ...branchFilter };
   const customerWhere: any = { tenantId, appType, ...branchFilter };
 
@@ -225,9 +226,8 @@ export default async function DashboardPage() {
   const appType = await getUserAppType();
   const branding = await getBranding(tenantId);
 
-  const userBranchId = (session?.user as { branchId?: string })?.branchId;
-  const adminBranchId = userRole === 'admin' && userBranchId ? userBranchId : undefined;
-  const data = await getDashboardData(tenantId, appType, adminBranchId);
+  const activeBranchId = await getActiveBranchId();
+  const data = await getDashboardData(tenantId, appType, activeBranchId);
 
   return (
     <>
