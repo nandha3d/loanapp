@@ -73,14 +73,24 @@ function nextWithTenantHeaders(
   requestHeaders.set('x-loantrack-path', request.nextUrl.pathname);
   const host = request.headers.get('host');
   if (host) requestHeaders.set('x-loantrack-host', host);
+  
+  // NOTE: In some Next.js versions, passing headers back into NextResponse.next() 
+  // can cause the POST body to be consumed/lost. 
+  // We only do this for non-Auth API routes and documents.
   return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const tenantSlug = extractTenantSlugFromHost(request.headers.get('host'));
 
+  // 1. Handle Public Paths
   if (isPublicPath(pathname)) {
+    // CRITICAL: Avoid modifying request headers for Auth API routes to prevent body consumption issues
+    if (pathname.startsWith('/api/auth')) {
+      return NextResponse.next();
+    }
+
     const response = nextWithTenantHeaders(request, tenantSlug, { forceDocument: pathname === '/login' });
     if (pathname === '/login') {
       response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -91,11 +101,36 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  const token = await getToken({ req: request, secret: process.env.AUTH_SECRET });
-  if (!token) {
-    return NextResponse.redirect(new URL('/login', request.url));
+  // 2. Token Retrieval
+  // On Hostinger, SSL termination might make getToken think it's HTTP.
+  // We explicitly check for secure cookies if we are on a production-like domain.
+  const secret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
+  
+  let token = await getToken({ 
+    req: request, 
+    secret,
+    // Explicitly set secureCookie if we're on HTTPS or production
+    secureCookie: request.nextUrl.protocol === 'https:' || process.env.NODE_ENV === 'production',
+  });
+
+  // Fallback check if token is still null (handle cases where protocol detection fails)
+  if (!token && process.env.NODE_ENV === 'production') {
+    token = await getToken({ 
+      req: request, 
+      secret,
+      secureCookie: true,
+    });
   }
 
+  if (!token) {
+    // If no token, redirect to login
+    const loginUrl = new URL('/login', request.url);
+    // Preserving the original destination for redirect back after login
+    if (pathname !== '/') loginUrl.searchParams.set('callbackUrl', request.url);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  // 3. Role-based Redirection
   const role = typeof token.role === 'string' ? token.role : 'agent';
 
   if (SUPERADMIN_ONLY.some((prefix) => pathname.startsWith(prefix))) {
