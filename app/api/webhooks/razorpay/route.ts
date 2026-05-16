@@ -121,10 +121,29 @@ export async function POST(request: NextRequest) {
     data.gracePeriodEnd = graceEnd;
   }
 
-  const updated = await prisma.tenantSubscription.updateMany({
+  const updatedCount = await prisma.tenantSubscription.updateMany({
     where: { razorpaySubId },
     data,
   });
+
+  // Apply plan-specific limits if the subscription exists
+  if (updatedCount.count > 0) {
+    const existingSub = await prisma.tenantSubscription.findUnique({
+      where: { razorpaySubId },
+    });
+    
+    if (existingSub && existingSub.plan && PLAN_FEATURES[existingSub.plan]) {
+      const features = PLAN_FEATURES[existingSub.plan];
+      await prisma.tenantSubscription.update({
+        where: { id: existingSub.id },
+        data: {
+          maxActiveLoans: features.loans,
+          maxAgents: features.agents,
+          enabledModules: features.modules,
+        }
+      });
+    }
+  }
 
   // Record this event to prevent future duplicate processing
   if (razorpayEventId) {
@@ -176,6 +195,6 @@ export async function POST(request: NextRequest) {
     ok: true,
     event,
     razorpaySubId,
-    subscriptionsUpdated: updated.count,
+    subscriptionsUpdated: updatedCount.count,
   });
 }
