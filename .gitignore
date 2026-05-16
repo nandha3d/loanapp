@@ -50,3 +50,6 @@ next-env.d.ts
 scratch/
 database/*.sql
 loantrack_export*.sql
+
+# local git worktrees
+.worktrees/
