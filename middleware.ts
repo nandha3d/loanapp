@@ -2,17 +2,20 @@ import { getToken } from 'next-auth/jwt';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+// Agents can no longer be blocked from loans/customers — they can create both.
+// They ARE still blocked from management/reporting/settings views.
 const AGENT_BLOCKED = [
-  '/dashboard',
-  '/loans',
+  '/dashboard',     // KPI dashboard (admin+ only)
   '/penalties',
   '/reports',
   '/settings',
-  '/vehicles',
-  '/chits',
+  '/approvals',
+  '/subscription',
 ];
 
-const SUPERADMIN_ONLY = ['/portal', '/admin'];
+const SUPERADMIN_ONLY = ['/portal'];
+const DEVELOPER_ONLY = ['/admin'];
+
 const PUBLIC_PREFIXES = [
   '/_next',
   '/api',
@@ -73,10 +76,13 @@ function nextWithTenantHeaders(
   requestHeaders.set('x-loantrack-path', request.nextUrl.pathname);
   const host = request.headers.get('host');
   if (host) requestHeaders.set('x-loantrack-host', host);
-  
-  // NOTE: In some Next.js versions, passing headers back into NextResponse.next() 
-  // can cause the POST body to be consumed/lost. 
-  // We only do this for non-Auth API routes and documents.
+
+  // Forward active branch cookie as a header for server components
+  const activeBranch = request.cookies.get('active_branch_id')?.value;
+  if (activeBranch) {
+    requestHeaders.set('x-loantrack-active-branch', activeBranch);
+  }
+
   return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
@@ -86,7 +92,6 @@ export async function middleware(request: NextRequest) {
 
   // 1. Handle Public Paths
   if (isPublicPath(pathname)) {
-    // CRITICAL: Avoid modifying request headers for Auth API routes to prevent body consumption issues
     if (pathname.startsWith('/api/auth')) {
       return NextResponse.next();
     }
@@ -102,30 +107,24 @@ export async function middleware(request: NextRequest) {
   }
 
   // 2. Token Retrieval
-  // On Hostinger, SSL termination might make getToken think it's HTTP.
-  // We explicitly check for secure cookies if we are on a production-like domain.
   const secret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
-  
-  let token = await getToken({ 
-    req: request, 
+
+  let token = await getToken({
+    req: request,
     secret,
-    // Explicitly set secureCookie if we're on HTTPS or production
     secureCookie: request.nextUrl.protocol === 'https:' || process.env.NODE_ENV === 'production',
   });
 
-  // Fallback check if token is still null (handle cases where protocol detection fails)
   if (!token && process.env.NODE_ENV === 'production') {
-    token = await getToken({ 
-      req: request, 
+    token = await getToken({
+      req: request,
       secret,
       secureCookie: true,
     });
   }
 
   if (!token) {
-    // If no token, redirect to login
     const loginUrl = new URL('/login', request.url);
-    // Preserving the original destination for redirect back after login
     if (pathname !== '/') loginUrl.searchParams.set('callbackUrl', request.url);
     return NextResponse.redirect(loginUrl);
   }
@@ -133,26 +132,38 @@ export async function middleware(request: NextRequest) {
   // 3. Role-based Redirection
   const role = typeof token.role === 'string' ? token.role : 'agent';
 
-  if (SUPERADMIN_ONLY.some((prefix) => pathname.startsWith(prefix))) {
-    if (role !== 'superadmin' && role !== 'developer') {
-      return NextResponse.redirect(new URL('/dashboard', request.url));
+  // Developer: can access /admin and /portal only; redirect all other paths
+  if (role === 'developer') {
+    if (!DEVELOPER_ONLY.some(p => pathname.startsWith(p)) &&
+        !pathname.startsWith('/portal') &&
+        !isPublicPath(pathname)) {
+      return NextResponse.redirect(new URL('/admin', request.url));
     }
   }
 
-  if (role === 'agent') {
-    if (AGENT_BLOCKED.some((prefix) => pathname.startsWith(prefix))) {
-      return NextResponse.redirect(new URL('/collection', request.url));
-    }
-    if (pathname.startsWith('/customers/new') && request.nextUrl.searchParams.has('edit')) {
-      return NextResponse.redirect(new URL('/customers', request.url));
-    }
-    if (SUPERADMIN_ONLY.some((prefix) => pathname.startsWith(prefix))) {
-      return NextResponse.redirect(new URL('/collection', request.url));
-    }
-  }
-
-  if (role === 'admin' && SUPERADMIN_ONLY.some((prefix) => pathname.startsWith(prefix))) {
+  // Superadmin/admin/agent blocked from developer-only paths
+  if (role !== 'developer' && DEVELOPER_ONLY.some(p => pathname.startsWith(p))) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+
+  // Superadmin: /portal allowed; /admin blocked
+  if (role === 'superadmin' && pathname.startsWith('/admin')) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+
+  // Admin: block superadmin-only paths
+  if (role === 'admin' && pathname.startsWith('/portal')) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+
+  // Agent: block reporting/management paths
+  if (role === 'agent') {
+    if (AGENT_BLOCKED.some(prefix => pathname.startsWith(prefix))) {
+      return NextResponse.redirect(new URL('/collection', request.url));
+    }
+    if (SUPERADMIN_ONLY.some(prefix => pathname.startsWith(prefix))) {
+      return NextResponse.redirect(new URL('/collection', request.url));
+    }
   }
 
   return nextWithTenantHeaders(request, tenantSlug);
