@@ -59,6 +59,7 @@ async function resolveLoginTenantId(host: string | null): Promise<string | null>
 
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  trustHost: true,
   providers: [
     Credentials({
       name: 'credentials',
@@ -69,89 +70,91 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         totpCode: { label: 'TOTP Code', type: 'text' },
       },
       async authorize(credentials, request) {
-        if (!credentials?.username || !credentials?.password) return null;
-        const username = String(credentials.username).trim().toLowerCase();
+        try {
+          if (!credentials?.username || !credentials?.password) return null;
+          const username = String(credentials.username).trim().toLowerCase();
 
-        // ── Distributed rate limiting (MySQL-backed) ─────────────────────────
-        // Check both per-IP and per-username limits independently.
-        // Per-username: prevents brute-force against a specific account.
-        // Per-IP: prevents a single machine from cycling through usernames.
-        const ip = getClientIp(request as unknown as Request);
-        const [ipLimit, userLimit] = await Promise.all([
-          checkRateLimit(loginIpKey(ip), { limit: LOGIN_IP_MAX, windowMs: LOGIN_WINDOW_MS }),
-          checkRateLimit(loginUserKey(username), { limit: LOGIN_MAX_ATTEMPTS, windowMs: LOGIN_WINDOW_MS }),
-        ]);
-        if (!ipLimit.allowed || !userLimit.allowed) return null;
-        // ─────────────────────────────────────────────────────────────────────
+          // ── Distributed rate limiting (MySQL-backed) ─────────────────────────
+          const ip = getClientIp(request as unknown as Request);
+          const [ipLimit, userLimit] = await Promise.all([
+            checkRateLimit(loginIpKey(ip), { limit: LOGIN_IP_MAX, windowMs: LOGIN_WINDOW_MS }),
+            checkRateLimit(loginUserKey(username), { limit: LOGIN_MAX_ATTEMPTS, windowMs: LOGIN_WINDOW_MS }),
+          ]);
+          if (!ipLimit.allowed || !userLimit.allowed) return null;
+          // ─────────────────────────────────────────────────────────────────────
 
-        // ── Tenant-scoped user lookup ─────────────────────────────────────────
-        const host = (request as any)?.headers?.get?.('host') ?? null;
-        const tenantIdFromHost = await resolveLoginTenantId(host);
+          // ── Tenant-scoped user lookup ─────────────────────────────────────────
+          const host = (request as any)?.headers?.get?.('host') ?? null;
+          const tenantIdFromHost = await resolveLoginTenantId(host);
 
-        const user = await prisma.user.findFirst({
-          where: {
-            OR: [
-              { username },
-              { phone: username },
-            ],
-            status: 'active',
-            ...(tenantIdFromHost ? { tenantId: tenantIdFromHost } : {}),
-          },
-          include: { tenant: true, branch: true },
-        });
+          const user = await prisma.user.findFirst({
+            where: {
+              OR: [
+                { username },
+                { phone: username },
+              ],
+              status: 'active',
+              ...(tenantIdFromHost ? { tenantId: tenantIdFromHost } : {}),
+            },
+            include: { tenant: true, branch: true },
+          });
 
-        if (!user || user.tenant.status !== 'active') return null;
+          if (!user || user.tenant.status !== 'active') return null;
 
-        if (!tenantIdFromHost && process.env.ALLOW_ROOT_DOMAIN_LOGIN === 'false') {
-          return null; // Block login on root domain if disabled
-        }
-
-        const isValid = await compare(credentials.password as string, user.passwordHash);
-        if (!isValid) return null;
-
-        // ── 2FA Verification ─────────────────────────────────────────────────
-        if (user.totpSecret) {
-          const totpCode = credentials.totpCode as string;
-          if (!totpCode) {
-            // Signal to the frontend that 2FA is required
-            throw new Error('2FA_REQUIRED');
+          if (!tenantIdFromHost && process.env.ALLOW_ROOT_DOMAIN_LOGIN === 'false') {
+            return null; // Block login on root domain if disabled
           }
-          const { valid: isTotpValid } = verifySync({ token: totpCode, secret: user.totpSecret });
-          if (!isTotpValid) {
-            throw new Error('INVALID_TOTP');
+
+          const isValid = await compare(credentials.password as string, user.passwordHash);
+          if (!isValid) return null;
+
+          // ── 2FA Verification ─────────────────────────────────────────────────
+          if (user.totpSecret) {
+            const totpCode = credentials.totpCode as string;
+            if (!totpCode) {
+              throw new Error('2FA_REQUIRED');
+            }
+            const { valid: isTotpValid } = verifySync({ token: totpCode, secret: user.totpSecret });
+            if (!isTotpValid) {
+              throw new Error('INVALID_TOTP');
+            }
           }
-        }
-        // ─────────────────────────────────────────────────────────────────────
+          // ─────────────────────────────────────────────────────────────────────
 
-        // Update last login
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { lastLoginAt: new Date() },
-        });
+          // Update last login
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { lastLoginAt: new Date() },
+          });
 
-        // Audit log login event (fire-and-forget, non-blocking)
-        prisma.auditLog.create({
-          data: {
+          // Audit log login event (fire-and-forget, non-blocking)
+          prisma.auditLog.create({
+            data: {
+              tenantId: user.tenantId,
+              userId: user.id,
+              action: 'login',
+              entityType: 'user',
+              entityId: user.id,
+            },
+          }).catch(() => {});
+
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email || undefined,
+            role: user.role,
+            appType: user.appType,
             tenantId: user.tenantId,
-            userId: user.id,
-            action: 'login',
-            entityType: 'user',
-            entityId: user.id,
-          },
-        }).catch(() => {});
-
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email || undefined,
-          role: user.role,
-          appType: user.appType,
-          tenantId: user.tenantId,
-          branchId: user.branchId,
-          phone: user.phone,
-          username: user.username,
-          rememberMe: credentials.rememberMe === 'true',
-        };
+            branchId: user.branchId,
+            phone: user.phone,
+            username: user.username,
+            rememberMe: credentials.rememberMe === 'true',
+          };
+        } catch (error) {
+          // Log the actual error to the server console before NextAuth swallows it
+          console.error('[AUTH_ERROR_DETAILS] Authorize failed:', error);
+          throw error;
+        }
       },
     }),
   ],
