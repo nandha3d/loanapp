@@ -103,7 +103,7 @@ export default function BranchesClient({ branches, superadmins }: { branches: an
         <form action={async (fd) => {
           setLoading(true);
           // Auto-add enabled modules based on SA
-          saModules.forEach(m => fd.append('enabledModules', m));
+          saModules.forEach((m: string) => fd.append('enabledModules', m));
           
           const res = editingBranch ? await updateBranch(fd) : await createBranch(fd);
           setLoading(false);
