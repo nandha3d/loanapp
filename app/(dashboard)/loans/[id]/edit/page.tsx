@@ -3,6 +3,7 @@ import { getDefaultTenantId, getSetting } from '@/lib/tenant';
 import { getDictionary } from '@/lib/i18n';
 import LoanEditForm from './LoanEditForm';
 import { notFound } from 'next/navigation';
+import { auth } from '@/lib/auth';
 
 export default async function EditLoanPage({
   params
@@ -13,6 +14,9 @@ export default async function EditLoanPage({
   const tenantId = await getDefaultTenantId();
   const dict = await getDictionary(tenantId);
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
+
+  const session = await auth();
+  const role = (session?.user as any)?.role || 'agent';
 
   const loan = await prisma.loan.findFirst({
     where: { id: resolvedParams.id, tenantId },
@@ -35,6 +39,7 @@ export default async function EditLoanPage({
         loan={serializedLoan} 
         currencySymbol={currencySymbol}
         dict={dict}
+        userRole={role}
       />
     </div>
   );

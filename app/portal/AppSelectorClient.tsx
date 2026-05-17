@@ -107,92 +107,114 @@ export default function AppSelectorClient({
           </button>
         ))}
       </div>
-      <div style={{ marginTop: '60px', width: '100%', maxWidth: '960px' }}>
-        <h3 style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '8px' }}>
-          System Administration
-        </h3>
-        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-          {['superadmin', 'developer'].includes(userRole) && (
-            <button
-              onClick={() => router.push('/admin/users')}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '12px',
-                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-                padding: '16px 24px', borderRadius: '12px', color: '#fff', cursor: 'pointer',
-                transition: 'all 0.2s ease', flex: 1, minWidth: '250px'
-              }}
-              onMouseOver={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'}
-              onMouseOut={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'}
-            >
-              <span className="material-icons-outlined" style={{ color: '#F5A623' }}>admin_panel_settings</span>
-              <div style={{ textAlign: 'left' }}>
-                <div style={{ fontWeight: 600 }}>Master User Management</div>
-                <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>Manage roles across all apps</div>
-              </div>
-            </button>
-          )}
+      {['developer', 'superadmin', 'admin'].includes(userRole) && (
+        <div style={{ marginTop: '60px', width: '100%', maxWidth: '960px' }}>
+          <h3 style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '8px' }}>
+            System Administration
+          </h3>
+          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+            {userRole === 'admin' && (
+              <button
+                onClick={() => router.push('/admin/team')}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '12px',
+                  background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                  padding: '16px 24px', borderRadius: '12px', color: '#fff', cursor: 'pointer',
+                  transition: 'all 0.2s ease', flex: 1, minWidth: '250px'
+                }}
+                onMouseOver={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'}
+                onMouseOut={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'}
+              >
+                <span className="material-icons-outlined" style={{ color: '#F5A623' }}>people</span>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontWeight: 600 }}>User Management</div>
+                  <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>Manage agents for your branch</div>
+                </div>
+              </button>
+            )}
 
-          {userRole === 'developer' && (
-            <button
-              onClick={() => router.push('/admin/branches')}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '12px',
-                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-                padding: '16px 24px', borderRadius: '12px', color: '#fff', cursor: 'pointer',
-                transition: 'all 0.2s ease', flex: 1, minWidth: '250px'
-              }}
-              onMouseOver={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'}
-              onMouseOut={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'}
-            >
-              <span className="material-icons-outlined" style={{ color: '#2980B9' }}>store</span>
-              <div style={{ textAlign: 'left' }}>
-                <div style={{ fontWeight: 600 }}>Branch Management</div>
-                <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>Manage Micro Lending branches</div>
-              </div>
-            </button>
-          )}
+            {['superadmin', 'developer'].includes(userRole) && (
+              <button
+                onClick={() => router.push('/admin/users')}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '12px',
+                  background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                  padding: '16px 24px', borderRadius: '12px', color: '#fff', cursor: 'pointer',
+                  transition: 'all 0.2s ease', flex: 1, minWidth: '250px'
+                }}
+                onMouseOver={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'}
+                onMouseOut={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'}
+              >
+                <span className="material-icons-outlined" style={{ color: '#F5A623' }}>admin_panel_settings</span>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontWeight: 600 }}>Master User Management</div>
+                  <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>Manage roles across all apps</div>
+                </div>
+              </button>
+            )}
 
-          {userRole === 'developer' && (
-            <button
-              onClick={() => router.push('/admin/billing')}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '12px',
-                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-                padding: '16px 24px', borderRadius: '12px', color: '#fff', cursor: 'pointer',
-                transition: 'all 0.2s ease', flex: 1, minWidth: '250px'
-              }}
-              onMouseOver={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'}
-              onMouseOut={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'}
-            >
-              <span className="material-icons-outlined" style={{ color: '#27AE60' }}>credit_card</span>
-              <div style={{ textAlign: 'left' }}>
-                <div style={{ fontWeight: 600 }}>Billing & Subscriptions</div>
-                <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>Manage tenant plans and limits</div>
-              </div>
-            </button>
-          )}
+            {userRole === 'developer' && (
+              <button
+                onClick={() => router.push('/admin/branches')}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '12px',
+                  background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                  padding: '16px 24px', borderRadius: '12px', color: '#fff', cursor: 'pointer',
+                  transition: 'all 0.2s ease', flex: 1, minWidth: '250px'
+                }}
+                onMouseOver={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'}
+                onMouseOut={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'}
+              >
+                <span className="material-icons-outlined" style={{ color: '#2980B9' }}>store</span>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontWeight: 600 }}>Branch Management</div>
+                  <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>Manage Micro Lending branches</div>
+                </div>
+              </button>
+            )}
 
-          {userRole === 'superadmin' && (
-          <button
-            onClick={() => router.push('/subscription')}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '12px',
-              background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-              padding: '16px 24px', borderRadius: '12px', color: '#fff', cursor: 'pointer',
-              transition: 'all 0.2s ease', flex: 1, minWidth: '250px'
-            }}
-            onMouseOver={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'}
-            onMouseOut={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'}
-          >
-            <span className="material-icons-outlined" style={{ color: '#9B59B6' }}>receipt_long</span>
-            <div style={{ textAlign: 'left' }}>
-              <div style={{ fontWeight: 600 }}>My Subscription</div>
-              <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>View plan details and usage</div>
-            </div>
-          </button>
-          )}
+            {userRole === 'developer' && (
+              <button
+                onClick={() => router.push('/admin/billing')}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '12px',
+                  background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                  padding: '16px 24px', borderRadius: '12px', color: '#fff', cursor: 'pointer',
+                  transition: 'all 0.2s ease', flex: 1, minWidth: '250px'
+                }}
+                onMouseOver={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'}
+                onMouseOut={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'}
+              >
+                <span className="material-icons-outlined" style={{ color: '#27AE60' }}>credit_card</span>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontWeight: 600 }}>Billing & Subscriptions</div>
+                  <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>Manage tenant plans and limits</div>
+                </div>
+              </button>
+            )}
+
+            {userRole === 'superadmin' && (
+              <button
+                onClick={() => router.push('/subscription')}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '12px',
+                  background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                  padding: '16px 24px', borderRadius: '12px', color: '#fff', cursor: 'pointer',
+                  transition: 'all 0.2s ease', flex: 1, minWidth: '250px'
+                }}
+                onMouseOver={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'}
+                onMouseOut={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'}
+              >
+                <span className="material-icons-outlined" style={{ color: '#9B59B6' }}>receipt_long</span>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontWeight: 600 }}>My Subscription</div>
+                  <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>View plan details and usage</div>
+                </div>
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

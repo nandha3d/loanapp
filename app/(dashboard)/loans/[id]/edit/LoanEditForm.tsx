@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { updateLoan } from '../../actions';
+import { updateLoan, requestLoanEdit } from '../../actions';
 import { useRouter } from 'next/navigation';
 import { calculateEndDate, formatDateISO } from '@/lib/utils';
 import Link from 'next/link';
@@ -9,15 +9,18 @@ import Link from 'next/link';
 export default function LoanEditForm({
   loan,
   currencySymbol,
-  dict
+  dict,
+  userRole
 }: {
   loan: any;
   currencySymbol: string;
   dict: any;
+  userRole: string;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reason, setReason] = useState('');
 
   // Form State
   const [principal, setPrincipal] = useState<number | ''>(Number(loan.principal));
@@ -184,14 +187,32 @@ export default function LoanEditForm({
     if (guarantorPhoto) fd.set('guarantorPhoto', guarantorPhoto);
     fd.set('voucherRef', voucherRef);
     
-    const result = await updateLoan(fd);
-    setLoading(false);
-    
-    if (result && result.error) {
-      setError(result.error);
+    if (userRole === 'agent') {
+      if (!reason.trim()) {
+        setError('Reason for edit request is required.');
+        setLoading(false);
+        return;
+      }
+      fd.set('reason', reason);
+      const result = await requestLoanEdit(fd);
+      setLoading(false);
+      
+      if (result && result.error) {
+        setError(result.error);
+      } else {
+        router.push(`/loans/${loan.id}`);
+        router.refresh();
+      }
     } else {
-      router.push(`/loans/${loan.id}`);
-      router.refresh();
+      const result = await updateLoan(fd);
+      setLoading(false);
+      
+      if (result && result.error) {
+        setError(result.error);
+      } else {
+        router.push(`/loans/${loan.id}`);
+        router.refresh();
+      }
     }
   };
 
@@ -496,9 +517,26 @@ export default function LoanEditForm({
           <input type="text" name="voucherRef" className="form-control" value={voucherRef} onChange={e => setVoucherRef(e.target.value)} />
         </div>
 
+        {userRole === 'agent' && (
+          <div className="form-group" style={{ marginTop: '20px' }}>
+            <label className="form-label">
+              Reason for Edit Request <span style={{ color: 'var(--error, #ef4444)' }}>*</span>
+            </label>
+            <textarea
+              className="form-control"
+              rows={3}
+              required
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+              placeholder="Please provide a detailed reason for requesting these edits..."
+              style={{ borderRadius: '8px' }}
+            />
+          </div>
+        )}
+
         <div className="form-actions" style={{ marginTop: '32px', borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
           <button type="submit" className="btn btn-primary" disabled={loading} style={{ padding: '12px 32px', fontSize: '1rem' }}>
-            {loading ? (dict.loans.saving || 'Saving...') : (dict.loans.update || 'Update Loan')}
+            {loading ? (dict.loans.saving || 'Saving...') : (userRole === 'agent' ? 'Submit Edit Request' : (dict.loans.update || 'Update Loan'))}
           </button>
           <Link href={`/loans/${loan.id}`} className="btn btn-ghost" style={{ padding: '12px 24px' }}>{dict.loans.cancel}</Link>
         </div>

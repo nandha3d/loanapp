@@ -4,15 +4,13 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 const AGENT_BLOCKED = [
-  '/dashboard',
   '/penalties',
   '/reports',
   '/settings',
-  '/approvals',
   '/subscription',
 ];
 
-const SUPERADMIN_ONLY = ['/portal'];
+const SUPERADMIN_ONLY: string[] = [];
 const DEVELOPER_ONLY = ['/admin'];
 const PUBLIC_PREFIXES = [
   '/_next',
@@ -52,12 +50,18 @@ export function getRoleRedirectTarget(
     return '/dashboard';
   }
 
-  // Non-developer, non-superadmin blocked from developer-only paths
-  if (role !== 'superadmin' && DEVELOPER_ONLY.some((prefix) => pathname.startsWith(prefix))) {
+  // Branch Admin: allow /admin/team and block other admin paths
+  if (role === 'admin' && pathname.startsWith('/admin')) {
+    if (pathname.startsWith('/admin/team')) return null;
     return '/dashboard';
   }
 
-  if (role === 'admin' && pathname.startsWith('/portal')) {
+  // Non-developer, non-superadmin, non-admin blocked from developer-only paths
+  if (
+    role !== 'superadmin' && 
+    role !== 'admin' && 
+    DEVELOPER_ONLY.some((prefix) => pathname.startsWith(prefix))
+  ) {
     return '/dashboard';
   }
 

@@ -31,6 +31,15 @@ export default async function CustomersPage({
   if (branchId) {
     where.AND.push({ branchId });
   }
+  if (userRole === 'agent') {
+    const userId = session?.user?.id;
+    where.AND.push({
+      OR: [
+        { agentId: userId },
+        { route: { assignedAgentId: userId } }
+      ]
+    });
+  }
   if (q) {
     where.AND.push({
       OR: [
@@ -45,8 +54,12 @@ export default async function CustomersPage({
   // Clean up empty AND array
   if (where.AND.length === 0) delete where.AND;
 
+  const routeWhere: any = { tenantId, appType, status: 'active' };
+  if (userRole === 'agent') {
+    routeWhere.assignedAgentId = session?.user?.id;
+  }
   const routes = await prisma.route.findMany({
-    where: { tenantId, appType, status: 'active' },
+    where: routeWhere,
     orderBy: { name: 'asc' }
   });
 

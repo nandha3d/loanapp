@@ -34,7 +34,7 @@ export async function submitBranchRequest(formData: FormData) {
         requestedById: userId,
         branchId,
         branchName,
-        requestedModules,
+        requestedModules: JSON.stringify(requestedModules),
         reason,
         status: 'pending',
       },

@@ -261,6 +261,23 @@ export async function saveCustomer(formData: FormData) {
     }
   }
 
+  // Create system notification for agents' customer creations
+  if (userRole === 'agent' && activeBranchId && savedCustomer) {
+    await prisma.systemNotification.create({
+      data: {
+        tenantId,
+        branchId: activeBranchId,
+        appType,
+        type: 'customer_review',
+        icon: 'people',
+        title: 'Customer pending review',
+        message: `Agent submitted customer ${name} for approval.`,
+        link: `/approvals`,
+        targetRole: 'admin',
+      },
+    }).catch(() => {});
+  }
+
   if (isPopup) {
     return { success: true, customer: savedCustomer };
   }
@@ -303,6 +320,23 @@ export async function requestCustomerEdit(customerId: string, requestedChanges: 
       status: 'pending'
     }
   });
+
+  // Create system notification for customer edit request
+  if (customer.branchId) {
+    await prisma.systemNotification.create({
+      data: {
+        tenantId,
+        branchId: customer.branchId,
+        appType,
+        type: 'customer_edit_review',
+        icon: 'verified',
+        title: 'Customer edit pending review',
+        message: `Agent requested edits for customer ${customer.name}.`,
+        link: `/approvals`,
+        targetRole: 'admin',
+      },
+    }).catch(() => {});
+  }
 
   revalidatePath('/customers');
   return { success: true };

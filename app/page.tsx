@@ -12,12 +12,22 @@ export default async function Home() {
       redirect('/portal');
     }
     
-    // Agents go to collection
+    // Agents go to portal
     if (role === 'agent') {
-      redirect('/collection');
+      redirect('/portal');
     }
     
-    // Admins go to dashboard
+    // Admins go to portal if they have multiple modules, otherwise dashboard
+    if (role === 'admin') {
+      const { getActiveModules } = await import('@/lib/branch');
+      const modules = await getActiveModules();
+      if (modules.length > 1) {
+        redirect('/portal');
+      } else {
+        redirect('/dashboard');
+      }
+    }
+
     redirect('/dashboard');
   }
   

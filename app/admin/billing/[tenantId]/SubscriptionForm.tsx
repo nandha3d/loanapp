@@ -51,7 +51,7 @@ export default function SubscriptionForm({
   };
 
   return (
-    <form action={updateSubscription}>
+    <form action={async (fd) => { await updateSubscription(fd); }}>
       <input type="hidden" name="tenantId" value={tenantId} />
 
       <div className="form-group" style={{ marginBottom: '16px' }}>

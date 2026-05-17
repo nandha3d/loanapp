@@ -156,10 +156,10 @@ export async function manageMasterUser(formData: FormData) {
       const subModules = requestedModules.length > 0 ? requestedModules : ['microlending'];
       await prisma.tenantSubscription.upsert({
         where: { tenantId },
-        update: { enabledModules: subModules },
+        update: { enabledModules: JSON.stringify(subModules) },
         create: { 
           tenantId, 
-          enabledModules: subModules,
+          enabledModules: JSON.stringify(subModules),
           plan: 'trial',
           status: 'active',
           maxActiveLoans: 100,
@@ -168,7 +168,7 @@ export async function manageMasterUser(formData: FormData) {
       });
     }
 
-    if (role === 'admin' && branchId && adminModules.length > 0) {
+    if ((role === 'admin' || role === 'agent') && branchId && adminModules.length > 0) {
       if (userRole !== 'developer') {
         const branch = await prisma.branch.findFirst({
           where: { id: branchId, tenantId },
@@ -191,6 +191,7 @@ export async function manageMasterUser(formData: FormData) {
   }
 
   revalidatePath('/admin/users');
+  revalidatePath('/admin/team');
   revalidatePath('/portal');
   return { success: true };
 }
@@ -236,7 +237,7 @@ export async function createBranch(formData: FormData) {
         name,
         code,
         phone,
-        enabledModules: sub?.enabledModules || [],
+        enabledModules: sub?.enabledModules || '[]',
       },
     });
     revalidatePath('/admin/branches');
@@ -290,7 +291,7 @@ export async function updateBranch(formData: FormData) {
         phone,
         status,
         superadminId,
-        enabledModules: sub?.enabledModules || [],
+        enabledModules: sub?.enabledModules || '[]',
       },
     });
     revalidatePath('/admin/branches');
@@ -339,11 +340,11 @@ export async function assignAdminModules(data: {
 
   await prisma.userBranchModule.upsert({
     where: { userId_branchId: { userId: data.adminUserId, branchId: data.branchId } },
-    update: { enabledModules: data.modules },
+    update: { enabledModules: JSON.stringify(data.modules) },
     create: {
       userId: data.adminUserId,
       branchId: data.branchId,
-      enabledModules: data.modules,
+      enabledModules: JSON.stringify(data.modules),
     },
   });
 

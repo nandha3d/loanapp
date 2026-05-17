@@ -13,11 +13,12 @@ export default async function AdminLayout({
   const session = await auth();
   const userRole = (session?.user as any)?.role;
 
-  if (userRole !== 'superadmin' && userRole !== 'developer') {
+  if (userRole !== 'superadmin' && userRole !== 'developer' && userRole !== 'admin') {
     redirect('/login');
   }
 
-  const userName = session?.user?.name || (userRole === 'developer' ? 'Developer' : 'Super Admin');
+  const userName = session?.user?.name || (userRole === 'developer' ? 'Developer' : userRole === 'superadmin' ? 'Super Admin' : 'Branch Admin');
+  const avatarInitials = userRole === 'developer' ? 'DEV' : userRole === 'superadmin' ? 'SA' : 'BA';
 
   // Fix 21: Fetch pending notification count for developer
   let pendingBranchRequestCount = 0;
@@ -52,10 +53,18 @@ export default async function AdminLayout({
 
           <nav className="sidebar-nav">
             <div className="nav-section">Management</div>
-            <Link href="/admin/users" className="active">
-              <span className="material-icons-outlined">people</span>
-              Master Users
-            </Link>
+            {['superadmin', 'developer'].includes(userRole) && (
+              <Link href="/admin/users" className="active">
+                <span className="material-icons-outlined">people</span>
+                Master Users
+              </Link>
+            )}
+            {userRole === 'admin' && (
+              <Link href="/admin/team" className="active">
+                <span className="material-icons-outlined">people</span>
+                User Management
+              </Link>
+            )}
             {userRole === 'developer' && (
               <Link href="/admin/branches">
                 <span className="material-icons-outlined">store</span>
@@ -95,10 +104,10 @@ export default async function AdminLayout({
 
           <div className="sidebar-footer">
             <div className="user-info">
-              <div className="avatar" style={{background:'var(--accent)'}}>{userRole === 'developer' ? 'DEV' : 'SA'}</div>
+              <div className="avatar" style={{background:'var(--accent)'}}>{avatarInitials}</div>
               <div>
                 <div className="user-name" style={{color:'#fff'}}>{userName}</div>
-                <div className="user-role" style={{color:'rgba(255,255,255,0.6)', textTransform: 'capitalize'}}>{userRole}</div>
+                <div className="user-role" style={{color:'rgba(255,255,255,0.6)', textTransform: 'capitalize'}}>{userRole === 'admin' ? 'Branch Admin' : userRole}</div>
               </div>
             </div>
             <Link href="/portal" style={{
@@ -137,7 +146,7 @@ export default async function AdminLayout({
               )}
               <LogoutButton />
               <div className="user-profile">
-                <div className="avatar">{userRole === 'developer' ? 'DEV' : 'SA'}</div>
+                <div className="avatar">{avatarInitials}</div>
               </div>
             </div>
           </header>

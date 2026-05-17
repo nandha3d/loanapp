@@ -24,6 +24,9 @@ declare module 'next-auth' {
       phone: string;
       username: string;
       appType: string;
-    } & import('next-auth').DefaultSession['user'];
+      name?: string | null;
+      email?: string | null;
+      image?: string | null;
+    }
   }
 }

@@ -393,11 +393,19 @@ export default function LoanDetailClient({
 
           {loan.status !== 'closed' && (
             <div className="card" style={{ marginBottom: '20px' }}>
-              <div className="card-header"><h3>🔧 {d.adminActions}</h3></div>
+              <div className="card-header">
+                <h3>{isAdmin ? `🔧 ${d.adminActions}` : '⚙️ Actions'}</h3>
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
-                <Link href={`/loans/${loan.id}/edit`} className="btn btn-ghost" style={{ justifyContent: 'center', border: '1px solid var(--border)' }}>{d.editLoan}</Link>
-                <button className="btn btn-danger" onClick={() => setCloseModal(true)}>{d.closeLoan}</button>
-                <button className="btn btn-secondary" onClick={() => setRenewModal(true)}>{d.renewLoan}</button>
+                <Link href={`/loans/${loan.id}/edit`} className="btn btn-ghost" style={{ justifyContent: 'center', border: '1px solid var(--border)' }}>
+                  {isAdmin ? d.editLoan : 'Request Loan Edit'}
+                </Link>
+                {isAdmin && (
+                  <>
+                    <button className="btn btn-danger" onClick={() => setCloseModal(true)}>{d.closeLoan}</button>
+                    <button className="btn btn-secondary" onClick={() => setRenewModal(true)}>{d.renewLoan}</button>
+                  </>
+                )}
               </div>
             </div>
           )}
