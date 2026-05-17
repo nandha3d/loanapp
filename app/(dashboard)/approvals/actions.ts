@@ -216,3 +216,57 @@ export async function submitEditRequest(formData: FormData) {
   revalidatePath('/approvals');
   return { success: true };
 }
+
+/**
+ * Review a pending loan created by an agent.
+ * Admin/Superadmin/Developer can approve or reject.
+ */
+export async function reviewPendingLoan(formData: FormData) {
+  const session = await auth();
+  const tenantId = await getDefaultTenantId();
+  const userId = session?.user?.id;
+  const userRole = (session?.user as any)?.role;
+
+  if (!userId || userRole === 'agent') {
+    return { success: false, error: 'Unauthorized' };
+  }
+
+  const loanId = formData.get('loanId') as string;
+  const action = formData.get('action') as string; // 'approve' or 'reject'
+  const reviewNotes = formData.get('reviewNotes') as string;
+
+  if (!loanId || !['approve', 'reject'].includes(action)) {
+    return { success: false, error: 'Invalid request' };
+  }
+
+  const loan = await prisma.loan.findFirst({
+    where: { id: loanId, tenantId, status: 'pending_review' },
+    select: { id: true, loanCode: true },
+  });
+
+  if (!loan) {
+    return { success: false, error: 'Loan not found or already processed' };
+  }
+
+  const newStatus = action === 'approve' ? 'active' : 'rejected';
+
+  await prisma.loan.update({
+    where: { id: loanId },
+    data: { status: newStatus },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId,
+      userId,
+      action: action === 'approve' ? 'approve' : 'reject',
+      entityType: 'loan',
+      entityId: loanId,
+      newValue: JSON.stringify({ action, reviewNotes, newStatus }),
+    },
+  });
+
+  revalidatePath('/approvals');
+  revalidatePath('/loans');
+  return { success: true };
+}

@@ -60,6 +60,7 @@ export default function Sidebar({
     { id: 'notifications', icon: 'notifications', label: dict.sidebar.notifications, href: '/notifications' },
     { id: 'settings', icon: 'settings', label: dict.sidebar.settings, href: '/settings', adminOnly: true },
     { section: dict.sidebar.sections.account },
+    { id: 'branch-requests', icon: 'account_tree', label: 'Branch Requests', href: '/branch-requests', superadminOnly: true },
     { id: 'subscription', icon: 'credit_card', label: dict.sidebar.subscription, href: '/subscription', superadminOnly: true },
     { id: 'portal-billing', icon: 'receipt_long', label: 'Billing & Invoices', href: '/portal/billing', superadminOnly: true },
     { id: 'billing', icon: 'manage_accounts', label: dict.sidebar.billing, href: '/admin/billing', developerOnly: true },
@@ -176,7 +177,7 @@ export default function Sidebar({
               <div className="user-role">{getRoleName(role)}</div>
             </div>
           </div>
-          {role === 'superadmin' && (
+          {(role === 'superadmin' || role === 'developer') && (
             <Link href="/portal" style={{
               display: 'flex', alignItems: 'center', gap: '6px',
               padding: '8px 12px', margin: '8px 12px 0',
@@ -185,7 +186,7 @@ export default function Sidebar({
               textDecoration: 'none',
             }}>
               <span className="material-icons-outlined" style={{ fontSize: '16px' }}>apps</span>
-              {dict.sidebar.switchApp}
+              Back to Portal
             </Link>
           )}
         </div>

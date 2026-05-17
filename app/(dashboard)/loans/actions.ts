@@ -8,6 +8,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { checkLimit } from '@/lib/subscription';
 import { getActiveBranchId } from '@/lib/branch';
+import { assertModuleEnabled } from '@/lib/moduleGate';
 import fs from 'fs';
 import path from 'path';
 import { encryptAadharNumber } from '@/lib/pii';
@@ -49,6 +50,15 @@ export async function createLoan(formData: FormData) {
 
   if (role !== 'developer' && !activeBranchId) {
     return { error: 'No active branch selected.' };
+  }
+
+  // Enforce module gate — block loan creation if microlending is removed from branch
+  if (role !== 'developer') {
+    try {
+      await assertModuleEnabled('microlending');
+    } catch (err: any) {
+      return { error: err.message as string };
+    }
   }
 
   // Enforce subscription loan limit
@@ -335,12 +345,14 @@ export async function createLoan(formData: FormData) {
     await prisma.systemNotification.create({
       data: {
         tenantId,
+        branchId: activeBranchId,
         appType,
         type: 'loan_review',
         icon: 'assignment',
         title: 'Loan pending review',
         message: `Agent submitted loan ${loanCode} for approval.`,
-        link: `/loans/${loan.id}`,
+        link: `/approvals`,
+        targetRole: 'admin',
       },
     }).catch(() => {});
   }

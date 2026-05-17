@@ -100,6 +100,7 @@ export default async function CustomersPage({
         <select name="status" className="form-control" style={{width:'auto'}} defaultValue={status}>
           <option value="">{dict.customersList.allStatus}</option>
           <option value="active">{dict.customersList.active}</option>
+          <option value="pending_review">Pending Review</option>
           <option value="overdue">{dict.customersList.overdue}</option>
           <option value="closed">{dict.customersList.closed}</option>
           <option value="blacklisted">{dict.customersList.blacklisted}</option>
@@ -174,7 +175,7 @@ export default async function CustomersPage({
                   </td>
                   <td>
                     <span className={getBadgeClass(c.status)} style={{textTransform:'capitalize'}}>
-                      {c.status}
+                      {c.status === 'pending_review' ? 'Pending Review' : c.status}
                     </span>
                   </td>
                   <td>

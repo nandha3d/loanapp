@@ -48,8 +48,12 @@ export default async function DashboardLayout({
     activeBranchId = await getActiveBranchId();
   }
 
-  if (role !== 'developer' && pathname && !isRouteEnabledForModules(pathname, enabledModules)) {
-    redirect(role === 'agent' ? '/collection' : '/dashboard');
+  // Fix 15: Module removal — allow read-only access instead of redirecting
+  // Sidebar hides nav links, but direct URL access shows data with a read-only banner
+  const isModuleDisabled = role !== 'developer' && pathname && !isRouteEnabledForModules(pathname, enabledModules);
+  // Agents are redirected since they shouldn't access disabled module pages
+  if (isModuleDisabled && role === 'agent') {
+    redirect('/collection');
   }
 
   const sub = await getSubscription(tenantId);
@@ -98,6 +102,26 @@ export default async function DashboardLayout({
                   Renew Now
                 </Link>
               )}
+            </div>
+          )}
+          {isModuleDisabled && !isExpired && (
+            <div style={{
+              background: '#e8f4fd',
+              color: '#02528a',
+              padding: '12px 20px',
+              borderRadius: '8px',
+              border: '1px solid #bce0f9',
+              marginBottom: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+            }}>
+              <span className="material-icons-outlined">info</span>
+              <div>
+                <strong style={{ display: 'block' }}>Read-Only Mode</strong>
+                <span style={{ fontSize: '0.9rem' }}>This module is not enabled for the current branch. You can view existing data but cannot make changes.</span>
+              </div>
             </div>
           )}
           {children}

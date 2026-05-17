@@ -2,12 +2,27 @@
 
 import { useState } from 'react';
 import Modal from '@/components/Modal';
-import { reviewRequest } from './actions';
+import { reviewRequest, reviewPendingLoan } from './actions';
 
-export default function ApprovalsClient({ requests, userRole, dict }: { requests: any[], userRole: string, dict: any }) {
+export default function ApprovalsClient({ requests, pendingLoans = [], userRole, dict }: { requests: any[], pendingLoans?: any[], userRole: string, dict: any }) {
   const d = dict.approvals;
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [loanLoading, setLoanLoading] = useState<string | null>(null);
+
+  async function handleLoanReview(loanId: string, action: 'approve' | 'reject') {
+    if (!confirm(`Are you sure you want to ${action} this loan?`)) return;
+    setLoanLoading(loanId);
+    const fd = new FormData();
+    fd.set('loanId', loanId);
+    fd.set('action', action);
+    fd.set('reviewNotes', '');
+    const res = await reviewPendingLoan(fd);
+    setLoanLoading(null);
+    if (!res.success) {
+      alert(res.error);
+    }
+  }
 
   return (
     <div>
@@ -18,6 +33,65 @@ export default function ApprovalsClient({ requests, userRole, dict }: { requests
         </div>
       </div>
 
+      {/* Pending Loans Section */}
+      {pendingLoans.length > 0 && (
+        <div className="card" style={{ marginBottom: '24px' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span className="material-icons-outlined" style={{ color: '#e67e22' }}>assignment</span>
+            <h3 style={{ margin: 0 }}>Pending Loan Approvals</h3>
+            <span className="badge badge-pending" style={{ marginLeft: '8px' }}>{pendingLoans.length}</span>
+          </div>
+          <div className="table-responsive">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Loan Code</th>
+                  <th>Customer</th>
+                  <th>Principal</th>
+                  <th>Submitted By</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingLoans.map((loan: any) => (
+                  <tr key={loan.id}>
+                    <td>{new Date(loan.createdAt).toLocaleDateString()}</td>
+                    <td><strong>{loan.loanCode}</strong></td>
+                    <td>{loan.customer?.name} ({loan.customer?.customerCode})</td>
+                    <td>₹{Number(loan.principal).toLocaleString()}</td>
+                    <td>{loan.createdBy?.name || '—'}</td>
+                    <td>
+                      <span className="badge badge-pending">Pending Review</span>
+                    </td>
+                    <td style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        className="btn btn-sm"
+                        style={{ background: '#27ae60', color: '#fff', border: 'none' }}
+                        disabled={loanLoading === loan.id}
+                        onClick={() => handleLoanReview(loan.id, 'approve')}
+                      >
+                        {loanLoading === loan.id ? '...' : 'Approve'}
+                      </button>
+                      <button
+                        className="btn btn-sm"
+                        style={{ background: '#e74c3c', color: '#fff', border: 'none' }}
+                        disabled={loanLoading === loan.id}
+                        onClick={() => handleLoanReview(loan.id, 'reject')}
+                      >
+                        Reject
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Existing Approval Requests Section */}
       <div className="card">
         <div className="table-responsive">
           <table className="table">
@@ -32,7 +106,7 @@ export default function ApprovalsClient({ requests, userRole, dict }: { requests
               </tr>
             </thead>
             <tbody>
-              {requests.length === 0 ? (
+              {requests.length === 0 && pendingLoans.length === 0 ? (
                 <tr>
                   <td colSpan={6} style={{ textAlign: 'center', padding: '30px' }}>
                     <div className="empty-state">

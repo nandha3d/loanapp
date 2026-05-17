@@ -39,7 +39,29 @@ export default function BranchSwitcher({ branches, activeBranchId }: Props) {
     }
   }
 
-  if (branches.length <= 1) return null;
+  if (branches.length === 0) return null;
+
+  // Fix 13: Show branch name as static label when only one branch
+  if (branches.length === 1) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '4px 10px',
+          fontSize: '.85rem',
+          marginRight: '10px',
+          color: 'var(--text)',
+          background: 'var(--bg-secondary)',
+          borderRadius: 'var(--radius-sm)',
+        }}
+      >
+        <span className="material-icons-outlined" style={{ fontSize: '16px' }}>store</span>
+        {branches[0].name}
+      </div>
+    );
+  }
 
   return (
     <select

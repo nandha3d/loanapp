@@ -68,20 +68,53 @@ export async function getUserAppType(): Promise<string> {
   const user = session?.user as SessionUserContext | undefined;
   const role = user?.role;
 
-  // 1. Check if an app was explicitly selected in the portal
   const cookieStore = await cookies();
   const activeApp = cookieStore.get('active_app_type')?.value;
-  if (activeApp) return activeApp;
 
-  if (role === 'developer') return 'microlending';
+  const headerStore = await headers();
+  const pathname = headerStore.get('x-loantrack-path') || '';
+
+  const { moduleForRoute } = await import('@/types/modules');
+  const routeModule = moduleForRoute(pathname);
+
+  if (role === 'developer') {
+    if (routeModule) return routeModule;
+    return activeApp || 'microlending';
+  }
 
   if (role === 'superadmin') {
     const { getActiveBranchId, getBranchEnabledModules } = await import('./branch');
     const branchId = await getActiveBranchId();
     if (branchId) {
       const modules = await getBranchEnabledModules(branchId);
-      if (modules.length > 0) return modules[0];
+      if (modules.length > 0) {
+        if (routeModule && modules.includes(routeModule)) {
+          return routeModule;
+        }
+        if (activeApp && modules.includes(activeApp as any)) {
+          return activeApp;
+        }
+        return modules[0];
+      }
     }
+  }
+
+  if (role === 'admin') {
+    const { getActiveModules } = await import('./branch');
+    const allowed = await getActiveModules();
+    if (allowed.length > 0) {
+      if (routeModule && allowed.includes(routeModule)) {
+        return routeModule;
+      }
+      if (activeApp && allowed.includes(activeApp as any)) {
+        return activeApp;
+      }
+      return allowed[0];
+    }
+  }
+
+  if (routeModule && routeModule === user?.appType) {
+    return routeModule;
   }
 
   return user?.appType || 'microlending';

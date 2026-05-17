@@ -25,8 +25,12 @@ export async function manageMasterUser(formData: FormData) {
     const user = await prisma.user.findUnique({ where: { id }, select: { tenantId: true } });
     if (user) tenantId = user.tenantId;
   } else if (role === 'superadmin') {
-    // New Superadmin starts a new tenant
-    tenantId = `tnt_${Math.random().toString(36).substring(2, 9)}`;
+    // New Superadmin starts a new tenant — create a proper Tenant row
+    const slug = `tnt_${Math.random().toString(36).substring(2, 9)}`;
+    const newTenant = await prisma.tenant.create({
+      data: { name: formData.get('name') as string || 'New Tenant', slug, status: 'active' },
+    });
+    tenantId = newTenant.id;
   }
 
   // Subscription expiry check (Developers bypass, or if new tenant)
@@ -148,13 +152,14 @@ export async function manageMasterUser(formData: FormData) {
   }
 
   if (savedUserId) {
-    if (role === 'superadmin' && requestedModules.length > 0) {
+    if (role === 'superadmin') {
+      const subModules = requestedModules.length > 0 ? requestedModules : ['microlending'];
       await prisma.tenantSubscription.upsert({
         where: { tenantId },
-        update: { enabledModules: requestedModules },
+        update: { enabledModules: subModules },
         create: { 
           tenantId, 
-          enabledModules: requestedModules,
+          enabledModules: subModules,
           plan: 'trial',
           status: 'active',
           maxActiveLoans: 100,
@@ -177,8 +182,8 @@ export async function manageMasterUser(formData: FormData) {
       }
       await prisma.userBranchModule.upsert({
         where: { userId_branchId: { userId: savedUserId, branchId } },
-        update: { enabledModules: adminModules },
-        create: { userId: savedUserId, branchId, enabledModules: adminModules },
+        update: { enabledModules: JSON.stringify(adminModules) },
+        create: { userId: savedUserId, branchId, enabledModules: JSON.stringify(adminModules) },
       });
     } else if (role !== 'superadmin') {
       await prisma.userBranchModule.deleteMany({ where: { userId: savedUserId } });
@@ -375,29 +380,4 @@ export async function toggleUserStatus(userId: string, newStatus: string) {
   return { success: true };
 }
 
-export async function updateTenantSubscription(formData: FormData) {
-  const session = await auth();
-  const userRole = (session?.user as any)?.role;
-  if (userRole !== 'developer') return { success: false, error: 'Unauthorized' };
 
-  const tenantId = formData.get('tenantId') as string;
-  const plan = formData.get('plan') as string;
-  const status = formData.get('status') as string;
-  const maxActiveLoans = parseInt(formData.get('maxActiveLoans') as string);
-  const maxAgents = parseInt(formData.get('maxAgents') as string);
-  const enabledModules = normalizeModuleList(formData.getAll('enabledModules'));
-  const currentPeriodEndStr = formData.get('currentPeriodEnd') as string;
-  const currentPeriodEnd = currentPeriodEndStr ? new Date(currentPeriodEndStr) : null;
-
-  if (!tenantId || !plan) return { success: false, error: 'Missing required fields' };
-
-  await prisma.tenantSubscription.upsert({
-    where: { tenantId },
-    update: { plan, status, maxActiveLoans, maxAgents, enabledModules, currentPeriodEnd },
-    create: { tenantId, plan, status, maxActiveLoans, maxAgents, enabledModules, currentPeriodEnd },
-  });
-
-  revalidatePath('/admin/users');
-  revalidatePath('/portal');
-  return { success: true };
-}

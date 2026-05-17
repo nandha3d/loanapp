@@ -10,9 +10,8 @@ export { requestCollectionEdit };
 export async function markInstalmentPaid(formData: FormData) {
   const session = await auth();
   const userId = session?.user?.id;
-  const role = (session?.user as any)?.role;
 
-  if (!userId || role === 'agent') {
+  if (!userId) {
     return { success: false, error: 'Unauthorized' };
   }
 

@@ -26,6 +26,19 @@ export async function reviewBranchRequest(formData: FormData) {
     const requestedModules = normalizeModuleList(req.requestedModules);
 
     if (decision === 'approved') {
+      // Validate that requested modules are within the tenant's subscription plan
+      const sub = await prisma.tenantSubscription.findUnique({
+        where: { tenantId: req.tenantId },
+        select: { enabledModules: true },
+      });
+      if (sub) {
+        const planModules = normalizeModuleList(sub.enabledModules);
+        const invalidModules = requestedModules.filter(m => !planModules.includes(m));
+        if (invalidModules.length > 0) {
+          return { success: false, error: `Modules not in tenant subscription: ${invalidModules.join(', ')}. Update the subscription first.` };
+        }
+      }
+
       if (req.branchId) {
         await prisma.branch.update({
           where: { id: req.branchId },
