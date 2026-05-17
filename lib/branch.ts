@@ -50,6 +50,15 @@ export const getActiveBranchId = cache(async (): Promise<string | null> => {
     return branch?.id ?? null;
   }
 
+  // Branch Admin: strictly load from DB to prevent session serialization or caching issues
+  if (role === 'admin' && user?.id) {
+    const dbUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { branchId: true }
+    });
+    return dbUser?.branchId ?? null;
+  }
+
   return user?.branchId ?? null;
 });
 
@@ -64,19 +73,33 @@ export async function getBranchEnabledModules(branchId: string): Promise<ModuleK
 export async function getUserModulesForBranch(
   userId: string,
   branchId: string,
+  role?: string,
+  appType?: string,
 ): Promise<ModuleKey[]> {
+  const branchModules = await getBranchEnabledModules(branchId);
   const ubm = await prisma.userBranchModule.findUnique({
     where: { userId_branchId: { userId, branchId } },
     select: { enabledModules: true },
   });
-  if (ubm) return normalizeModuleList(ubm.enabledModules);
-  return getBranchEnabledModules(branchId);
+
+  let userModules: ModuleKey[] = [];
+  if (ubm) {
+    userModules = normalizeModuleList(ubm.enabledModules);
+  } else if (role === 'agent' && appType) {
+    userModules = normalizeModuleList([appType]);
+  } else {
+    userModules = branchModules;
+  }
+
+  // Intersect user modules with branch modules to ensure they never exceed the branch's capabilities
+  return userModules.filter(m => branchModules.includes(m));
 }
 
 export const getActiveModules = cache(async (): Promise<ModuleKey[]> => {
   const session = await auth();
-  const user = session?.user as SessionUser | undefined;
+  const user = session?.user as any;
   const role = user?.role;
+  const appType = user?.appType;
 
   if (!role || role === 'developer') return [];
 
@@ -84,7 +107,7 @@ export const getActiveModules = cache(async (): Promise<ModuleKey[]> => {
   if (!branchId) return [];
 
   if (role === 'admin' || role === 'agent') {
-    return getUserModulesForBranch(user?.id ?? '', branchId);
+    return getUserModulesForBranch(user?.id ?? '', branchId, role, appType);
   }
 
   return getBranchEnabledModules(branchId);
