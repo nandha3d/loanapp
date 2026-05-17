@@ -38,6 +38,7 @@ export default async function EditLoanPage({
       <LoanEditForm 
         loan={serializedLoan} 
         currencySymbol={currencySymbol}
+        appType={appType}
         dict={dict}
         userRole={role}
       />

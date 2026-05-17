@@ -47,6 +47,7 @@ export default async function NewLoanPage({
       routes={routes}
       agents={agents}
       dict={dict}
+      appType={appType}
     />
   );
 }

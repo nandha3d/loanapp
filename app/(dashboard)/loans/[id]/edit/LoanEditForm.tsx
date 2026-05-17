@@ -10,12 +10,14 @@ export default function LoanEditForm({
   loan,
   currencySymbol,
   dict,
-  userRole
+  userRole,
+  appType
 }: {
   loan: any;
   currencySymbol: string;
   dict: any;
-  userRole: string;
+  userRole?: string;
+  appType?: string;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -149,10 +151,13 @@ export default function LoanEditForm({
   // Removed static computed values, using calculatedData from API
 
   const loanTypeLabels: Record<string, string> = {
-    cheque: dict.loans.chequeBased,
-    gold: dict.loans.goldBased,
-    property: dict.loans.propertyBased,
+    cheque: appType === 'autofinance' ? 'Vehicle / Cheque' : (dict.loans.chequeBased || 'Cheque Based'),
   };
+  
+  if (appType !== 'autofinance') {
+    loanTypeLabels['gold'] = dict.loans.goldBased || 'Gold Based';
+    loanTypeLabels['property'] = dict.loans.propertyBased || 'Property Based';
+  }
 
   const handleSubmit = async (fd: FormData) => {
     setLoading(true);

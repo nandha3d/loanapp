@@ -51,11 +51,12 @@ export default function Sidebar({
     { section: dict.sidebar.sections.management },
     { id: 'admin-team', icon: 'admin_panel_settings', label: 'User Management', href: '/admin/team', adminOnly: true },
     { id: 'customers', icon: 'people', label: dict.sidebar.customers, href: '/customers' },
-    { id: 'loans', icon: 'account_balance', label: dict.sidebar.loans, href: '/loans' },
-    { id: 'vehicles', icon: 'directions_car', label: dict.sidebar.vehicles, href: '/vehicles', appTypes: ['autofinance'] },
-    { id: 'chits', icon: 'savings', label: dict.sidebar.chits, href: '/chits', appTypes: ['chitfunds'] },
-    { id: 'penalties', icon: 'gavel', label: dict.sidebar.penalties, href: '/penalties', adminOnly: true },
-    { id: 'approvals', icon: 'verified', label: dict.sidebar.approvals, href: '/approvals' },
+    { id: 'loans', icon: 'account_balance', label: dict.sidebar.loans, href: '/loans', appTypes: ['microlending', 'autofinance'] },
+    { id: 'vehicles', icon: 'directions_car', label: dict.sidebar.vehicles, href: '/vehicles', adminOnly: true, appTypes: ['autofinance'] },
+    { id: 'chits', icon: 'savings', label: dict.sidebar.chits, href: '/chits', adminOnly: true, appTypes: ['chitfunds'] },
+    { id: 'penalties', icon: 'gavel', label: dict.sidebar.penalties, href: '/penalties', adminOnly: true, appTypes: ['microlending', 'autofinance'] },
+    { id: 'approvals', icon: 'verified', label: dict.sidebar.approvals, href: '/approvals', appTypes: ['microlending', 'autofinance'] },
+    { id: 'accounting', icon: 'account_balance_wallet', label: 'Accounting', href: '/accounting', adminOnly: true, appTypes: ['microlending', 'autofinance'] },
     { section: dict.sidebar.sections.insights },
     { id: 'reports', icon: 'bar_chart', label: dict.sidebar.reports, href: '/reports', adminOnly: true },
     { id: 'notifications', icon: 'notifications', label: dict.sidebar.notifications, href: '/notifications' },
@@ -80,15 +81,9 @@ export default function Sidebar({
     if (item.adminOnly && role !== 'admin' && role !== 'superadmin' && role !== 'developer') return false;
     if (item.developerOnly && role !== 'developer') return false;
     if (item.superadminOnly && role !== 'superadmin') return false;
-    const activeModules = normalizeModuleList(enabledModules);
-    const alwaysVisible = ['/dashboard', '/collection', '/approvals', '/settings', '/notifications', '/subscription', '/portal', '/admin'];
-    if (item.href && !alwaysVisible.some((path) => item.href!.startsWith(path))) {
-      const routeEnabled = activeModules.some((module) =>
-        MODULE_ROUTES[module].some((route) => item.href!.startsWith(route)),
-      );
-      if (!routeEnabled) return false;
-    }
-    if (item.appTypes && !item.appTypes.some((type) => enabledModules.includes(type))) return false;
+    
+    if (item.appTypes && !item.appTypes.includes(userAppType)) return false;
+    
     return true;
   });
 
