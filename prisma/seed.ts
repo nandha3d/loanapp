@@ -96,7 +96,7 @@ async function main() {
       tenantId: tenant.id,
       branchId: branch.id,
       name: 'Super Admin',
-      phone: '9000000002',
+      phone: '9998887776',
       username: 'superadmin',
       passwordHash: superPassword,
       role: 'superadmin',
