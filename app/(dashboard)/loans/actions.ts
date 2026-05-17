@@ -570,3 +570,118 @@ export async function updateLoan(formData: FormData) {
   
   return { success: true };
 }
+
+export async function requestLoanEdit(formData: FormData) {
+  const session = await auth();
+  const role = (session?.user as any)?.role;
+  const userId = session?.user?.id;
+  const tenantId = await getDefaultTenantId();
+
+  if (!userId) {
+    return { error: 'Unauthorized' };
+  }
+
+  const loanId = formData.get('loanId') as string;
+  const principal = Number(formData.get('principal')) || 0;
+  const interestType = (formData.get('deductionType') as string) || 'upfront_fixed';
+  const rate = Number(formData.get('deduction')) || 0;
+  const frequency = formData.get('frequency') as string;
+  const tenure = Number(formData.get('tenure')) || 1;
+  const startDateStr = formData.get('startDate') as string;
+  const penaltyRate = Number(formData.get('penaltyRate')) || 0;
+  const voucherRef = formData.get('voucherRef') as string;
+  const loanType = formData.get('loanType') as string;
+  const collateralDetails = formData.get('collateralDetails') as string;
+  const guarantorName = formData.get('guarantorName') as string;
+  const guarantorPhone = formData.get('guarantorPhone') as string;
+  const guarantorAadhar = formData.get('guarantorAadhar') as string;
+  const guarantorAddress = formData.get('guarantorAddress') as string;
+  const guarantorRelation = formData.get('guarantorRelation') as string;
+  const reason = formData.get('reason') as string || '';
+
+  const appType = await getUserAppType();
+  const loan = await prisma.loan.findFirst({
+    where: { id: loanId, tenantId, appType },
+    include: { guarantor: true }
+  });
+
+  if (!loan) return { error: 'Loan not found' };
+
+  // Check if core fields changed and guard financial activity
+  const coreChanged = 
+    Number(loan.principal) !== principal ||
+    Number(loan.tenure) !== tenure ||
+    loan.frequency !== frequency ||
+    formatDateISO(new Date(loan.startDate)) !== startDateStr;
+
+  if (coreChanged) {
+    const { hasFinancialActivity } = await import('@/lib/repayments');
+    if (await hasFinancialActivity(loanId)) {
+      return { error: 'Instalment schedule cannot be regenerated: loan has recorded repayments or lock history. Please close and renew instead.' };
+    }
+  }
+
+  const proposedChanges: any = {};
+  if (Number(loan.principal) !== principal) proposedChanges.principal = principal;
+  if (loan.deductionType !== interestType) proposedChanges.deductionType = interestType;
+  if (Number(loan.deduction) !== rate) proposedChanges.deduction = rate;
+  if (loan.frequency !== frequency) proposedChanges.frequency = frequency;
+  if (Number(loan.tenure) !== tenure) proposedChanges.tenure = tenure;
+  if (formatDateISO(new Date(loan.startDate)) !== startDateStr) proposedChanges.startDate = startDateStr;
+  if (Number(loan.penaltyRate) !== penaltyRate) proposedChanges.penaltyRate = penaltyRate;
+  if (loan.voucherRef !== voucherRef) proposedChanges.voucherRef = voucherRef;
+  if (loan.loanType !== loanType) proposedChanges.loanType = loanType;
+  if (loan.collateralDetails !== collateralDetails) proposedChanges.collateralDetails = collateralDetails;
+  
+  if (loan.guarantor?.name !== guarantorName) proposedChanges.guarantorName = guarantorName;
+  if (loan.guarantor?.phone !== guarantorPhone) proposedChanges.guarantorPhone = guarantorPhone;
+  if (loan.guarantor?.address !== guarantorAddress) proposedChanges.guarantorAddress = guarantorAddress;
+  if (loan.guarantor?.relation !== guarantorRelation) proposedChanges.guarantorRelation = guarantorRelation;
+  
+  if (guarantorAadhar) {
+    const { decryptAadharNumber, encryptAadharNumber } = await import('@/lib/pii');
+    const decryptedCurrentAadhar = loan.guarantor?.aadharNumber ? decryptAadharNumber(loan.guarantor.aadharNumber) : '';
+    if (decryptedCurrentAadhar !== guarantorAadhar) {
+      proposedChanges.guarantorAadhar = encryptAadharNumber(guarantorAadhar);
+    }
+  }
+
+  if (Object.keys(proposedChanges).length === 0) {
+    return { error: 'No changes detected.' };
+  }
+
+  await prisma.approvalRequest.create({
+    data: {
+      tenantId,
+      appType,
+      requestType: 'loan_edit',
+      entityType: 'loan',
+      entityId: loanId,
+      requestedById: userId,
+      requestedChanges: JSON.stringify(proposedChanges),
+      reason,
+      status: 'pending'
+    }
+  });
+
+  if (loan.branchId) {
+    await prisma.systemNotification.create({
+      data: {
+        tenantId,
+        branchId: loan.branchId,
+        appType,
+        type: 'loan_edit_review',
+        icon: 'rate_review',
+        title: 'Loan edit pending review',
+        message: `Agent requested edits for loan ${loan.loanCode}.`,
+        link: `/approvals`,
+        targetRole: 'admin',
+      },
+    }).catch(() => {});
+  }
+
+  revalidatePath(`/loans/${loanId}`);
+  revalidatePath('/loans');
+  
+  return { success: true };
+}

@@ -194,6 +194,201 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
   };
 }
 
+async function getAgentDashboardData(tenantId: string, appType: string, agentId: string) {
+  const today = startOfDay();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const weekStart = new Date(today);
+  weekStart.setDate(weekStart.getDate() - 6);
+
+  const agentFilter = {
+    customer: {
+      OR: [
+        { agentId },
+        { route: { assignedAgentId: agentId } }
+      ]
+    }
+  };
+
+  const [
+    totalCustomers,
+    recentLoans,
+    pendingApprovals,
+    routes,
+    todayInstalments,
+    overdueInstalmentsRaw,
+    weekInstalments,
+    myApprovals,
+  ] = await Promise.all([
+    prisma.customer.count({
+      where: {
+        tenantId,
+        appType,
+        status: 'active',
+        OR: [
+          { agentId },
+          { route: { assignedAgentId: agentId } }
+        ]
+      }
+    }),
+    prisma.loan.count({
+      where: {
+        tenantId,
+        appType,
+        status: 'active',
+        ...agentFilter,
+      }
+    }),
+    prisma.approvalRequest.count({
+      where: {
+        tenantId,
+        appType,
+        requestedById: agentId,
+        status: 'pending'
+      }
+    }),
+    prisma.route.findMany({
+      where: {
+        tenantId,
+        appType,
+        assignedAgentId: agentId,
+        status: 'active'
+      },
+      include: {
+        _count: { select: { customers: true } },
+        customers: {
+          select: {
+            id: true,
+            loans: {
+              where: { status: { in: ['active', 'overdue'] } },
+              select: {
+                instalments: {
+                  where: { dueDate: { lt: today }, status: { in: ['upcoming', 'missed', 'partial'] } },
+                  select: { dueAmount: true, receivedAmount: true },
+                }
+              }
+            }
+          }
+        }
+      }
+    }),
+    prisma.instalment.findMany({
+      where: {
+        loan: {
+          tenantId,
+          appType,
+          status: { in: ['active', 'overdue', 'closed'] },
+          ...agentFilter,
+        },
+        dueDate: { gte: today, lt: tomorrow },
+      },
+      include: { loan: { include: { customer: { include: { route: true } } } } },
+      orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
+    }),
+    prisma.instalment.findMany({
+      where: {
+        loan: {
+          tenantId,
+          appType,
+          status: { in: ['active', 'overdue'] },
+          ...agentFilter,
+        },
+        dueDate: { lt: today },
+        status: { in: ['upcoming', 'missed', 'partial'] },
+      },
+      include: { loan: { include: { customer: { include: { route: true } } } } },
+      orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
+      take: 10,
+    }),
+    prisma.instalment.findMany({
+      where: {
+        loan: {
+          tenantId,
+          appType,
+          ...agentFilter,
+        },
+        dueDate: { gte: weekStart, lt: tomorrow },
+      },
+      select: { dueDate: true, dueAmount: true, receivedAmount: true },
+      orderBy: { dueDate: 'asc' },
+    }),
+    prisma.approvalRequest.findMany({
+      where: {
+        tenantId,
+        appType,
+        requestedById: agentId,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      include: { reviewedBy: { select: { name: true } } }
+    }),
+  ]);
+
+  const todayExpected = todayInstalments.reduce((sum, item) => sum + Number(item.dueAmount), 0);
+  const collectionEntriesToday = await prisma.collectionEntry.findMany({
+    where: {
+      agentId,
+      submittedAt: { gte: today, lt: tomorrow },
+    },
+    select: { receivedAmount: true }
+  });
+  const todayCollected = collectionEntriesToday.reduce((sum, item) => sum + Number(item.receivedAmount), 0);
+  const todayGap = Math.max(0, todayExpected - todayCollected);
+
+  const overdueInstalments = overdueInstalmentsRaw
+    .map((item) => {
+      const dueDate = startOfDay(item.dueDate);
+      const overdueAmount = outstanding(item);
+      const daysOverdue = daysBetween(dueDate, today);
+      return { ...item, overdueAmount, daysOverdue };
+    })
+    .filter((item) => item.overdueAmount > 0);
+
+  const overdueAmount = overdueInstalments.reduce((sum, item) => sum + item.overdueAmount, 0);
+  const overdueCustomerCount = new Set(overdueInstalments.map((item) => item.loan.customer.id)).size;
+
+  const trend = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(weekStart);
+    date.setDate(weekStart.getDate() + index);
+    const dateKey = date.toISOString().slice(0, 10);
+    const rows = weekInstalments.filter((item) => item.dueDate.toISOString().slice(0, 10) === dateKey);
+    return {
+      label: date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
+      expected: rows.reduce((sum, item) => sum + Number(item.dueAmount), 0),
+      collected: rows.reduce((sum, item) => sum + Math.min(Number(item.receivedAmount || 0), Number(item.dueAmount)), 0),
+    };
+  });
+
+  const routePerformance = routes.map((route) => {
+    const routeOverdue = route.customers.reduce((sum, customer) => {
+      return sum + customer.loans.reduce((loanSum, loan) => {
+        return loanSum + loan.instalments.reduce((instSum, item) => instSum + outstanding(item), 0);
+      }, 0);
+    }, 0);
+    return {
+      id: route.id,
+      name: route.name,
+      customers: route._count.customers,
+      overdue: routeOverdue,
+    };
+  });
+
+  return {
+    totalCustomers,
+    recentLoans,
+    pendingApprovals,
+    todayExpected,
+    todayCollected,
+    todayGap,
+    overdueAmount,
+    overdueCustomerCount,
+    overdueInstalments,
+    trend,
+    routePerformance,
+    myApprovals,
+  };
+}
+
 function BarChart({
   data,
   currencySymbol,
@@ -219,8 +414,11 @@ function BarChart({
 
 export default async function DashboardPage() {
   const session = await auth();
-  const userRole = (session?.user as { role?: string })?.role;
-  if (userRole === 'agent') redirect('/collection');
+  const userRole = (session?.user as { role?: string; id?: string })?.role;
+  
+  if (!session?.user) {
+    redirect('/login');
+  }
 
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
@@ -232,6 +430,226 @@ export default async function DashboardPage() {
   }
 
   const branding = await getBranding(tenantId);
+
+  if (userRole === 'agent') {
+    const agentData = await getAgentDashboardData(tenantId, appType, session.user.id as string);
+    const progressPct = agentData.todayExpected > 0 
+      ? Math.min(100, Math.round((agentData.todayCollected / agentData.todayExpected) * 100))
+      : 100;
+
+    return (
+      <>
+        {/* Scoped Agent KPI Cards */}
+        <div className="kpi-grid">
+          <div className="kpi-card" style={{ background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', color: '#fff' }}>
+            <div className="kpi-icon" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff' }}>
+              <span className="material-icons-outlined">trending_up</span>
+            </div>
+            <div>
+              <div className="kpi-value" style={{ color: '#fff' }}>{formatCurrency(agentData.todayExpected, branding.currencySymbol)}</div>
+              <div className="kpi-label" style={{ color: 'rgba(255,255,255,0.8)' }}>My Expected Collection</div>
+            </div>
+          </div>
+
+          <div className="kpi-card" style={{ background: 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)', color: '#fff' }}>
+            <div className="kpi-icon" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff' }}>
+              <span className="material-icons-outlined">payments</span>
+            </div>
+            <div>
+              <div className="kpi-value" style={{ color: '#fff' }}>{formatCurrency(agentData.todayCollected, branding.currencySymbol)}</div>
+              <div className="kpi-label" style={{ color: 'rgba(255,255,255,0.8)' }}>My Collected Today</div>
+            </div>
+          </div>
+
+          <div className="kpi-card" style={{ background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)', color: '#fff' }}>
+            <div className="kpi-icon" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff' }}>
+              <span className="material-icons-outlined">hourglass_empty</span>
+            </div>
+            <div>
+              <div className="kpi-value" style={{ color: '#fff' }}>{formatCurrency(agentData.todayGap, branding.currencySymbol)}</div>
+              <div className="kpi-label" style={{ color: 'rgba(255,255,255,0.8)' }}>My Remaining Balance</div>
+            </div>
+          </div>
+
+          <div className="kpi-card" style={{ background: 'linear-gradient(135deg, #EC4899 0%, #BE185D 100%)', color: '#fff' }}>
+            <div className="kpi-icon" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff' }}>
+              <span className="material-icons-outlined">people</span>
+            </div>
+            <div>
+              <div className="kpi-value" style={{ color: '#fff' }}>{agentData.totalCustomers}</div>
+              <div className="kpi-label" style={{ color: 'rgba(255,255,255,0.8)' }}>My Active Customers</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Scoped Progress Bar and Routes list */}
+        <div className="grid-60-40" style={{ marginTop: '20px' }}>
+          <div className="card" style={{ background: '#fff', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+            <div className="card-header" style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '15px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#1e293b' }}>
+                <span className="material-icons-outlined" style={{ color: '#3B82F6' }}>analytics</span>
+                Collection Trend & Progress
+              </h3>
+            </div>
+            <div style={{ padding: '20px' }}>
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontWeight: 600, color: '#475569', fontSize: '0.9rem' }}>Today's Progress</span>
+                  <span style={{ fontWeight: 700, color: '#1D4ED8', fontSize: '1rem' }}>{progressPct}% Completed</span>
+                </div>
+                <div style={{ width: '100%', height: '12px', background: '#e2e8f0', borderRadius: '6px', overflow: 'hidden' }}>
+                  <div style={{ 
+                    width: `${progressPct}%`, 
+                    height: '100%', 
+                    background: 'linear-gradient(90deg, #3B82F6 0%, #1D4ED8 100%)',
+                    borderRadius: '6px',
+                    transition: 'width 0.5s ease-in-out'
+                  }} />
+                </div>
+              </div>
+              <BarChart data={agentData.trend} currencySymbol={branding.currencySymbol} />
+            </div>
+          </div>
+
+          <div className="card" style={{ background: '#fff', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+            <div className="card-header" style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '15px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#1e293b' }}>
+                <span className="material-icons-outlined" style={{ color: '#BE185D' }}>map</span>
+                Assigned Routes
+              </h3>
+            </div>
+            <div className="table-wrapper" style={{ padding: '10px 0' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Route Name</th>
+                    <th style={{ textAlign: 'center', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Customers</th>
+                    <th style={{ textAlign: 'right', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Total Overdue</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {agentData.routePerformance.map((route) => (
+                    <tr key={route.id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                      <td style={{ padding: '12px 16px', color: '#1e293b', fontWeight: 600 }}>{route.name}</td>
+                      <td style={{ textAlign: 'center', padding: '12px 16px', color: '#475569' }}>{route.customers}</td>
+                      <td style={{ 
+                        textAlign: 'right', 
+                        padding: '12px 16px', 
+                        color: route.overdue > 0 ? 'var(--danger)' : 'var(--success)', 
+                        fontWeight: 700 
+                      }}>
+                        {formatCurrency(route.overdue, branding.currencySymbol)}
+                      </td>
+                    </tr>
+                  ))}
+                  {agentData.routePerformance.length === 0 && (
+                    <tr>
+                      <td colSpan={3} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                        No routes currently assigned.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* Approvals Submitted & Overdue alerts */}
+        <div className="grid-60-40" style={{ marginTop: '20px' }}>
+          <div className="card" style={{ background: '#fff', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+            <div className="card-header" style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '15px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#1e293b' }}>
+                <span className="material-icons-outlined" style={{ color: '#F59E0B' }}>verified</span>
+                My Recent Edit/Creation Requests
+              </h3>
+              <Link href="/approvals" className="btn btn-ghost btn-sm" style={{ color: '#3B82F6' }}>View All</Link>
+            </div>
+            <div className="table-wrapper">
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b' }}>Request Type</th>
+                    <th style={{ textAlign: 'center', padding: '12px 16px', color: '#64748b' }}>Submitted At</th>
+                    <th style={{ textAlign: 'center', padding: '12px 16px', color: '#64748b' }}>Status</th>
+                    <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b' }}>Reviewer Note</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {agentData.myApprovals.map((req) => (
+                    <tr key={req.id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                      <td style={{ padding: '12px 16px', color: '#1e293b', fontWeight: 600 }}>
+                        <span style={{ textTransform: 'capitalize' }}>{req.entityType.replace('_', ' ')}</span>
+                      </td>
+                      <td style={{ textAlign: 'center', padding: '12px 16px', color: '#64748b', fontSize: '0.85rem' }}>
+                        {formatDate(req.createdAt)}
+                      </td>
+                      <td style={{ textAlign: 'center', padding: '12px 16px' }}>
+                        <span className={`badge ${
+                          req.status === 'approved' ? 'badge-success' : req.status === 'pending' ? 'badge-warning' : 'badge-danger'
+                        }`} style={{
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          background: req.status === 'approved' ? '#def7ec' : req.status === 'pending' ? '#fef3c7' : '#fde8e8',
+                          color: req.status === 'approved' ? '#03543f' : req.status === 'pending' ? '#92400e' : '#9b1c1c'
+                        }}>
+                          {req.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 16px', color: '#475569', fontSize: '0.85rem' }}>
+                        {req.reviewNotes || (req.reviewedBy ? `Reviewed by ${req.reviewedBy.name}` : 'Waiting for Admin approval...')}
+                      </td>
+                    </tr>
+                  ))}
+                  {agentData.myApprovals.length === 0 && (
+                    <tr>
+                      <td colSpan={4} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                        No pending or reviewed requests submitted yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="card" style={{ background: '#fff', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+            <div className="card-header" style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '15px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--danger)' }}>
+                <span className="material-icons-outlined">warning</span>
+                My Overdue Alerts
+              </h3>
+            </div>
+            <div style={{ padding: '16px 0' }}>
+              {agentData.overdueInstalments.slice(0, 5).map((item) => (
+                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', borderBottom: '1px solid #f8fafc' }}>
+                  <div>
+                    <strong style={{ display: 'block', color: '#1e293b' }}>{item.loan.customer.name}</strong>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{item.loan.customer.customerCode} • {item.loan.customer.route?.name || '-'}</span>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ display: 'block', color: 'var(--danger)', fontWeight: 700 }}>
+                      {formatCurrency(item.overdueAmount, branding.currencySymbol)}
+                    </span>
+                    <span style={{ fontSize: '0.72rem', color: '#64748b' }}>{item.daysOverdue} days overdue</span>
+                  </div>
+                </div>
+              ))}
+              {agentData.overdueInstalments.length === 0 && (
+                <div style={{ padding: '32px', textAlign: 'center', color: 'var(--success)' }}>
+                  <span className="material-icons-outlined" style={{ fontSize: '36px' }}>check_circle</span>
+                  <p style={{ marginTop: '8px', fontSize: '0.85rem', fontWeight: 600 }}>All collections up to date!</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   const activeBranchId = await getActiveBranchId();
   const data = await getDashboardData(tenantId, appType, activeBranchId);

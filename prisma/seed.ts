@@ -21,14 +21,14 @@ async function main() {
   // ── Create Default Branch ──
   const branch = await prisma.branch.upsert({
     where: { tenantId_code: { tenantId: tenant.id, code: 'HQ' } },
-    update: { enabledModules: ['microlending'] },
+    update: { enabledModules: JSON.stringify(['microlending']) },
     create: {
       tenantId: tenant.id,
       name: 'Head Office',
       code: 'HQ',
       address: 'Main Branch',
       status: 'active',
-      enabledModules: ['microlending'],
+      enabledModules: JSON.stringify(['microlending']),
     },
   });
   console.log('✅ Branch created:', branch.id);
@@ -115,14 +115,14 @@ async function main() {
     where: { tenantId_code: { tenantId: tenant.id, code: 'ERODE' } },
     update: {
       superadminId: superadmin.id,
-      enabledModules: ['autofinance', 'chitfunds'],
+      enabledModules: JSON.stringify(['autofinance', 'chitfunds']),
     },
     create: {
       tenantId: tenant.id,
       superadminId: superadmin.id,
       name: 'Erode',
       code: 'ERODE',
-      enabledModules: ['autofinance', 'chitfunds'],
+      enabledModules: JSON.stringify(['autofinance', 'chitfunds']),
       status: 'active',
     },
   });
@@ -131,14 +131,14 @@ async function main() {
     where: { tenantId_code: { tenantId: tenant.id, code: 'NAMAKKAL' } },
     update: {
       superadminId: superadmin.id,
-      enabledModules: ['microlending'],
+      enabledModules: JSON.stringify(['microlending']),
     },
     create: {
       tenantId: tenant.id,
       superadminId: superadmin.id,
       name: 'Namakkal',
       code: 'NAMAKKAL',
-      enabledModules: ['microlending'],
+      enabledModules: JSON.stringify(['microlending']),
       status: 'active',
     },
   });

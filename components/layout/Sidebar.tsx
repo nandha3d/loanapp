@@ -46,13 +46,14 @@ export default function Sidebar({
 
   const navItems: NavItem[] = [
     { section: dict.sidebar.sections.main },
-    { id: 'dashboard', icon: 'dashboard', label: dict.sidebar.dashboard, href: '/dashboard', adminOnly: true },
+    { id: 'dashboard', icon: 'dashboard', label: dict.sidebar.dashboard, href: '/dashboard' },
     { id: 'collection', icon: 'point_of_sale', label: dict.sidebar.collection, href: '/collection' },
     { section: dict.sidebar.sections.management },
+    { id: 'admin-team', icon: 'admin_panel_settings', label: 'User Management', href: '/admin/team', adminOnly: true },
     { id: 'customers', icon: 'people', label: dict.sidebar.customers, href: '/customers' },
     { id: 'loans', icon: 'account_balance', label: dict.sidebar.loans, href: '/loans' },
-    { id: 'vehicles', icon: 'directions_car', label: dict.sidebar.vehicles, href: '/vehicles', adminOnly: true, appTypes: ['autofinance'] },
-    { id: 'chits', icon: 'savings', label: dict.sidebar.chits, href: '/chits', adminOnly: true, appTypes: ['chitfunds'] },
+    { id: 'vehicles', icon: 'directions_car', label: dict.sidebar.vehicles, href: '/vehicles', appTypes: ['autofinance'] },
+    { id: 'chits', icon: 'savings', label: dict.sidebar.chits, href: '/chits', appTypes: ['chitfunds'] },
     { id: 'penalties', icon: 'gavel', label: dict.sidebar.penalties, href: '/penalties', adminOnly: true },
     { id: 'approvals', icon: 'verified', label: dict.sidebar.approvals, href: '/approvals' },
     { section: dict.sidebar.sections.insights },
@@ -177,7 +178,7 @@ export default function Sidebar({
               <div className="user-role">{getRoleName(role)}</div>
             </div>
           </div>
-          {(role === 'superadmin' || role === 'developer') && (
+          {(role === 'superadmin' || role === 'developer' || (role === 'admin' && enabledModules.length > 1)) && (
             <Link href="/portal" style={{
               display: 'flex', alignItems: 'center', gap: '6px',
               padding: '8px 12px', margin: '8px 12px 0',

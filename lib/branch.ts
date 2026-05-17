@@ -83,7 +83,7 @@ export const getActiveModules = cache(async (): Promise<ModuleKey[]> => {
   const branchId = await getActiveBranchId();
   if (!branchId) return [];
 
-  if (role === 'admin') {
+  if (role === 'admin' || role === 'agent') {
     return getUserModulesForBranch(user?.id ?? '', branchId);
   }
 

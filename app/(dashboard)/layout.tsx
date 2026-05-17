@@ -24,17 +24,26 @@ export default async function DashboardLayout({
     redirect('/login');
   }
 
+  const user = session.user as any;
+  const role = user.role as string;
+  const userId = user.id as string;
+
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
   const appConfig = getAppConfig(appType);
   const dict = await getDictionary(tenantId);
   const lang = await getCurrentLanguage(tenantId);
-  const enabledModules = await getEnabledModules(tenantId);
+  
+  let enabledModules: string[] = [];
+  if (role === 'developer') {
+    const { getEnabledModules } = await import('@/lib/moduleGate');
+    enabledModules = await getEnabledModules(tenantId);
+  } else {
+    const { getActiveModules } = await import('@/lib/branch');
+    enabledModules = await getActiveModules();
+  }
   const headerStore = await headers();
   const pathname = headerStore.get('x-loantrack-path') || '';
-  const user = session.user as any;
-  const role = user.role as string;
-  const userId = user.id as string;
   let branches: { id: string; name: string; enabledModules: string[] }[] = [];
   let activeBranchId: string | null = null;
 

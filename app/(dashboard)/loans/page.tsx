@@ -5,11 +5,15 @@ import Link from 'next/link';
 import { getDictionary } from '@/lib/i18n';
 import { getActiveBranchId } from '@/lib/branch';
 
+import { auth } from '@/lib/auth';
+
 export default async function LoansPage({
   searchParams
 }: {
   searchParams: Promise<{ [key: string]: string | undefined }>
 }) {
+  const session = await auth();
+  const userRole = (session?.user as any)?.role || 'agent';
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
@@ -25,6 +29,17 @@ export default async function LoansPage({
   const where: any = { tenantId, appType, AND: [] };
   if (branchId) {
     where.AND.push({ branchId });
+  }
+  if (userRole === 'agent') {
+    const userId = session?.user?.id;
+    where.AND.push({
+      customer: {
+        OR: [
+          { agentId: userId },
+          { route: { assignedAgentId: userId } }
+        ]
+      }
+    });
   }
   if (q) {
     where.AND.push({

@@ -66,7 +66,7 @@ async function resolveLoginTenantId(host: string | null): Promise<string | null>
 }
 
 
-export const { handlers, signIn, signOut, auth } = NextAuth({
+export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
   trustHost: true,
   providers: [
     Credentials({
@@ -205,7 +205,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user }: any) {
       if (user) {
         const authorizedUser = user as AuthorizedUser;
         token.role = authorizedUser.role;
@@ -229,7 +229,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
       return token;
     },
-    async session({ session, token }) {
+    async session({ session, token }: any) {
       if (session.user) {
         (session.user as any).id = token.userId;
         (session.user as any).role = token.role;

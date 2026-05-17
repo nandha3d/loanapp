@@ -23,7 +23,13 @@ export default async function SuperAdminPortal() {
   
   let enabledModules: string[] = [];
   
-  if (tenantId) {
+  if (role === 'admin' || role === 'agent') {
+    const { getActiveModules } = await import('@/lib/branch');
+    enabledModules = await getActiveModules();
+    if (role === 'admin' && enabledModules.length <= 1) {
+      redirect('/dashboard');
+    }
+  } else if (tenantId) {
     const subscription = await prisma.tenantSubscription.findUnique({
       where: { tenantId },
       select: { enabledModules: true },
@@ -33,7 +39,7 @@ export default async function SuperAdminPortal() {
     enabledModules = []; 
   }
 
-  if (role !== 'superadmin' && role !== 'developer') {
+  if (role !== 'superadmin' && role !== 'developer' && role !== 'admin' && role !== 'agent') {
     redirect('/dashboard');
   }
 

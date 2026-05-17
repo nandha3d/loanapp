@@ -42,7 +42,7 @@ export async function reviewBranchRequest(formData: FormData) {
       if (req.branchId) {
         await prisma.branch.update({
           where: { id: req.branchId },
-          data: { enabledModules: requestedModules },
+          data: { enabledModules: JSON.stringify(requestedModules) },
         });
       } else {
         await prisma.branch.create({
@@ -50,7 +50,7 @@ export async function reviewBranchRequest(formData: FormData) {
             tenantId: req.tenantId,
             superadminId: req.requestedById,
             name: req.branchName ?? 'New Branch',
-            enabledModules: requestedModules,
+            enabledModules: JSON.stringify(requestedModules),
             status: 'active',
           },
         });

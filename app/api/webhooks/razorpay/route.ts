@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
         data: {
           maxActiveLoans: features.loans,
           maxAgents: features.agents,
-          enabledModules: features.modules,
+          enabledModules: JSON.stringify(features.modules),
         }
       });
     }

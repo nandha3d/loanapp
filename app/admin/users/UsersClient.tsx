@@ -124,7 +124,7 @@ export default function UsersClient({
     if (viewerRole === 'developer') {
         setSelectedModules(allowed.length > 0 ? allowed : fallback);
     } else {
-        setSelectedModules((allowed.length > 0 ? allowed : fallback).slice(0, role === 'agent' ? 1 : undefined));
+        setSelectedModules(allowed.length > 0 ? allowed : fallback);
     }
   }
 
@@ -175,7 +175,7 @@ export default function UsersClient({
         return next.length > 0 ? next : prev;
       }
       if (isDeveloper) return [...prev, module];
-      return selectedRole === 'agent' ? [module] : [...prev, module];
+      return [...prev, module];
     });
   }
 

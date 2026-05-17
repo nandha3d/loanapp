@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { getRoleRedirectTarget, isPublicPath } from '../proxy';
+import { getRoleRedirectTarget, isPublicPath } from '../middleware';
 
 assert.equal(isPublicPath('/fonts/MaterialIconsOutlined-Regular.otf'), true);
 assert.equal(isPublicPath('/assets/logo.svg'), true);

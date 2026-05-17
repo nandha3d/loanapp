@@ -23,6 +23,10 @@ export default async function ApprovalsPage() {
   const where: any = { tenantId, appType };
   if (userRole === 'agent') {
     where.requestedById = userId;
+  } else if (userRole === 'admin' && activeBranchId) {
+    where.requestedBy = {
+      branchId: activeBranchId
+    };
   }
 
   const requests = await prisma.approvalRequest.findMany({ 
@@ -36,6 +40,7 @@ export default async function ApprovalsPage() {
 
   // Fetch pending_review loans for admin/superadmin/developer
   let pendingLoans: any[] = [];
+  let pendingCustomers: any[] = [];
   if (userRole !== 'agent') {
     const loanWhere: any = { tenantId, appType, status: 'pending_review' };
     if (activeBranchId) loanWhere.branchId = activeBranchId;
@@ -47,7 +52,25 @@ export default async function ApprovalsPage() {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    const customerWhere: any = { tenantId, appType, status: 'pending_review' };
+    if (activeBranchId) customerWhere.branchId = activeBranchId;
+    pendingCustomers = await prisma.customer.findMany({
+      where: customerWhere,
+      include: {
+        agent: { select: { name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
-  return <ApprovalsClient requests={requests} pendingLoans={pendingLoans} userRole={userRole} dict={dict} />;
+  return (
+    <ApprovalsClient
+      requests={requests}
+      pendingLoans={pendingLoans}
+      pendingCustomers={pendingCustomers}
+      userRole={userRole}
+      dict={dict}
+    />
+  );
 }

@@ -67,6 +67,167 @@ export async function reviewRequest(formData: FormData) {
       fd.set('instalmentId', request.entityId);
       fd.set('receivedAmount', String(requestedAmount));
       await submitCollectionEntry(fd);
+    } else if (request.requestType === 'loan_edit' && request.entityType === 'loan') {
+      // Verify target loan belongs to this tenant+appType
+      const loan = await prisma.loan.findFirst({
+        where: { id: request.entityId, tenantId, appType },
+        include: { guarantor: true }
+      });
+      if (!loan) {
+        return { success: false, error: 'Target loan not found in this tenant/app' };
+      }
+
+      const changes = JSON.parse(request.requestedChanges);
+
+      const principal = changes.principal !== undefined ? Number(changes.principal) : Number(loan.principal);
+      const interestType = changes.deductionType !== undefined ? changes.deductionType : loan.deductionType;
+      const rate = changes.deduction !== undefined ? Number(changes.deduction) : Number(loan.deduction);
+      const frequency = changes.frequency !== undefined ? changes.frequency : loan.frequency;
+      const tenure = changes.tenure !== undefined ? Number(changes.tenure) : Number(loan.tenure);
+      const startDateStr = changes.startDate !== undefined ? changes.startDate : new Date(loan.startDate).toISOString().slice(0, 10);
+      const penaltyRate = changes.penaltyRate !== undefined ? Number(changes.penaltyRate) : Number(loan.penaltyRate);
+      const voucherRef = changes.voucherRef !== undefined ? changes.voucherRef : loan.voucherRef;
+      const loanType = changes.loanType !== undefined ? changes.loanType : loan.loanType;
+      const collateralDetails = changes.collateralDetails !== undefined ? changes.collateralDetails : loan.collateralDetails;
+
+      const startDate = new Date(startDateStr);
+      const { calculateEndDate, calculateInstalmentDates } = await import('@/lib/utils');
+      const endDate = calculateEndDate(startDate, frequency, tenure);
+
+      let disbursed = principal;
+      let totalPayable = principal;
+      let perInstalment = 0;
+      let deduction = 0;
+
+      if (interestType === 'upfront_fixed') {
+        deduction = rate;
+        disbursed = principal - deduction;
+        totalPayable = principal;
+        perInstalment = Math.round(principal / tenure);
+      } else if (interestType === 'upfront_percentage') {
+        deduction = principal * (rate / 100);
+        disbursed = principal - deduction;
+        totalPayable = principal;
+        perInstalment = Math.round(principal / tenure);
+      } else if (interestType === 'emi_flat') {
+        const interestAmount = principal * (rate / 100);
+        disbursed = principal;
+        totalPayable = principal + interestAmount;
+        perInstalment = Math.round(totalPayable / tenure);
+      } else if (interestType === 'emi_floating') {
+        let periodsPerYear = 12;
+        if (frequency === 'daily') periodsPerYear = 365;
+        else if (frequency === 'weekly') periodsPerYear = 52;
+        else if (frequency === 'biweekly') periodsPerYear = 26;
+
+        const r = (rate / 100) / periodsPerYear;
+        disbursed = principal;
+        if (r === 0) {
+          perInstalment = Math.round(principal / tenure);
+        } else {
+          const emi = principal * r * Math.pow(1 + r, tenure) / (Math.pow(1 + r, tenure) - 1);
+          perInstalment = Math.round(emi);
+        }
+        totalPayable = perInstalment * tenure;
+      }
+
+      if (interestType === 'emi_flat' || interestType === 'emi_floating') {
+        totalPayable = perInstalment * tenure;
+      }
+
+      try {
+        await prisma.$transaction(async (tx) => {
+          let currentGuarantorId = loan.guarantorId;
+
+          const guarantorName = changes.guarantorName !== undefined ? changes.guarantorName : loan.guarantor?.name;
+          const guarantorPhone = changes.guarantorPhone !== undefined ? changes.guarantorPhone : loan.guarantor?.phone;
+          const guarantorAadhar = changes.guarantorAadhar !== undefined ? changes.guarantorAadhar : loan.guarantor?.aadharNumber;
+          const guarantorAddress = changes.guarantorAddress !== undefined ? changes.guarantorAddress : loan.guarantor?.address;
+          const guarantorRelation = changes.guarantorRelation !== undefined ? changes.guarantorRelation : loan.guarantor?.relation;
+
+          if (guarantorName || guarantorPhone || guarantorAadhar) {
+            if (currentGuarantorId) {
+              await tx.guarantor.update({
+                where: { id: currentGuarantorId },
+                data: {
+                  name: guarantorName || '',
+                  phone: guarantorPhone || '',
+                  aadharNumber: guarantorAadhar || null,
+                  address: guarantorAddress || null,
+                  relation: guarantorRelation || null
+                }
+              });
+            } else {
+              const newG = await tx.guarantor.create({
+                data: {
+                  customerId: loan.customerId,
+                  name: guarantorName || '',
+                  phone: guarantorPhone || '',
+                  aadharNumber: guarantorAadhar || null,
+                  address: guarantorAddress || null,
+                  relation: guarantorRelation || null
+                }
+              });
+              currentGuarantorId = newG.id;
+            }
+          }
+
+          const coreChanged = 
+            Number(loan.principal) !== principal ||
+            Number(loan.tenure) !== tenure ||
+            loan.frequency !== frequency ||
+            new Date(loan.startDate).getTime() !== startDate.getTime();
+
+          await tx.loan.update({
+            where: { id: loan.id },
+            data: {
+              principal,
+              deduction,
+              deductionType: interestType,
+              disbursed,
+              frequency,
+              tenure,
+              startDate,
+              endDate,
+              perInstalment,
+              penaltyRate,
+              voucherRef,
+              loanType,
+              collateralDetails,
+              totalPayable,
+              guarantorId: currentGuarantorId,
+              totalInstalments: tenure
+            }
+          });
+
+          if (coreChanged) {
+            const { hasFinancialActivity } = await import('@/lib/repayments');
+            if (await hasFinancialActivity(loan.id)) {
+              throw new Error('Instalment schedule cannot be regenerated: loan has recorded repayments.');
+            }
+
+            await tx.instalment.deleteMany({ where: { loanId: loan.id } });
+
+            const instalmentDates = calculateInstalmentDates(startDate, frequency, tenure);
+            const instalments = instalmentDates.map((date, index) => ({
+              loanId: loan.id,
+              instalmentNo: index + 1,
+              dueDate: date,
+              dueAmount: perInstalment,
+              status: 'upcoming' as const,
+            }));
+
+            await tx.instalment.createMany({ data: instalments });
+
+            await tx.loan.update({
+              where: { id: loan.id },
+              data: { paidCount: 0 },
+            });
+          }
+        });
+      } catch (err: any) {
+        return { success: false, error: err.message || 'Transaction failed' };
+      }
     }
   }
 
@@ -268,5 +429,41 @@ export async function reviewPendingLoan(formData: FormData) {
 
   revalidatePath('/approvals');
   revalidatePath('/loans');
+  return { success: true };
+}
+
+export async function rejectCustomerCreation(customerId: string, reviewNotes?: string) {
+  const session = await auth();
+  const tenantId = await getDefaultTenantId();
+  const userId = session?.user?.id;
+  const userRole = (session?.user as any)?.role;
+  if (userRole === 'agent') return { success: false, error: 'Unauthorized' };
+
+  // Verify customer belongs to this tenant
+  const customer = await prisma.customer.findFirst({
+    where: { id: customerId, tenantId, status: 'pending_review' },
+    select: { id: true },
+  });
+  if (!customer) return { success: false, error: 'Customer not found or not in pending review' };
+
+  await prisma.customer.update({
+    where: { id: customerId },
+    data: { status: 'inactive' }, // Or we can delete or set to rejected
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId: tenantId!,
+      userId,
+      action: 'reject',
+      entityType: 'customer',
+      entityId: customerId,
+      newValue: JSON.stringify({ action: 'reject_creation', status: 'inactive', reviewNotes }),
+    },
+  });
+
+  revalidatePath('/customers');
+  revalidatePath('/dashboard');
+  revalidatePath('/approvals');
   return { success: true };
 }

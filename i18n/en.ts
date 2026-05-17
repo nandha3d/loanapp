@@ -43,6 +43,7 @@ export const en = {
     chits: 'Chit Groups',
     penalties: 'Penalties',
     approvals: 'Approvals',
+    team: 'Manage Agents',
     reports: 'Reports',
     notifications: 'Notifications',
     settings: 'Settings',
