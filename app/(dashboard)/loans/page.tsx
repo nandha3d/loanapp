@@ -77,6 +77,7 @@ export default async function LoansPage({
         <select name="status" className="form-control" style={{width:'auto'}} defaultValue={status}>
           <option value="">{dict.loansList.allStatus}</option>
           <option value="active">{dict.loansList.active}</option>
+          <option value="pending_review">Pending Review</option>
           <option value="overdue">{dict.loansList.overdue}</option>
           <option value="settled">{dict.loansList.settled}</option>
           <option value="closed">{dict.loansList.closed}</option>
@@ -129,7 +130,7 @@ export default async function LoansPage({
                   </td>
                   <td>
                     <span className={getBadgeClass(l.status)} style={{textTransform:'capitalize'}}>
-                      {l.status}
+                      {l.status === 'pending_review' ? 'Pending Review' : l.status}
                     </span>
                   </td>
                   <td>

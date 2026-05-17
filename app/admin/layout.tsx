@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { SessionProvider } from 'next-auth/react';
 import Link from 'next/link';
 import LogoutButton from '@/components/ui/LogoutButton';
+import prisma from '@/lib/db';
 
 export default async function AdminLayout({
   children,
@@ -17,6 +18,14 @@ export default async function AdminLayout({
   }
 
   const userName = session?.user?.name || (userRole === 'developer' ? 'Developer' : 'Super Admin');
+
+  // Fix 21: Fetch pending notification count for developer
+  let pendingBranchRequestCount = 0;
+  if (userRole === 'developer') {
+    pendingBranchRequestCount = await prisma.branchRequest.count({
+      where: { status: 'pending' },
+    });
+  }
 
   return (
     <SessionProvider session={session}>
@@ -53,7 +62,35 @@ export default async function AdminLayout({
                 Branches
               </Link>
             )}
-            {/* Billing section removed as it is accessible via portal */}
+            {/* Fix 9: Branch Requests link for developer */}
+            {userRole === 'developer' && (
+              <Link href="/admin/branch-requests">
+                <span className="material-icons-outlined">account_tree</span>
+                Branch Requests
+                {pendingBranchRequestCount > 0 && (
+                  <span style={{
+                    marginLeft: 'auto',
+                    background: 'var(--accent)',
+                    color: '#fff',
+                    borderRadius: '10px',
+                    padding: '2px 8px',
+                    fontSize: '0.7rem',
+                    fontWeight: 600,
+                    minWidth: '20px',
+                    textAlign: 'center',
+                  }}>
+                    {pendingBranchRequestCount}
+                  </span>
+                )}
+              </Link>
+            )}
+            {/* Fix 12: Billing link visible only for developer */}
+            {userRole === 'developer' && (
+              <Link href="/admin/billing">
+                <span className="material-icons-outlined">receipt_long</span>
+                Billing
+              </Link>
+            )}
           </nav>
 
           <div className="sidebar-footer">
@@ -83,6 +120,21 @@ export default async function AdminLayout({
               {/* Optional Search */}
             </div>
             <div className="topbar-actions" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              {/* Fix 21: Notification bell for developer */}
+              {userRole === 'developer' && pendingBranchRequestCount > 0 && (
+                <Link href="/admin/branch-requests" style={{ position: 'relative', color: 'var(--text)', textDecoration: 'none' }}>
+                  <span className="material-icons-outlined" style={{ fontSize: '22px' }}>notifications</span>
+                  <span style={{
+                    position: 'absolute', top: '-4px', right: '-6px',
+                    background: '#E94560', color: '#fff',
+                    borderRadius: '50%', width: '18px', height: '18px',
+                    fontSize: '0.65rem', fontWeight: 700,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {pendingBranchRequestCount}
+                  </span>
+                </Link>
+              )}
               <LogoutButton />
               <div className="user-profile">
                 <div className="avatar">{userRole === 'developer' ? 'DEV' : 'SA'}</div>

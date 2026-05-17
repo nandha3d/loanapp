@@ -34,7 +34,7 @@ export async function GET() {
         orderBy: { dueDate: 'asc' },
       }),
       prisma.penalty.count({ where: { loan: loanWhere, status: 'pending' } }),
-      prisma.user.count({ where: { tenantId: context.tenantId, appType: context.appType, role: 'agent', status: 'active' } }),
+      prisma.user.count({ where: { tenantId: context.tenantId, appType: context.appType, role: 'agent', status: 'active', ...scopedBranchWhere(context) } }),
       prisma.loan.findMany({
         where: loanWhere,
         include: { customer: { select: { id: true, customerCode: true, name: true } } },

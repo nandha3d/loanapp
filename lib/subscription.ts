@@ -36,10 +36,17 @@ export function normalizeRazorpaySubscriptionStatus(event: string): string {
 
 export function normalizeEnabledModules(rawModules: any): string[] {
   if (!rawModules) return ['microlending'];
-  if (Array.isArray(rawModules)) return rawModules as string[];
+  // DB stores as JSON string in LongText — parse first
   if (typeof rawModules === 'string') {
-    return rawModules.split(',').map((m) => m.trim()).filter(Boolean);
+    try {
+      const parsed = JSON.parse(rawModules);
+      if (Array.isArray(parsed)) return parsed as string[];
+    } catch {
+      // fallback: comma-separated string
+      return rawModules.split(',').map((m) => m.trim()).filter(Boolean);
+    }
   }
+  if (Array.isArray(rawModules)) return rawModules as string[];
   return ['microlending'];
 }
 

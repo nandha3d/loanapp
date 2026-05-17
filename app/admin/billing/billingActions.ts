@@ -45,4 +45,7 @@ export async function updateSubscription(formData: FormData) {
 
   revalidatePath('/admin/billing');
   revalidatePath(`/admin/billing/${tenantId}`);
+  revalidatePath('/admin/users');
+  revalidatePath('/portal');
+  return { success: true };
 }

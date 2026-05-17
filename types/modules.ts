@@ -19,6 +19,10 @@ export const MODULE_ROUTES: Record<ModuleKey, string[]> = {
 };
 
 export function normalizeModuleList(value: unknown): ModuleKey[] {
+  // DB stores modules as JSON strings in LongText columns — parse them first
+  if (typeof value === 'string') {
+    try { value = JSON.parse(value); } catch { return []; }
+  }
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is ModuleKey =>
     typeof item === 'string' && (ALL_MODULES as readonly string[]).includes(item),

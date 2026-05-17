@@ -1,8 +1,10 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Modal from '@/components/Modal';
-import { manageMasterUser, toggleUserStatus, updateTenantSubscription } from '../actions';
+import { manageMasterUser, toggleUserStatus } from '../actions';
+import { updateSubscription } from '../billing/billingActions';
 import { ALL_MODULES, MODULE_LABELS, normalizeModuleList, type ModuleKey } from '@/types/modules';
 import { PLAN_LABELS, PLAN_FEATURES } from '@/lib/plans';
 
@@ -78,6 +80,7 @@ export default function UsersClient({
   planModules,
   superadmins,
 }: Props) {
+  const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubModalOpen, setIsSubModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
@@ -85,7 +88,9 @@ export default function UsersClient({
   const [selectedRole, setSelectedRole] = useState('agent');
   const [selectedBranchId, setSelectedBranchId] = useState('');
   const [selectedModules, setSelectedModules] = useState<ModuleKey[]>(normalizeModuleList([defaultAppType]));
-  const [viewingSuperadminId, setViewingSuperadminId] = useState<string | null>(null);
+  const [viewingSuperadminId, setViewingSuperadminId] = useState<string | null>(
+    viewerRole === 'superadmin' && superadmins.length > 0 ? superadmins[0].id : null
+  );
 
   const activeSuperadmin = superadmins.find(s => s.id === viewingSuperadminId);
   const activeSub = activeSuperadmin?.subscription || subscription;
@@ -186,7 +191,7 @@ export default function UsersClient({
           </p>
         </div>
         <div className="header-actions">
-          {viewingSuperadminId ? (
+          {viewingSuperadminId && viewerRole === 'developer' ? (
             <button className="btn btn-ghost" onClick={() => setViewingSuperadminId(null)}>
               <span className="material-icons-outlined">arrow_back</span> Back to List
             </button>
@@ -352,7 +357,25 @@ export default function UsersClient({
                         <td>{user.branch?.name || 'Global'}</td>
                         <td><span className={`badge ${user.status === 'active' ? 'badge-active' : 'badge-closed'}`}>{user.status}</span></td>
                         <td>
-                           <button className="btn btn-ghost btn-sm" onClick={() => handleEdit(user)}>Edit</button>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button className="btn btn-ghost btn-sm" onClick={() => handleEdit(user)}>Edit</button>
+                            <button 
+                              className="btn btn-ghost btn-sm"
+                              style={{ color: user.status === 'active' ? 'var(--danger)' : 'var(--success)' }}
+                              onClick={async () => {
+                                if (confirm(`Are you sure you want to ${user.status === 'active' ? 'deactivate' : 'activate'} this user?`)) {
+                                  const res = await toggleUserStatus(user.id, user.status === 'active' ? 'inactive' : 'active');
+                                  if (!res?.success) {
+                                    alert('Failed to toggle status');
+                                  } else {
+                                    router.refresh();
+                                  }
+                                }
+                              }}
+                            >
+                              {user.status === 'active' ? 'Deactivate' : 'Activate'}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -369,7 +392,10 @@ export default function UsersClient({
           setLoading(true);
           const res = await manageMasterUser(fd);
           setLoading(false);
-          if (res.success) setIsModalOpen(false); else alert(res.error);
+          if (res.success) {
+            setIsModalOpen(false);
+            router.refresh();
+          } else alert(res.error);
         }}>
           {editingUser && <input type="hidden" name="id" value={editingUser.id} />}
           <input type="hidden" name="appType" value={primaryAppType} />
@@ -402,14 +428,21 @@ export default function UsersClient({
               </select>
             </div>
             <div className="form-group">
-              <label className="form-label">Branch Assignment</label>
-              <select name="branchId" className="form-control" value={selectedBranchId} onChange={(e) => handleBranchChange(e.target.value)}>
-                <option value="">Global / Not assigned</option>
-                {branches
-                  .filter(b => !editingUser || b.tenantId === editingUser.tenantId)
-                  .map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+              <label className="form-label">Status</label>
+              <select name="status" className="form-control" defaultValue={editingUser?.status || 'active'}>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
               </select>
             </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Branch Assignment</label>
+            <select name="branchId" className="form-control" value={selectedBranchId} onChange={(e) => handleBranchChange(e.target.value)}>
+              <option value="">Global / Not assigned</option>
+              {branches
+                .filter(b => !editingUser || b.tenantId === editingUser.tenantId)
+                .map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+            </select>
           </div>
 
           {editingUser?.role === 'superadmin' && viewerRole === 'developer' && (
@@ -456,9 +489,12 @@ export default function UsersClient({
       <Modal isOpen={isSubModalOpen} onClose={() => setIsSubModalOpen(false)} title="Manage Tenant Subscription">
         <form action={async (fd) => {
           setLoading(true);
-          const res = await updateTenantSubscription(fd);
+          const res = await updateSubscription(fd);
           setLoading(false);
-          if (res.success) setIsSubModalOpen(false); else alert(res.error);
+          if (res.success) {
+            setIsSubModalOpen(false);
+            router.refresh();
+          } else alert(res.error);
         }}>
           <input type="hidden" name="tenantId" value={activeSuperadmin?.tenantId || subscription?.tenantId} />
           <div className="form-group">
