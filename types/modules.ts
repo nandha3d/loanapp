@@ -19,12 +19,16 @@ export const MODULE_ROUTES: Record<ModuleKey, string[]> = {
 };
 
 export function normalizeModuleList(value: unknown): ModuleKey[] {
-  // DB stores modules as JSON strings in LongText columns — parse them first
+  let parsedValue = value;
   if (typeof value === 'string') {
-    try { value = JSON.parse(value); } catch { return []; }
+    try {
+      parsedValue = JSON.parse(value);
+    } catch {
+      parsedValue = value.split(',').map((s) => s.trim());
+    }
   }
-  if (!Array.isArray(value)) return [];
-  return value.filter((item): item is ModuleKey =>
+  if (!Array.isArray(parsedValue)) return [];
+  return parsedValue.filter((item): item is ModuleKey =>
     typeof item === 'string' && (ALL_MODULES as readonly string[]).includes(item),
   );
 }

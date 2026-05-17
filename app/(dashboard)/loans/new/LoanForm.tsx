@@ -66,6 +66,7 @@ export default function LoanForm({
   routes?: any[];
   agents?: any[];
   dict: any;
+  appType?: string;
 }) {
   const [loading, setLoading] = useState(false);
   const [limitError, setLimitError] = useState<string | null>(null);
@@ -247,10 +248,13 @@ export default function LoanForm({
   const endDate = startDate && t > 0 ? calculateEndDate(new Date(startDate), frequency, t) : null;
 
   const loanTypeLabels: Record<string, string> = {
-    cheque: dict.loans.chequeBased || 'Cheque Based',
-    gold: dict.loans.goldBased || 'Gold Based',
-    property: dict.loans.propertyBased || 'Property Based',
+    cheque: appType === 'autofinance' ? 'Vehicle / Cheque' : (dict.loans.chequeBased || 'Cheque Based'),
   };
+  
+  if (appType !== 'autofinance') {
+    loanTypeLabels['gold'] = dict.loans.goldBased || 'Gold Based';
+    loanTypeLabels['property'] = dict.loans.propertyBased || 'Property Based';
+  }
 
   // Build JSON for collateral details
   const getCollateralDetailsJson = () => {
