@@ -144,22 +144,30 @@ export async function manageAgent(formData: FormData) {
 }
 
 export async function toggleAgentStatus(agentId: string, currentStatus: string) {
+  console.log(`[toggleAgentStatus] Called for agent ${agentId} with status ${currentStatus}`);
   const session = await auth();
   const actorRole = (session?.user as any)?.role;
   const actorId = session?.user?.id;
   const tenantId = await getDefaultTenantId();
   const activeBranchId = await getActiveBranchId();
 
+  console.log(`[toggleAgentStatus] Actor ${actorId} (${actorRole}), tenant: ${tenantId}, activeBranch: ${activeBranchId}`);
+
   if (!actorId || !['admin', 'superadmin', 'developer'].includes(actorRole)) {
+    console.log(`[toggleAgentStatus] Failed: Unauthorized actor`);
     return { success: false, error: 'Unauthorized' };
   }
 
   const agent = await prisma.user.findFirst({
     where: { id: agentId, tenantId, role: 'agent' }
   });
-  if (!agent) return { success: false, error: 'Agent not found' };
+  if (!agent) {
+    console.log(`[toggleAgentStatus] Failed: Agent not found`);
+    return { success: false, error: 'Agent not found' };
+  }
 
   if (actorRole === 'admin' && agent.branchId !== activeBranchId) {
+    console.log(`[toggleAgentStatus] Failed: Admin branch mismatch (agent.branchId=${agent.branchId}, activeBranchId=${activeBranchId})`);
     return { success: false, error: 'Unauthorized' };
   }
 
