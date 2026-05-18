@@ -36,7 +36,7 @@ export default async function CustomersPage({
     where.AND.push({
       OR: [
         { agentId: userId },
-        { route: { assignedAgentId: userId } }
+        { route: { routeAgents: { some: { agentId: userId } } } }
       ]
     });
   }
@@ -56,7 +56,7 @@ export default async function CustomersPage({
 
   const routeWhere: any = { tenantId, appType, status: 'active' };
   if (userRole === 'agent') {
-    routeWhere.assignedAgentId = session?.user?.id;
+    routeWhere.routeAgents = { some: { agentId: session?.user?.id } };
   }
   const routes = await prisma.route.findMany({
     where: routeWhere,

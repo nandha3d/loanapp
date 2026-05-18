@@ -60,6 +60,9 @@ export default function SettingsClient({
         {currentUser?.role === 'developer' && (
           <div className={`tab ${activeTab === 'system' ? 'active' : ''}`} onClick={() => setActiveTab('system')}>{d.tabSystem}</div>
         )}
+        {currentUser?.role === 'superadmin' && (
+          <div className={`tab ${activeTab === 'data' ? 'active' : ''}`} style={{color: 'var(--danger)'}} onClick={() => setActiveTab('data')}>Data Management</div>
+        )}
         <div className={`tab ${activeTab === 'security' ? 'active' : ''}`} onClick={() => setActiveTab('security')}>Security</div>
       </div>
 
@@ -313,6 +316,87 @@ export default function SettingsClient({
         </div>
       </div>
 
+      {/* Data Management Tab */}
+      <div className={`tab-content ${activeTab === 'data' ? 'active' : ''}`}>
+        <div className="card-header">
+          <h3 style={{ color: 'var(--danger)' }}>⚠️ Danger Zone: Database Management</h3>
+        </div>
+        <div style={{ maxWidth: '800px' }}>
+          <p style={{ marginBottom: '20px', color: 'var(--text-secondary)' }}>
+            Warning: The actions below will permanently delete data from the database. This cannot be undone. System settings, users, and branches are preserved.
+          </p>
+
+          <div className="settings-item" style={{ border: '1px solid var(--border)', padding: '20px', borderRadius: 'var(--radius)', marginBottom: '20px', background: 'var(--bg)' }}>
+            <div className="si-info" style={{ marginBottom: '16px' }}>
+              <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-icons-outlined" style={{ color: 'var(--primary)' }}>download_for_offline</span>
+                Database Backup (Excel / CSV)
+              </h4>
+              <p>Download a complete backup of all database tables (Customers, Loans, Accounting, Routes) to an Excel-compatible CSV spreadsheet before performing a wipe or for regular archiving.</p>
+            </div>
+            <div>
+              <a href="/api/backup/export" className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }} download>
+                <span className="material-icons-outlined" style={{ fontSize: '18px' }}>download</span>
+                Download Excel Backup
+              </a>
+            </div>
+          </div>
+
+          <div className="settings-item" style={{ border: '1px solid var(--danger)', padding: '20px', borderRadius: 'var(--radius)', background: 'rgba(231, 76, 60, 0.05)' }}>
+            <div className="si-info" style={{ marginBottom: '16px' }}>
+              <h4 style={{ color: 'var(--danger)' }}>Wipe Transactional Data</h4>
+              <p>Select the data modules you wish to permanently delete.</p>
+            </div>
+            <form action={async (fd) => {
+              const tables = fd.getAll('tables') as string[];
+              if (tables.length === 0) {
+                alert('Please select at least one data module to wipe.');
+                return;
+              }
+              if (confirm(`Are you absolutely sure you want to permanently delete the selected data modules? This action is irreversible.`)) {
+                setLoading(true);
+                const { wipeDatabaseRecords } = await import('./actions');
+                const res = await wipeDatabaseRecords(tables);
+                setLoading(false);
+                if (res.success) {
+                  alert('Data successfully wiped.');
+                  window.location.reload();
+                } else {
+                  alert('Failed to wipe data: ' + res.error);
+                }
+              }
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input type="checkbox" name="tables" value="loans" />
+                  <strong>Loans & Payments</strong> <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>(Loans, Instalments, Penalties, Collections)</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input type="checkbox" name="tables" value="customers" />
+                  <strong>Customers & Guarantors</strong> <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>(Profiles, KYC, Vehicles, Cheques)</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input type="checkbox" name="tables" value="accounting" />
+                  <strong>Accounting</strong> <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>(Capital Entries, Expenses, Adjustments)</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input type="checkbox" name="tables" value="agents_routes" />
+                  <strong>Agents & Routes</strong> <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>(Routes, Route Assignments)</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input type="checkbox" name="tables" value="approvals" />
+                  <strong>Approvals & Audit Logs</strong> <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>(Pending requests, Action history)</span>
+                </label>
+              </div>
+              <button type="submit" className="btn btn-danger" disabled={loading}>
+                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>delete_forever</span> 
+                {loading ? 'Wiping Data...' : 'Permanently Delete Selected'}
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+
       {/* Security Tab */}
       <div className={`tab-content ${activeTab === 'security' ? 'active' : ''}`}>
         <div className="card-header"><h3>🔒 Security & 2FA</h3></div>
@@ -358,12 +442,18 @@ export default function SettingsClient({
           </div>
           <div className="form-group">
             <label className="form-label">{d.assignAgent}</label>
-            <select name="assignedAgentId" className="form-control">
-              <option value="">{d.noAgent}</option>
-              {users.filter(u => u.role === 'agent').map(u => (
-                <option key={u.id} value={u.id}>{u.name}</option>
-              ))}
-            </select>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', border: '1px solid var(--border)', padding: '12px', borderRadius: 'var(--radius-sm)', maxHeight: '150px', overflowY: 'auto', background: 'var(--bg)' }}>
+              {users.filter(u => u.role === 'agent').length === 0 ? (
+                <span style={{ fontSize: '.85rem', color: 'var(--text-light)' }}>No agents available</span>
+              ) : (
+                users.filter(u => u.role === 'agent').map(u => (
+                  <label key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '.9rem' }}>
+                    <input type="checkbox" name="agentIds" value={u.id} />
+                    {u.name}
+                  </label>
+                ))
+              )}
+            </div>
           </div>
           <div className="form-actions" style={{marginTop:'20px'}}>
             <button type="submit" className="btn btn-primary">{d.createRoute}</button>

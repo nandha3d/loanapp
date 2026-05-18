@@ -74,7 +74,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     prisma.route.findMany({
       where: { tenantId, appType, status: 'active' },
       include: {
-        assignedAgent: true,
+        routeAgents: { include: { agent: true } },
         customers: {
           select: {
             id: true,
@@ -189,7 +189,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     return {
       id: route.id,
       name: route.name,
-      agent: route.assignedAgent?.name || '-',
+      agent: route.routeAgents?.map((ra: any) => ra.agent?.name).join(', ') || '-',
       customers: route._count.customers,
       overdue: routeOverdue,
     };
@@ -247,8 +247,7 @@ async function getAgentDashboardData(tenantId: string, appType: string, agentId:
   const agentFilter = {
     customer: {
       OR: [
-        { agentId },
-        { route: { assignedAgentId: agentId } }
+        { route: { routeAgents: { some: { agentId } } } }
       ]
     }
   };
@@ -269,8 +268,7 @@ async function getAgentDashboardData(tenantId: string, appType: string, agentId:
         appType,
         status: 'active',
         OR: [
-          { agentId },
-          { route: { assignedAgentId: agentId } }
+          { route: { routeAgents: { some: { agentId } } } }
         ]
       }
     }),
@@ -293,8 +291,7 @@ async function getAgentDashboardData(tenantId: string, appType: string, agentId:
     prisma.route.findMany({
       where: {
         tenantId,
-        appType,
-        assignedAgentId: agentId,
+        routeAgents: { some: { agentId } },
         status: 'active'
       },
       include: {
@@ -707,13 +704,7 @@ export default async function DashboardPage() {
             <div className="kpi-label">Today's Expected Collection</div>
           </div>
         </Link>
-        <Link href="/collection" className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <div className="kpi-icon orange"><span className="material-icons-outlined">account_balance_wallet</span></div>
-          <div>
-            <div className="kpi-value">{formatCurrency(data.todayCollected, branding.currencySymbol)}</div>
-            <div className="kpi-label">Adjusted Collected Today</div>
-          </div>
-        </Link>
+
         <Link href="/collection" className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>
           <div className="kpi-icon red"><span className="material-icons-outlined">trending_down</span></div>
           <div>
@@ -795,7 +786,7 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      <div className="grid-60-40">
+      <div className="grid-60-40" style={{ marginTop: '20px' }}>
         <div className="card">
           <div className="card-header">
             <h3>Collection Trend</h3>

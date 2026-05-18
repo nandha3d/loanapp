@@ -59,7 +59,6 @@ export default function Sidebar({
     { id: 'accounting', icon: 'account_balance_wallet', label: 'Accounting', href: '/accounting', adminOnly: true, appTypes: ['microlending', 'autofinance'] },
     { section: dict.sidebar.sections.insights },
     { id: 'reports', icon: 'bar_chart', label: dict.sidebar.reports, href: '/reports', adminOnly: true },
-    { id: 'accounting', icon: 'account_balance_wallet', label: 'Accounting', href: '/accounting', adminOnly: true },
     { id: 'notifications', icon: 'notifications', label: dict.sidebar.notifications, href: '/notifications' },
     { id: 'settings', icon: 'settings', label: dict.sidebar.settings, href: '/settings', adminOnly: true },
     { section: dict.sidebar.sections.account },

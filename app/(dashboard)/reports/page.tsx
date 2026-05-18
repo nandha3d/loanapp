@@ -166,7 +166,7 @@ export default async function ReportsPage({
       const hitRate = expected > 0 ? Math.round((collected / expected) * 100) : 0;
 
       const routes = await prisma.route.findMany({
-        where: { tenantId, appType, assignedAgentId: agent.id, status: 'active' },
+        where: { tenantId, appType, routeAgents: { some: { agentId: agent.id } }, status: 'active' },
         select: { name: true },
       });
 

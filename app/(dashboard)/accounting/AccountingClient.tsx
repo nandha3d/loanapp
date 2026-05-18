@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { addAccountEntry } from './actions';
 import Modal from '@/components/Modal';
 
@@ -59,7 +59,16 @@ export default function AccountingClient({
   currencySymbol: string;
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalType, setModalType] = useState('capital_add');
   const [loading, setLoading] = useState(false);
+
+  const [fromDate, setFromDate] = useState<string>('');
+  const [toDate, setToDate] = useState<string>('');
+
+  const openModal = (type: string) => {
+    setModalType(type);
+    setIsModalOpen(true);
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -75,8 +84,138 @@ export default function AccountingClient({
     }
   };
 
+  const filteredEntries = useMemo(() => {
+    return summary.entries.filter((entry: any) => {
+      const d = new Date(entry.entryDate);
+      d.setHours(0, 0, 0, 0);
+      if (fromDate) {
+        const start = new Date(fromDate);
+        start.setHours(0, 0, 0, 0);
+        if (d < start) return false;
+      }
+      if (toDate) {
+        const end = new Date(toDate);
+        end.setHours(23, 59, 59, 999);
+        if (d > end) return false;
+      }
+      return true;
+    });
+  }, [summary.entries, fromDate, toDate]);
+
+  const metrics = useMemo(() => {
+    let capitalIn = 0;
+    let capitalOut = 0;
+    let totalDisbursed = 0;
+    let totalCollected = 0;
+    let totalExpenses = 0;
+
+    for (const entry of filteredEntries) {
+      const amt = Number(entry.amount);
+      switch (entry.type) {
+        case 'capital_add':
+          capitalIn += amt;
+          break;
+        case 'capital_withdraw':
+          capitalOut += amt;
+          break;
+        case 'loan_disburse':
+          totalDisbursed += amt;
+          break;
+        case 'collection':
+          totalCollected += amt;
+          break;
+        case 'expense':
+          totalExpenses += amt;
+          break;
+      }
+    }
+
+    const currentCapital = capitalIn - capitalOut - totalDisbursed + totalCollected - totalExpenses;
+    const grossProfit = totalCollected - totalDisbursed;
+    const netProfit = grossProfit - totalExpenses;
+
+    return {
+      capitalIn,
+      capitalOut,
+      totalDisbursed,
+      totalCollected,
+      totalExpenses,
+      currentCapital,
+      grossProfit,
+      netProfit,
+    };
+  }, [filteredEntries]);
+
   return (
     <div>
+      {/* Date Range Filter */}
+      <div className="card" style={{ marginBottom: '20px', padding: '16px 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span className="material-icons-outlined" style={{ color: 'var(--primary)', fontSize: '20px' }}>filter_alt</span>
+            <span style={{ fontSize: '.9rem', fontWeight: 700, color: 'var(--text)' }}>Filter P&L Period</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '.8rem', color: 'var(--text-secondary)' }}>From:</span>
+              <input 
+                type="date" 
+                value={fromDate} 
+                onChange={(e) => setFromDate(e.target.value)} 
+                className="form-control" 
+                style={{ width: '150px', padding: '6px 10px', fontSize: '.85rem' }} 
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '.8rem', color: 'var(--text-secondary)' }}>To:</span>
+              <input 
+                type="date" 
+                value={toDate} 
+                onChange={(e) => setToDate(e.target.value)} 
+                className="form-control" 
+                style={{ width: '150px', padding: '6px 10px', fontSize: '.85rem' }} 
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button 
+                type="button" 
+                className="btn btn-ghost btn-sm" 
+                onClick={() => {
+                  const now = new Date();
+                  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+                  setFromDate(firstDay.toISOString().split('T')[0]);
+                  setToDate(now.toISOString().split('T')[0]);
+                }}
+                style={{ fontSize: '.75rem', background: 'var(--bg)', padding: '6px 12px' }}
+              >This Month</button>
+              <button 
+                type="button" 
+                className="btn btn-ghost btn-sm" 
+                onClick={() => {
+                  const now = new Date();
+                  const past30 = new Date();
+                  past30.setDate(now.getDate() - 30);
+                  setFromDate(past30.toISOString().split('T')[0]);
+                  setToDate(now.toISOString().split('T')[0]);
+                }}
+                style={{ fontSize: '.75rem', background: 'var(--bg)', padding: '6px 12px' }}
+              >Last 30 Days</button>
+              {(fromDate || toDate) && (
+                <button 
+                  type="button" 
+                  className="btn btn-ghost btn-sm" 
+                  onClick={() => {
+                    setFromDate('');
+                    setToDate('');
+                  }}
+                  style={{ fontSize: '.75rem', color: 'var(--danger)', background: 'rgba(231, 76, 60, 0.1)', padding: '6px 12px' }}
+                >Clear</button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* KPI Cards */}
       <div className="kpi-grid">
         <div className="kpi-card">
@@ -89,24 +228,24 @@ export default function AccountingClient({
         <div className="kpi-card">
           <div className="kpi-icon blue"><span className="material-icons-outlined">account_balance</span></div>
           <div>
-            <div className="kpi-value">{formatCurrency(summary.totalDisbursed, currencySymbol)}</div>
+            <div className="kpi-value">{formatCurrency(metrics.totalDisbursed, currencySymbol)}</div>
             <div className="kpi-label">Total Disbursed</div>
           </div>
         </div>
         <div className="kpi-card">
           <div className="kpi-icon orange"><span className="material-icons-outlined">point_of_sale</span></div>
           <div>
-            <div className="kpi-value">{formatCurrency(summary.totalCollected, currencySymbol)}</div>
+            <div className="kpi-value">{formatCurrency(metrics.totalCollected, currencySymbol)}</div>
             <div className="kpi-label">Total Collected</div>
           </div>
         </div>
         <div className="kpi-card">
-          <div className={`kpi-icon ${summary.netProfit >= 0 ? 'green' : 'red'}`}>
-            <span className="material-icons-outlined">{summary.netProfit >= 0 ? 'trending_up' : 'trending_down'}</span>
+          <div className={`kpi-icon ${metrics.netProfit >= 0 ? 'green' : 'red'}`}>
+            <span className="material-icons-outlined">{metrics.netProfit >= 0 ? 'trending_up' : 'trending_down'}</span>
           </div>
           <div>
-            <div className="kpi-value" style={{ color: summary.netProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-              {summary.netProfit >= 0 ? '+' : '-'}{formatCurrency(summary.netProfit, currencySymbol)}
+            <div className="kpi-value" style={{ color: metrics.netProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+              {metrics.netProfit >= 0 ? '+' : '-'}{formatCurrency(metrics.netProfit, currencySymbol)}
             </div>
             <div className="kpi-label">Net P&L</div>
           </div>
@@ -122,21 +261,21 @@ export default function AccountingClient({
           <div style={{ padding: '0 20px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
               <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Capital Added</div>
-              <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--success)' }}>+{formatCurrency(summary.capitalIn, currencySymbol)}</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--success)' }}>+{formatCurrency(metrics.capitalIn, currencySymbol)}</div>
             </div>
             <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
               <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Capital Withdrawn</div>
-              <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--danger)' }}>-{formatCurrency(summary.capitalOut, currencySymbol)}</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--danger)' }}>-{formatCurrency(metrics.capitalOut, currencySymbol)}</div>
             </div>
             <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
               <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Gross Profit</div>
-              <div style={{ fontSize: '1.2rem', fontWeight: 700, color: summary.grossProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                {formatCurrency(summary.grossProfit, currencySymbol)}
+              <div style={{ fontSize: '1.2rem', fontWeight: 700, color: metrics.grossProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                {formatCurrency(metrics.grossProfit, currencySymbol)}
               </div>
             </div>
             <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
               <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Expenses</div>
-              <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--warning)' }}>-{formatCurrency(summary.totalExpenses, currencySymbol)}</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--warning)' }}>-{formatCurrency(metrics.totalExpenses, currencySymbol)}</div>
             </div>
           </div>
         </div>
@@ -146,9 +285,20 @@ export default function AccountingClient({
             <h3>Quick Actions</h3>
           </div>
           <div style={{ padding: '0 20px 20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <button className="btn btn-primary" onClick={() => setIsModalOpen(true)} style={{ width: '100%' }}>
-              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>add</span> New Entry
-            </button>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <button className="btn btn-primary" onClick={() => openModal('capital_add')}>
+                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>add_circle</span> Capital Add
+              </button>
+              <button className="btn btn-danger" onClick={() => openModal('capital_withdraw')}>
+                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>remove_circle</span> Withdraw
+              </button>
+              <button className="btn btn-warning" onClick={() => openModal('expense')}>
+                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>receipt_long</span> Expense
+              </button>
+              <button className="btn btn-ghost" onClick={() => openModal('adjustment')} style={{ background: 'var(--bg)' }}>
+                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>tune</span> Adjustment
+              </button>
+            </div>
             <p style={{ fontSize: '.8rem', color: 'var(--text-light)', textAlign: 'center', margin: '8px 0 0' }}>
               Loan disbursements and collections are recorded automatically.
             </p>
@@ -160,7 +310,11 @@ export default function AccountingClient({
       <div className="card" style={{ marginTop: '20px' }}>
         <div className="card-header">
           <h3>📒 Transaction Ledger</h3>
-          <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>Latest 50 entries</span>
+          <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>
+            {filteredEntries.length === summary.entries.length 
+              ? 'Latest 50 entries' 
+              : `Showing ${filteredEntries.length} entries for selected range`}
+          </span>
         </div>
         <div className="table-wrapper">
           <table>
@@ -175,15 +329,15 @@ export default function AccountingClient({
               </tr>
             </thead>
             <tbody>
-              {summary.entries.length === 0 && (
+              {filteredEntries.length === 0 && (
                 <tr>
                   <td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-light)' }}>
                     <span className="material-icons-outlined" style={{ fontSize: '36px', display: 'block', marginBottom: '8px' }}>account_balance_wallet</span>
-                    No entries yet. Add capital or create a loan to get started.
+                    No entries matching range filter.
                   </td>
                 </tr>
               )}
-              {summary.entries.map((entry: any) => {
+              {filteredEntries.map((entry: any) => {
                 const info = getTypeInfo(entry.type);
                 return (
                   <tr key={entry.id}>
@@ -215,7 +369,7 @@ export default function AccountingClient({
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label className="form-label">Entry Type *</label>
-            <select name="type" className="form-control" required>
+            <select name="type" className="form-control" value={modalType} onChange={e => setModalType(e.target.value)} required>
               {TYPE_OPTIONS.map(opt => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
