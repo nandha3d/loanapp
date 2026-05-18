@@ -22,7 +22,7 @@ export default async function EditLoanPage({
   const loan = await prisma.loan.findFirst({
     where: { id: resolvedParams.id, tenantId },
     include: {
-      customer: true,
+      customer: { include: { guarantors: true } },
       guarantor: true
     }
   });

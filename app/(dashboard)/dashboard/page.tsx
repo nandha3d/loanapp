@@ -5,6 +5,7 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getActiveBranchId } from '@/lib/branch';
+import { CollectCashButton, VerifyUpiButton } from './DashboardActions';
 
 type DashboardInstalment = {
   id: string;
@@ -62,6 +63,10 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     recentActivity,
     accountEntries,
     todayCollectionEntries,
+    highestBorrowerResult,
+    bestPayer,
+    pendingUpiCollections,
+    pendingCashCollections,
   ] = await Promise.all([
     prisma.customer.count({ where: { ...customerWhere, status: 'active' } }),
     prisma.loan.count({
@@ -146,6 +151,29 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
         customer: { select: { routeId: true } },
       },
     }),
+    prisma.loan.groupBy({
+      by: ['customerId'],
+      where: { tenantId, status: 'active' },
+      _sum: { principal: true },
+      orderBy: { _sum: { principal: 'desc' } },
+      take: 1
+    }),
+    prisma.customer.findFirst({
+      where: { 
+        tenantId, 
+        status: 'active', 
+        loans: { some: { paidCount: { gt: 0 }, instalments: { none: { status: 'missed' } } } } 
+      },
+      include: { loans: true },
+    }),
+    prisma.collectionEntry.findMany({
+      where: { tenantId, paymentMode: { in: ['upi', 'online'] }, verificationStatus: 'pending' },
+      include: { customer: true, loan: true, agent: true },
+    }),
+    prisma.collectionEntry.findMany({
+      where: { tenantId, paymentMode: 'cash', verificationStatus: 'pending' },
+      select: { receivedAmount: true, agentId: true, customer: { select: { routeId: true } } }
+    })
   ]);
 
   const todayExpected = todayInstalments.reduce((sum, item) => sum + Number(item.dueAmount), 0);
@@ -206,6 +234,14 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     else if (entry.type === 'expense') currentCapital -= amt;
   }
 
+  let highestBorrower = null;
+  if (highestBorrowerResult.length > 0) {
+    highestBorrower = await prisma.customer.findUnique({
+      where: { id: highestBorrowerResult[0].customerId },
+      include: { loans: true }
+    });
+  }
+
   return {
     totalCustomers,
     recentLoans,
@@ -234,6 +270,10 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
         .reduce((sum: number, e: any) => sum + Number(e.receivedAmount), 0);
       return { routeId: route.id, collected };
     }),
+    highestBorrower,
+    bestPayer,
+    pendingUpiCollections,
+    pendingCashCollections,
   };
 }
 
@@ -1075,6 +1115,34 @@ export default async function DashboardPage() {
         </div>
       )}
 
+      <div className="kpi-grid" style={{ marginTop: '20px' }}>
+        {data.bestPayer && (
+          <div className="card" style={{ padding: '20px', background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', color: 'white', borderRadius: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span className="material-icons-outlined" style={{ fontSize: '32px', opacity: 0.9 }}>star</span>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '.85rem', opacity: 0.9, fontWeight: 500 }}>Best Payer (Zero Overdue)</h4>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700, marginTop: '4px' }}>{data.bestPayer.name}</div>
+                <div style={{ fontSize: '.75rem', opacity: 0.8 }}>{data.bestPayer.customerCode} • {data.bestPayer.loans?.length || 0} Loans</div>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {data.highestBorrower && (
+          <div className="card" style={{ padding: '20px', background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)', color: 'white', borderRadius: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span className="material-icons-outlined" style={{ fontSize: '32px', opacity: 0.9 }}>account_balance</span>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '.85rem', opacity: 0.9, fontWeight: 500 }}>Highest Active Borrower</h4>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700, marginTop: '4px' }}>{data.highestBorrower.name}</div>
+                <div style={{ fontSize: '.75rem', opacity: 0.8 }}>{data.highestBorrower.customerCode} • {data.highestBorrower.loans?.length || 0} Loans</div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="grid-60-40" style={{ marginTop: '20px' }}>
         <div className="card">
           <div className="card-header">
@@ -1088,7 +1156,7 @@ export default async function DashboardPage() {
         </div>
 
         <div className="card">
-          <div className="card-header"><h3>Route Health</h3></div>
+          <div className="card-header"><h3>Collection Details</h3></div>
           <div className="table-wrapper">
             <table>
               <thead>
@@ -1098,11 +1166,17 @@ export default async function DashboardPage() {
                   <th>Customers</th>
                   <th>Collected Today</th>
                   <th>Overdue</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {data.routePerformance.map((route) => {
                   const routeCol = data.routeCollections?.find((rc: any) => rc.routeId === route.id);
+                  const agentId = data.pendingCashCollections?.find((p: any) => p.customer?.routeId === route.id)?.agentId;
+                  const pendingCash = data.pendingCashCollections
+                    ?.filter((p: any) => p.customer?.routeId === route.id)
+                    .reduce((sum: number, p: any) => sum + Number(p.receivedAmount), 0) || 0;
+
                   return (
                     <tr key={route.id}>
                       <td><strong>{route.name}</strong></td>
@@ -1113,6 +1187,18 @@ export default async function DashboardPage() {
                       </td>
                       <td style={{ color: route.overdue > 0 ? 'var(--danger)' : 'var(--success)', fontWeight: 700 }}>
                         {formatCurrency(route.overdue, branding.currencySymbol)}
+                      </td>
+                      <td>
+                        {agentId ? (
+                          <CollectCashButton 
+                            routeId={route.id} 
+                            agentId={agentId} 
+                            pendingAmount={pendingCash} 
+                            currencySymbol={branding.currencySymbol} 
+                          />
+                        ) : (
+                          <span style={{ color: 'var(--text-light)', fontSize: '.8rem' }}>—</span>
+                        )}
                       </td>
                     </tr>
                   );
@@ -1167,25 +1253,66 @@ export default async function DashboardPage() {
         </div>
 
         <div className="card">
-          <div className="card-header"><h3>Recent Activity</h3></div>
-          {data.recentActivity.length > 0 ? (
-            <div>
-              {data.recentActivity.map((log) => (
-                <div className="activity-item" key={log.id}>
-                  <div className="activity-dot"></div>
-                  <div style={{ flex: 1 }}>
-                    <div className="activity-text"><strong>{log.user?.name || 'System'}</strong> - {log.action} {log.entityType}</div>
-                    <div className="activity-time">{formatDate(log.createdAt)}</div>
-                  </div>
-                </div>
-              ))}
+          <div className="card-header">
+            <h3>Pending UPI Verifications</h3>
+          </div>
+          {data.pendingUpiCollections && data.pendingUpiCollections.length > 0 ? (
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Customer</th>
+                    <th>Agent</th>
+                    <th>Amount</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.pendingUpiCollections.map((upi: any) => (
+                    <tr key={upi.id}>
+                      <td>
+                        <strong>{upi.customer.name}</strong>
+                        <br />
+                        <span style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>{upi.loan.loanCode}</span>
+                      </td>
+                      <td>{upi.agent.name}</td>
+                      <td style={{ color: 'var(--primary)', fontWeight: 700 }}>{formatCurrency(upi.receivedAmount, branding.currencySymbol)}</td>
+                      <td>
+                        <VerifyUpiButton entryId={upi.id} amount={Number(upi.receivedAmount)} currencySymbol={branding.currencySymbol} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           ) : (
-            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-light)', fontSize: '.85rem' }}>
-              No activity recorded yet.
+            <div className="empty-state" style={{ padding: '24px' }}>
+              <span className="material-icons-outlined" style={{ fontSize: '36px', color: 'var(--success)' }}>verified</span>
+              <p style={{ marginTop: '8px', fontSize: '.85rem', color: 'var(--text-secondary)' }}>No pending UPI payments to verify.</p>
             </div>
           )}
         </div>
+      </div>
+
+      <div className="card" style={{ marginTop: '20px' }}>
+        <div className="card-header"><h3>Recent Activity</h3></div>
+        {data.recentActivity.length > 0 ? (
+          <div>
+            {data.recentActivity.map((log) => (
+              <div className="activity-item" key={log.id}>
+                <div className="activity-dot"></div>
+                <div style={{ flex: 1 }}>
+                  <div className="activity-text"><strong>{log.user?.name || 'System'}</strong> - {log.action} {log.entityType}</div>
+                  <div className="activity-time">{formatDate(log.createdAt)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-light)', fontSize: '.85rem' }}>
+            No activity recorded yet.
+          </div>
+        )}
       </div>
     </>
   );

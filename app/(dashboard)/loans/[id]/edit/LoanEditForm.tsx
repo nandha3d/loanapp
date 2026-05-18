@@ -68,6 +68,7 @@ export default function LoanEditForm({
       }
     } catch(e) {}
   }, [loan.collateralDetails, loan.loanType]);
+  const [existingGuarantorId, setExistingGuarantorId] = useState<string | null>(loan.guarantor?.id || null);
   const [guarantorName, setGuarantorName] = useState(loan.guarantor?.name || '');
   const [guarantorPhone, setGuarantorPhone] = useState(loan.guarantor?.phone || '');
   const [guarantorAadhar, setGuarantorAadhar] = useState(loan.guarantor?.aadharNumber || '');
@@ -75,6 +76,17 @@ export default function LoanEditForm({
   const [guarantorRelation, setGuarantorRelation] = useState(loan.guarantor?.relation || '');
   const [guarantorPhoto, setGuarantorPhoto] = useState<File | null>(null);
   const [guarantorPhotoPreview, setGuarantorPhotoPreview] = useState<string | null>(loan.guarantor?.photo || null);
+
+  const pickExistingGuarantor = (g: any) => {
+    setExistingGuarantorId(g.id || null);
+    setGuarantorName(g.name || '');
+    setGuarantorPhone(g.phone || '');
+    setGuarantorAadhar(g.aadharNumber || '');
+    setGuarantorAddress(g.address || '');
+    setGuarantorRelation(g.relation || '');
+    setGuarantorPhotoPreview(g.photo || null);
+    setGuarantorPhoto(null);
+  };
   const [voucherRef, setVoucherRef] = useState(loan.voucherRef || '');
   
   // --- Cheque handlers ---
@@ -151,6 +163,12 @@ export default function LoanEditForm({
 
   // Removed static computed values, using calculatedData from API
 
+  const isEmiAddition = interestType.startsWith('emi_');
+  const setCalcModel = (model: 'upfront' | 'emi') => {
+    if (model === 'upfront') setInterestType('upfront_fixed');
+    else setInterestType('emi_flat');
+  };
+
   const loanTypeLabels: Record<string, string> = {
     cheque: appType === 'autofinance' ? 'Vehicle / Cheque' : (dict.loans.chequeBased || 'Cheque Based'),
   };
@@ -186,6 +204,7 @@ export default function LoanEditForm({
       colObj = { type: propertyType, value: propertyValue, address: propertyAddress };
     }
     fd.set('collateralDetails', JSON.stringify(colObj));
+    fd.set('guarantorId', existingGuarantorId || '');
     fd.set('guarantorName', guarantorName);
     fd.set('guarantorPhone', guarantorPhone);
     fd.set('guarantorAadhar', guarantorAadhar);
@@ -281,36 +300,55 @@ export default function LoanEditForm({
         </div>
 
         <div className="form-group">
-          <label className="form-label">Repayment Plan Model *</label>
-          <div style={{ display: 'flex', gap: '4px', background: 'var(--bg-alt)', padding: '4px', borderRadius: 'var(--radius-sm)', marginBottom: '16px' }}>
-            {[
-              { id: 'upfront_fixed', label: 'Upfront Fixed ⬇️', icon: 'money_off' },
-              { id: 'upfront_percentage', label: 'Upfront % 📉', icon: 'percent' },
-              { id: 'emi_flat', label: 'EMI Flat 📈', icon: 'add_chart' },
-              { id: 'emi_floating', label: 'EMI Floating 🌀', icon: 'trending_up' },
-            ].map(type => (
-              <button
-                key={type.id}
-                type="button"
-                onClick={() => setInterestType(type.id)}
-                style={{
-                  flex: 1, padding: '10px 4px', borderRadius: 'var(--radius-xs)', fontSize: '.75rem', fontWeight: 700,
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', border: 'none',
-                  background: interestType === type.id ? 'var(--primary)' : 'transparent',
-                  color: interestType === type.id ? '#FFF' : 'var(--text-secondary)',
-                  cursor: 'pointer', transition: 'all .2s'
-                }}
-              >
-                <span className="material-icons-outlined" style={{ fontSize: '18px' }}>{type.icon}</span>
-                {type.label}
-              </button>
-            ))}
+          <label className="form-label">Repayment Plan Model</label>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+            <button type="button" onClick={() => setCalcModel('upfront')} style={{
+              padding: '8px 16px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+              border: !isEmiAddition ? '2px solid var(--primary)' : '2px solid var(--border)',
+              background: !isEmiAddition ? 'var(--primary-light)' : 'var(--bg)',
+              color: !isEmiAddition ? 'var(--primary-dark)' : 'var(--text)',
+              fontWeight: !isEmiAddition ? 700 : 400, flex: 1
+            }}>⬇️ Upfront Deduction</button>
+            
+            <button type="button" onClick={() => setCalcModel('emi')} style={{
+              padding: '8px 16px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+              border: isEmiAddition ? '2px solid var(--primary)' : '2px solid var(--border)',
+              background: isEmiAddition ? 'var(--primary-light)' : 'var(--bg)',
+              color: isEmiAddition ? 'var(--primary-dark)' : 'var(--text)',
+              fontWeight: isEmiAddition ? 700 : 400, flex: 1
+            }}>📈 EMI Addition</button>
+          </div>
+          
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', background: 'var(--bg)', padding: '8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+            {!isEmiAddition ? (
+              <>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '.9rem', cursor: 'pointer' }}>
+                  <input type="radio" checked={interestType === 'upfront_fixed'} onChange={() => setInterestType('upfront_fixed')} /> Fixed Amount
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '.9rem', cursor: 'pointer' }}>
+                  <input type="radio" checked={interestType === 'upfront_percentage'} onChange={() => setInterestType('upfront_percentage')} /> % Percentage
+                </label>
+              </>
+            ) : (
+              <>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '.9rem', cursor: 'pointer' }}>
+                  <input type="radio" checked={interestType === 'emi_flat'} onChange={() => setInterestType('emi_flat')} /> Flat Interest
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '.9rem', cursor: 'pointer' }}>
+                  <input type="radio" checked={interestType === 'emi_floating'} onChange={() => setInterestType('emi_floating')} /> Floating (APR)
+                </label>
+              </>
+            )}
           </div>
         </div>
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{interestType.startsWith('upfront') ? 'Deduction Amount/Rate' : 'Interest Rate (%)'} *</label>
+            <label className="form-label">
+              {interestType === 'upfront_percentage' || interestType.includes('emi_')
+                ? `Interest / Rate (%) *`
+                : `${dict.loans.deduction} Amount (${currencySymbol}) *`}
+            </label>
             <input type="number" name="deduction" className="form-control" value={deduction} onChange={e => setDeduction(e.target.value ? Number(e.target.value) : '')} required style={{ fontSize: '1.1rem', padding: '12px' }} />
           </div>
           <div className="form-group">
@@ -384,6 +422,25 @@ export default function LoanEditForm({
             <span className="material-icons-outlined">verified_user</span> 🛡️ Guarantor Details
           </h4>
         </div>
+
+        {loan.customer?.guarantors?.length > 0 && (
+          <div style={{ marginBottom: '12px' }}>
+            <label className="form-label" style={{ fontSize: '.75rem', opacity: .7 }}>Existing Guarantors for this customer:</label>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {loan.customer.guarantors.map((g: any) => (
+                <button 
+                  key={g.id} 
+                  type="button" 
+                  className="btn btn-ghost btn-sm" 
+                  onClick={() => pickExistingGuarantor(g)}
+                  style={{ padding: '4px 12px', fontSize: '.8rem', border: '1px solid var(--border)', borderRadius: '20px' }}
+                >
+                  {g.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '14px', background: 'var(--bg)', marginBottom: '20px' }}>
           <div className="form-group">

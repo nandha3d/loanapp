@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
+import QRCode from 'qrcode';
 import { formatCurrency, formatDate, getBadgeClass, calcPercentage } from '@/lib/utils';
 import { markInstalmentPaid, requestCollectionEdit, waiveLoanPenalty, settleLoanPenalty, closeLoan, renewLoan } from './actions';
 import Link from 'next/link';
@@ -88,7 +89,7 @@ export default function LoanDetailClient({
     const dist = JSON.parse(JSON.stringify(loan.instalments));
     let remaining = totalCollected;
     const today = new Date();
-    today.setHours(23, 59, 59, 999); // Include today fully
+    today.setHours(0, 0, 0, 0); // Start of today (don't mark missed until tomorrow)
 
     if (viewMode === 'distributed') {
       for (const inst of dist) {
@@ -183,14 +184,8 @@ export default function LoanDetailClient({
   }, [dynamicPaidCount, loan.totalInstalments]);
 
   const remainingScheduledCount = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const count = displayInstalments.filter((inst: any) => {
-      const dueDate = new Date(inst.dueDate);
-      dueDate.setHours(0, 0, 0, 0);
-      return dueDate >= today;
-    }).length;
-    return count || 1;
+    const unpaidCount = displayInstalments.filter((inst: any) => inst.status !== 'paid').length;
+    return unpaidCount || 1;
   }, [displayInstalments]);
 
   const adjustedInstallment = useMemo(() => {
@@ -218,6 +213,20 @@ export default function LoanDetailClient({
   const [payMode, setPayMode] = useState('cash');
   const [payRemarks, setPayRemarks] = useState('');
   const [payReason, setPayReason] = useState('');
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
+
+  useEffect(() => {
+    if (payMode === 'upi' && payAmount > 0) {
+      // Create a standard UPI URI.
+      const upiId = 'admin@upi'; // Default placeholder, can be made dynamic per branch later
+      const upiUri = `upi://pay?pa=${upiId}&pn=Kandhu&am=${payAmount}&cu=INR`;
+      QRCode.toDataURL(upiUri, { width: 180, margin: 1 }, (err, url) => {
+        if (!err) setQrCodeUrl(url);
+      });
+    } else {
+      setQrCodeUrl('');
+    }
+  }, [payMode, payAmount]);
 
   const [penAction, setPenAction] = useState<'waive' | 'settle'>('settle');
   const [penAmount, setPenAmount] = useState(0);
@@ -800,6 +809,12 @@ export default function LoanDetailClient({
                       <option value="bank_transfer">{d.bankTransfer}</option>
                     </select>
                   </div>
+                  {payMode === 'upi' && qrCodeUrl && (
+                    <div style={{ textAlign: 'center', margin: '16px 0', padding: '16px', background: '#fff', border: '1px dashed var(--border)', borderRadius: '8px' }}>
+                      <p style={{ fontSize: '.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px', marginTop: 0 }}>Scan to Pay via UPI</p>
+                      <img src={qrCodeUrl} alt="UPI QR Code" style={{ display: 'block', margin: '0 auto', width: '150px', height: '150px' }} />
+                    </div>
+                  )}
                   <div className="form-group">
                     <label className="form-label">{d.remarksOptional}</label>
                     <input type="text" className="form-control" style={{ fontSize: '1rem', padding: '12px' }} value={payRemarks} onChange={(e) => setPayRemarks(e.target.value)} placeholder={d.notesPlaceholder} />
