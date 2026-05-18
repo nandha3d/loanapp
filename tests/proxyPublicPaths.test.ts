@@ -9,6 +9,7 @@ assert.equal(getRoleRedirectTarget('/loans', 'agent'), null);
 assert.equal(getRoleRedirectTarget('/customers/new', 'agent'), null);
 assert.equal(getRoleRedirectTarget('/customers/customer-1/edit', 'agent'), '/customers');
 assert.equal(getRoleRedirectTarget('/reports', 'agent'), '/collection');
+assert.equal(getRoleRedirectTarget('/portal', 'agent'), '/collection');
 assert.equal(getRoleRedirectTarget('/dashboard', 'developer'), '/admin');
 assert.equal(getRoleRedirectTarget('/admin', 'admin'), '/dashboard');
 assert.equal(getRoleRedirectTarget('/portal', 'superadmin'), null);

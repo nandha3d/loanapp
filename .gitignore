@@ -17,6 +17,10 @@
 /.next/
 /out/
 
+# test folders
+/tests
+/Testing
+
 # production
 /build
 

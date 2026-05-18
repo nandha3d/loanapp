@@ -13,6 +13,7 @@ import fs from 'fs';
 import path from 'path';
 import { encryptAadharNumber } from '@/lib/pii';
 import { ALLOWED_UPLOAD_MIME_TYPES, MAX_UPLOAD_SIZE_BYTES, validateFileBytes } from '@/lib/fileUpload';
+import { canCreateLoanForRole, validateLoanNumericInputs } from '@/lib/loanPolicy';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'private', 'uploads');
 
@@ -44,8 +45,12 @@ export async function createLoan(formData: FormData) {
   const appType = await getUserAppType();
   const activeBranchId = await getActiveBranchId();
 
-  if (!createdById || !['admin', 'superadmin', 'developer', 'agent'].includes(role)) {
+  if (!createdById) {
     redirect('/collection');
+  }
+
+  if (!canCreateLoanForRole(role)) {
+    return { error: 'Unauthorized to create loans.' };
   }
 
   if (role !== 'developer' && !activeBranchId) {
@@ -69,16 +74,16 @@ export async function createLoan(formData: FormData) {
   }
 
   const customerId = formData.get('customerId') as string;
-  const principal = Number(formData.get('principal')) || 0;
+  const principal = Number(formData.get('principal'));
   const interestType = (formData.get('deductionType') as string) || 'upfront_fixed';
   // Note: we still use 'deduction' name from form for the rate/amount input to match DB if needed,
   // but let's treat it as the rate/amount.
-  const rate = Number(formData.get('deduction')) || 0;
+  const rate = Number(formData.get('deduction'));
   const frequency = formData.get('frequency') as string;
-  const tenure = Number(formData.get('tenure')) || 1;
+  const tenure = Number(formData.get('tenure'));
   const startDateStr = formData.get('startDate') as string;
   const packageId = formData.get('packageId') as string || null;
-  const penaltyRate = Number(formData.get('penaltyRate')) || 0;
+  const penaltyRate = Number(formData.get('penaltyRate'));
   const voucherRef = formData.get('voucherRef') as string;
   const loanType = formData.get('loanType') as string || 'cheque';
   const collateralDetails = formData.get('collateralDetails') as string || null;
@@ -91,7 +96,15 @@ export async function createLoan(formData: FormData) {
   const guarantorPhotoFile = formData.get('guarantorPhoto') as File | null;
   const dueDay = formData.get('dueDay') ? Number(formData.get('dueDay')) : null;
 
+  const numericValidation = validateLoanNumericInputs({ principal, rate, tenure, penaltyRate });
+  if (!numericValidation.valid) {
+    return { error: numericValidation.error };
+  }
+
   const startDate = new Date(startDateStr);
+  if (!startDateStr || Number.isNaN(startDate.getTime())) {
+    return { error: 'Invalid start date.' };
+  }
   const endDate = calculateEndDate(startDate, frequency, tenure);
 
   let disbursed = principal;
