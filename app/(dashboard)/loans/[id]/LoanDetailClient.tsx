@@ -59,39 +59,143 @@ export default function LoanDetailClient({
 }) {
   const d = dict.loanDetail;
   const router = useRouter();
-  const pct = calcPercentage(loan.paidCount, loan.totalInstalments);
   const isAdmin = userRole === 'admin' || userRole === 'superadmin';
   const totalCollected = Number(loan.totalCollected || 0);
+  const totalRepayable = Number(loan.perInstalment) * loan.totalInstalments;
+  const outstanding = totalRepayable - totalCollected;
   
-  const [isDistributedView, setIsDistributedView] = useState(false);
+  const [viewMode, setViewMode] = useState<'actual' | 'distributed' | 'recent_first'>('actual');
+  const [showRestructuredRates, setShowRestructuredRates] = useState(false);
+  const [highlightedInstalmentNo, setHighlightedInstalmentNo] = useState<number | null>(null);
+
+  const scrollToInstalment = (instalmentNo: number) => {
+    setHighlightedInstalmentNo(instalmentNo);
+    setTimeout(() => {
+      const el = document.getElementById(`inst-row-${instalmentNo}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 50);
+    // Clear highlight after 2.5 seconds
+    setTimeout(() => {
+      setHighlightedInstalmentNo(null);
+    }, 2500);
+  };
 
   const displayInstalments = useMemo(() => {
-    if (!isDistributedView) return loan.instalments;
+    if (viewMode === 'actual') return loan.instalments;
     
     const dist = JSON.parse(JSON.stringify(loan.instalments));
     let remaining = totalCollected;
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    today.setHours(23, 59, 59, 999); // Include today fully
 
-    for (const inst of dist) {
-      const due = Number(inst.dueAmount);
-      if (remaining >= due) {
-        inst.receivedAmount = due;
-        inst.status = 'paid';
-        remaining -= due;
-      } else if (remaining > 0) {
-        inst.receivedAmount = remaining;
-        inst.status = 'partial';
-        remaining = 0;
-      } else {
-        inst.receivedAmount = 0;
-        const dueDate = new Date(inst.dueDate);
-        dueDate.setHours(0, 0, 0, 0);
-        inst.status = dueDate < today ? 'missed' : 'upcoming';
+    if (viewMode === 'distributed') {
+      for (const inst of dist) {
+        const due = Number(inst.dueAmount);
+        if (remaining >= due) {
+          inst.receivedAmount = due;
+          inst.status = 'paid';
+          remaining -= due;
+        } else if (remaining > 0) {
+          inst.receivedAmount = remaining;
+          inst.status = 'partial';
+          remaining = 0;
+        } else {
+          inst.receivedAmount = 0;
+          const dueDate = new Date(inst.dueDate);
+          dueDate.setHours(0, 0, 0, 0);
+          inst.status = dueDate < today ? 'missed' : 'upcoming';
+        }
       }
+      return dist;
+    } else {
+      // viewMode === 'recent_first' (Retroactive Targeted Sequential adjustment of extras)
+      // 1. Iterate chronologically to find excess payments, and apply them retroactively to previous outstanding days
+      for (let i = 0; i < dist.length; i++) {
+        const inst = dist[i];
+        const due = Number(inst.dueAmount);
+        let received = Number(inst.receivedAmount || 0);
+
+        if (received > due) {
+          let extra = received - due;
+          // Set current installment's received amount to exactly due (fully paid)
+          inst.receivedAmount = due;
+          inst.status = 'paid';
+
+          // Distribute the extra retroactively to previous outstanding installments
+          for (let j = i - 1; j >= 0; j--) {
+            if (extra <= 0) break;
+            const prevInst = dist[j];
+            const prevDue = Number(prevInst.dueAmount);
+            const prevReceived = Number(prevInst.receivedAmount || 0);
+            
+            if (prevReceived < prevDue) {
+              const gap = prevDue - prevReceived;
+              if (extra >= gap) {
+                prevInst.receivedAmount = prevDue;
+                prevInst.status = 'paid';
+                extra -= gap;
+              } else {
+                prevInst.receivedAmount = prevReceived + extra;
+                prevInst.status = 'partial';
+                extra = 0;
+              }
+            }
+          }
+
+          // If there is still extra left, add it back to the current installment's received amount
+          if (extra > 0) {
+            inst.receivedAmount = due + extra;
+          }
+        }
+      }
+
+      // 2. For any installment, recalculate status based on final simulated received amount and due date
+      for (const inst of dist) {
+        const due = Number(inst.dueAmount);
+        const received = Number(inst.receivedAmount || 0);
+        if (received >= due) {
+          inst.status = 'paid';
+        } else if (received > 0) {
+          inst.status = 'partial';
+        } else {
+          const dueDate = new Date(inst.dueDate);
+          dueDate.setHours(0, 0, 0, 0);
+          inst.status = dueDate < today ? 'missed' : 'upcoming';
+        }
+      }
+
+      return dist;
     }
-    return dist;
-  }, [loan.instalments, isDistributedView, totalCollected]);
+  }, [loan.instalments, viewMode, totalCollected]);
+
+  const dynamicRemainingCount = useMemo(() => {
+    return Math.ceil(outstanding / Number(loan.perInstalment));
+  }, [outstanding, loan.perInstalment]);
+
+  const dynamicPaidCount = useMemo(() => {
+    return Math.max(0, loan.totalInstalments - dynamicRemainingCount);
+  }, [loan.totalInstalments, dynamicRemainingCount]);
+
+  const pct = useMemo(() => {
+    return Math.round((dynamicPaidCount / loan.totalInstalments) * 100);
+  }, [dynamicPaidCount, loan.totalInstalments]);
+
+  const remainingScheduledCount = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const count = displayInstalments.filter((inst: any) => {
+      const dueDate = new Date(inst.dueDate);
+      dueDate.setHours(0, 0, 0, 0);
+      return dueDate >= today;
+    }).length;
+    return count || 1;
+  }, [displayInstalments]);
+
+  const adjustedInstallment = useMemo(() => {
+    return Math.round((outstanding / remainingScheduledCount) * 100) / 100;
+  }, [outstanding, remainingScheduledCount]);
 
   const missedInstalments = displayInstalments.filter((i: any) => i.status === 'missed');
   const missedCount = missedInstalments.length;
@@ -121,7 +225,11 @@ export default function LoanDetailClient({
 
   const openPaymentModal = (inst: any) => {
     const isPaid = Number(inst.receivedAmount) > 0;
-    setPayAmount(isPaid ? Number(inst.receivedAmount) : Number(inst.dueAmount));
+    let defaultAmount = Number(inst.dueAmount);
+    if (!isPaid && showRestructuredRates) {
+      defaultAmount = adjustedInstallment;
+    }
+    setPayAmount(isPaid ? Number(inst.receivedAmount) : defaultAmount);
     setPayMode(inst.paymentMode || 'cash');
     setPayRemarks(inst.remarks || '');
     setPayReason('');
@@ -234,8 +342,6 @@ export default function LoanDetailClient({
     }
   };
 
-  const totalRepayable = Number(loan.perInstalment) * loan.totalInstalments;
-  const outstanding = totalRepayable - totalCollected;
   const { score: creditScore, grade: creditGrade } = calculateCreditScore(loan.customer.loans || []);
 
   return (
@@ -253,6 +359,55 @@ export default function LoanDetailClient({
         .heatmap-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid #F1F5F9; padding-bottom: 8px; }
         .heatmap-legend { display: flex; gap: 10px; fontSize: .68rem; color: var(--text-secondary); fontWeight: 600; }
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+        .heatmap-cell {
+          position: relative;
+          cursor: pointer;
+          transition: transform 0.15s ease, filter 0.15s ease;
+        }
+        .heatmap-cell:hover {
+          transform: scale(1.25);
+          filter: brightness(1.15);
+          z-index: 10;
+        }
+        .heatmap-cell .tooltip-content {
+          visibility: hidden;
+          opacity: 0;
+          width: 190px;
+          background-color: #1E293B;
+          color: #fff;
+          text-align: left;
+          border-radius: 6px;
+          padding: 8px 10px;
+          position: absolute;
+          bottom: 130%;
+          left: 50%;
+          margin-left: -95px;
+          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
+          transition: opacity 0.15s ease, visibility 0.15s ease;
+          z-index: 100;
+          font-size: 0.72rem;
+          line-height: 1.4;
+          pointer-events: none;
+          border: 1px solid #334155;
+        }
+        .heatmap-cell .tooltip-content::after {
+          content: "";
+          position: absolute;
+          top: 100%;
+          left: 50%;
+          margin-left: -5px;
+          border-width: 5px;
+          border-style: solid;
+          border-color: #1E293B transparent transparent transparent;
+        }
+        .heatmap-cell:hover .tooltip-content {
+          visibility: visible;
+          opacity: 1;
+        }
+        .highlight-row {
+          background-color: rgba(26, 115, 232, 0.15) !important;
+          transition: background-color 0.3s ease;
+        }
         @media (max-width: 1400px) { .meta-col { grid-template-columns: repeat(2, 1fr); } }
         @media (max-width: 1200px) { .loan-main-row { flex-wrap: wrap; } .heatmap-col { border: none; flex: 1 1 100%; order: 3; margin-top: 16px; padding: 16px 0; border-top: 1px solid var(--border); } .stats-col { order: 2; } }
         @media (max-width: 768px) { .meta-col { grid-template-columns: repeat(2, 1fr); } .avatar-col { border: none; padding-right: 0; width: 100%; margin-bottom: 16px; } .stats-col { width: 100%; justify-content: center; } }
@@ -285,17 +440,22 @@ export default function LoanDetailClient({
             <div style={{ marginLeft: '16px', display: 'flex', background: '#F1F5F9', borderRadius: '6px', padding: '2px' }}>
               <button 
                 type="button"
-                onClick={() => setIsDistributedView(false)}
-                style={{ padding: '4px 10px', fontSize: '.7rem', fontWeight: 600, border: 'none', background: !isDistributedView ? '#fff' : 'transparent', color: !isDistributedView ? 'var(--primary)' : 'var(--text-secondary)', borderRadius: '4px', cursor: 'pointer', boxShadow: !isDistributedView ? '0 1px 2px rgba(0,0,0,0.05)' : 'none', transition: 'all 0.2s' }}
-              >Literal</button>
+                onClick={() => setViewMode('actual')}
+                style={{ padding: '4px 10px', fontSize: '.7rem', fontWeight: 600, border: 'none', background: viewMode === 'actual' ? '#fff' : 'transparent', color: viewMode === 'actual' ? 'var(--primary)' : 'var(--text-secondary)', borderRadius: '4px', cursor: 'pointer', boxShadow: viewMode === 'actual' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none', transition: 'all 0.2s' }}
+              >Actual</button>
               <button 
                 type="button"
-                onClick={() => setIsDistributedView(true)}
-                style={{ padding: '4px 10px', fontSize: '.7rem', fontWeight: 600, border: 'none', background: isDistributedView ? '#fff' : 'transparent', color: isDistributedView ? 'var(--primary)' : 'var(--text-secondary)', borderRadius: '4px', cursor: 'pointer', boxShadow: isDistributedView ? '0 1px 2px rgba(0,0,0,0.05)' : 'none', transition: 'all 0.2s' }}
+                onClick={() => setViewMode('distributed')}
+                style={{ padding: '4px 10px', fontSize: '.7rem', fontWeight: 600, border: 'none', background: viewMode === 'distributed' ? '#fff' : 'transparent', color: viewMode === 'distributed' ? 'var(--primary)' : 'var(--text-secondary)', borderRadius: '4px', cursor: 'pointer', boxShadow: viewMode === 'distributed' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none', transition: 'all 0.2s' }}
               >Distributed</button>
+              <button 
+                type="button"
+                onClick={() => setViewMode('recent_first')}
+                style={{ padding: '4px 10px', fontSize: '.7rem', fontWeight: 600, border: 'none', background: viewMode === 'recent_first' ? '#fff' : 'transparent', color: viewMode === 'recent_first' ? 'var(--primary)' : 'var(--text-secondary)', borderRadius: '4px', cursor: 'pointer', boxShadow: viewMode === 'recent_first' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none', transition: 'all 0.2s' }}
+              >Retroactive</button>
             </div>
           </div>
-
+ 
           <div className="loan-main-row">
             <div className="avatar-col">
               <div style={{ width: '140px', height: '140px', borderRadius: '16px', overflow: 'hidden', border: '2px solid var(--border)', background: '#F8FAFC', marginBottom: '4px' }}>
@@ -308,7 +468,7 @@ export default function LoanDetailClient({
                 )}
               </div>
             </div>
-
+ 
             <div className="meta-col">
               <div><div className="cm-label">{d.principal}</div><div className="cm-value">{formatCurrency(loan.principal, currencySymbol)}</div></div>
               <div><div className="cm-label">{d.repayable}</div><div className="cm-value" style={{ color: 'var(--primary)' }}>{formatCurrency(totalRepayable, currencySymbol)}</div></div>
@@ -319,9 +479,43 @@ export default function LoanDetailClient({
               <div><div className="cm-label">{d.perInst}</div><div className="cm-value">{formatCurrency(loan.perInstalment, currencySymbol)}</div></div>
               <div><div className="cm-label">{d.collected}</div><div className="cm-value" style={{ color: 'var(--success)' }}>{formatCurrency(totalCollected, currencySymbol)}</div></div>
               <div><div className="cm-label">{d.outstanding}</div><div className="cm-value" style={{ color: outstanding > 0 ? 'var(--danger)' : 'var(--success)' }}>{formatCurrency(outstanding, currencySymbol)}</div></div>
-            </div>
+              
+              <div>
+                <div className="cm-label">Paid Period</div>
+                <div className="cm-value" style={{ color: 'var(--success)' }}>
+                  {dynamicPaidCount} {loan.frequency === 'daily' ? 'Days' : loan.frequency === 'weekly' ? 'Weeks' : 'Months'}
+                </div>
+              </div>
+              <div>
+                <div className="cm-label">Remaining</div>
+                <div className="cm-value" style={{ color: 'var(--danger)' }}>
+                  {dynamicRemainingCount} {loan.frequency === 'daily' ? 'Days' : loan.frequency === 'weekly' ? 'Weeks' : 'Months'}
+                </div>
+              </div>
 
+              {outstanding > 0 && (
+                <div style={{ gridColumn: 'span 4', borderTop: '1px dashed var(--border)', paddingTop: '12px', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <span style={{ fontSize: '.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>💡 Finishing Rate Option (Even Distribution)</span>
+                    <p style={{ fontSize: '.68rem', color: 'var(--text-light)', margin: '2px 0 0' }}>
+                      To settle outstanding {formatCurrency(outstanding, currencySymbol)} on-time across the remaining {remainingScheduledCount} scheduled {loan.frequency === 'daily' ? 'days' : loan.frequency === 'weekly' ? 'weeks' : 'months'}:
+                    </p>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontSize: '.9rem', fontWeight: 800, color: 'var(--primary)' }}>
+                      {formatCurrency(adjustedInstallment, currencySymbol)}
+                    </span>
+                    <span style={{ fontSize: '.68rem', color: 'var(--text-light)' }}> / {loan.frequency === 'daily' ? 'Day' : loan.frequency === 'weekly' ? 'Week' : 'Month'}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+ 
             <div className="heatmap-col">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', borderBottom: '1px solid #F1F5F9', paddingBottom: '4px' }}>
+                <span style={{ fontSize: '.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>📊 Calendar Tracker</span>
+                <span style={{ fontSize: '.65rem', color: 'var(--text-light)' }}>Hover for info • Click to scroll</span>
+              </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', padding: '8px 0' }}>
                 {displayInstalments.map((inst: any) => {
                   let bg = '#E2E8F0';
@@ -329,22 +523,44 @@ export default function LoanDetailClient({
                   else if (inst.status === 'partial') bg = '#F59E0B';
                   else if (inst.status === 'missed') bg = '#EF4444';
                   return (
-                    <div key={inst.id} title={`#${inst.instalmentNo}`} style={{ width: '18px', height: '18px', borderRadius: '3px', backgroundColor: bg }} />
+                    <div 
+                      key={inst.id} 
+                      className="heatmap-cell"
+                      onClick={() => scrollToInstalment(inst.instalmentNo)}
+                      style={{ width: '18px', height: '18px', borderRadius: '3px', backgroundColor: bg }}
+                    >
+                      <div className="tooltip-content">
+                        <div style={{ fontWeight: 800, marginBottom: '2px', borderBottom: '1px solid #475569', paddingBottom: '2px', fontSize: '.75rem' }}>
+                          Instalment #{inst.instalmentNo}
+                        </div>
+                        <div>Due: <strong>{formatDate(inst.dueDate)}</strong></div>
+                        <div>Expected: <strong>{formatCurrency(inst.dueAmount, currencySymbol)}</strong></div>
+                        <div>Collected: <strong>{formatCurrency(inst.receivedAmount || 0, currencySymbol)}</strong></div>
+                        <div style={{ textTransform: 'capitalize', marginTop: '2px', fontWeight: 700, color: inst.status === 'paid' ? '#4ADE80' : inst.status === 'partial' ? '#FBBF24' : '#F87171' }}>
+                          Status: {inst.status}
+                        </div>
+                        <div style={{ fontSize: '.58rem', color: '#94A3B8', marginTop: '4px', textAlign: 'center', fontStyle: 'italic' }}>
+                          Click to scroll & highlight
+                        </div>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
             </div>
-
-            <div className="stats-col">
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ position: 'relative', width: '64px', height: '64px', margin: '0 auto' }}>
-                  <svg viewBox="0 0 36 36" style={{ width: '64px', height: '64px', transform: 'rotate(-90deg)' }}>
-                    <circle cx="18" cy="18" r="15.9" fill="none" stroke="#F1F5F9" strokeWidth="4" />
-                    <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--primary)" strokeWidth="4" strokeDasharray={`${pct}, 100`} strokeLinecap="round" />
-                  </svg>
-                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.85rem', fontWeight: 800 }}>{pct}%</div>
+ 
+            <div className="stats-col" style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '20px', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ position: 'relative', width: '56px', height: '56px', margin: '0 auto' }}>
+                    <svg viewBox="0 0 36 36" style={{ width: '56px', height: '56px', transform: 'rotate(-90deg)' }}>
+                      <circle cx="18" cy="18" r="15.9" fill="none" stroke="#F1F5F9" strokeWidth="4" />
+                      <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--primary)" strokeWidth="4" strokeDasharray={`${pct}, 100`} strokeLinecap="round" />
+                    </svg>
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.75rem', fontWeight: 800 }}>{pct}%</div>
+                  </div>
+                  <div style={{ fontSize: '.55rem', color: 'var(--text-secondary)', marginTop: '4px', fontWeight: 700, textTransform: 'uppercase' }}>{dynamicPaidCount}/{loan.totalInstalments} {d.paid}</div>
                 </div>
-                <div style={{ fontSize: '.6rem', color: 'var(--text-secondary)', marginTop: '4px', fontWeight: 700, textTransform: 'uppercase' }}>{loan.paidCount}/{loan.totalInstalments} {d.paid}</div>
               </div>
               <CreditScoreGauge score={creditScore} grade={creditGrade} />
             </div>
@@ -354,7 +570,20 @@ export default function LoanDetailClient({
 
       <div className="grid-60-40">
         <div className="card">
-          <div className="card-header"><h3>📅 {d.paymentSchedule}</h3></div>
+          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3>📅 {d.paymentSchedule}</h3>
+            {outstanding > 0 && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '.72rem', color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
+                <input 
+                  type="checkbox" 
+                  checked={showRestructuredRates} 
+                  onChange={(e) => setShowRestructuredRates(e.target.checked)} 
+                  style={{ width: '13px', height: '13px', cursor: 'pointer' }}
+                />
+                <strong>Show Restructured Rate</strong>
+              </label>
+            )}
+          </div>
           <div className="table-wrapper" style={{ maxHeight: '500px', overflowY: 'auto' }}>
             <table>
               <thead>
@@ -369,15 +598,34 @@ export default function LoanDetailClient({
                 </tr>
               </thead>
               <tbody>
-                {displayInstalments.map((inst: any) => {
+                 {displayInstalments.map((inst: any) => {
                   const collectedTime = inst.receivedAt ? new Date(inst.receivedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : null;
                   const isPaid = Number(inst.receivedAmount) > 0;
+                  const isHighlighted = highlightedInstalmentNo === inst.instalmentNo;
                   return (
-                    <tr key={inst.id} style={{ opacity: inst.status === 'paid' ? 0.6 : 1 }}>
+                    <tr 
+                      key={inst.id} 
+                      id={`inst-row-${inst.instalmentNo}`}
+                      className={isHighlighted ? 'highlight-row' : ''}
+                      style={{ opacity: inst.status === 'paid' && !isHighlighted ? 0.6 : 1 }}
+                    >
                       <td>{inst.instalmentNo}</td>
                       <td>{formatDate(inst.dueDate)}</td>
                       <td style={{ fontSize: '.78rem', color: 'var(--text-secondary)' }}>{collectedTime || '—'}</td>
-                      <td>{formatCurrency(inst.dueAmount, currencySymbol)}</td>
+                      <td>
+                        {showRestructuredRates && inst.status !== 'paid' && new Date(inst.dueDate) >= new Date(new Date().setHours(0,0,0,0)) ? (
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ color: 'var(--primary)', fontWeight: 800 }}>
+                              {formatCurrency(adjustedInstallment, currencySymbol)}
+                            </span>
+                            <span style={{ fontSize: '.58rem', color: 'var(--text-light)', textDecoration: 'line-through' }}>
+                              {formatCurrency(inst.dueAmount, currencySymbol)}
+                            </span>
+                          </div>
+                        ) : (
+                          formatCurrency(inst.dueAmount, currencySymbol)
+                        )}
+                      </td>
                       <td>{isPaid ? formatCurrency(inst.receivedAmount, currencySymbol) : '—'}</td>
                       <td><span className={getBadgeClass(inst.status)} style={{textTransform:'capitalize'}}>{inst.status}</span></td>
                       <td>

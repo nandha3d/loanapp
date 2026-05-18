@@ -120,13 +120,20 @@ export async function createRoute(formData: FormData) {
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
   
+  const agentIds = formData.getAll('agentIds') as string[];
+  
   const newRoute = await prisma.route.create({
     data: {
       tenantId,
       name: formData.get('name') as string,
-      assignedAgentId: formData.get('assignedAgentId') as string || null,
       appType,
       status: 'active',
+      routeAgents: {
+        create: agentIds.map(id => ({
+          agentId: id,
+          isPrimary: false
+        }))
+      }
     }
   });
   
@@ -402,3 +409,68 @@ export async function importCollections(data: any[]) {
   revalidatePath('/collection');
   return results;
 }
+
+export async function wipeDatabaseRecords(tablesToWipe: string[]) {
+  const session = await auth();
+  const role = (session?.user as any)?.role;
+  const userId = session?.user?.id;
+  
+  if (!userId || role !== 'superadmin') {
+    return { success: false, error: 'Unauthorized: Only Superadmins can perform this action' };
+  }
+  
+  const tenantId = await getDefaultTenantId();
+  
+  try {
+    await prisma.$transaction(async (tx) => {
+      if (tablesToWipe.includes('loans')) {
+        await tx.dailyCollection.deleteMany({ where: { tenantId } });
+        await tx.collectionEntry.deleteMany({ where: { tenantId } });
+        await tx.payment.deleteMany({ where: { loan: { tenantId } } });
+        await tx.penalty.deleteMany({ where: { loan: { tenantId } } });
+        await tx.instalment.deleteMany({ where: { loan: { tenantId } } });
+        await tx.loanCollateral.deleteMany({ where: { loan: { tenantId } } });
+        await tx.loan.deleteMany({ where: { tenantId } });
+      }
+
+      if (tablesToWipe.includes('customers')) {
+        await tx.guarantor.deleteMany({ where: { customer: { tenantId } } });
+        await tx.vehicle.deleteMany({ where: { tenantId } });
+        await tx.securityCheque.deleteMany({ where: { customer: { tenantId } } });
+        await tx.customer.deleteMany({ where: { tenantId } });
+      }
+
+      if (tablesToWipe.includes('accounting')) {
+        await tx.accountEntry.deleteMany({ where: { tenantId } });
+      }
+
+      if (tablesToWipe.includes('agents_routes')) {
+        await tx.routeAgent.deleteMany({ where: { route: { tenantId } } });
+        await tx.route.deleteMany({ where: { tenantId } });
+      }
+
+      if (tablesToWipe.includes('approvals')) {
+        await tx.approvalRequest.deleteMany({ where: { tenantId } });
+        await tx.auditLog.deleteMany({ where: { tenantId } });
+      }
+      
+      await tx.auditLog.create({
+        data: {
+          tenantId,
+          userId,
+          action: 'database_wipe',
+          entityType: 'system',
+          newValue: JSON.stringify({ wiped: tablesToWipe }),
+        }
+      });
+    });
+
+    revalidatePath('/dashboard');
+    revalidatePath('/settings');
+    return { success: true };
+  } catch (err: any) {
+    console.error('Failed to wipe database records:', err);
+    return { success: false, error: err.message || 'Database wipe failed' };
+  }
+}
+

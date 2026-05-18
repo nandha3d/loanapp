@@ -83,20 +83,9 @@ export async function getUserAppType(): Promise<string> {
   }
 
   if (role === 'superadmin') {
-    const { getActiveBranchId, getBranchEnabledModules } = await import('./branch');
-    const branchId = await getActiveBranchId();
-    if (branchId) {
-      const modules = await getBranchEnabledModules(branchId);
-      if (modules.length > 0) {
-        if (routeModule && modules.includes(routeModule)) {
-          return routeModule;
-        }
-        if (activeApp && modules.includes(activeApp as any)) {
-          return activeApp;
-        }
-        return modules[0];
-      }
-    }
+    if (routeModule) return routeModule;
+    if (activeApp) return activeApp;
+    return user?.appType || 'microlending';
   }
 
   if (role === 'admin') {

@@ -53,6 +53,7 @@ export default function CollectionClient({
   routeName,
   currencySymbol,
   dict,
+  dailyCollection,
 }: {
   todayInstalments: CollectionRow[];
   overdueInstalments: CollectionRow[];

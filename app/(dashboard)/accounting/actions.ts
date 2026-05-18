@@ -91,6 +91,6 @@ export async function getAccountingSummary(tenantId: string) {
     currentCapital,
     grossProfit,
     netProfit,
-    entries: entries.slice(0, 50), // Latest 50 entries
+    entries, // Return all entries
   };
 }
