@@ -1,0 +1,210 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e6]: account_balance
+        - heading "LoanTrack" [level=2] [ref=e7]
+      - navigation [ref=e8]:
+        - generic [ref=e9]: Main
+        - link "dashboard Dashboard" [ref=e10] [cursor=pointer]:
+          - /url: /dashboard
+          - generic [ref=e11]: dashboard
+          - text: Dashboard
+        - link "point_of_sale Collection Entry" [ref=e12] [cursor=pointer]:
+          - /url: /collection
+          - generic [ref=e13]: point_of_sale
+          - text: Collection Entry
+        - generic [ref=e14]: Management
+        - link "people Customers" [ref=e15] [cursor=pointer]:
+          - /url: /customers
+          - generic [ref=e16]: people
+          - text: Customers
+        - link "account_balance Loans" [ref=e17] [cursor=pointer]:
+          - /url: /loans
+          - generic [ref=e18]: account_balance
+          - text: Loans
+        - link "verified Approvals" [ref=e19] [cursor=pointer]:
+          - /url: /approvals
+          - generic [ref=e20]: verified
+          - text: Approvals
+        - generic [ref=e21]: Insights
+        - link "notifications Notifications" [ref=e22] [cursor=pointer]:
+          - /url: /notifications
+          - generic [ref=e23]: notifications
+          - text: Notifications
+      - generic [ref=e25]:
+        - generic [ref=e26]: KR
+        - generic [ref=e27]:
+          - generic [ref=e28]: Karthik Rajan
+          - generic [ref=e29]: Field Agent
+    - main [ref=e30]:
+      - generic [ref=e31]:
+        - generic [ref=e33]:
+          - heading "Loans" [level=2] [ref=e34]
+          - generic [ref=e35]:
+            - link "Dashboard" [ref=e37] [cursor=pointer]:
+              - /url: /dashboard
+            - generic [ref=e38]:
+              - text: /
+              - link "Loans" [ref=e39] [cursor=pointer]:
+                - /url: /loans
+            - generic [ref=e40]: /cmpbey0d000079yo403kxdp4w
+        - generic [ref=e41]:
+          - combobox [ref=e42]:
+            - option "English" [selected]
+            - option "Tamil (தமிழ்)"
+            - option "Hindi (हिन्दी)"
+          - generic [ref=e44] [cursor=pointer]: notifications
+          - button "logout" [ref=e45] [cursor=pointer]:
+            - generic [ref=e46]: logout
+      - generic [ref=e47]:
+        - link "arrow_back Back to Loans" [ref=e49] [cursor=pointer]:
+          - /url: /loans
+          - generic [ref=e50]: arrow_back
+          - text: Back to Loans
+        - generic [ref=e52]:
+          - generic [ref=e53]:
+            - heading "QAASG397839[QA-ASG-397839]QA Assigned Customer 397839" [level=2] [ref=e54]:
+              - text: QAASG397839
+              - generic [ref=e55]: "[QA-ASG-397839]"
+              - text: QA Assigned Customer 397839
+            - generic [ref=e56]: active
+            - generic [ref=e57]:
+              - generic [ref=e58]: calendar_today
+              - generic [ref=e59]: daily Schedule
+            - generic [ref=e60]:
+              - button "Actual" [ref=e61] [cursor=pointer]
+              - button "Distributed" [ref=e62] [cursor=pointer]
+              - button "Retroactive" [ref=e63] [cursor=pointer]
+          - generic [ref=e64]:
+            - generic [ref=e68]: person
+            - generic [ref=e69]:
+              - generic [ref=e70]:
+                - generic [ref=e71]: Principal
+                - generic [ref=e72]: ₹1,000
+              - generic [ref=e73]:
+                - generic [ref=e74]: Repayable
+                - generic [ref=e75]: ₹1,000
+              - generic [ref=e76]:
+                - generic [ref=e77]: Disbursed
+                - generic [ref=e78]: ₹900
+              - generic [ref=e79]:
+                - generic [ref=e80]: Frequency
+                - generic [ref=e81]: daily
+              - generic [ref=e82]:
+                - generic [ref=e83]: Tenure
+                - generic [ref=e84]: 2 days
+              - generic [ref=e85]:
+                - generic [ref=e86]: Start Date
+                - generic [ref=e87]: 17 May 2026
+              - generic [ref=e88]:
+                - generic [ref=e89]: Per Inst.
+                - generic [ref=e90]: ₹500
+              - generic [ref=e91]:
+                - generic [ref=e92]: Collected
+                - generic [ref=e93]: ₹0
+              - generic [ref=e94]:
+                - generic [ref=e95]: Outstanding
+                - generic [ref=e96]: ₹1,000
+              - generic [ref=e97]:
+                - generic [ref=e98]: Paid Period
+                - generic [ref=e99]: 0 Days
+              - generic [ref=e100]:
+                - generic [ref=e101]: Remaining
+                - generic [ref=e102]: 2 Days
+              - generic [ref=e103]:
+                - generic [ref=e104]:
+                  - text: 💡 Finishing Rate Option (Even Distribution)
+                  - paragraph [ref=e105]: "To settle outstanding ₹1,000 on-time across the remaining 2 scheduled days:"
+                - generic [ref=e106]:
+                  - text: ₹500
+                  - generic [ref=e107]: / Day
+            - generic [ref=e109]:
+              - generic [ref=e110]: 📊 Calendar Tracker
+              - generic [ref=e111]: Hover for info • Click to scroll
+            - generic [ref=e115]:
+              - generic [ref=e117]:
+                - generic [ref=e118]:
+                  - img [ref=e119]
+                  - generic [ref=e122]: 0%
+                - generic [ref=e123]: 0/2 Paid
+              - generic [ref=e124]:
+                - generic [ref=e125]:
+                  - img [ref=e126]
+                  - generic [ref=e134]: "0"
+                - generic [ref=e135]:
+                  - generic [ref=e136]: "300"
+                  - generic [ref=e137]: "850"
+                - generic [ref=e138]: N/A
+        - generic [ref=e139]:
+          - generic [ref=e140]:
+            - generic [ref=e141]:
+              - heading "📅 Payment Schedule" [level=3] [ref=e142]
+              - generic [ref=e143] [cursor=pointer]:
+                - checkbox "Show Restructured Rate" [ref=e144]
+                - strong [ref=e145]: Show Restructured Rate
+            - table [ref=e147]:
+              - rowgroup [ref=e148]:
+                - row "# Date Time Due Received Status Action" [ref=e149]:
+                  - columnheader "#" [ref=e150]
+                  - columnheader "Date" [ref=e151]
+                  - columnheader "Time" [ref=e152]
+                  - columnheader "Due" [ref=e153]
+                  - columnheader "Received" [ref=e154]
+                  - columnheader "Status" [ref=e155]
+                  - columnheader "Action" [ref=e156]
+              - rowgroup [ref=e157]:
+                - row "1 17 May 2026 — ₹500 — upcoming payments Pay" [ref=e158]:
+                  - cell "1" [ref=e159]
+                  - cell "17 May 2026" [ref=e160]
+                  - cell "—" [ref=e161]
+                  - cell "₹500" [ref=e162]
+                  - cell "—" [ref=e163]
+                  - cell "upcoming" [ref=e164]:
+                    - generic [ref=e165]: upcoming
+                  - cell "payments Pay" [ref=e166]:
+                    - button "payments Pay" [ref=e167] [cursor=pointer]:
+                      - generic [ref=e168]: payments
+                      - text: Pay
+                - row "2 18 May 2026 — ₹500 — upcoming payments Pay" [ref=e169]:
+                  - cell "2" [ref=e170]
+                  - cell "18 May 2026" [ref=e171]
+                  - cell "—" [ref=e172]
+                  - cell "₹500" [ref=e173]
+                  - cell "—" [ref=e174]
+                  - cell "upcoming" [ref=e175]:
+                    - generic [ref=e176]: upcoming
+                  - cell "payments Pay" [ref=e177]:
+                    - button "payments Pay" [ref=e178] [cursor=pointer]:
+                      - generic [ref=e179]: payments
+                      - text: Pay
+          - generic [ref=e180]:
+            - generic [ref=e181]:
+              - generic [ref=e182]:
+                - heading "⚡ Penalty Summary" [level=3] [ref=e183]
+                - link "open_in_new View in Penalties" [ref=e184] [cursor=pointer]:
+                  - /url: /penalties?q=QAASG397839
+                  - generic [ref=e185]: open_in_new
+                  - text: View in Penalties
+              - generic [ref=e186]:
+                - generic [ref=e187]:
+                  - generic [ref=e188]: "0"
+                  - generic [ref=e189]: Missed Days
+                - generic [ref=e190]:
+                  - generic [ref=e191]: ₹0
+                  - generic [ref=e192]: Total Penalty
+                - generic [ref=e193]:
+                  - generic [ref=e194]: ₹0
+                  - generic [ref=e195]: Settled + Waived
+                - generic [ref=e196]:
+                  - generic [ref=e197]: ₹0
+                  - generic [ref=e198]: Net Due
+            - generic [ref=e199]:
+              - heading "⚙️ Actions" [level=3] [ref=e201]
+              - link "Request Loan Edit" [ref=e203] [cursor=pointer]:
+                - /url: /loans/cmpbey0d000079yo403kxdp4w/edit
+            - generic [ref=e204]:
+              - heading "📄 Collateral Details (cheque)" [level=3] [ref=e206]
+              - paragraph [ref=e209]: No collateral recorded.
+  - button "Open Next.js Dev Tools" [ref=e215] [cursor=pointer]:
+    - img [ref=e216]

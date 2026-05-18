@@ -1,0 +1,151 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e6]: account_balance
+        - heading "LoanTrack" [level=2] [ref=e7]
+      - navigation [ref=e8]:
+        - generic [ref=e9]: Main
+        - link "dashboard Dashboard" [ref=e10] [cursor=pointer]:
+          - /url: /dashboard
+          - generic [ref=e11]: dashboard
+          - text: Dashboard
+        - link "point_of_sale Collection Entry" [ref=e12] [cursor=pointer]:
+          - /url: /collection
+          - generic [ref=e13]: point_of_sale
+          - text: Collection Entry
+        - generic [ref=e14]: Management
+        - link "people Customers" [ref=e15] [cursor=pointer]:
+          - /url: /customers
+          - generic [ref=e16]: people
+          - text: Customers
+        - link "account_balance Loans" [ref=e17] [cursor=pointer]:
+          - /url: /loans
+          - generic [ref=e18]: account_balance
+          - text: Loans
+        - link "verified Approvals" [ref=e19] [cursor=pointer]:
+          - /url: /approvals
+          - generic [ref=e20]: verified
+          - text: Approvals
+        - generic [ref=e21]: Insights
+        - link "notifications Notifications" [ref=e22] [cursor=pointer]:
+          - /url: /notifications
+          - generic [ref=e23]: notifications
+          - text: Notifications
+      - generic [ref=e25]:
+        - generic [ref=e26]: KR
+        - generic [ref=e27]:
+          - generic [ref=e28]: Karthik Rajan
+          - generic [ref=e29]: Field Agent
+    - main [ref=e30]:
+      - generic [ref=e31]:
+        - generic [ref=e33]:
+          - heading "Collection Entry" [level=2] [ref=e34]
+          - generic [ref=e35]:
+            - link "Dashboard" [ref=e37] [cursor=pointer]:
+              - /url: /dashboard
+            - generic [ref=e38]: /Collection Entry
+        - generic [ref=e39]:
+          - combobox [ref=e40]:
+            - option "English" [selected]
+            - option "Tamil (தமிழ்)"
+            - option "Hindi (हिन्दी)"
+          - generic [ref=e42] [cursor=pointer]: notifications
+          - button "logout" [ref=e43] [cursor=pointer]:
+            - generic [ref=e44]: logout
+      - generic [ref=e45]:
+        - generic [ref=e46]:
+          - generic [ref=e47]:
+            - generic [ref=e48]: KR
+            - generic [ref=e49]:
+              - heading "Karthik Rajan - Field Agent" [level=3] [ref=e50]
+              - paragraph [ref=e51]:
+                - text: "Route:"
+                - strong [ref=e52]: Bhavani, Chithode, Erode, Gobichettipalayam
+                - text: "· Today: Monday, 18 May 2026"
+          - generic [ref=e54]: Online
+        - generic [ref=e55]:
+          - generic [ref=e56]:
+            - generic [ref=e58]: today
+            - generic [ref=e59]: Today Due
+            - generic [ref=e60]: ₹500
+          - generic [ref=e61]:
+            - generic [ref=e63]: check_circle
+            - generic [ref=e64]: Collected Today
+            - generic [ref=e65]: ₹0
+          - generic [ref=e66]:
+            - generic [ref=e68]: account_balance_wallet
+            - generic [ref=e69]: Today Balance
+            - generic [ref=e70]: ₹500
+          - generic [ref=e71]:
+            - generic [ref=e73]: warning_amber
+            - generic [ref=e74]: Overdue (1)
+            - generic [ref=e75]: ₹500
+          - generic [ref=e76]:
+            - generic [ref=e78]: schedule
+            - generic [ref=e79]: Oldest Due
+            - generic [ref=e80]: 1d
+        - generic [ref=e81]:
+          - generic [ref=e82]:
+            - button "Today's Collection (1)" [ref=e83] [cursor=pointer]
+            - button "Overdue (1)" [ref=e84] [cursor=pointer]
+          - generic [ref=e85]:
+            - generic [ref=e86]:
+              - generic [ref=e87]: Due Date
+              - textbox [ref=e88]
+            - generic [ref=e89]:
+              - generic [ref=e90]: Customer / Loan
+              - textbox "Search name, code, loan" [ref=e91]
+            - generic [ref=e92]:
+              - generic [ref=e93]: Route / Line
+              - combobox [ref=e94]:
+                - option "All routes" [selected]
+                - option "Bhavani"
+                - option "Chithode"
+                - option "Erode"
+                - option "Gobichettipalayam"
+            - generic [ref=e95]:
+              - generic [ref=e96]: Status
+              - combobox [ref=e97]:
+                - option "All" [selected]
+                - option "Upcoming"
+                - option "Partial"
+                - option "Missed"
+                - option "Paid"
+            - button "Clear" [ref=e98] [cursor=pointer]
+          - table [ref=e100]:
+            - rowgroup [ref=e101]:
+              - row "Loans Due Date Due Received Outstanding Overdue Status Action" [ref=e102]:
+                - columnheader [ref=e103]
+                - columnheader "Loans" [ref=e104]
+                - columnheader "Due Date" [ref=e105]
+                - columnheader "Due" [ref=e106]
+                - columnheader "Received" [ref=e107]
+                - columnheader "Outstanding" [ref=e108]
+                - columnheader "Overdue" [ref=e109]
+                - columnheader "Status" [ref=e110]
+                - columnheader "Action" [ref=e111]
+            - rowgroup [ref=e112]:
+              - 'row "QA Assigned Customer 397839 QA-ASG-397839 · Bhavani QAASG397839 #2 18 May 2026 ₹500 - ₹500 - upcoming payments Pay" [ref=e113]':
+                - cell "QA Assigned Customer 397839 QA-ASG-397839 · Bhavani" [ref=e114]:
+                  - link "QA Assigned Customer 397839" [ref=e115] [cursor=pointer]:
+                    - /url: /customers/QA-ASG-397839
+                    - strong [ref=e116]: QA Assigned Customer 397839
+                  - generic [ref=e117]: QA-ASG-397839 · Bhavani
+                - 'cell "QAASG397839 #2" [ref=e118]':
+                  - link "QAASG397839" [ref=e119] [cursor=pointer]:
+                    - /url: /loans/cmpbey0d000079yo403kxdp4w
+                  - generic [ref=e120]: "#2"
+                - cell "18 May 2026" [ref=e121]
+                - cell "₹500" [ref=e122]
+                - cell "-" [ref=e123]
+                - cell "₹500" [ref=e124]
+                - cell "-" [ref=e125]
+                - cell "upcoming" [ref=e126]:
+                  - generic [ref=e127]: upcoming
+                - cell "payments Pay" [ref=e128]:
+                  - button "payments Pay" [ref=e129] [cursor=pointer]:
+                    - generic [ref=e130]: payments
+                    - text: Pay
+  - button "Open Next.js Dev Tools" [ref=e136] [cursor=pointer]:
+    - img [ref=e137]

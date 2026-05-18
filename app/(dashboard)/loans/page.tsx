@@ -36,6 +36,7 @@ export default async function LoansPage({
       customer: {
         OR: [
           { agentId: userId },
+          { route: { assignedAgentId: userId } },
           { route: { routeAgents: { some: { agentId: userId } } } }
         ]
       }

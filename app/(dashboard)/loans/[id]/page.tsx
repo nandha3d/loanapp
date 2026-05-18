@@ -1,9 +1,11 @@
 import prisma from '@/lib/db';
-import { getDefaultTenantId, getSetting } from '@/lib/tenant';
+import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import LoanDetailClient from './LoanDetailClient';
 import { notFound } from 'next/navigation';
 import { getDictionary } from '@/lib/i18n';
 import { auth } from '@/lib/auth';
+import { getActiveBranchId } from '@/lib/branch';
+import { buildLoanDetailWhere } from '@/lib/loanPolicy';
 
 export default async function LoanDetailPage({
   params
@@ -12,10 +14,22 @@ export default async function LoanDetailPage({
 }) {
   const resolvedParams = await params;
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  const activeBranchId = await getActiveBranchId();
+  const session = await auth();
+  const role = (session?.user as any)?.role || 'agent';
+  const userId = session?.user?.id;
   const dict = await getDictionary(tenantId);
   
   const loan = await prisma.loan.findFirst({
-    where: { id: resolvedParams.id, tenantId },
+    where: buildLoanDetailWhere({
+      loanId: resolvedParams.id,
+      tenantId,
+      appType,
+      branchId: activeBranchId,
+      role,
+      userId,
+    }),
     include: {
       customer: {
         include: { 
@@ -37,10 +51,6 @@ export default async function LoanDetailPage({
   }
 
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
-  const session = await auth();
-  const role = (session?.user as any)?.role || 'agent';
-  const userId = session?.user?.id;
-
   // Serialize Decimal fields for client component
   const serializedLoan = JSON.parse(JSON.stringify(loan));
 
