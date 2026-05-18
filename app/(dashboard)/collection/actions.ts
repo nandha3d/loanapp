@@ -184,27 +184,8 @@ export async function submitCollectionEntry(formData: FormData) {
       },
     });
   });
-  // Feature 9: Auto-record collection in accounting ledger
-  if (delta > 0) {
-    try {
-      await prisma.accountEntry.create({
-        data: {
-          tenantId,
-          entryDate: new Date(),
-          type: 'collection',
-          category: paymentMode || 'cash',
-          amount: delta,
-          description: `Collection for loan ${instalment.loan.loanCode} - instalment #${instalment.instalmentNo}`,
-          referenceId: instalment.loanId,
-          referenceType: 'payment',
-          createdBy: userId,
-        },
-      });
-    } catch (e) {
-      console.error('Failed to create accounting entry for collection:', e);
-    }
-  }
-
+  // Note: AccountEntry is NO LONGER created here. 
+  // Capital reflects only upon Cash Handover or UPI Verification.
   revalidatePath('/collection');
   revalidatePath('/dashboard');
   revalidatePath(`/loans/${instalment.loanId}`);
@@ -322,6 +303,119 @@ export async function requestCashHandover() {
 
   revalidatePath('/collection');
   revalidatePath('/approvals');
+  return { success: true };
+}
+
+export async function verifyUpiPayment(entryId: string) {
+  const session = await auth();
+  const tenantId = await getDefaultTenantId();
+  const role = (session?.user as { role?: string })?.role;
+  const userId = session?.user?.id;
+
+  if (role !== 'admin' && role !== 'superadmin') {
+    return { success: false, error: 'Unauthorized' };
+  }
+
+  const entry = await prisma.collectionEntry.findUnique({
+    where: { id: entryId, tenantId },
+    include: { loan: true, customer: true }
+  });
+
+  if (!entry) return { success: false, error: 'Entry not found' };
+  if (entry.verificationStatus === 'verified') return { success: true, message: 'Already verified' };
+
+  await prisma.$transaction(async (tx) => {
+    await tx.collectionEntry.update({
+      where: { id: entry.id },
+      data: { verificationStatus: 'verified' }
+    });
+
+    await tx.accountEntry.create({
+      data: {
+        tenantId,
+        entryDate: new Date(),
+        type: 'collection',
+        category: 'upi',
+        amount: entry.receivedAmount,
+        description: `Verified UPI collection for loan ${entry.loan.loanCode}`,
+        referenceId: entry.id,
+        referenceType: 'payment',
+        createdBy: userId,
+      }
+    });
+  });
+
+  revalidatePath('/dashboard');
+  revalidatePath('/collection');
+  return { success: true };
+}
+
+export async function collectAgentCash(routeId: string, agentId: string) {
+  const session = await auth();
+  const tenantId = await getDefaultTenantId();
+  const role = (session?.user as { role?: string })?.role;
+  const userId = session?.user?.id;
+
+  if (role !== 'admin' && role !== 'superadmin') {
+    return { success: false, error: 'Unauthorized' };
+  }
+
+  if (!userId) return { success: false, error: 'Unauthorized' };
+
+  await prisma.$transaction(async (tx) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const entries = await tx.collectionEntry.findMany({
+      where: {
+        tenantId,
+        agentId,
+        paymentMode: 'cash',
+        verificationStatus: 'pending',
+        customer: { routeId }
+      }
+    });
+
+    const totalToCollect = entries.reduce((sum, e) => sum + Number(e.receivedAmount), 0);
+    if (totalToCollect <= 0) throw new Error('No pending cash to collect for this route/agent combo');
+
+    await tx.collectionEntry.updateMany({
+      where: {
+        id: { in: entries.map(e => e.id) }
+      },
+      data: { verificationStatus: 'verified' }
+    });
+
+    const handover = await tx.cashHandover.create({
+      data: {
+        tenantId,
+        agentId,
+        adminId: userId,
+        routeId,
+        amount: totalToCollect,
+        status: 'collected',
+        collectedAt: new Date(),
+        confirmedAt: new Date()
+      }
+    });
+
+    await tx.accountEntry.create({
+      data: {
+        tenantId,
+        entryDate: new Date(),
+        type: 'collection',
+        category: 'cash',
+        amount: totalToCollect,
+        description: `Cash handover collected`,
+        referenceId: handover.id,
+        referenceType: 'payment',
+        createdBy: userId,
+      }
+    });
+  });
+
+  revalidatePath('/dashboard');
+  revalidatePath('/collection');
   return { success: true };
 }
 

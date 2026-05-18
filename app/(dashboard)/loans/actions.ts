@@ -415,6 +415,7 @@ export async function updateLoan(formData: FormData) {
   const guarantorAadhar = formData.get('guarantorAadhar') as string;
   const guarantorAddress = formData.get('guarantorAddress') as string;
   const guarantorRelation = formData.get('guarantorRelation') as string;
+  const guarantorIdFromForm = formData.get('guarantorId') as string;
   const guarantorPhotoFile = formData.get('guarantorPhoto') as File | null;
   const dueDay = formData.get('dueDay') ? Number(formData.get('dueDay')) : null;
 
@@ -494,7 +495,7 @@ export async function updateLoan(formData: FormData) {
   // 2. Wrap all modifications in a transaction (Phase 1.3)
   await prisma.$transaction(async (tx) => {
     // Update or Create guarantor
-    let currentGuarantorId = loan.guarantorId;
+    let currentGuarantorId = guarantorIdFromForm || loan.guarantorId;
     if (guarantorName && guarantorPhone) {
       let gPhoto = loan.guarantor?.photo || null;
       if (guarantorPhotoFile && guarantorPhotoFile.size > 0) {
@@ -505,9 +506,9 @@ export async function updateLoan(formData: FormData) {
         }
       }
 
-      if (loan.guarantor) {
+      if (currentGuarantorId) {
         await tx.guarantor.update({
-          where: { id: loan.guarantorId! },
+          where: { id: currentGuarantorId },
           data: { 
             name: guarantorName, 
             phone: guarantorPhone,
@@ -628,6 +629,7 @@ export async function requestLoanEdit(formData: FormData) {
   const guarantorAadhar = formData.get('guarantorAadhar') as string;
   const guarantorAddress = formData.get('guarantorAddress') as string;
   const guarantorRelation = formData.get('guarantorRelation') as string;
+  const guarantorIdFromForm = formData.get('guarantorId') as string;
   const reason = formData.get('reason') as string || '';
 
   const appType = await getUserAppType();
@@ -668,7 +670,8 @@ export async function requestLoanEdit(formData: FormData) {
   if (loan.guarantor?.phone !== guarantorPhone) proposedChanges.guarantorPhone = guarantorPhone;
   if (loan.guarantor?.address !== guarantorAddress) proposedChanges.guarantorAddress = guarantorAddress;
   if (loan.guarantor?.relation !== guarantorRelation) proposedChanges.guarantorRelation = guarantorRelation;
-  
+  if (guarantorIdFromForm && loan.guarantorId !== guarantorIdFromForm) proposedChanges.guarantorId = guarantorIdFromForm;
+
   if (guarantorAadhar) {
     const { decryptAadharNumber, encryptAadharNumber } = await import('@/lib/pii');
     const decryptedCurrentAadhar = loan.guarantor?.aadharNumber ? decryptAadharNumber(loan.guarantor.aadharNumber) : '';
