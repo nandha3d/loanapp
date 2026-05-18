@@ -38,7 +38,7 @@ export async function updateSubscription(formData: FormData) {
       status,
       maxActiveLoans,
       maxAgents,
-      enabledModules,
+      enabledModules: JSON.stringify(enabledModules),
       trialEndsAt: parseDate(trialEndsAtStr),
       currentPeriodEnd: parseDate(currentPeriodEndStr),
       razorpaySubId,

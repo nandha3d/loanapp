@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { saveSystemSettings, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, deleteLoanPackage, createUser, assignAgentToRoute, removeAgentFromRoute, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections } from './actions';
+import { saveSystemSettings, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, deleteLoanPackage, createUser, assignAgentToRoute, removeAgentFromRoute, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections, saveUpiQrCode } from './actions';
 import Modal from '@/components/Modal';
 
 export default function SettingsClient({ 
@@ -54,6 +54,7 @@ export default function SettingsClient({
         <div className={`tab ${activeTab === 'routes' ? 'active' : ''}`} onClick={() => setActiveTab('routes')}>{d.tabRoutes}</div>
         <div className={`tab ${activeTab === 'penalty' ? 'active' : ''}`} onClick={() => setActiveTab('penalty')}>{d.tabPenalty}</div>
         <div className={`tab ${activeTab === 'packages' ? 'active' : ''}`} onClick={() => setActiveTab('packages')}>{d.tabPackages}</div>
+        <div className={`tab ${activeTab === 'payment' ? 'active' : ''}`} onClick={() => setActiveTab('payment')}>Payment</div>
         <div className={`tab ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>{d.tabUsers}</div>
         <div className={`tab ${activeTab === 'bulk' ? 'active' : ''}`} onClick={() => setActiveTab('bulk')}>Bulk Tools</div>
         {currentUser?.role === 'developer' && (
@@ -225,6 +226,28 @@ export default function SettingsClient({
                   <option value="false">{d.no}</option>
                 </select>
               </div>
+              <div style={{borderTop:'1px solid var(--border)', paddingTop:'20px', marginTop:'12px'}}>
+                <h4 style={{fontSize:'.95rem', fontWeight:700, marginBottom:'12px'}}>📝 Loan Code Prefixes</h4>
+                <p style={{fontSize:'.8rem', color:'var(--text-light)', marginBottom:'16px'}}>Customize the prefix used for loan codes based on repayment frequency.</p>
+                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px'}}>
+                  <div className="settings-item" style={{flexDirection:'column', alignItems:'flex-start', gap:'4px'}}>
+                    <label className="form-label" style={{fontSize:'.8rem', margin:0}}>Daily Prefix</label>
+                    <input type="text" name="loan_prefix_daily" className="form-control" style={{width:'100px'}} defaultValue={settings.loan_prefix_daily || 'DL'} maxLength={4} />
+                  </div>
+                  <div className="settings-item" style={{flexDirection:'column', alignItems:'flex-start', gap:'4px'}}>
+                    <label className="form-label" style={{fontSize:'.8rem', margin:0}}>Weekly Prefix</label>
+                    <input type="text" name="loan_prefix_weekly" className="form-control" style={{width:'100px'}} defaultValue={settings.loan_prefix_weekly || 'WK'} maxLength={4} />
+                  </div>
+                  <div className="settings-item" style={{flexDirection:'column', alignItems:'flex-start', gap:'4px'}}>
+                    <label className="form-label" style={{fontSize:'.8rem', margin:0}}>Bi-Weekly Prefix</label>
+                    <input type="text" name="loan_prefix_biweekly" className="form-control" style={{width:'100px'}} defaultValue={settings.loan_prefix_biweekly || 'BW'} maxLength={4} />
+                  </div>
+                  <div className="settings-item" style={{flexDirection:'column', alignItems:'flex-start', gap:'4px'}}>
+                    <label className="form-label" style={{fontSize:'.8rem', margin:0}}>Monthly Prefix</label>
+                    <input type="text" name="loan_prefix_monthly" className="form-control" style={{width:'100px'}} defaultValue={settings.loan_prefix_monthly || 'ML'} maxLength={4} />
+                  </div>
+                </div>
+              </div>
             </div>
             <div style={{marginTop:'20px'}}>
               <button type="submit" className="btn btn-primary" disabled={loading}>
@@ -234,6 +257,33 @@ export default function SettingsClient({
           </form>
         </div>
       )}
+
+      {/* Bulk Tools Tab */}
+
+      {/* Payment / UPI Tab */}
+      <div className={`tab-content ${activeTab === 'payment' ? 'active' : ''}`}>
+        <div className="card-header"><h3>💳 Payment Settings</h3></div>
+        <form action={async (fd) => { await saveUpiQrCode(fd); showToast('Payment settings saved'); }} style={{maxWidth:'500px'}}>
+          <div className="form-group">
+            <label className="form-label">UPI ID</label>
+            <input type="text" name="upiId" className="form-control" defaultValue={settings.upi_id || ''} placeholder="e.g. business@ybl" />
+            <span style={{fontSize:'.75rem', color:'var(--text-light)', marginTop:'4px', display:'block'}}>This UPI ID will be shown to customers for payment.</span>
+          </div>
+          <div className="form-group">
+            <label className="form-label">UPI QR Code Image</label>
+            {settings.upi_qr_url && (
+              <div style={{marginBottom:'12px', padding:'12px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', background:'#fff', display:'inline-block'}}>
+                <img src={settings.upi_qr_url} alt="UPI QR Code" style={{width:'180px', height:'180px', objectFit:'contain'}} />
+              </div>
+            )}
+            <input type="file" name="upiQrCode" accept="image/*" className="form-control" />
+            <span style={{fontSize:'.75rem', color:'var(--text-light)', marginTop:'4px', display:'block'}}>Upload a screenshot or image of your UPI QR code (max 5MB).</span>
+          </div>
+          <button type="submit" className="btn btn-primary" disabled={loading}>
+            <span className="material-icons-outlined" style={{fontSize:'16px'}}>save</span> {loading ? d.saving : d.save}
+          </button>
+        </form>
+      </div>
 
       {/* Bulk Tools Tab */}
       <div className={`tab-content ${activeTab === 'bulk' ? 'active' : ''}`}>

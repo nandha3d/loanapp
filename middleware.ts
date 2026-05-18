@@ -1,4 +1,3 @@
-// @ts-expect-error getToken exists at runtime in next-auth v5 beta
 import { getToken } from 'next-auth/jwt';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';

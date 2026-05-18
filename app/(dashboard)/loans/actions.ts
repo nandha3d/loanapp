@@ -89,6 +89,7 @@ export async function createLoan(formData: FormData) {
   const guarantorAddress = formData.get('guarantorAddress') as string;
   const guarantorRelation = formData.get('guarantorRelation') as string;
   const guarantorPhotoFile = formData.get('guarantorPhoto') as File | null;
+  const dueDay = formData.get('dueDay') ? Number(formData.get('dueDay')) : null;
 
   const startDate = new Date(startDateStr);
   const endDate = calculateEndDate(startDate, frequency, tenure);
@@ -135,16 +136,21 @@ export async function createLoan(formData: FormData) {
     totalPayable = perInstalment * tenure;
   }
 
-  // Generate Loan Code
-  const prefix = await getSetting(tenantId, 'loan_code_prefix', 'LN');
-  const counterStr = await getSetting(tenantId, 'loan_code_counter', '0');
+  // Generate Loan Code — frequency-aware prefix & counter
+  const freqPrefixDefaults: Record<string, string> = {
+    daily: 'DL', weekly: 'WK', biweekly: 'BW', monthly: 'ML',
+  };
+  const prefixKey = `loan_prefix_${frequency}`;
+  const counterKey = `loan_counter_${frequency}`;
+  const prefix = await getSetting(tenantId, prefixKey, freqPrefixDefaults[frequency] || 'LN');
+  const counterStr = await getSetting(tenantId, counterKey, '0');
   const counter = parseInt(counterStr) + 1;
   const loanCode = `${prefix}${String(counter).padStart(4, '0')}`;
   
   await prisma.appSetting.upsert({
-    where: { tenantId_key: { tenantId, key: 'loan_code_counter' } },
+    where: { tenantId_key: { tenantId, key: counterKey } },
     update: { value: counter.toString() },
-    create: { tenantId, key: 'loan_code_counter', value: counter.toString(), group: 'system' }
+    create: { tenantId, key: counterKey, value: counter.toString(), group: 'general' }
   });
 
   // Create or Update guarantor if provided
@@ -183,7 +189,7 @@ export async function createLoan(formData: FormData) {
   }
 
   // Calculate Instalment Dates
-  const instalmentDates = calculateInstalmentDates(startDate, frequency, tenure);
+  const instalmentDates = calculateInstalmentDates(startDate, frequency, tenure, dueDay);
   const instalments = instalmentDates.map((date, index) => ({
     instalmentNo: index + 1,
     dueDate: date,
@@ -304,6 +310,7 @@ export async function createLoan(formData: FormData) {
       deductionType: interestType,
       disbursed,
       frequency,
+      dueDay,
       tenure,
       startDate,
       endDate,
@@ -356,6 +363,27 @@ export async function createLoan(formData: FormData) {
       },
     }).catch(() => {});
   }
+  // Feature 9: Auto-record capital reduction on loan disbursement
+  if (loan.status === 'active') {
+    try {
+      await prisma.accountEntry.create({
+        data: {
+          tenantId,
+          branchId: activeBranchId || undefined,
+          entryDate: startDate,
+          type: 'loan_disburse',
+          category: 'cash',
+          amount: disbursed,
+          description: `Loan ${loanCode} disbursed to customer`,
+          referenceId: loan.id,
+          referenceType: 'loan',
+          createdBy: createdById || undefined,
+        },
+      });
+    } catch (e) {
+      console.error('Failed to create accounting entry:', e);
+    }
+  }
 
   revalidatePath('/loans');
   redirect(`/loans/${loan.id}`);
@@ -388,6 +416,7 @@ export async function updateLoan(formData: FormData) {
   const guarantorAddress = formData.get('guarantorAddress') as string;
   const guarantorRelation = formData.get('guarantorRelation') as string;
   const guarantorPhotoFile = formData.get('guarantorPhoto') as File | null;
+  const dueDay = formData.get('dueDay') ? Number(formData.get('dueDay')) : null;
 
   const startDate = new Date(startDateStr);
   const endDate = calculateEndDate(startDate, frequency, tenure);
@@ -447,6 +476,7 @@ export async function updateLoan(formData: FormData) {
     Number(loan.principal) !== principal ||
     Number(loan.tenure) !== tenure ||
     loan.frequency !== frequency ||
+    loan.dueDay !== dueDay ||
     formatDateISO(new Date(loan.startDate)) !== startDateStr;
 
   if (coreChanged) {
@@ -512,6 +542,7 @@ export async function updateLoan(formData: FormData) {
         deductionType: interestType,
         disbursed,
         frequency,
+        dueDay,
         tenure,
         startDate,
         endDate,
@@ -530,7 +561,7 @@ export async function updateLoan(formData: FormData) {
     if (coreChanged) {
       await tx.instalment.deleteMany({ where: { loanId } });
 
-      const instalmentDates = calculateInstalmentDates(startDate, frequency, tenure);
+      const instalmentDates = calculateInstalmentDates(startDate, frequency, tenure, dueDay);
       const instalments = instalmentDates.map((date, index) => ({
         loanId,
         instalmentNo: index + 1,

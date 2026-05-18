@@ -141,7 +141,7 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
               {customer?.profilePhoto && !photoFile && (
                 <input type="hidden" name="existingProfilePhoto" value={customer.profilePhoto} />
               )}
-              <input type="file" name="profilePhoto" accept="image/*" style={{ display: 'none' }}
+              <input type="file" name="profilePhoto" accept="image/*" capture="environment" style={{ display: 'none' }}
                 onChange={handlePhotoChange} />
               <span style={{ fontSize: '.75rem', color: 'var(--text-secondary)', display: 'block', marginTop: '6px' }}>
                 {photoFile?.name || (customer?.profilePhoto ? dict.customers.changePhoto : dict.customers.addPhoto)}
@@ -222,7 +222,7 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
         }}>
           <span className="material-icons-outlined" style={{ color: 'var(--primary)' }}>cloud_upload</span>
           <span style={{ fontSize: '.85rem' }}>Tap to upload documents (JPG, PNG, PDF)</span>
-          <input type="file" name="documents" accept="image/*,.pdf" multiple style={{ display: 'none' }}
+          <input type="file" name="documents" accept="image/*,.pdf" capture="environment" multiple style={{ display: 'none' }}
             onChange={e => {
               const files = Array.from(e.target.files || []);
               setDocuments([...documents, ...files.map(f => ({ id: Date.now() + Math.random(), name: f.name }))]);
@@ -273,7 +273,7 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
                     <span className="material-icons-outlined" style={{ fontSize: '16px' }}>{g.photoName ? 'check_circle' : 'add_a_photo'}</span>
                   )}
                   {g.photoName || 'Upload Photo'}
-                  <input type="file" name={`guarantorPhoto_${index}`} accept="image/*" style={{ display: 'none' }}
+                  <input type="file" name={`guarantorPhoto_${index}`} accept="image/*" capture="environment" style={{ display: 'none' }}
                     onChange={e => handleGuarantorPhotoChange(g.id, e.target.files?.[0] || null)} />
                 </label>
               </div>

@@ -60,6 +60,8 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     weekInstalments,
     pendingPenalties,
     recentActivity,
+    accountEntries,
+    todayCollectionEntries,
   ] = await Promise.all([
     prisma.customer.count({ where: { ...customerWhere, status: 'active' } }),
     prisma.loan.count({
@@ -127,6 +129,23 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
       take: 8,
       include: { user: true },
     }),
+    // Capital KPI
+    prisma.accountEntry.findMany({
+      where: { tenantId },
+      select: { type: true, amount: true },
+    }),
+    // Feature 6 & 8: Today's collection entries for cash/UPI split + route-wise
+    prisma.collectionEntry.findMany({
+      where: {
+        tenantId,
+        submittedAt: { gte: today, lt: tomorrow },
+      },
+      select: {
+        receivedAmount: true,
+        paymentMode: true,
+        customer: { select: { routeId: true } },
+      },
+    }),
   ]);
 
   const todayExpected = todayInstalments.reduce((sum, item) => sum + Number(item.dueAmount), 0);
@@ -176,6 +195,17 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     };
   });
 
+  // Capital calculation from accounting entries
+  let currentCapital = 0;
+  for (const entry of accountEntries) {
+    const amt = Number(entry.amount);
+    if (entry.type === 'capital_add') currentCapital += amt;
+    else if (entry.type === 'capital_withdraw') currentCapital -= amt;
+    else if (entry.type === 'loan_disburse') currentCapital -= amt;
+    else if (entry.type === 'collection') currentCapital += amt;
+    else if (entry.type === 'expense') currentCapital -= amt;
+  }
+
   return {
     totalCustomers,
     recentLoans,
@@ -191,6 +221,19 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     trend,
     routePerformance,
     recentActivity,
+    currentCapital,
+    todayCashCollected: todayCollectionEntries
+      .filter((e: any) => e.paymentMode === 'cash')
+      .reduce((sum: number, e: any) => sum + Number(e.receivedAmount), 0),
+    todayUpiCollected: todayCollectionEntries
+      .filter((e: any) => e.paymentMode === 'upi' || e.paymentMode === 'online')
+      .reduce((sum: number, e: any) => sum + Number(e.receivedAmount), 0),
+    routeCollections: routes.map((route: any) => {
+      const collected = todayCollectionEntries
+        .filter((e: any) => e.customer?.routeId === route.id)
+        .reduce((sum: number, e: any) => sum + Number(e.receivedAmount), 0);
+      return { routeId: route.id, collected };
+    }),
   };
 }
 
@@ -716,7 +759,41 @@ export default async function DashboardPage() {
             <div className="kpi-label">Pending Approvals</div>
           </div>
         </Link>
+        <Link href="/accounting" className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div className={`kpi-icon ${data.currentCapital >= 0 ? 'green' : 'red'}`}><span className="material-icons-outlined">savings</span></div>
+          <div>
+            <div className="kpi-value">{formatCurrency(data.currentCapital, branding.currencySymbol)}</div>
+            <div className="kpi-label">Capital Balance</div>
+          </div>
+        </Link>
       </div>
+
+      {/* Feature 6: Cash/UPI Split */}
+      {(data.todayCashCollected > 0 || data.todayUpiCollected > 0) && (
+        <div className="card" style={{ marginTop: '12px', padding: '16px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+            <h4 style={{ margin: 0, fontSize: '.9rem', fontWeight: 700 }}>Today's Collection Split</h4>
+            <div style={{ display: 'flex', gap: '20px', fontSize: '.85rem' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: '#27AE60' }} />
+                Cash: <strong>{formatCurrency(data.todayCashCollected, branding.currencySymbol)}</strong>
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: '#8E44AD' }} />
+                UPI: <strong>{formatCurrency(data.todayUpiCollected, branding.currencySymbol)}</strong>
+              </span>
+            </div>
+          </div>
+          <div style={{ marginTop: '10px', height: '8px', borderRadius: '4px', background: '#E8E8E8', overflow: 'hidden', display: 'flex' }}>
+            {data.todayCashCollected > 0 && (
+              <div style={{ width: `${(data.todayCashCollected / (data.todayCashCollected + data.todayUpiCollected)) * 100}%`, background: '#27AE60', height: '100%' }} />
+            )}
+            {data.todayUpiCollected > 0 && (
+              <div style={{ width: `${(data.todayUpiCollected / (data.todayCashCollected + data.todayUpiCollected)) * 100}%`, background: '#8E44AD', height: '100%' }} />
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="grid-60-40">
         <div className="card">
@@ -739,20 +816,27 @@ export default async function DashboardPage() {
                   <th>Route</th>
                   <th>Agent</th>
                   <th>Customers</th>
+                  <th>Collected Today</th>
                   <th>Overdue</th>
                 </tr>
               </thead>
               <tbody>
-                {data.routePerformance.map((route) => (
-                  <tr key={route.id}>
-                    <td><strong>{route.name}</strong></td>
-                    <td>{route.agent}</td>
-                    <td>{route.customers}</td>
-                    <td style={{ color: route.overdue > 0 ? 'var(--danger)' : 'var(--success)', fontWeight: 700 }}>
-                      {formatCurrency(route.overdue, branding.currencySymbol)}
-                    </td>
-                  </tr>
-                ))}
+                {data.routePerformance.map((route) => {
+                  const routeCol = data.routeCollections?.find((rc: any) => rc.routeId === route.id);
+                  return (
+                    <tr key={route.id}>
+                      <td><strong>{route.name}</strong></td>
+                      <td>{route.agent}</td>
+                      <td>{route.customers}</td>
+                      <td style={{ color: 'var(--success)', fontWeight: 700 }}>
+                        {formatCurrency(routeCol?.collected || 0, branding.currencySymbol)}
+                      </td>
+                      <td style={{ color: route.overdue > 0 ? 'var(--danger)' : 'var(--success)', fontWeight: 700 }}>
+                        {formatCurrency(route.overdue, branding.currencySymbol)}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
