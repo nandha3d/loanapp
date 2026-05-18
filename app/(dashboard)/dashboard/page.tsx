@@ -237,6 +237,113 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
   };
 }
 
+async function getChitFundsDashboardData(tenantId: string, branchId?: string | null) {
+  const today = startOfDay();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+
+  const branchFilter = branchId ? { branchId } : {};
+
+  // Fetch active chit groups count
+  const totalChitGroups = await prisma.chitGroup.count({
+    where: { tenantId, appType: 'chitfunds', ...branchFilter, status: 'active' }
+  });
+
+  // Fetch total members count
+  const totalMembers = await prisma.chitMember.count({
+    where: { chitGroup: { tenantId, appType: 'chitfunds', ...branchFilter } }
+  });
+
+  // Fetch count of auctions this month
+  const auctionsThisMonth = await prisma.chitAuction.count({
+    where: {
+      chitGroup: { tenantId, appType: 'chitfunds', ...branchFilter },
+      auctionDate: { gte: monthStart, lt: tomorrow }
+    }
+  });
+
+  // Fetch count of pending approvals for chitfunds
+  const pendingApprovals = await prisma.approvalRequest.count({
+    where: { tenantId, appType: 'chitfunds', status: 'pending' }
+  });
+
+  // Fetch subscriptions due today
+  const todaySubscriptions = await prisma.chitSubscription.findMany({
+    where: {
+      member: { chitGroup: { tenantId, appType: 'chitfunds', ...branchFilter } },
+      dueDate: { gte: today, lt: tomorrow }
+    },
+    select: { dueAmount: true, paidAmount: true }
+  });
+
+  const todayExpected = todaySubscriptions.reduce((sum, item) => sum + Number(item.dueAmount), 0);
+  const todayCollected = todaySubscriptions.reduce((sum, item) => sum + Number(item.paidAmount), 0);
+  const todayGap = Math.max(0, todayExpected - todayCollected);
+
+  // Fetch total overdue subscriptions
+  const overdueSubscriptions = await prisma.chitSubscription.findMany({
+    where: {
+      member: { chitGroup: { tenantId, appType: 'chitfunds', ...branchFilter } },
+      dueDate: { lt: today },
+      status: { not: 'paid' }
+    },
+    include: {
+      member: {
+        include: {
+          customer: true,
+          chitGroup: true
+        }
+      }
+    },
+    orderBy: { dueDate: 'asc' },
+    take: 10
+  });
+
+  const totalOverdueAmount = overdueSubscriptions.reduce((sum, item) => sum + Math.max(0, Number(item.dueAmount) - Number(item.paidAmount)), 0);
+  const overdueMembersCount = new Set(overdueSubscriptions.map(item => item.memberId)).size;
+
+  // Recent activity logs
+  const recentActivity = await prisma.auditLog.findMany({
+    where: { tenantId, user: { role: { not: 'developer' } } },
+    orderBy: { createdAt: 'desc' },
+    take: 8,
+    include: { user: true }
+  });
+
+  // Fetch active chit groups with details for table
+  const activeChitGroupsList = await prisma.chitGroup.findMany({
+    where: { tenantId, appType: 'chitfunds', ...branchFilter, status: 'active' },
+    include: {
+      _count: { select: { members: true } }
+    },
+    take: 5
+  });
+
+  return {
+    totalChitGroups,
+    totalMembers,
+    auctionsThisMonth,
+    pendingApprovals,
+    todayExpected,
+    todayCollected,
+    todayGap,
+    totalOverdueAmount,
+    overdueMembersCount,
+    overdueSubscriptions: overdueSubscriptions.map(item => ({
+      id: item.id,
+      customerName: item.member.customer.name,
+      customerCode: item.member.customer.customerCode,
+      chitGroupName: item.member.chitGroup.name,
+      dueDate: item.dueDate,
+      overdueAmount: Math.max(0, Number(item.dueAmount) - Number(item.paidAmount)),
+      daysOverdue: Math.max(0, Math.floor((today.getTime() - startOfDay(item.dueDate).getTime()) / (24 * 60 * 60 * 1000)))
+    })),
+    recentActivity,
+    activeChitGroupsList
+  };
+}
+
 async function getAgentDashboardData(tenantId: string, appType: string, agentId: string) {
   const today = startOfDay();
   const tomorrow = new Date(today);
@@ -463,13 +570,196 @@ export default async function DashboardPage() {
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
 
-  if (appType === 'autofinance') {
-    redirect('/vehicles');
-  } else if (appType === 'chitfunds') {
-    redirect('/chits');
+  const branding = await getBranding(tenantId);
+
+  const activeBranchId = await getActiveBranchId();
+
+  if (appType === 'chitfunds') {
+    const chitData = await getChitFundsDashboardData(tenantId, activeBranchId);
+    return (
+      <>
+        {/* KPI Grid */}
+        <div className="kpi-grid">
+          <div className="kpi-card" style={{ background: 'linear-gradient(135deg, #14B8A6 0%, #0D9488 100%)', color: '#fff' }}>
+            <div className="kpi-icon" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff' }}>
+              <span className="material-icons-outlined">savings</span>
+            </div>
+            <div>
+              <div className="kpi-value" style={{ color: '#fff' }}>{chitData.totalChitGroups}</div>
+              <div className="kpi-label" style={{ color: 'rgba(255,255,255,0.8)' }}>Active Chit Groups</div>
+            </div>
+          </div>
+
+          <div className="kpi-card" style={{ background: 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)', color: '#fff' }}>
+            <div className="kpi-icon" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff' }}>
+              <span className="material-icons-outlined">groups</span>
+            </div>
+            <div>
+              <div className="kpi-value" style={{ color: '#fff' }}>{chitData.totalMembers}</div>
+              <div className="kpi-label" style={{ color: 'rgba(255,255,255,0.8)' }}>Total Subscribers</div>
+            </div>
+          </div>
+
+          <div className="kpi-card" style={{ background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)', color: '#fff' }}>
+            <div className="kpi-icon" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff' }}>
+              <span className="material-icons-outlined">event</span>
+            </div>
+            <div>
+              <div className="kpi-value" style={{ color: '#fff' }}>{chitData.auctionsThisMonth}</div>
+              <div className="kpi-label" style={{ color: 'rgba(255,255,255,0.8)' }}>Auctions This Month</div>
+            </div>
+          </div>
+
+          <div className="kpi-card" style={{ background: 'linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)', color: '#fff' }}>
+            <div className="kpi-icon" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff' }}>
+              <span className="material-icons-outlined">approval</span>
+            </div>
+            <div>
+              <div className="kpi-value" style={{ color: '#fff' }}>{chitData.pendingApprovals}</div>
+              <div className="kpi-label" style={{ color: 'rgba(255,255,255,0.8)' }}>Pending Approvals</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Collection & Expected stats */}
+        <div className="kpi-grid" style={{ marginTop: '20px' }}>
+          <div className="kpi-card">
+            <div className="kpi-icon green"><span className="material-icons-outlined">trending_up</span></div>
+            <div>
+              <div className="kpi-value">{formatCurrency(chitData.todayExpected, branding.currencySymbol)}</div>
+              <div className="kpi-label">Today's Expected Subscriptions</div>
+            </div>
+          </div>
+
+          <div className="kpi-card">
+            <div className="kpi-icon orange"><span className="material-icons-outlined">account_balance_wallet</span></div>
+            <div>
+              <div className="kpi-value">{formatCurrency(chitData.todayCollected, branding.currencySymbol)}</div>
+              <div className="kpi-label">Subscriptions Collected Today</div>
+            </div>
+          </div>
+
+          <div className="kpi-card">
+            <div className="kpi-icon red"><span className="material-icons-outlined">trending_down</span></div>
+            <div>
+              <div className="kpi-value">{formatCurrency(chitData.todayGap, branding.currencySymbol)}</div>
+              <div className="kpi-label">Today's Balance Due</div>
+            </div>
+          </div>
+
+          <div className="kpi-card">
+            <div className="kpi-icon red"><span className="material-icons-outlined">warning</span></div>
+            <div>
+              <div className="kpi-value">{formatCurrency(chitData.totalOverdueAmount, branding.currencySymbol)}</div>
+              <div className="kpi-label">Total Overdue Contributions</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Dynamic content grid */}
+        <div className="grid-60-40" style={{ marginTop: '20px' }}>
+          <div className="card">
+            <div className="card-header">
+              <h3>Overdue Chit Subscriptions</h3>
+              <Link href="/chits" className="btn btn-ghost btn-sm">View All Groups</Link>
+            </div>
+            {chitData.overdueSubscriptions.length > 0 ? (
+              <div className="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Subscriber</th>
+                      <th>Chit Group</th>
+                      <th>Due Date</th>
+                      <th>Overdue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {chitData.overdueSubscriptions.map((item) => (
+                      <tr key={item.id}>
+                        <td>
+                          <strong>{item.customerName}</strong>
+                          <br />
+                          <span style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>{item.customerCode}</span>
+                        </td>
+                        <td>{item.chitGroupName}</td>
+                        <td>{formatDate(item.dueDate)} ({item.daysOverdue}d)</td>
+                        <td style={{ color: 'var(--danger)', fontWeight: 700 }}>{formatCurrency(item.overdueAmount, branding.currencySymbol)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="empty-state" style={{ padding: '24px' }}>
+                <span className="material-icons-outlined" style={{ fontSize: '36px', color: 'var(--success)' }}>check_circle</span>
+                <p style={{ marginTop: '8px', fontSize: '.85rem', color: 'var(--text-secondary)' }}>All chit subscriptions up to date!</p>
+              </div>
+            )}
+          </div>
+
+          <div className="card">
+            <div className="card-header">
+              <h3>Active Chit Groups</h3>
+            </div>
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Group Name</th>
+                    <th style={{ textAlign: 'center' }}>Members</th>
+                    <th style={{ textAlign: 'right' }}>Chit Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {chitData.activeChitGroupsList.map((group) => (
+                    <tr key={group.id}>
+                      <td><strong>{group.name}</strong></td>
+                      <td style={{ textAlign: 'center' }}>{group._count.members} / {group.totalMembers}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--primary)' }}>
+                        {formatCurrency(Number(group.chitValue), branding.currencySymbol)}
+                      </td>
+                    </tr>
+                  ))}
+                  {chitData.activeChitGroupsList.length === 0 && (
+                    <tr>
+                      <td colSpan={3} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                        No active chit groups found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* Activity Feed */}
+        <div style={{ marginTop: '20px' }} className="card">
+          <div className="card-header"><h3>Recent System Activity</h3></div>
+          {chitData.recentActivity.length > 0 ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '15px', padding: '10px 0' }}>
+              {chitData.recentActivity.slice(0, 4).map((log) => (
+                <div className="activity-item" key={log.id} style={{ borderBottom: 'none', background: '#f8fafc', padding: '12px 16px', borderRadius: '12px' }}>
+                  <div className="activity-dot"></div>
+                  <div style={{ flex: 1 }}>
+                    <div className="activity-text"><strong>{log.user?.name || 'System'}</strong> - {log.action} {log.entityType}</div>
+                    <div className="activity-time">{formatDate(log.createdAt)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-light)', fontSize: '.85rem' }}>
+              No activity recorded yet.
+            </div>
+          )}
+        </div>
+      </>
+    );
   }
 
-  const branding = await getBranding(tenantId);
+
 
   if (userRole === 'agent') {
     const agentData = await getAgentDashboardData(tenantId, appType, session.user.id as string);
@@ -691,7 +981,6 @@ export default async function DashboardPage() {
     );
   }
 
-  const activeBranchId = await getActiveBranchId();
   const data = await getDashboardData(tenantId, appType, activeBranchId);
 
   return (

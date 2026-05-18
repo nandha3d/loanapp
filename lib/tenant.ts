@@ -74,27 +74,48 @@ export async function getUserAppType(): Promise<string> {
   const headerStore = await headers();
   const pathname = headerStore.get('x-loantrack-path') || '';
 
-  const { moduleForRoute } = await import('@/types/modules');
-  const routeModule = moduleForRoute(pathname);
+  // Determine if the route is exclusive to a module
+  let routeModule: string | null = null;
+  if (pathname === '/vehicles' || pathname.startsWith('/vehicles/')) {
+    routeModule = 'autofinance';
+  } else if (pathname === '/chits' || pathname.startsWith('/chits/')) {
+    routeModule = 'chitfunds';
+  }
 
   if (role === 'developer') {
     if (routeModule) return routeModule;
     return activeApp || 'microlending';
   }
-
   if (role === 'superadmin') {
+    const { getActiveBranchId, getBranchEnabledModules } = await import('./branch');
+    const branchId = await getActiveBranchId();
+    if (branchId) {
+      const modules = await getBranchEnabledModules(branchId);
+      if (modules.length > 0) {
+        // If route is module-exclusive and that module is enabled, use it
+        if (routeModule && modules.includes(routeModule as any)) {
+          return routeModule;
+        }
+        // Otherwise, respect activeApp cookie first if it's enabled
+        if (activeApp && modules.includes(activeApp as any)) {
+          return activeApp;
+        }
+        return modules[0];
+      }
+    }
     if (routeModule) return routeModule;
     if (activeApp) return activeApp;
     return user?.appType || 'microlending';
   }
-
   if (role === 'admin') {
     const { getActiveModules } = await import('./branch');
     const allowed = await getActiveModules();
     if (allowed.length > 0) {
-      if (routeModule && allowed.includes(routeModule)) {
+      // If route is module-exclusive and that module is enabled, use it
+      if (routeModule && allowed.includes(routeModule as any)) {
         return routeModule;
       }
+      // Otherwise, respect activeApp cookie first if it's enabled
       if (activeApp && allowed.includes(activeApp as any)) {
         return activeApp;
       }
@@ -104,6 +125,11 @@ export async function getUserAppType(): Promise<string> {
 
   if (routeModule && routeModule === user?.appType) {
     return routeModule;
+  }
+
+  // Respect activeApp first if set and not overridden by exclusive routes
+  if (activeApp && !routeModule) {
+    return activeApp;
   }
 
   return user?.appType || 'microlending';

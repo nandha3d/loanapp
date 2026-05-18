@@ -232,12 +232,32 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
     async session({ session, token }: any) {
       if (session.user) {
         (session.user as any).id = token.userId;
-        (session.user as any).role = token.role;
-        (session.user as any).appType = token.appType;
         (session.user as any).tenantId = token.tenantId;
-        (session.user as any).branchId = token.branchId;
         (session.user as any).phone = token.phone;
         (session.user as any).username = token.username;
+
+        // Fetch latest role, appType, and branchId from DB to prevent out-of-sync sessions
+        try {
+          const prisma = (await import('./db')).default;
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.userId },
+            select: { role: true, appType: true, branchId: true },
+          });
+          if (dbUser) {
+            (session.user as any).role = dbUser.role;
+            (session.user as any).appType = dbUser.appType;
+            (session.user as any).branchId = dbUser.branchId;
+          } else {
+            (session.user as any).role = token.role;
+            (session.user as any).appType = token.appType;
+            (session.user as any).branchId = token.branchId;
+          }
+        } catch (e) {
+          console.error('[AUTH_SESSION_DB_ERROR]', e);
+          (session.user as any).role = token.role;
+          (session.user as any).appType = token.appType;
+          (session.user as any).branchId = token.branchId;
+        }
       }
       return session;
     },

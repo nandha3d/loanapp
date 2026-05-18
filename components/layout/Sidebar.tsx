@@ -49,7 +49,6 @@ export default function Sidebar({
     { id: 'dashboard', icon: 'dashboard', label: dict.sidebar.dashboard, href: '/dashboard' },
     { id: 'collection', icon: 'point_of_sale', label: dict.sidebar.collection, href: '/collection' },
     { section: dict.sidebar.sections.management },
-    { id: 'admin-team', icon: 'admin_panel_settings', label: 'User Management', href: '/admin/team', adminOnly: true },
     { id: 'customers', icon: 'people', label: dict.sidebar.customers, href: '/customers' },
     { id: 'loans', icon: 'account_balance', label: dict.sidebar.loans, href: '/loans', appTypes: ['microlending', 'autofinance'] },
     { id: 'vehicles', icon: 'directions_car', label: dict.sidebar.vehicles, href: '/vehicles', adminOnly: true, appTypes: ['autofinance'] },
@@ -82,8 +81,19 @@ export default function Sidebar({
     if (item.developerOnly && role !== 'developer') return false;
     if (item.superadminOnly && role !== 'superadmin') return false;
     
+    // Filter strictly by the current user's active app context
     if (item.appTypes && !item.appTypes.includes(userAppType)) return false;
-    
+
+    // Check if the route is enabled for the active app module
+    if (item.href) {
+      const alwaysVisible = ['/dashboard', '/collection', '/approvals', '/settings', '/notifications', '/subscription', '/portal', '/admin'];
+      if (!alwaysVisible.some((path) => item.href!.startsWith(path))) {
+        const routeEnabled = MODULE_ROUTES[userAppType as any]?.some((route) =>
+          item.href!.startsWith(route)
+        );
+        if (!routeEnabled) return false;
+      }
+    }
     return true;
   });
 

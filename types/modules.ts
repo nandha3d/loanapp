@@ -14,8 +14,8 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
 
 export const MODULE_ROUTES: Record<ModuleKey, string[]> = {
   microlending: ['/loans', '/customers', '/collection', '/penalties', '/reports'],
-  autofinance: ['/vehicles'],
-  chitfunds: ['/chits'],
+  autofinance: ['/vehicles', '/loans', '/customers', '/collection', '/penalties', '/reports'],
+  chitfunds: ['/chits', '/customers'],
 };
 
 export function normalizeModuleList(value: unknown): ModuleKey[] {
@@ -43,7 +43,17 @@ export function moduleForRoute(path: string): ModuleKey | null {
 }
 
 export function isRouteEnabledForModules(path: string, modules: readonly string[]): boolean {
-  const requiredModule = moduleForRoute(path);
-  if (!requiredModule) return true;
-  return normalizeModuleList([...modules]).includes(requiredModule);
+  const activeModules = normalizeModuleList([...modules]);
+  // Check if at least one enabled module supports this route
+  for (const module of activeModules) {
+    if (MODULE_ROUTES[module]?.some((route) => path === route || path.startsWith(`${route}/`))) {
+      return true;
+    }
+  }
+  
+  // If the path is not restricted by ANY module, it's enabled by default
+  const isRestrictedByAny = Object.values(MODULE_ROUTES).some((routes) =>
+    routes.some((route) => path === route || path.startsWith(`${route}/`))
+  );
+  return !isRestrictedByAny;
 }
