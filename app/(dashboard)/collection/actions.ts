@@ -6,11 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth';
 import { getAgentRouteIds } from '@/lib/access';
 import { randomUUID } from 'crypto';
-import {
-  allocatePaymentsAcrossInstalments,
-  describeAllocationForPayment,
-  reallocateLoanRepayments,
-} from '@/lib/repayments';
+import { reallocateLoanRepayments } from '@/lib/repayments';
 import { sendPaymentReceipt } from '@/lib/sms';
 import { recordPaymentLedger } from '@/lib/paymentService';
 
@@ -63,7 +59,7 @@ export async function submitCollectionEntry(formData: FormData) {
   const paymentMode = (formData.get('paymentMode') as string) || 'cash';
   const remarks = (formData.get('remarks') as string) || null;
 
-  if (!instalmentId || isNaN(receivedAmount) || receivedAmount < 0) {
+  if (!instalmentId || isNaN(receivedAmount) || receivedAmount <= 0) {
     return { success: false, error: 'Invalid amount' };
   }
 
@@ -316,38 +312,43 @@ export async function verifyUpiPayment(entryId: string) {
     return { success: false, error: 'Unauthorized' };
   }
 
-  const entry = await prisma.collectionEntry.findUnique({
-    where: { id: entryId, tenantId },
-    include: { loan: true, customer: true }
-  });
-
-  if (!entry) return { success: false, error: 'Entry not found' };
-  if (entry.verificationStatus === 'verified') return { success: true, message: 'Already verified' };
-
-  await prisma.$transaction(async (tx) => {
-    await tx.collectionEntry.update({
-      where: { id: entry.id },
-      data: { verificationStatus: 'verified' }
+  try {
+    const entry = await prisma.collectionEntry.findFirst({
+      where: { id: entryId, tenantId },
+      include: { loan: true, customer: true }
     });
 
-    await tx.accountEntry.create({
-      data: {
-        tenantId,
-        entryDate: new Date(),
-        type: 'collection',
-        category: 'upi',
-        amount: entry.receivedAmount,
-        description: `Verified UPI collection for loan ${entry.loan.loanCode}`,
-        referenceId: entry.id,
-        referenceType: 'payment',
-        createdBy: userId,
-      }
-    });
-  });
+    if (!entry) return { success: false, error: 'Entry not found' };
+    if (entry.verificationStatus === 'verified') return { success: true, message: 'Already verified' };
 
-  revalidatePath('/dashboard');
-  revalidatePath('/collection');
-  return { success: true };
+    await prisma.$transaction(async (tx) => {
+      await tx.collectionEntry.update({
+        where: { id: entry.id },
+        data: { verificationStatus: 'verified' }
+      });
+
+      await tx.accountEntry.create({
+        data: {
+          tenantId,
+          entryDate: new Date(),
+          type: 'collection',
+          category: 'upi',
+          amount: entry.receivedAmount,
+          description: `Verified UPI collection for loan ${entry.loan.loanCode}`,
+          referenceId: entry.id,
+          referenceType: 'payment',
+          createdBy: userId,
+        }
+      });
+    });
+
+    revalidatePath('/dashboard');
+    revalidatePath('/collection');
+    return { success: true };
+  } catch (error) {
+    console.error('Error verifying UPI payment:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to verify UPI payment' };
+  }
 }
 
 export async function collectAgentCash(routeId: string, agentId: string) {
@@ -362,60 +363,65 @@ export async function collectAgentCash(routeId: string, agentId: string) {
 
   if (!userId) return { success: false, error: 'Unauthorized' };
 
-  await prisma.$transaction(async (tx) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+  try {
+    await prisma.$transaction(async (tx) => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-    const entries = await tx.collectionEntry.findMany({
-      where: {
-        tenantId,
-        agentId,
-        paymentMode: 'cash',
-        verificationStatus: 'pending',
-        customer: { routeId }
-      }
+      const entries = await tx.collectionEntry.findMany({
+        where: {
+          tenantId,
+          agentId,
+          paymentMode: 'cash',
+          verificationStatus: 'pending',
+          customer: { routeId }
+        }
+      });
+
+      const totalToCollect = entries.reduce((sum, e) => sum + Number(e.receivedAmount), 0);
+      if (totalToCollect <= 0) throw new Error('No pending cash to collect for this route/agent combo');
+
+      await tx.collectionEntry.updateMany({
+        where: {
+          id: { in: entries.map(e => e.id) }
+        },
+        data: { verificationStatus: 'verified' }
+      });
+
+      const handover = await tx.cashHandover.create({
+        data: {
+          tenantId,
+          agentId,
+          adminId: userId,
+          routeId,
+          amount: totalToCollect,
+          status: 'collected',
+          collectedAt: new Date(),
+          confirmedAt: new Date()
+        }
+      });
+
+      await tx.accountEntry.create({
+        data: {
+          tenantId,
+          entryDate: new Date(),
+          type: 'collection',
+          category: 'cash',
+          amount: totalToCollect,
+          description: `Cash handover collected`,
+          referenceId: handover.id,
+          referenceType: 'payment',
+          createdBy: userId,
+        }
+      });
     });
 
-    const totalToCollect = entries.reduce((sum, e) => sum + Number(e.receivedAmount), 0);
-    if (totalToCollect <= 0) throw new Error('No pending cash to collect for this route/agent combo');
-
-    await tx.collectionEntry.updateMany({
-      where: {
-        id: { in: entries.map(e => e.id) }
-      },
-      data: { verificationStatus: 'verified' }
-    });
-
-    const handover = await tx.cashHandover.create({
-      data: {
-        tenantId,
-        agentId,
-        adminId: userId,
-        routeId,
-        amount: totalToCollect,
-        status: 'collected',
-        collectedAt: new Date(),
-        confirmedAt: new Date()
-      }
-    });
-
-    await tx.accountEntry.create({
-      data: {
-        tenantId,
-        entryDate: new Date(),
-        type: 'collection',
-        category: 'cash',
-        amount: totalToCollect,
-        description: `Cash handover collected`,
-        referenceId: handover.id,
-        referenceType: 'payment',
-        createdBy: userId,
-      }
-    });
-  });
-
-  revalidatePath('/dashboard');
-  revalidatePath('/collection');
-  return { success: true };
+    revalidatePath('/dashboard');
+    revalidatePath('/collection');
+    return { success: true };
+  } catch (error) {
+    console.error('Error collecting agent cash:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to collect agent cash' };
+  }
 }
 

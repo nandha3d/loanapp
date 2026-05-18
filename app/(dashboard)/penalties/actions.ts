@@ -9,6 +9,11 @@ export async function settlePenalty(formData: FormData) {
   const session = await auth();
   const tenantId = await getDefaultTenantId();
   const userId = session?.user?.id;
+  const role = (session?.user as any)?.role;
+
+  if (!userId || role === 'agent') {
+    return { success: false, error: 'Unauthorized' };
+  }
 
   const penaltyId = formData.get('penaltyId') as string;
   const settledAmount = Number(formData.get('settledAmount'));
@@ -59,6 +64,11 @@ export async function waivePenalty(formData: FormData) {
   const session = await auth();
   const tenantId = await getDefaultTenantId();
   const userId = session?.user?.id;
+  const role = (session?.user as any)?.role;
+
+  if (!userId || role === 'agent') {
+    return { success: false, error: 'Unauthorized' };
+  }
 
   const penaltyId = formData.get('penaltyId') as string;
   const notes = formData.get('notes') as string || null;
@@ -109,6 +119,11 @@ export async function enforcePenalty(formData: FormData) {
   const session = await auth();
   const tenantId = await getDefaultTenantId();
   const userId = session?.user?.id;
+  const role = (session?.user as any)?.role;
+
+  if (!userId || role === 'agent') {
+    return { success: false, error: 'Unauthorized' };
+  }
 
   const penaltyId = formData.get('penaltyId') as string;
   const notes = formData.get('notes') as string || null;

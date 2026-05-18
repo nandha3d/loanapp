@@ -69,11 +69,19 @@ export function allocatePaymentsAcrossInstalments(
 ): AllocatedInstalment[] {
   let remaining = Math.max(0, totalCollected);
   const today = startOfDay(now);
+  const sorted = [...instalments].sort(compareInstalments);
 
-  return [...instalments].sort(compareInstalments).map((instalment) => {
+  return sorted.map((instalment, index) => {
     const dueAmount = asNumber(instalment.dueAmount);
-    const receivedAmount = Math.min(dueAmount, remaining);
+    let receivedAmount = Math.min(dueAmount, remaining);
     remaining = Math.max(0, remaining - receivedAmount);
+
+    // Allocate any remaining excess/overpayment to the final instalment
+    if (index === sorted.length - 1 && remaining > 0) {
+      receivedAmount += remaining;
+      remaining = 0;
+    }
+
     const outstandingAmount = Math.max(0, dueAmount - receivedAmount);
     const dueDate = startOfDay(new Date(instalment.dueDate));
     const daysOverdue = Math.max(
@@ -131,19 +139,22 @@ export async function reallocateLoanRepayments(
   loanId: string,
   now = new Date(),
 ): Promise<ReallocationSummary> {
-  const [instalments, entries] = await Promise.all([
+  const [instalments] = await Promise.all([
     tx.instalment.findMany({
       where: { loanId },
       orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
       select: { id: true, instalmentNo: true, dueDate: true, dueAmount: true, receivedAmount: true, receivedAt: true },
     }),
-    tx.collectionEntry.findMany({
-      where: { loanId },
-      select: { receivedAmount: true },
-    }),
   ]);
 
   const today = startOfDay(now);
+  
+  // Calculate total collected across all instalments before reallocation
+  const totalCollected = instalments.reduce((sum, inst) => sum + asNumber(inst.receivedAmount), 0);
+
+  // Chronologically allocate the total collected amount across instalments
+  const allocations = allocatePaymentsAcrossInstalments(instalments, totalCollected, now);
+
   const summary = {
     paidCount: 0,
     totalCollected: 0,
@@ -155,42 +166,35 @@ export async function reallocateLoanRepayments(
     allocations: [] as AllocatedInstalment[],
   };
 
-  for (const inst of instalments) {
-    const dueAmount = asNumber(inst.dueAmount);
-    const receivedAmount = asNumber(inst.receivedAmount);
-    const dueDate = startOfDay(new Date(inst.dueDate));
-    const isPastDue = dueDate.getTime() < today.getTime();
-    
-    let status: 'paid' | 'partial' | 'missed' | 'upcoming' = 'upcoming';
-    if (receivedAmount >= dueAmount) status = 'paid';
-    else if (receivedAmount > 0) status = 'partial';
-    else if (isPastDue) status = 'missed';
+  for (const alloc of allocations) {
+    const originalInst = instalments.find((i) => i.id === alloc.id)!;
+    const receivedAt = alloc.receivedAmount > 0 ? (originalInst.receivedAt || now) : null;
 
     await tx.instalment.update({
-      where: { id: inst.id },
-      data: { 
-        status,
-        receivedAt: receivedAmount > 0 ? (inst.receivedAt || now) : null // Keep original if exists
+      where: { id: alloc.id },
+      data: {
+        receivedAmount: alloc.receivedAmount,
+        status: alloc.status,
+        receivedAt,
       },
     });
 
-    if (status === 'paid') summary.paidCount++;
-    summary.totalCollected += receivedAmount;
-    summary.outstandingAmount += Math.max(0, dueAmount - receivedAmount);
-    if (isPastDue && receivedAmount < dueAmount) {
-      summary.overdueAmount += (dueAmount - receivedAmount);
+    if (alloc.status === 'paid') summary.paidCount++;
+    summary.totalCollected += alloc.receivedAmount;
+    summary.outstandingAmount += alloc.outstandingAmount;
+    if (alloc.overdueAmount > 0) {
+      summary.overdueAmount += alloc.overdueAmount;
       summary.overdueCount++;
     }
 
-    // Prepare allocation object for the summary/return
     summary.allocations.push({
-      ...inst,
-      dueAmount,
-      receivedAmount,
-      outstandingAmount: Math.max(0, dueAmount - receivedAmount),
-      overdueAmount: isPastDue ? Math.max(0, dueAmount - receivedAmount) : 0,
-      daysOverdue: isPastDue ? Math.floor((today.getTime() - dueDate.getTime()) / (24 * 60 * 60 * 1000)) : 0,
-      status,
+      ...originalInst,
+      dueAmount: alloc.dueAmount,
+      receivedAmount: alloc.receivedAmount,
+      outstandingAmount: alloc.outstandingAmount,
+      overdueAmount: alloc.overdueAmount,
+      daysOverdue: alloc.daysOverdue,
+      status: alloc.status,
     });
   }
 
