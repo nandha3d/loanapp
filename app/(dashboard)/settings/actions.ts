@@ -8,6 +8,44 @@ import { auth } from '@/lib/auth';
 import { generateSecret, generateURI, verifySync } from 'otplib';
 import QRCode from 'qrcode';
 import { encryptAadharNumber } from '@/lib/pii';
+import fs from 'fs';
+import path from 'path';
+
+const UPLOAD_DIR = path.join(process.cwd(), 'private', 'uploads');
+
+export async function saveUpiQrCode(formData: FormData) {
+  const session = await auth();
+  const role = (session?.user as any)?.role;
+  const userId = session?.user?.id;
+  if (!userId || !['admin', 'superadmin', 'developer'].includes(role)) {
+    return { success: false, error: 'Unauthorized' };
+  }
+
+  const tenantId = await getDefaultTenantId();
+  const qrFile = formData.get('upiQrCode') as File | null;
+  const upiId = formData.get('upiId') as string || '';
+
+  // Save UPI ID setting
+  if (upiId) {
+    await setSetting(tenantId, 'upi_id', upiId, 'payment');
+  }
+
+  // Save QR code image
+  if (qrFile && qrFile.size > 0) {
+    const dir = path.join(UPLOAD_DIR, tenantId, 'settings');
+    fs.mkdirSync(dir, { recursive: true });
+    const ext = path.extname(qrFile.name).replace(/[^a-zA-Z0-9.]/g, '').toLowerCase() || '.png';
+    const safeName = `upi_qr_${Date.now()}${ext}`;
+    const filePath = path.join(dir, safeName);
+    const buffer = Buffer.from(await qrFile.arrayBuffer());
+    fs.writeFileSync(filePath, buffer);
+    const publicPath = `/api/files/${tenantId}/settings/${safeName}`;
+    await setSetting(tenantId, 'upi_qr_url', publicPath, 'payment');
+  }
+
+  revalidatePath('/settings');
+  return { success: true };
+}
 
 export async function saveSystemSettings(formData: FormData) {
   const session = await auth();

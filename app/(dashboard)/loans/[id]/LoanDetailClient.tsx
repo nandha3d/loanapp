@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { formatCurrency, formatDate, getBadgeClass, calcPercentage } from '@/lib/utils';
 import { markInstalmentPaid, requestCollectionEdit, waiveLoanPenalty, settleLoanPenalty, closeLoan, renewLoan } from './actions';
 import Link from 'next/link';
@@ -61,8 +61,39 @@ export default function LoanDetailClient({
   const router = useRouter();
   const pct = calcPercentage(loan.paidCount, loan.totalInstalments);
   const isAdmin = userRole === 'admin' || userRole === 'superadmin';
+  const totalCollected = Number(loan.totalCollected || 0);
   
-  const missedInstalments = loan.instalments.filter((i: any) => i.status === 'missed');
+  const [isDistributedView, setIsDistributedView] = useState(false);
+
+  const displayInstalments = useMemo(() => {
+    if (!isDistributedView) return loan.instalments;
+    
+    const dist = JSON.parse(JSON.stringify(loan.instalments));
+    let remaining = totalCollected;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    for (const inst of dist) {
+      const due = Number(inst.dueAmount);
+      if (remaining >= due) {
+        inst.receivedAmount = due;
+        inst.status = 'paid';
+        remaining -= due;
+      } else if (remaining > 0) {
+        inst.receivedAmount = remaining;
+        inst.status = 'partial';
+        remaining = 0;
+      } else {
+        inst.receivedAmount = 0;
+        const dueDate = new Date(inst.dueDate);
+        dueDate.setHours(0, 0, 0, 0);
+        inst.status = dueDate < today ? 'missed' : 'upcoming';
+      }
+    }
+    return dist;
+  }, [loan.instalments, isDistributedView, totalCollected]);
+
+  const missedInstalments = displayInstalments.filter((i: any) => i.status === 'missed');
   const missedCount = missedInstalments.length;
   const recordedPenalty = loan.penalties.reduce((sum: number, p: any) => sum + Number(p.grossPenalty), 0);
   const potentialPenalty = missedCount * Number(loan.penaltyRate);
@@ -203,7 +234,6 @@ export default function LoanDetailClient({
     }
   };
 
-  const totalCollected = Number(loan.totalCollected || 0);
   const totalRepayable = Number(loan.perInstalment) * loan.totalInstalments;
   const outstanding = totalRepayable - totalCollected;
   const { score: creditScore, grade: creditGrade } = calculateCreditScore(loan.customer.loans || []);
@@ -252,6 +282,18 @@ export default function LoanDetailClient({
               <span className="material-icons-outlined" style={{ fontSize: '16px' }}>calendar_today</span>
               <span style={{ textTransform: 'capitalize' }}>{loan.frequency} {d.schedule}</span>
             </span>
+            <div style={{ marginLeft: '16px', display: 'flex', background: '#F1F5F9', borderRadius: '6px', padding: '2px' }}>
+              <button 
+                type="button"
+                onClick={() => setIsDistributedView(false)}
+                style={{ padding: '4px 10px', fontSize: '.7rem', fontWeight: 600, border: 'none', background: !isDistributedView ? '#fff' : 'transparent', color: !isDistributedView ? 'var(--primary)' : 'var(--text-secondary)', borderRadius: '4px', cursor: 'pointer', boxShadow: !isDistributedView ? '0 1px 2px rgba(0,0,0,0.05)' : 'none', transition: 'all 0.2s' }}
+              >Literal</button>
+              <button 
+                type="button"
+                onClick={() => setIsDistributedView(true)}
+                style={{ padding: '4px 10px', fontSize: '.7rem', fontWeight: 600, border: 'none', background: isDistributedView ? '#fff' : 'transparent', color: isDistributedView ? 'var(--primary)' : 'var(--text-secondary)', borderRadius: '4px', cursor: 'pointer', boxShadow: isDistributedView ? '0 1px 2px rgba(0,0,0,0.05)' : 'none', transition: 'all 0.2s' }}
+              >Distributed</button>
+            </div>
           </div>
 
           <div className="loan-main-row">
@@ -281,7 +323,7 @@ export default function LoanDetailClient({
 
             <div className="heatmap-col">
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', padding: '8px 0' }}>
-                {loan.instalments.map((inst: any) => {
+                {displayInstalments.map((inst: any) => {
                   let bg = '#E2E8F0';
                   if (inst.status === 'paid') bg = '#16A34A';
                   else if (inst.status === 'partial') bg = '#F59E0B';
@@ -327,7 +369,7 @@ export default function LoanDetailClient({
                 </tr>
               </thead>
               <tbody>
-                {loan.instalments.map((inst: any) => {
+                {displayInstalments.map((inst: any) => {
                   const collectedTime = inst.receivedAt ? new Date(inst.receivedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : null;
                   const isPaid = Number(inst.receivedAmount) > 0;
                   return (

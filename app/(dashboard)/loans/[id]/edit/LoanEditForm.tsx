@@ -29,6 +29,7 @@ export default function LoanEditForm({
   const [interestType, setInterestType] = useState(loan.deductionType || 'upfront_fixed');
   const [deduction, setDeduction] = useState<number | ''>(Number(loan.deduction));
   const [frequency, setFrequency] = useState(loan.frequency);
+  const [dueDay, setDueDay] = useState<number | ''>(loan.dueDay != null ? loan.dueDay : '');
   const [tenure, setTenure] = useState<number | ''>(Number(loan.tenure));
   const [startDate, setStartDate] = useState(formatDateISO(new Date(loan.startDate)));
   const [penalty, setPenalty] = useState<number>(Number(loan.penaltyRate));
@@ -173,6 +174,7 @@ export default function LoanEditForm({
     fd.set('startDate', startDate);
     fd.set('penaltyRate', penalty.toString());
     fd.set('loanType', loanType);
+    fd.set('dueDay', dueDay !== '' ? dueDay.toString() : '');
     
     // Process collateral JSON
     let colObj: any = {};
@@ -320,13 +322,35 @@ export default function LoanEditForm({
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">{dict.loans.frequency} *</label>
-            <select name="frequency" className="form-control" value={frequency} onChange={e => setFrequency(e.target.value)} required style={{ fontSize: '1rem', padding: '12px' }}>
+            <select name="frequency" className="form-control" value={frequency} onChange={e => { setFrequency(e.target.value); setDueDay(''); }} required style={{ fontSize: '1rem', padding: '12px' }}>
               <option value="daily">{dict.creditInsights.daily}</option>
               <option value="weekly">{dict.creditInsights.weekly}</option>
               <option value="biweekly">Bi-weekly (14 days)</option>
               <option value="monthly">{dict.creditInsights.monthly}</option>
             </select>
           </div>
+          {(frequency === 'weekly' || frequency === 'biweekly') && (
+            <div className="form-group">
+              <label className="form-label">Due Day</label>
+              <select name="dueDay" className="form-control" value={dueDay} onChange={e => setDueDay(e.target.value ? Number(e.target.value) : '')} style={{ fontSize: '1rem', padding: '12px' }}>
+                <option value="">Select Day</option>
+                {['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((day, i) => (
+                  <option key={i} value={i}>{day}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {frequency === 'monthly' && (
+            <div className="form-group">
+              <label className="form-label">Due Date (Day of Month)</label>
+              <select name="dueDay" className="form-control" value={dueDay} onChange={e => setDueDay(e.target.value ? Number(e.target.value) : '')} style={{ fontSize: '1rem', padding: '12px' }}>
+                <option value="">Select Date</option>
+                {Array.from({ length: 28 }, (_, i) => i + 1).map(d => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="form-group">
             <label className="form-label">{dict.loans.tenure} *</label>
             <input type="number" name="tenure" className="form-control" value={tenure} onChange={e => setTenure(e.target.value ? Number(e.target.value) : '')} required style={{ fontSize: '1.1rem', padding: '12px' }} />
@@ -408,7 +432,7 @@ export default function LoanEditForm({
               <div>
                 <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', display: 'inline-block', marginBottom: '8px' }}>
                   Change Photo
-                  <input type="file" name="guarantorPhoto" accept="image/*" style={{ display: 'none' }} onChange={handleGuarantorPhotoChange} />
+                  <input type="file" name="guarantorPhoto" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleGuarantorPhotoChange} />
                 </label>
                 <p style={{ fontSize: '.75rem', color: 'var(--text-secondary)', margin: 0 }}>Upload a clear passport size photo.</p>
               </div>
@@ -439,7 +463,7 @@ export default function LoanEditForm({
                     <span className="material-icons-outlined" style={{ fontSize: '16px' }}>image</span>
                   )}
                   <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cheque.fileName || 'Upload'}</span>
-                  <input type="file" name={`chequeImage_${index}`} accept="image/*" style={{ display: 'none' }}
+                  <input type="file" name={`chequeImage_${index}`} accept="image/*" capture="environment" style={{ display: 'none' }}
                     onChange={e => handleChequePhotoChange(cheque.id, e.target.files?.[0] || null)} />
                 </label>
                 <button type="button" onClick={() => removeChequeRow(cheque.id)} style={{ color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}>

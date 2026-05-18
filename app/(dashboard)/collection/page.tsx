@@ -108,6 +108,13 @@ export default async function CollectionPage() {
     }),
   ]);
 
+  const dailyCollectionRaw = userId ? await prisma.$queryRaw<{ id: string, status: string, totalCollected: number }[]>`
+    SELECT id, status, total_collected as totalCollected FROM daily_collections
+     WHERE tenant_id = ${tenantId} AND app_type = ${appType} AND agent_id = ${userId} AND date = CURDATE()
+     LIMIT 1
+  ` : [];
+  const dailyCollection = dailyCollectionRaw[0] || null;
+
   const routeName = agentRoutes.map((route) => route.name).join(', ') || 'All Routes';
 
   const todayRows = JSON.parse(JSON.stringify(todayInstalments.map((item) => enrichInstalment(item, today))));
@@ -128,6 +135,11 @@ export default async function CollectionPage() {
       routeName={routeName}
       currencySymbol={currencySymbol}
       dict={dict}
+      dailyCollection={dailyCollection ? {
+        id: dailyCollection.id,
+        status: dailyCollection.status,
+        totalCollected: Number(dailyCollection.totalCollected)
+      } : null}
     />
   );
 }

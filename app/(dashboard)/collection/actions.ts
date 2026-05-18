@@ -184,6 +184,26 @@ export async function submitCollectionEntry(formData: FormData) {
       },
     });
   });
+  // Feature 9: Auto-record collection in accounting ledger
+  if (delta > 0) {
+    try {
+      await prisma.accountEntry.create({
+        data: {
+          tenantId,
+          entryDate: new Date(),
+          type: 'collection',
+          category: paymentMode || 'cash',
+          amount: delta,
+          description: `Collection for loan ${instalment.loan.loanCode} - instalment #${instalment.instalmentNo}`,
+          referenceId: instalment.loanId,
+          referenceType: 'payment',
+          createdBy: userId,
+        },
+      });
+    } catch (e) {
+      console.error('Failed to create accounting entry for collection:', e);
+    }
+  }
 
   revalidatePath('/collection');
   revalidatePath('/dashboard');
@@ -255,3 +275,53 @@ export async function requestCollectionEdit(formData: FormData) {
   revalidatePath(`/loans/${instalment.loanId}`);
   return { success: true };
 }
+
+export async function requestCashHandover() {
+  const session = await auth();
+  const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  const userId = session?.user?.id;
+  if (!userId) return { success: false, error: 'Not authenticated' };
+
+  const rows = await prisma.$queryRaw<{ id: string, status: string, total_collected: number }[]>`
+    SELECT id, status, total_collected FROM daily_collections
+     WHERE tenant_id = ${tenantId} AND app_type = ${appType} AND agent_id = ${userId} AND date = CURDATE()
+     LIMIT 1
+  `;
+
+  const dailyCollection = rows[0];
+
+  if (!dailyCollection || Number(dailyCollection.total_collected) <= 0) {
+    return { success: false, error: 'No collections to handover today' };
+  }
+
+  if (dailyCollection.status !== 'open') {
+    return { success: false, error: 'Handover already requested or settled' };
+  }
+
+  // Update DailyCollection status
+  await prisma.dailyCollection.update({
+    where: { id: dailyCollection.id },
+    data: { status: 'pending_handover' }
+  });
+
+  // Create ApprovalRequest
+  await prisma.approvalRequest.create({
+    data: {
+      tenantId,
+      appType,
+      requestType: 'cash_handover',
+      entityType: 'daily_collection',
+      entityId: dailyCollection.id,
+      requestedById: userId,
+      requestedChanges: JSON.stringify({ amount: Number(dailyCollection.total_collected) }),
+      reason: 'End of day cash handover',
+      status: 'pending'
+    }
+  });
+
+  revalidatePath('/collection');
+  revalidatePath('/approvals');
+  return { success: true };
+}
+

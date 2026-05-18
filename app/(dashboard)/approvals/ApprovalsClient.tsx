@@ -167,7 +167,7 @@ export default function ApprovalsClient({
           }}
         >
           <span className="material-icons-outlined" style={{ fontSize: '20px' }}>edit</span>
-          Profile Edit Requests
+          General Requests
           {requests.filter(r => r.status === 'pending').length > 0 && (
             <span style={{
               background: 'var(--primary-bg)',
@@ -351,11 +351,13 @@ export default function ApprovalsClient({
                       <tr key={req.id} style={{ borderTop: '1px solid var(--border)' }}>
                         <td style={{ padding: '16px 20px' }}>{new Date(req.createdAt).toLocaleDateString()}</td>
                         <td style={{ padding: '16px 20px' }}>{req.requestedBy?.name}</td>
-                        <td style={{ padding: '16px 20px', textTransform: 'capitalize' }}>{req.entityType}</td>
+                        <td style={{ padding: '16px 20px', textTransform: 'capitalize' }}>
+                          {req.requestType === 'cash_handover' ? 'Cash Handover' : req.entityType}
+                        </td>
                         <td style={{ padding: '16px 20px' }}>
                           <div style={{ fontSize: '0.85rem' }}>
                             {Object.keys(changes).map(k => (
-                              <div key={k}><strong>{k}:</strong> {changes[k]}</div>
+                              <div key={k}><strong>{k}:</strong> {req.requestType === 'cash_handover' && k === 'amount' ? `₹${changes[k]}` : changes[k]}</div>
                             ))}
                           </div>
                           {req.reason && <div style={{ fontSize: '0.8rem', color: 'var(--text-light)', marginTop: '4px' }}>{d.reason}: {req.reason}</div>}

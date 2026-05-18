@@ -34,6 +34,7 @@ model Tenant {
   subscription          TenantSubscription?
   users                 User[]
   vehicles              Vehicle[]
+  accountEntries        AccountEntry[]
 
   @@map("tenants")
 }
@@ -61,6 +62,7 @@ model Branch {
   routes         Route[]
   userModules    UserBranchModule[]
   users          User[]
+  accountEntries AccountEntry[]
 
   @@unique([tenantId, code])
   @@index([superadminId], map: "branches_superadmin_id_fkey")
@@ -116,6 +118,7 @@ model User {
   branch                   Branch?            @relation(fields: [branchId], references: [id])
   tenant                   Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   vehicleRepoFlags         Vehicle[]          @relation("VehicleRepoFlag")
+  accountEntries           AccountEntry[]
 
   @@unique([tenantId, username])
   @@unique([tenantId, phone])
@@ -299,6 +302,7 @@ model Loan {
   deduction         Decimal           @db.Decimal(12, 2)
   disbursed         Decimal           @db.Decimal(12, 2)
   frequency         String
+  dueDay            Int?              @map("due_day")
   tenure            Int
   startDate         DateTime          @map("start_date") @db.Date
   endDate           DateTime?         @map("end_date") @db.Date
@@ -814,4 +818,27 @@ model CronLock {
   expiresAt DateTime @map("expires_at")
 
   @@map("cron_locks")
+}
+
+model AccountEntry {
+  id            String   @id @default(cuid())
+  tenantId      String   @map("tenant_id")
+  branchId      String?  @map("branch_id")
+  entryDate     DateTime @map("entry_date") @db.Date
+  type          String   // capital_add, capital_withdraw, loan_disburse, collection, expense, adjustment
+  category      String   @default("general") // cash, bank, upi, interest, penalty, salary, rent, other
+  amount        Decimal  @db.Decimal(12, 2)
+  description   String?  @db.Text
+  referenceId   String?  @map("reference_id") // loan.id or payment.id etc.
+  referenceType String?  @map("reference_type") // loan, payment, penalty
+  createdBy     String?  @map("created_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  branch  Branch? @relation(fields: [branchId], references: [id])
+  user    User?   @relation(fields: [createdBy], references: [id])
+
+  @@index([tenantId, entryDate])
+  @@index([tenantId, type])
+  @@map("account_entries")
 }

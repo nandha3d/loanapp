@@ -1,4 +1,4 @@
-// Type declarations for NextAuth JWT and Session
+import 'next-auth';
 
 declare module 'next-auth/jwt' {
   interface JWT {

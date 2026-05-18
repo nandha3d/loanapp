@@ -228,6 +228,14 @@ export async function reviewRequest(formData: FormData) {
       } catch (err: any) {
         return { success: false, error: err.message || 'Transaction failed' };
       }
+    } else if (request.requestType === 'cash_handover') {
+      await prisma.dailyCollection.update({
+        where: { id: request.entityId },
+        data: {
+          status: 'settled',
+          lockedAt: new Date(),
+        },
+      });
     }
   }
 

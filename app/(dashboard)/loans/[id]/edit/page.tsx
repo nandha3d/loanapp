@@ -1,5 +1,5 @@
 import prisma from '@/lib/db';
-import { getDefaultTenantId, getSetting } from '@/lib/tenant';
+import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { getDictionary } from '@/lib/i18n';
 import LoanEditForm from './LoanEditForm';
 import { notFound } from 'next/navigation';
@@ -12,6 +12,7 @@ export default async function EditLoanPage({
 }) {
   const resolvedParams = await params;
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
   const dict = await getDictionary(tenantId);
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
 

@@ -185,6 +185,15 @@ async function main() {
     { key: 'loan_code_prefix', value: 'LN', group: 'general' },
     { key: 'customer_code_counter', value: '0', group: 'general' },
     { key: 'loan_code_counter', value: '0', group: 'general' },
+    // Frequency-based loan prefixes
+    { key: 'loan_prefix_daily', value: 'DL', group: 'general' },
+    { key: 'loan_prefix_weekly', value: 'WK', group: 'general' },
+    { key: 'loan_prefix_biweekly', value: 'BW', group: 'general' },
+    { key: 'loan_prefix_monthly', value: 'ML', group: 'general' },
+    { key: 'loan_counter_daily', value: '0', group: 'general' },
+    { key: 'loan_counter_weekly', value: '0', group: 'general' },
+    { key: 'loan_counter_biweekly', value: '0', group: 'general' },
+    { key: 'loan_counter_monthly', value: '0', group: 'general' },
   ];
 
   for (const s of defaultSettings) {

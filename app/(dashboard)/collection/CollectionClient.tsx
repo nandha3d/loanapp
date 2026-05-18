@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { formatCurrency, formatDate, getBadgeClass, getInitials } from '@/lib/utils';
-import { submitCollectionEntry, requestCollectionEdit } from './actions';
+import { submitCollectionEntry, requestCollectionEdit, requestCashHandover } from './actions';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -62,6 +62,7 @@ export default function CollectionClient({
   routeName: string;
   currencySymbol: string;
   dict: any;
+  dailyCollection: { id: string; status: string; totalCollected: number } | null;
 }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'today' | 'overdue'>('today');
@@ -393,7 +394,40 @@ export default function CollectionClient({
             </p>
           </div>
         </div>
-        <span className="badge badge-active" style={{ fontSize: '.8rem', padding: '6px 14px' }}>Online</span>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <span className="badge badge-active" style={{ fontSize: '.8rem', padding: '6px 14px' }}>Online</span>
+          {agentRole === 'agent' && dailyCollection && dailyCollection.totalCollected > 0 && dailyCollection.status === 'open' && (
+            <button 
+              className="btn btn-primary btn-sm" 
+              onClick={async () => {
+                if (!confirm(`Submit handover of ${formatCurrency(dailyCollection.totalCollected, currencySymbol)}?`)) return;
+                setLoading(true);
+                const res = await requestCashHandover();
+                setLoading(false);
+                if (res.success) {
+                  alert('Handover requested successfully');
+                  router.refresh();
+                } else {
+                  alert(res.error || 'Failed to submit handover');
+                }
+              }}
+              disabled={loading}
+            >
+              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>payments</span>
+              Submit Handover
+            </button>
+          )}
+          {dailyCollection?.status === 'pending_handover' && (
+            <span className="badge" style={{ fontSize: '.8rem', padding: '6px 14px', background: 'rgba(245,158,11,.1)', color: '#D97706' }}>
+              Handover Pending
+            </span>
+          )}
+          {dailyCollection?.status === 'settled' && (
+            <span className="badge" style={{ fontSize: '.8rem', padding: '6px 14px', background: 'rgba(16,185,129,.1)', color: 'var(--success)' }}>
+              Handover Settled
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="summary-bar" style={{ marginBottom: '20px' }}>
@@ -627,7 +661,16 @@ export default function CollectionClient({
         </div>
       )}
 
-      {modal && (
+      {modal && (() => {
+        const uniqueRowsMap = new Map();
+        [...todayInstalments, ...overdueInstalments]
+          .filter(r => r.loan.id === modal.loan.id)
+          .forEach(r => uniqueRowsMap.set(r.id, r));
+        const uniqueRows = Array.from(uniqueRowsMap.values());
+        const totalLoanOutstanding = uniqueRows.reduce((sum, r) => sum + r.outstandingAmount, 0);
+        const hasOverdue = totalLoanOutstanding > modal.outstandingAmount && modal.receivedAmount === 0;
+
+        return (
         <div className="modal-overlay show" onClick={(event) => { if (event.target === event.currentTarget) setModal(null); }}>
           <div className="modal">
             <div className="modal-header">
@@ -645,6 +688,21 @@ export default function CollectionClient({
                   <span>{modal.receivedAmount > 0 ? 'Previously Paid' : 'Outstanding'}: <strong style={{ color: 'var(--text)' }}>{formatCurrency(modal.receivedAmount > 0 ? modal.receivedAmount : modal.outstandingAmount, currencySymbol)}</strong></span>
                 </div>
               </div>
+              
+              {hasOverdue && (
+                <div style={{ background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.2)', borderRadius: 'var(--radius-sm)', padding: '12px', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: '.8rem', color: 'var(--danger)', fontWeight: 700 }}>Total Outstanding Balance</div>
+                      <div style={{ fontSize: '1.1rem', color: 'var(--danger)', fontWeight: 700 }}>{formatCurrency(totalLoanOutstanding, currencySymbol)}</div>
+                      <div style={{ fontSize: '.7rem', color: 'var(--danger)', marginTop: '2px' }}>Includes previous overdues</div>
+                    </div>
+                    <button type="button" className="btn btn-sm" style={{ background: 'var(--danger)', color: '#fff', border: 'none' }} onClick={() => setAmount(totalLoanOutstanding)}>
+                      Settle All
+                    </button>
+                  </div>
+                </div>
+              )}
               
               {modal.receivedAmount > 0 && !isAdmin ? (
                 <div className="form-group">
@@ -685,7 +743,8 @@ export default function CollectionClient({
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </>
   );
 }

@@ -90,16 +90,50 @@ export function calculateEndDate(startDate: Date, frequency: string, tenure: num
   return end;
 }
 
-export function calculateInstalmentDates(startDate: Date, frequency: string, tenure: number): Date[] {
+export function calculateInstalmentDates(startDate: Date, frequency: string, tenure: number, dueDay?: number | null): Date[] {
   const dates: Date[] = [];
-  for (let i = 0; i < tenure; i++) {
-    const d = new Date(startDate);
-    if (frequency === 'daily') d.setDate(d.getDate() + i);
-    else if (frequency === 'weekly') d.setDate(d.getDate() + i * 7);
-    else if (frequency === 'biweekly') d.setDate(d.getDate() + i * 14);
-    else d.setMonth(d.getMonth() + i);
-    dates.push(d);
+
+  if (frequency === 'daily' || dueDay == null) {
+    // Daily: every day; or no dueDay specified: use original simple logic
+    for (let i = 0; i < tenure; i++) {
+      const d = new Date(startDate);
+      if (frequency === 'daily') d.setDate(d.getDate() + i);
+      else if (frequency === 'weekly') d.setDate(d.getDate() + i * 7);
+      else if (frequency === 'biweekly') d.setDate(d.getDate() + i * 14);
+      else d.setMonth(d.getMonth() + i);
+      dates.push(d);
+    }
+    return dates;
   }
+
+  if (frequency === 'weekly' || frequency === 'biweekly') {
+    // dueDay is 0-6 (Sun-Sat). Find the first occurrence on/after startDate.
+    const first = new Date(startDate);
+    const currentDay = first.getDay();
+    let diff = dueDay - currentDay;
+    if (diff < 0) diff += 7;
+    first.setDate(first.getDate() + diff);
+
+    const step = frequency === 'biweekly' ? 14 : 7;
+    for (let i = 0; i < tenure; i++) {
+      const d = new Date(first);
+      d.setDate(d.getDate() + i * step);
+      dates.push(d);
+    }
+  } else if (frequency === 'monthly') {
+    // dueDay is 1-28 (day of month)
+    const clampedDay = Math.min(28, Math.max(1, dueDay));
+    const startMonth = startDate.getMonth();
+    const startYear = startDate.getFullYear();
+    // If the start date's day is already past the dueDay, start from next month
+    let monthOffset = startDate.getDate() > clampedDay ? 1 : 0;
+
+    for (let i = 0; i < tenure; i++) {
+      const d = new Date(startYear, startMonth + monthOffset + i, clampedDay);
+      dates.push(d);
+    }
+  }
+
   return dates;
 }
 
