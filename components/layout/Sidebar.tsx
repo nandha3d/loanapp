@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { getAppConfig } from '@/lib/appConfig';
-import { MODULE_ROUTES, normalizeModuleList } from '@/types/modules';
+import { MODULE_ROUTES, normalizeModuleList, type ModuleKey } from '@/types/modules';
 
 interface NavItem {
   section?: string;
@@ -88,7 +88,7 @@ export default function Sidebar({
     if (item.href) {
       const alwaysVisible = ['/dashboard', '/collection', '/approvals', '/settings', '/notifications', '/subscription', '/portal', '/admin'];
       if (!alwaysVisible.some((path) => item.href!.startsWith(path))) {
-        const routeEnabled = MODULE_ROUTES[userAppType as any]?.some((route) =>
+        const routeEnabled = MODULE_ROUTES[userAppType as ModuleKey]?.some((route: string) =>
           item.href!.startsWith(route)
         );
         if (!routeEnabled) return false;
