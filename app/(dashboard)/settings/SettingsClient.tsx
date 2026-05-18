@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { saveSystemSettings, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, deleteLoanPackage, createUser, assignAgentToRoute, removeAgentFromRoute, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections, saveUpiQrCode } from './actions';
+import { saveSystemSettings, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, deleteLoanPackage, assignAgentToRoute, removeAgentFromRoute, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections, saveUpiQrCode } from './actions';
 import Modal from '@/components/Modal';
 
 export default function SettingsClient({ 
@@ -16,7 +16,6 @@ export default function SettingsClient({
   // Modals state
   const [isRouteModalOpen, setIsRouteModalOpen] = useState(false);
   const [isPackageModalOpen, setIsPackageModalOpen] = useState(false);
-  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [routeAgentModal, setRouteAgentModal] = useState<{ routeId: string; routeName: string; agents: any[] } | null>(null);
   const [raAgentId, setRaAgentId] = useState('');
   const [packageDeductionType, setPackageDeductionType] = useState<'fixed' | 'percentage'>('fixed');
@@ -55,7 +54,6 @@ export default function SettingsClient({
         <div className={`tab ${activeTab === 'penalty' ? 'active' : ''}`} onClick={() => setActiveTab('penalty')}>{d.tabPenalty}</div>
         <div className={`tab ${activeTab === 'packages' ? 'active' : ''}`} onClick={() => setActiveTab('packages')}>{d.tabPackages}</div>
         <div className={`tab ${activeTab === 'payment' ? 'active' : ''}`} onClick={() => setActiveTab('payment')}>Payment</div>
-        <div className={`tab ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>{d.tabUsers}</div>
         <div className={`tab ${activeTab === 'bulk' ? 'active' : ''}`} onClick={() => setActiveTab('bulk')}>Bulk Tools</div>
         {currentUser?.role === 'developer' && (
           <div className={`tab ${activeTab === 'system' ? 'active' : ''}`} onClick={() => setActiveTab('system')}>{d.tabSystem}</div>
@@ -151,37 +149,6 @@ export default function SettingsClient({
                   <td>
                     <button className="btn btn-ghost btn-sm">{d.edit}</button>
                     <button className="btn btn-ghost btn-sm" style={{color:'var(--danger)'}} onClick={() => { if(confirm(d.deletePackage)) deleteLoanPackage(p.id); }}>{d.delete}</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Users Tab */}
-      <div className={`tab-content ${activeTab === 'users' ? 'active' : ''}`}>
-        <div className="card-header">
-          <h3>👥 {d.usersTitle}</h3>
-          <button className="btn btn-primary btn-sm" onClick={() => setIsUserModalOpen(true)}>
-            <span className="material-icons-outlined" style={{fontSize:'14px'}}>person_add</span> {d.addUser}
-          </button>
-        </div>
-        <div className="table-wrapper">
-          <table>
-            <thead><tr><th>{d.user}</th><th>{d.phone}</th><th>{d.role}</th><th>{d.status}</th><th>{d.actions}</th></tr></thead>
-            <tbody>
-              {users.filter(u => u.role !== 'developer' || currentUser?.role === 'developer').map(u => (
-                <tr key={u.id}>
-                  <td><strong>{u.name}</strong><br/><span style={{fontSize:'.72rem',color:'var(--text-light)'}}>{u.username}</span></td>
-                  <td>{u.phone}</td>
-                  <td>
-                    <span className={`badge ${u.role === 'admin' ? 'badge-active' : 'badge-pending'}`} style={{textTransform:'capitalize'}}>{u.role}</span>
-                  </td>
-                  <td><span className={`badge ${u.status === 'active' ? 'badge-active' : 'badge-closed'}`} style={{textTransform:'capitalize'}}>{u.status}</span></td>
-                  <td>
-                    <button className="btn btn-ghost btn-sm">{d.edit}</button>
-                    {u.role !== 'admin' && <button className="btn btn-ghost btn-sm" style={{color:'var(--danger)'}}>{d.deactivate}</button>}
                   </td>
                 </tr>
               ))}
@@ -535,46 +502,6 @@ export default function SettingsClient({
           <div className="form-actions" style={{marginTop:'20px'}}>
             <button type="submit" className="btn btn-primary">{d.createPackage}</button>
             <button type="button" className="btn btn-ghost" onClick={() => setIsPackageModalOpen(false)}>{d.cancel}</button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* User Modal */}
-      <Modal isOpen={isUserModalOpen} onClose={() => setIsUserModalOpen(false)} title={d.addNewUser}>
-        <form action={async (fd) => { await createUser(fd); setIsUserModalOpen(false); showToast(d.userCreated); }}>
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">{d.fullName}</label>
-              <input type="text" name="name" className="form-control" required />
-            </div>
-            <div className="form-group">
-              <label className="form-label">{d.phone}</label>
-              <input type="tel" name="phone" className="form-control" required />
-            </div>
-          </div>
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">{d.username}</label>
-              <input type="text" name="username" className="form-control" required />
-            </div>
-            <div className="form-group">
-              <label className="form-label">{d.role}</label>
-              <select name="role" className="form-control">
-                <option value="agent">{d.fieldAgent}</option>
-                <option value="admin">{d.administrator}</option>
-                {currentUser?.role === 'developer' && (
-                  <option value="developer">Developer</option>
-                )}
-              </select>
-            </div>
-          </div>
-          <div className="form-group">
-            <label className="form-label">{d.password}</label>
-            <input type="password" name="password" className="form-control" required />
-          </div>
-          <div className="form-actions" style={{marginTop:'20px'}}>
-            <button type="submit" className="btn btn-primary">{d.createUser}</button>
-            <button type="button" className="btn btn-ghost" onClick={() => setIsUserModalOpen(false)}>{d.cancel}</button>
           </div>
         </form>
       </Modal>

@@ -448,7 +448,7 @@ export default function UsersClient({
           {editingUser?.role === 'superadmin' && viewerRole === 'developer' && (
             <div style={{ background: 'var(--primary-light)', padding: '12px', borderRadius: '8px', marginBottom: '20px', border: '1px solid var(--primary)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.9rem', color: 'var(--primary)', fontWeight: 600 }}>This is a Super Admin user. Subscription limits and modules should be managed separately.</span>
+                <span style={{ fontSize: '0.9rem', color: 'var(--primary-dark)', fontWeight: 600 }}>This is a Super Admin user. Subscription limits and modules should be managed separately.</span>
                 <button type="button" className="btn btn-sm" style={{ background: 'var(--primary)', color: 'white' }} onClick={() => {
                   const sa = superadmins.find(s => s.id === editingUser.id);
                   setViewingSuperadminId(editingUser.id);
@@ -470,7 +470,7 @@ export default function UsersClient({
                 const enabled = isDeveloper || (allowedPlanModules.includes(module) && selectedBranchModules.length === 0 || selectedBranchModules.includes(module));
                 const checked = selectedModules.includes(module);
                 return (
-                  <label key={module} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', border: `1px solid ${checked ? 'var(--primary)' : 'var(--border)'}`, borderRadius: '8px', background: checked ? 'var(--primary-light)' : 'var(--surface)', opacity: enabled ? 1 : 0.45, cursor: enabled ? 'pointer' : 'not-allowed' }}>
+                  <label key={module} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', border: `1px solid ${checked ? 'var(--primary)' : 'var(--border)'}`, borderRadius: '8px', background: checked ? 'var(--primary-light)' : 'var(--surface)', opacity: enabled ? 1 : 0.45, cursor: enabled ? 'pointer' : 'not-allowed', color: checked ? '#ffffff' : 'inherit', fontWeight: checked ? 600 : 400 }}>
                     <input type="checkbox" name="adminModules" value={module} checked={checked} disabled={!enabled} onChange={() => toggleModule(module)} />
                     <span>{MODULE_LABELS[module]}</span>
                   </label>
