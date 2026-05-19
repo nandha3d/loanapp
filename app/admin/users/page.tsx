@@ -18,12 +18,28 @@ export default async function AdminUsersPage() {
   const defaultAppType = await getUserAppType();
 
   // If developer, we want to see all tenants/users
-  const userWhere: any = userRole === 'developer' ? {} : { tenantId };
+  let userWhere: any = userRole === 'developer' ? {} : { tenantId };
   if (userRole !== 'developer') {
     userWhere.role = { not: 'developer' };
   }
 
-  const branchWhere: any = userRole === 'developer' ? {} : { tenantId };
+  let branchWhere: any = userRole === 'developer' ? {} : { tenantId };
+
+  if (userRole === 'superadmin') {
+    branchWhere.superadminId = session?.user?.id;
+    userWhere = {
+      tenantId,
+      role: { not: 'developer' },
+      OR: [
+        { id: session?.user?.id },
+        {
+          branch: {
+            superadminId: session?.user?.id
+          }
+        }
+      ]
+    };
+  }
 
   const [users, branches, subscriptions] = await Promise.all([
     prisma.user.findMany({ 

@@ -2,7 +2,7 @@
 
 import prisma from '@/lib/db';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
-import { calculateEndDate, calculateInstalmentDates, formatDateISO } from '@/lib/utils';
+import { calculateEndDate, formatDateISO } from '@/lib/utils';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
@@ -14,6 +14,8 @@ import path from 'path';
 import { encryptAadharNumber } from '@/lib/pii';
 import { ALLOWED_UPLOAD_MIME_TYPES, MAX_UPLOAD_SIZE_BYTES, validateFileBytes } from '@/lib/fileUpload';
 import { canCreateLoanForRole, validateLoanNumericInputs } from '@/lib/loanPolicy';
+import { calculateLoanPreview } from '@/lib/loanCalculator';
+import { validateGuarantorPhone } from '@/lib/guarantorPolicy';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'private', 'uploads');
 
@@ -106,48 +108,19 @@ export async function createLoan(formData: FormData) {
     return { error: 'Invalid start date.' };
   }
   const endDate = calculateEndDate(startDate, frequency, tenure);
-
-  let disbursed = principal;
-  let totalPayable = principal;
-  let perInstalment = 0;
-  let deduction = 0; // actual amount deducted upfront
-
-  if (interestType === 'upfront_fixed') {
-    deduction = rate;
-    disbursed = principal - deduction;
-    totalPayable = principal;
-    perInstalment = Math.round(principal / tenure);
-  } else if (interestType === 'upfront_percentage') {
-    deduction = principal * (rate / 100);
-    disbursed = principal - deduction;
-    totalPayable = principal;
-    perInstalment = Math.round(principal / tenure);
-  } else if (interestType === 'emi_flat') {
-    const interestAmount = principal * (rate / 100);
-    disbursed = principal;
-    totalPayable = principal + interestAmount;
-    perInstalment = Math.round(totalPayable / tenure);
-  } else if (interestType === 'emi_floating') {
-    let periodsPerYear = 12;
-    if (frequency === 'daily') periodsPerYear = 365;
-    else if (frequency === 'weekly') periodsPerYear = 52;
-    else if (frequency === 'biweekly') periodsPerYear = 26;
-
-    const r = (rate / 100) / periodsPerYear;
-    disbursed = principal;
-    if (r === 0) {
-      perInstalment = Math.round(principal / tenure);
-    } else {
-      const emi = principal * r * Math.pow(1 + r, tenure) / (Math.pow(1 + r, tenure) - 1);
-      perInstalment = Math.round(emi);
-    }
-    totalPayable = perInstalment * tenure;
-  }
-
-  // Ensure totalPayable matches perInstalment * tenure for EMI types
-  if (interestType === 'emi_flat' || interestType === 'emi_floating') {
-    totalPayable = perInstalment * tenure;
-  }
+  const calculation = calculateLoanPreview({
+    principal,
+    interestType,
+    interestRate: rate,
+    tenure,
+    frequency,
+    startDate,
+    dueDay,
+  });
+  const disbursed = calculation.disbursedAmount;
+  const totalPayable = calculation.totalPayable;
+  const perInstalment = calculation.perInstalment;
+  const deduction = calculation.deduction;
 
   // Generate Loan Code — frequency-aware prefix & counter
   const freqPrefixDefaults: Record<string, string> = {
@@ -165,6 +138,26 @@ export async function createLoan(formData: FormData) {
     update: { value: counter.toString() },
     create: { tenantId, key: counterKey, value: counter.toString(), group: 'general' }
   });
+
+  // Fetch customer before guarantor writes so cross-field validation can run before mutations.
+  const customer = await prisma.customer.findFirst({
+    where: { id: customerId, tenantId, appType, status: 'active' },
+  });
+
+  if (!customer) {
+    return { error: 'Customer not found or inactive. Please select a valid customer.' };
+  }
+  if (activeBranchId && customer.branchId && customer.branchId !== activeBranchId) {
+    return { error: 'Customer is not in the active branch.' };
+  }
+
+  const guarantorPhoneValidation = validateGuarantorPhone({
+    customerPhone: customer.phone,
+    guarantorPhone,
+  });
+  if (!guarantorPhoneValidation.valid) {
+    return { error: guarantorPhoneValidation.error };
+  }
 
   // Create or Update guarantor if provided
   let guarantorId = guarantorIdFromForm;
@@ -201,26 +194,12 @@ export async function createLoan(formData: FormData) {
     }
   }
 
-  // Calculate Instalment Dates
-  const instalmentDates = calculateInstalmentDates(startDate, frequency, tenure, dueDay);
-  const instalments = instalmentDates.map((date, index) => ({
-    instalmentNo: index + 1,
-    dueDate: date,
-    dueAmount: perInstalment,
+  const instalments = calculation.schedule.map((item) => ({
+    instalmentNo: item.instalmentNo,
+    dueDate: item.dueDate,
+    dueAmount: item.dueAmount,
     status: 'upcoming'
   }));
-
-  // Fetch customer's agent — validate it belongs to same tenant/app
-  const customer = await prisma.customer.findFirst({
-    where: { id: customerId, tenantId, appType, status: 'active' },
-  });
-
-  if (!customer) {
-    return { error: 'Customer not found or inactive. Please select a valid customer.' };
-  }
-  if (activeBranchId && customer.branchId && customer.branchId !== activeBranchId) {
-    return { error: 'Customer is not in the active branch.' };
-  }
 
   // Validate createdById references a real user in the DB
   if (createdById) {
@@ -434,56 +413,35 @@ export async function updateLoan(formData: FormData) {
 
   const startDate = new Date(startDateStr);
   const endDate = calculateEndDate(startDate, frequency, tenure);
-
-  let disbursed = principal;
-  let totalPayable = principal;
-  let perInstalment = 0;
-  let deduction = 0;
-
-  if (interestType === 'upfront_fixed') {
-    deduction = rate;
-    disbursed = principal - deduction;
-    totalPayable = principal;
-    perInstalment = Math.round(principal / tenure);
-  } else if (interestType === 'upfront_percentage') {
-    deduction = principal * (rate / 100);
-    disbursed = principal - deduction;
-    totalPayable = principal;
-    perInstalment = Math.round(principal / tenure);
-  } else if (interestType === 'emi_flat') {
-    const interestAmount = principal * (rate / 100);
-    disbursed = principal;
-    totalPayable = principal + interestAmount;
-    perInstalment = Math.round(totalPayable / tenure);
-  } else if (interestType === 'emi_floating') {
-    let periodsPerYear = 12;
-    if (frequency === 'daily') periodsPerYear = 365;
-    else if (frequency === 'weekly') periodsPerYear = 52;
-    else if (frequency === 'biweekly') periodsPerYear = 26;
-
-    const r = (rate / 100) / periodsPerYear;
-    disbursed = principal;
-    if (r === 0) {
-      perInstalment = Math.round(principal / tenure);
-    } else {
-      const emi = principal * r * Math.pow(1 + r, tenure) / (Math.pow(1 + r, tenure) - 1);
-      perInstalment = Math.round(emi);
-    }
-    totalPayable = perInstalment * tenure;
-  }
-
-  if (interestType === 'emi_flat' || interestType === 'emi_floating') {
-    totalPayable = perInstalment * tenure;
-  }
+  const calculation = calculateLoanPreview({
+    principal,
+    interestType,
+    interestRate: rate,
+    tenure,
+    frequency,
+    startDate,
+    dueDay,
+  });
+  const disbursed = calculation.disbursedAmount;
+  const totalPayable = calculation.totalPayable;
+  const perInstalment = calculation.perInstalment;
+  const deduction = calculation.deduction;
 
   // Fetch loan to ensure it exists and belongs to tenant (scope by appType too)
   const appType = await getUserAppType();
   const loan = await prisma.loan.findFirst({
     where: { id: loanId, tenantId, appType },
-    include: { guarantor: true }
+    include: { guarantor: true, customer: { select: { phone: true } } }
   });
 
   if (!loan) return { error: 'Loan not found' };
+  const guarantorPhoneValidation = validateGuarantorPhone({
+    customerPhone: loan.customer?.phone,
+    guarantorPhone,
+  });
+  if (!guarantorPhoneValidation.valid) {
+    return { error: guarantorPhoneValidation.error };
+  }
 
   // 1. Pre-validation: Check if core fields changed and guard financial activity
   const coreChanged = 
@@ -575,12 +533,11 @@ export async function updateLoan(formData: FormData) {
     if (coreChanged) {
       await tx.instalment.deleteMany({ where: { loanId } });
 
-      const instalmentDates = calculateInstalmentDates(startDate, frequency, tenure, dueDay);
-      const instalments = instalmentDates.map((date, index) => ({
+      const instalments = calculation.schedule.map((item) => ({
         loanId,
-        instalmentNo: index + 1,
-        dueDate: date,
-        dueAmount: perInstalment,
+        instalmentNo: item.instalmentNo,
+        dueDate: item.dueDate,
+        dueAmount: item.dueAmount,
         status: 'upcoming' as const,
       }));
 
@@ -648,10 +605,17 @@ export async function requestLoanEdit(formData: FormData) {
   const appType = await getUserAppType();
   const loan = await prisma.loan.findFirst({
     where: { id: loanId, tenantId, appType },
-    include: { guarantor: true }
+    include: { guarantor: true, customer: { select: { phone: true } } }
   });
 
   if (!loan) return { error: 'Loan not found' };
+  const guarantorPhoneValidation = validateGuarantorPhone({
+    customerPhone: loan.customer?.phone,
+    guarantorPhone,
+  });
+  if (!guarantorPhoneValidation.valid) {
+    return { error: guarantorPhoneValidation.error };
+  }
 
   // Check if core fields changed and guard financial activity
   const coreChanged = 

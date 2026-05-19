@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { formatCurrency, formatDate, getBadgeClass, getInitials } from '@/lib/utils';
 import { submitCollectionEntry, requestCollectionEdit, requestCashHandover } from './actions';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 type CollectionRow = {
@@ -66,6 +66,7 @@ export default function CollectionClient({
   dailyCollection: { id: string; status: string; totalCollected: number } | null;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<'today' | 'overdue'>('today');
   const [modal, setModal] = useState<CollectionRow | null>(null);
   const [overdueCustomerGroup, setOverdueCustomerGroup] = useState<CustomerOverdueGroup | null>(null);
@@ -74,7 +75,7 @@ export default function CollectionClient({
   const [mode, setMode] = useState('cash');
   const [remarks, setRemarks] = useState('');
   const [reason, setReason] = useState('');
-  const [dateFilter, setDateFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState(() => searchParams.get('date') || '');
   const [customerFilter, setCustomerFilter] = useState('');
   const [routeFilter, setRouteFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');

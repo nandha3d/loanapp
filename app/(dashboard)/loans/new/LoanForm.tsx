@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createLoan } from '../actions';
 import { calculateEndDate, formatDateISO } from '@/lib/utils';
+import { getCreditScoreGaugePresentation } from '@/lib/creditScoreGauge';
 import Link from 'next/link';
 import Modal from '@/components/Modal';
 import CustomerForm from '../../customers/new/CustomerForm';
@@ -12,29 +13,19 @@ function formatCurrency(amount: number, symbol: string) {
 }
 
 const CreditScoreGauge = ({ score, grade }: { score: number, grade: string }) => {
-  const min = 300;
-  const max = 850;
-  const pct = Math.max(0, Math.min(100, ((score - min) / (max - min)) * 100));
-  const rotation = (pct * 1.8) - 90;
-  
-  const getScoreColor = (s: number) => {
-    if (s < 500) return '#EF4444';
-    if (s < 650) return '#F59E0B';
-    if (s < 750) return '#EAB308';
-    return '#16A34A';
-  };
+  const gauge = getCreditScoreGaugePresentation(score, grade);
 
   return (
     <div style={{ textAlign: 'center', width: '100%' }}>
       <div style={{ position: 'relative', height: '80px', overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end' }}>
-        <svg viewBox="0 0 100 55" style={{ width: '140px' }}>
+        <svg viewBox="0 0 100 55" role="img" aria-label={gauge.ariaLabel} style={{ width: '140px' }}>
           <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="10" strokeLinecap="round" />
           <path d="M 10 50 A 40 40 0 0 1 30 15.3" fill="none" stroke="#EF4444" strokeWidth="10" />
           <path d="M 30 15.3 A 40 40 0 0 1 50 10" fill="none" stroke="#F59E0B" strokeWidth="10" />
           <path d="M 50 10 A 40 40 0 0 1 70 15.3" fill="none" stroke="#EAB308" strokeWidth="10" />
           <path d="M 70 15.3 A 40 40 0 0 1 90 50" fill="none" stroke="#16A34A" strokeWidth="10" />
-          <g style={{ transform: `rotate(${rotation}deg)`, transformOrigin: '50px 50px', transition: 'all 1s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
-            <circle cx="50" cy="10" r="5" fill="#FFF" stroke={getScoreColor(score)} strokeWidth="2" />
+          <g style={{ transform: `rotate(${gauge.rotation}deg)`, transformOrigin: '50px 50px', transition: 'all 1s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
+            <circle cx="50" cy="10" r="5" fill="#FFF" stroke={gauge.color} strokeWidth="2" />
           </g>
         </svg>
         <div style={{ position: 'absolute', bottom: '5px', fontSize: '2.4rem', fontWeight: 900, color: 'var(--text)', letterSpacing: '-1px' }}>{score}</div>
@@ -43,7 +34,7 @@ const CreditScoreGauge = ({ score, grade }: { score: number, grade: string }) =>
         <span>300</span>
         <span>850</span>
       </div>
-      <div style={{ fontSize: '.9rem', fontWeight: 800, color: getScoreColor(score), textTransform: 'uppercase', letterSpacing: '1px', marginTop: '6px' }}>{grade}</div>
+      <div style={{ fontSize: '.9rem', fontWeight: 800, color: gauge.color, textTransform: 'uppercase', letterSpacing: '1px', marginTop: '6px' }}>{grade}</div>
     </div>
   );
 };
@@ -186,7 +177,8 @@ export default function LoanForm({
             interestRate: Number(interestRate) || 0,
             tenure: t,
             frequency,
-            startDate
+            startDate,
+            dueDay: dueDay === '' ? null : Number(dueDay),
           })
         });
         if (res.ok) {
@@ -201,7 +193,7 @@ export default function LoanForm({
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [principal, interestType, interestRate, tenure, frequency, startDate]);
+  }, [principal, interestType, interestRate, tenure, frequency, startDate, dueDay]);
 
   const handleCustomerChange = async (id: string) => {
     const cust = localCustomers.find(c => c.id === id);

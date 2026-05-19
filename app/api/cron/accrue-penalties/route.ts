@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { cleanupExpiredRateLimits } from '@/lib/rateLimit';
+import { calculatePenaltyAccrual, shouldUpdatePenaltyGross } from '@/lib/penalties';
+import { apiError } from '@/lib/utils';
 
 /**
  * GET /api/cron/accrue-penalties
@@ -17,12 +19,12 @@ export async function GET(req: NextRequest) {
   // Validate cron secret (must be set in env)
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) {
-    return NextResponse.json({ error: 'CRON_SECRET is not configured' }, { status: 500 });
+    return apiError('CRON_SECRET is not configured', 500);
   }
 
   const authHeader = req.headers.get('authorization');
   if (authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return apiError('Unauthorized', 401);
   }
 
   const today = new Date();
@@ -36,7 +38,7 @@ export async function GET(req: NextRequest) {
 
     const existingLock = await prisma.cronLock.findUnique({ where: { id: lockId } });
     if (existingLock && existingLock.expiresAt > now) {
-      return NextResponse.json({ message: 'Cron job already running or recently completed.' }, { status: 429 });
+      return apiError('Cron job already running or recently completed.', 429);
     }
 
     await prisma.cronLock.upsert({
@@ -92,22 +94,15 @@ export async function GET(req: NextRequest) {
 
       if (penaltyPerDay <= 0) continue; // Penalty not configured for this tenant
 
-      // Count total missed days across all overdue instalments, respecting grace period
-      let totalMissedDays = 0;
-      for (const inst of instalments) {
-        const daysOverdue = Math.floor(
-          (today.getTime() - new Date(inst.dueDate).getTime()) / (1000 * 60 * 60 * 24)
-        );
-        const effectiveDays = Math.max(0, daysOverdue - gracePeriodDays);
-        totalMissedDays += effectiveDays;
-      }
+      const { missedDays: totalMissedDays, grossPenalty } = calculatePenaltyAccrual({
+        overdueInstalments: instalments,
+        asOf: today,
+        penaltyPerDay,
+        gracePeriodDays,
+        maxCap,
+      });
 
       if (totalMissedDays === 0) continue;
-
-      let grossPenalty = totalMissedDays * penaltyPerDay;
-      if (maxCap > 0) {
-        grossPenalty = Math.min(grossPenalty, maxCap);
-      }
 
       // Upsert penalty record per loan (one aggregate penalty per loan)
       const existing = await prisma.penalty.findFirst({
@@ -116,7 +111,7 @@ export async function GET(req: NextRequest) {
 
       if (existing) {
         // Only update if penalty has grown
-        if (grossPenalty > Number(existing.grossPenalty)) {
+        if (shouldUpdatePenaltyGross(Number(existing.grossPenalty), grossPenalty)) {
           await prisma.penalty.update({
             where: { id: existing.id },
             data: { missedDays: totalMissedDays, grossPenalty },
@@ -177,6 +172,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     console.error('[accrue-penalties]', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return apiError('Internal server error', 500);
   }
 }

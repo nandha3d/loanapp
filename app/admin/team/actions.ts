@@ -21,6 +21,15 @@ export async function manageAgent(formData: FormData) {
     return { success: false, error: 'Unauthorized. Admins only.' };
   }
 
+  if (actorRole === 'superadmin' && activeBranchId) {
+    const branch = await prisma.branch.findFirst({
+      where: { id: activeBranchId, superadminId: actorId }
+    });
+    if (!branch) {
+      return { success: false, error: 'Unauthorized: You do not own this branch.' };
+    }
+  }
+
   const id = formData.get('id') as string | null;
   const name = formData.get('name') as string;
   const username = formData.get('username') as string;
@@ -70,6 +79,15 @@ export async function manageAgent(formData: FormData) {
     // Branch Admins can only edit agents in their own branch
     if (actorRole === 'admin' && userToEdit.branchId !== activeBranchId) {
       return { success: false, error: 'Unauthorized to edit agents from other branches.' };
+    }
+
+    if (actorRole === 'superadmin' && userToEdit.branchId) {
+      const branch = await prisma.branch.findFirst({
+        where: { id: userToEdit.branchId, superadminId: actorId }
+      });
+      if (!branch) {
+        return { success: false, error: 'Unauthorized: Agent belongs to a branch you do not own.' };
+      }
     }
 
     const updateData: any = { name, username, phone, status, appType: primaryAppType };
@@ -169,6 +187,16 @@ export async function toggleAgentStatus(agentId: string, currentStatus: string) 
   if (actorRole === 'admin' && agent.branchId !== activeBranchId) {
     console.log(`[toggleAgentStatus] Failed: Admin branch mismatch (agent.branchId=${agent.branchId}, activeBranchId=${activeBranchId})`);
     return { success: false, error: 'Unauthorized' };
+  }
+
+  if (actorRole === 'superadmin' && agent.branchId) {
+    const branch = await prisma.branch.findFirst({
+      where: { id: agent.branchId, superadminId: actorId }
+    });
+    if (!branch) {
+      console.log(`[toggleAgentStatus] Failed: Superadmin does not own this agent's branch`);
+      return { success: false, error: 'Unauthorized' };
+    }
   }
 
   const nextStatus = currentStatus === 'active' ? 'inactive' : 'active';

@@ -8,6 +8,8 @@ import {
   reallocateLoanRepayments,
 } from '@/lib/repayments';
 import { recordPaymentLedger } from '@/lib/paymentService';
+import { getClientIp, checkRateLimit, routeKey } from '@/lib/rateLimit';
+import { getCollectionSubmissionBlockReason } from '@/lib/collectionPolicy';
 
 function parseDay(value: string | null) {
   const day = value ? new Date(value) : new Date();
@@ -67,6 +69,16 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const ip = getClientIp(request);
+    const rateLimit = await checkRateLimit(routeKey('collection:post', ip), { limit: 60, windowMs: 60 * 1000 });
+    if (!rateLimit.allowed) {
+      const retryAfter = Math.max(1, Math.ceil((rateLimit.resetAt.getTime() - Date.now()) / 1000));
+      return Response.json(
+        { success: false, error: 'Too many collection requests. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(retryAfter) } },
+      );
+    }
+
     const authResult = await requireApiContext(AUTHENTICATED_API_ROLES);
     if (isApiError(authResult)) return authResult.response;
     const { context } = authResult;
@@ -84,6 +96,14 @@ export async function POST(request: Request) {
     });
     if (!instalment || instalment.loan.tenantId !== context.tenantId || instalment.loan.appType !== context.appType) {
       return apiError('Instalment not found', 404);
+    }
+    const blockReason = getCollectionSubmissionBlockReason({
+      loanStatus: instalment.loan.status,
+      dueAmount: Number(instalment.dueAmount),
+      receivedAmount: Number(instalment.receivedAmount || 0),
+    });
+    if (blockReason) {
+      return apiError(blockReason, 409);
     }
     if (context.branchId && instalment.loan.branchId !== context.branchId) {
       return apiError('Forbidden', 403);

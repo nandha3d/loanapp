@@ -16,6 +16,35 @@ type PenaltySyncResult = {
   penaltiesUpdated: number;
 };
 
+export function calculatePenaltyAccrual(input: {
+  overdueInstalments: Array<{ dueDate: Date | string }>;
+  asOf?: Date;
+  penaltyPerDay: number;
+  gracePeriodDays: number;
+  maxCap: number;
+}): { missedDays: number; grossPenalty: number } {
+  const today = new Date(input.asOf || new Date());
+  today.setHours(0, 0, 0, 0);
+
+  const missedDays = input.overdueInstalments.reduce((total, instalment) => {
+    const dueDate = new Date(instalment.dueDate);
+    dueDate.setHours(0, 0, 0, 0);
+    const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+    return total + Math.max(0, daysOverdue - input.gracePeriodDays);
+  }, 0);
+
+  let grossPenalty = missedDays * input.penaltyPerDay;
+  if (input.maxCap > 0) {
+    grossPenalty = Math.min(grossPenalty, input.maxCap);
+  }
+
+  return { missedDays, grossPenalty };
+}
+
+export function shouldUpdatePenaltyGross(existingGrossPenalty: number, nextGrossPenalty: number): boolean {
+  return nextGrossPenalty > existingGrossPenalty;
+}
+
 export async function ensurePendingPenaltiesForMissedLoans(
   scope: PenaltySyncScope
 ): Promise<PenaltySyncResult> {

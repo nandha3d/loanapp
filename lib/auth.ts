@@ -175,6 +175,19 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
             data: { lastLoginAt: new Date() },
           }).catch(e => console.error('[AUTH_ERROR] Failed to update lastLoginAt:', e));
 
+          await prisma.auditLog.create({
+            data: {
+              tenantId: user.tenantId,
+              userId: user.id,
+              action: 'login',
+              entityType: 'auth',
+              entityId: user.id,
+              ipAddress: ip,
+              userAgent: (request as any)?.headers?.get?.('user-agent') ?? null,
+              newValue: JSON.stringify({ username: user.username, role: user.role }),
+            },
+          }).catch(e => console.error('[AUTH_ERROR] Failed to create login audit log:', e));
+
           console.log(`[AUTH_SUCCESS] User logged in: ${username} (Role: ${user.role})`);
 
           return {

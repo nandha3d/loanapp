@@ -4,6 +4,8 @@ import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { getAgentRouteIds } from '@/lib/access';
 import CollectionClient from './CollectionClient';
 import { getDictionary } from '@/lib/i18n';
+import { getActiveBranchId } from '@/lib/branch';
+import { COLLECTIBLE_LOAN_STATUSES } from '@/lib/collectionPolicy';
 
 function startOfToday() {
   const today = new Date();
@@ -35,6 +37,7 @@ export default async function CollectionPage() {
   const appType = await getUserAppType();
   const dict = await getDictionary(tenantId);
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
+  const activeBranchId = await getActiveBranchId();
 
   const userId = session?.user?.id;
   const userRole = (session?.user as { role?: string })?.role;
@@ -56,7 +59,7 @@ export default async function CollectionPage() {
     customerIds = customers.map((customer) => customer.id);
   } else {
     const customers = await prisma.customer.findMany({
-      where: { tenantId, appType },
+      where: { tenantId, appType, ...(activeBranchId ? { branchId: activeBranchId } : {}) },
       select: { id: true },
     });
     customerIds = customers.map((customer) => customer.id);
@@ -66,7 +69,8 @@ export default async function CollectionPage() {
     tenantId,
     appType,
     customerId: { in: customerIds },
-    status: { in: ['active', 'overdue', 'closed'] },
+    status: { in: [...COLLECTIBLE_LOAN_STATUSES] },
+    ...(activeBranchId ? { branchId: activeBranchId } : {}),
   };
 
   const includeLoan = {
@@ -100,6 +104,7 @@ export default async function CollectionPage() {
         tenantId,
         appType,
         status: 'active',
+        ...(activeBranchId ? { branchId: activeBranchId } : {}),
         ...(userRole === 'agent' && agentRouteIds.length > 0
           ? { id: { in: agentRouteIds } }
           : userRole !== 'agent' ? {} : { id: { in: [] } }),

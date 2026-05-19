@@ -3,6 +3,7 @@ import { getDefaultTenantId, getSetting } from '@/lib/tenant';
 import { redirect } from 'next/navigation';
 import AccountingClient from './AccountingClient';
 import { getAccountingSummary } from './actions';
+import { getActiveBranchId } from '@/lib/branch';
 
 export default async function AccountingPage() {
   const session = await auth();
@@ -11,7 +12,8 @@ export default async function AccountingPage() {
 
   const tenantId = await getDefaultTenantId();
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
-  const summary = await getAccountingSummary(tenantId);
+  const activeBranchId = await getActiveBranchId();
+  const summary = await getAccountingSummary(tenantId, activeBranchId);
 
   // Serialize Decimal fields
   const serializedSummary = JSON.parse(JSON.stringify(summary));

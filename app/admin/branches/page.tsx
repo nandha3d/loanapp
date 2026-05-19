@@ -17,6 +17,11 @@ export default async function AdminBranchesPage() {
   const branchWhere: any = userRole === 'developer' ? {} : { tenantId };
   const userWhere: any = userRole === 'developer' ? { role: 'superadmin', status: 'active' } : { tenantId, role: 'superadmin', status: 'active' };
 
+  if (userRole === 'superadmin') {
+    branchWhere.superadminId = session?.user?.id;
+    userWhere.id = session?.user?.id;
+  }
+
   const [branches, superadmins, subscriptions] = await Promise.all([
     prisma.branch.findMany({
       where: branchWhere,

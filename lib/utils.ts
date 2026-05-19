@@ -90,6 +90,10 @@ export function calculateEndDate(startDate: Date, frequency: string, tenure: num
   return end;
 }
 
+function daysInMonth(year: number, monthIndex: number): number {
+  return new Date(year, monthIndex + 1, 0).getDate();
+}
+
 export function calculateInstalmentDates(startDate: Date, frequency: string, tenure: number, dueDay?: number | null): Date[] {
   const dates: Date[] = [];
 
@@ -100,7 +104,13 @@ export function calculateInstalmentDates(startDate: Date, frequency: string, ten
       if (frequency === 'daily') d.setDate(d.getDate() + i);
       else if (frequency === 'weekly') d.setDate(d.getDate() + i * 7);
       else if (frequency === 'biweekly') d.setDate(d.getDate() + i * 14);
-      else d.setMonth(d.getMonth() + i);
+      else {
+        const targetMonth = startDate.getMonth() + i;
+        const targetYear = startDate.getFullYear() + Math.floor(targetMonth / 12);
+        const normalizedMonth = ((targetMonth % 12) + 12) % 12;
+        const clampedDay = Math.min(startDate.getDate(), daysInMonth(targetYear, normalizedMonth));
+        d.setFullYear(targetYear, normalizedMonth, clampedDay);
+      }
       dates.push(d);
     }
     return dates;
