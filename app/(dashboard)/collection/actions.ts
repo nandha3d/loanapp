@@ -59,7 +59,7 @@ export async function submitCollectionEntry(formData: FormData) {
   const paymentMode = (formData.get('paymentMode') as string) || 'cash';
   const remarks = (formData.get('remarks') as string) || null;
 
-  if (!instalmentId || isNaN(receivedAmount) || receivedAmount <= 0) {
+  if (!instalmentId || isNaN(receivedAmount) || receivedAmount < 0) {
     return { success: false, error: 'Invalid amount' };
   }
 
@@ -73,9 +73,10 @@ export async function submitCollectionEntry(formData: FormData) {
   }
 
   const currentReceived = Number(instalment.receivedAmount || 0);
-  const isEdit = currentReceived > 0;
+  // An edit is either changing a non-zero to something else, or if the user explicitly opens an already-processed instalment
+  const isEdit = currentReceived > 0 || (instalment.status === 'missed' && receivedAmount > 0);
 
-  if (isEdit && role !== 'admin' && role !== 'superadmin') {
+  if (isEdit && role !== 'admin' && role !== 'superadmin' && receivedAmount !== currentReceived) {
     return { success: false, error: 'Only admins can directly edit submitted payments. Please request an edit.' };
   }
 
@@ -91,7 +92,10 @@ export async function submitCollectionEntry(formData: FormData) {
   }
 
   const delta = isEdit ? receivedAmount - currentReceived : receivedAmount;
-  if (delta === 0) return { success: true, message: 'No change detected' };
+  // If delta is 0, only proceed if there's a new remark (e.g., 'door lock')
+  if (delta === 0 && !remarks) {
+    return { success: true, message: 'No change detected' };
+  }
 
   // ── Get or create DailyCollection OUTSIDE the transaction ──────────────────
   // Must be outside because:
@@ -427,6 +431,65 @@ export async function collectAgentCash(routeId: string, agentId: string) {
   } catch (error) {
     console.error('Error collecting agent cash:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Failed to collect agent cash' };
+  }
+}
+
+export async function bulkVerifyUpiPayments(entryIds: string[]) {
+  const session = await auth();
+  const tenantId = await getDefaultTenantId();
+  const role = (session?.user as { role?: string })?.role;
+  const userId = session?.user?.id;
+
+  if (role !== 'admin' && role !== 'superadmin') {
+    return { success: false, error: 'Unauthorized' };
+  }
+
+  if (!entryIds.length) return { success: false, error: 'No entries selected' };
+
+  try {
+    const entries = await prisma.collectionEntry.findMany({
+      where: {
+        id: { in: entryIds },
+        tenantId,
+        paymentMode: 'upi',
+        verificationStatus: 'pending',
+      },
+      include: { loan: true },
+    });
+
+    if (entries.length === 0) return { success: false, error: 'No pending UPI entries found' };
+
+    await prisma.$transaction(async (tx) => {
+      // Mark all as verified
+      await tx.collectionEntry.updateMany({
+        where: { id: { in: entries.map(e => e.id) } },
+        data: { verificationStatus: 'verified' },
+      });
+
+      // Create individual account entries for each
+      for (const entry of entries) {
+        await tx.accountEntry.create({
+          data: {
+            tenantId,
+            entryDate: new Date(),
+            type: 'collection',
+            category: 'upi',
+            amount: entry.receivedAmount,
+            description: `Verified UPI collection for loan ${entry.loan.loanCode}`,
+            referenceId: entry.id,
+            referenceType: 'payment',
+            createdBy: userId,
+          },
+        });
+      }
+    });
+
+    revalidatePath('/dashboard');
+    revalidatePath('/collection');
+    return { success: true, count: entries.length };
+  } catch (error) {
+    console.error('Error bulk verifying UPI payments:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to verify UPI payments' };
   }
 }
 

@@ -2,6 +2,7 @@
 
 import { formatCurrency, calcPercentage } from '@/lib/utils';
 import Link from 'next/link';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
 export default function ReportsClient({
   collectionEfficiency,
@@ -141,33 +142,52 @@ export default function ReportsClient({
           </div>
         </div>
 
-        {/* Defaulter Aging */}
+        {/* Profit & Loss Graph */}
         <div className="card">
-          <div className="card-header"><h3>⏳ {d.defaulterAging}</h3></div>
-          <div className="table-wrapper">
-            <table>
-              <thead><tr><th>{d.agingBucket}</th><th>{d.count}</th><th>{d.totalPenalty}</th><th>{d.customers}</th></tr></thead>
-              <tbody>
-                <tr>
-                  <td><span className="badge badge-pending">{d.aging1}</span></td>
-                  <td><strong>{agingBuckets.short.count}</strong></td>
-                  <td>{formatCurrency(agingBuckets.short.penalty, currencySymbol)}</td>
-                  <td>{agingBuckets.short.customers.join(', ') || '—'}</td>
-                </tr>
-                <tr>
-                  <td><span className="badge badge-missed">{d.aging2}</span></td>
-                  <td><strong>{agingBuckets.medium.count}</strong></td>
-                  <td>{formatCurrency(agingBuckets.medium.penalty, currencySymbol)}</td>
-                  <td>{agingBuckets.medium.customers.join(', ') || '—'}</td>
-                </tr>
-                <tr>
-                  <td><span className="badge" style={{ background: '#450a0a', color: '#fca5a5' }}>{d.aging3}</span></td>
-                  <td><strong>{agingBuckets.long.count}</strong></td>
-                  <td>{formatCurrency(agingBuckets.long.penalty, currencySymbol)}</td>
-                  <td>{agingBuckets.long.customers.join(', ') || '—'}</td>
-                </tr>
-              </tbody>
-            </table>
+          <div className="card-header"><h3>💹 Profit & Loss (Flow)</h3></div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: '220px' }}>
+            <ResponsiveContainer width="100%" height={180}>
+              <PieChart>
+                <Pie
+                  data={[
+                    { name: 'Collected', value: collectionEfficiency.collected, color: '#10B981' },
+                    { name: 'Disbursed', value: disbursement.totalPrincipal, color: '#F59E0B' }
+                  ]}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  <Cell key="cell-0" fill="#10B981" />
+                  <Cell key="cell-1" fill="#F59E0B" />
+                </Pie>
+                <Tooltip 
+                  formatter={(value: any) => formatCurrency(Number(value || 0), currencySymbol)}
+                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            <div style={{ display: 'flex', gap: '16px', marginTop: '16px', fontSize: '.85rem', fontWeight: 600 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#F59E0B' }}></span>
+                Disbursed: {formatCurrency(disbursement.totalPrincipal, currencySymbol)}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#10B981' }}></span>
+                Collected: {formatCurrency(collectionEfficiency.collected, currencySymbol)}
+              </div>
+            </div>
+            {collectionEfficiency.collected - disbursement.totalPrincipal > 0 ? (
+              <div style={{ marginTop: '12px', fontSize: '.9rem', color: 'var(--success)', fontWeight: 700 }}>
+                Net Cash Flow: +{formatCurrency(collectionEfficiency.collected - disbursement.totalPrincipal, currencySymbol)}
+              </div>
+            ) : (
+              <div style={{ marginTop: '12px', fontSize: '.9rem', color: 'var(--danger)', fontWeight: 700 }}>
+                Net Cash Flow: {formatCurrency(collectionEfficiency.collected - disbursement.totalPrincipal, currencySymbol)}
+              </div>
+            )}
           </div>
         </div>
       </div>

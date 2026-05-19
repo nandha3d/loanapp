@@ -88,7 +88,7 @@ export async function POST(request: Request) {
     const receivedAmount = Number(body.receivedAmount);
     const paymentMode = String(body.paymentMode || 'cash');
     const remarks = body.remarks ? String(body.remarks) : null;
-    if (!instalmentId || !receivedAmount || receivedAmount <= 0) return apiError('Invalid amount', 400);
+    if (!instalmentId || isNaN(receivedAmount) || receivedAmount < 0) return apiError('Invalid amount', 400);
 
     const instalment = await prisma.instalment.findUnique({
       where: { id: instalmentId },
