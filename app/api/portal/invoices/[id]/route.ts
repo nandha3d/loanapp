@@ -3,6 +3,51 @@ import { auth } from '@/lib/auth';
 import { getDefaultTenantId } from '@/lib/tenant';
 import prisma from '@/lib/db';
 import { formatDate } from '@/lib/utils';
+import React from 'react';
+import { Document, Page, Text, View, StyleSheet, renderToStream } from '@react-pdf/renderer';
+
+const styles = StyleSheet.create({
+  page: { padding: 36, fontFamily: 'Helvetica', color: '#111827' },
+  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 8 },
+  muted: { fontSize: 10, color: '#6b7280', marginBottom: 18 },
+  section: { marginBottom: 18 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', borderBottom: '1px solid #e5e7eb', paddingVertical: 8 },
+  label: { fontSize: 11 },
+  value: { fontSize: 11, textAlign: 'right' },
+  total: { fontSize: 16, fontWeight: 'bold', marginTop: 8, textAlign: 'right' },
+});
+
+function InvoiceDocument({ invoice }: { invoice: any }) {
+  return React.createElement(
+    Document,
+    null,
+    React.createElement(
+      Page,
+      { size: 'A4', style: styles.page },
+      React.createElement(Text, { style: styles.title }, 'INVOICE'),
+      React.createElement(Text, { style: styles.muted }, `Invoice #: ${invoice.id} | Date: ${formatDate(invoice.createdAt)}`),
+      React.createElement(
+        View,
+        { style: styles.section },
+        React.createElement(Text, { style: styles.label }, 'Billed To'),
+        React.createElement(Text, { style: styles.value }, `${invoice.tenant.name} (${invoice.tenant.slug}.loantrack.app)`),
+      ),
+      React.createElement(
+        View,
+        { style: styles.row },
+        React.createElement(Text, { style: styles.label }, 'LoanTrack Subscription - Monthly'),
+        React.createElement(Text, { style: styles.value }, `${Number(invoice.amount).toFixed(2)} INR`),
+      ),
+      React.createElement(
+        View,
+        { style: styles.row },
+        React.createElement(Text, { style: styles.label }, 'Tax'),
+        React.createElement(Text, { style: styles.value }, `${Number(invoice.tax).toFixed(2)} INR`),
+      ),
+      React.createElement(Text, { style: styles.total }, `Total: ${Number(invoice.total).toFixed(2)} INR`),
+    ),
+  );
+}
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -22,71 +67,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return new NextResponse('Invoice not found', { status: 404 });
   }
 
-  const html = `
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <title>Invoice - ${invoice.id}</title>
-      <style>
-        body { font-family: system-ui, -apple-system, sans-serif; padding: 40px; color: #333; line-height: 1.6; }
-        .invoice-box { max-width: 800px; margin: auto; padding: 30px; border: 1px solid #eee; box-shadow: 0 0 10px rgba(0, 0, 0, 0.15); }
-        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; }
-        .header h1 { margin: 0; color: #111; }
-        .details { margin-bottom: 40px; }
-        .table { width: 100%; border-collapse: collapse; }
-        .table th, .table td { padding: 12px; border-bottom: 1px solid #eee; text-align: left; }
-        .table th { background: #fafafa; }
-        .totals { margin-top: 20px; text-align: right; }
-      </style>
-    </head>
-    <body>
-      <div class="invoice-box">
-        <div class="header">
-          <div>
-            <h1>INVOICE</h1>
-            <p>Date: ${formatDate(invoice.createdAt)}<br>
-            Invoice #: ${invoice.id}</p>
-          </div>
-          <div style="text-align: right;">
-            <strong>LoanTrack Solutions</strong><br>
-            billing@loantrack.app
-          </div>
-        </div>
-        <div class="details">
-          <strong>Billed To:</strong><br>
-          ${invoice.tenant.name}<br>
-          ${invoice.tenant.slug}.loantrack.app
-        </div>
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Description</th>
-              <th style="text-align: right;">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>LoanTrack Subscription - Monthly</td>
-              <td style="text-align: right;">${Number(invoice.amount).toFixed(2)}</td>
-            </tr>
-          </tbody>
-        </table>
-        <div class="totals">
-          <p>Subtotal: ${Number(invoice.amount).toFixed(2)}</p>
-          <p>Tax (18%): ${Number(invoice.tax).toFixed(2)}</p>
-          <h2>Total: ${Number(invoice.total).toFixed(2)} INR</h2>
-        </div>
-        <p style="text-align: center; margin-top: 40px; color: #777;">Thank you for your business!</p>
-      </div>
-      <script>window.print();</script>
-    </body>
-    </html>
-  `;
-
-  return new NextResponse(html, {
+  const stream = await renderToStream(React.createElement(InvoiceDocument, { invoice }) as any);
+  return new NextResponse(stream as any, {
     headers: {
-      'Content-Type': 'text/html',
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="invoice_${invoice.id}.pdf"`,
     },
   });
 }

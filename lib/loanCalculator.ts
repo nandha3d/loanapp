@@ -82,7 +82,7 @@ export function calculateLoanPreview(input: LoanCalculationInput): LoanCalculati
       totalPayable = principal;
       break;
     case 'upfront_percentage':
-      deduction = principal * (rate / 100);
+      deduction = Math.round(principal * (rate / 100));
       disbursedAmount = principal - deduction;
       totalPayable = principal;
       break;

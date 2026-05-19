@@ -448,6 +448,7 @@ model CollectionEntry {
   isLocked       Boolean         @default(true) @map("is_locked")
   verificationStatus String      @default("pending") @map("verification_status")
   tenantId       String?         @map("tenant_id")
+  idempotencyKey String?         @unique @map("idempotency_key")
   agent          User            @relation(fields: [agentId], references: [id])
   collection     DailyCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
   customer       Customer        @relation(fields: [customerId], references: [id])

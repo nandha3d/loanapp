@@ -470,7 +470,7 @@ export default function UsersClient({
                 const enabled = isDeveloper || (allowedPlanModules.includes(module) && selectedBranchModules.length === 0 || selectedBranchModules.includes(module));
                 const checked = selectedModules.includes(module);
                 return (
-                  <label key={module} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', border: `1px solid ${checked ? 'var(--primary)' : 'var(--border)'}`, borderRadius: '8px', background: checked ? 'var(--primary-light)' : 'var(--surface)', opacity: enabled ? 1 : 0.45, cursor: enabled ? 'pointer' : 'not-allowed', color: checked ? '#ffffff' : 'inherit', fontWeight: checked ? 600 : 400 }}>
+                  <label key={module} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', border: `1px solid ${checked ? 'var(--primary)' : 'var(--border)'}`, borderRadius: '8px', background: checked ? 'var(--primary-light)' : 'var(--surface)', opacity: enabled ? 1 : 0.45, cursor: enabled ? 'pointer' : 'not-allowed', color: checked ? 'var(--primary-dark)' : 'inherit', fontWeight: checked ? 600 : 400 }}>
                     <input type="checkbox" name="adminModules" value={module} checked={checked} disabled={!enabled} onChange={() => toggleModule(module)} />
                     <span>{MODULE_LABELS[module]}</span>
                   </label>

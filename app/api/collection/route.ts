@@ -9,7 +9,7 @@ import {
 } from '@/lib/repayments';
 import { recordPaymentLedger } from '@/lib/paymentService';
 import { getClientIp, checkRateLimit, routeKey } from '@/lib/rateLimit';
-import { getCollectionSubmissionBlockReason } from '@/lib/collectionPolicy';
+import { buildCollectionIdempotencyKey, getCollectionSubmissionBlockReason } from '@/lib/collectionPolicy';
 
 function parseDay(value: string | null) {
   const day = value ? new Date(value) : new Date();
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
     const receivedAmount = Number(body.receivedAmount);
     const paymentMode = String(body.paymentMode || 'cash');
     const remarks = body.remarks ? String(body.remarks) : null;
-    if (!instalmentId || isNaN(receivedAmount) || receivedAmount < 0) return apiError('Invalid amount', 400);
+    if (!instalmentId || isNaN(receivedAmount) || receivedAmount <= 0) return apiError('Invalid amount', 400);
 
     const instalment = await prisma.instalment.findUnique({
       where: { id: instalmentId },
@@ -115,6 +115,14 @@ export async function POST(request: Request) {
     }
 
     const today = parseDay(null);
+    const idempotencyKey = buildCollectionIdempotencyKey({
+      tenantId: context.tenantId,
+      agentId: context.userId,
+      instalmentId,
+      receivedAmount,
+      paymentMode,
+      collectionDate: today,
+    });
     const entry = await prisma.$transaction(async (tx) => {
       let dailyCollection = await tx.dailyCollection.findFirst({
         where: { agentId: context.userId, date: today, tenantId: context.tenantId, appType: context.appType },
@@ -143,6 +151,17 @@ export async function POST(request: Request) {
           select: { id: true, instalmentNo: true, dueDate: true, dueAmount: true, receivedAmount: true },
         }),
       ]);
+      const freshTarget = loanInstalments.find((item) => item.id === instalment.id);
+      const freshBlockReason = getCollectionSubmissionBlockReason({
+        loanStatus: instalment.loan.status,
+        dueAmount: Number(freshTarget?.dueAmount ?? instalment.dueAmount),
+        receivedAmount: Number(freshTarget?.receivedAmount ?? instalment.receivedAmount ?? 0),
+      });
+      if (freshBlockReason) throw new Error(`Already recorded: ${freshBlockReason}`);
+      const appliedAmount = Math.min(
+        receivedAmount,
+        Number(freshTarget?.dueAmount ?? instalment.dueAmount) - Number(freshTarget?.receivedAmount ?? instalment.receivedAmount ?? 0),
+      );
 
       const allocationRemark = `Direct payment for instalment #${instalment.instalmentNo} (+₹${receivedAmount})`;
       const mergedRemarks = [remarks, allocationRemark].filter(Boolean).join(' | ');
@@ -150,11 +169,12 @@ export async function POST(request: Request) {
       const created = await tx.collectionEntry.create({
         data: {
           tenantId: context.tenantId,
+          idempotencyKey,
           collectionId: dailyCollection.id,
           customerId: instalment.loan.customerId,
           loanId: instalment.loanId,
           dueAmount: Number(instalment.dueAmount),
-          receivedAmount,
+          receivedAmount: appliedAmount,
           paymentMode,
           remarks: mergedRemarks,
           agentId: context.userId,
@@ -166,7 +186,7 @@ export async function POST(request: Request) {
         tenantId: context.tenantId,
         loanId: instalment.loanId,
         instalmentId: instalment.id,
-        amount: receivedAmount,
+        amount: appliedAmount,
         paymentMode,
       });
 
@@ -174,7 +194,7 @@ export async function POST(request: Request) {
       await tx.instalment.update({
         where: { id: instalment.id },
         data: { 
-          receivedAmount: { increment: receivedAmount },
+          receivedAmount: { increment: appliedAmount },
           receivedAt: new Date()
         }
       });
@@ -207,6 +227,9 @@ export async function POST(request: Request) {
 
     return apiCreated(entry);
   } catch (error: any) {
+    if (error?.code === 'P2002' || /already recorded|duplicate|unique|fully collected/i.test(String(error?.message || ''))) {
+      return apiError('Already recorded: duplicate collection submission', 409);
+    }
     return apiError(error.message, 500);
   }
 }

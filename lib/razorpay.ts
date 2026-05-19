@@ -11,15 +11,7 @@ export function verifyRazorpayWebhookSignature(body: string, secret: string, sig
   return crypto.timingSafeEqual(expectedBuffer, signatureBuffer);
 }
 
-export async function createRazorpaySubscription(planId: string, tenantId: string, email?: string, phone?: string) {
-  const keyId = process.env.RAZORPAY_KEY_ID;
-  const keySecret = process.env.RAZORPAY_KEY_SECRET;
-
-  if (!keyId || !keySecret) {
-    throw new Error('Razorpay keys not configured');
-  }
-
-  // Map internal plan names to actual Razorpay plan IDs from environment
+export function buildRazorpaySubscriptionRequest(planId: string, tenantId: string) {
   const planIdMap: Record<string, string | undefined> = {
     basic: process.env.RAZORPAY_PLAN_BASIC,
     pro: process.env.RAZORPAY_PLAN_PRO,
@@ -31,7 +23,35 @@ export async function createRazorpaySubscription(planId: string, tenantId: strin
     throw new Error(`No Razorpay plan ID configured for plan "${planId}". Set RAZORPAY_PLAN_${planId.toUpperCase()} in your environment.`);
   }
 
+  return {
+    plan_id: razorpayPlanId,
+    total_count: 120,
+    customer_notify: 1,
+    notes: {
+      tenant_id: tenantId,
+    },
+  };
+}
+
+export async function createRazorpaySubscription(planId: string, tenantId: string, email?: string, phone?: string) {
+  const keyId = process.env.RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+
+  if (process.env.RAZORPAY_MOCK_CHECKOUT === 'true') {
+    const request = buildRazorpaySubscriptionRequest(planId, tenantId);
+    return {
+      id: `mock_sub_${tenantId}_${request.plan_id}`,
+      short_url: `/portal/billing/mock-checkout?subscription=mock_sub_${encodeURIComponent(tenantId)}`,
+      status: 'created',
+    };
+  }
+
+  if (!keyId || !keySecret) {
+    throw new Error('Razorpay keys not configured');
+  }
+
   const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
+  const requestBody = buildRazorpaySubscriptionRequest(planId, tenantId);
 
   const res = await fetch('https://api.razorpay.com/v1/subscriptions', {
     method: 'POST',
@@ -39,14 +59,7 @@ export async function createRazorpaySubscription(planId: string, tenantId: strin
       'Authorization': `Basic ${auth}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      plan_id: razorpayPlanId,
-      total_count: 120, // Arbitrary large number for recurring
-      customer_notify: 1,
-      notes: {
-        tenant_id: tenantId
-      }
-    })
+    body: JSON.stringify(requestBody)
   });
 
   if (!res.ok) {

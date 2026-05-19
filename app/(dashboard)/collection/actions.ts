@@ -9,6 +9,7 @@ import { randomUUID } from 'crypto';
 import { reallocateLoanRepayments } from '@/lib/repayments';
 import { sendPaymentReceipt } from '@/lib/sms';
 import { recordPaymentLedger } from '@/lib/paymentService';
+import { buildCollectionIdempotencyKey, getCollectionSubmissionBlockReason } from '@/lib/collectionPolicy';
 
 /**
  * Atomically gets or creates the DailyCollection for (tenantId, appType, agentId, today).
@@ -59,7 +60,7 @@ export async function submitCollectionEntry(formData: FormData) {
   const paymentMode = (formData.get('paymentMode') as string) || 'cash';
   const remarks = (formData.get('remarks') as string) || null;
 
-  if (!instalmentId || isNaN(receivedAmount) || receivedAmount < 0) {
+  if (!instalmentId || isNaN(receivedAmount) || receivedAmount <= 0) {
     return { success: false, error: 'Invalid amount' };
   }
 
@@ -109,8 +110,32 @@ export async function submitCollectionEntry(formData: FormData) {
     instalment.loan.branchId ?? null,
     instalment.loan.customer.routeId ?? null,
   );
+  const idempotencyKey = buildCollectionIdempotencyKey({
+    tenantId,
+    agentId: userId,
+    instalmentId,
+    receivedAmount,
+    paymentMode,
+    collectionDate: new Date(),
+  });
+  let appliedDelta = delta;
 
-  await prisma.$transaction(async (tx) => {
+  try {
+    await prisma.$transaction(async (tx) => {
+      const latestInstalment = await tx.instalment.findUnique({
+        where: { id: instalment.id },
+        select: { dueAmount: true, receivedAmount: true },
+      });
+      if (!latestInstalment) throw new Error('Instalment not found');
+      if (!isEdit) {
+        const blockReason = getCollectionSubmissionBlockReason({
+          loanStatus: instalment.loan.status,
+          dueAmount: Number(latestInstalment.dueAmount),
+          receivedAmount: Number(latestInstalment.receivedAmount || 0),
+        });
+        if (blockReason) throw new Error(`Already recorded: ${blockReason}`);
+        appliedDelta = Math.min(delta, Number(latestInstalment.dueAmount) - Number(latestInstalment.receivedAmount || 0));
+      }
 
     const allocationRemark = isEdit 
       ? `Payment adjustment for instalment #${instalment.instalmentNo} (${currentReceived} → ${receivedAmount})`
@@ -121,11 +146,12 @@ export async function submitCollectionEntry(formData: FormData) {
     const entry = await tx.collectionEntry.create({
       data: {
         tenantId,
+        idempotencyKey,
         collectionId: dailyCollectionRow.id,
         customerId: instalment.loan.customerId,
         loanId: instalment.loanId,
         dueAmount: Number(instalment.dueAmount),
-        receivedAmount: delta,
+        receivedAmount: appliedDelta,
         paymentMode,
         remarks: mergedRemarks,
         agentId: userId,
@@ -137,7 +163,7 @@ export async function submitCollectionEntry(formData: FormData) {
       tenantId,
       loanId: instalment.loanId,
       instalmentId: instalment.id,
-      amount: delta,
+      amount: appliedDelta,
       paymentMode,
     });
 
@@ -145,7 +171,7 @@ export async function submitCollectionEntry(formData: FormData) {
     await tx.instalment.update({
       where: { id: instalment.id },
       data: { 
-        receivedAmount: isEdit ? receivedAmount : { increment: delta },
+        receivedAmount: isEdit ? receivedAmount : { increment: appliedDelta },
         receivedAt: new Date(),
         remarks: isEdit ? `Edited by Admin: ${remarks || ''}` : instalment.remarks
       }
@@ -176,14 +202,20 @@ export async function submitCollectionEntry(formData: FormData) {
         newValue: JSON.stringify({
           customer: instalment.loan.customer.name,
           loanCode: instalment.loan.loanCode,
-          delta,
+          delta: appliedDelta,
           totalReceived: receivedAmount,
           paymentMode,
           allocation: allocationRemark,
         }),
       },
     });
-  });
+    });
+  } catch (error: any) {
+    if (error?.code === 'P2002' || /already recorded|duplicate|unique|fully collected/i.test(String(error?.message || ''))) {
+      return { success: false, error: 'Already recorded: duplicate collection submission' };
+    }
+    throw error;
+  }
   // Note: AccountEntry is NO LONGER created here. 
   // Capital reflects only upon Cash Handover or UPI Verification.
   revalidatePath('/collection');
@@ -191,10 +223,10 @@ export async function submitCollectionEntry(formData: FormData) {
   revalidatePath(`/loans/${instalment.loanId}`);
 
   // ── Send Notification (Fire and Forget) ──────────────────────────────────
-  if (instalment.loan.customer.phone && delta > 0) {
+  if (instalment.loan.customer.phone && appliedDelta > 0) {
     sendPaymentReceipt(
       instalment.loan.customer.phone,
-      delta,
+      appliedDelta,
       instalment.loan.loanCode,
       tenantId
     ).catch(err => console.error('Failed to send payment receipt SMS', err));
