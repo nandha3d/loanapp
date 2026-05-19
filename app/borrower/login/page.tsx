@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 export default function BorrowerLoginPage() {
   const [loanCode, setLoanCode] = useState('');
   const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  const [otpRequired, setOtpRequired] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -17,14 +19,25 @@ export default function BorrowerLoginPage() {
 
     const res = await fetch('/api/borrower/auth', {
       method: 'POST',
-      body: JSON.stringify({ loanCode, phone }),
+      body: JSON.stringify({ loanCode, phone, ...(otpRequired ? { otp } : {}) }),
     });
 
     if (res.ok) {
+      const data = await res.json();
+      if (data.otpRequired) {
+        setOtpRequired(true);
+        setLoading(false);
+        return;
+      }
       router.push('/borrower/dashboard');
     } else {
       const data = await res.json();
-      setError(data.error || 'Invalid credentials');
+      if (data.otpRequired) {
+        setOtpRequired(true);
+        setError(data.message || 'Enter the OTP sent to your registered phone');
+      } else {
+        setError(data.error || 'Invalid credentials');
+      }
       setLoading(false);
     }
   };
@@ -62,8 +75,22 @@ export default function BorrowerLoginPage() {
               required 
             />
           </div>
+          {otpRequired && (
+            <div className="form-group">
+              <label className="form-label">OTP</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                className="form-control"
+                placeholder="Enter 6-digit OTP"
+                value={otp}
+                onChange={e => setOtp(e.target.value)}
+                required
+              />
+            </div>
+          )}
           <button type="submit" className="btn btn-primary" style={{width:'100%'}} disabled={loading}>
-            {loading ? 'Logging in...' : 'View My Loan'}
+            {loading ? 'Please wait...' : otpRequired ? 'Verify OTP' : 'Send OTP'}
           </button>
         </form>
       </div>

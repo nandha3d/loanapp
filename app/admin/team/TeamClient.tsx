@@ -393,7 +393,7 @@ export default function TeamClient({
               {activeBranchModules.map((module) => {
                 const checked = selectedModules.includes(module);
                 return (
-                  <label key={module} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', border: `1px solid ${checked ? 'var(--primary)' : 'var(--border)'}`, borderRadius: '8px', background: checked ? 'var(--primary-light)' : 'var(--surface)', cursor: 'pointer', color: checked ? '#ffffff' : 'inherit', fontWeight: checked ? 600 : 400 }}>
+                  <label key={module} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', border: `1px solid ${checked ? 'var(--primary)' : 'var(--border)'}`, borderRadius: '8px', background: checked ? 'var(--primary-light)' : 'var(--surface)', cursor: 'pointer', color: checked ? 'var(--primary-dark)' : 'inherit', fontWeight: checked ? 600 : 400 }}>
                     <input type="checkbox" name="adminModules" value={module} checked={checked} onChange={() => toggleModule(module)} />
                     <span>{MODULE_LABELS[module]}</span>
                   </label>

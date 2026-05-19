@@ -2,8 +2,8 @@ import { cookies } from 'next/headers';
 import { jwtVerify } from 'jose';
 
 function getBorrowerJwtSecret(): Uint8Array {
-  const secret = process.env.NEXTAUTH_SECRET;
-  if (!secret) throw new Error('NEXTAUTH_SECRET environment variable is required for the borrower portal.');
+  const secret = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET;
+  if (!secret) throw new Error('NEXTAUTH_SECRET or AUTH_SECRET environment variable is required for the borrower portal.');
   return new TextEncoder().encode(secret);
 }
 

@@ -47,6 +47,31 @@ export async function reviewRequest(formData: FormData) {
         return { success: false, error: 'Target customer not found in this tenant/app' };
       }
 
+      const staleApprovedRequest = await prisma.approvalRequest.findFirst({
+        where: {
+          tenantId,
+          appType,
+          requestType: 'customer_edit',
+          entityType: 'customer',
+          entityId: request.entityId,
+          status: 'approved',
+          reviewedAt: { gt: request.createdAt },
+        },
+        select: { id: true },
+      });
+      if (staleApprovedRequest) {
+        await prisma.approvalRequest.update({
+          where: { id: request.id },
+          data: {
+            status: 'rejected',
+            reviewedById: userId,
+            reviewedAt: new Date(),
+            reviewNotes: reviewNotes || 'Rejected as stale: another queued edit was already approved.',
+          },
+        });
+        return { success: false, error: 'This customer edit request is stale after another queued edit was approved.' };
+      }
+
       // Apply only allow-listed fields
       const rawChanges = JSON.parse(request.requestedChanges);
       const safeChanges: Record<string, unknown> = {};
@@ -317,14 +342,6 @@ export async function submitEditRequest(formData: FormData) {
 
   if (Object.keys(requestedChanges).length === 0) {
     return { success: false, error: 'No changes detected. Please modify at least one field.' };
-  }
-
-  // Block duplicate pending requests for the same customer
-  const existing = await prisma.approvalRequest.findFirst({
-    where: { tenantId, appType, entityId: customerId, requestType: 'customer_edit', status: 'pending' },
-  });
-  if (existing) {
-    return { success: false, error: 'An edit request is already pending for this customer.' };
   }
 
   await prisma.approvalRequest.create({

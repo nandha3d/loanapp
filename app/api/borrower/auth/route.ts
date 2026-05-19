@@ -1,14 +1,21 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
-import { SignJWT } from 'jose';
+import { jwtVerify, SignJWT } from 'jose';
 import { cookies } from 'next/headers';
 import { getTenantIdFromHost } from '@/lib/tenant';
 import { checkRateLimit, getClientIp, routeKey } from '@/lib/rateLimit';
+import { BORROWER_OTP_TTL_SECONDS, generateBorrowerOtp, hashBorrowerOtp, verifyBorrowerOtp } from '@/lib/borrowerOtp';
 
 function getBorrowerJwtSecret(): Uint8Array {
-  const secret = process.env.NEXTAUTH_SECRET;
-  if (!secret) throw new Error('NEXTAUTH_SECRET environment variable is required for the borrower portal.');
+  const secret = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET;
+  if (!secret) throw new Error('NEXTAUTH_SECRET or AUTH_SECRET environment variable is required for the borrower portal.');
   return new TextEncoder().encode(secret);
+}
+
+function getBorrowerOtpSecret(): string {
+  const secret = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET;
+  if (!secret) throw new Error('NEXTAUTH_SECRET or AUTH_SECRET environment variable is required for borrower OTP.');
+  return secret;
 }
 
 export async function POST(request: Request) {
@@ -37,7 +44,7 @@ export async function POST(request: Request) {
       await prisma.tenant.findFirst({ where: { status: 'active' }, select: { id: true } })
     )?.id;
 
-    const { loanCode, phone } = await request.json();
+    const { loanCode, phone, otp } = await request.json();
 
     if (!loanCode || !phone) {
       return NextResponse.json({ error: 'Missing credentials' }, { status: 400 });
@@ -63,6 +70,55 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid loan code or phone number' }, { status: 401 });
     }
 
+    const cookieStore = await cookies();
+    if (!otp) {
+      const code = generateBorrowerOtp();
+      const challenge = await new SignJWT({
+        loanId: loan.id,
+        tenantId: loan.tenantId,
+        customerId: loan.customerId,
+        phone: phone.trim(),
+        loanCode,
+        otpHash: hashBorrowerOtp(code, getBorrowerOtpSecret()),
+        role: 'borrower_otp',
+      })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setIssuedAt()
+        .setExpirationTime(`${BORROWER_OTP_TTL_SECONDS}s`)
+        .sign(getBorrowerJwtSecret());
+
+      cookieStore.set('borrower_otp', challenge, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: BORROWER_OTP_TTL_SECONDS,
+      });
+
+      return NextResponse.json({
+        success: false,
+        otpRequired: true,
+        message: 'OTP sent to the registered phone number.',
+        ...(process.env.NODE_ENV !== 'production' ? { testOtp: code } : {}),
+      });
+    }
+
+    const challengeToken = cookieStore.get('borrower_otp')?.value;
+    if (!challengeToken) {
+      return NextResponse.json({ error: 'OTP expired. Please request a new OTP.' }, { status: 401 });
+    }
+
+    const { payload } = await jwtVerify(challengeToken, getBorrowerJwtSecret());
+    if (
+      payload.role !== 'borrower_otp' ||
+      payload.loanId !== loan.id ||
+      payload.phone !== phone.trim() ||
+      payload.loanCode !== loanCode ||
+      typeof payload.otpHash !== 'string' ||
+      !verifyBorrowerOtp({ otp: String(otp), expectedHash: payload.otpHash, secret: getBorrowerOtpSecret() })
+    ) {
+      return NextResponse.json({ error: 'Invalid OTP' }, { status: 401 });
+    }
+
     const token = await new SignJWT({
       loanId: loan.id,
       tenantId: loan.tenantId,
@@ -74,13 +130,13 @@ export async function POST(request: Request) {
       .setExpirationTime('24h')
       .sign(getBorrowerJwtSecret());
 
-    const cookieStore = await cookies();
     cookieStore.set('borrower_session', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 60 * 60 * 24, // 24 hours
     });
+    cookieStore.delete('borrower_otp');
 
     return NextResponse.json({ success: true });
   } catch (error) {

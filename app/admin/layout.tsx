@@ -35,7 +35,7 @@ export default async function AdminLayout({
         style={{ 
           '--primary': '#1A1A2E',
           '--primary-dark': '#0F0F1A',
-          '--primary-light': '#2A2A4A',
+          '--primary-light': '#EAEAFF',
           '--accent': '#E94560',
         } as React.CSSProperties}
       >

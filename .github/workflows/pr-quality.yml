@@ -1,0 +1,53 @@
+name: PR Quality Gate
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: loantrack_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DATABASE_URL: mysql://root:root@127.0.0.1:3306/loantrack_ci
+      AUTH_SECRET: ci-auth-secret-ci-auth-secret-ci-auth-secret
+      NEXTAUTH_SECRET: ci-auth-secret-ci-auth-secret-ci-auth-secret
+      RAZORPAY_MOCK_CHECKOUT: "true"
+      RAZORPAY_PLAN_BASIC: plan_basic_ci
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.2
+          cache: npm
+
+      - run: npm ci
+      - run: npm run db:generate
+      - run: npm run typecheck
+      - run: npm run db:push
+      - run: npm run db:seed
+      - run: npm run test:ci
+      - run: npm audit --audit-level=high
+      - run: npm run test:coverage
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Secret scan with gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

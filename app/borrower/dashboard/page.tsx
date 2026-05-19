@@ -36,6 +36,7 @@ export default async function BorrowerDashboard() {
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontWeight: 700, color: 'var(--primary)' }}>{loan.loanCode}</div>
+          <a href="/api/borrower/statement" style={{ fontSize: '.8rem', color: 'var(--primary)', display: 'block' }}>Download statement</a>
           <a href="/api/borrower/logout" style={{ fontSize: '.8rem', color: 'var(--danger)' }}>Logout</a>
         </div>
       </header>
