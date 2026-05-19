@@ -179,6 +179,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
       where: { tenantId, paymentMode: { in: ['upi', 'online'] }, verificationStatus: 'pending', ...(branchId ? { loan: { branchId } } : {}) },
       include: { customer: true, loan: true, agent: true },
     }),
+    prisma.collectionEntry.findMany({
       where: { tenantId, paymentMode: 'cash', verificationStatus: 'pending', submittedAt: { gte: today, lt: tomorrow }, ...(branchId ? { loan: { branchId } } : {}) },
       select: { receivedAmount: true, agentId: true, customer: { select: { routeId: true } } }
     })
