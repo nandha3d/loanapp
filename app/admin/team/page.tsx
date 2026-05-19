@@ -29,6 +29,8 @@ export default async function TeamPage() {
     whereClause.branchId = activeBranchId || undefined;
   } else if ((userRole === 'superadmin' || userRole === 'developer') && activeBranchId) {
     whereClause.branchId = activeBranchId;
+  } else if (userRole === 'superadmin') {
+    whereClause.branch = { superadminId: user.id };
   }
 
   const agents = await prisma.user.findMany({
@@ -40,7 +42,11 @@ export default async function TeamPage() {
   });
 
   const branches = await prisma.branch.findMany({
-    where: { tenantId, status: 'active' },
+    where: {
+      tenantId,
+      status: 'active',
+      ...(userRole === 'superadmin' ? { superadminId: user.id } : {})
+    },
     select: { id: true, name: true, code: true }
   });
 

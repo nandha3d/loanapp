@@ -71,7 +71,7 @@ export default async function PenaltiesPage({
 
   // Routes for filter
   const routes = await prisma.route.findMany({
-    where: { tenantId, appType, status: 'active' },
+    where: { tenantId, appType, status: 'active', ...(branchId ? { branchId } : {}) },
     orderBy: { name: 'asc' },
   });
 

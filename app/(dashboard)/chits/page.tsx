@@ -6,6 +6,7 @@ import { requireModule } from '@/lib/moduleGate';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import Link from 'next/link';
 import { getDictionary } from '@/lib/i18n';
+import { getActiveBranchId } from '@/lib/branch';
 
 export default async function ChitsPage({
   searchParams,
@@ -39,7 +40,9 @@ export default async function ChitsPage({
   const status = resolvedParams.status || '';
   const q = resolvedParams.q || '';
 
+  const branchId = await getActiveBranchId();
   const where: any = { tenantId, appType };
+  if (branchId) where.branchId = branchId;
   if (status) where.status = status;
   if (q) where.name = { contains: q };
 
@@ -58,8 +61,8 @@ export default async function ChitsPage({
           auctions: { where: { status: 'completed' }, select: { id: true } },
         },
       }),
-      prisma.chitGroup.count({ where: { tenantId, appType, status: 'active' } }),
-      prisma.chitGroup.count({ where: { tenantId, appType, status: 'completed' } }),
+      prisma.chitGroup.count({ where: { tenantId, appType, status: 'active', ...(branchId ? { branchId } : {}) } }),
+      prisma.chitGroup.count({ where: { tenantId, appType, status: 'completed', ...(branchId ? { branchId } : {}) } }),
     ]);
   } catch (e: any) {
     dbError = e.message || 'Database tables not yet migrated. Run: npx prisma migrate deploy';

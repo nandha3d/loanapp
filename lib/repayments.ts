@@ -71,16 +71,10 @@ export function allocatePaymentsAcrossInstalments(
   const today = startOfDay(now);
   const sorted = [...instalments].sort(compareInstalments);
 
-  return sorted.map((instalment, index) => {
+  return sorted.map((instalment) => {
     const dueAmount = asNumber(instalment.dueAmount);
-    let receivedAmount = Math.min(dueAmount, remaining);
+    const receivedAmount = Math.min(dueAmount, remaining);
     remaining = Math.max(0, remaining - receivedAmount);
-
-    // Allocate any remaining excess/overpayment to the final instalment
-    if (index === sorted.length - 1 && remaining > 0) {
-      receivedAmount += remaining;
-      remaining = 0;
-    }
 
     const outstandingAmount = Math.max(0, dueAmount - receivedAmount);
     const dueDate = startOfDay(new Date(instalment.dueDate));

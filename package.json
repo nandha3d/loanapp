@@ -10,6 +10,8 @@
     "test:repayments": "tsx tests/repaymentAllocation.test.ts",
     "test:security": "tsx tests/security.test.ts",
     "test:authdb": "tsx tests/authDatabase.test.ts",
+    "test:ml-1101": "tsx tests/microlendingAutomation1101.test.ts",
+    "test:ml-remaining": "tsx tests/microlendingRemainingAutomation.test.ts",
     "test:proxy-public": "tsx tests/proxyPublicPaths.test.ts",
     "test:ui-assets": "tsx tests/uiAssets.test.ts",
     "db:validate": "npx prisma validate",

@@ -55,6 +55,9 @@ export default async function CustomersPage({
   if (where.AND.length === 0) delete where.AND;
 
   const routeWhere: any = { tenantId, appType, status: 'active' };
+  if (branchId) {
+    routeWhere.branchId = branchId;
+  }
   if (userRole === 'agent') {
     routeWhere.routeAgents = { some: { agentId: session?.user?.id } };
   }

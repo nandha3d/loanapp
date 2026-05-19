@@ -55,6 +55,36 @@ export async function manageMasterUser(formData: FormData) {
     return { success: false, error: 'Missing required fields' };
   }
 
+  if (userRole === 'superadmin') {
+    if (branchId) {
+      const branch = await prisma.branch.findFirst({
+        where: { id: branchId, superadminId: session?.user?.id }
+      });
+      if (!branch) {
+        return { success: false, error: 'Unauthorized: You do not own the target branch.' };
+      }
+    }
+    if (id) {
+      const targetUser = await prisma.user.findFirst({
+        where: { id, tenantId }
+      });
+      if (!targetUser) return { success: false, error: 'User not found' };
+      if (targetUser.id !== session?.user?.id) {
+        if (targetUser.role === 'superadmin') {
+          return { success: false, error: 'Unauthorized: Cannot modify other superadmins.' };
+        }
+        if (targetUser.branchId) {
+          const branch = await prisma.branch.findFirst({
+            where: { id: targetUser.branchId, superadminId: session?.user?.id }
+          });
+          if (!branch) {
+            return { success: false, error: 'Unauthorized: Target user belongs to a branch you do not own.' };
+          }
+        }
+      }
+    }
+  }
+
   // Only developers can create or edit developer accounts
   if (role === 'developer' && userRole !== 'developer') {
     return { success: false, error: 'Only a developer can manage developer accounts.' };
@@ -208,6 +238,12 @@ export async function createBranch(formData: FormData) {
 
   if (!superadminId) return { success: false, error: 'Superadmin owner is required' };
 
+  if (userRole === 'superadmin') {
+    if (superadminId !== session?.user?.id) {
+      return { success: false, error: 'Unauthorized: You can only assign yourself as the owner.' };
+    }
+  }
+
   // Get tenant info from superadmin
   const owner = await prisma.user.findUnique({
     where: { id: superadminId },
@@ -261,6 +297,18 @@ export async function updateBranch(formData: FormData) {
   const superadminId = formData.get('superadminId') as string;
 
   if (!superadminId) return { success: false, error: 'Superadmin owner is required' };
+
+  if (userRole === 'superadmin') {
+    const targetBranch = await prisma.branch.findFirst({
+      where: { id, superadminId: session?.user?.id }
+    });
+    if (!targetBranch) {
+      return { success: false, error: 'Unauthorized: You do not own this branch.' };
+    }
+    if (superadminId !== session?.user?.id) {
+      return { success: false, error: 'Unauthorized: You can only assign yourself as the owner.' };
+    }
+  }
 
   const owner = await prisma.user.findUnique({
     where: { id: superadminId },

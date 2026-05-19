@@ -338,6 +338,7 @@ export async function verifyUpiPayment(entryId: string) {
           referenceId: entry.id,
           referenceType: 'payment',
           createdBy: userId,
+          branchId: entry.loan.branchId,
         }
       });
     });
@@ -375,11 +376,14 @@ export async function collectAgentCash(routeId: string, agentId: string) {
           paymentMode: 'cash',
           verificationStatus: 'pending',
           customer: { routeId }
-        }
+        },
+        include: { loan: true }
       });
 
       const totalToCollect = entries.reduce((sum, e) => sum + Number(e.receivedAmount), 0);
       if (totalToCollect <= 0) throw new Error('No pending cash to collect for this route/agent combo');
+
+      const branchId = entries[0]?.loan?.branchId || null;
 
       await tx.collectionEntry.updateMany({
         where: {
@@ -412,6 +416,7 @@ export async function collectAgentCash(routeId: string, agentId: string) {
           referenceId: handover.id,
           referenceType: 'payment',
           createdBy: userId,
+          branchId,
         }
       });
     });

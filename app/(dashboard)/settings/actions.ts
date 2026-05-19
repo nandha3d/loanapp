@@ -10,6 +10,7 @@ import QRCode from 'qrcode';
 import { encryptAadharNumber } from '@/lib/pii';
 import fs from 'fs';
 import path from 'path';
+import { getRouteDeletionBlockReason } from '@/lib/routePolicy';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'private', 'uploads');
 
@@ -154,6 +155,12 @@ export async function deleteRoute(id: string) {
   // Verify ownership before delete
   const route = await prisma.route.findFirst({ where: { id, tenantId, appType } });
   if (!route) return { success: false, error: 'Route not found or access denied' };
+
+  const activeCustomerCount = await prisma.customer.count({
+    where: { routeId: id, tenantId, appType, status: 'active' },
+  });
+  const blockReason = getRouteDeletionBlockReason({ activeCustomerCount });
+  if (blockReason) return { success: false, error: blockReason };
 
   await prisma.route.delete({ where: { id } });
   revalidatePath('/settings');

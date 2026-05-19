@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import fs from 'fs';
 import path from 'path';
 import prisma from '@/lib/db';
+import { isTenantFileAccessAllowed } from '@/lib/fileAccessPolicy';
 
 const PRIVATE_DIR = path.join(process.cwd(), 'private', 'uploads');
 
@@ -34,7 +35,7 @@ export async function GET(
   const sessionTenantId = (session.user as any).tenantId as string;
   const role = (session.user as any).role as string;
 
-  if (!['superadmin', 'developer'].includes(role) && requestedTenantId !== sessionTenantId) {
+  if (!isTenantFileAccessAllowed({ role, requestedTenantId, sessionTenantId })) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

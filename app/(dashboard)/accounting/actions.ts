@@ -4,6 +4,7 @@ import prisma from '@/lib/db';
 import { getDefaultTenantId } from '@/lib/tenant';
 import { auth } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
+import { getActiveBranchId } from '@/lib/branch';
 
 export async function addAccountEntry(formData: FormData) {
   const session = await auth();
@@ -14,6 +15,7 @@ export async function addAccountEntry(formData: FormData) {
   }
 
   const tenantId = await getDefaultTenantId();
+  const activeBranchId = await getActiveBranchId();
   const type = formData.get('type') as string;
   const category = formData.get('category') as string || 'cash';
   const amount = Number(formData.get('amount'));
@@ -35,6 +37,7 @@ export async function addAccountEntry(formData: FormData) {
       amount,
       description,
       createdBy: userId,
+      branchId: activeBranchId || null,
     },
   });
 
@@ -42,10 +45,10 @@ export async function addAccountEntry(formData: FormData) {
   return { success: true };
 }
 
-export async function getAccountingSummary(tenantId: string) {
+export async function getAccountingSummary(tenantId: string, branchId?: string | null) {
   // Get all entries for the tenant
   const entries = await prisma.accountEntry.findMany({
-    where: { tenantId },
+    where: { tenantId, ...(branchId ? { branchId } : {}) },
     orderBy: { entryDate: 'desc' },
     include: { user: { select: { name: true } } },
   });

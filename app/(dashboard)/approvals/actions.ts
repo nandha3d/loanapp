@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth';
 import { decryptAadharNumber, encryptAadharNumber, isMaskedAadharNumber } from '@/lib/pii';
 import { submitCollectionEntry } from '@/app/(dashboard)/collection/actions';
+import { calculateLoanPreview } from '@/lib/loanCalculator';
 
 // Fields an agent is allowed to request changes to on a customer record
 const CUSTOMER_EDIT_ALLOW_LIST = new Set([
@@ -91,49 +92,20 @@ export async function reviewRequest(formData: FormData) {
       const collateralDetails = changes.collateralDetails !== undefined ? changes.collateralDetails : loan.collateralDetails;
 
       const startDate = new Date(startDateStr);
-      const { calculateEndDate, calculateInstalmentDates } = await import('@/lib/utils');
+      const { calculateEndDate } = await import('@/lib/utils');
       const endDate = calculateEndDate(startDate, frequency, tenure);
-
-      let disbursed = principal;
-      let totalPayable = principal;
-      let perInstalment = 0;
-      let deduction = 0;
-
-      if (interestType === 'upfront_fixed') {
-        deduction = rate;
-        disbursed = principal - deduction;
-        totalPayable = principal;
-        perInstalment = Math.round(principal / tenure);
-      } else if (interestType === 'upfront_percentage') {
-        deduction = principal * (rate / 100);
-        disbursed = principal - deduction;
-        totalPayable = principal;
-        perInstalment = Math.round(principal / tenure);
-      } else if (interestType === 'emi_flat') {
-        const interestAmount = principal * (rate / 100);
-        disbursed = principal;
-        totalPayable = principal + interestAmount;
-        perInstalment = Math.round(totalPayable / tenure);
-      } else if (interestType === 'emi_floating') {
-        let periodsPerYear = 12;
-        if (frequency === 'daily') periodsPerYear = 365;
-        else if (frequency === 'weekly') periodsPerYear = 52;
-        else if (frequency === 'biweekly') periodsPerYear = 26;
-
-        const r = (rate / 100) / periodsPerYear;
-        disbursed = principal;
-        if (r === 0) {
-          perInstalment = Math.round(principal / tenure);
-        } else {
-          const emi = principal * r * Math.pow(1 + r, tenure) / (Math.pow(1 + r, tenure) - 1);
-          perInstalment = Math.round(emi);
-        }
-        totalPayable = perInstalment * tenure;
-      }
-
-      if (interestType === 'emi_flat' || interestType === 'emi_floating') {
-        totalPayable = perInstalment * tenure;
-      }
+      const calculation = calculateLoanPreview({
+        principal,
+        interestType,
+        interestRate: rate,
+        tenure,
+        frequency,
+        startDate,
+      });
+      const disbursed = calculation.disbursedAmount;
+      const totalPayable = calculation.totalPayable;
+      const perInstalment = calculation.perInstalment;
+      const deduction = calculation.deduction;
 
       try {
         await prisma.$transaction(async (tx) => {
@@ -208,12 +180,11 @@ export async function reviewRequest(formData: FormData) {
 
             await tx.instalment.deleteMany({ where: { loanId: loan.id } });
 
-            const instalmentDates = calculateInstalmentDates(startDate, frequency, tenure);
-            const instalments = instalmentDates.map((date, index) => ({
+            const instalments = calculation.schedule.map((item) => ({
               loanId: loan.id,
-              instalmentNo: index + 1,
-              dueDate: date,
-              dueAmount: perInstalment,
+              instalmentNo: item.instalmentNo,
+              dueDate: item.dueDate,
+              dueAmount: item.dueAmount,
               status: 'upcoming' as const,
             }));
 

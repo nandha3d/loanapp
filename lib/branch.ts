@@ -29,6 +29,7 @@ export const getActiveBranchId = cache(async (): Promise<string | null> => {
       const firstBranch = await prisma.branch.findFirst({
         where: {
           tenantId: user?.tenantId ?? '',
+          superadminId: user?.id ?? '',
           status: 'active',
         },
         select: { id: true },
@@ -41,6 +42,7 @@ export const getActiveBranchId = cache(async (): Promise<string | null> => {
       where: {
         id: activeBranchId,
         tenantId: user?.tenantId ?? '',
+        superadminId: user?.id ?? '',
         status: 'active',
       },
       select: { id: true },
@@ -115,6 +117,7 @@ export async function getSuperadminBranches(tenantId: string, superadminId: stri
   return prisma.branch.findMany({
     where: {
       tenantId,
+      superadminId,
       status: 'active',
     },
     select: {

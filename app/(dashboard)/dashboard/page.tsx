@@ -75,9 +75,16 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
         createdAt: { gte: new Date(today.getFullYear(), today.getMonth(), 1) },
       },
     }),
-    prisma.approvalRequest.count({ where: { tenantId, appType, status: 'pending' } }),
+    prisma.approvalRequest.count({
+      where: {
+        tenantId,
+        appType,
+        status: 'pending',
+        ...(branchId ? { requestedBy: { branchId } } : {}),
+      },
+    }),
     prisma.route.findMany({
-      where: { tenantId, appType, status: 'active' },
+      where: { tenantId, appType, status: 'active', ...(branchId ? { branchId } : {}) },
       include: {
         routeAgents: { include: { agent: true } },
         customers: {
@@ -129,14 +136,14 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
       _count: true,
     }),
     prisma.auditLog.findMany({
-      where: { tenantId, user: { role: { not: 'developer' } } },
+      where: { tenantId, user: { role: { not: 'developer' }, ...(branchId ? { branchId } : {}) } },
       orderBy: { createdAt: 'desc' },
       take: 8,
       include: { user: true },
     }),
     // Capital KPI
     prisma.accountEntry.findMany({
-      where: { tenantId },
+      where: { tenantId, ...(branchId ? { branchId } : {}) },
       select: { type: true, amount: true },
     }),
     // Feature 6 & 8: Today's collection entries for cash/UPI split + route-wise
@@ -144,6 +151,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
       where: {
         tenantId,
         submittedAt: { gte: today, lt: tomorrow },
+        ...(branchId ? { loan: { branchId } } : {}),
       },
       select: {
         receivedAmount: true,
@@ -153,7 +161,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     }),
     prisma.loan.groupBy({
       by: ['customerId'],
-      where: { tenantId, status: 'active' },
+      where: { tenantId, status: 'active', ...(branchId ? { branchId } : {}) },
       _sum: { principal: true },
       orderBy: { _sum: { principal: 'desc' } },
       take: 1
@@ -162,16 +170,17 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
       where: { 
         tenantId, 
         status: 'active', 
+        ...(branchId ? { branchId } : {}),
         loans: { some: { paidCount: { gt: 0 }, instalments: { none: { status: 'missed' } } } } 
       },
       include: { loans: true },
     }),
     prisma.collectionEntry.findMany({
-      where: { tenantId, paymentMode: { in: ['upi', 'online'] }, verificationStatus: 'pending' },
+      where: { tenantId, paymentMode: { in: ['upi', 'online'] }, verificationStatus: 'pending', ...(branchId ? { loan: { branchId } } : {}) },
       include: { customer: true, loan: true, agent: true },
     }),
     prisma.collectionEntry.findMany({
-      where: { tenantId, paymentMode: 'cash', verificationStatus: 'pending' },
+      where: { tenantId, paymentMode: 'cash', verificationStatus: 'pending', ...(branchId ? { loan: { branchId } } : {}) },
       select: { receivedAmount: true, agentId: true, customer: { select: { routeId: true } } }
     })
   ]);

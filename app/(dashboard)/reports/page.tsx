@@ -141,7 +141,7 @@ export default async function ReportsPage({
 
   // --- Agent Performance ---
   const agents = await prisma.user.findMany({
-    where: { tenantId, appType, role: 'agent', status: 'active' },
+    where: { tenantId, appType, role: 'agent', status: 'active', ...(branchId ? { branchId } : {}) },
     select: { id: true, name: true },
   });
 
@@ -184,7 +184,7 @@ export default async function ReportsPage({
 
   // Routes and agents for filters
   const allRoutes = await prisma.route.findMany({
-    where: { tenantId, appType, status: 'active' },
+    where: { tenantId, appType, status: 'active', ...(branchId ? { branchId } : {}) },
     orderBy: { name: 'asc' },
   });
 
