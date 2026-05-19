@@ -13,8 +13,8 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
 };
 
 export const MODULE_ROUTES: Record<ModuleKey, string[]> = {
-  microlending: ['/loans', '/customers', '/collection', '/penalties', '/reports', '/accounting'],
-  autofinance: ['/vehicles', '/loans', '/customers', '/collection', '/penalties', '/reports', '/accounting'],
+  microlending: ['/loans', '/customers', '/collection', '/penalties', '/reports', '/accounting', '/analytics'],
+  autofinance: ['/vehicles', '/loans', '/customers', '/collection', '/penalties', '/reports', '/accounting', '/analytics'],
   chitfunds: ['/chits', '/customers'],
 };
 

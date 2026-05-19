@@ -143,11 +143,40 @@ export async function reallocateLoanRepayments(
 
   const today = startOfDay(now);
   
-  // Calculate total collected across all instalments before reallocation
+  // Calculate total collected across all instalments
   const totalCollected = instalments.reduce((sum, inst) => sum + asNumber(inst.receivedAmount), 0);
 
-  // Chronologically allocate the total collected amount across instalments
-  const allocations = allocatePaymentsAcrossInstalments(instalments, totalCollected, now);
+  // Preserve ACTUAL allocations instead of forcing chronological redistribution
+  const allocations = instalments.map((inst) => {
+    const dueAmount = asNumber(inst.dueAmount);
+    const receivedAmount = asNumber(inst.receivedAmount);
+    const outstandingAmount = Math.max(0, dueAmount - receivedAmount);
+    const dueDate = startOfDay(new Date(inst.dueDate));
+    const daysOverdue = Math.max(
+      0,
+      Math.floor((today.getTime() - dueDate.getTime()) / (24 * 60 * 60 * 1000)),
+    );
+    const isPastDue = dueDate.getTime() < today.getTime();
+    
+    // Recalculate status based on actual received amount
+    const status = receivedAmount >= dueAmount
+      ? 'paid'
+      : receivedAmount > 0
+        ? 'partial'
+        : isPastDue
+          ? 'missed'
+          : 'upcoming';
+
+    return {
+      ...inst,
+      dueAmount,
+      receivedAmount,
+      outstandingAmount,
+      overdueAmount: isPastDue ? outstandingAmount : 0,
+      daysOverdue,
+      status,
+    };
+  });
 
   const summary = {
     paidCount: 0,
@@ -188,7 +217,7 @@ export async function reallocateLoanRepayments(
       outstandingAmount: alloc.outstandingAmount,
       overdueAmount: alloc.overdueAmount,
       daysOverdue: alloc.daysOverdue,
-      status: alloc.status,
+      status: alloc.status as "upcoming" | "missed" | "partial" | "paid",
     });
   }
 

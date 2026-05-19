@@ -5,7 +5,7 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getActiveBranchId } from '@/lib/branch';
-import { CollectCashButton, VerifyUpiButton } from './DashboardActions';
+import { CollectCashButton, VerifyUpiButton, BulkVerifyUpiButton } from './DashboardActions';
 
 type DashboardInstalment = {
   id: string;
@@ -179,8 +179,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
       where: { tenantId, paymentMode: { in: ['upi', 'online'] }, verificationStatus: 'pending', ...(branchId ? { loan: { branchId } } : {}) },
       include: { customer: true, loan: true, agent: true },
     }),
-    prisma.collectionEntry.findMany({
-      where: { tenantId, paymentMode: 'cash', verificationStatus: 'pending', ...(branchId ? { loan: { branchId } } : {}) },
+      where: { tenantId, paymentMode: 'cash', verificationStatus: 'pending', submittedAt: { gte: today, lt: tomorrow }, ...(branchId ? { loan: { branchId } } : {}) },
       select: { receivedAmount: true, agentId: true, customer: { select: { routeId: true } } }
     })
   ]);
@@ -1198,7 +1197,7 @@ export default async function DashboardPage() {
                         {formatCurrency(route.overdue, branding.currencySymbol)}
                       </td>
                       <td>
-                        {agentId ? (
+                        {agentId && pendingCash > 0 ? (
                           <CollectCashButton 
                             routeId={route.id} 
                             agentId={agentId} 
@@ -1264,6 +1263,13 @@ export default async function DashboardPage() {
         <div className="card">
           <div className="card-header">
             <h3>Pending UPI Verifications</h3>
+            {data.pendingUpiCollections && data.pendingUpiCollections.length > 0 && (
+              <BulkVerifyUpiButton
+                entryIds={data.pendingUpiCollections.map((upi: any) => upi.id)}
+                totalAmount={data.pendingUpiCollections.reduce((sum: number, upi: any) => sum + Number(upi.receivedAmount), 0)}
+                currencySymbol={branding.currencySymbol}
+              />
+            )}
           </div>
           {data.pendingUpiCollections && data.pendingUpiCollections.length > 0 ? (
             <div className="table-wrapper">

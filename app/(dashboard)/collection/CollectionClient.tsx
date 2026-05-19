@@ -692,16 +692,38 @@ export default function CollectionClient({
               </div>
               
               {hasOverdue && (
-                <div style={{ background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.2)', borderRadius: 'var(--radius-sm)', padding: '12px', marginBottom: '16px' }}>
+                <div style={{ 
+                  background: 'rgba(239, 68, 68, 0.08)', 
+                  border: '1px solid rgba(239, 68, 68, 0.16)', 
+                  borderRadius: 'var(--radius-sm)', 
+                  padding: '16px', 
+                  marginBottom: '16px' 
+                }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                      <div style={{ fontSize: '.8rem', color: 'var(--danger)', fontWeight: 700 }}>Total Outstanding Balance</div>
-                      <div style={{ fontSize: '1.1rem', color: 'var(--danger)', fontWeight: 700 }}>{formatCurrency(totalLoanOutstanding, currencySymbol)}</div>
-                      <div style={{ fontSize: '.7rem', color: 'var(--danger)', marginTop: '2px' }}>Includes previous overdues</div>
+                      <span style={{ fontSize: '.75rem', color: 'var(--danger)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Outstanding Balance</span>
+                      <div style={{ fontSize: '1.6rem', fontWeight: 900, color: 'var(--danger)', marginTop: '2px', lineHeight: 1.1 }}>
+                        {formatCurrency(totalLoanOutstanding, currencySymbol)}
+                      </div>
+                      <span style={{ fontSize: '.7rem', color: 'var(--text-secondary)', display: 'block', marginTop: '4px' }}>Includes previous overdue instalments</span>
                     </div>
-                    <button type="button" className="btn btn-sm" style={{ background: 'var(--danger)', color: '#fff', border: 'none' }} onClick={() => setAmount(totalLoanOutstanding)}>
-                      Settle All
-                    </button>
+                    <Link 
+                      href={`/loans/${modal.loan.id}`} 
+                      className="btn" 
+                      style={{ 
+                        background: 'var(--primary)', 
+                        color: '#fff', 
+                        border: 'none', 
+                        padding: '10px 16px', 
+                        borderRadius: 'var(--radius-sm)', 
+                        fontSize: '.85rem', 
+                        fontWeight: 600, 
+                        textDecoration: 'none',
+                        boxShadow: 'var(--shadow-sm)'
+                      }}
+                    >
+                      Outstanding Details
+                    </Link>
                   </div>
                 </div>
               )}

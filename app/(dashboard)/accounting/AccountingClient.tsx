@@ -64,6 +64,10 @@ export default function AccountingClient({
 
   const [fromDate, setFromDate] = useState<string>('');
   const [toDate, setToDate] = useState<string>('');
+  const [ledgerFrom, setLedgerFrom] = useState<string>('');
+  const [ledgerTo, setLedgerTo] = useState<string>('');
+  const [ledgerPage, setLedgerPage] = useState(1);
+  const LEDGER_PAGE_SIZE = 20;
 
   const openModal = (type: string) => {
     setModalType(type);
@@ -258,24 +262,36 @@ export default function AccountingClient({
           <div className="card-header">
             <h3>💰 Capital Flow</h3>
           </div>
-          <div style={{ padding: '0 20px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Capital Added</div>
-              <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--success)' }}>+{formatCurrency(metrics.capitalIn, currencySymbol)}</div>
-            </div>
-            <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Capital Withdrawn</div>
-              <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--danger)' }}>-{formatCurrency(metrics.capitalOut, currencySymbol)}</div>
-            </div>
-            <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Gross Profit</div>
-              <div style={{ fontSize: '1.2rem', fontWeight: 700, color: metrics.grossProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                {formatCurrency(metrics.grossProfit, currencySymbol)}
+          <div style={{ padding: '0 20px 20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Capital Added</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--success)' }}>+{formatCurrency(metrics.capitalIn, currencySymbol)}</div>
+              </div>
+              <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Capital Withdrawn</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--danger)' }}>-{formatCurrency(metrics.capitalOut, currencySymbol)}</div>
+              </div>
+              <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Gross Profit</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: metrics.grossProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                  {formatCurrency(metrics.grossProfit, currencySymbol)}
+                </div>
+                <div style={{ fontSize: '.7rem', color: 'var(--text-light)', marginTop: '2px' }}>Collections − Disbursements</div>
+              </div>
+              <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Expenses</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--warning)' }}>-{formatCurrency(metrics.totalExpenses, currencySymbol)}</div>
               </div>
             </div>
-            <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Expenses</div>
-              <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--warning)' }}>-{formatCurrency(metrics.totalExpenses, currencySymbol)}</div>
+            <div style={{ padding: '16px', background: metrics.netProfit >= 0 ? 'rgba(16, 185, 129, 0.06)' : 'rgba(239, 68, 68, 0.06)', borderRadius: 'var(--radius-sm)', border: `1px solid ${metrics.netProfit >= 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Projected Profit</div>
+                <div style={{ fontSize: '.7rem', color: 'var(--text-light)' }}>Gross Profit − Expenses</div>
+              </div>
+              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: metrics.netProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                {metrics.netProfit >= 0 ? '' : '-'}{formatCurrency(metrics.netProfit, currencySymbol)}
+              </div>
             </div>
           </div>
         </div>
@@ -307,14 +323,103 @@ export default function AccountingClient({
       </div>
 
       {/* Transaction Ledger */}
+      {(() => {
+        const ledgerEntries = filteredEntries.filter((entry: any) => {
+          const d = new Date(entry.entryDate);
+          d.setHours(0, 0, 0, 0);
+          if (ledgerFrom) {
+            const start = new Date(ledgerFrom);
+            start.setHours(0, 0, 0, 0);
+            if (d < start) return false;
+          }
+          if (ledgerTo) {
+            const end = new Date(ledgerTo);
+            end.setHours(23, 59, 59, 999);
+            if (d > end) return false;
+          }
+          return true;
+        });
+        const totalPages = Math.max(1, Math.ceil(ledgerEntries.length / LEDGER_PAGE_SIZE));
+        const safePage = Math.min(ledgerPage, totalPages);
+        const startIdx = (safePage - 1) * LEDGER_PAGE_SIZE;
+        const pageEntries = ledgerEntries.slice(startIdx, startIdx + LEDGER_PAGE_SIZE);
+        return (
       <div className="card" style={{ marginTop: '20px' }}>
-        <div className="card-header">
-          <h3>📒 Transaction Ledger</h3>
-          <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>
-            {filteredEntries.length === summary.entries.length 
-              ? 'Latest 50 entries' 
-              : `Showing ${filteredEntries.length} entries for selected range`}
-          </span>
+        <div className="card-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3>📒 Transaction Ledger</h3>
+            <span style={{ fontSize: '.78rem', color: 'var(--text-light)' }}>
+              {ledgerEntries.length} entries
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '.78rem', color: 'var(--text-secondary)' }}>From:</span>
+              <input
+                type="date"
+                value={ledgerFrom}
+                onChange={(e) => { setLedgerFrom(e.target.value); setLedgerPage(1); }}
+                className="form-control"
+                style={{ width: '140px', padding: '5px 8px', fontSize: '.8rem' }}
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '.78rem', color: 'var(--text-secondary)' }}>To:</span>
+              <input
+                type="date"
+                value={ledgerTo}
+                onChange={(e) => { setLedgerTo(e.target.value); setLedgerPage(1); }}
+                className="form-control"
+                style={{ width: '140px', padding: '5px 8px', fontSize: '.8rem' }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '4px' }}>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  const now = new Date();
+                  setLedgerFrom(new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().split('T')[0]);
+                  setLedgerTo(now.toISOString().split('T')[0]);
+                  setLedgerPage(1);
+                }}
+                style={{ fontSize: '.72rem', padding: '4px 10px', background: 'var(--bg)' }}
+              >Today</button>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  const now = new Date();
+                  const past7 = new Date();
+                  past7.setDate(now.getDate() - 7);
+                  setLedgerFrom(past7.toISOString().split('T')[0]);
+                  setLedgerTo(now.toISOString().split('T')[0]);
+                  setLedgerPage(1);
+                }}
+                style={{ fontSize: '.72rem', padding: '4px 10px', background: 'var(--bg)' }}
+              >7 Days</button>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  const now = new Date();
+                  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+                  setLedgerFrom(firstDay.toISOString().split('T')[0]);
+                  setLedgerTo(now.toISOString().split('T')[0]);
+                  setLedgerPage(1);
+                }}
+                style={{ fontSize: '.72rem', padding: '4px 10px', background: 'var(--bg)' }}
+              >This Month</button>
+              {(ledgerFrom || ledgerTo) && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => { setLedgerFrom(''); setLedgerTo(''); setLedgerPage(1); }}
+                  style={{ fontSize: '.72rem', padding: '4px 10px', color: 'var(--danger)', background: 'rgba(231,76,60,0.08)' }}
+                >Clear</button>
+              )}
+            </div>
+          </div>
         </div>
         <div className="table-wrapper">
           <table>
@@ -329,15 +434,15 @@ export default function AccountingClient({
               </tr>
             </thead>
             <tbody>
-              {filteredEntries.length === 0 && (
+              {pageEntries.length === 0 && (
                 <tr>
                   <td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-light)' }}>
                     <span className="material-icons-outlined" style={{ fontSize: '36px', display: 'block', marginBottom: '8px' }}>account_balance_wallet</span>
-                    No entries matching range filter.
+                    No entries found.
                   </td>
                 </tr>
               )}
-              {filteredEntries.map((entry: any) => {
+              {pageEntries.map((entry: any) => {
                 const info = getTypeInfo(entry.type);
                 return (
                   <tr key={entry.id}>
@@ -362,7 +467,38 @@ export default function AccountingClient({
             </tbody>
           </table>
         </div>
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderTop: '1px solid var(--border)', fontSize: '.82rem' }}>
+            <span style={{ color: 'var(--text-secondary)' }}>
+              Showing {startIdx + 1}–{Math.min(startIdx + LEDGER_PAGE_SIZE, ledgerEntries.length)} of {ledgerEntries.length}
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                disabled={safePage <= 1}
+                onClick={() => setLedgerPage(p => Math.max(1, p - 1))}
+                style={{ padding: '4px 10px', fontSize: '.78rem', opacity: safePage <= 1 ? 0.4 : 1 }}
+              >
+                <span className="material-icons-outlined" style={{ fontSize: 16 }}>chevron_left</span> Prev
+              </button>
+              <span style={{ fontWeight: 700, color: 'var(--primary)' }}>Page {safePage} / {totalPages}</span>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                disabled={safePage >= totalPages}
+                onClick={() => setLedgerPage(p => Math.min(totalPages, p + 1))}
+                style={{ padding: '4px 10px', fontSize: '.78rem', opacity: safePage >= totalPages ? 0.4 : 1 }}
+              >
+                Next <span className="material-icons-outlined" style={{ fontSize: 16 }}>chevron_right</span>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+        );
+      })()}
 
       {/* Add Entry Modal */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add Account Entry">
