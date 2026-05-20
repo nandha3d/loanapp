@@ -28,16 +28,19 @@ export interface RateLimitResult {
  */
 export function getClientIp(request: Request): string {
   if (process.env.TRUST_PROXY === 'true') {
+    // x-forwarded-for is a comma-separated chain; the leftmost value is the
+    // original client IP (proxies append to the right).
     const forwarded = request.headers.get('x-forwarded-for');
     if (forwarded) {
-      const parts = forwarded.split(',');
-      const last = parts[parts.length - 1].trim();
-      if (last) return last;
+      const first = forwarded.split(',')[0].trim();
+      if (first) return first;
     }
-  }
 
-  const realIp = request.headers.get('x-real-ip');
-  if (realIp) return realIp.trim();
+    // x-real-ip is also set by some reverse proxies; only trust it when we
+    // know we're behind a proxy (TRUST_PROXY=true), otherwise clients can spoof it.
+    const realIp = request.headers.get('x-real-ip');
+    if (realIp) return realIp.trim();
+  }
 
   // NOTE: In NextJS 13+ App router `request.ip` might be available if properly populated.
   // We check for it just in case.
