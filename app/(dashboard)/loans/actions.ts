@@ -378,7 +378,7 @@ export async function createLoan(formData: FormData) {
   }
 
   revalidatePath('/loans');
-  redirect(`/loans/${loan.id}`);
+  redirect(`/loans/${loan.loanCode}`);
 }
 
 export async function updateLoan(formData: FormData) {
@@ -567,7 +567,7 @@ export async function updateLoan(formData: FormData) {
     console.error('Failed to create audit log:', e);
   }
 
-  revalidatePath(`/loans/${loanId}`);
+  revalidatePath(`/loans/${loan.loanCode}`);
   revalidatePath('/loans');
   
   return { success: true };
@@ -691,7 +691,7 @@ export async function requestLoanEdit(formData: FormData) {
     }).catch(() => {});
   }
 
-  revalidatePath(`/loans/${loanId}`);
+  revalidatePath(`/loans/${loan.loanCode}`);
   revalidatePath('/loans');
   
   return { success: true };

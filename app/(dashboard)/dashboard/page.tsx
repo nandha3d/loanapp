@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getActiveBranchId } from '@/lib/branch';
 import { CollectCashButton, VerifyUpiButton, BulkVerifyUpiButton } from './DashboardActions';
+import { ensurePendingPenaltiesForMissedLoans } from '@/lib/penalties';
 
 type DashboardInstalment = {
   id: string;
@@ -40,6 +41,14 @@ function daysBetween(from: Date, to: Date) {
   return Math.max(0, Math.floor((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000)));
 }
 
+function getLocalDateString(date: Date) {
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 async function getDashboardData(tenantId: string, appType: string, branchId?: string | null) {
   const today = startOfDay();
   const tomorrow = new Date(today);
@@ -51,6 +60,13 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
   const loanWhere: any = { tenantId, appType, ...branchFilter };
   const customerWhere: any = { tenantId, appType, ...branchFilter };
 
+  // Sync penalties in real-time on dashboard load
+  await ensurePendingPenaltiesForMissedLoans({
+    tenantId,
+    appType,
+    branchId: branchId || undefined,
+  });
+
   const [
     totalCustomers,
     recentLoans,
@@ -58,6 +74,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     routes,
     todayInstalments,
     overdueInstalmentsRaw,
+    overdueInstalmentsForTotals,
     weekInstalments,
     pendingPenalties,
     recentActivity,
@@ -75,14 +92,30 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
         createdAt: { gte: new Date(today.getFullYear(), today.getMonth(), 1) },
       },
     }),
-    prisma.approvalRequest.count({
-      where: {
-        tenantId,
-        appType,
-        status: 'pending',
-        ...(branchId ? { requestedBy: { branchId } } : {}),
-      },
-    }),
+    // Count all "things waiting for admin attention":
+    //   1. ApprovalRequest rows with status=pending
+    //   2. Loans with status=pending_review (shown in /approvals)
+    //   3. Customers with status=pending_review (shown in /approvals)
+    // This matches what the /approvals page actually displays so the
+    // KPI never disagrees with the page the user clicks through to.
+    Promise.all([
+      prisma.approvalRequest.count({
+        where: {
+          tenantId,
+          appType,
+          status: 'pending',
+          ...(branchId ? { requestedBy: { branchId } } : {}),
+        },
+      }),
+      prisma.loan.count({
+        where: { tenantId, appType, status: 'pending_review', ...(branchId ? { branchId } : {}) },
+      }),
+      prisma.customer.count({
+        where: { tenantId, appType, status: 'pending_review', ...(branchId ? { branchId } : {}) },
+      }),
+    ]).then(([approvalReqs, pendingLoans, pendingCustomers]) =>
+      approvalReqs + pendingLoans + pendingCustomers,
+    ),
     prisma.route.findMany({
       where: { tenantId, appType, status: 'active', ...(branchId ? { branchId } : {}) },
       include: {
@@ -122,6 +155,21 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
       orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
       take: 10,
     }),
+    // Full overdue set (no take limit) so the KPI totals — Overdue Customers,
+    // Total Overdue Amount — are accurate even when more than 10 instalments
+    // are overdue. The take:10 query above only feeds the dashboard table.
+    prisma.instalment.findMany({
+      where: {
+        loan: { ...loanWhere, status: { in: ['active', 'overdue'] } },
+        dueDate: { lt: today },
+        status: { in: ['upcoming', 'missed', 'partial'] },
+      },
+      select: {
+        dueAmount: true,
+        receivedAmount: true,
+        loan: { select: { customerId: true } },
+      },
+    }),
     prisma.instalment.findMany({
       where: {
         loan: { ...loanWhere },
@@ -132,7 +180,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     }),
     prisma.penalty.aggregate({
       where: { loan: { ...loanWhere }, status: { in: ['pending', 'partial'] } },
-      _sum: { grossPenalty: true },
+      _sum: { grossPenalty: true, settledAmount: true, waivedAmount: true },
       _count: true,
     }),
     prisma.auditLog.findMany({
@@ -146,12 +194,17 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
       where: { tenantId, ...(branchId ? { branchId } : {}) },
       select: { type: true, amount: true },
     }),
-    // Feature 6 & 8: Today's collection entries for cash/UPI split + route-wise
+    // Feature 6 & 8: Today's collection entries for cash/UPI split + route-wise.
+    // Scope by loan.appType so a chitfunds collection never bleeds into the
+    // microlending dashboard (and vice-versa).
     prisma.collectionEntry.findMany({
       where: {
         tenantId,
         submittedAt: { gte: today, lt: tomorrow },
-        ...(branchId ? { loan: { branchId } } : {}),
+        loan: {
+          appType,
+          ...(branchId ? { branchId } : {}),
+        },
       },
       select: {
         receivedAmount: true,
@@ -161,32 +214,54 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     }),
     prisma.loan.groupBy({
       by: ['customerId'],
-      where: { tenantId, status: 'active', ...(branchId ? { branchId } : {}) },
+      where: { tenantId, appType, status: 'active', ...(branchId ? { branchId } : {}) },
       _sum: { principal: true },
       orderBy: { _sum: { principal: 'desc' } },
       take: 1
     }),
     prisma.customer.findFirst({
-      where: { 
-        tenantId, 
-        status: 'active', 
+      where: {
+        tenantId,
+        appType,
+        status: 'active',
         ...(branchId ? { branchId } : {}),
-        loans: { some: { paidCount: { gt: 0 }, instalments: { none: { status: 'missed' } } } } 
+        loans: { some: { paidCount: { gt: 0 }, instalments: { none: { status: 'missed' } } } }
       },
       include: { loans: true },
     }),
     prisma.collectionEntry.findMany({
-      where: { tenantId, paymentMode: { in: ['upi', 'online'] }, verificationStatus: 'pending', ...(branchId ? { loan: { branchId } } : {}) },
+      where: {
+        tenantId,
+        paymentMode: { in: ['upi', 'online'] },
+        verificationStatus: 'pending',
+        loan: { appType, ...(branchId ? { branchId } : {}) },
+      },
       include: { customer: true, loan: true, agent: true },
     }),
     prisma.collectionEntry.findMany({
-      where: { tenantId, paymentMode: 'cash', verificationStatus: 'pending', submittedAt: { gte: today, lt: tomorrow }, ...(branchId ? { loan: { branchId } } : {}) },
+      where: {
+        tenantId,
+        paymentMode: 'cash',
+        verificationStatus: 'pending',
+        submittedAt: { gte: today, lt: tomorrow },
+        loan: { appType, ...(branchId ? { branchId } : {}) },
+      },
       select: { receivedAmount: true, agentId: true, customer: { select: { routeId: true } } }
     })
   ]);
 
   const todayExpected = todayInstalments.reduce((sum, item) => sum + Number(item.dueAmount), 0);
-  const todayCollected = todayInstalments.reduce((sum, item) => sum + Math.min(Number(item.receivedAmount || 0), Number(item.dueAmount)), 0);
+  // Today's Collected reflects actual money received today (cash + UPI/online),
+  // regardless of which instalment the payment was allocated to. This matches the
+  // Cash/UPI split panel below, removing the disconnect users observed between the
+  // KPI cards and the cash/UPI breakdown.
+  const todayCollected = todayCollectionEntries.reduce(
+    (sum: number, entry: any) => sum + Number(entry.receivedAmount || 0),
+    0,
+  );
+  // Today's Outstanding = remaining due on today's instalments only. Even if the
+  // agent collected more than today's expected (because money also went toward
+  // overdue), today's specific instalment can still be unpaid.
   const todayGap = todayInstalments.reduce((sum, item) => sum + outstanding(item), 0);
 
   const overdueInstalments = overdueInstalmentsRaw
@@ -198,18 +273,30 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     })
     .filter((item) => item.overdueAmount > 0);
 
-  const overdueAmount = overdueInstalments.reduce((sum, item) => sum + item.overdueAmount, 0);
-  const overdueCustomerCount = new Set(overdueInstalments.map((item) => item.loan.customer.id)).size;
-  const dynamicPenalty = overdueInstalments.reduce((sum, item) => {
-    return sum + item.daysOverdue * Number(item.loan.penaltyRate || 0);
-  }, 0);
-  const pendingPenaltyTotal = Math.max(Number(pendingPenalties._sum.grossPenalty || 0), dynamicPenalty);
+  // Totals are computed from the FULL (un-limited) overdue set so KPIs stay
+  // correct even when the table-feed query is capped at 10 rows.
+  const overdueForTotals = overdueInstalmentsForTotals.filter(
+    (item: any) => outstanding(item) > 0,
+  );
+  const overdueAmount = overdueForTotals.reduce(
+    (sum: number, item: any) => sum + outstanding(item),
+    0,
+  );
+  const overdueCustomerCount = new Set(
+    overdueForTotals.map((item: any) => item.loan.customerId),
+  ).size;
+  const pendingPenaltyTotal = Math.max(
+    0,
+    Number(pendingPenalties._sum.grossPenalty || 0) -
+      Number(pendingPenalties._sum.settledAmount || 0) -
+      Number(pendingPenalties._sum.waivedAmount || 0)
+  );
 
   const trend = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(weekStart);
     date.setDate(weekStart.getDate() + index);
-    const dateKey = date.toISOString().slice(0, 10);
-    const rows = weekInstalments.filter((item) => item.dueDate.toISOString().slice(0, 10) === dateKey);
+    const dateKey = getLocalDateString(date);
+    const rows = weekInstalments.filter((item) => getLocalDateString(item.dueDate) === dateKey);
     return {
       label: date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
       expected: rows.reduce((sum, item) => sum + Number(item.dueAmount), 0),
@@ -273,6 +360,19 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     todayUpiCollected: todayCollectionEntries
       .filter((e: any) => e.paymentMode === 'upi' || e.paymentMode === 'online')
       .reduce((sum: number, e: any) => sum + Number(e.receivedAmount), 0),
+    // Money in the field that has NOT yet hit the books (capital):
+    // pending cash awaiting handover + pending UPI awaiting verification.
+    pendingFieldFloat: (() => {
+      const pendingUpiAmount = pendingUpiCollections.reduce(
+        (sum: number, e: any) => sum + Number(e.receivedAmount || 0),
+        0,
+      );
+      const pendingCashAmount = pendingCashCollections.reduce(
+        (sum: number, e: any) => sum + Number(e.receivedAmount || 0),
+        0,
+      );
+      return pendingUpiAmount + pendingCashAmount;
+    })(),
     routeCollections: routes.map((route: any) => {
       const collected = todayCollectionEntries
         .filter((e: any) => e.customer?.routeId === route.id)
@@ -546,8 +646,8 @@ async function getAgentDashboardData(tenantId: string, appType: string, agentId:
   const trend = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(weekStart);
     date.setDate(weekStart.getDate() + index);
-    const dateKey = date.toISOString().slice(0, 10);
-    const rows = weekInstalments.filter((item) => item.dueDate.toISOString().slice(0, 10) === dateKey);
+    const dateKey = getLocalDateString(date);
+    const rows = weekInstalments.filter((item) => getLocalDateString(item.dueDate) === dateKey);
     return {
       label: date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
       expected: rows.reduce((sum, item) => sum + Number(item.dueAmount), 0),
@@ -1044,13 +1144,23 @@ export default async function DashboardPage() {
         </Link>
 
         <Link href="/collection" className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div className="kpi-icon" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10B981' }}>
+            <span className="material-icons-outlined">payments</span>
+          </div>
+          <div>
+            <div className="kpi-value">{formatCurrency(data.todayCollected, branding.currencySymbol)}</div>
+            <div className="kpi-label">Today's Collected</div>
+          </div>
+        </Link>
+
+        <Link href="/collection" className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>
           <div className="kpi-icon red"><span className="material-icons-outlined">trending_down</span></div>
           <div>
             <div className="kpi-value">{formatCurrency(data.todayGap, branding.currencySymbol)}</div>
-            <div className="kpi-label">Today's Balance</div>
+            <div className="kpi-label">Outstanding on Today's Dues</div>
           </div>
         </Link>
-        <Link href="/customers" className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>
+        <Link href="/customers?status=active" className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>
           <div className="kpi-icon blue"><span className="material-icons-outlined">groups</span></div>
           <div>
             <div className="kpi-value">{data.totalCustomers}</div>
@@ -1060,14 +1170,14 @@ export default async function DashboardPage() {
       </div>
 
       <div className="kpi-grid">
-        <Link href="/collection" className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>
+        <Link href="/collection?tab=overdue" className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>
           <div className="kpi-icon red"><span className="material-icons-outlined">warning</span></div>
           <div>
             <div className="kpi-value">{data.overdueCustomerCount}</div>
             <div className="kpi-label">Overdue Customers</div>
           </div>
         </Link>
-        <Link href="/collection" className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>
+        <Link href="/collection?tab=overdue" className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>
           <div className="kpi-icon red"><span className="material-icons-outlined">currency_rupee</span></div>
           <div>
             <div className="kpi-value">{formatCurrency(data.overdueAmount, branding.currencySymbol)}</div>
@@ -1093,26 +1203,36 @@ export default async function DashboardPage() {
           <div>
             <div className="kpi-value">{formatCurrency(data.currentCapital, branding.currencySymbol)}</div>
             <div className="kpi-label">Capital Balance</div>
+            {data.pendingFieldFloat > 0 && (
+              <div style={{ fontSize: '.7rem', color: 'var(--warning)', marginTop: '2px', fontWeight: 600 }}>
+                + {formatCurrency(data.pendingFieldFloat, branding.currencySymbol)} pending field float
+              </div>
+            )}
           </div>
         </Link>
       </div>
 
-      {/* Feature 6: Cash/UPI Split */}
-      {(data.todayCashCollected > 0 || data.todayUpiCollected > 0) && (
-        <div className="card" style={{ marginTop: '12px', padding: '16px 20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-            <h4 style={{ margin: 0, fontSize: '.9rem', fontWeight: 700 }}>Today's Collection Split</h4>
-            <div style={{ display: 'flex', gap: '20px', fontSize: '.85rem' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: '#27AE60' }} />
-                Cash: <strong>{formatCurrency(data.todayCashCollected, branding.currencySymbol)}</strong>
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: '#8E44AD' }} />
-                UPI: <strong>{formatCurrency(data.todayUpiCollected, branding.currencySymbol)}</strong>
-              </span>
-            </div>
+      {/* Today's Collection Split — always shown so user can reconcile KPIs */}
+      <div className="card" style={{ marginTop: '12px', padding: '16px 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+          <h4 style={{ margin: 0, fontSize: '.9rem', fontWeight: 700 }}>
+            Today's Collection Split
+            <span style={{ marginLeft: 8, fontSize: '.72rem', color: 'var(--text-light)', fontWeight: 500 }}>
+              (Total: {formatCurrency(data.todayCashCollected + data.todayUpiCollected, branding.currencySymbol)})
+            </span>
+          </h4>
+          <div style={{ display: 'flex', gap: '20px', fontSize: '.85rem' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: '#27AE60' }} />
+              Cash: <strong>{formatCurrency(data.todayCashCollected, branding.currencySymbol)}</strong>
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: '#8E44AD' }} />
+              UPI: <strong>{formatCurrency(data.todayUpiCollected, branding.currencySymbol)}</strong>
+            </span>
           </div>
+        </div>
+        {(data.todayCashCollected > 0 || data.todayUpiCollected > 0) ? (
           <div style={{ marginTop: '10px', height: '8px', borderRadius: '4px', background: '#E8E8E8', overflow: 'hidden', display: 'flex' }}>
             {data.todayCashCollected > 0 && (
               <div style={{ width: `${(data.todayCashCollected / (data.todayCashCollected + data.todayUpiCollected)) * 100}%`, background: '#27AE60', height: '100%' }} />
@@ -1121,8 +1241,10 @@ export default async function DashboardPage() {
               <div style={{ width: `${(data.todayUpiCollected / (data.todayCashCollected + data.todayUpiCollected)) * 100}%`, background: '#8E44AD', height: '100%' }} />
             )}
           </div>
-        </div>
-      )}
+        ) : (
+          <div style={{ marginTop: '10px', height: '8px', borderRadius: '4px', background: '#E8E8E8' }} />
+        )}
+      </div>
 
       <div className="kpi-grid" style={{ marginTop: '20px' }}>
         {data.bestPayer && (
@@ -1166,55 +1288,67 @@ export default async function DashboardPage() {
 
         <div className="card">
           <div className="card-header"><h3>Collection Details</h3></div>
-          <div className="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th>Route</th>
-                  <th>Agent</th>
-                  <th>Customers</th>
-                  <th>Collected Today</th>
-                  <th>Overdue</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.routePerformance.map((route) => {
-                  const routeCol = data.routeCollections?.find((rc: any) => rc.routeId === route.id);
-                  const agentId = data.pendingCashCollections?.find((p: any) => p.customer?.routeId === route.id)?.agentId;
-                  const pendingCash = data.pendingCashCollections
-                    ?.filter((p: any) => p.customer?.routeId === route.id)
-                    .reduce((sum: number, p: any) => sum + Number(p.receivedAmount), 0) || 0;
+          {data.routePerformance.length > 0 ? (
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Route</th>
+                    <th>Agent</th>
+                    <th>Customers</th>
+                    <th>Collected Today</th>
+                    <th>Overdue</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.routePerformance.map((route) => {
+                    const routeCol = data.routeCollections?.find((rc: any) => rc.routeId === route.id);
+                    const agentId = data.pendingCashCollections?.find((p: any) => p.customer?.routeId === route.id)?.agentId;
+                    const pendingCash = data.pendingCashCollections
+                      ?.filter((p: any) => p.customer?.routeId === route.id)
+                      .reduce((sum: number, p: any) => sum + Number(p.receivedAmount), 0) || 0;
 
-                  return (
-                    <tr key={route.id}>
-                      <td><strong>{route.name}</strong></td>
-                      <td>{route.agent}</td>
-                      <td>{route.customers}</td>
-                      <td style={{ color: 'var(--success)', fontWeight: 700 }}>
-                        {formatCurrency(routeCol?.collected || 0, branding.currencySymbol)}
-                      </td>
-                      <td style={{ color: route.overdue > 0 ? 'var(--danger)' : 'var(--success)', fontWeight: 700 }}>
-                        {formatCurrency(route.overdue, branding.currencySymbol)}
-                      </td>
-                      <td>
-                        {agentId && pendingCash > 0 ? (
-                          <CollectCashButton 
-                            routeId={route.id} 
-                            agentId={agentId} 
-                            pendingAmount={pendingCash} 
-                            currencySymbol={branding.currencySymbol} 
-                          />
-                        ) : (
-                          <span style={{ color: 'var(--text-light)', fontSize: '.8rem' }}>—</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                    return (
+                      <tr key={route.id}>
+                        <td><strong>{route.name}</strong></td>
+                        <td>{route.agent}</td>
+                        <td>{route.customers}</td>
+                        <td style={{ color: 'var(--success)', fontWeight: 700 }}>
+                          {formatCurrency(routeCol?.collected || 0, branding.currencySymbol)}
+                        </td>
+                        <td style={{ color: route.overdue > 0 ? 'var(--danger)' : 'var(--success)', fontWeight: 700 }}>
+                          {formatCurrency(route.overdue, branding.currencySymbol)}
+                        </td>
+                        <td>
+                          {agentId && pendingCash > 0 ? (
+                            <CollectCashButton
+                              routeId={route.id}
+                              agentId={agentId}
+                              pendingAmount={pendingCash}
+                              currencySymbol={branding.currencySymbol}
+                            />
+                          ) : (
+                            <span style={{ color: 'var(--text-light)', fontSize: '.8rem' }}>—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="empty-state" style={{ padding: '24px', textAlign: 'center' }}>
+              <span className="material-icons-outlined" style={{ fontSize: '36px', color: 'var(--text-light)' }}>route</span>
+              <p style={{ marginTop: '8px', fontSize: '.85rem', color: 'var(--text-secondary)' }}>
+                No active routes for this branch.
+              </p>
+              <Link href="/settings" className="btn btn-ghost btn-sm" style={{ marginTop: '8px' }}>
+                Set Up Routes
+              </Link>
+            </div>
+          )}
         </div>
       </div>
 

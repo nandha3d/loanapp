@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { saveSystemSettings, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, deleteLoanPackage, assignAgentToRoute, removeAgentFromRoute, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections, saveUpiQrCode } from './actions';
+import { saveSystemSettings, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, deleteLoanPackage, assignAgentToRoute, removeAgentFromRoute, setPrimaryAgent, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections, saveUpiQrCode } from './actions';
 import Modal from '@/components/Modal';
 
 export default function SettingsClient({ 
@@ -18,6 +18,7 @@ export default function SettingsClient({
   const [isPackageModalOpen, setIsPackageModalOpen] = useState(false);
   const [routeAgentModal, setRouteAgentModal] = useState<{ routeId: string; routeName: string; agents: any[] } | null>(null);
   const [raAgentId, setRaAgentId] = useState('');
+  const [editingPrimaryRouteId, setEditingPrimaryRouteId] = useState<string | null>(null);
   const [packageDeductionType, setPackageDeductionType] = useState<'fixed' | 'percentage'>('fixed');
 
   // 2FA state
@@ -79,7 +80,40 @@ export default function SettingsClient({
               {routes.map(r => (
                 <tr key={r.id}>
                   <td><strong>{r.name}</strong></td>
-                  <td>{r.assignedAgent?.name || <span style={{color:'var(--text-light)'}}>{d.unassigned}</span>}</td>
+                  <td>
+                    {editingPrimaryRouteId === r.id ? (
+                      <select
+                        className="form-control"
+                        style={{ width: '150px', padding: '4px 8px', fontSize: '.82rem' }}
+                        defaultValue={r.assignedAgentId || ''}
+                        autoFocus
+                        onBlur={() => setEditingPrimaryRouteId(null)}
+                        onChange={async (e) => {
+                          const val = e.target.value;
+                          await setPrimaryAgent(r.id, val || null);
+                          setEditingPrimaryRouteId(null);
+                          window.location.reload();
+                        }}
+                      >
+                        <option value="">{d.unassigned}</option>
+                        {users.filter(u => u.role === 'agent').map(u => (
+                          <option key={u.id} value={u.id}>{u.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span
+                        style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        title="Click to change primary agent"
+                        onClick={() => setEditingPrimaryRouteId(r.id)}
+                      >
+                        {r.assignedAgent?.name ? (
+                          <><span style={{ fontWeight: 600 }}>{r.assignedAgent.name}</span><span className="material-icons-outlined" style={{ fontSize: '14px', color: 'var(--text-light)' }}>edit</span></>
+                        ) : (
+                          <><span style={{ color: 'var(--text-light)' }}>{d.unassigned}</span><span className="material-icons-outlined" style={{ fontSize: '14px', color: 'var(--primary)' }}>person_add</span></>
+                        )}
+                      </span>
+                    )}
+                  </td>
                   <td>
                     <div style={{display:'flex', flexWrap:'wrap', gap:'4px'}}>
                       {(r.routeAgents || []).map((ra: any) => (
@@ -408,7 +442,17 @@ export default function SettingsClient({
             <input type="text" name="name" className="form-control" required placeholder="e.g. Town Center" />
           </div>
           <div className="form-group">
-            <label className="form-label">{d.assignAgent}</label>
+            <label className="form-label">{d.primaryAgent}</label>
+            <select name="primaryAgentId" className="form-control">
+              <option value="">{d.unassigned}</option>
+              {users.filter(u => u.role === 'agent').map(u => (
+                <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
+            </select>
+            <span style={{ fontSize: '.75rem', color: 'var(--text-light)', marginTop: '4px', display: 'block' }}>The main agent responsible for this route.</span>
+          </div>
+          <div className="form-group">
+            <label className="form-label">{d.sharedAgents}</label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', border: '1px solid var(--border)', padding: '12px', borderRadius: 'var(--radius-sm)', maxHeight: '150px', overflowY: 'auto', background: 'var(--bg)' }}>
               {users.filter(u => u.role === 'agent').length === 0 ? (
                 <span style={{ fontSize: '.85rem', color: 'var(--text-light)' }}>No agents available</span>
@@ -421,6 +465,7 @@ export default function SettingsClient({
                 ))
               )}
             </div>
+            <span style={{ fontSize: '.75rem', color: 'var(--text-light)', marginTop: '4px', display: 'block' }}>Additional agents who can also collect on this route.</span>
           </div>
           <div className="form-actions" style={{marginTop:'20px'}}>
             <button type="submit" className="btn btn-primary">{d.createRoute}</button>

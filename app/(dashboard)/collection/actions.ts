@@ -220,7 +220,7 @@ export async function submitCollectionEntry(formData: FormData) {
   // Capital reflects only upon Cash Handover or UPI Verification.
   revalidatePath('/collection');
   revalidatePath('/dashboard');
-  revalidatePath(`/loans/${instalment.loanId}`);
+  revalidatePath(`/loans/${instalment.loan.loanCode}`);
 
   // ── Send Notification (Fire and Forget) ──────────────────────────────────
   if (instalment.loan.customer.phone && appliedDelta > 0) {
@@ -255,7 +255,7 @@ export async function requestCollectionEdit(formData: FormData) {
 
   const instalment = await prisma.instalment.findUnique({
     where: { id: instalmentId },
-    select: { id: true, loanId: true }
+    select: { id: true, loanId: true, loan: { select: { loanCode: true } } }
   });
 
   if (!instalment) return { success: false, error: 'Instalment not found' };
@@ -285,7 +285,7 @@ export async function requestCollectionEdit(formData: FormData) {
     },
   });
 
-  revalidatePath(`/loans/${instalment.loanId}`);
+  revalidatePath(`/loans/${instalment.loan.loanCode}`);
   return { success: true };
 }
 

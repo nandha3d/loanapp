@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import { formatCurrency, formatDate, getBadgeClass, calcPercentage } from '@/lib/utils';
-import { markInstalmentPaid, requestCollectionEdit, waiveLoanPenalty, settleLoanPenalty, closeLoan, renewLoan } from './actions';
+import { markInstalmentPaid, requestCollectionEdit, waiveLoanPenalty, settleLoanPenalty, closeLoan, renewLoan, precloseLoanAdmin } from './actions';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { calculateCreditScore } from '@/lib/creditScore';
@@ -74,13 +74,35 @@ export default function LoanDetailClient({
     }, 2500);
   };
 
+
+
   const displayInstalments = useMemo(() => {
-    if (viewMode === 'actual') return loan.instalments;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Start of today (don't mark missed until tomorrow)
+
+    if (viewMode === 'actual') {
+      return loan.instalments.map((inst: any) => {
+        const dueDate = new Date(inst.dueDate);
+        dueDate.setHours(0, 0, 0, 0);
+        const isPaid = Number(inst.receivedAmount) >= Number(inst.dueAmount);
+        const isPartial = Number(inst.receivedAmount) > 0 && Number(inst.receivedAmount) < Number(inst.dueAmount);
+        
+        let dynamicStatus = inst.status;
+        if (inst.status !== 'paid' && inst.status !== 'partial') {
+          if (isPaid) {
+            dynamicStatus = 'paid';
+          } else if (isPartial) {
+            dynamicStatus = 'partial';
+          } else if (dueDate < today) {
+            dynamicStatus = 'missed';
+          }
+        }
+        return { ...inst, status: dynamicStatus };
+      });
+    }
     
     const dist = JSON.parse(JSON.stringify(loan.instalments));
     let remaining = totalCollected;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Start of today (don't mark missed until tomorrow)
 
     if (viewMode === 'distributed') {
       for (const inst of dist) {
@@ -101,65 +123,8 @@ export default function LoanDetailClient({
         }
       }
       return dist;
-    } else {
-      // viewMode === 'recent_first' (Retroactive Targeted Sequential adjustment of extras)
-      // 1. Iterate chronologically to find excess payments, and apply them retroactively to previous outstanding days
-      for (let i = 0; i < dist.length; i++) {
-        const inst = dist[i];
-        const due = Number(inst.dueAmount);
-        let received = Number(inst.receivedAmount || 0);
-
-        if (received > due) {
-          let extra = received - due;
-          // Set current installment's received amount to exactly due (fully paid)
-          inst.receivedAmount = due;
-          inst.status = 'paid';
-
-          // Distribute the extra retroactively to previous outstanding installments
-          for (let j = i - 1; j >= 0; j--) {
-            if (extra <= 0) break;
-            const prevInst = dist[j];
-            const prevDue = Number(prevInst.dueAmount);
-            const prevReceived = Number(prevInst.receivedAmount || 0);
-            
-            if (prevReceived < prevDue) {
-              const gap = prevDue - prevReceived;
-              if (extra >= gap) {
-                prevInst.receivedAmount = prevDue;
-                prevInst.status = 'paid';
-                extra -= gap;
-              } else {
-                prevInst.receivedAmount = prevReceived + extra;
-                prevInst.status = 'partial';
-                extra = 0;
-              }
-            }
-          }
-
-          // If there is still extra left, add it back to the current installment's received amount
-          if (extra > 0) {
-            inst.receivedAmount = due + extra;
-          }
-        }
-      }
-
-      // 2. For any installment, recalculate status based on final simulated received amount and due date
-      for (const inst of dist) {
-        const due = Number(inst.dueAmount);
-        const received = Number(inst.receivedAmount || 0);
-        if (received >= due) {
-          inst.status = 'paid';
-        } else if (received > 0) {
-          inst.status = 'partial';
-        } else {
-          const dueDate = new Date(inst.dueDate);
-          dueDate.setHours(0, 0, 0, 0);
-          inst.status = dueDate < today ? 'missed' : 'upcoming';
-        }
-      }
-
-      return dist;
     }
+    return dist;
   }, [loan.instalments, viewMode, totalCollected]);
 
   const dynamicRemainingCount = useMemo(() => {
@@ -197,6 +162,7 @@ export default function LoanDetailClient({
   const [penaltyModal, setPenaltyModal] = useState<any>(null);
   const [closeModal, setCloseModal] = useState(false);
   const [renewModal, setRenewModal] = useState(false);
+  const [precloseModal, setPrecloseModal] = useState(false);
   const [chequeReturned, setChequeReturned] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -339,6 +305,29 @@ export default function LoanDetailClient({
       router.push(`/loans/${(result as any).newLoanId}`);
     } else {
       alert((result as any).error || d.failedToRenewLoan);
+    }
+  };
+
+  const handlePrecloseLoan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (payAmount < outstanding) {
+      alert(`Preclose requires the full outstanding amount of ${formatCurrency(outstanding, currencySymbol)}`);
+      return;
+    }
+    setLoading(true);
+    const fd = new FormData();
+    fd.set('loanId', loan.id);
+    fd.set('amount', String(payAmount));
+    fd.set('paymentMode', payMode);
+    fd.set('remarks', payRemarks);
+
+    const result = await precloseLoanAdmin(fd);
+    setLoading(false);
+    if (result.success) {
+      setPrecloseModal(false);
+      router.refresh();
+    } else {
+      alert((result as any).error || 'Failed to preclose loan');
     }
   };
 
@@ -488,11 +477,6 @@ export default function LoanDetailClient({
                 onClick={() => setViewMode('distributed')}
                 style={{ padding: '4px 10px', fontSize: '.7rem', fontWeight: 600, border: 'none', background: viewMode === 'distributed' ? '#fff' : 'transparent', color: viewMode === 'distributed' ? 'var(--primary)' : 'var(--text-secondary)', borderRadius: '4px', cursor: 'pointer', boxShadow: viewMode === 'distributed' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none', transition: 'all 0.2s' }}
               >Distributed</button>
-              <button 
-                type="button"
-                onClick={() => setViewMode('recent_first')}
-                style={{ padding: '4px 10px', fontSize: '.7rem', fontWeight: 600, border: 'none', background: viewMode === 'recent_first' ? '#fff' : 'transparent', color: viewMode === 'recent_first' ? 'var(--primary)' : 'var(--text-secondary)', borderRadius: '4px', cursor: 'pointer', boxShadow: viewMode === 'recent_first' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none', transition: 'all 0.2s' }}
-              >Retroactive</button>
             </div>
           </div>
  
@@ -727,11 +711,17 @@ export default function LoanDetailClient({
                 <h3>{isAdmin ? `🔧 ${d.adminActions}` : '⚙️ Actions'}</h3>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
-                <Link href={`/loans/${loan.id}/edit`} className="btn btn-ghost" style={{ justifyContent: 'center', border: '1px solid var(--border)' }}>
+                <Link href={`/loans/${loan.loanCode}/edit`} className="btn btn-ghost" style={{ justifyContent: 'center', border: '1px solid var(--border)' }}>
                   {isAdmin ? d.editLoan : 'Request Loan Edit'}
                 </Link>
                 {isAdmin && (
                   <>
+                    <button className="btn btn-warning" style={{ background: '#F59E0B', color: '#fff', border: 'none' }} onClick={() => {
+                      setPayAmount(outstanding);
+                      setPayMode('cash');
+                      setPayRemarks('Preclosure Full Settlement');
+                      setPrecloseModal(true);
+                    }}>Preclose & Settle</button>
                     <button className="btn btn-danger" onClick={() => setCloseModal(true)}>{d.closeLoan}</button>
                     <button className="btn btn-secondary" onClick={() => setRenewModal(true)}>{d.renewLoan}</button>
                   </>
@@ -898,6 +888,53 @@ export default function LoanDetailClient({
               <button className="btn btn-primary" onClick={handleSubmitPenalty} disabled={loading}>
                 <span className="material-icons-outlined" style={{ fontSize: '16px' }}>check</span>
                 {loading ? 'Processing...' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Preclose Loan Modal */}
+      {precloseModal && (
+        <div className="modal-overlay show" onClick={(e) => { if (e.target === e.currentTarget) setPrecloseModal(false); }}>
+          <div className="modal">
+            <div className="modal-header">
+              <h3>⚡ Preclose Loan</h3>
+              <button className="modal-close material-icons-outlined" onClick={() => setPrecloseModal(false)}>close</button>
+            </div>
+            <div className="modal-body">
+              {duesPendingBox}
+
+              <div style={{ background: '#FFFBEB', borderRadius: 'var(--radius-sm)', padding: '16px', marginBottom: '16px', border: '1px solid #FCD34D' }}>
+                <p style={{ fontSize: '.9rem', fontWeight: 600, color: '#92400E' }}>Preclose & Full Settlement</p>
+                <p style={{ fontSize: '.82rem', color: '#B45309', marginTop: '6px' }}>
+                  This action will collect the full outstanding amount of <strong>{formatCurrency(outstanding, currencySymbol)}</strong>. All unpaid instalments will be marked as paid and the loan will be <strong>CLOSED</strong>.
+                </p>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Preclosure Total ({currencySymbol})</label>
+                <input type="number" className="form-control" style={{ fontSize: '1.1rem', padding: '12px' }} value={payAmount} onChange={(e) => setPayAmount(Number(e.target.value))} min={0} disabled />
+              </div>
+              <div className="form-group">
+                <label className="form-label">{d.paymentMode}</label>
+                <select className="form-control" style={{ fontSize: '1rem', padding: '12px' }} value={payMode} onChange={(e) => setPayMode(e.target.value)}>
+                  <option value="cash">{d.cash}</option>
+                  <option value="upi">{d.upi}</option>
+                  <option value="cheque">{d.cheque}</option>
+                  <option value="bank_transfer">{d.bankTransfer}</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Remarks / Reference</label>
+                <input type="text" className="form-control" style={{ fontSize: '1rem', padding: '12px' }} value={payRemarks} onChange={(e) => setPayRemarks(e.target.value)} />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setPrecloseModal(false)}>Cancel</button>
+              <button className="btn btn-warning" style={{ background: '#F59E0B', color: '#fff', border: 'none' }} onClick={handlePrecloseLoan} disabled={loading || payAmount < outstanding}>
+                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>done_all</span>
+                {loading ? 'Processing...' : 'Settle & Close'}
               </button>
             </div>
           </div>

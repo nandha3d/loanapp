@@ -121,7 +121,10 @@ export async function createRoute(formData: FormData) {
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
   
+  const primaryAgentId = formData.get('primaryAgentId') as string || null;
   const agentIds = formData.getAll('agentIds') as string[];
+  // Filter out the primary agent from shared agents to avoid duplication
+  const sharedAgentIds = agentIds.filter(id => id !== primaryAgentId);
   
   const newRoute = await prisma.route.create({
     data: {
@@ -129,8 +132,9 @@ export async function createRoute(formData: FormData) {
       name: formData.get('name') as string,
       appType,
       status: 'active',
+      assignedAgentId: primaryAgentId || null,
       routeAgents: {
-        create: agentIds.map(id => ({
+        create: sharedAgentIds.map(id => ({
           agentId: id,
           isPrimary: false
         }))
@@ -291,6 +295,33 @@ export async function assignAgentToRoute(routeId: string, agentId: string) {
     where: { routeId_agentId: { routeId, agentId } },
     create: { routeId, agentId },
     update: {},
+  });
+
+  revalidatePath('/settings');
+  return { success: true };
+}
+
+export async function setPrimaryAgent(routeId: string, agentId: string | null) {
+  const session = await auth();
+  const userId = session?.user?.id;
+  const role = (session?.user as any)?.role;
+  if (!userId || (role !== 'admin' && role !== 'superadmin' && role !== 'developer')) {
+    return { success: false, error: 'Unauthorized' };
+  }
+
+  const tenantId = await getDefaultTenantId();
+
+  const route = await prisma.route.findFirst({ where: { id: routeId, tenantId } });
+  if (!route) return { success: false, error: 'Route not found' };
+
+  if (agentId) {
+    const agent = await prisma.user.findFirst({ where: { id: agentId, tenantId, role: 'agent' } });
+    if (!agent) return { success: false, error: 'Agent not found' };
+  }
+
+  await prisma.route.update({
+    where: { id: routeId },
+    data: { assignedAgentId: agentId || null },
   });
 
   revalidatePath('/settings');

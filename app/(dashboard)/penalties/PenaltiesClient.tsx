@@ -139,7 +139,7 @@ export default function PenaltiesClient({
                 const net = Number(p.grossPenalty) - Number(p.settledAmount) - Number(p.waivedAmount);
                 return (
                   <tr key={p.id}>
-                    <td><Link href={`/loans/${p.loan.id}`}><strong>{p.loan.loanCode}</strong></Link></td>
+                    <td><Link href={`/loans/${p.loan.loanCode}`}><strong>{p.loan.loanCode}</strong></Link></td>
                     <td>
                       <Link href={`/customers/${p.customer.customerCode}`}>{p.customer.name}</Link>
                       <br /><span style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>{p.customer.customerCode}</span>

@@ -273,7 +273,7 @@ export async function submitBorrowerRepayment(
     revalidatePath('/borrower/dashboard');
     revalidatePath('/collection');
     revalidatePath('/dashboard');
-    revalidatePath(`/loans/${loanId}`);
+    revalidatePath(`/loans/${loan.loanCode}`);
 
     return {
       success: true,
