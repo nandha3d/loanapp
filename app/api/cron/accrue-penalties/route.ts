@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'node:crypto';
 import prisma from '@/lib/db';
 import { cleanupExpiredRateLimits } from '@/lib/rateLimit';
 import { calculatePenaltyAccrual, shouldUpdatePenaltyGross } from '@/lib/penalties';
@@ -23,7 +24,11 @@ export async function GET(req: NextRequest) {
   }
 
   const authHeader = req.headers.get('authorization');
-  if (authHeader !== `Bearer ${cronSecret}`) {
+  const expectedToken = Buffer.from(cronSecret);
+  const providedTokenStr = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : '';
+  const providedToken = Buffer.from(providedTokenStr);
+
+  if (expectedToken.length !== providedToken.length || !crypto.timingSafeEqual(expectedToken, providedToken)) {
     return apiError('Unauthorized', 401);
   }
 

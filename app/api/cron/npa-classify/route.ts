@@ -1,12 +1,17 @@
 import { NextResponse } from 'next/server';
+import crypto from 'node:crypto';
 import prisma from '@/lib/db';
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
+  const cronSecret = process.env.CRON_SECRET || '';
 
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const expectedToken = Buffer.from(cronSecret);
+  const providedTokenStr = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : '';
+  const providedToken = Buffer.from(providedTokenStr);
+
+  if (!cronSecret || expectedToken.length !== providedToken.length || !crypto.timingSafeEqual(expectedToken, providedToken)) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 
   // 90 days ago
