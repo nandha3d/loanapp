@@ -441,26 +441,26 @@ model DailyCollection {
 }
 
 model CollectionEntry {
-  id                 String          @id @default(cuid())
-  collectionId       String          @map("collection_id")
-  customerId         String          @map("customer_id")
-  loanId             String          @map("loan_id")
-  dueAmount          Decimal         @map("due_amount") @db.Decimal(12, 2)
-  receivedAmount     Decimal         @map("received_amount") @db.Decimal(12, 2)
-  paymentMode        String          @default("cash") @map("payment_mode")
-  remarks            String?         @db.Text
-  agentId            String          @map("agent_id")
-  submittedAt        DateTime        @default(now()) @map("submitted_at")
-  isLocked           Boolean         @default(true) @map("is_locked")
-  verificationStatus String          @default("pending") @map("verification_status")
-  tenantId           String?         @map("tenant_id")
-  idempotencyKey     String?         @unique @map("idempotency_key")
-  agent              User            @relation(fields: [agentId], references: [id])
-  collection         DailyCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
-  customer           Customer        @relation(fields: [customerId], references: [id])
-  loan               Loan            @relation(fields: [loanId], references: [id])
-  tenant             Tenant?         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  instalment         Instalment?
+  id             String          @id @default(cuid())
+  collectionId   String          @map("collection_id")
+  customerId     String          @map("customer_id")
+  loanId         String          @map("loan_id")
+  dueAmount      Decimal         @map("due_amount") @db.Decimal(12, 2)
+  receivedAmount Decimal         @map("received_amount") @db.Decimal(12, 2)
+  paymentMode    String          @default("cash") @map("payment_mode")
+  remarks        String?         @db.Text
+  agentId        String          @map("agent_id")
+  submittedAt    DateTime        @default(now()) @map("submitted_at")
+  isLocked       Boolean         @default(true) @map("is_locked")
+  verificationStatus String      @default("pending") @map("verification_status")
+  tenantId       String?         @map("tenant_id")
+  idempotencyKey String?         @unique @map("idempotency_key")
+  agent          User            @relation(fields: [agentId], references: [id])
+  collection     DailyCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  customer       Customer        @relation(fields: [customerId], references: [id])
+  loan           Loan            @relation(fields: [loanId], references: [id])
+  tenant         Tenant?         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  instalment     Instalment?
 
   @@index([agentId], map: "collection_entries_agent_id_fkey")
   @@index([collectionId], map: "collection_entries_collection_id_fkey")
