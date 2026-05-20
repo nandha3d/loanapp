@@ -48,6 +48,7 @@ export const ta = {
     notifications: 'அறிவிப்புகள்',
     settings: 'அமைப்புகள்',
     subscription: 'எனது சந்தா',
+    team: 'முகவர்கள்',
     billing: 'பில்லிங் மற்றும் சந்தாக்கள்',
     switchApp: 'விண்ணப்பத்தை மாற்றவும்',
     sections: {

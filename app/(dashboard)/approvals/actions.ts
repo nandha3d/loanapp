@@ -28,112 +28,126 @@ export async function reviewRequest(formData: FormData) {
   const action = formData.get('action') as string; // 'approve' or 'reject'
   const reviewNotes = formData.get('reviewNotes') as string;
 
-  const request = await prisma.approvalRequest.findUnique({
-    where: { id: requestId, tenantId, appType },
-  });
-
-  if (!request || request.status !== 'pending') {
-    return { success: false, error: 'Request not found or already processed' };
-  }
-
-  if (action === 'approve') {
-    if (request.requestType === 'customer_edit' && request.entityType === 'customer') {
-      // Verify the target customer belongs to this tenant+appType
-      const customer = await prisma.customer.findFirst({
-        where: { id: request.entityId, tenantId, appType },
-        select: { id: true },
-      });
-      if (!customer) {
-        return { success: false, error: 'Target customer not found in this tenant/app' };
-      }
-
-      const staleApprovedRequest = await prisma.approvalRequest.findFirst({
-        where: {
-          tenantId,
-          appType,
-          requestType: 'customer_edit',
-          entityType: 'customer',
-          entityId: request.entityId,
-          status: 'approved',
-          reviewedAt: { gt: request.createdAt },
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Atomically claim the request by updating status to approved/rejected
+      const updateResult = await tx.approvalRequest.updateMany({
+        where: { id: requestId, tenantId, appType, status: 'pending' },
+        data: {
+          status: action === 'approve' ? 'approved' : 'rejected',
+          reviewedById: userId,
+          reviewedAt: new Date(),
+          reviewNotes,
         },
-        select: { id: true },
       });
-      if (staleApprovedRequest) {
-        await prisma.approvalRequest.update({
-          where: { id: request.id },
-          data: {
-            status: 'rejected',
-            reviewedById: userId,
-            reviewedAt: new Date(),
-            reviewNotes: reviewNotes || 'Rejected as stale: another queued edit was already approved.',
-          },
-        });
-        return { success: false, error: 'This customer edit request is stale after another queued edit was approved.' };
+
+      if (updateResult.count === 0) {
+        throw new Error('Request not found or already processed');
       }
 
-      // Apply only allow-listed fields
-      const rawChanges = JSON.parse(request.requestedChanges);
-      const safeChanges: Record<string, unknown> = {};
-      for (const [key, value] of Object.entries(rawChanges)) {
-        if (CUSTOMER_EDIT_ALLOW_LIST.has(key)) {
-          safeChanges[key] = key === 'aadharNumber'
-            ? encryptAadharNumber(String(value || ''))
-            : value;
-        }
+      // 2. Fetch the request details to perform side-effects
+      const request = await tx.approvalRequest.findUnique({
+        where: { id: requestId },
+      });
+
+      if (!request) {
+        throw new Error('Request not found');
       }
 
-      await prisma.customer.update({
-        where: { id: request.entityId, tenantId },
-        data: safeChanges,
-      });
-    } else if (request.requestType === 'edit_collection') {
-      const { requestedAmount } = JSON.parse(request.requestedChanges);
-      const fd = new FormData();
-      fd.set('instalmentId', request.entityId);
-      fd.set('receivedAmount', String(requestedAmount));
-      await submitCollectionEntry(fd);
-    } else if (request.requestType === 'loan_edit' && request.entityType === 'loan') {
-      // Verify target loan belongs to this tenant+appType
-      const loan = await prisma.loan.findFirst({
-        where: { id: request.entityId, tenantId, appType },
-        include: { guarantor: true }
-      });
-      if (!loan) {
-        return { success: false, error: 'Target loan not found in this tenant/app' };
-      }
+      if (action === 'approve') {
+        if (request.requestType === 'customer_edit' && request.entityType === 'customer') {
+          // Verify the target customer belongs to this tenant+appType
+          const customer = await tx.customer.findFirst({
+            where: { id: request.entityId, tenantId, appType },
+            select: { id: true },
+          });
+          if (!customer) {
+            throw new Error('Target customer not found in this tenant/app');
+          }
 
-      const changes = JSON.parse(request.requestedChanges);
+          const staleApprovedRequest = await tx.approvalRequest.findFirst({
+            where: {
+              tenantId,
+              appType,
+              requestType: 'customer_edit',
+              entityType: 'customer',
+              entityId: request.entityId,
+              status: 'approved',
+              reviewedAt: { gt: request.createdAt },
+            },
+            select: { id: true },
+          });
+          if (staleApprovedRequest) {
+            await tx.approvalRequest.update({
+              where: { id: request.id },
+              data: {
+                status: 'rejected',
+                reviewNotes: reviewNotes || 'Rejected as stale: another queued edit was already approved.',
+              },
+            });
+            return { isStale: true };
+          }
 
-      const principal = changes.principal !== undefined ? Number(changes.principal) : Number(loan.principal);
-      const interestType = changes.deductionType !== undefined ? changes.deductionType : loan.deductionType;
-      const rate = changes.deduction !== undefined ? Number(changes.deduction) : Number(loan.deduction);
-      const frequency = changes.frequency !== undefined ? changes.frequency : loan.frequency;
-      const tenure = changes.tenure !== undefined ? Number(changes.tenure) : Number(loan.tenure);
-      const startDateStr = changes.startDate !== undefined ? changes.startDate : new Date(loan.startDate).toISOString().slice(0, 10);
-      const penaltyRate = changes.penaltyRate !== undefined ? Number(changes.penaltyRate) : Number(loan.penaltyRate);
-      const voucherRef = changes.voucherRef !== undefined ? changes.voucherRef : loan.voucherRef;
-      const loanType = changes.loanType !== undefined ? changes.loanType : loan.loanType;
-      const collateralDetails = changes.collateralDetails !== undefined ? changes.collateralDetails : loan.collateralDetails;
+          // Apply only allow-listed fields
+          const rawChanges = JSON.parse(request.requestedChanges);
+          const safeChanges: Record<string, unknown> = {};
+          for (const [key, value] of Object.entries(rawChanges)) {
+            if (CUSTOMER_EDIT_ALLOW_LIST.has(key)) {
+              safeChanges[key] = key === 'aadharNumber'
+                ? encryptAadharNumber(String(value || ''))
+                : value;
+            }
+          }
 
-      const startDate = new Date(startDateStr);
-      const { calculateEndDate } = await import('@/lib/utils');
-      const endDate = calculateEndDate(startDate, frequency, tenure);
-      const calculation = calculateLoanPreview({
-        principal,
-        interestType,
-        interestRate: rate,
-        tenure,
-        frequency,
-        startDate,
-      });
-      const disbursed = calculation.disbursedAmount;
-      const totalPayable = calculation.totalPayable;
-      const perInstalment = calculation.perInstalment;
-      const deduction = calculation.deduction;
+          await tx.customer.update({
+            where: { id: request.entityId, tenantId },
+            data: safeChanges,
+          });
+        } else if (request.requestType === 'edit_collection') {
+          const { requestedAmount } = JSON.parse(request.requestedChanges);
+          const fd = new FormData();
+          fd.set('instalmentId', request.entityId);
+          fd.set('receivedAmount', String(requestedAmount));
+          await submitCollectionEntry(fd);
+        } else if (request.requestType === 'loan_edit' && request.entityType === 'loan') {
+          // Verify target loan belongs to this tenant+appType
+          const loan = await tx.loan.findFirst({
+            where: { id: request.entityId, tenantId, appType },
+            include: { guarantor: true }
+          });
+          if (!loan) {
+            throw new Error('Target loan not found in this tenant/app');
+          }
 
-      try {
-        await prisma.$transaction(async (tx) => {
+          const changes = JSON.parse(request.requestedChanges);
+
+          const principal = changes.principal !== undefined ? Number(changes.principal) : Number(loan.principal);
+          const interestType = changes.deductionType !== undefined ? changes.deductionType : loan.deductionType;
+          const rate = changes.deduction !== undefined ? Number(changes.deduction) : Number(loan.deduction);
+          const frequency = changes.frequency !== undefined ? changes.frequency : loan.frequency;
+          const tenure = changes.tenure !== undefined ? Number(changes.tenure) : Number(loan.tenure);
+          const startDateStr = changes.startDate !== undefined ? changes.startDate : new Date(loan.startDate).toISOString().slice(0, 10);
+          const penaltyRate = changes.penaltyRate !== undefined ? Number(changes.penaltyRate) : Number(loan.penaltyRate);
+          const voucherRef = changes.voucherRef !== undefined ? changes.voucherRef : loan.voucherRef;
+          const loanType = changes.loanType !== undefined ? changes.loanType : loan.loanType;
+          const collateralDetails = changes.collateralDetails !== undefined ? changes.collateralDetails : loan.collateralDetails;
+
+          const startDate = new Date(startDateStr);
+          const { calculateEndDate } = await import('@/lib/utils');
+          const endDate = calculateEndDate(startDate, frequency, tenure);
+          const calculation = calculateLoanPreview({
+            principal,
+            interestType,
+            interestRate: rate,
+            tenure,
+            frequency,
+            startDate,
+          });
+          const disbursed = calculation.disbursedAmount;
+          const totalPayable = calculation.totalPayable;
+          const perInstalment = calculation.perInstalment;
+          const deduction = calculation.deduction;
+
           let currentGuarantorId = loan.guarantorId;
 
           const guarantorName = changes.guarantorName !== undefined ? changes.guarantorName : loan.guarantor?.name;
@@ -220,44 +234,41 @@ export async function reviewRequest(formData: FormData) {
               data: { paidCount: 0 },
             });
           }
-        });
-      } catch (err: any) {
-        return { success: false, error: err.message || 'Transaction failed' };
+        } else if (request.requestType === 'cash_handover') {
+          await tx.dailyCollection.update({
+            where: { id: request.entityId },
+            data: {
+              status: 'settled',
+              lockedAt: new Date(),
+            },
+          });
+        }
       }
-    } else if (request.requestType === 'cash_handover') {
-      await prisma.dailyCollection.update({
-        where: { id: request.entityId },
+
+      await tx.auditLog.create({
         data: {
-          status: 'settled',
-          lockedAt: new Date(),
+          tenantId,
+          userId,
+          action: action === 'approve' ? 'approve' : 'reject',
+          entityType: request.entityType,
+          entityId: request.entityId,
+          newValue: JSON.stringify({ requestId, action, reviewNotes }),
         },
       });
+
+      return { success: true };
+    });
+
+    if ((result as any)?.isStale) {
+      revalidatePath('/approvals');
+      return { success: false, error: 'This customer edit request is stale after another queued edit was approved.' };
     }
+
+    revalidatePath('/approvals');
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Transaction failed' };
   }
-
-  await prisma.approvalRequest.update({
-    where: { id: requestId },
-    data: {
-      status: action === 'approve' ? 'approved' : 'rejected',
-      reviewedById: userId,
-      reviewedAt: new Date(),
-      reviewNotes,
-    },
-  });
-
-  await prisma.auditLog.create({
-    data: {
-      tenantId,
-      userId,
-      action: action === 'approve' ? 'approve' : 'reject',
-      entityType: request.entityType,
-      entityId: request.entityId,
-      newValue: JSON.stringify({ requestId, action, reviewNotes }),
-    },
-  });
-
-  revalidatePath('/approvals');
-  return { success: true };
 }
 
 export async function approveCustomerCreation(customerId: string) {

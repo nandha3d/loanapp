@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 const AGENT_BLOCKED = [
-  '/portal',
   '/penalties',
   '/reports',
   '/settings',
@@ -64,6 +63,10 @@ export function getRoleRedirectTarget(
     DEVELOPER_ONLY.some((prefix) => pathname.startsWith(prefix))
   ) {
     return '/dashboard';
+  }
+
+  if (pathname === '/') {
+    return role === 'agent' ? '/portal' : '/dashboard';
   }
 
   if (role === 'agent') {

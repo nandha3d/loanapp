@@ -18,6 +18,7 @@ export const en = {
     viewAll: 'View All',
   },
   customers: {
+    title: 'Customers',
     registerTitle: 'Register New Customer',
     editTitle: 'Edit Customer',
     fullName: 'Full Name',
@@ -88,6 +89,7 @@ export const en = {
     submit: 'Create Loan',
     creating: 'Creating...',
     cancel: 'Cancel',
+    newLoan: 'New Loan',
   },
   creditInsights: {
     title: 'Credit Insights',
@@ -568,6 +570,7 @@ export const en = {
     insuranceExpiring30d: 'Insurance Expiring (30d)',
     addVehicleBtn: 'Add Vehicle',
     vehicleRegistry: 'Vehicle Registry',
+    clearRepoFlag: 'Clear Repo Flag',
     repoFlagActive: 'Repo Flag Active',
     flaggedOn: 'Flagged on',
     by: 'by',
