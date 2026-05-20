@@ -107,6 +107,87 @@ export default function AppSelectorClient({
           </button>
         ))}
       </div>
+      {userRole === 'agent' && (
+        <div style={{ marginTop: '60px', width: '100%', maxWidth: '960px' }}>
+          <h3 style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '8px' }}>
+            Quick Access
+          </h3>
+          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => router.push('/collection')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '12px',
+                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                padding: '16px 24px', borderRadius: '12px', color: '#fff', cursor: 'pointer',
+                transition: 'all 0.2s ease', flex: 1, minWidth: '250px'
+              }}
+              onMouseOver={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'}
+              onMouseOut={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'}
+            >
+              <span className="material-icons-outlined" style={{ color: '#27AE60' }}>payments</span>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontWeight: 600 }}>My Collections</div>
+                <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>View and manage collections</div>
+              </div>
+            </button>
+
+            <button
+              onClick={() => router.push('/customers')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '12px',
+                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                padding: '16px 24px', borderRadius: '12px', color: '#fff', cursor: 'pointer',
+                transition: 'all 0.2s ease', flex: 1, minWidth: '250px'
+              }}
+              onMouseOver={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'}
+              onMouseOut={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'}
+            >
+              <span className="material-icons-outlined" style={{ color: '#2980B9' }}>people</span>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontWeight: 600 }}>My Customers</div>
+                <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>View assigned customers</div>
+              </div>
+            </button>
+
+            <button
+              onClick={() => router.push('/loans')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '12px',
+                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                padding: '16px 24px', borderRadius: '12px', color: '#fff', cursor: 'pointer',
+                transition: 'all 0.2s ease', flex: 1, minWidth: '250px'
+              }}
+              onMouseOver={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'}
+              onMouseOut={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'}
+            >
+              <span className="material-icons-outlined" style={{ color: '#F5A623' }}>account_balance_wallet</span>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontWeight: 600 }}>My Loans</div>
+                <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>View loan details</div>
+              </div>
+            </button>
+
+            <button
+              onClick={() => router.push('/dashboard')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '12px',
+                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                padding: '16px 24px', borderRadius: '12px', color: '#fff', cursor: 'pointer',
+                transition: 'all 0.2s ease', flex: 1, minWidth: '250px'
+              }}
+              onMouseOver={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'}
+              onMouseOut={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'}
+            >
+              <span className="material-icons-outlined" style={{ color: '#9B59B6' }}>dashboard</span>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontWeight: 600 }}>My Dashboard</div>
+                <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>View stats and overview</div>
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
+
       {['developer', 'superadmin', 'admin'].includes(userRole) && (
         <div style={{ marginTop: '60px', width: '100%', maxWidth: '960px' }}>
           <h3 style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '8px' }}>

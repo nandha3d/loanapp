@@ -17,15 +17,9 @@ export default async function Home() {
       redirect('/portal');
     }
     
-    // Admins go to portal if they have multiple modules, otherwise dashboard
+    // Admins go to portal
     if (role === 'admin') {
-      const { getActiveModules } = await import('@/lib/branch');
-      const modules = await getActiveModules();
-      if (modules.length > 1) {
-        redirect('/portal');
-      } else {
-        redirect('/dashboard');
-      }
+      redirect('/portal');
     }
 
     redirect('/dashboard');
