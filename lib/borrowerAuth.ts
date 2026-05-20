@@ -4,6 +4,7 @@ import { jwtVerify } from 'jose';
 function getBorrowerJwtSecret(): Uint8Array {
   const secret = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET;
   if (!secret) throw new Error('NEXTAUTH_SECRET or AUTH_SECRET environment variable is required for the borrower portal.');
+  if (secret.length < 32) throw new Error('NEXTAUTH_SECRET or AUTH_SECRET must be at least 32 characters');
   return new TextEncoder().encode(secret);
 }
 
