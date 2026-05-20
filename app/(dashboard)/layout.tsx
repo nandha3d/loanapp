@@ -12,6 +12,7 @@ import { getActiveBranchId, getSuperadminBranches } from '@/lib/branch';
 import { isRouteEnabledForModules, normalizeModuleList } from '@/types/modules';
 import { getSubscription, isTenantSubscriptionExpired } from '@/lib/subscription';
 import Link from 'next/link';
+import SubscriptionExpiredModal from '@/components/layout/SubscriptionExpiredModal';
 
 export default async function DashboardLayout({
   children,
@@ -86,33 +87,7 @@ export default async function DashboardLayout({
           branchSwitcher={<BranchSwitcher branches={branches} activeBranchId={activeBranchId} />}
         />
         <div className="page-content fade-up" style={{ position: 'relative' }}>
-          {isExpired && (
-            <div style={{
-              background: '#fff3cd',
-              color: '#856404',
-              padding: '12px 20px',
-              borderRadius: '8px',
-              border: '1px solid #ffeeba',
-              marginBottom: '20px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span className="material-icons-outlined">warning</span>
-                <div>
-                  <strong style={{ display: 'block' }}>Subscription Expired</strong>
-                  <span style={{ fontSize: '0.9rem' }}>Your subscription has expired. Access is now read-only. Please renew to resume operations.</span>
-                </div>
-              </div>
-              {role === 'superadmin' && (
-                <Link href="/subscription" className="btn btn-sm" style={{ background: '#856404', color: '#fff', border: 'none' }}>
-                  Renew Now
-                </Link>
-              )}
-            </div>
-          )}
+          <SubscriptionExpiredModal isExpired={isExpired} role={role} />
           {isModuleDisabled && !isExpired && (
             <div style={{
               background: '#e8f4fd',

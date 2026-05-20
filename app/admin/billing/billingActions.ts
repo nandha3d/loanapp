@@ -22,6 +22,7 @@ export async function updateSubscription(formData: FormData) {
     const status = formData.get('status') as string;
     const maxActiveLoans = parseInt(formData.get('maxActiveLoans') as string) || 0;
     const maxAgents = parseInt(formData.get('maxAgents') as string) || 0;
+    const maxBranches = parseInt(formData.get('maxBranches') as string) || 0;
     const enabledModules = formData.getAll('enabledModules');
     const trialEndsAtStr = formData.get('trialEndsAt') as string | null;
     const currentPeriodEndStr = formData.get('currentPeriodEnd') as string | null;
@@ -38,6 +39,7 @@ export async function updateSubscription(formData: FormData) {
       status,
       maxActiveLoans,
       maxAgents,
+      maxBranches,
       enabledModules: JSON.stringify(enabledModules),
       trialEndsAt: parseDate(trialEndsAtStr),
       currentPeriodEnd: parseDate(currentPeriodEndStr),
@@ -47,6 +49,7 @@ export async function updateSubscription(formData: FormData) {
     revalidatePath('/admin/billing');
     revalidatePath(`/admin/billing/${tenantId}`);
     revalidatePath('/admin/users');
+    revalidatePath('/admin/branches');
     revalidatePath('/portal');
     return { success: true };
   } catch (error: any) {

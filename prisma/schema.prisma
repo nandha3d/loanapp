@@ -725,6 +725,7 @@ model TenantSubscription {
   status           String    @default("active")
   maxActiveLoans   Int       @default(50) @map("max_active_loans")
   maxAgents        Int       @default(3) @map("max_agents")
+  maxBranches      Int       @default(1) @map("max_branches")
   enabledModules   String    @map("enabled_modules") @db.LongText
   trialEndsAt      DateTime? @map("trial_ends_at")
   currentPeriodEnd DateTime? @map("current_period_end")
