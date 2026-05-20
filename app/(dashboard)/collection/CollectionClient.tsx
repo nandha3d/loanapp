@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatCurrency, formatDate, getBadgeClass, getInitials } from '@/lib/utils';
 import { submitCollectionEntry, requestCollectionEdit, requestCashHandover } from './actions';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -83,6 +83,56 @@ export default function CollectionClient({
   const [statusFilter, setStatusFilter] = useState('');
 
   const isAdmin = agentRole === 'admin' || agentRole === 'superadmin';
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  // DEF-031 / DEF-032: Trap focus within modal and close on Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (modal) {
+          setModal(null);
+        } else if (overdueCustomerGroup) {
+          setOverdueCustomerGroup(null);
+        }
+        return;
+      }
+
+      if (e.key === 'Tab' && modalRef.current) {
+        const focusableElements = modalRef.current.querySelectorAll(
+          'a[href], button, textarea, input[type="text"], input[type="radio"], input[type="checkbox"], select, [tabindex]:not([tabindex="-1"])'
+        ) as NodeListOf<HTMLElement>;
+        
+        if (focusableElements.length === 0) return;
+
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === firstElement) {
+            lastElement.focus();
+            e.preventDefault();
+          }
+        } else {
+          if (document.activeElement === lastElement) {
+            firstElement.focus();
+            e.preventDefault();
+          }
+        }
+      }
+    };
+    
+    if (modal || overdueCustomerGroup) {
+      document.addEventListener('keydown', handleKeyDown);
+      // Focus first element on open
+      setTimeout(() => {
+        if (modalRef.current) {
+          const firstInput = modalRef.current.querySelector('input, button, a') as HTMLElement;
+          if (firstInput) firstInput.focus();
+        }
+      }, 50);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [modal, overdueCustomerGroup]);
 
   const sourceRows = activeTab === 'today' ? todayInstalments : overdueInstalments;
 
@@ -520,7 +570,7 @@ export default function CollectionClient({
           className="modal-overlay show"
           onClick={(e) => { if (e.target === e.currentTarget) setOverdueCustomerGroup(null); }}
         >
-          <div className="modal" style={{ maxWidth: '620px', width: '95vw' }}>
+          <div className="modal" ref={modalRef} style={{ maxWidth: '620px', width: '95vw' }}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div className="profile-avatar" style={{ width: '36px', height: '36px', fontSize: '.8rem', flexShrink: 0 }}>
@@ -676,7 +726,7 @@ export default function CollectionClient({
 
         return (
         <div className="modal-overlay show" onClick={(event) => { if (event.target === event.currentTarget) setModal(null); }}>
-          <div className="modal">
+          <div className="modal" ref={modalRef}>
             <div className="modal-header">
               <h3>{modal.receivedAmount > 0 ? (isAdmin ? 'Edit Collection' : 'Request Edit') : dict.collection.title}</h3>
               <button className="modal-close material-icons-outlined" onClick={() => setModal(null)}>close</button>
