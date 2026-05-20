@@ -107,7 +107,9 @@ export default function AppSelectorClient({
           </button>
         ))}
       </div>
-      {userRole === 'agent' && (
+      
+      {/* Quick Access section only for non-agents */}
+      {userRole !== 'agent' && (
         <div style={{ marginTop: '60px', width: '100%', maxWidth: '960px' }}>
           <h3 style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '8px' }}>
             Quick Access
