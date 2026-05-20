@@ -24,9 +24,17 @@ export default async function ReportsPage({
   // Parse date range
   const now = new Date();
   const defaultFrom = new Date(now.getFullYear(), now.getMonth(), 1); // First day of month
+
+  const getLocalDateString = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const resolvedParams = await searchParams;
-  const fromStr = resolvedParams.from || defaultFrom.toISOString().split('T')[0];
-  const toStr = resolvedParams.to || now.toISOString().split('T')[0];
+  const fromStr = resolvedParams.from || getLocalDateString(defaultFrom);
+  const toStr = resolvedParams.to || getLocalDateString(now);
   const routeId = resolvedParams.routeId || '';
   const agentId = resolvedParams.agentId || '';
 

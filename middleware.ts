@@ -23,6 +23,7 @@ export function isPublicPath(pathname: string): boolean {
   return (
     pathname === '/favicon.ico' ||
     pathname === '/login' ||
+    pathname.startsWith('/borrower') ||
     PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))
   );
 }

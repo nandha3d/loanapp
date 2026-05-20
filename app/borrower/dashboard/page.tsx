@@ -41,6 +41,30 @@ export default async function BorrowerDashboard() {
     redirect('/borrower/login');
   }
 
-  return <BorrowerDashboardClient loans={loans} initialLoanId={session.loanId} />;
+  // Fetch payment/UPI settings for custom QR display
+  const settingsList = await prisma.appSetting.findMany({
+    where: {
+      tenantId: session.tenantId,
+      key: {
+        in: ['upi_id', 'upi_qr_url'],
+      },
+    },
+  });
+
+  const paymentSettings = {
+    upiId: settingsList.find((s) => s.key === 'upi_id')?.value || '',
+    upiQrUrl: settingsList.find((s) => s.key === 'upi_qr_url')?.value || '',
+  };
+
+  // Convert rich Prisma types (Decimal, Date) to plain JSON objects for Client Components compatibility
+  const serializedLoans = JSON.parse(JSON.stringify(loans));
+
+  return (
+    <BorrowerDashboardClient
+      loans={serializedLoans}
+      initialLoanId={session.loanId}
+      paymentSettings={paymentSettings}
+    />
+  );
 }
 

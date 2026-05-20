@@ -30,9 +30,17 @@ export default async function AnalyticsPage({
   // --- REPORTS LOGIC ---
   const now = new Date();
   const defaultFrom = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const getLocalDateString = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const resolvedParams = await searchParams;
-  const fromStr = resolvedParams.from || defaultFrom.toISOString().split('T')[0];
-  const toStr = resolvedParams.to || now.toISOString().split('T')[0];
+  const fromStr = resolvedParams.from || getLocalDateString(defaultFrom);
+  const toStr = resolvedParams.to || getLocalDateString(now);
   const routeId = resolvedParams.routeId || '';
   const agentId = resolvedParams.agentId || '';
 
@@ -60,10 +68,21 @@ export default async function AnalyticsPage({
     select: { dueAmount: true, receivedAmount: true, status: true },
   });
 
+  const collectionsFilter: any = {
+    tenantId,
+    submittedAt: { gte: dateFrom, lte: dateTo },
+    loan: { ...loanBase },
+  };
+  if (routeId) collectionsFilter.customer = { routeId };
+  if (agentId) collectionsFilter.agentId = agentId;
+
+  const collections = await prisma.collectionEntry.findMany({
+    where: collectionsFilter,
+    select: { receivedAmount: true },
+  });
+
   const totalExpected = instalments.reduce((s, i) => s + Number(i.dueAmount), 0);
-  const totalCollected = instalments
-    .filter((i) => i.status === 'paid' || i.status === 'partial')
-    .reduce((s, i) => s + Number(i.receivedAmount), 0);
+  const totalCollected = collections.reduce((s, c) => s + Number(c.receivedAmount), 0);
   const efficiency = totalExpected > 0 ? Math.round((totalCollected / totalExpected) * 1000) / 10 : 0;
 
   const overdueLoans = await prisma.loan.findMany({

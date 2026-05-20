@@ -17,6 +17,14 @@ function outstanding(inst: { dueAmount: unknown; receivedAmount: unknown }) {
   return Math.max(0, Number(inst.dueAmount) - Number(inst.receivedAmount || 0));
 }
 
+function getLocalDateString(date: Date) {
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 // ─── Types ──────────────────────────────────────────
 export type AgingBucket = { label: string; count: number; amount: number; color: string };
 export type TrendDay = { label: string; dateKey: string; expected: number; collected: number };
@@ -94,7 +102,7 @@ export async function getAnalyticsData(
     todayInstalments,
     overdueInstalments,
     weekInstalments,
-    prevWeekInstalments,
+    prevWeekCollections,
     future7dInstalments,
     future30dInstalments,
     pendingPenalties,
@@ -149,10 +157,10 @@ export async function getAnalyticsData(
       where: { loan: { ...lw }, dueDate: { gte: weekStart, lt: tomorrow } },
       select: { dueDate: true, dueAmount: true, receivedAmount: true },
     }),
-    // Previous week instalments for WoW comparison
-    prisma.instalment.findMany({
-      where: { loan: { ...lw }, dueDate: { gte: prevWeekStart, lt: weekStart } },
-      select: { dueAmount: true, receivedAmount: true },
+    // Previous week collections for WoW comparison
+    prisma.collectionEntry.findMany({
+      where: { tenantId, submittedAt: { gte: prevWeekStart, lt: weekStart } },
+      select: { receivedAmount: true },
     }),
     // Future 7 days
     prisma.instalment.findMany({
@@ -176,10 +184,10 @@ export async function getAnalyticsData(
       where: { tenantId, submittedAt: { gte: today, lt: tomorrow } },
       select: { receivedAmount: true, paymentMode: true, agentId: true, customer: { select: { routeId: true } } },
     }),
-    // This week collection entries for agent leaderboard
+    // This week collection entries for agent leaderboard and trend
     prisma.collectionEntry.findMany({
       where: { tenantId, submittedAt: { gte: weekStart, lt: tomorrow } },
-      select: { receivedAmount: true, agentId: true, agent: { select: { id: true, name: true } } },
+      select: { receivedAmount: true, agentId: true, agent: { select: { id: true, name: true } }, submittedAt: true },
     }),
     // Account entries for capital
     prisma.accountEntry.findMany({
@@ -265,7 +273,7 @@ export async function getAnalyticsData(
 
   // 1. Collection Efficiency
   const todayExpected = todayInstalments.reduce((s, i) => s + Number(i.dueAmount), 0);
-  const todayCollected = todayInstalments.reduce((s, i) => s + Math.min(Number(i.receivedAmount || 0), Number(i.dueAmount)), 0);
+  const todayCollected = todayCollections.reduce((s, i) => s + Number(i.receivedAmount), 0);
   const effPct = todayExpected > 0 ? Math.round((todayCollected / todayExpected) * 100) : 100;
   const collectionEfficiency = {
     pct: effPct,
@@ -309,19 +317,20 @@ export async function getAnalyticsData(
   const trend7d: TrendDay[] = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart);
     d.setDate(weekStart.getDate() + i);
-    const dk = d.toISOString().slice(0, 10);
-    const rows = weekInstalments.filter(r => r.dueDate.toISOString().slice(0, 10) === dk);
+    const dk = getLocalDateString(d);
+    const rows = weekInstalments.filter(r => getLocalDateString(r.dueDate) === dk);
+    const cols = weekCollections.filter(c => getLocalDateString(c.submittedAt) === dk);
     return {
       label: d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
       dateKey: dk,
       expected: rows.reduce((s, r) => s + Number(r.dueAmount), 0),
-      collected: rows.reduce((s, r) => s + Math.min(Number(r.receivedAmount || 0), Number(r.dueAmount)), 0),
+      collected: cols.reduce((s, r) => s + Number(r.receivedAmount), 0),
     };
   });
 
   // WoW comparison
-  const currentWeekCollected = weekInstalments.reduce((s, r) => s + Math.min(Number(r.receivedAmount || 0), Number(r.dueAmount)), 0);
-  const prevWeekCollected = prevWeekInstalments.reduce((s, r) => s + Math.min(Number(r.receivedAmount || 0), Number(r.dueAmount)), 0);
+  const currentWeekCollected = weekCollections.reduce((s, r) => s + Number(r.receivedAmount), 0);
+  const prevWeekCollected = prevWeekCollections.reduce((s, r) => s + Number(r.receivedAmount), 0);
 
   // 5. Aging buckets
   const agingBuckets = computeAgingBuckets(overdueInstalments, today);
@@ -362,9 +371,9 @@ export async function getAnalyticsData(
   let cumulative = 0;
   for (let i = 1; i <= 6; i++) {
     const d = new Date(today); d.setDate(today.getDate() + i);
-    const dk = d.toISOString().slice(0, 10);
+    const dk = getLocalDateString(d);
     const dayAmt = future7dInstalments
-      .filter(r => r.dueDate.toISOString().slice(0, 10) === dk)
+      .filter(r => getLocalDateString(r.dueDate) === dk)
       .reduce((s, r) => s + Number(r.dueAmount), 0);
     cumulative += dayAmt;
     cashflowForecast7d.push({

@@ -341,3 +341,42 @@ export async function requestCustomerEdit(customerId: string, requestedChanges: 
   revalidatePath('/customers');
   return { success: true };
 }
+
+export async function resetCustomerPassword(customerId: string) {
+  const tenantId = await getDefaultTenantId();
+  const session = await auth();
+  const userRole = (session?.user as any)?.role || 'agent';
+
+  if (userRole !== 'superadmin' && userRole !== 'admin') {
+    return { success: false, error: 'Unauthorized: Only admins can reset customer passwords.' };
+  }
+
+  try {
+    await prisma.customer.update({
+      where: { id: customerId, tenantId },
+      data: {
+        passwordHash: null,
+      },
+    });
+
+    // Create an audit log entry for security
+    const userId = session?.user?.id;
+    if (userId) {
+      await prisma.auditLog.create({
+        data: {
+          tenantId,
+          userId,
+          action: 'reset_borrower_password',
+          entityType: 'customer',
+          entityId: customerId,
+          newValue: JSON.stringify({ action: 'password_reset_to_null' }),
+        },
+      }).catch((e) => console.error('Failed to log audit for password reset:', e));
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error('Failed to reset borrower password:', err);
+    return { success: false, error: 'Internal database error.' };
+  }
+}

@@ -67,7 +67,9 @@ export default function CollectionClient({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<'today' | 'overdue'>('today');
+  const [activeTab, setActiveTab] = useState<'today' | 'overdue'>(
+    () => (searchParams.get('tab') === 'overdue' ? 'overdue' : 'today'),
+  );
   const [modal, setModal] = useState<CollectionRow | null>(null);
   const [overdueCustomerGroup, setOverdueCustomerGroup] = useState<CustomerOverdueGroup | null>(null);
   const [loading, setLoading] = useState(false);
@@ -240,7 +242,7 @@ export default function CollectionClient({
                   </span>
                 </td>
                 <td>
-                  <Link href={`/loans/${instalment.loan.id}`}>{instalment.loan.loanCode}</Link>
+                  <Link href={`/loans/${instalment.loan.loanCode}`}>{instalment.loan.loanCode}</Link>
                   <br />
                   <span style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>#{instalment.instalmentNo}</span>
                 </td>
@@ -597,7 +599,7 @@ export default function CollectionClient({
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: '.85rem', fontWeight: 600 }}>{formatDate(inst.dueDate)}</div>
                         <div style={{ fontSize: '.72rem', color: 'var(--text-light)', marginTop: '1px' }}>
-                          <Link href={`/loans/${inst.loan.id}`} style={{ color: 'var(--primary)' }} onClick={() => setOverdueCustomerGroup(null)}>
+                          <Link href={`/loans/${inst.loan.loanCode}`} style={{ color: 'var(--primary)' }} onClick={() => setOverdueCustomerGroup(null)}>
                             {inst.loan.loanCode}
                           </Link>
                           {' · '}
@@ -708,7 +710,7 @@ export default function CollectionClient({
                       <span style={{ fontSize: '.7rem', color: 'var(--text-secondary)', display: 'block', marginTop: '4px' }}>Includes previous overdue instalments</span>
                     </div>
                     <Link 
-                      href={`/loans/${modal.loan.id}`} 
+                      href={`/loans/${modal.loan.loanCode}`} 
                       className="btn" 
                       style={{ 
                         background: 'var(--primary)', 

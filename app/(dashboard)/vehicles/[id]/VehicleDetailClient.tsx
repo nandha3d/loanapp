@@ -136,7 +136,7 @@ export default function VehicleDetailClient({
               </tr>
               <tr>
                 <td style={{ color: 'var(--text-secondary)' }}>{d.loan}</td>
-                <td>{vehicle.loan ? <a href={`/loans/${vehicle.loan.id}`}>{vehicle.loan.loanCode}</a> : '—'}</td>
+                <td>{vehicle.loan ? <a href={`/loans/${vehicle.loan.loanCode}`}>{vehicle.loan.loanCode}</a> : '—'}</td>
               </tr>
             </tbody>
           </table>

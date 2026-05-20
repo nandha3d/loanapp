@@ -179,7 +179,7 @@ export default async function CustomersPage({
                   <td>
                     {activeLoan ? (
                       <>
-                        <Link href={`/loans/${activeLoan.id}`}>{activeLoan.loanCode}</Link>
+                        <Link href={`/loans/${activeLoan.loanCode}`}>{activeLoan.loanCode}</Link>
                         <br />
                         <span style={{fontSize:'.75rem', color:'var(--text-light)'}}>
                           {formatCurrency(Number(activeLoan.principal), currencySymbol)}

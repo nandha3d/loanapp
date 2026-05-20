@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+import { getBorrowerSession } from '@/lib/borrowerAuth';
 import fs from 'fs';
 import path from 'path';
 import prisma from '@/lib/db';
@@ -20,9 +21,24 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ path: string[] }> },
 ) {
+  let sessionTenantId: string;
+  let role: string;
+  let userId: string;
+
   const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (session?.user?.id) {
+    sessionTenantId = (session.user as any).tenantId as string;
+    role = (session.user as any).role as string;
+    userId = session.user.id;
+  } else {
+    const borrowerSession = await getBorrowerSession();
+    if (borrowerSession) {
+      sessionTenantId = borrowerSession.tenantId;
+      role = borrowerSession.role || 'borrower';
+      userId = borrowerSession.customerId;
+    } else {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   const { path: segments } = await params;
@@ -32,8 +48,6 @@ export async function GET(
 
   // segments[0] is the tenantId — enforce tenant isolation
   const requestedTenantId = segments[0];
-  const sessionTenantId = (session.user as any).tenantId as string;
-  const role = (session.user as any).role as string;
 
   if (!isTenantFileAccessAllowed({ role, requestedTenantId, sessionTenantId })) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -68,7 +82,7 @@ export async function GET(
   prisma.auditLog.create({
     data: {
       tenantId: sessionTenantId,
-      userId: session.user.id,
+      userId: userId,
       action: 'file_download',
       entityType: 'file',
       entityId: segments.join('/'),

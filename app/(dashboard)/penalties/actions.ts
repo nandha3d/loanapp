@@ -56,7 +56,7 @@ export async function settlePenalty(formData: FormData) {
   });
 
   revalidatePath('/penalties');
-  revalidatePath(`/loans/${penalty.loanId}`);
+  revalidatePath(`/loans/${penalty.loan.loanCode}`);
   return { success: true };
 }
 
@@ -106,12 +106,12 @@ export async function waivePenalty(formData: FormData) {
       icon: 'money_off',
       title: 'Penalty Waived',
       message: `Penalty of ${gross} waived for loan ${penalty.loan.loanCode} by admin.`,
-      link: `/loans/${penalty.loanId}`,
+      link: `/loans/${penalty.loan.loanCode}`,
     },
   });
 
   revalidatePath('/penalties');
-  revalidatePath(`/loans/${penalty.loanId}`);
+  revalidatePath(`/loans/${penalty.loan.loanCode}`);
   return { success: true };
 }
 
