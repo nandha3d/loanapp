@@ -41,7 +41,7 @@ export function validateLoanNumericInputs(input: LoanNumericInputs): { valid: tr
 
 export function buildLoanDetailWhere(input: LoanDetailWhereInput) {
   const where: any = {
-    id: input.loanId,
+    loanCode: input.loanId,
     tenantId: input.tenantId,
     appType: input.appType,
   };

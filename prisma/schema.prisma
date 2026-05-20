@@ -208,6 +208,7 @@ model Customer {
   kycStatus         String            @default("pending")
   profilePhoto      String?           @map("profile_photo")
   userId            String?           @unique @map("user_id")
+  passwordHash      String?           @map("password_hash")
   status            String            @default("active")
   notes             String?           @db.Text
   appType           String            @default("microlending") @map("app_type")

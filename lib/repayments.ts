@@ -5,6 +5,7 @@ export type AllocationInputInstalment = {
   instalmentNo: number;
   dueDate: Date | string;
   dueAmount: number | Prisma.Decimal | string;
+  status?: string;
 };
 
 export type AllocatedInstalment = AllocationInputInstalment & {
@@ -13,7 +14,7 @@ export type AllocatedInstalment = AllocationInputInstalment & {
   outstandingAmount: number;
   overdueAmount: number;
   daysOverdue: number;
-  status: 'paid' | 'partial' | 'missed' | 'upcoming';
+  status: 'paid' | 'partial' | 'missed' | 'upcoming' | 'waived';
 };
 
 export type ReallocationSummary = {
@@ -83,13 +84,15 @@ export function allocatePaymentsAcrossInstalments(
       Math.floor((today.getTime() - dueDate.getTime()) / (24 * 60 * 60 * 1000)),
     );
     const isPastDue = dueDate.getTime() < today.getTime();
-    const status = receivedAmount >= dueAmount
-      ? 'paid'
-      : receivedAmount > 0
-        ? 'partial'
-        : isPastDue
-          ? 'missed'
-          : 'upcoming';
+    const status = instalment.status === 'waived'
+      ? 'waived'
+      : receivedAmount >= dueAmount
+        ? 'paid'
+        : receivedAmount > 0
+          ? 'partial'
+          : isPastDue
+            ? 'missed'
+            : 'upcoming';
 
     return {
       ...instalment,
@@ -137,7 +140,7 @@ export async function reallocateLoanRepayments(
     tx.instalment.findMany({
       where: { loanId },
       orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
-      select: { id: true, instalmentNo: true, dueDate: true, dueAmount: true, receivedAmount: true, receivedAt: true },
+      select: { id: true, instalmentNo: true, dueDate: true, dueAmount: true, receivedAmount: true, receivedAt: true, status: true },
     }),
   ]);
 
@@ -159,13 +162,15 @@ export async function reallocateLoanRepayments(
     const isPastDue = dueDate.getTime() < today.getTime();
     
     // Recalculate status based on actual received amount
-    const status = receivedAmount >= dueAmount
-      ? 'paid'
-      : receivedAmount > 0
-        ? 'partial'
-        : isPastDue
-          ? 'missed'
-          : 'upcoming';
+    const status = inst.status === 'waived'
+      ? 'waived'
+      : receivedAmount >= dueAmount
+        ? 'paid'
+        : receivedAmount > 0
+          ? 'partial'
+          : isPastDue
+            ? 'missed'
+            : 'upcoming';
 
     return {
       ...inst,
@@ -217,11 +222,11 @@ export async function reallocateLoanRepayments(
       outstandingAmount: alloc.outstandingAmount,
       overdueAmount: alloc.overdueAmount,
       daysOverdue: alloc.daysOverdue,
-      status: alloc.status as "upcoming" | "missed" | "partial" | "paid",
+      status: alloc.status as "upcoming" | "missed" | "partial" | "paid" | "waived",
     });
   }
 
-  summary.loanStatus = summary.paidCount === instalments.length && instalments.length > 0
+  summary.loanStatus = (summary.paidCount + instalments.filter(i => i.status === 'waived').length) === instalments.length && instalments.length > 0
     ? 'closed'
     : summary.overdueAmount > 0
       ? 'overdue'

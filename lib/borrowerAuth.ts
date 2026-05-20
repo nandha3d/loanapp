@@ -21,7 +21,8 @@ export async function getBorrowerSession() {
       customerId: string;
       role: string;
     };
-  } catch {
+  } catch (err) {
+    console.error('Borrower session verify error:', err);
     return null;
   }
 }

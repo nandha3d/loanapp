@@ -8,7 +8,6 @@ const TYPE_OPTIONS = [
   { value: 'capital_add', label: '💰 Capital Addition', color: 'var(--success)' },
   { value: 'capital_withdraw', label: '🏧 Capital Withdrawal', color: 'var(--danger)' },
   { value: 'expense', label: '📤 Expense', color: 'var(--warning)' },
-  { value: 'adjustment', label: '🔧 Adjustment', color: 'var(--text-secondary)' },
 ];
 
 const CATEGORY_OPTIONS = [
@@ -54,6 +53,7 @@ export default function AccountingClient({
     currentCapital: number;
     grossProfit: number;
     netProfit: number;
+    loans: any[];
     entries: any[];
   };
   currencySymbol: string;
@@ -106,6 +106,24 @@ export default function AccountingClient({
     });
   }, [summary.entries, fromDate, toDate]);
 
+  const filteredLoans = useMemo(() => {
+    return (summary.loans || []).filter((loan: any) => {
+      const d = new Date(loan.startDate);
+      d.setHours(0, 0, 0, 0);
+      if (fromDate) {
+        const start = new Date(fromDate);
+        start.setHours(0, 0, 0, 0);
+        if (d < start) return false;
+      }
+      if (toDate) {
+        const end = new Date(toDate);
+        end.setHours(23, 59, 59, 999);
+        if (d > end) return false;
+      }
+      return true;
+    });
+  }, [summary.loans, fromDate, toDate]);
+
   const metrics = useMemo(() => {
     let capitalIn = 0;
     let capitalOut = 0;
@@ -135,8 +153,10 @@ export default function AccountingClient({
     }
 
     const currentCapital = capitalIn - capitalOut - totalDisbursed + totalCollected - totalExpenses;
-    const grossProfit = totalCollected - totalDisbursed;
-    const netProfit = grossProfit - totalExpenses;
+    const totalDeductions = filteredLoans.reduce((sum: number, loan: any) => sum + Number(loan.deduction), 0);
+    const totalInterest = filteredLoans.reduce((sum: number, loan: any) => sum + Number(loan.totalPayable) - Number(loan.principal), 0);
+    const projectedRevenue = totalDeductions + totalInterest;
+    const projectedProfit = projectedRevenue - totalExpenses;
 
     return {
       capitalIn,
@@ -145,10 +165,12 @@ export default function AccountingClient({
       totalCollected,
       totalExpenses,
       currentCapital,
-      grossProfit,
-      netProfit,
+      totalDeductions,
+      totalInterest,
+      projectedRevenue,
+      projectedProfit,
     };
-  }, [filteredEntries]);
+  }, [filteredEntries, filteredLoans]);
 
   return (
     <div>
@@ -244,14 +266,14 @@ export default function AccountingClient({
           </div>
         </div>
         <div className="kpi-card">
-          <div className={`kpi-icon ${metrics.netProfit >= 0 ? 'green' : 'red'}`}>
-            <span className="material-icons-outlined">{metrics.netProfit >= 0 ? 'trending_up' : 'trending_down'}</span>
+          <div className={`kpi-icon ${metrics.projectedProfit >= 0 ? 'green' : 'red'}`}>
+            <span className="material-icons-outlined">{metrics.projectedProfit >= 0 ? 'trending_up' : 'trending_down'}</span>
           </div>
           <div>
-            <div className="kpi-value" style={{ color: metrics.netProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-              {metrics.netProfit >= 0 ? '+' : '-'}{formatCurrency(metrics.netProfit, currencySymbol)}
+            <div className="kpi-value" style={{ color: metrics.projectedProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+              {metrics.projectedProfit >= 0 ? '+' : '-'}{formatCurrency(metrics.projectedProfit, currencySymbol)}
             </div>
-            <div className="kpi-label">Net P&L</div>
+            <div className="kpi-label">Projected Profit</div>
           </div>
         </div>
       </div>
@@ -273,24 +295,30 @@ export default function AccountingClient({
                 <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--danger)' }}>-{formatCurrency(metrics.capitalOut, currencySymbol)}</div>
               </div>
               <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Gross Profit</div>
-                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: metrics.grossProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                  {formatCurrency(metrics.grossProfit, currencySymbol)}
-                </div>
-                <div style={{ fontSize: '.7rem', color: 'var(--text-light)', marginTop: '2px' }}>Collections − Disbursements</div>
+                <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Total Deductions (Upfront Fees)</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--success)' }}>{formatCurrency(metrics.totalDeductions, currencySymbol)}</div>
+              </div>
+              <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Total Interest</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--success)' }}>{formatCurrency(metrics.totalInterest, currencySymbol)}</div>
+              </div>
+              <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Projected Revenue</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--primary)' }}>{formatCurrency(metrics.projectedRevenue, currencySymbol)}</div>
+                <div style={{ fontSize: '.7rem', color: 'var(--text-light)', marginTop: '2px' }}>Deductions + Interest</div>
               </div>
               <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Expenses</div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--warning)' }}>-{formatCurrency(metrics.totalExpenses, currencySymbol)}</div>
               </div>
             </div>
-            <div style={{ padding: '16px', background: metrics.netProfit >= 0 ? 'rgba(16, 185, 129, 0.06)' : 'rgba(239, 68, 68, 0.06)', borderRadius: 'var(--radius-sm)', border: `1px solid ${metrics.netProfit >= 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ padding: '16px', background: metrics.projectedProfit >= 0 ? 'rgba(16, 185, 129, 0.06)' : 'rgba(239, 68, 68, 0.06)', borderRadius: 'var(--radius-sm)', border: `1px solid ${metrics.projectedProfit >= 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Projected Profit</div>
-                <div style={{ fontSize: '.7rem', color: 'var(--text-light)' }}>Gross Profit − Expenses</div>
+                <div style={{ fontSize: '.7rem', color: 'var(--text-light)' }}>Projected Revenue − Expenses</div>
               </div>
-              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: metrics.netProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                {metrics.netProfit >= 0 ? '' : '-'}{formatCurrency(metrics.netProfit, currencySymbol)}
+              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: metrics.projectedProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                {metrics.projectedProfit >= 0 ? '' : '-'}{formatCurrency(metrics.projectedProfit, currencySymbol)}
               </div>
             </div>
           </div>
@@ -301,7 +329,7 @@ export default function AccountingClient({
             <h3>Quick Actions</h3>
           </div>
           <div style={{ padding: '0 20px 20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
               <button className="btn btn-primary" onClick={() => openModal('capital_add')}>
                 <span className="material-icons-outlined" style={{ fontSize: '16px' }}>add_circle</span> Capital Add
               </button>
@@ -310,9 +338,6 @@ export default function AccountingClient({
               </button>
               <button className="btn btn-warning" onClick={() => openModal('expense')}>
                 <span className="material-icons-outlined" style={{ fontSize: '16px' }}>receipt_long</span> Expense
-              </button>
-              <button className="btn btn-ghost" onClick={() => openModal('adjustment')} style={{ background: 'var(--bg)' }}>
-                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>tune</span> Adjustment
               </button>
             </div>
             <p style={{ fontSize: '.8rem', color: 'var(--text-light)', textAlign: 'center', margin: '8px 0 0' }}>

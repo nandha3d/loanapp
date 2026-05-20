@@ -151,8 +151,8 @@ export default async function LoansPage({
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      <Link href={`/loans/${l.id}`} className="btn btn-ghost btn-sm">{dict.loansList.view}</Link>
-                      <Link href={`/loans/${l.id}/edit`} className="btn btn-ghost btn-sm" style={{ color: 'var(--primary)' }}>{dict.loansList.edit}</Link>
+                      <Link href={`/loans/${l.loanCode}`} className="btn btn-ghost btn-sm">{dict.loansList.view}</Link>
+                      <Link href={`/loans/${l.loanCode}/edit`} className="btn btn-ghost btn-sm" style={{ color: 'var(--primary)' }}>{dict.loansList.edit}</Link>
                     </div>
                   </td>
                 </tr>
