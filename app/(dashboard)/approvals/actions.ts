@@ -13,6 +13,18 @@ const CUSTOMER_EDIT_ALLOW_LIST = new Set([
   'name', 'phone', 'address', 'aadharNumber', 'kycStatus', 'photo',
 ]);
 
+// Fields allowed for loan edit requests
+const LOAN_EDIT_ALLOW_LIST = new Set([
+  'principal', 'deductionType', 'deduction', 'frequency', 'tenure', 
+  'startDate', 'penaltyRate', 'voucherRef', 'loanType', 'collateralDetails',
+  'guarantorName', 'guarantorPhone', 'guarantorAadhar', 'guarantorAddress', 'guarantorRelation'
+]);
+
+// Fields allowed for collection edit requests
+const COLLECTION_EDIT_ALLOW_LIST = new Set([
+  'requestedAmount'
+]);
+
 export async function reviewRequest(formData: FormData) {
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
@@ -104,7 +116,15 @@ export async function reviewRequest(formData: FormData) {
             data: safeChanges,
           });
         } else if (request.requestType === 'edit_collection') {
-          const { requestedAmount } = JSON.parse(request.requestedChanges);
+          const rawChanges = JSON.parse(request.requestedChanges);
+          const requestedAmount = COLLECTION_EDIT_ALLOW_LIST.has('requestedAmount') 
+            ? rawChanges.requestedAmount 
+            : undefined;
+          
+          if (requestedAmount === undefined) {
+            throw new Error('Invalid collection edit request: missing requestedAmount');
+          }
+          
           const fd = new FormData();
           fd.set('instalmentId', request.entityId);
           fd.set('receivedAmount', String(requestedAmount));
@@ -119,7 +139,16 @@ export async function reviewRequest(formData: FormData) {
             throw new Error('Target loan not found in this tenant/app');
           }
 
-          const changes = JSON.parse(request.requestedChanges);
+          const rawChanges = JSON.parse(request.requestedChanges);
+          
+          // Validate only allow-listed fields are present
+          for (const key of Object.keys(rawChanges)) {
+            if (!LOAN_EDIT_ALLOW_LIST.has(key)) {
+              throw new Error(`Unauthorized field in loan edit request: ${key}`);
+            }
+          }
+
+          const changes = rawChanges;
 
           const principal = changes.principal !== undefined ? Number(changes.principal) : Number(loan.principal);
           const interestType = changes.deductionType !== undefined ? changes.deductionType : loan.deductionType;
