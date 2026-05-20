@@ -10,12 +10,14 @@ import bcryptjs from 'bcryptjs';
 function getBorrowerJwtSecret(): Uint8Array {
   const secret = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET;
   if (!secret) throw new Error('NEXTAUTH_SECRET or AUTH_SECRET environment variable is required for the borrower portal.');
+  if (secret.length < 32) throw new Error('NEXTAUTH_SECRET or AUTH_SECRET must be at least 32 characters');
   return new TextEncoder().encode(secret);
 }
 
 function getBorrowerOtpSecret(): string {
   const secret = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET;
   if (!secret) throw new Error('NEXTAUTH_SECRET or AUTH_SECRET environment variable is required for borrower OTP.');
+  if (secret.length < 32) throw new Error('NEXTAUTH_SECRET or AUTH_SECRET must be at least 32 characters');
   return secret;
 }
 
