@@ -82,68 +82,74 @@ export async function GET(req: NextRequest) {
 
     let created = 0;
     let updated = 0;
+    let failed = 0;
 
     for (const [loanId, instalments] of loanMap) {
-      const loan = instalments[0].loan;
-      const settings = Object.fromEntries(
-        loan.tenant.settings.map((s) => [s.key, s.value])
-      );
-      const penaltyPerDay = Number(settings['default_penalty_per_day'] ?? 0);
-      const gracePeriodDays = Number(settings['penalty_grace_period'] ?? 0);
-      const maxCap = Number(settings['penalty_max_cap'] ?? 0);
+      try {
+        const loan = instalments[0].loan;
+        const settings = Object.fromEntries(
+          loan.tenant.settings.map((s) => [s.key, s.value])
+        );
+        const penaltyPerDay = Number(settings['default_penalty_per_day'] ?? 0);
+        const gracePeriodDays = Number(settings['penalty_grace_period'] ?? 0);
+        const maxCap = Number(settings['penalty_max_cap'] ?? 0);
 
-      if (penaltyPerDay <= 0) continue; // Penalty not configured for this tenant
+        if (penaltyPerDay <= 0) continue; // Penalty not configured for this tenant
 
-      const { missedDays: totalMissedDays, grossPenalty } = calculatePenaltyAccrual({
-        overdueInstalments: instalments,
-        asOf: today,
-        penaltyPerDay,
-        gracePeriodDays,
-        maxCap,
-      });
+        const { missedDays: totalMissedDays, grossPenalty } = calculatePenaltyAccrual({
+          overdueInstalments: instalments,
+          asOf: today,
+          penaltyPerDay,
+          gracePeriodDays,
+          maxCap,
+        });
 
-      if (totalMissedDays === 0) continue;
+        if (totalMissedDays === 0) continue;
 
-      // Upsert penalty record per loan (one aggregate penalty per loan)
-      const existing = await prisma.penalty.findFirst({
-        where: { loanId, status: { in: ['pending', 'partial'] } },
-      });
+        // Upsert penalty record per loan (one aggregate penalty per loan)
+        const existing = await prisma.penalty.findFirst({
+          where: { loanId, status: { in: ['pending', 'partial'] } },
+        });
 
-      if (existing) {
-        // Only update if penalty has grown
-        if (shouldUpdatePenaltyGross(Number(existing.grossPenalty), grossPenalty)) {
-          await prisma.penalty.update({
-            where: { id: existing.id },
-            data: { missedDays: totalMissedDays, grossPenalty },
+        if (existing) {
+          // Only update if penalty has grown
+          if (shouldUpdatePenaltyGross(Number(existing.grossPenalty), grossPenalty)) {
+            await prisma.penalty.update({
+              where: { id: existing.id },
+              data: { missedDays: totalMissedDays, grossPenalty },
+            });
+            updated++;
+          }
+        } else {
+          await prisma.penalty.create({
+            data: {
+              loanId,
+              customerId: loan.customerId,
+              missedDays: totalMissedDays,
+              grossPenalty,
+              status: 'pending',
+            },
           });
-          updated++;
+          created++;
         }
-      } else {
-        await prisma.penalty.create({
-          data: {
-            loanId,
-            customerId: loan.customerId,
-            missedDays: totalMissedDays,
-            grossPenalty,
-            status: 'pending',
-          },
-        });
-        created++;
-      }
 
-      // Mark the loan as overdue if it isn't already
-      if (loan.status === 'active') {
-        await prisma.loan.update({
-          where: { id: loanId },
-          data: { status: 'overdue' },
-        });
-      }
+        // Mark the loan as overdue if it isn't already
+        if (loan.status === 'active') {
+          await prisma.loan.update({
+            where: { id: loanId },
+            data: { status: 'overdue' },
+          });
+        }
 
-      // Mark each instalment as missed
-      await prisma.instalment.updateMany({
-        where: { loanId, status: 'upcoming', dueDate: { lt: today } },
-        data: { status: 'missed' },
-      });
+        // Mark each instalment as missed
+        await prisma.instalment.updateMany({
+          where: { loanId, status: 'upcoming', dueDate: { lt: today } },
+          data: { status: 'missed' },
+        });
+      } catch (loanErr) {
+        failed++;
+        console.error(`[accrue-penalties] Failed for loan ${loanId}:`, loanErr);
+      }
     }
 
     // ── Midnight ledger lock ──────────────────────────────────────────
@@ -166,6 +172,7 @@ export async function GET(req: NextRequest) {
       loansProcessed: loanMap.size,
       penaltiesCreated: created,
       penaltiesUpdated: updated,
+      loansFailed: failed,
       dailyCollectionsLocked: locked.count,
       rateLimitRecordsCleaned: rateLimitCleaned,
       runAt: new Date().toISOString(),

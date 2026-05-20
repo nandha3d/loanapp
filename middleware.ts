@@ -65,6 +65,10 @@ export function getRoleRedirectTarget(
     return '/dashboard';
   }
 
+  if (pathname === '/') {
+    return role === 'agent' ? '/collection' : '/dashboard';
+  }
+
   if (role === 'agent') {
     if (AGENT_BLOCKED.some((prefix) => pathname.startsWith(prefix))) {
       return '/collection';
