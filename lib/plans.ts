@@ -1,15 +1,16 @@
 export type PlanFeature = {
   loans: number;
   agents: number;
+  branches: number;
   modules: string[];
   gracePeriodDays: number;
 };
 
 export const PLAN_FEATURES: Record<string, PlanFeature> = {
-  trial: { loans: 50, agents: 3, modules: ['microlending'], gracePeriodDays: 3 },
-  basic: { loans: 200, agents: 10, modules: ['microlending', 'autofinance'], gracePeriodDays: 7 },
-  pro: { loans: 1000, agents: 50, modules: ['microlending', 'autofinance', 'chitfunds'], gracePeriodDays: 14 },
-  enterprise: { loans: 999999, agents: 999, modules: ['microlending', 'autofinance', 'chitfunds'], gracePeriodDays: 30 },
+  trial: { loans: 50, agents: 3, branches: 1, modules: ['microlending'], gracePeriodDays: 3 },
+  basic: { loans: 200, agents: 10, branches: 2, modules: ['microlending', 'autofinance'], gracePeriodDays: 7 },
+  pro: { loans: 1000, agents: 50, branches: 5, modules: ['microlending', 'autofinance', 'chitfunds'], gracePeriodDays: 14 },
+  enterprise: { loans: 999999, agents: 999, branches: 999, modules: ['microlending', 'autofinance', 'chitfunds'], gracePeriodDays: 30 },
 };
 
 /** Monthly pricing in INR (excl. tax). Tax is 18% GST. */

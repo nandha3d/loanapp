@@ -47,6 +47,12 @@ export async function manageAgent(formData: FormData) {
   });
   if (existingUsername) return { success: false, error: 'Username already taken' };
 
+  // Check unique phone within tenant
+  const existingPhone = await prisma.user.findFirst({
+    where: { phone, tenantId, id: id ? { not: id } : undefined }
+  });
+  if (existingPhone) return { success: false, error: 'Phone number already in use' };
+
   const adminModules = normalizeModuleList(formData.getAll('adminModules'));
   const targetModules = adminModules.length > 0 ? adminModules : [appType];
   const primaryAppType = targetModules[0] || 'microlending';
