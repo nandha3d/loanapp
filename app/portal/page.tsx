@@ -13,10 +13,6 @@ export default async function SuperAdminPortal() {
   }
 
   const role = (session.user as any)?.role;
-
-  if (role === 'agent') {
-    redirect('/collection');
-  }
   
   let tenantId: string | null = null;
   try {
@@ -27,10 +23,10 @@ export default async function SuperAdminPortal() {
   
   let enabledModules: string[] = [];
   
-  if (role === 'admin') {
+  if (role === 'admin' || role === 'agent') {
     const { getActiveModules } = await import('@/lib/branch');
     enabledModules = await getActiveModules();
-    if (enabledModules.length <= 1) {
+    if (role === 'admin' && enabledModules.length <= 1) {
       redirect('/dashboard');
     }
   } else if (tenantId) {
@@ -43,7 +39,7 @@ export default async function SuperAdminPortal() {
     enabledModules = []; 
   }
 
-  if (role !== 'superadmin' && role !== 'developer' && role !== 'admin') {
+  if (role !== 'superadmin' && role !== 'developer' && role !== 'admin' && role !== 'agent') {
     redirect('/dashboard');
   }
 
