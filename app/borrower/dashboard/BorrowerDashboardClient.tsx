@@ -8,9 +8,13 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianG
 interface BorrowerDashboardClientProps {
   loans: any[];
   initialLoanId: string;
+  paymentSettings?: {
+    upiId: string;
+    upiQrUrl: string;
+  };
 }
 
-export default function BorrowerDashboardClient({ loans, initialLoanId }: BorrowerDashboardClientProps) {
+export default function BorrowerDashboardClient({ loans, initialLoanId, paymentSettings }: BorrowerDashboardClientProps) {
   const [selectedLoanId, setSelectedLoanId] = useState(initialLoanId);
   const loan = loans.find((l) => l.id === selectedLoanId) || loans[0] || null;
 
@@ -32,7 +36,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId }: Borrow
   const [paymentStep, setPaymentStep] = useState<'input' | 'simulate' | 'success'>('input');
   const [paymentType, setPaymentType] = useState<'next' | 'partial' | 'preclose'>('next');
   const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentMode, setPaymentMode] = useState<'upi' | 'card' | 'netbanking'>('upi');
+  const [paymentMode, setPaymentMode] = useState<'upi' | 'card' | 'netbanking' | 'cash'>('upi');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -86,6 +90,15 @@ export default function BorrowerDashboardClient({ loans, initialLoanId }: Borrow
 
   const paidRatio = totalPayable > 0 ? totalPaid / totalPayable : 0;
   const paidPercent = Math.min(100, Math.round(paidRatio * 100));
+
+  // Overdue calculations
+  const overdueInstalments = loan.instalments.filter(
+    (inst: any) => inst.status === 'overdue' || inst.status === 'missed'
+  );
+  const overdueAmount = overdueInstalments.reduce(
+    (sum: number, inst: any) => sum + Math.max(0, Number(inst.dueAmount) - Number(inst.receivedAmount || 0)),
+    0
+  );
 
   // Find next unpaid instalment
   const today = new Date();
@@ -1544,7 +1557,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId }: Borrow
       {/* Payment Drawer Modal */}
       {showPaymentModal && (
         <div className="modal-overlay show" style={{ zIndex: 2000 }}>
-          <div className="modal" style={{ borderRadius: '24px 24px 0 0', position: 'fixed', bottom: 0, width: '100%', maxWidth: '640px', margin: 0, paddingBottom: '24px', animation: 'fadeUp 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }}>
+          <div className="modal" style={{ width: '100%', maxWidth: '640px', animation: 'fadeUp 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }}>
             
             {/* Modal Header */}
             <div className="modal-header" style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1570,12 +1583,25 @@ export default function BorrowerDashboardClient({ loans, initialLoanId }: Borrow
             </div>
 
             {/* Modal Body */}
-            <div className="modal-body" style={{ padding: '20px', maxHeight: '70vh', overflowY: 'auto' }}>
+            <div className="modal-body" style={{ padding: '20px' }}>
               
               {/* Step 1: Input details */}
               {paymentStep === 'input' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   
+                  {/* Overdue Warning Banner */}
+                  {overdueAmount > 0 && (
+                    <div style={{ background: '#fef2f2', color: '#991b1b', padding: '12px 14px', borderRadius: '12px', border: '1px solid rgba(239,68,68,0.2)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span className="material-icons-outlined" style={{ fontSize: '18px', color: '#dc2626' }}>error_outline</span>
+                        Overdue Balance Alert
+                      </div>
+                      <div style={{ fontSize: '0.72rem', opacity: 0.9 }}>
+                        You have <strong>{overdueInstalments.length} overdue instalment{overdueInstalments.length > 1 ? 's' : ''}</strong> totaling <strong>{formatCurrency(overdueAmount)}</strong>. Please prioritize settling this outstanding balance to avoid late fee penalties.
+                      </div>
+                    </div>
+                  )}
+
                   {/* Segmented Control for Payment Types */}
                   <div style={{ display: 'flex', background: 'var(--bg)', padding: '4px', borderRadius: '12px', border: '1px solid var(--border)', gap: '4px', marginBottom: '2px' }}>
                     {(['next', 'partial', 'preclose'] as const).map((type) => {
@@ -1658,7 +1684,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId }: Borrow
                   {/* Payment Methods Selector (Fintech Pill buttons) */}
                   <div>
                     <label className="form-label" style={{ fontWeight: 600 }}>Select Simulation Method</label>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px' }}>
                       <button
                         onClick={() => setPaymentMode('upi')}
                         style={{
@@ -1713,6 +1739,24 @@ export default function BorrowerDashboardClient({ loans, initialLoanId }: Borrow
                         <span className="material-icons-outlined" style={{ color: 'var(--primary)', fontSize: '20px' }}>account_balance</span>
                         <span style={{ fontSize: '0.72rem', fontWeight: 600 }}>Net Banking</span>
                       </button>
+                      <button
+                        onClick={() => setPaymentMode('cash')}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '12px 6px',
+                          borderRadius: '14px',
+                          border: `2px solid ${paymentMode === 'cash' ? 'var(--primary)' : 'var(--border)'}`,
+                          background: paymentMode === 'cash' ? 'var(--primary-light)' : 'var(--surface)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                        }}
+                      >
+                        <span className="material-icons-outlined" style={{ color: 'var(--primary)', fontSize: '20px' }}>payments</span>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 600 }}>Cash</span>
+                      </button>
                     </div>
                   </div>
 
@@ -1755,22 +1799,82 @@ export default function BorrowerDashboardClient({ loans, initialLoanId }: Borrow
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
                       <div style={{ position: 'relative', width: '160px', height: '160px', background: '#fff', border: '1px solid var(--border)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: '8px', boxShadow: 'var(--shadow)' }}>
                         
-                        {/* Mock QR graphic */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', width: '100%', height: '100%' }}>
-                          {Array.from({ length: 16 }).map((_, i) => (
-                            <div key={i} style={{ background: i % 3 === 0 || i % 7 === 0 ? '#111827' : 'transparent', borderRadius: '2px' }}></div>
-                          ))}
-                        </div>
+                        {paymentSettings?.upiQrUrl ? (
+                          <img 
+                            src={paymentSettings.upiQrUrl} 
+                            alt="Lender UPI QR Code" 
+                            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                          />
+                        ) : (
+                          /* Mock QR graphic */
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', width: '100%', height: '100%' }}>
+                            {Array.from({ length: 16 }).map((_, i) => (
+                              <div key={i} style={{ background: i % 3 === 0 || i % 7 === 0 ? '#111827' : 'transparent', borderRadius: '2px' }}></div>
+                            ))}
+                          </div>
+                        )}
 
                         {/* Scanner sweep animation */}
                         <div style={{ position: 'absolute', left: 0, right: 0, height: '3px', background: 'var(--primary)', boxShadow: '0 0 8px var(--primary)', animation: 'sweep 2.5s ease-in-out infinite' }}></div>
                       </div>
                       
                       <div style={{ textAlign: 'center', marginTop: '16px' }}>
-                        <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text)' }}>Scan to Pay via UPI App</span>
+                        <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text)' }}>
+                          {paymentSettings?.upiQrUrl ? "Scan Lender's Verified QR Code" : "Scan to Pay via UPI App"}
+                        </span>
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '4px', fontFamily: 'monospace' }}>
-                          Ref ID: loantrack@ybl • ₹{parseFloat(paymentAmount).toLocaleString('en-IN')}
+                          UPI ID: {paymentSettings?.upiId || 'loantrack@ybl'} • ₹{parseFloat(paymentAmount).toLocaleString('en-IN')}
                         </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Cash Handover Simulation screen */}
+                  {paymentMode === 'cash' && (
+                    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '14px', alignItems: 'center' }}>
+                      <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'rgba(39, 174, 96, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <span className="material-icons-outlined" style={{ fontSize: '28px', color: 'var(--success)' }}>payments</span>
+                      </div>
+                      <div style={{ textAlign: 'center' }}>
+                        <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 700 }}>Simulate Cash Handover</h4>
+                        <p style={{ margin: '4px 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                          Simulate handing over cash to a branch cashier or collector agent.
+                        </p>
+                      </div>
+                      
+                      <div style={{ width: '100%', background: 'var(--bg)', borderRadius: '12px', padding: '14px', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Handover Amount</span>
+                          <span style={{ fontWeight: 700, color: 'var(--text)' }}>{formatCurrency(parseFloat(paymentAmount))}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Agent Desk</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text)' }}>Branch Cashier Office</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Verification Status</span>
+                          <span style={{ fontWeight: 600, color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span className="material-icons-outlined" style={{ fontSize: '14px', color: 'var(--warning)' }}>pending</span>
+                            Pending Cashier Verify
+                          </span>
+                        </div>
+                        
+                        <div className="form-group" style={{ margin: 0, borderTop: '1px solid var(--border)', paddingTop: '10px' }}>
+                          <label className="form-label" style={{ fontSize: '0.72rem', fontWeight: 600 }}>Collector / Receipt Reference</label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            placeholder="e.g. REC-58291 or cashier name"
+                            value={referenceNumber}
+                            onChange={(e) => setReferenceNumber(e.target.value)}
+                            disabled={isSubmitting}
+                          />
+                        </div>
+                      </div>
+                      
+                      <div style={{ background: '#fffbeb', color: '#b45309', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(245,158,11,0.2)', fontSize: '0.7rem', display: 'flex', gap: '6px', width: '100%' }}>
+                        <span className="material-icons-outlined" style={{ fontSize: '16px', flexShrink: 0 }}>info</span>
+                        <span>Upon submission, a pending ledger record is immediately synced, pending agent physical handover check.</span>
                       </div>
                     </div>
                   )}

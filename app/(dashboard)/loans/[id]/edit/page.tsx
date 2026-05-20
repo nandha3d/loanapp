@@ -20,7 +20,7 @@ export default async function EditLoanPage({
   const role = (session?.user as any)?.role || 'agent';
 
   const loan = await prisma.loan.findFirst({
-    where: { id: resolvedParams.id, tenantId },
+    where: { loanCode: resolvedParams.id, tenantId },
     include: {
       customer: { include: { guarantors: true } },
       guarantor: true

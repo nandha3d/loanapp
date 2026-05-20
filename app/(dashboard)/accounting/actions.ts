@@ -85,6 +85,16 @@ export async function getAccountingSummary(tenantId: string, branchId?: string |
   const grossProfit = totalCollected - totalDisbursed;
   const netProfit = grossProfit - totalExpenses;
 
+  const loans = await prisma.loan.findMany({
+    where: { tenantId, ...(branchId ? { branchId } : {}) },
+    select: {
+      startDate: true,
+      principal: true,
+      deduction: true,
+      totalPayable: true,
+    },
+  });
+
   return {
     capitalIn,
     capitalOut,
@@ -94,6 +104,7 @@ export async function getAccountingSummary(tenantId: string, branchId?: string |
     currentCapital,
     grossProfit,
     netProfit,
-    entries, // Return all entries
+    loans,
+    entries,
   };
 }

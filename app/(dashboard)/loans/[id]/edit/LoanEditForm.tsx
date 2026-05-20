@@ -35,6 +35,7 @@ export default function LoanEditForm({
   const [penalty, setPenalty] = useState<number>(Number(loan.penaltyRate));
   const [loanType, setLoanType] = useState(loan.loanType || 'cheque');
   const [collateralDetails, setCollateralDetails] = useState(loan.collateralDetails || '');
+  const [isLoanTypeExpanded, setIsLoanTypeExpanded] = useState(true);
   
   // Dynamic Collateral states
   const [chequeBankName, setChequeBankName] = useState('');
@@ -226,7 +227,7 @@ export default function LoanEditForm({
       if (result && result.error) {
         setError(result.error);
       } else {
-        router.push(`/loans/${loan.id}`);
+        router.push(`/loans/${loan.loanCode}`);
         router.refresh();
       }
     } else {
@@ -236,7 +237,7 @@ export default function LoanEditForm({
       if (result && result.error) {
         setError(result.error);
       } else {
-        router.push(`/loans/${loan.id}`);
+        router.push(`/loans/${loan.loanCode}`);
         router.refresh();
       }
     }
@@ -270,27 +271,30 @@ export default function LoanEditForm({
           </div>
         </div>
 
-        <div style={{ marginTop: '32px', marginBottom: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
-          <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1rem', color: 'var(--primary-dark)' }}>
-            <span className="material-icons-outlined">settings</span> ⚙️ Loan Configuration
+        {/* Collateral Header (Always Visible) */}
+        <div style={{ marginTop: '32px', marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
+          <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1.05rem', color: 'var(--primary-dark)', fontWeight: 600 }}>
+            <span className="material-icons-outlined">settings</span> ⚙️ {dict.loans.loanType || 'Loan Configuration'}
           </h4>
         </div>
 
-        <div className="form-group">
+        {/* 3 Buttons (Always Visible) */}
+        <div className="form-group" style={{ marginBottom: '16px' }}>
           <label className="form-label">{dict.loans.loanType} *</label>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             {Object.entries(loanTypeLabels).map(([key, label]) => (
               <button
                 key={key}
                 type="button"
-                onClick={() => setLoanType(key)}
+                onClick={() => setLoanType(key as 'cheque' | 'gold' | 'property')}
                 style={{
                   padding: '12px 20px', borderRadius: 'var(--radius-sm)',
                   border: loanType === key ? '2px solid var(--primary)' : '2px solid var(--border)',
                   background: loanType === key ? 'var(--primary-light)' : 'var(--bg)',
                   color: loanType === key ? 'var(--primary-dark)' : 'var(--text)',
                   fontWeight: loanType === key ? 700 : 400,
-                  cursor: 'pointer', fontSize: '.9rem', flex: '1', minWidth: '120px', textAlign: 'center'
+                  cursor: 'pointer', fontSize: '.9rem', flex: '1', minWidth: '120px', textAlign: 'center',
+                  transition: 'all 0.2s ease'
                 }}
               >
                 {label}
@@ -299,43 +303,172 @@ export default function LoanEditForm({
           </div>
         </div>
 
+        {/* Collapsible Accordion Details Trigger (Below the 3 Buttons) */}
+        <div 
+          onClick={() => setIsLoanTypeExpanded(!isLoanTypeExpanded)}
+          style={{ 
+            marginBottom: '16px', 
+            padding: '12px 16px',
+            background: 'var(--bg-alt)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-sm)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            cursor: 'pointer',
+            userSelect: 'none',
+            transition: 'background 0.2s ease'
+          }}
+        >
+          <span style={{ fontSize: '.9rem', fontWeight: 700, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span className="material-icons-outlined" style={{ fontSize: '18px', color: 'var(--primary)' }}>info</span>
+            {loanTypeLabels[loanType]} Details
+          </span>
+          <span 
+            className="material-icons-outlined" 
+            style={{ 
+              transform: isLoanTypeExpanded ? 'rotate(180deg)' : 'rotate(0deg)', 
+              transition: 'transform 0.2s ease-in-out',
+              color: 'var(--text-secondary)',
+              fontSize: '18px'
+            }}
+          >
+            expand_more
+          </span>
+        </div>
+
+        {/* Collapsible details container */}
+        {isLoanTypeExpanded && (
+          <div style={{ transition: 'all 0.3s ease', padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', marginBottom: '16px' }}>
+            {loanType === 'cheque' && (
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Bank Name</label>
+                  <input type="text" className="form-control" value={chequeBankName} onChange={e=>setChequeBankName(e.target.value)} placeholder="e.g. HDFC Bank" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Cheque Number</label>
+                  <input type="text" className="form-control" value={chequeNumber} onChange={e=>setChequeNumber(e.target.value)} placeholder="000000" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Cheque Amount</label>
+                  <input type="number" className="form-control" value={chequeAmount} onChange={e=>setChequeAmount(e.target.value ? Number(e.target.value) : '')} placeholder="Amount" />
+                </div>
+              </div>
+            )}
+
+            {loanType === 'gold' && (
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Total Weight (Grams)</label>
+                  <input type="number" className="form-control" value={goldGrams} onChange={e=>setGoldGrams(e.target.value ? Number(e.target.value) : '')} placeholder="e.g. 24.5" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Purity (Carat)</label>
+                  <select className="form-control" value={goldCarat} onChange={e=>setGoldCarat(e.target.value)}>
+                    <option value="18K">18K</option>
+                    <option value="20K">20K</option>
+                    <option value="22K">22K</option>
+                    <option value="24K">24K</option>
+                  </select>
+                </div>
+                <div className="form-group" style={{ flex: '1 1 100%' }}>
+                  <label className="form-label">Items Description</label>
+                  <input type="text" className="form-control" value={goldItems} onChange={e=>setGoldItems(e.target.value)} placeholder="e.g. 2 Bangles, 1 Chain" />
+                </div>
+              </div>
+            )}
+
+            {loanType === 'property' && (
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Property Type</label>
+                  <select className="form-control" value={propertyType} onChange={e=>setPropertyType(e.target.value)}>
+                    <option value="residential">Residential</option>
+                    <option value="commercial">Commercial</option>
+                    <option value="land">Land</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Estimated Value ({currencySymbol})</label>
+                  <input type="number" className="form-control" value={propertyValue} onChange={e=>setPropertyValue(e.target.value ? Number(e.target.value) : '')} placeholder="Approx value" />
+                </div>
+                <div className="form-group" style={{ flex: '1 1 100%' }}>
+                  <label className="form-label">Property Address</label>
+                  <textarea className="form-control" rows={2} value={propertyAddress} onChange={e=>setPropertyAddress(e.target.value)} placeholder="Full address of the property" />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="form-group">
-          <label className="form-label">Repayment Plan Model</label>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
-            <button type="button" onClick={() => setCalcModel('upfront')} style={{
-              padding: '8px 16px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-              border: !isEmiAddition ? '2px solid var(--primary)' : '2px solid var(--border)',
-              background: !isEmiAddition ? 'var(--primary-light)' : 'var(--bg)',
-              color: !isEmiAddition ? 'var(--primary-dark)' : 'var(--text)',
-              fontWeight: !isEmiAddition ? 700 : 400, flex: 1
-            }}>⬇️ Upfront Deduction</button>
+          <label className="form-label" style={{ fontWeight: '600' }}>Repayment Plan Model</label>
+          <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '4px', background: 'var(--bg-alt)', height: '54px', alignItems: 'center', marginBottom: '8px' }}>
+            <button 
+              type="button" 
+              onClick={() => setCalcModel('upfront')} 
+              style={{
+                flex: 1,
+                height: '100%',
+                borderRadius: 'calc(var(--radius-sm) - 2px)',
+                border: 'none',
+                background: !isEmiAddition ? 'var(--primary)' : 'transparent',
+                color: !isEmiAddition ? '#fff' : 'var(--text-secondary)',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                transition: 'all 0.2s ease',
+                boxShadow: !isEmiAddition ? 'var(--shadow-sm)' : 'none'
+              }}
+            >
+              <span>⬇️</span> Upfront
+            </button>
             
-            <button type="button" onClick={() => setCalcModel('emi')} style={{
-              padding: '8px 16px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-              border: isEmiAddition ? '2px solid var(--primary)' : '2px solid var(--border)',
-              background: isEmiAddition ? 'var(--primary-light)' : 'var(--bg)',
-              color: isEmiAddition ? 'var(--primary-dark)' : 'var(--text)',
-              fontWeight: isEmiAddition ? 700 : 400, flex: 1
-            }}>📈 EMI Addition</button>
+            <button 
+              type="button" 
+              onClick={() => setCalcModel('emi')} 
+              style={{
+                flex: 1,
+                height: '100%',
+                borderRadius: 'calc(var(--radius-sm) - 2px)',
+                border: 'none',
+                background: isEmiAddition ? 'var(--primary)' : 'transparent',
+                color: isEmiAddition ? '#fff' : 'var(--text-secondary)',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                transition: 'all 0.2s ease',
+                boxShadow: isEmiAddition ? 'var(--shadow-sm)' : 'none'
+              }}
+            >
+              <span>📈</span> EMI
+            </button>
           </div>
           
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', background: 'var(--bg)', padding: '8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', background: 'var(--bg-alt)', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', marginBottom: '20px' }}>
             {!isEmiAddition ? (
               <>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '.9rem', cursor: 'pointer' }}>
-                  <input type="radio" checked={interestType === 'upfront_fixed'} onChange={() => setInterestType('upfront_fixed')} /> Fixed Amount
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '.9rem', cursor: 'pointer', fontWeight: 500 }}>
+                  <input type="radio" checked={interestType === 'upfront_fixed'} onChange={() => setInterestType('upfront_fixed')} style={{ accentColor: 'var(--primary)' }} /> Fixed Amount
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '.9rem', cursor: 'pointer' }}>
-                  <input type="radio" checked={interestType === 'upfront_percentage'} onChange={() => setInterestType('upfront_percentage')} /> % Percentage
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '.9rem', cursor: 'pointer', fontWeight: 500 }}>
+                  <input type="radio" checked={interestType === 'upfront_percentage'} onChange={() => setInterestType('upfront_percentage')} style={{ accentColor: 'var(--primary)' }} /> % Percentage
                 </label>
               </>
             ) : (
               <>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '.9rem', cursor: 'pointer' }}>
-                  <input type="radio" checked={interestType === 'emi_flat'} onChange={() => setInterestType('emi_flat')} /> Flat Interest
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '.9rem', cursor: 'pointer', fontWeight: 500 }}>
+                  <input type="radio" checked={interestType === 'emi_flat'} onChange={() => setInterestType('emi_flat')} style={{ accentColor: 'var(--primary)' }} /> Flat Interest
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '.9rem', cursor: 'pointer' }}>
-                  <input type="radio" checked={interestType === 'emi_floating'} onChange={() => setInterestType('emi_floating')} /> Floating (APR)
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '.9rem', cursor: 'pointer', fontWeight: 500 }}>
+                  <input type="radio" checked={interestType === 'emi_floating'} onChange={() => setInterestType('emi_floating')} style={{ accentColor: 'var(--primary)' }} /> Floating (APR)
                 </label>
               </>
             )}
@@ -534,69 +667,7 @@ export default function LoanEditForm({
           </div>
         </div>
 
-        <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', marginBottom: '16px' }}>
-          <h4 style={{ margin: '0 0 16px', fontSize: '.95rem', fontWeight: 600 }}>{loanTypeLabels[loanType]} Details</h4>
-          
-          {loanType === 'cheque' && (
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Bank Name</label>
-                <input type="text" className="form-control" value={chequeBankName} onChange={e=>setChequeBankName(e.target.value)} placeholder="e.g. HDFC Bank" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Cheque Number</label>
-                <input type="text" className="form-control" value={chequeNumber} onChange={e=>setChequeNumber(e.target.value)} placeholder="000000" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Cheque Amount</label>
-                <input type="number" className="form-control" value={chequeAmount} onChange={e=>setChequeAmount(e.target.value ? Number(e.target.value) : '')} placeholder="Amount" />
-              </div>
-            </div>
-          )}
 
-          {loanType === 'gold' && (
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Total Weight (Grams)</label>
-                <input type="number" className="form-control" value={goldGrams} onChange={e=>setGoldGrams(e.target.value ? Number(e.target.value) : '')} placeholder="e.g. 24.5" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Purity (Carat)</label>
-                <select className="form-control" value={goldCarat} onChange={e=>setGoldCarat(e.target.value)}>
-                  <option value="18K">18K</option>
-                  <option value="20K">20K</option>
-                  <option value="22K">22K</option>
-                  <option value="24K">24K</option>
-                </select>
-              </div>
-              <div className="form-group" style={{ flex: '1 1 100%' }}>
-                <label className="form-label">Items Description</label>
-                <input type="text" className="form-control" value={goldItems} onChange={e=>setGoldItems(e.target.value)} placeholder="e.g. 2 Bangles, 1 Chain" />
-              </div>
-            </div>
-          )}
-
-          {loanType === 'property' && (
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Property Type</label>
-                <select className="form-control" value={propertyType} onChange={e=>setPropertyType(e.target.value)}>
-                  <option value="residential">Residential</option>
-                  <option value="commercial">Commercial</option>
-                  <option value="land">Land</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Estimated Value ({currencySymbol})</label>
-                <input type="number" className="form-control" value={propertyValue} onChange={e=>setPropertyValue(e.target.value ? Number(e.target.value) : '')} placeholder="Approx value" />
-              </div>
-              <div className="form-group" style={{ flex: '1 1 100%' }}>
-                <label className="form-label">Property Address</label>
-                <textarea className="form-control" rows={2} value={propertyAddress} onChange={e=>setPropertyAddress(e.target.value)} placeholder="Full address of the property" />
-              </div>
-            </div>
-          )}
-        </div>
 
         <div className="form-group">
           <label className="form-label">{dict.loans.voucherRef}</label>
@@ -624,7 +695,7 @@ export default function LoanEditForm({
           <button type="submit" className="btn btn-primary" disabled={loading} style={{ padding: '12px 32px', fontSize: '1rem' }}>
             {loading ? (dict.loans.saving || 'Saving...') : (userRole === 'agent' ? 'Submit Edit Request' : (dict.loans.update || 'Update Loan'))}
           </button>
-          <Link href={`/loans/${loan.id}`} className="btn btn-ghost" style={{ padding: '12px 24px' }}>{dict.loans.cancel}</Link>
+          <Link href={`/loans/${loan.loanCode}`} className="btn btn-ghost" style={{ padding: '12px 24px' }}>{dict.loans.cancel}</Link>
         </div>
       </form>
     </div>

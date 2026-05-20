@@ -5,6 +5,8 @@ import { getDefaultTenantId } from '@/lib/tenant';
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth';
 import { submitCollectionEntry, requestCollectionEdit } from '@/app/(dashboard)/collection/actions';
+import { reallocateLoanRepayments } from '@/lib/repayments';
+import { randomUUID } from 'crypto';
 export { requestCollectionEdit };
 
 export async function markInstalmentPaid(formData: FormData) {
@@ -32,14 +34,16 @@ export async function waiveLoanPenalty(formData: FormData) {
   const notes = formData.get('notes') as string || null;
 
   let penalty;
+  let targetLoanCode = '';
   if (penaltyId === 'new') {
     const loanId = formData.get('loanId') as string;
     const grossPenalty = Number(formData.get('grossPenalty'));
     const loan = await prisma.loan.findFirst({
       where: { id: loanId, tenantId },
-      select: { id: true, customerId: true },
+      select: { id: true, customerId: true, loanCode: true },
     });
     if (!loan) return { success: false, error: 'Loan not found' };
+    targetLoanCode = loan.loanCode;
 
     penalty = await prisma.penalty.create({
       data: {
@@ -55,6 +59,9 @@ export async function waiveLoanPenalty(formData: FormData) {
       where: { id: penaltyId },
       include: { loan: true },
     });
+    if (penalty) {
+      targetLoanCode = penalty.loan.loanCode;
+    }
   }
 
   if (!penalty || (penaltyId !== 'new' && (penalty as any).loan.tenantId !== tenantId)) {
@@ -90,7 +97,7 @@ export async function waiveLoanPenalty(formData: FormData) {
     },
   });
 
-  revalidatePath(`/loans/${penalty.loanId}`);
+  revalidatePath(`/loans/${targetLoanCode}`);
   return { success: true };
 }
 
@@ -109,14 +116,16 @@ export async function settleLoanPenalty(formData: FormData) {
   const notes = formData.get('notes') as string || null;
 
   let penalty;
+  let targetLoanCode = '';
   if (penaltyId === 'new') {
     const loanId = formData.get('loanId') as string;
     const grossPenalty = Number(formData.get('grossPenalty'));
     const loan = await prisma.loan.findFirst({
       where: { id: loanId, tenantId },
-      select: { id: true, customerId: true },
+      select: { id: true, customerId: true, loanCode: true },
     });
     if (!loan) return { success: false, error: 'Loan not found' };
+    targetLoanCode = loan.loanCode;
 
     penalty = await prisma.penalty.create({
       data: {
@@ -132,6 +141,9 @@ export async function settleLoanPenalty(formData: FormData) {
       where: { id: penaltyId },
       include: { loan: true },
     });
+    if (penalty) {
+      targetLoanCode = penalty.loan.loanCode;
+    }
   }
 
   if (!penalty || (penaltyId !== 'new' && (penalty as any).loan.tenantId !== tenantId)) {
@@ -167,7 +179,7 @@ export async function settleLoanPenalty(formData: FormData) {
     },
   });
 
-  revalidatePath(`/loans/${penalty.loanId}`);
+  revalidatePath(`/loans/${targetLoanCode}`);
   return { success: true };
 }
 
@@ -252,7 +264,7 @@ export async function closeLoan(formData: FormData) {
     },
   });
 
-  revalidatePath(`/loans/${loanId}`);
+  revalidatePath(`/loans/${loan.loanCode}`);
   revalidatePath('/loans');
   revalidatePath('/dashboard');
   return { success: true };
@@ -372,7 +384,212 @@ export async function renewLoan(formData: FormData) {
     return newLoan;
   });
 
-  revalidatePath(`/loans/${result.id}`);
+  revalidatePath(`/loans/${result.loanCode}`);
   revalidatePath('/loans');
-  return { success: true, newLoanId: result.id };
+  return { success: true, newLoanId: result.loanCode };
+}
+
+export async function precloseLoanAdmin(formData: FormData) {
+  const session = await auth();
+  const tenantId = await getDefaultTenantId();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { success: false, error: 'Unauthorized' };
+  }
+
+  const loanId = formData.get('loanId') as string;
+  const amount = Number(formData.get('amount'));
+  const paymentMode = formData.get('paymentMode') as string;
+  const remarks = (formData.get('remarks') as string) || '';
+
+  if (!loanId || isNaN(amount) || amount <= 0) {
+    return { success: false, error: 'Invalid input' };
+  }
+
+  const loan = await prisma.loan.findUnique({
+    where: { id: loanId, tenantId },
+    include: {
+      customer: true,
+      instalments: {
+        orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
+      },
+    },
+  });
+
+  if (!loan) {
+    return { success: false, error: 'Loan not found' };
+  }
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // Find all unpaid or partially paid instalments
+      const unpaidInstalments = await tx.instalment.findMany({
+        where: {
+          loanId,
+          status: { in: ['upcoming', 'missed', 'partial'] },
+        },
+        orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
+      });
+
+      if (unpaidInstalments.length === 0) {
+        throw new Error('All instalments for this loan have already been fully collected.');
+      }
+
+      // Create a master Payment record
+      const payment = await tx.payment.create({
+        data: {
+          tenantId,
+          loanId,
+          amount,
+          paymentMode,
+          referenceNumber: `PRECLOSE-${randomUUID().substring(0, 8).toUpperCase()}`,
+          paymentDate: new Date(),
+          status: 'completed',
+        },
+      });
+
+      // Get or create DailyCollection atomically using SQL to avoid Prisma timezone bugs
+      const newCollectionId = randomUUID();
+      await tx.$executeRaw`
+        INSERT INTO daily_collections
+           (id, tenant_id, app_type, agent_id, branch_id, date, total_expected, total_collected, entries_count, status, created_at, updated_at)
+         VALUES (${newCollectionId}, ${tenantId}, ${loan.appType}, ${userId}, ${loan.branchId ?? null}, CURDATE(), 0, 0, 0, 'open', NOW(), NOW())
+         ON DUPLICATE KEY UPDATE id = id
+      `;
+
+      const rows = await tx.$queryRaw<{ id: string }[]>`
+        SELECT id FROM daily_collections
+         WHERE tenant_id = ${tenantId} AND app_type = ${loan.appType} AND agent_id = ${userId} AND date = CURDATE()
+         LIMIT 1
+      `;
+      if (!rows[0]) throw new Error('DailyCollection not found after upsert');
+      const dailyCollectionId = rows[0].id;
+
+      // Pick the instalment closest to today (first one with dueDate >= today, or last if all past-due)
+      const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+      const closureInst = unpaidInstalments.find(i => new Date(i.dueDate) >= todayStart) || unpaidInstalments[unpaidInstalments.length - 1];
+      const allocationsDesc: string[] = [];
+
+      // 1. Create ONE PaymentAllocation for the closure instalment
+      await tx.paymentAllocation.create({
+        data: {
+          paymentId: payment.id,
+          instalmentId: closureInst.id,
+          amount: amount, // The full lump-sum
+        },
+      });
+
+      // 2. Update the closure Instalment record with the FULL amount
+      const received = Number(closureInst.receivedAmount || 0);
+      const nextReceived = Number((received + amount).toFixed(2));
+      
+      await tx.instalment.update({
+        where: { id: closureInst.id },
+        data: {
+          receivedAmount: nextReceived,
+          status: 'paid',
+          receivedAt: new Date(),
+          remarks: remarks || `Preclosed`,
+        },
+      });
+
+      // 3. Create ONE CollectionEntry
+      const collectionEntry = await tx.collectionEntry.create({
+        data: {
+          id: randomUUID(),
+          collectionId: dailyCollectionId,
+          customerId: loan.customerId,
+          loanId: loan.id,
+          dueAmount: Number(closureInst.dueAmount),
+          receivedAmount: amount, // The full lump-sum
+          paymentMode,
+          remarks: remarks || `Preclosed | Payment ID: ${payment.id}`,
+          agentId: userId,
+          submittedAt: new Date(),
+          isLocked: true,
+          verificationStatus: 'verified',
+          tenantId,
+        },
+      });
+
+      // 3.5 Record the AccountEntry so it reflects in the company's capital balance
+      await tx.accountEntry.create({
+        data: {
+          tenantId,
+          entryDate: new Date(),
+          type: 'collection',
+          category: paymentMode === 'cash' ? 'cash' : 'upi',
+          amount: amount,
+          description: `Preclosure Settlement: ${loan.customer.name}`,
+        }
+      });
+
+      allocationsDesc.push(`#${closureInst.instalmentNo} (+₹${amount})`);
+
+      // 4. Mark all OTHER unpaid instalments as 'waived'
+      const otherInstIds = unpaidInstalments.filter(i => i.id !== closureInst.id).map(i => i.id);
+      if (otherInstIds.length > 0) {
+        await tx.instalment.updateMany({
+          where: { id: { in: otherInstIds } },
+          data: {
+            status: 'waived',
+            remarks: 'Waived due to Preclosure',
+          }
+        });
+        allocationsDesc.push(`Waived ${otherInstIds.length} instalments`);
+      }
+
+      // Recalculate and reallocate loan totals
+      await reallocateLoanRepayments(tx, loanId);
+
+      // Update DailyCollection totals
+      const allEntries = await tx.collectionEntry.findMany({
+        where: { collectionId: dailyCollectionId },
+      });
+
+      await tx.dailyCollection.update({
+        where: { id: dailyCollectionId },
+        data: {
+          totalCollected: allEntries.reduce((sum, entry) => sum + Number(entry.receivedAmount), 0),
+          totalExpected: allEntries.reduce((sum, entry) => sum + Number(entry.dueAmount), 0),
+          entriesCount: allEntries.length,
+        },
+      });
+
+      // Close the loan
+      await tx.loan.update({
+        where: { id: loanId },
+        data: {
+          status: 'closed',
+          closedAt: new Date(),
+        },
+      });
+
+      // Write to AuditLog
+      await tx.auditLog.create({
+        data: {
+          tenantId,
+          userId,
+          action: 'create',
+          entityType: 'payment',
+          entityId: payment.id,
+          newValue: JSON.stringify({
+            action: 'preclose',
+            amount,
+            paymentMode,
+            allocations: allocationsDesc.join(', '),
+          }),
+        },
+      });
+
+      return { success: true };
+    });
+
+    revalidatePath(`/loans/${loan.loanCode}`);
+    return result;
+  } catch (error: any) {
+    console.error('Error preclosing loan:', error);
+    return { success: false, error: error.message || 'Failed to preclose loan' };
+  }
 }

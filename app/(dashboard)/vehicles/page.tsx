@@ -167,7 +167,7 @@ export default async function VehiclesPage({
                     </td>
                     <td>
                       {v.loan ? (
-                        <Link href={`/loans/${v.loan.id}`}>{v.loan.loanCode}</Link>
+                        <Link href={`/loans/${v.loan.loanCode}`}>{v.loan.loanCode}</Link>
                       ) : '—'}
                     </td>
                     <td>

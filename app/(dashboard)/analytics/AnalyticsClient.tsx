@@ -442,7 +442,7 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
                           <span key={j} style={{ display: 'block', fontSize: '.65rem', color: '#EF4444', marginTop: 2 }}>• {b}</span>
                         ))}
                       </td>
-                      <td><Link href={`/loans/${loan.loanId}`} className="btn btn-ghost btn-sm">View</Link></td>
+                      <td><Link href={`/loans/${loan.loanCode}`} className="btn btn-ghost btn-sm">View</Link></td>
                     </tr>
                   ))}
                 </tbody>

@@ -69,17 +69,6 @@ export async function ensurePendingPenaltiesForMissedLoans(
         where: { status: 'missed' },
         select: { id: true },
       },
-      penalties: {
-        select: {
-          id: true,
-          missedDays: true,
-          grossPenalty: true,
-          settledAmount: true,
-          waivedAmount: true,
-          status: true,
-        },
-        orderBy: { createdAt: 'asc' },
-      },
     },
   });
 
@@ -91,53 +80,70 @@ export async function ensurePendingPenaltiesForMissedLoans(
     const liveGrossPenalty = missedDays * Number(loan.penaltyRate);
     if (missedDays === 0 || liveGrossPenalty <= 0) continue;
 
-    const recordedGross = loan.penalties.reduce(
-      (sum, penalty) => sum + Number(penalty.grossPenalty),
-      0
-    );
-    const resolvedTotal = loan.penalties.reduce(
-      (sum, penalty) =>
-        sum + Number(penalty.settledAmount) + Number(penalty.waivedAmount),
-      0
-    );
-    const activePenalty = loan.penalties.find((penalty) =>
-      ACTIVE_PENALTY_STATUSES.includes(penalty.status)
-    );
-    const outstandingPenalty =
-      Math.max(recordedGross, liveGrossPenalty) - resolvedTotal;
+    // Use an interactive transaction to prevent race-condition duplicates
+    await prisma.$transaction(async (tx) => {
+      // Re-fetch penalties inside the transaction for consistency
+      const penalties = await tx.penalty.findMany({
+        where: { loanId: loan.id },
+        select: {
+          id: true,
+          missedDays: true,
+          grossPenalty: true,
+          settledAmount: true,
+          waivedAmount: true,
+          status: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      });
 
-    if (outstandingPenalty <= 0) continue;
+      const recordedGross = penalties.reduce(
+        (sum, penalty) => sum + Number(penalty.grossPenalty),
+        0
+      );
+      const resolvedTotal = penalties.reduce(
+        (sum, penalty) =>
+          sum + Number(penalty.settledAmount) + Number(penalty.waivedAmount),
+        0
+      );
+      const activePenalty = penalties.find((penalty) =>
+        ACTIVE_PENALTY_STATUSES.includes(penalty.status)
+      );
+      const outstandingPenalty =
+        Math.max(recordedGross, liveGrossPenalty) - resolvedTotal;
 
-    if (activePenalty) {
-      const grossShortfall = Math.max(0, liveGrossPenalty - recordedGross);
-      const nextGrossPenalty =
-        Number(activePenalty.grossPenalty) + grossShortfall;
-      const shouldUpdate =
-        grossShortfall > 0 || activePenalty.missedDays !== missedDays;
+      if (outstandingPenalty <= 0) return;
 
-      if (shouldUpdate) {
-        await prisma.penalty.update({
-          where: { id: activePenalty.id },
-          data: {
-            grossPenalty: nextGrossPenalty,
-            missedDays,
-          },
-        });
-        penaltiesUpdated++;
+      if (activePenalty) {
+        const grossShortfall = Math.max(0, liveGrossPenalty - recordedGross);
+        const nextGrossPenalty =
+          Number(activePenalty.grossPenalty) + grossShortfall;
+        const shouldUpdate =
+          grossShortfall > 0 || activePenalty.missedDays !== missedDays;
+
+        if (shouldUpdate) {
+          await tx.penalty.update({
+            where: { id: activePenalty.id },
+            data: {
+              grossPenalty: nextGrossPenalty,
+              missedDays,
+            },
+          });
+          penaltiesUpdated++;
+        }
+        return;
       }
-      continue;
-    }
 
-    await prisma.penalty.create({
-      data: {
-        loanId: loan.id,
-        customerId: loan.customerId,
-        missedDays,
-        grossPenalty: outstandingPenalty,
-        status: 'pending',
-      },
+      await tx.penalty.create({
+        data: {
+          loanId: loan.id,
+          customerId: loan.customerId,
+          missedDays,
+          grossPenalty: outstandingPenalty,
+          status: 'pending',
+        },
+      });
+      penaltiesCreated++;
     });
-    penaltiesCreated++;
   }
 
   return {
@@ -146,3 +152,4 @@ export async function ensurePendingPenaltiesForMissedLoans(
     penaltiesUpdated,
   };
 }
+

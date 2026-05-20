@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { formatCurrency, formatDate, getBadgeClass, getInitials, calcPercentage } from '@/lib/utils';
 import { submitEditRequest } from '@/app/(dashboard)/approvals/actions';
+import { resetCustomerPassword } from '@/app/(dashboard)/customers/actions';
 import { calculateCreditScore } from '@/lib/creditScore';
 import { getCreditScoreGaugePresentation } from '@/lib/creditScoreGauge';
 
@@ -49,6 +50,26 @@ export default function CustomerProfileClient({
   const [activeTab, setActiveTab] = useState('loans');
   const [editRequestModal, setEditRequestModal] = useState(false);
   const [editRequestLoading, setEditRequestLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+
+  const handleResetPassword = async () => {
+    if (!window.confirm('Are you sure you want to reset the borrower portal password for this customer? They will be forced to verify via OTP and set a new password on their next login attempt.')) {
+      return;
+    }
+    setResetLoading(true);
+    try {
+      const res = await resetCustomerPassword(customer.id);
+      if (res.success) {
+        alert('Borrower portal password reset successfully.');
+      } else {
+        alert(res.error || 'Failed to reset password.');
+      }
+    } catch (err) {
+      alert('An error occurred. Please try again.');
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   const { score, grade, stats } = calculateCreditScore(customer.loans);
 
@@ -93,6 +114,18 @@ export default function CustomerProfileClient({
             <p style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginTop: '6px' }}>{customer.address}</p>
           </div>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+            {userRole !== 'agent' && (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={handleResetPassword}
+                disabled={resetLoading}
+                style={{ borderColor: 'rgba(239, 68, 68, 0.4)', color: 'rgb(239, 68, 68)', background: 'transparent' }}
+              >
+                <span className="material-icons-outlined" style={{ fontSize: '14px' }}>lock_reset</span>
+                {resetLoading ? 'Resetting...' : 'Reset Portal PW'}
+              </button>
+            )}
             {userRole !== 'agent' && (
               <Link href={`/customers/new?edit=${customer.id}`} className="btn btn-secondary btn-sm">
                 <span className="material-icons-outlined" style={{ fontSize: '14px' }}>edit</span> {d.edit}
@@ -163,7 +196,7 @@ export default function CustomerProfileClient({
                   
                   return (
                     <tr key={l.id}>
-                      <td><Link href={`/loans/${l.id}`}><strong>{l.loanCode}</strong></Link></td>
+                      <td><Link href={`/loans/${l.loanCode}`}><strong>{l.loanCode}</strong></Link></td>
                       <td>{formatCurrency(Number(l.principal), currencySymbol)}</td>
                       <td style={{textTransform:'capitalize'}}>{l.frequency}</td>
                       <td>{formatDate(l.startDate)}</td>
@@ -175,7 +208,7 @@ export default function CustomerProfileClient({
                       </td>
                       <td><span className={getBadgeClass(l.status)} style={{textTransform:'capitalize'}}>{l.status}</span></td>
                       <td>
-                        <Link href={`/loans/${l.id}`} className="btn btn-ghost btn-sm">{d.view}</Link>
+                        <Link href={`/loans/${l.loanCode}`} className="btn btn-ghost btn-sm">{d.view}</Link>
                       </td>
                     </tr>
                   );
