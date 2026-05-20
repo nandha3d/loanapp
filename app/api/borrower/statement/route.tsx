@@ -56,14 +56,17 @@ const StatementDocument = ({ loan }: { loan: any }) => {
   );
 };
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await getBorrowerSession();
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const url = new URL(request.url);
+  const targetLoanId = url.searchParams.get('loanId') || session.loanId;
+
   const loan = await prisma.loan.findFirst({
-    where: { id: session.loanId, tenantId: session.tenantId, customerId: session.customerId },
+    where: { id: targetLoanId, tenantId: session.tenantId, customerId: session.customerId },
     include: {
       customer: true,
       instalments: { orderBy: { instalmentNo: 'asc' } },
