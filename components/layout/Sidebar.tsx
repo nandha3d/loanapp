@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { getAppConfig } from '@/lib/appConfig';
-import { MODULE_ROUTES, normalizeModuleList, type ModuleKey } from '@/types/modules';
+import { MODULE_ROUTES, parseModulePath, prefixDashboardHref, type ModuleKey } from '@/types/modules';
 
 interface NavItem {
   section?: string;
@@ -28,12 +28,14 @@ export default function Sidebar({
   dict,
   role,
   userName,
+  modulePrefix,
 }: {
   appType?: string;
   enabledModules?: string[];
   dict: any;
   role: string;
   userName: string;
+  modulePrefix?: string;
 }) {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
@@ -43,6 +45,8 @@ export default function Sidebar({
   }
 
   const userAppType = initialAppType || 'microlending';
+  const hrefModule = modulePrefix?.replace(/^\//, '') || userAppType;
+  const currentPage = parseModulePath(pathname).page;
 
   const navItems: NavItem[] = [
     { section: dict.sidebar.sections.main },
@@ -120,7 +124,7 @@ export default function Sidebar({
   // Determine active page
   const getActiveId = () => {
     for (const item of navItems) {
-      if (item.href && pathname.startsWith(item.href)) {
+      if (item.href && (currentPage === item.href || currentPage.startsWith(`${item.href}/`))) {
         return item.id;
       }
     }
@@ -162,10 +166,11 @@ export default function Sidebar({
             if (item.section) {
               return <div key={`section-${idx}`} className="nav-section">{item.section}</div>;
             }
+            const href = item.href ? prefixDashboardHref(item.href, hrefModule) : '#';
             return (
               <Link
                 key={item.id}
-                href={item.href || '#'}
+                href={href}
                 className={activeId === item.id ? 'active' : ''}
               >
                 <span className="material-icons-outlined">{item.icon}</span>

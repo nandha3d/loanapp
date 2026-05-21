@@ -4,6 +4,7 @@ import { APP_CONFIGS, AppType } from '@/lib/appConfig';
 import { selectApp } from './actions';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'next-auth/react';
+import { modulePath, normalizeModuleList } from '@/types/modules';
 
 export default function AppSelectorClient({ 
   userName, 
@@ -20,6 +21,7 @@ export default function AppSelectorClient({
     return enabledModules.includes(app.id);
   });
   const router = useRouter();
+  const defaultModule = normalizeModuleList(enabledModules)[0] ?? 'microlending';
 
   const handleSelectApp = async (appType: AppType) => {
     await selectApp(appType);
@@ -116,7 +118,7 @@ export default function AppSelectorClient({
           </h3>
           <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
             <button
-              onClick={() => router.push('/collection')}
+              onClick={() => router.push(modulePath(defaultModule, '/collection'))}
               style={{
                 display: 'flex', alignItems: 'center', gap: '12px',
                 background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
@@ -134,7 +136,7 @@ export default function AppSelectorClient({
             </button>
 
             <button
-              onClick={() => router.push('/customers')}
+              onClick={() => router.push(modulePath(defaultModule, '/customers'))}
               style={{
                 display: 'flex', alignItems: 'center', gap: '12px',
                 background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
@@ -152,7 +154,7 @@ export default function AppSelectorClient({
             </button>
 
             <button
-              onClick={() => router.push('/loans')}
+              onClick={() => router.push(modulePath(defaultModule, '/loans'))}
               style={{
                 display: 'flex', alignItems: 'center', gap: '12px',
                 background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
@@ -170,7 +172,7 @@ export default function AppSelectorClient({
             </button>
 
             <button
-              onClick={() => router.push('/dashboard')}
+              onClick={() => router.push(modulePath(defaultModule, '/dashboard'))}
               style={{
                 display: 'flex', alignItems: 'center', gap: '12px',
                 background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
@@ -278,7 +280,7 @@ export default function AppSelectorClient({
 
             {userRole === 'superadmin' && (
               <button
-                onClick={() => router.push('/subscription')}
+                onClick={() => router.push(modulePath(defaultModule, '/subscription'))}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '12px',
                   background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',

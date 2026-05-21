@@ -6,6 +6,12 @@ export const ALL_MODULES = [
 
 export type ModuleKey = (typeof ALL_MODULES)[number];
 
+export const MODULE_SLUGS: Record<ModuleKey, string> = {
+  microlending: 'microlending',
+  autofinance: 'autofinance',
+  chitfunds: 'chitfunds',
+};
+
 export const MODULE_LABELS: Record<ModuleKey, string> = {
   microlending: 'Micro Lending',
   autofinance: 'Auto Finance',
@@ -13,10 +19,61 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
 };
 
 export const MODULE_ROUTES: Record<ModuleKey, string[]> = {
-  microlending: ['/loans', '/customers', '/collection', '/penalties', '/reports', '/accounting', '/analytics'],
-  autofinance: ['/vehicles', '/loans', '/customers', '/collection', '/penalties', '/reports', '/accounting', '/analytics'],
-  chitfunds: ['/chits', '/customers'],
+  microlending: ['/loans', '/customers', '/collection', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications'],
+  autofinance: ['/vehicles', '/loans', '/customers', '/collection', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications'],
+  chitfunds: ['/chits', '/customers', '/notifications'],
 };
+
+const MODULE_SHARED_ROUTES = ['/dashboard', '/settings', '/subscription', '/branch-requests'];
+const DASHBOARD_EXTERNAL_PREFIXES = [
+  '/admin',
+  '/api',
+  '/assets',
+  '/borrower',
+  '/fonts',
+  '/login',
+  '/portal',
+  '/_next',
+];
+
+export function isModuleKey(value: string | null | undefined): value is ModuleKey {
+  return typeof value === 'string' && (ALL_MODULES as readonly string[]).includes(value);
+}
+
+export function modulePath(module: ModuleKey | string, page: string): string {
+  const normalizedPage = page.startsWith('/') ? page : `/${page}`;
+  return `/${module}${normalizedPage}`;
+}
+
+export function parseModulePath(path: string): { module: ModuleKey | null; page: string } {
+  const pathname = path.split(/[?#]/, 1)[0] || '/';
+  const parts = pathname.split('/').filter(Boolean);
+  if (parts.length > 0 && isModuleKey(parts[0])) {
+    const page = parts.length > 1 ? `/${parts.slice(1).join('/')}` : '/dashboard';
+    return { module: parts[0], page };
+  }
+  return { module: null, page: pathname || '/' };
+}
+
+export function prefixDashboardHref(href: string, module?: string | null): string {
+  if (!href.startsWith('/') || href.startsWith('//') || !module || !isModuleKey(module)) {
+    return href;
+  }
+  if (isModuleKey(href.split('/').filter(Boolean)[0])) {
+    return href;
+  }
+  if (DASHBOARD_EXTERNAL_PREFIXES.some((prefix) => href === prefix || href.startsWith(`${prefix}/`))) {
+    return href;
+  }
+  return modulePath(module, href);
+}
+
+function isModuleRouteAllowed(module: ModuleKey, page: string): boolean {
+  return (
+    MODULE_SHARED_ROUTES.some((route) => page === route || page.startsWith(`${route}/`)) ||
+    MODULE_ROUTES[module]?.some((route) => page === route || page.startsWith(`${route}/`))
+  );
+}
 
 export function normalizeModuleList(value: unknown): ModuleKey[] {
   let parsedValue = value;
@@ -34,8 +91,9 @@ export function normalizeModuleList(value: unknown): ModuleKey[] {
 }
 
 export function moduleForRoute(path: string): ModuleKey | null {
+  const { page } = parseModulePath(path);
   for (const module of ALL_MODULES) {
-    if (MODULE_ROUTES[module].some((route) => path === route || path.startsWith(`${route}/`))) {
+    if (MODULE_ROUTES[module].some((route) => page === route || page.startsWith(`${route}/`))) {
       return module;
     }
   }
@@ -44,16 +102,21 @@ export function moduleForRoute(path: string): ModuleKey | null {
 
 export function isRouteEnabledForModules(path: string, modules: readonly string[]): boolean {
   const activeModules = normalizeModuleList([...modules]);
+  const { module, page } = parseModulePath(path);
+  if (module) {
+    return activeModules.includes(module) && isModuleRouteAllowed(module, page);
+  }
+
   // Check if at least one enabled module supports this route
   for (const module of activeModules) {
-    if (MODULE_ROUTES[module]?.some((route) => path === route || path.startsWith(`${route}/`))) {
+    if (MODULE_ROUTES[module]?.some((route) => page === route || page.startsWith(`${route}/`))) {
       return true;
     }
   }
   
   // If the path is not restricted by ANY module, it's enabled by default
   const isRestrictedByAny = Object.values(MODULE_ROUTES).some((routes) =>
-    routes.some((route) => path === route || path.startsWith(`${route}/`))
+    routes.some((route) => page === route || page.startsWith(`${route}/`))
   );
   return !isRestrictedByAny;
 }

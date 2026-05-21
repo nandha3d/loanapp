@@ -8,7 +8,7 @@ import { normalizeEnabledModules } from '@/lib/subscription';
 export default async function AdminBillingPage() {
   const session = await auth();
   const role = (session?.user as any)?.role;
-  if (role !== 'developer') redirect('/dashboard');
+  if (role !== 'developer') redirect('/portal');
 
   const tenants = await prisma.tenant.findMany({
     orderBy: { createdAt: 'asc' },

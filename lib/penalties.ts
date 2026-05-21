@@ -143,7 +143,7 @@ export async function ensurePendingPenaltiesForMissedLoans(
         },
       });
       penaltiesCreated++;
-    });
+    }, { maxWait: 5000, timeout: 10000 });
   }
 
   return {

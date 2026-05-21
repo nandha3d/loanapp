@@ -13,7 +13,7 @@ export default async function PortalBillingPage() {
   if (!session?.user) redirect('/login');
 
   const role = (session.user as any)?.role;
-  if (role !== 'superadmin' && role !== 'developer' && role !== 'admin') redirect('/dashboard');
+  if (role !== 'superadmin' && role !== 'developer' && role !== 'admin') redirect('/portal');
 
   const tenantId = await getDefaultTenantId();
   const sub = await getSubscription(tenantId);
