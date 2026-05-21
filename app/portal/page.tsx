@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import AppSelectorClient from './AppSelectorClient';
 import prisma from '@/lib/db';
 import { getDefaultTenantId } from '@/lib/tenant';
-import { normalizeModuleList } from '@/types/modules';
+import { modulePath, normalizeModuleList } from '@/types/modules';
 import { getSubscription, isTenantSubscriptionExpired } from '@/lib/subscription';
 import SubscriptionExpiredModal from '@/components/layout/SubscriptionExpiredModal';
 
@@ -39,7 +39,7 @@ export default async function SuperAdminPortal() {
   }
 
   if (role !== 'superadmin' && role !== 'developer' && role !== 'admin' && role !== 'agent') {
-    redirect('/dashboard');
+    redirect(modulePath('microlending', '/dashboard'));
   }
 
   let isExpired = false;

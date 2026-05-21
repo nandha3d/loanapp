@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Modal from '@/components/Modal';
+import Link from '@/components/layout/DashboardLink';
 
 export default function SubscriptionExpiredModal({ isExpired, role }: { isExpired: boolean; role: string }) {
   const [open, setOpen] = useState(false);
@@ -56,9 +57,9 @@ export default function SubscriptionExpiredModal({ isExpired, role }: { isExpire
 
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
           {role === 'superadmin' && (
-            <a href="/subscription" className="btn btn-primary" style={{ textDecoration: 'none' }}>
+            <Link href="/subscription" className="btn btn-primary" style={{ textDecoration: 'none' }}>
               Renew Subscription
-            </a>
+            </Link>
           )}
           <button className="btn btn-ghost" onClick={() => setOpen(false)}>
             I Understand

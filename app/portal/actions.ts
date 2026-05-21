@@ -6,7 +6,7 @@ import { AppType } from '@/lib/appConfig';
 import { auth } from '@/lib/auth';
 import { getDefaultTenantId } from '@/lib/tenant';
 import { getSuperadminBranches, getActiveBranchId } from '@/lib/branch';
-import { normalizeModuleList } from '@/types/modules';
+import { modulePath, normalizeModuleList } from '@/types/modules';
 
 export async function selectApp(appType: AppType) {
   const cookieStore = await cookies();
@@ -45,5 +45,5 @@ export async function selectApp(appType: AppType) {
     sameSite: 'lax',
   });
   
-  redirect('/dashboard');
+  redirect(modulePath(appType, '/dashboard'));
 }

@@ -11,7 +11,7 @@ export default async function TeamPage() {
   const userRole = user?.role;
 
   if (!user || !['admin', 'superadmin', 'developer'].includes(userRole)) {
-    redirect('/dashboard');
+    redirect('/portal');
   }
 
   const tenantId = await getDefaultTenantId();

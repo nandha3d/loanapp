@@ -3,6 +3,7 @@ import { auth } from './auth';
 import { headers, cookies } from 'next/headers';
 import { cache } from 'react';
 import { assertTenantSubscriptionAccess } from './subscription';
+import { isModuleKey, parseModulePath } from '@/types/modules';
 
 type SessionUserContext = {
   appType?: string | null;
@@ -68,17 +69,22 @@ export async function getUserAppType(): Promise<string> {
   const user = session?.user as SessionUserContext | undefined;
   const role = user?.role;
 
+  const headerStore = await headers();
+  const pathname = headerStore.get('x-loantrack-path') || '';
+  const { module, page } = parseModulePath(pathname);
+
+  if (module) {
+    return module;
+  }
+
   const cookieStore = await cookies();
   const activeApp = cookieStore.get('active_app_type')?.value;
 
-  const headerStore = await headers();
-  const pathname = headerStore.get('x-loantrack-path') || '';
-
   // Determine if the route is exclusive to a module
   let routeModule: string | null = null;
-  if (pathname === '/vehicles' || pathname.startsWith('/vehicles/')) {
+  if (page === '/vehicles' || page.startsWith('/vehicles/')) {
     routeModule = 'autofinance';
-  } else if (pathname === '/chits' || pathname.startsWith('/chits/')) {
+  } else if (page === '/chits' || page.startsWith('/chits/')) {
     routeModule = 'chitfunds';
   }
 
@@ -128,7 +134,7 @@ export async function getUserAppType(): Promise<string> {
   }
 
   // Respect activeApp first if set and not overridden by exclusive routes
-  if (activeApp && !routeModule) {
+  if (activeApp && !routeModule && isModuleKey(activeApp)) {
     return activeApp;
   }
 
@@ -162,6 +168,7 @@ export const getCurrentTenantId = cache(async (): Promise<string> => {
   const headerStore = await headers();
   const requestedTenantId = await getTenantIdFromHost(headerStore.get('host'));
   const pathname = headerStore.get('x-loantrack-path') || '';
+  const { page } = parseModulePath(pathname);
 
   if (!isTenantHostAllowedForSession({
     requestedTenantId,
@@ -176,10 +183,10 @@ export const getCurrentTenantId = cache(async (): Promise<string> => {
     : requestedTenantId || user?.tenantId || await getFallbackDefaultTenantId();
 
   if (
-    !pathname.startsWith('/subscription') &&
+    !page.startsWith('/subscription') &&
     !pathname.startsWith('/portal') &&
     !pathname.startsWith('/admin') &&
-    !pathname.startsWith('/branch-requests')
+    !page.startsWith('/branch-requests')
   ) {
     await assertTenantSubscriptionAccess(tenantId);
   }

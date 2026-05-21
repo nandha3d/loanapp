@@ -1,10 +1,11 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '@/components/layout/DashboardLink';
 import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import { useState, useEffect, useRef } from 'react';
-import { updateLanguage } from '@/app/(dashboard)/settings/actions';
+import { updateLanguage } from '@/app/(dashboard)/[module]/settings/actions';
+import { parseModulePath } from '@/types/modules';
 
 interface BreadcrumbItem {
   label: string;
@@ -27,6 +28,7 @@ export default function Topbar({
   branchSwitcher?: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const pagePath = parseModulePath(pathname).page;
   const [notifOpen, setNotifOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [todayDate, setTodayDate] = useState('');
@@ -74,8 +76,8 @@ export default function Topbar({
     return crumbs;
   }
 
-  const title = getPageTitle(pathname);
-  const breadcrumbs = getBreadcrumbs(pathname);
+  const title = getPageTitle(pagePath);
+  const breadcrumbs = getBreadcrumbs(pagePath);
 
   useEffect(() => {
     setTodayDate(formatTodayDate());

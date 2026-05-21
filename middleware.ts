@@ -1,12 +1,15 @@
 import { getToken } from 'next-auth/jwt';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { parseModulePath } from '@/types/modules';
 
 const AGENT_BLOCKED = [
   '/penalties',
   '/reports',
   '/settings',
   '/subscription',
+  '/accounting',
+  '/analytics',
 ];
 
 const SUPERADMIN_ONLY: string[] = [];
@@ -32,10 +35,13 @@ export function getRoleRedirectTarget(
   role: string,
   hasEditSearch = false,
 ): string | null {
+  const { module, page } = parseModulePath(pathname);
+
   if (role === 'developer') {
     if (
       !DEVELOPER_ONLY.some((prefix) => pathname.startsWith(prefix)) &&
       !pathname.startsWith('/portal') &&
+      module === null &&
       !isPublicPath(pathname)
     ) {
       return '/admin';
@@ -47,13 +53,13 @@ export function getRoleRedirectTarget(
   if (role === 'superadmin' && pathname.startsWith('/admin')) {
     const allowedPaths = ['/admin/users', '/admin/branches', '/admin/branch-requests'];
     if (allowedPaths.some(p => pathname.startsWith(p))) return null;
-    return '/dashboard';
+    return '/portal';
   }
 
   // Branch Admin: allow /admin/team and block other admin paths
   if (role === 'admin' && pathname.startsWith('/admin')) {
     if (pathname.startsWith('/admin/team')) return null;
-    return '/dashboard';
+    return '/portal';
   }
 
   // Non-developer, non-superadmin, non-admin blocked from developer-only paths
@@ -62,7 +68,7 @@ export function getRoleRedirectTarget(
     role !== 'admin' && 
     DEVELOPER_ONLY.some((prefix) => pathname.startsWith(prefix))
   ) {
-    return '/dashboard';
+    return '/portal';
   }
 
   if (pathname === '/') {
@@ -70,17 +76,23 @@ export function getRoleRedirectTarget(
   }
 
   if (role === 'agent') {
-    if (AGENT_BLOCKED.some((prefix) => pathname.startsWith(prefix))) {
-      return '/collection';
+    if (module && AGENT_BLOCKED.some((prefix) => page === prefix || page.startsWith(`${prefix}/`))) {
+      return `/${module}/collection`;
+    }
+    if (!module && AGENT_BLOCKED.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
+      return '/portal';
     }
     if (pathname.startsWith('/customers/new') && hasEditSearch) {
       return null;
     }
-    if (pathname.match(/^\/customers\/[^/]+\/edit/)) {
+    if (module && page.match(/^\/customers\/[^/]+\/edit/)) {
+      return `/${module}/customers`;
+    }
+    if (!module && pathname.match(/^\/customers\/[^/]+\/edit/)) {
       return '/customers';
     }
     if (SUPERADMIN_ONLY.some((prefix) => pathname.startsWith(prefix))) {
-      return '/collection';
+      return module ? `/${module}/collection` : '/portal';
     }
   }
 

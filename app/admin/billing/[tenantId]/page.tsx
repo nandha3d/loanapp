@@ -8,7 +8,7 @@ export default async function TenantBillingPage({ params }: { params: { tenantId
   const { tenantId } = await params;
   const session = await auth();
   const role = (session?.user as any)?.role;
-  if (role !== 'developer') redirect('/dashboard');
+  if (role !== 'developer') redirect('/portal');
 
   const tenant = await prisma.tenant.findUnique({
     where: { id: tenantId },
