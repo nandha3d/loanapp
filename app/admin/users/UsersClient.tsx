@@ -506,6 +506,7 @@ export default function UsersClient({
               if (feat) {
                 (document.querySelector('[name="maxAgents"]') as HTMLInputElement).value = feat.agents.toString();
                 (document.querySelector('[name="maxActiveLoans"]') as HTMLInputElement).value = feat.loans.toString();
+                (document.querySelector('[name="maxBranches"]') as HTMLInputElement).value = feat.branches.toString();
                 setSubModules(normalizeModuleList(feat.modules));
               }
             }}>
@@ -520,6 +521,10 @@ export default function UsersClient({
             <div className="form-group">
               <label className="form-label">Max Active Loans</label>
               <input type="number" name="maxActiveLoans" className="form-control" defaultValue={activeSub?.maxActiveLoans} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Max Branches</label>
+              <input type="number" name="maxBranches" className="form-control" defaultValue={activeSub?.maxBranches ?? 1} />
             </div>
           </div>
           <div className="form-row">

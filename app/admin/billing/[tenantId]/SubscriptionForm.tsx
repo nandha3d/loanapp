@@ -18,6 +18,7 @@ export default function SubscriptionForm({
   const [plan, setPlan] = useState(subscription?.plan || 'trial');
   const [maxLoans, setMaxLoans] = useState(subscription?.maxActiveLoans ?? 50);
   const [maxAgents, setMaxAgents] = useState(subscription?.maxAgents ?? 3);
+  const [maxBranches, setMaxBranches] = useState(subscription?.maxBranches ?? 1);
   const [enabledModules, setEnabledModules] = useState<string[]>(initialEnabledModules);
 
   const PLANS = Object.keys(PLAN_LABELS);
@@ -29,6 +30,7 @@ export default function SubscriptionForm({
     if (features) {
       setMaxLoans(features.loans);
       setMaxAgents(features.agents);
+      setMaxBranches(features.branches);
       setEnabledModules(features.modules);
     }
   };
@@ -79,7 +81,7 @@ export default function SubscriptionForm({
         </select>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '16px' }}>
         <div className="form-group">
           <label className="form-label">Max Active Loans</label>
           <input
@@ -99,6 +101,17 @@ export default function SubscriptionForm({
             className="form-control"
             value={maxAgents}
             onChange={(e) => setMaxAgents(parseInt(e.target.value) || 0)}
+            min="1"
+          />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Max Branches</label>
+          <input
+            name="maxBranches"
+            type="number"
+            className="form-control"
+            value={maxBranches}
+            onChange={(e) => setMaxBranches(parseInt(e.target.value) || 0)}
             min="1"
           />
         </div>

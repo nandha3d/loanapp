@@ -66,7 +66,7 @@ export function getRoleRedirectTarget(
   }
 
   if (pathname === '/') {
-    return role === 'agent' ? '/portal' : '/dashboard';
+    return '/portal';
   }
 
   if (role === 'agent') {

@@ -27,14 +27,26 @@ export interface RateLimitResult {
  * Safe to use on Hostinger / reverse-proxied deployments.
  */
 export function getClientIp(request: Request): string {
-  const forwarded = request.headers.get('x-forwarded-for');
-  if (forwarded) {
-    // May be a comma-separated list; take the first (client) IP
-    const first = forwarded.split(',')[0].trim();
-    if (first) return first;
+  if (process.env.TRUST_PROXY === 'true') {
+    // x-forwarded-for is a comma-separated chain; the leftmost value is the
+    // original client IP (proxies append to the right).
+    const forwarded = request.headers.get('x-forwarded-for');
+    if (forwarded) {
+      const first = forwarded.split(',')[0].trim();
+      if (first) return first;
+    }
+
+    // x-real-ip is also set by some reverse proxies; only trust it when we
+    // know we're behind a proxy (TRUST_PROXY=true), otherwise clients can spoof it.
+    const realIp = request.headers.get('x-real-ip');
+    if (realIp) return realIp.trim();
   }
-  const realIp = request.headers.get('x-real-ip');
-  if (realIp) return realIp.trim();
+
+  // NOTE: In NextJS 13+ App router `request.ip` might be available if properly populated.
+  // We check for it just in case.
+  if ((request as any).ip) {
+      return (request as any).ip;
+  }
   return '0.0.0.0';
 }
 

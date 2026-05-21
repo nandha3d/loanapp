@@ -4,6 +4,8 @@ import AppSelectorClient from './AppSelectorClient';
 import prisma from '@/lib/db';
 import { getDefaultTenantId } from '@/lib/tenant';
 import { normalizeModuleList } from '@/types/modules';
+import { getSubscription, isTenantSubscriptionExpired } from '@/lib/subscription';
+import SubscriptionExpiredModal from '@/components/layout/SubscriptionExpiredModal';
 
 export default async function SuperAdminPortal() {
   const session = await auth();
@@ -26,9 +28,6 @@ export default async function SuperAdminPortal() {
   if (role === 'admin' || role === 'agent') {
     const { getActiveModules } = await import('@/lib/branch');
     enabledModules = await getActiveModules();
-    if (role === 'admin' && enabledModules.length <= 1) {
-      redirect('/dashboard');
-    }
   } else if (tenantId) {
     const subscription = await prisma.tenantSubscription.findUnique({
       where: { tenantId },
@@ -43,8 +42,15 @@ export default async function SuperAdminPortal() {
     redirect('/dashboard');
   }
 
+  let isExpired = false;
+  if (tenantId && role !== 'developer') {
+    const sub = await getSubscription(tenantId);
+    isExpired = isTenantSubscriptionExpired(sub);
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
+      {isExpired && <SubscriptionExpiredModal isExpired={isExpired} role={role} />}
       <AppSelectorClient 
         userName={session.user.name || 'Admin'} 
         userRole={role} 

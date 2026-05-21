@@ -220,14 +220,11 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
   callbacks: {
     async jwt({ token, user }: any) {
       if (user) {
+        // Only store minimal essential data in JWT for authorization
+        // Sensitive data (tenantId, branchId, phone, username) are fetched server-side in session callback
+        token.userId = user.id;
         const authorizedUser = user as AuthorizedUser;
         token.role = authorizedUser.role;
-        token.appType = authorizedUser.appType;
-        token.tenantId = authorizedUser.tenantId;
-        token.branchId = authorizedUser.branchId;
-        token.phone = authorizedUser.phone;
-        token.username = authorizedUser.username;
-        token.userId = user.id;
         
         // Handle dynamic expiration based on Remember Me
         const rememberMe = (user as any).rememberMe;
@@ -245,31 +242,35 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
     async session({ session, token }: any) {
       if (session.user) {
         (session.user as any).id = token.userId;
-        (session.user as any).tenantId = token.tenantId;
-        (session.user as any).phone = token.phone;
-        (session.user as any).username = token.username;
 
-        // Fetch latest role, appType, and branchId from DB to prevent out-of-sync sessions
+        // Fetch all necessary user data from DB to prevent stale/exposed data in JWT
         try {
           const prisma = (await import('./db')).default;
           const dbUser = await prisma.user.findUnique({
             where: { id: token.userId },
-            select: { role: true, appType: true, branchId: true },
+            select: { 
+              role: true, 
+              appType: true, 
+              branchId: true,
+              tenantId: true,
+              phone: true,
+              username: true
+            },
           });
           if (dbUser) {
             (session.user as any).role = dbUser.role;
             (session.user as any).appType = dbUser.appType;
             (session.user as any).branchId = dbUser.branchId;
+            (session.user as any).tenantId = dbUser.tenantId;
+            (session.user as any).phone = dbUser.phone;
+            (session.user as any).username = dbUser.username;
           } else {
-            (session.user as any).role = token.role;
-            (session.user as any).appType = token.appType;
-            (session.user as any).branchId = token.branchId;
+            console.error('[AUTH_SESSION_ERROR] User not found in database');
+            return null;
           }
         } catch (e) {
           console.error('[AUTH_SESSION_DB_ERROR]', e);
-          (session.user as any).role = token.role;
-          (session.user as any).appType = token.appType;
-          (session.user as any).branchId = token.branchId;
+          return null;
         }
       }
       return session;
