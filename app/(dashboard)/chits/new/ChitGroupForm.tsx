@@ -19,6 +19,8 @@ export default function ChitGroupForm({
   const [error, setError] = useState('');
   const [totalMembers, setTotalMembers] = useState(5);
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+  const [chitValue, setChitValue] = useState(0);
+  const [monthlyContrib, setMonthlyContrib] = useState(0);
 
   const addMemberSlot = () => {
     if (selectedMembers.length < totalMembers) {
@@ -40,6 +42,11 @@ export default function ChitGroupForm({
     e.preventDefault();
     setLoading(true);
     setError('');
+    if (chitValue > 0 && monthlyContrib > 0 && chitValue !== monthlyContrib * totalMembers) {
+      setError(`Chit value must equal monthly contribution × total members (${monthlyContrib} × ${totalMembers} = ${monthlyContrib * totalMembers})`);
+      setLoading(false);
+      return;
+    }
     const fd = new FormData(e.currentTarget);
     // Replace member selects with current state
     selectedMembers.forEach((id) => {
@@ -72,12 +79,17 @@ export default function ChitGroupForm({
 
         <div className="form-group">
           <label className="form-label">{d.chitValue} ({currencySymbol}) *</label>
-          <input name="chitValue" type="number" className="form-control" required min="1000" placeholder="e.g. 100000" />
+          <input name="chitValue" type="number" className="form-control" required min="1000" placeholder="e.g. 100000" onChange={(e) => setChitValue(Number(e.target.value))} />
+          {chitValue > 0 && monthlyContrib > 0 && chitValue !== monthlyContrib * totalMembers && (
+            <p style={{ fontSize: '.78rem', color: 'var(--danger)', marginTop: '4px' }}>
+              Must equal {monthlyContrib} × {totalMembers} = {monthlyContrib * totalMembers}
+            </p>
+          )}
         </div>
 
         <div className="form-group">
           <label className="form-label">{d.monthlyContribution} ({currencySymbol}) *</label>
-          <input name="monthlyContrib" type="number" className="form-control" required min="100" placeholder="e.g. 5000" />
+          <input name="monthlyContrib" type="number" className="form-control" required min="100" placeholder="e.g. 5000" onChange={(e) => setMonthlyContrib(Number(e.target.value))} />
         </div>
 
         <div className="form-group">

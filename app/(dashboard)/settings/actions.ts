@@ -11,6 +11,7 @@ import { encryptAadharNumber } from '@/lib/pii';
 import fs from 'fs';
 import path from 'path';
 import { getRouteDeletionBlockReason } from '@/lib/routePolicy';
+import { getActiveBranchId, getBranchEnabledModules } from '@/lib/branch';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'private', 'uploads');
 
@@ -245,6 +246,15 @@ export async function createUser(formData: FormData) {
   const appType = await getUserAppType();
   const passwordHash = await hash(formData.get('password') as string, 12);
   
+  // For admin users, assign the currently active branchId
+  let adminBranchId: string | null = null;
+  if (requestedRole === 'admin') {
+    adminBranchId = await getActiveBranchId();
+    if (!adminBranchId) {
+      return { success: false, error: 'No active branch found. Cannot create admin without branch assignment.' };
+    }
+  }
+  
   const newUser = await prisma.user.create({
     data: {
       tenantId,
@@ -255,8 +265,21 @@ export async function createUser(formData: FormData) {
       appType: appType,
       passwordHash,
       status: 'active',
+      branchId: adminBranchId,
     }
   });
+
+  // For admin users, create UserBranchModule with the branch's enabled modules
+  if (requestedRole === 'admin' && adminBranchId) {
+    const branchModules = await getBranchEnabledModules(adminBranchId);
+    await prisma.userBranchModule.create({
+      data: {
+        userId: newUser.id,
+        branchId: adminBranchId,
+        enabledModules: JSON.stringify(branchModules),
+      },
+    });
+  }
 
   await prisma.auditLog.create({
     data: {
@@ -265,7 +288,7 @@ export async function createUser(formData: FormData) {
       action: 'create',
       entityType: 'user',
       entityId: newUser.id,
-      newValue: JSON.stringify({ name: newUser.name, username: newUser.username, role: newUser.role }),
+      newValue: JSON.stringify({ name: newUser.name, username: newUser.username, role: newUser.role, branchId: adminBranchId }),
     },
   });
   
