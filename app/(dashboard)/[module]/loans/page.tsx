@@ -1,6 +1,6 @@
 import prisma from '@/lib/db';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
-import { formatCurrency, formatDate, getBadgeClass, parsePagination, paginatedResponse, calcPercentage } from '@/lib/utils';
+import { formatCurrency, formatDate, getBadgeClass, parsePagination, paginatedResponse, getPaginationPages, calcPercentage } from '@/lib/utils';
 import Link from '@/components/layout/DashboardLink';
 import { getDictionary } from '@/lib/i18n';
 import { getActiveBranchId } from '@/lib/branch';
@@ -179,7 +179,21 @@ export default async function LoansPage({
             >
               &lsaquo;
             </Link>
-            <button className="page-btn active">{page}</button>
+            {getPaginationPages(page, pagination.totalPages).map((pageItem, index) => (
+              pageItem === 'ellipsis' ? (
+                <span key={`ellipsis-${index}`} className="page-btn dots">…</span>
+              ) : pageItem === page ? (
+                <button key={pageItem} className="page-btn active">{pageItem}</button>
+              ) : (
+                <Link
+                  key={pageItem}
+                  href={`/loans?page=${pageItem}&q=${q}&status=${status}&frequency=${frequency}`}
+                  className="page-btn"
+                >
+                  {pageItem}
+                </Link>
+              )
+            ))}
             <Link 
               href={`/loans?page=${pagination.hasNext ? page + 1 : page}&q=${q}&status=${status}&frequency=${frequency}`} 
               className={`page-btn ${!pagination.hasNext ? 'disabled' : ''}`}

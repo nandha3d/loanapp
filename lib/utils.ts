@@ -3,7 +3,9 @@ import { Decimal } from '@prisma/client/runtime/library';
 // ─── Currency Formatting ──────────────────────
 export function formatCurrency(amount: number | Decimal | string, symbol: string = '₹'): string {
   const num = typeof amount === 'string' ? parseFloat(amount) : typeof amount === 'number' ? amount : amount.toNumber();
-  return symbol + num.toLocaleString('en-IN');
+  const candidateSymbol = typeof symbol === 'string' ? symbol.trim() : '';
+  const safeSymbol = candidateSymbol && candidateSymbol !== '???' ? candidateSymbol : '₹';
+  return safeSymbol + num.toLocaleString('en-IN');
 }
 
 // ─── Date Formatting ──────────────────────────
@@ -189,4 +191,38 @@ export function paginatedResponse<T>(data: T[], total: number, page: number, lim
       hasPrev: page > 1,
     }
   };
+}
+
+export type PaginationPageItem = number | 'ellipsis';
+export function getPaginationPages(page: number, totalPages: number): PaginationPageItem[] {
+  if (totalPages <= 5) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const pages: PaginationPageItem[] = [1];
+  const left = Math.max(2, page - 1);
+  const right = Math.min(totalPages - 1, page + 1);
+
+  if (left > 2) {
+    pages.push('ellipsis');
+  } else {
+    for (let i = 2; i < left; i++) {
+      pages.push(i);
+    }
+  }
+
+  for (let i = left; i <= right; i++) {
+    pages.push(i);
+  }
+
+  if (right < totalPages - 1) {
+    pages.push('ellipsis');
+  } else {
+    for (let i = right + 1; i < totalPages; i++) {
+      pages.push(i);
+    }
+  }
+
+  pages.push(totalPages);
+  return pages;
 }
