@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { recordAuctionWinner, recordChitPayment } from '../actions';
+import { recordAuctionWinner, recordChitPayment, markPaymentMissed, cancelChitGroup } from '../actions';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
 interface ChitGroupDetailClientProps {
@@ -21,6 +21,7 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
   const [payAmount, setPayAmount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [cancelling, setCancelling] = useState(false);
 
   const handleRecordWinner = async () => {
     if (!auctionModal || !winnerId) return;
@@ -53,9 +54,43 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
   const pendingAuctions = group.auctions.filter((a: any) => a.status === 'pending');
   const completedAuctions = group.auctions.filter((a: any) => a.status === 'completed');
 
+  const handleMarkMissed = async (subscriptionId: string) => {
+    setLoading(true);
+    setError('');
+    try {
+      await markPaymentMissed(subscriptionId);
+      router.refresh();
+    } catch (e: any) {
+      setError(e.message);
+    }
+    setLoading(false);
+  };
+
+  const handleCancel = async () => {
+    if (!confirm('Cancel this chit group? All pending auctions will be cancelled.')) return;
+    setCancelling(true);
+    setError('');
+    try {
+      await cancelChitGroup(group.id);
+      router.refresh();
+    } catch (e: any) {
+      setError(e.message);
+    }
+    setCancelling(false);
+  };
+
   return (
     <>
       {error && <div className="alert alert-danger" style={{ marginBottom: '16px', padding: '10px 14px', background: '#fff0f0', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', color: 'var(--danger)' }}>{error}</div>}
+
+      {group.status === 'active' && (
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', justifyContent: 'flex-end' }}>
+          <a href={`/chits/${group.id}/edit`} className="btn btn-secondary btn-sm">Edit</a>
+          <button className="btn btn-danger btn-sm" onClick={handleCancel} disabled={cancelling}>
+            {cancelling ? 'Cancelling...' : 'Cancel Group'}
+          </button>
+        </div>
+      )}
 
       {/* Summary */}
       <div className="kpi-grid" style={{ marginBottom: '20px' }}>
@@ -187,18 +222,28 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
                     <td>{formatDate(s.dueDate)}</td>
                     <td>{formatCurrency(Number(s.dueAmount), currencySymbol)}</td>
                     <td>{formatCurrency(Number(s.paidAmount), currencySymbol)}</td>
-                    <td><span className={`badge badge-${s.status === 'paid' ? 'success' : s.status === 'missed' ? 'danger' : 'secondary'}`}>{s.status}</span></td>
-                    <td>
+                    <td><span className={`badge badge-${s.status === 'paid' ? 'success' : s.status === 'missed' ? 'danger' : s.status === 'partial' ? 'warning' : 'secondary'}`}>{s.status}</span></td>
+                    <td style={{ display: 'flex', gap: '4px' }}>
                       {s.status !== 'paid' && (
                         <button
                           className="btn btn-ghost btn-sm"
                           onClick={() => {
-                            setPaymentModal({ memberId: m.id, periodNumber: s.periodNumber, dueAmount: s.dueAmount });
-                            setPayAmount(Number(s.dueAmount));
+                            setPaymentModal({ subscriptionId: s.id, memberId: m.id, periodNumber: s.periodNumber, dueAmount: s.dueAmount });
+                            setPayAmount(Number(s.dueAmount) - Number(s.paidAmount));
                             setError('');
                           }}
                         >
                           {d.recordPayment}
+                        </button>
+                      )}
+                      {s.status !== 'paid' && s.status !== 'missed' && (
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          style={{ color: 'var(--danger)' }}
+                          onClick={() => handleMarkMissed(s.id)}
+                          disabled={loading}
+                        >
+                          Missed
                         </button>
                       )}
                     </td>
@@ -248,7 +293,13 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
       {paymentModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div className="card" style={{ width: '380px', padding: '24px' }}>
-            <h3 style={{ marginBottom: '12px' }}>{d.recordPayment} — Period {paymentModal.periodNumber}</h3>
+            <h3 style={{ marginBottom: '12px' }}>{d.recordPayment} — Period {paymentModal.periodNumber}
+              {Number(paymentModal.dueAmount) !== payAmount && (
+                <span style={{ fontSize: '.75rem', color: 'var(--text-secondary)', fontWeight: 'normal', marginLeft: '8px' }}>
+                  Due: {formatCurrency(Number(paymentModal.dueAmount), currencySymbol)}
+                </span>
+              )}
+            </h3>
             {error && <p style={{ color: 'var(--danger)', marginBottom: '10px', fontSize: '.85rem' }}>{error}</p>}
             <div className="form-group" style={{ marginBottom: '16px' }}>
               <label className="form-label">{d.amountPaid} ({currencySymbol})</label>

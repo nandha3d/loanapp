@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { requireModule } from '@/lib/moduleGate';
+import { getActiveBranchId } from '@/lib/branch';
 
 async function requireAdmin() {
   const session = await auth();
@@ -45,9 +46,12 @@ export async function createChitGroup(formData: FormData) {
     throw new Error('One or more chit members are invalid or inactive for this tenant/app.');
   }
 
+  const branchId = await getActiveBranchId();
+
   const chitGroup = await prisma.chitGroup.create({
     data: {
       tenantId,
+      ...(branchId ? { branchId } : {}),
       appType,
       name,
       chitValue,
@@ -168,6 +172,25 @@ export async function recordAuctionWinner(
     }),
   ]);
 
+  // Reduce future subscription dueAmount by dividend for all non-winner members
+  if (dividend > 0) {
+    const futurePeriod = auction.periodNumber + 1;
+    const nonWinnerMembers = await prisma.chitMember.findMany({
+      where: { chitGroupId: auction.chitGroupId, id: { not: winnerMemberId } },
+      select: { id: true },
+    });
+    for (const m of nonWinnerMembers) {
+      await prisma.chitSubscription.updateMany({
+        where: {
+          memberId: m.id,
+          periodNumber: { gte: futurePeriod },
+          status: { not: 'paid' },
+        },
+        data: { dueAmount: { decrement: dividend } },
+      });
+    }
+  }
+
   await prisma.auditLog.create({
     data: {
       tenantId,
@@ -201,11 +224,12 @@ export async function recordChitPayment(
   });
   if (!sub) throw new Error('Subscription not found or not in your tenant');
 
+  const newStatus = paidAmount >= Number(sub.dueAmount) ? 'paid' : 'partial';
   await prisma.chitSubscription.update({
     where: { id: sub.id },
     data: {
       paidAmount,
-      status: 'paid',
+      status: newStatus,
       paidAt: new Date(),
     },
   });
@@ -224,4 +248,96 @@ export async function recordChitPayment(
   });
 
   revalidatePath(`/chits/${member?.chitGroupId}`);
+}
+
+export async function markPaymentMissed(subscriptionId: string) {
+  const session = await requireAdmin();
+  const tenantId = await getDefaultTenantId();
+  await requireModule(tenantId, 'chitfunds');
+
+  const sub = await prisma.chitSubscription.findFirst({
+    where: { id: subscriptionId, member: { chitGroup: { tenantId } } },
+    include: { member: true },
+  });
+  if (!sub) throw new Error('Subscription not found');
+  if (sub.status === 'paid') throw new Error('Cannot mark a paid subscription as missed');
+
+  await prisma.chitSubscription.update({
+    where: { id: subscriptionId },
+    data: { status: 'missed' },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId,
+      userId: session.user?.id,
+      action: 'mark_missed',
+      entityType: 'chit_subscription',
+      entityId: subscriptionId,
+      newValue: JSON.stringify({ status: 'missed' }),
+    },
+  });
+
+  revalidatePath(`/chits/${sub.member.chitGroupId}`);
+}
+
+export async function cancelChitGroup(id: string) {
+  const session = await requireAdmin();
+  const tenantId = await getDefaultTenantId();
+  await requireModule(tenantId, 'chitfunds');
+
+  const group = await prisma.chitGroup.findFirst({ where: { id, tenantId } });
+  if (!group) throw new Error('Chit group not found');
+  if (group.status === 'cancelled') throw new Error('Already cancelled');
+
+  await prisma.$transaction([
+    prisma.chitGroup.update({ where: { id }, data: { status: 'cancelled' } }),
+    prisma.chitAuction.updateMany({ where: { chitGroupId: id, status: 'pending' }, data: { status: 'cancelled' } }),
+  ]);
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId,
+      userId: session.user?.id,
+      action: 'cancel',
+      entityType: 'chit_group',
+      entityId: id,
+      newValue: JSON.stringify({ status: 'cancelled' }),
+    },
+  });
+
+  revalidatePath('/chits');
+  revalidatePath(`/chits/${id}`);
+}
+
+export async function updateChitGroup(id: string, formData: FormData) {
+  const session = await requireAdmin();
+  const tenantId = await getDefaultTenantId();
+  await requireModule(tenantId, 'chitfunds');
+
+  const group = await prisma.chitGroup.findFirst({ where: { id, tenantId } });
+  if (!group) throw new Error('Chit group not found');
+
+  const name = formData.get('name') as string;
+  const commissionPct = Number(formData.get('commissionPct') || group.commissionPct);
+
+  await prisma.chitGroup.update({
+    where: { id },
+    data: { name, commissionPct },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId,
+      userId: session.user?.id,
+      action: 'update',
+      entityType: 'chit_group',
+      entityId: id,
+      newValue: JSON.stringify({ name, commissionPct }),
+    },
+  });
+
+  revalidatePath('/chits');
+  revalidatePath(`/chits/${id}`);
+  redirect(`/chits/${id}`);
 }

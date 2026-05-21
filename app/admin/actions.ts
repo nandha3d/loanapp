@@ -198,24 +198,36 @@ export async function manageMasterUser(formData: FormData) {
       });
     }
 
-    if ((role === 'admin' || role === 'agent') && branchId && adminModules.length > 0) {
-      if (userRole !== 'developer') {
+    // Handle UserBranchModule updates for admins/agents assigned to a branch
+    if ((role === 'admin' || role === 'agent') && branchId) {
+      // Validate requested modules are within branch's enabled modules
+      if (userRole !== 'developer' && adminModules.length > 0) {
         const branch = await prisma.branch.findFirst({
           where: { id: branchId, tenantId },
-          select: { enabledModules: true },
+          select: { enabledModules: true, name: true },
         });
         const branchModules = normalizeModuleList(branch?.enabledModules);
         const invalid = adminModules.filter((module) => !branchModules.includes(module));
         if (invalid.length > 0) {
-          return { success: false, error: `Modules not enabled for this branch: ${invalid.join(', ')}` };
+          return { success: false, error: `Branch "${branch?.name}" does not have these modules enabled: ${invalid.join(', ')}. Please enable them on the branch first.` };
         }
       }
-      await prisma.userBranchModule.upsert({
-        where: { userId_branchId: { userId: savedUserId, branchId } },
-        update: { enabledModules: JSON.stringify(adminModules) },
-        create: { userId: savedUserId, branchId, enabledModules: JSON.stringify(adminModules) },
-      });
-    } else if (role !== 'superadmin') {
+
+      if (adminModules.length > 0) {
+        // User has specific module access — save it
+        await prisma.userBranchModule.upsert({
+          where: { userId_branchId: { userId: savedUserId, branchId } },
+          update: { enabledModules: JSON.stringify(adminModules) },
+          create: { userId: savedUserId, branchId, enabledModules: JSON.stringify(adminModules) },
+        });
+      } else {
+        // User has no specific modules selected — delete the override, will inherit branch defaults
+        await prisma.userBranchModule.deleteMany({
+          where: { userId: savedUserId, branchId },
+        });
+      }
+    } else if (!branchId) {
+      // User not assigned to any branch — delete module overrides
       await prisma.userBranchModule.deleteMany({ where: { userId: savedUserId } });
     }
   }

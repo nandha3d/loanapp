@@ -46,7 +46,7 @@ export default function Sidebar({
 
   const navItems: NavItem[] = [
     { section: dict.sidebar.sections.main },
-    { id: 'dashboard', icon: 'dashboard', label: dict.sidebar.dashboard, href: '/dashboard' },
+    { id: 'dashboard', icon: 'dashboard', label: dict.sidebar.dashboard, href: '/dashboard', appTypes: ['microlending', 'autofinance'] },
     { id: 'collection', icon: 'point_of_sale', label: dict.sidebar.collection, href: '/collection' },
     { section: dict.sidebar.sections.management },
     { id: 'customers', icon: 'people', label: dict.sidebar.customers, href: '/customers' },

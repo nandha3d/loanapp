@@ -719,6 +719,8 @@ export default async function DashboardPage() {
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
 
+  if (appType === 'chitfunds') redirect('/chits');
+
   const branding = await getBranding(tenantId);
 
   const activeBranchId = await getActiveBranchId();
