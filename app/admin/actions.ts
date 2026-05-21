@@ -274,8 +274,16 @@ export async function createBranch(formData: FormData) {
 
   const sub = await prisma.tenantSubscription.findUnique({
     where: { tenantId: owner.tenantId },
-    select: { enabledModules: true }
+    select: { enabledModules: true, maxBranches: true }
   });
+
+  // Check branch limit
+  const existingBranchCount = await prisma.branch.count({
+    where: { tenantId: owner.tenantId, status: 'active' }
+  });
+  if (sub && sub.maxBranches > 0 && existingBranchCount >= sub.maxBranches) {
+    return { success: false, error: `Branch limit reached (${sub.maxBranches}). Upgrade the subscription to add more branches.` };
+  }
 
   try {
     await prisma.branch.create({
@@ -339,7 +347,7 @@ export async function updateBranch(formData: FormData) {
 
   const sub = await prisma.tenantSubscription.findUnique({
     where: { tenantId: owner.tenantId },
-    select: { enabledModules: true }
+    select: { enabledModules: true, maxBranches: true }
   });
 
   try {

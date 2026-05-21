@@ -26,7 +26,8 @@ export default async function TeamPage() {
 
   // Branch Admins only see agents from their assigned branch!
   if (userRole === 'admin') {
-    whereClause.branchId = activeBranchId || undefined;
+    // Use a sentinel when activeBranchId is null so the filter is never silently dropped
+    whereClause.branchId = activeBranchId ?? 'no-branch-assigned';
   } else if ((userRole === 'superadmin' || userRole === 'developer') && activeBranchId) {
     whereClause.branchId = activeBranchId;
   } else if (userRole === 'superadmin') {
@@ -65,9 +66,23 @@ export default async function TeamPage() {
     }
   }
 
+  // For branch admins: further filter agents to only those whose modules overlap
+  // with this admin's allowed modules, preventing cross-admin data leakage.
+  let visibleAgents = agents;
+  if (userRole === 'admin' && allowedModules.length > 0 && activeBranchId) {
+    const { normalizeModuleList } = await import('@/types/modules');
+    visibleAgents = agents.filter(agent => {
+      const ubm = agent.userBranchModules.find(m => m.branchId === activeBranchId);
+      const agentModules: string[] = ubm
+        ? normalizeModuleList(ubm.enabledModules)
+        : [agent.appType];
+      return agentModules.some(m => allowedModules.includes(m));
+    });
+  }
+
   return (
     <TeamClient 
-      initialAgents={agents} 
+      initialAgents={visibleAgents} 
       branches={branches}
       activeBranch={activeBranch}
       viewerRole={userRole}

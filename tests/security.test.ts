@@ -16,6 +16,7 @@ import {
 import {
   checkFixedWindowLimit,
   createFixedWindowStore,
+  getClientIp,
 } from '../lib/rateLimit';
 import { verifyRazorpayWebhookSignature } from '../lib/razorpay';
 
@@ -75,5 +76,33 @@ const secret = 'webhook-secret';
 const validSignature = crypto.createHmac('sha256', secret).update(body).digest('hex');
 assert.equal(verifyRazorpayWebhookSignature(body, secret, validSignature), true);
 assert.equal(verifyRazorpayWebhookSignature(body, secret, 'bad'), false);
+
+// ── getClientIp tests ──────────────────────────────────────────────────────
+function makeRequest(headers: Record<string, string>, ip?: string): Request {
+  // Build a minimal Request-like object that satisfies getClientIp's usage.
+  const fakeHeaders = { get(name: string) { return headers[name.toLowerCase()] ?? null; } };
+  return { headers: fakeHeaders, ...(ip !== undefined ? { ip } : {}) } as unknown as Request;
+}
+
+// TRUST_PROXY=false (default): proxy headers are ignored
+delete process.env.TRUST_PROXY;
+assert.equal(getClientIp(makeRequest({ 'x-forwarded-for': '1.2.3.4, 5.6.7.8', 'x-real-ip': '9.9.9.9' })), '0.0.0.0', 'no TRUST_PROXY: should ignore proxy headers');
+assert.equal(getClientIp(makeRequest({}, '10.0.0.1')), '10.0.0.1', 'no TRUST_PROXY: falls back to request.ip');
+assert.equal(getClientIp(makeRequest({})), '0.0.0.0', 'no TRUST_PROXY: falls back to 0.0.0.0');
+
+// TRUST_PROXY=true: use leftmost (client) IP from XFF chain
+process.env.TRUST_PROXY = 'true';
+assert.equal(getClientIp(makeRequest({ 'x-forwarded-for': '1.2.3.4, 5.6.7.8, 9.9.9.9' })), '1.2.3.4', 'TRUST_PROXY: uses first XFF entry');
+assert.equal(getClientIp(makeRequest({ 'x-forwarded-for': ' 1.2.3.4 ' })), '1.2.3.4', 'TRUST_PROXY: trims XFF entry');
+// x-real-ip fallback when no XFF header
+assert.equal(getClientIp(makeRequest({ 'x-real-ip': '2.2.2.2' })), '2.2.2.2', 'TRUST_PROXY: falls back to x-real-ip when no XFF');
+// x-real-ip should NOT be used when TRUST_PROXY is off
+delete process.env.TRUST_PROXY;
+assert.equal(getClientIp(makeRequest({ 'x-real-ip': '2.2.2.2' })), '0.0.0.0', 'no TRUST_PROXY: x-real-ip is ignored');
+// restore TRUST_PROXY for further isolation
+process.env.TRUST_PROXY = 'true';
+// request.ip fallback when no proxy headers
+assert.equal(getClientIp(makeRequest({}, '10.10.10.10')), '10.10.10.10', 'TRUST_PROXY: request.ip used when no proxy headers');
+delete process.env.TRUST_PROXY;
 
 console.log('security helper tests passed');
