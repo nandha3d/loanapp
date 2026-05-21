@@ -1,7 +1,7 @@
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
-import { formatCurrency, getBadgeClass, parsePagination, paginatedResponse, getInitials } from '@/lib/utils';
+import { formatCurrency, getBadgeClass, parsePagination, paginatedResponse, getPaginationPages, getInitials } from '@/lib/utils';
 import Link from '@/components/layout/DashboardLink';
 import { calculateCreditScore } from '@/lib/creditScore';
 import { getDictionary } from '@/lib/i18n';
@@ -224,7 +224,21 @@ export default async function CustomersPage({
             >
               &lsaquo;
             </Link>
-            <button className="page-btn active">{page}</button>
+            {getPaginationPages(page, pagination.totalPages).map((pageItem, index) => (
+              pageItem === 'ellipsis' ? (
+                <span key={`ellipsis-${index}`} className="page-btn dots">…</span>
+              ) : pageItem === page ? (
+                <button key={pageItem} className="page-btn active">{pageItem}</button>
+              ) : (
+                <Link
+                  key={pageItem}
+                  href={`/customers?page=${pageItem}&q=${q}&routeId=${routeId}&status=${status}`}
+                  className="page-btn"
+                >
+                  {pageItem}
+                </Link>
+              )
+            ))}
             <Link 
               href={`/customers?page=${pagination.hasNext ? page + 1 : page}&q=${q}&routeId=${routeId}&status=${status}`} 
               className={`page-btn ${!pagination.hasNext ? 'disabled' : ''}`}

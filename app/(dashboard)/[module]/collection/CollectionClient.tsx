@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { formatCurrency, formatDate, getBadgeClass, getInitials } from '@/lib/utils';
+import { formatCurrency, formatDate, getBadgeClass, getInitials, getPaginationPages } from '@/lib/utils';
 import { submitCollectionEntry, requestCollectionEdit, requestCashHandover } from './actions';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from '@/components/layout/DashboardLink';
@@ -39,9 +39,14 @@ type CustomerOverdueGroup = {
   customerCode: string;
   routeName: string;
   instalments: CollectionRow[];
+  loanCodes: string[];
+  earliestDueDate: string;
+  dueToday: number;
+  receivedAmount: number;
   totalOutstanding: number;
   totalOverdue: number;
   maxDaysOverdue: number;
+  statusLabel: string;
 };
 
 export default function CollectionClient({
@@ -67,9 +72,6 @@ export default function CollectionClient({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<'today' | 'overdue'>(
-    () => (searchParams.get('tab') === 'overdue' ? 'overdue' : 'today'),
-  );
   const [modal, setModal] = useState<CollectionRow | null>(null);
   const [overdueCustomerGroup, setOverdueCustomerGroup] = useState<CustomerOverdueGroup | null>(null);
   const [loading, setLoading] = useState(false);
@@ -77,10 +79,21 @@ export default function CollectionClient({
   const [mode, setMode] = useState('cash');
   const [remarks, setRemarks] = useState('');
   const [reason, setReason] = useState('');
+  const [page, setPage] = useState(1);
   const [dateFilter, setDateFilter] = useState(() => searchParams.get('date') || '');
   const [customerFilter, setCustomerFilter] = useState('');
   const [routeFilter, setRouteFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'today' | 'overdue'>(
+    () => {
+      const tab = searchParams.get('tab');
+      if (tab === 'overdue') return 'overdue';
+      if (tab === 'today') return 'today';
+      return 'all';
+    },
+  );
+  const [overdueMinDays, setOverdueMinDays] = useState('');
+  const [overdueMaxDays, setOverdueMaxDays] = useState('');
 
   const isAdmin = agentRole === 'admin' || agentRole === 'superadmin';
   const modalRef = useRef<HTMLDivElement>(null);
@@ -134,10 +147,26 @@ export default function CollectionClient({
     }
   }, [modal, overdueCustomerGroup]);
 
-  const sourceRows = activeTab === 'today' ? todayInstalments : overdueInstalments;
+  // Merge both arrays, deduplicate by id
+  const allInstalments = useMemo(() => {
+    const map = new Map<string, CollectionRow & { source: 'today' | 'overdue' }>();
+    for (const row of todayInstalments) {
+      map.set(row.id, { ...row, source: 'today' as const });
+    }
+    for (const row of overdueInstalments) {
+      if (!map.has(row.id)) {
+        map.set(row.id, { ...row, source: 'overdue' as const });
+      }
+    }
+    return Array.from(map.values());
+  }, [todayInstalments, overdueInstalments]);
 
   const filteredRows = useMemo(() => {
-    return sourceRows.filter((row) => {
+    return allInstalments.filter((row) => {
+      // Type filter
+      if (typeFilter === 'today' && row.source !== 'today') return false;
+      if (typeFilter === 'overdue' && row.source !== 'overdue') return false;
+
       const dueDate = new Date(row.dueDate).toISOString().slice(0, 10);
       const matchesDate = !dateFilter || dueDate === dateFilter;
       const search = customerFilter.trim().toLowerCase();
@@ -147,9 +176,15 @@ export default function CollectionClient({
         || row.loan.loanCode.toLowerCase().includes(search);
       const matchesRoute = !routeFilter || row.loan.customer.route?.id === routeFilter;
       const matchesStatus = !statusFilter || row.status === statusFilter;
-      return matchesDate && matchesCustomer && matchesRoute && matchesStatus;
+
+      // Overdue days range filter
+      const minD = overdueMinDays ? Number(overdueMinDays) : 0;
+      const maxD = overdueMaxDays ? Number(overdueMaxDays) : Infinity;
+      const matchesOverdueDays = row.daysOverdue >= minD && row.daysOverdue <= maxD;
+
+      return matchesDate && matchesCustomer && matchesRoute && matchesStatus && matchesOverdueDays;
     });
-  }, [customerFilter, dateFilter, routeFilter, sourceRows, statusFilter]);
+  }, [allInstalments, typeFilter, customerFilter, dateFilter, routeFilter, statusFilter, overdueMinDays, overdueMaxDays]);
 
   const todayTotals = useMemo(() => {
     return {
@@ -167,9 +202,11 @@ export default function CollectionClient({
     };
   }, [overdueInstalments]);
 
+  // Keep groupedOverdue for the detail popup (still used when clicking Details)
   const groupedOverdue = useMemo<CustomerOverdueGroup[]>(() => {
     const map = new Map<string, CustomerOverdueGroup>();
-    const rows = activeTab === 'overdue' ? filteredRows : [];
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = filteredRows.filter(r => r.daysOverdue > 0 && r.outstandingAmount > 0);
     for (const row of rows) {
       const cid = row.loan.customer.id;
       if (!map.has(cid)) {
@@ -179,23 +216,40 @@ export default function CollectionClient({
           customerCode: row.loan.customer.customerCode,
           routeName: row.loan.customer.route?.name || '-',
           instalments: [],
+          loanCodes: [],
+          earliestDueDate: row.dueDate,
+          dueToday: 0,
+          receivedAmount: 0,
           totalOutstanding: 0,
           totalOverdue: 0,
           maxDaysOverdue: 0,
+          statusLabel: row.status,
         });
       }
       const g = map.get(cid)!;
       g.instalments.push(row);
+      if (!g.loanCodes.includes(row.loan.loanCode)) {
+        g.loanCodes.push(row.loan.loanCode);
+      }
+      if (row.dueDate < g.earliestDueDate) {
+        g.earliestDueDate = row.dueDate;
+      }
+      if (row.dueDate === today) {
+        g.dueToday += row.dueAmount;
+      }
+      g.receivedAmount += row.receivedAmount;
       g.totalOutstanding += row.outstandingAmount;
       g.totalOverdue += row.overdueAmount;
       g.maxDaysOverdue = Math.max(g.maxDaysOverdue, row.daysOverdue);
+      if (g.statusLabel !== row.status) {
+        g.statusLabel = 'mixed';
+      }
     }
-    // sort each customer's instalments oldest-first
     for (const g of map.values()) {
       g.instalments.sort((a, b) => b.daysOverdue - a.daysOverdue);
     }
     return Array.from(map.values()).sort((a, b) => b.maxDaysOverdue - a.maxDaysOverdue);
-  }, [activeTab, filteredRows]);
+  }, [filteredRows]);
 
   const todayStr = new Date().toLocaleDateString('en-IN', {
     weekday: 'long',
@@ -203,6 +257,7 @@ export default function CollectionClient({
     month: 'long',
     year: 'numeric',
   });
+  const todayISO = new Date().toISOString().slice(0, 10);
 
   const openModal = (instalment: CollectionRow) => {
     const isPaid = instalment.receivedAmount > 0;
@@ -258,7 +313,27 @@ export default function CollectionClient({
     setCustomerFilter('');
     setRouteFilter('');
     setStatusFilter('');
+    setTypeFilter('all');
+    setOverdueMinDays('');
+    setOverdueMaxDays('');
   };
+
+  useEffect(() => {
+    setPage(1);
+  }, [typeFilter, customerFilter, dateFilter, routeFilter, statusFilter, overdueMinDays, overdueMaxDays]);
+
+  const hasActiveFilters = dateFilter || customerFilter || routeFilter || statusFilter || typeFilter !== 'all' || overdueMinDays || overdueMaxDays;
+
+  const pageSize = 20;
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const paginatedRows = filteredRows.slice((page - 1) * pageSize, page * pageSize);
+  const pageButtons = getPaginationPages(page, totalPages);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
 
   const renderRows = (rows: CollectionRow[]) => (
     <div className="table-wrapper">
@@ -268,7 +343,7 @@ export default function CollectionClient({
             <th>{dict.customers.title}</th>
             <th>{dict.sidebar.loans}</th>
             <th>Due Date</th>
-            <th>Due</th>
+            <th>Due Today</th>
             <th>Received</th>
             <th>Outstanding</th>
             <th>Overdue</th>
@@ -297,7 +372,7 @@ export default function CollectionClient({
                   <span style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>#{instalment.instalmentNo}</span>
                 </td>
                 <td>{formatDate(instalment.dueDate)}</td>
-                <td>{formatCurrency(instalment.dueAmount, currencySymbol)}</td>
+                <td>{instalment.dueDate === todayISO ? formatCurrency(instalment.dueAmount, currencySymbol) : '-'}</td>
                 <td>{instalment.receivedAmount > 0 ? formatCurrency(instalment.receivedAmount, currencySymbol) : '-'}</td>
                 <td style={{ fontWeight: 700, color: instalment.outstandingAmount > 0 ? 'var(--danger)' : 'var(--success)' }}>
                   {formatCurrency(instalment.outstandingAmount, currencySymbol)}
@@ -335,7 +410,91 @@ export default function CollectionClient({
           {rows.length === 0 && (
             <tr>
               <td colSpan={9} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-light)' }}>
-                {activeTab === 'today' ? dict.collection.noCollections : 'No overdue instalments match these filters.'}
+                No instalments match the current filters.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  const renderGroupedRows = (groups: CustomerOverdueGroup[]) => (
+    <div className="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>{dict.customers.title}</th>
+            <th>{dict.sidebar.loans}</th>
+            <th>Due Date</th>
+            <th>Due Today</th>
+            <th>Received</th>
+            <th>Outstanding</th>
+            <th>Overdue</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {groups.map((group) => (
+            <tr key={group.customerId} className="collection-entry">
+              <td>
+                <Link href={`/customers/${group.customerCode}`}>
+                  <strong>{group.customerName}</strong>
+                </Link>
+                <br />
+                <span style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>
+                  {group.customerCode} · {group.routeName}
+                </span>
+              </td>
+              <td>
+                {group.loanCodes.length === 1 ? (
+                  <Link href={`/loans/${group.loanCodes[0]}`}>{group.loanCodes[0]}</Link>
+                ) : (
+                  <details>
+                    <summary style={{ cursor: 'pointer', fontWeight: 600 }}>{group.loanCodes[0]} +{group.loanCodes.length - 1}</summary>
+                    <ul style={{ margin: '8px 0 0', padding: '0 0 0 16px', listStyle: 'disc' }}>
+                      {group.loanCodes.map((code) => (
+                        <li key={code} style={{ fontSize: '.82rem' }}>
+                          <Link href={`/loans/${code}`}>{code}</Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </td>
+              <td>{formatDate(group.earliestDueDate)}</td>
+              <td>{group.dueToday > 0 ? formatCurrency(group.dueToday, currencySymbol) : '-'}</td>
+              <td>{group.receivedAmount > 0 ? formatCurrency(group.receivedAmount, currencySymbol) : '-'}</td>
+              <td style={{ fontWeight: 700, color: group.totalOutstanding > 0 ? 'var(--danger)' : 'var(--success)' }}>
+                {formatCurrency(group.totalOutstanding, currencySymbol)}
+              </td>
+              <td>
+                <button className="btn btn-ghost btn-sm" onClick={() => setOverdueCustomerGroup(group)}>
+                  <span style={{ display: 'block', lineHeight: 1.2 }}>
+                    {group.maxDaysOverdue}d · {group.instalments.length} inst
+                  </span>
+                  <span style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>
+                    {formatCurrency(group.totalOverdue, currencySymbol)} overdue
+                  </span>
+                </button>
+              </td>
+              <td>
+                <span className={getBadgeClass(group.statusLabel)} style={{ textTransform: 'capitalize' }}>
+                  {group.statusLabel}
+                </span>
+              </td>
+              <td>
+                <button className="btn btn-primary btn-sm" onClick={() => setOverdueCustomerGroup(group)}>
+                  Details
+                </button>
+              </td>
+            </tr>
+          ))}
+          {groups.length === 0 && (
+            <tr>
+              <td colSpan={9} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-light)' }}>
+                No instalments match the current filters.
               </td>
             </tr>
           )}
@@ -523,16 +682,30 @@ export default function CollectionClient({
       </div>
 
       <div className="card" style={{ marginBottom: '20px' }}>
-        <div className="tabs" style={{ marginBottom: '16px' }}>
-          <button type="button" className={`tab ${activeTab === 'today' ? 'active' : ''}`} onClick={() => setActiveTab('today')}>
-            Today's Collection ({todayInstalments.length})
-          </button>
-          <button type="button" className={`tab ${activeTab === 'overdue' ? 'active' : ''}`} onClick={() => setActiveTab('overdue')}>
-            Overdue ({overdueInstalments.length})
-          </button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+          <h3 style={{ fontSize: '1rem', margin: 0 }}>
+            Collections
+            <span style={{ fontSize: '.8rem', fontWeight: 400, color: 'var(--text-light)', marginLeft: '8px' }}>
+              {filteredRows.length} of {allInstalments.length} instalments
+            </span>
+          </h3>
+          {hasActiveFilters && (
+            <button type="button" className="btn btn-ghost btn-sm" onClick={clearFilters} style={{ color: 'var(--danger)' }}>
+              <span className="material-icons-outlined" style={{ fontSize: '14px' }}>filter_list_off</span>
+              Clear All Filters
+            </button>
+          )}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(140px, 1fr)) auto', gap: '10px', alignItems: 'end', marginBottom: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px', alignItems: 'end', marginBottom: '16px' }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Type</label>
+            <select className="form-control" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as 'all' | 'today' | 'overdue')}>
+              <option value="all">All ({allInstalments.length})</option>
+              <option value="today">Today ({todayInstalments.length})</option>
+              <option value="overdue">Overdue ({overdueInstalments.length})</option>
+            </select>
+          </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Due Date</label>
             <input type="date" className="form-control" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} />
@@ -558,10 +731,52 @@ export default function CollectionClient({
               <option value="paid">Paid</option>
             </select>
           </div>
-          <button type="button" className="btn btn-ghost" onClick={clearFilters}>Clear</button>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Overdue Days (min)</label>
+            <input type="number" className="form-control" value={overdueMinDays} onChange={(event) => setOverdueMinDays(event.target.value)} placeholder="0" min={0} />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Overdue Days (max)</label>
+            <input type="number" className="form-control" value={overdueMaxDays} onChange={(event) => setOverdueMaxDays(event.target.value)} placeholder="∞" min={0} />
+          </div>
         </div>
 
-        {activeTab === 'today' ? renderRows(filteredRows) : renderOverdueCards(groupedOverdue)}
+        {typeFilter === 'overdue' ? renderGroupedRows(groupedOverdue) : renderRows(paginatedRows)}
+
+        {totalPages > 1 && typeFilter !== 'overdue' && (
+          <div className="pagination" style={{ justifyContent: 'center', marginTop: '12px' }}>
+            <div className="pages">
+              <button
+                className={`page-btn ${page === 1 ? 'disabled' : ''}`}
+                onClick={() => setPage(Math.max(1, page - 1))}
+                disabled={page === 1}
+              >
+                &lsaquo;
+              </button>
+              {pageButtons.map((pageItem, index) => (
+                pageItem === 'ellipsis' ? (
+                  <span key={`ellipsis-${index}`} className="page-btn dots">…</span>
+                ) : (
+                  <button
+                    key={pageItem}
+                    className={`page-btn ${pageItem === page ? 'active' : ''}`}
+                    onClick={() => setPage(pageItem)}
+                    disabled={pageItem === page}
+                  >
+                    {pageItem}
+                  </button>
+                )
+              ))}
+              <button
+                className={`page-btn ${page === totalPages ? 'disabled' : ''}`}
+                onClick={() => setPage(Math.min(totalPages, page + 1))}
+                disabled={page === totalPages}
+              >
+                &rsaquo;
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Overdue Customer Detail Popup ─────────────────── */}

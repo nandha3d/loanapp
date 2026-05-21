@@ -58,3 +58,20 @@ loantrack_export*.sql
 
 # local git worktrees
 .worktrees/
+
+# Flutter mobile app (mobile/)
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/.packages
+mobile/build/
+mobile/.idea/
+mobile/ios/Pods/
+mobile/ios/.symlinks/
+mobile/ios/Flutter/Flutter.framework
+mobile/ios/Flutter/Flutter.podspec
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/android/app/release/
+mobile/**/GeneratedPluginRegistrant.*
+mobile/.vscode/
