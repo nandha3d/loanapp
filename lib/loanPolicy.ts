@@ -17,7 +17,7 @@ type LoanDetailWhereInput = {
 };
 
 export function canCreateLoanForRole(role: LoanRole): boolean {
-  return role === 'admin' || role === 'superadmin' || role === 'developer';
+  return role === 'agent' || role === 'admin' || role === 'superadmin' || role === 'developer';
 }
 
 export function validateLoanNumericInputs(input: LoanNumericInputs): { valid: true } | { valid: false; error: string } {

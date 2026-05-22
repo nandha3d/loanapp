@@ -381,8 +381,16 @@ export default function SettingsClient({
                   <strong>Accounting</strong> <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>(Capital Entries, Expenses, Adjustments)</span>
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input type="checkbox" name="tables" value="agents" />
+                  <strong style={{ color: 'var(--warning)' }}>Agents Only</strong> <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>(Delete all agents and their collections)</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input type="checkbox" name="tables" value="admins" />
+                  <strong style={{ color: 'var(--danger)' }}>Admins Only</strong> <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>(Delete all admin users)</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                   <input type="checkbox" name="tables" value="agents_routes" />
-                  <strong>Agents & Routes</strong> <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>(Routes, Route Assignments)</span>
+                  <strong>Agents & Routes</strong> <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>(All agents, Routes, Route Assignments, Collections)</span>
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                   <input type="checkbox" name="tables" value="approvals" />

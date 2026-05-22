@@ -475,6 +475,7 @@ model SystemNotification {
   id         String    @id @default(cuid())
   tenantId   String    @map("tenant_id")
   branchId   String?   @map("branch_id")
+  targetUserId String?  @map("target_user_id")
   appType    String    @default("microlending") @map("app_type")
   type       String
   icon       String?
@@ -489,6 +490,7 @@ model SystemNotification {
   tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, appType, isRead])
+  @@index([targetUserId, isRead])
   @@index([branchId])
   @@index([createdAt])
   @@map("system_notifications")
