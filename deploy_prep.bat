@@ -14,17 +14,37 @@ set "REMOTE_DOMAIN_DIR=~/domains/%REMOTE_DOMAIN%"
 set "REMOTE_APP_DIR=%REMOTE_DOMAIN_DIR%/nodejs"
 set "REMOTE_ZIP=%REMOTE_APP_DIR%/%ZIP_NAME%"
 set "REMOTE_NODE=/opt/alt/alt-nodejs22/root/bin/node"
+set "DEPLOY_MODE=update"
+set "INCLUDE_ENV=0"
 set "DB_MODE=migrate"
 set "DO_UPLOAD=1"
 set "DO_START=1"
 set "DO_PAUSE=1"
+set "ALLOW_DBPUSH=0"
 
 for %%A in (%*) do (
+  if /i "%%~A"=="/update" (
+    set "DEPLOY_MODE=update"
+    set "INCLUDE_ENV=0"
+  )
+  if /i "%%~A"=="/fresh" (
+    set "DEPLOY_MODE=fresh"
+    set "INCLUDE_ENV=1"
+  )
+  if /i "%%~A"=="/include-env" set "INCLUDE_ENV=1"
   if /i "%%~A"=="/prep-only" set "DO_UPLOAD=0"
   if /i "%%~A"=="/skip-db" set "DB_MODE=skip"
   if /i "%%~A"=="/dbpush" set "DB_MODE=dbpush"
+  if /i "%%~A"=="/allow-dbpush" set "ALLOW_DBPUSH=1"
   if /i "%%~A"=="/no-start" set "DO_START=0"
   if /i "%%~A"=="/nopause" set "DO_PAUSE=0"
+)
+
+if /i "%DB_MODE%"=="dbpush" if not "%ALLOW_DBPUSH%"=="1" (
+  echo ERROR: /dbpush is blocked for production safety.
+  echo Use normal updates with: deploy_prep.bat /update
+  echo If you intentionally need Prisma db push, rerun with: /dbpush /allow-dbpush
+  goto :fail
 )
 
 echo ========================================================
@@ -33,7 +53,9 @@ echo ========================================================
 echo Project:      %ROOT%
 echo Remote SSH:   ssh -p %REMOTE_PORT% %REMOTE_USER%@%REMOTE_HOST%
 echo Remote app:   %REMOTE_APP_DIR%
+echo Mode:         %DEPLOY_MODE%
 echo Database:     %DB_MODE%
+echo Include .env: %INCLUDE_ENV%
 echo Start app:    %DO_START%
 echo.
 
@@ -126,12 +148,17 @@ for %%E in (".env" ".env.local" ".env_prod" ".env.production" ".env.production.l
   )
 )
 
-if exist "%ROOT%\.env_prod" (
-  echo   Adding .env from .env_prod for Hostinger Prisma CLI...
-  copy /y "%ROOT%\.env_prod" "%STANDALONE%\.env" >nul || goto :fail
-  powershell -NoProfile -ExecutionPolicy Bypass -Command "$p='%STANDALONE%\.env'; $t=Get-Content -LiteralPath $p -Raw; $t=$t -replace \"`r?`n\", \"`n\"; [System.IO.File]::WriteAllText($p, $t, [System.Text.Encoding]::ASCII)" || goto :fail
+if "%INCLUDE_ENV%"=="1" (
+  if exist "%ROOT%\.env_prod" (
+    echo   Adding .env from .env_prod for first-time/fresh deploy...
+    copy /y "%ROOT%\.env_prod" "%STANDALONE%\.env" >nul || goto :fail
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "$p='%STANDALONE%\.env'; $t=Get-Content -LiteralPath $p -Raw; $t=$t -replace \"`r?`n\", \"`n\"; [System.IO.File]::WriteAllText($p, $t, [System.Text.Encoding]::ASCII)" || goto :fail
+  ) else (
+    echo ERROR: /fresh or /include-env was requested, but .env_prod was not found.
+    goto :fail
+  )
 ) else (
-  echo WARNING: .env_prod was not found. Remote Prisma migration may fail without DATABASE_URL.
+  echo   Preserving remote .env; package will not overwrite production secrets.
 )
 
 echo   Removing Windows-only Prisma engine files from deploy payload...
@@ -183,7 +210,7 @@ echo   Uploading zip...
 scp -P %REMOTE_PORT% "%ZIP%" "%REMOTE_USER%@%REMOTE_HOST%:%REMOTE_ZIP%" || goto :fail
 
 echo   Running remote deployment...
-ssh -p %REMOTE_PORT% "%REMOTE_USER%@%REMOTE_HOST%" "export DB_MODE=%DB_MODE% DO_START=%DO_START%; tr -d '\r' | bash" < "%TEMP%\loanapp_hostinger_deploy.sh" || goto :fail
+ssh -p %REMOTE_PORT% "%REMOTE_USER%@%REMOTE_HOST%" "export DEPLOY_MODE=%DEPLOY_MODE% DB_MODE=%DB_MODE% DO_START=%DO_START%; tr -d '\r' | bash" < "%TEMP%\loanapp_hostinger_deploy.sh" || goto :fail
 
 goto :success
 
@@ -198,6 +225,8 @@ goto :success
   echo NODE="%REMOTE_NODE%"
   echo echo "Remote domain: $DOMAIN_DIR"
   echo echo "Remote app:    $APP_DIR"
+  echo echo "Deploy mode:   ${DEPLOY_MODE:-update}"
+  echo echo "Database mode: $DB_MODE"
   echo mkdir -p "$APP_DIR" "$DOMAIN_DIR/deploy_backups"
   echo if [ ! -f "$ZIP_PATH" ]; then echo "ERROR: Uploaded zip not found: $ZIP_PATH"; exit 1; fi
   echo rm -rf "$NEW_DIR"
@@ -215,12 +244,13 @@ goto :success
   echo sleep 2
   echo if [ -n "${old_pids:-}" ]; then kill -9 $old_pids 2^> /dev/null ^|^| true; fi
   echo mkdir -p "$BACKUP_DIR"
+  echo if [ -f "$APP_DIR/.env" ]; then cp "$APP_DIR/.env" "$BACKUP_DIR/.env"; fi
   echo for item in .next node_modules prisma public private server.js package.json package-lock.json standalone.zip; do if [ -e "$APP_DIR/$item" ]; then mv "$APP_DIR/$item" "$BACKUP_DIR/$item"; fi; done
-  echo if [ -f "$BACKUP_DIR/.env" ]; then :; fi
   echo cp -a "$NEW_DIR"/. "$APP_DIR"/
   echo rm -rf "$NEW_DIR"
   echo rm -f "$ZIP_PATH"
   echo cd "$APP_DIR"
+  echo if [ ! -f "$APP_DIR/.env" ] ^&^& [ -f "$BACKUP_DIR/.env" ]; then echo "Restoring existing production .env..."; cp "$BACKUP_DIR/.env" "$APP_DIR/.env"; fi
   echo if [ -f "$APP_DIR/.env" ]; then tr -d '\r' ^< "$APP_DIR/.env" ^> "$APP_DIR/tmp/.env.lf" ^&^& mv "$APP_DIR/tmp/.env.lf" "$APP_DIR/.env"; fi
   echo echo "Fixing Prisma engine permissions..."
   echo chmod 755 "$APP_DIR"/node_modules/@prisma/engines/schema-engine-* 2^> /dev/null ^|^| true
@@ -228,7 +258,6 @@ goto :success
   echo chmod 755 "$APP_DIR"/node_modules/.prisma/client/libquery_engine-* 2^> /dev/null ^|^| true
   echo ls -l "$APP_DIR"/node_modules/@prisma/engines/schema-engine-* 2^> /dev/null ^| sed -n '1,5p' ^|^| true
   echo printf "deployed_at=%%s\nzip=%ZIP_NAME%\n" "$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)" ^> DEPLOYED_BY_DEPLOY_PREP.txt
-  echo if [ -f "$BACKUP_DIR/.env" ] ^&^& [ ! -f "$APP_DIR/.env" ]; then cp "$BACKUP_DIR/.env" "$APP_DIR/.env"; fi
   echo if [ ! -f "$APP_DIR/.env" ]; then echo "WARNING: $APP_DIR/.env is missing. Hostinger panel env vars may still be used, but Prisma CLI usually needs .env."; fi
   echo export UV_THREADPOOL_SIZE=1
   echo unset PRISMA_CLIENT_ENGINE_TYPE
@@ -286,6 +315,8 @@ echo   %ZIP%
 echo.
 echo It includes standalone app contents, Prisma schema, Prisma migrations,
 echo Prisma generated runtime, and the Prisma CLI needed for remote migration.
+if "%INCLUDE_ENV%"=="0" echo It does not include .env, so production secrets stay remote-only.
+if "%INCLUDE_ENV%"=="1" echo It includes .env generated from .env_prod.
 echo ========================================================
 goto :end
 
@@ -296,6 +327,8 @@ echo SUCCESS - DEPLOYED TO HOSTINGER
 echo ========================================================
 echo Uploaded and extracted into:
 echo   %REMOTE_APP_DIR%
+echo Deploy mode:
+echo   %DEPLOY_MODE%
 echo Database mode:
 echo   %DB_MODE%
 echo ========================================================

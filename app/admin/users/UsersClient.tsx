@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Modal from '@/components/Modal';
-import { manageMasterUser, toggleUserStatus } from '../actions';
+import { manageMasterUser, toggleUserStatus, toggleCanCreateLoan } from '../actions';
 import { updateSubscription } from '../billing/billingActions';
 import { ALL_MODULES, MODULE_LABELS, normalizeModuleList, type ModuleKey } from '@/types/modules';
 import { PLAN_LABELS, PLAN_FEATURES } from '@/lib/plans';
@@ -33,6 +33,7 @@ type SuperadminSummary = {
   adminCount: number;
   agentCount: number;
   modules: ModuleKey[];
+  assignedBranchIds: string[];
   branches: {
     id: string;
     name: string;
@@ -53,6 +54,7 @@ type Props = {
   subscription: any;
   planModules: string[];
   superadmins: SuperadminSummary[];
+  allBranches: { id: string; name: string; code: string | null; tenantId: string }[];
 };
 
 function modulePill(module: ModuleKey, disabled = false) {
@@ -79,6 +81,7 @@ export default function UsersClient({
   subscription,
   planModules,
   superadmins,
+  allBranches,
 }: Props) {
   const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -87,6 +90,10 @@ export default function UsersClient({
   const [loading, setLoading] = useState(false);
   const [selectedRole, setSelectedRole] = useState('agent');
   const [selectedBranchId, setSelectedBranchId] = useState('');
+  // Multi-branch selection for superadmin (developer assigns)
+  const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>([]);
+  // UserModule selection for admin/agent
+  const [selectedUserModules, setSelectedUserModules] = useState<ModuleKey[]>([]);
   const [selectedModules, setSelectedModules] = useState<ModuleKey[]>(normalizeModuleList([defaultAppType]));
   const [viewingSuperadminId, setViewingSuperadminId] = useState<string | null>(
     viewerRole === 'superadmin' && superadmins.length > 0 ? superadmins[0].id : null
@@ -137,11 +144,18 @@ export default function UsersClient({
       const summary = superadmins.find(s => s.id === user.id);
       if (summary) {
         setSelectedModules(normalizeModuleList(summary.modules));
+        setSelectedBranchIds(summary.assignedBranchIds || []);
       } else {
         setSelectedModules(normalizeModuleList([user.appType || defaultAppType]));
+        setSelectedBranchIds([]);
       }
+      setSelectedUserModules([]);
     } else {
       resetModuleSelection(user.branchId || '', user.role, user);
+      setSelectedBranchIds([]);
+      // Populate UserModule selections from user.userModules if present
+      const existingUserModules = normalizeModuleList((user.userModules || []).map((m: any) => m.appType));
+      setSelectedUserModules(existingUserModules);
     }
     setIsModalOpen(true);
   };
@@ -150,7 +164,9 @@ export default function UsersClient({
     setEditingUser(null);
     setSelectedRole('agent');
     setSelectedBranchId('');
-    setSelectedModules(allowedPlanModules.length > 0 ? [allowedPlanModules[0]] : normalizeModuleList([defaultAppType]));
+    setSelectedBranchIds([]);
+    setSelectedUserModules(allowedPlanModules.length > 0 ? [allowedPlanModules[0] as ModuleKey] : normalizeModuleList([defaultAppType]));
+    setSelectedModules(allowedPlanModules.length > 0 ? [allowedPlanModules[0] as ModuleKey] : normalizeModuleList([defaultAppType]));
     setIsModalOpen(true);
   };
 
@@ -359,6 +375,20 @@ export default function UsersClient({
                         <td>
                           <div style={{ display: 'flex', gap: '8px' }}>
                             <button className="btn btn-ghost btn-sm" onClick={() => handleEdit(user)}>Edit</button>
+                            {user.role === 'agent' && (viewerRole === 'admin' || viewerRole === 'superadmin' || viewerRole === 'developer') && (
+                              <button
+                                className="btn btn-ghost btn-sm"
+                                style={{ color: user.canCreateLoan ? 'var(--success)' : 'var(--text-light)', fontSize: '0.75rem' }}
+                                title={user.canCreateLoan ? 'Revoke loan creation' : 'Grant loan creation'}
+                                onClick={async () => {
+                                  const res = await toggleCanCreateLoan(user.id, !user.canCreateLoan);
+                                  if (!res?.success) alert(res?.error || 'Failed');
+                                  else router.refresh();
+                                }}
+                              >
+                                {user.canCreateLoan ? 'Loan ✓' : 'Loan ✗'}
+                              </button>
+                            )}
                             <button 
                               className="btn btn-ghost btn-sm"
                               style={{ color: user.status === 'active' ? 'var(--danger)' : 'var(--success)' }}
@@ -435,15 +465,49 @@ export default function UsersClient({
               </select>
             </div>
           </div>
-          <div className="form-group">
-            <label className="form-label">Branch Assignment</label>
-            <select name="branchId" className="form-control" value={selectedBranchId} onChange={(e) => handleBranchChange(e.target.value)}>
-              <option value="">Global / Not assigned</option>
-              {branches
-                .filter(b => !editingUser || b.tenantId === editingUser.tenantId)
-                .map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-            </select>
-          </div>
+          {/* Branch assignment — multi-select for superadmin (developer only), single select otherwise */}
+          {selectedRole === 'superadmin' && viewerRole === 'developer' ? (
+            <div className="form-group">
+              <label className="form-label">Branch Assignments</label>
+              <p className="text-muted" style={{ fontSize: '0.8rem', marginBottom: '8px' }}>
+                Select which branches this superadmin manages.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '180px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px' }}>
+                {allBranches
+                  .filter(b => !editingUser || b.tenantId === editingUser.tenantId)
+                  .map((branch) => {
+                    const checked = selectedBranchIds.includes(branch.id);
+                    return (
+                      <label key={branch.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '4px 6px', borderRadius: '6px', background: checked ? 'var(--primary-light)' : 'transparent' }}>
+                        <input
+                          type="checkbox"
+                          name="branchIds"
+                          value={branch.id}
+                          checked={checked}
+                          onChange={() => setSelectedBranchIds(prev => checked ? prev.filter(id => id !== branch.id) : [...prev, branch.id])}
+                        />
+                        <span style={{ fontWeight: checked ? 600 : 400, color: checked ? 'var(--primary-dark)' : 'inherit' }}>
+                          {branch.name}{branch.code ? ` (${branch.code})` : ''}
+                        </span>
+                      </label>
+                    );
+                  })}
+                {allBranches.filter(b => !editingUser || b.tenantId === editingUser.tenantId).length === 0 && (
+                  <span className="text-muted" style={{ fontSize: '0.85rem' }}>No branches available for this tenant.</span>
+                )}
+              </div>
+            </div>
+          ) : selectedRole !== 'superadmin' ? (
+            <div className="form-group">
+              <label className="form-label">Branch Assignment</label>
+              <select name="branchId" className="form-control" value={selectedBranchId} onChange={(e) => handleBranchChange(e.target.value)}>
+                <option value="">Global / Not assigned</option>
+                {branches
+                  .filter(b => !editingUser || b.tenantId === editingUser.tenantId)
+                  .map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+              </select>
+            </div>
+          ) : null}
 
           {editingUser?.role === 'superadmin' && viewerRole === 'developer' && (
             <div style={{ background: 'var(--primary-light)', padding: '12px', borderRadius: '8px', marginBottom: '20px', border: '1px solid var(--primary)' }}>
@@ -478,6 +542,58 @@ export default function UsersClient({
               })}
             </div>
           </div>
+
+          {/* UserModule — superadmin assigns per-module access to admins/agents */}
+          {(selectedRole === 'admin' || selectedRole === 'agent') && (viewerRole === 'superadmin' || viewerRole === 'developer') && (
+            <div className="form-group">
+              <label className="form-label">Global Module Access (UserModule)</label>
+              <p className="text-muted" style={{ fontSize: '0.8rem', marginBottom: '8px' }}>
+                Restrict which modules this user can access across all branches.
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                {ALL_MODULES.map((module) => {
+                  const available = allowedPlanModules.includes(module);
+                  const checked = selectedUserModules.includes(module);
+                  return (
+                    <label key={module} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', border: `1px solid ${checked ? 'var(--accent, #E94560)' : 'var(--border)'}`, borderRadius: '8px', background: checked ? 'rgba(233,69,96,0.08)' : 'var(--surface)', opacity: available ? 1 : 0.45, cursor: available ? 'pointer' : 'not-allowed', color: checked ? 'var(--accent, #E94560)' : 'inherit', fontWeight: checked ? 600 : 400 }}>
+                      <input
+                        type="checkbox"
+                        name="userModules"
+                        value={module}
+                        checked={checked}
+                        disabled={!available}
+                        onChange={() => setSelectedUserModules(prev => prev.includes(module) ? prev.filter(m => m !== module) : [...prev, module])}
+                      />
+                      <span>{MODULE_LABELS[module]}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* canCreateLoan toggle — admin/superadmin/developer can grant agents loan creation */}
+          {selectedRole === 'agent' && (viewerRole === 'admin' || viewerRole === 'superadmin' || viewerRole === 'developer') && (
+            <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--surface)' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, marginBottom: '2px' }}>Loan Creation Permission</div>
+                <div className="text-muted" style={{ fontSize: '0.8rem' }}>
+                  When enabled, this agent can create loans from the customer profile page.
+                </div>
+              </div>
+              <label style={{ position: 'relative', display: 'inline-block', width: '44px', height: '24px', flexShrink: 0 }}>
+                <input
+                  type="checkbox"
+                  name="canCreateLoan"
+                  value="true"
+                  defaultChecked={editingUser?.canCreateLoan === true}
+                  style={{ opacity: 0, width: 0, height: 0 }}
+                />
+                <span style={{ position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0, background: editingUser?.canCreateLoan ? 'var(--success)' : 'var(--border)', borderRadius: '24px', transition: '0.3s' }} />
+              </label>
+            </div>
+          )}
+
           <div className="form-actions">
             <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Saving...' : 'Save User'}</button>
             <button type="button" className="btn btn-ghost" onClick={() => setIsModalOpen(false)}>Cancel</button>
