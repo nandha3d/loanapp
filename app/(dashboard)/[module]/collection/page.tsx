@@ -28,6 +28,16 @@ function enrichInstalment(instalment: any, today: Date) {
     outstandingAmount,
     overdueAmount: dueDate < today ? outstandingAmount : 0,
     daysOverdue,
+    loan: {
+      ...instalment.loan,
+      totalPayable: Number(instalment.loan.totalPayable),
+      totalCollected: Number(instalment.loan.totalCollected),
+      principal: Number(instalment.loan.principal),
+      totalInstalments: instalment.loan.totalInstalments,
+      paidCount: instalment.loan.paidCount,
+      perInstalment: Number(instalment.loan.perInstalment),
+      frequency: instalment.loan.frequency,
+    }
   };
 }
 

@@ -55,4 +55,35 @@ class AppTypography {
 
   // KPI value: 1.5rem, 700
   static TextStyle get kpiValue => _inter(size: _base * 1.5, weight: FontWeight.w700);
+
+  // ── Low-literacy / customer-facing scale ────────────────────────────
+  // Used on screens that field agents tap heavily. Larger, higher-contrast.
+
+  // Hero numeric (balance / amount): 2.6rem, 800
+  static TextStyle get heroNumber =>
+      _inter(size: _base * 2.6, weight: FontWeight.w800);
+
+  // Hero label: 1rem, 700
+  static TextStyle get heroLabel =>
+      _inter(size: _base * 1.0, weight: FontWeight.w700);
+
+  // Name (customer name on cards): 1.05rem, 700
+  static TextStyle get nameLg =>
+      _inter(size: _base * 1.05, weight: FontWeight.w700);
+
+  // Money on collection rows: 1.2rem, 800
+  static TextStyle get moneyLg =>
+      _inter(size: _base * 1.2, weight: FontWeight.w800);
+
+  // Action button label: 1.05rem, 700
+  static TextStyle get actionLabel =>
+      _inter(size: _base * 1.05, weight: FontWeight.w700);
+
+  // Big tappable label (number-pad keys, primary CTAs): 1.45rem, 800
+  static TextStyle get bigKey =>
+      _inter(size: _base * 1.45, weight: FontWeight.w800);
+
+  // Helper meta beside hero numbers: 0.95rem, 500
+  static TextStyle get heroMeta =>
+      _inter(size: _base * 0.95, weight: FontWeight.w500);
 }
