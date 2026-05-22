@@ -99,6 +99,19 @@ export function getRoleRedirectTarget(
   return null;
 }
 
+async function getSessionToken(request: NextRequest) {
+  const secret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
+
+  // Hostinger terminates HTTPS before forwarding to Node. Auth.js sets the
+  // secure cookie for the public URL, while middleware may see an internal
+  // HTTP request. Try both cookie name variants so protected routes can see
+  // the same session that /api/auth/session sees.
+  return (
+    (await getToken({ req: request, secret, secureCookie: true })) ??
+    (await getToken({ req: request, secret, secureCookie: false }))
+  );
+}
+
 function normalizeHost(host: string | null | undefined): string | null {
   if (!host) return null;
   return host.toLowerCase().split(':')[0] || null;
@@ -171,10 +184,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // 2. Token Retrieval
-  const token = await getToken({
-    req: request,
-    secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
-  });
+  const token = await getSessionToken(request);
 
   if (!token) {
     const loginUrl = new URL('/login', request.url);

@@ -3,6 +3,7 @@ import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { auth } from '@/lib/auth';
 import { getActiveBranchId } from '@/lib/branch';
 import { NextResponse } from 'next/server';
+import { buildSystemNotificationWhere } from '@/lib/notificationVisibility';
 
 export async function GET() {
   try {
@@ -12,29 +13,28 @@ export async function GET() {
     const tenantId = await getDefaultTenantId();
     const appType = await getUserAppType();
     const userRole = (session?.user as any)?.role;
+    const userId = session.user.id;
     const activeBranchId = await getActiveBranchId();
 
-    const where: any = { tenantId, appType, isRead: false };
-
-    // Scope by role
-    if (userRole === 'agent') {
-      where.targetRole = 'agent';
-    } else if (userRole === 'admin') {
-      where.targetRole = 'admin';
-    }
-
-    // Scope by active branch
-    if (activeBranchId) {
-      where.OR = [
-        { branchId: activeBranchId },
-        { branchId: null }
-      ];
-    }
-
-    const count = await prisma.systemNotification.count({
-      where,
+    const where = buildSystemNotificationWhere({
+      tenantId,
+      appType,
+      userId,
+      userRole,
+      activeBranchId,
+      unreadOnly: true,
     });
-    return NextResponse.json({ count });
+
+    const [count, items] = await Promise.all([
+      prisma.systemNotification.count({ where }),
+      prisma.systemNotification.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        select: { id: true, type: true, icon: true, title: true, message: true, link: true, createdAt: true, isRead: true },
+      }),
+    ]);
+    return NextResponse.json({ count, items });
   } catch {
     return NextResponse.json({ count: 0 });
   }
