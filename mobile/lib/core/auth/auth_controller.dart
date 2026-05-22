@@ -6,6 +6,7 @@ import 'package:local_auth/local_auth.dart';
 import 'package:loantrack/core/network/dio_client.dart';
 import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/data/repositories/auth_repository.dart';
+import 'package:loantrack/data/services/fcm_service.dart';
 
 enum AuthStage { unknown, unauthenticated, pendingTotp, locked, authenticated }
 
@@ -31,13 +32,14 @@ class AuthState {
 }
 
 class AuthController extends StateNotifier<AuthState> {
-  AuthController(this._repo, Stream<void> unauthorizedStream)
+  AuthController(this._repo, Stream<void> unauthorizedStream, this._fcm)
       : super(const AuthState(stage: AuthStage.unknown)) {
     _unauthorizedSub = unauthorizedStream.listen((_) => logout());
     _bootstrap();
   }
 
   final AuthRepository _repo;
+  final FcmService _fcm;
   final LocalAuthentication _localAuth = LocalAuthentication();
   late final StreamSubscription<void> _unauthorizedSub;
 
@@ -47,6 +49,7 @@ class AuthController extends StateNotifier<AuthState> {
       state = const AuthState(stage: AuthStage.unauthenticated);
     } else {
       state = AuthState(stage: AuthStage.authenticated, user: user);
+      unawaited(_fcm.requestPermissionAndRegister());
     }
   }
 
@@ -58,6 +61,7 @@ class AuthController extends StateNotifier<AuthState> {
         state = state.copyWith(stage: AuthStage.pendingTotp);
       } else {
         state = AuthState(stage: AuthStage.authenticated, user: user);
+        unawaited(_fcm.requestPermissionAndRegister());
       }
     } on Object catch (e) {
       state = state.copyWith(error: _readable(e));
@@ -69,6 +73,7 @@ class AuthController extends StateNotifier<AuthState> {
     try {
       final user = await _repo.verify2fa(code);
       state = AuthState(stage: AuthStage.authenticated, user: user);
+      unawaited(_fcm.requestPermissionAndRegister());
     } on Object catch (e) {
       state = state.copyWith(error: _readable(e));
     }
@@ -123,5 +128,6 @@ final authControllerProvider =
   return AuthController(
     ref.watch(authRepositoryProvider),
     ref.watch(unauthorizedStreamProvider),
+    ref.watch(fcmServiceProvider),
   );
 });

@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { authenticator } from 'otplib';
+import { TOTP } from 'otplib';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { issueMobileToken } from '@/lib/api/v1-auth';
@@ -27,7 +27,8 @@ export async function POST(req: NextRequest) {
     if (!user || !user.totpSecret || user.tenant.status !== 'active') {
       return fail('Invalid code', 401);
     }
-    const valid = authenticator.verify({ token: body.code, secret: user.totpSecret });
+    const totp = new TOTP({ secret: user.totpSecret });
+    const valid = totp.verify({ token: body.code });
     if (!valid) return fail('Invalid code', 401);
 
     const token = await issueMobileToken({

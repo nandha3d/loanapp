@@ -9,6 +9,7 @@ import 'package:loantrack/features/approvals/approvals_screen.dart';
 import 'package:loantrack/features/auth/biometric_lock_screen.dart';
 import 'package:loantrack/features/auth/login_screen.dart';
 import 'package:loantrack/features/auth/totp_screen.dart';
+import 'package:loantrack/features/chits/chit_detail_screen.dart';
 import 'package:loantrack/features/chits/chits_screen.dart';
 import 'package:loantrack/features/collection/collection_screen.dart';
 import 'package:loantrack/features/customers/customer_detail_screen.dart';
@@ -16,7 +17,12 @@ import 'package:loantrack/features/customers/customers_screen.dart';
 import 'package:loantrack/features/customers/new_customer_screen.dart';
 import 'package:loantrack/features/dashboard/dashboard_screen.dart';
 import 'package:loantrack/features/loans/loans_screen.dart';
+import 'package:loantrack/features/notifications/notifications_screen.dart';
+import 'package:loantrack/features/penalties/penalties_screen.dart';
+import 'package:loantrack/features/reports/report_preview_screen.dart';
+import 'package:loantrack/features/reports/reports_screen.dart';
 import 'package:loantrack/features/settings/settings_screen.dart';
+import 'package:loantrack/features/settings/settings_subscreens.dart';
 
 /// Module keys — server returns these in `User.enabledModules` (spec §5).
 class ModuleKey {
@@ -93,8 +99,58 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/collection', builder: (_, __) => const CollectionScreen()),
       GoRoute(path: '/approvals', builder: (_, __) => const ApprovalsScreen()),
       GoRoute(path: '/analytics', builder: (_, __) => const AnalyticsScreen()),
-      GoRoute(path: '/chits', builder: (_, __) => const ChitsScreen()),
-      GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
+      GoRoute(
+        path: '/chits',
+        builder: (_, __) => const ChitsScreen(),
+        routes: [
+          GoRoute(
+            path: ':id',
+            builder: (_, state) =>
+                ChitDetailScreen(id: state.pathParameters['id']!),
+          ),
+        ],
+      ),
+      GoRoute(path: '/penalties', builder: (_, __) => const PenaltiesScreen()),
+      GoRoute(
+        path: '/reports',
+        builder: (_, __) => const ReportsScreen(),
+        routes: [
+          GoRoute(
+            path: 'preview',
+            builder: (_, state) {
+              final extra = (state.extra as Map<String, dynamic>?) ?? const {};
+              return ReportPreviewScreen(
+                type: (extra['type'] as String?) ?? 'daily',
+                from: (extra['from'] as DateTime?) ??
+                    DateTime.now().subtract(const Duration(days: 7)),
+                to: (extra['to'] as DateTime?) ?? DateTime.now(),
+              );
+            },
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/notifications',
+        builder: (_, __) => const NotificationsScreen(),
+      ),
+      GoRoute(
+        path: '/settings',
+        builder: (_, __) => const SettingsScreen(),
+        routes: [
+          GoRoute(path: 'routes', builder: (_, __) => const RoutesScreen()),
+          GoRoute(path: 'packages', builder: (_, __) => const PackagesScreen()),
+          GoRoute(
+            path: 'penalty-rate',
+            builder: (_, __) => const PenaltyRateScreen(),
+          ),
+          GoRoute(path: 'upi-qr', builder: (_, __) => const UpiQrScreen()),
+          GoRoute(path: '2fa', builder: (_, __) => const TwoFactorScreen()),
+          GoRoute(
+            path: 'users',
+            builder: (_, __) => const UserManagementStub(),
+          ),
+        ],
+      ),
     ],
     errorBuilder: (_, __) =>
         const Scaffold(body: Center(child: Text('Route not found'))),

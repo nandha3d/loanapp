@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'package:loantrack/app.dart';
+import 'package:loantrack/data/services/fcm_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,5 +13,14 @@ Future<void> main() async {
     DeviceOrientation.portraitDown,
   ]);
   await Hive.initFlutter();
-  runApp(const ProviderScope(child: App()));
+
+  final container = ProviderContainer();
+  await container.read(fcmServiceProvider).initFirebase();
+
+  runApp(
+    UncontrolledProviderScope(
+      container: container,
+      child: const App(),
+    ),
+  );
 }

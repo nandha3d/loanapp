@@ -12,6 +12,7 @@ import 'package:loantrack/data/repositories/dashboard_repository.dart';
 import 'package:loantrack/features/dashboard/widgets/activity_item.dart';
 import 'package:loantrack/features/dashboard/widgets/kpi_card.dart';
 import 'package:loantrack/features/dashboard/widgets/today_schedule_card.dart';
+import 'package:loantrack/features/notifications/notifications_screen.dart';
 import 'package:loantrack/shared/widgets/bottom_nav.dart';
 import 'package:loantrack/shared/widgets/empty_state.dart';
 import 'package:loantrack/shared/widgets/skeleton.dart';
@@ -40,9 +41,45 @@ class DashboardScreen extends ConsumerWidget {
           ),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {},
+          ValueListenableBuilder<int>(
+            valueListenable: NotificationInbox.instance.changes,
+            builder: (_, __, ___) {
+              final unread = NotificationInbox.instance.unreadCount;
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.notifications_outlined),
+                    onPressed: () => context.push('/notifications'),
+                  ),
+                  if (unread > 0)
+                    Positioned(
+                      right: 6,
+                      top: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 1,
+                        ),
+                        decoration: const BoxDecoration(
+                          color: AppColors.danger,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          '$unread',
+                          style: AppTypography.extraTiny
+                              .copyWith(color: Colors.white),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
           const SizedBox(width: 8),
         ],
