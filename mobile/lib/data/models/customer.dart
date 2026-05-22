@@ -41,11 +41,7 @@ class Customer {
 
   String get initials {
     final parts = name.trim().split(RegExp(r'\s+'));
-    return parts
-        .map((p) => p.isEmpty ? '' : p[0])
-        .take(2)
-        .join()
-        .toUpperCase();
+    return parts.map((p) => p.isEmpty ? '' : p[0]).take(2).join().toUpperCase();
   }
 
   factory Customer.fromJson(Map<String, dynamic> json) {
@@ -73,8 +69,10 @@ class Customer {
           .map((dynamic e) => Guarantor.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),
       loans: (json['loans'] as List<dynamic>? ?? const [])
-          .map((dynamic e) =>
-              CustomerLoanSummary.fromJson(e as Map<String, dynamic>))
+          .map(
+            (dynamic e) =>
+                CustomerLoanSummary.fromJson(e as Map<String, dynamic>),
+          )
           .toList(growable: false),
     );
   }
