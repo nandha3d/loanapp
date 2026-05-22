@@ -292,6 +292,7 @@ export async function requestCustomerEdit(customerId: string, requestedChanges: 
   const appType = await getUserAppType();
   const session = await auth();
   const userId = session?.user?.id;
+  const agentBranchId = await getActiveBranchId();
 
   if (!userId) {
     return { success: false, error: 'Unauthorized' };
@@ -323,21 +324,20 @@ export async function requestCustomerEdit(customerId: string, requestedChanges: 
   });
 
   // Create system notification for customer edit request
-  if (customer.branchId) {
-    await prisma.systemNotification.create({
-      data: {
-        tenantId,
-        branchId: customer.branchId,
-        appType,
-        type: 'customer_edit_review',
-        icon: 'verified',
-        title: 'Customer edit pending review',
-        message: `Agent requested edits for customer ${customer.name}.`,
-        link: `/approvals`,
-        targetRole: 'admin',
-      },
-    }).catch(() => {});
-  }
+  const notifBranchId = agentBranchId || customer.branchId;
+  await prisma.systemNotification.create({
+    data: {
+      tenantId,
+      branchId: notifBranchId,
+      appType,
+      type: 'customer_edit_review',
+      icon: 'verified',
+      title: 'Customer edit pending review',
+      message: `Agent requested edits for customer ${customer.name}.`,
+      link: modulePath(appType, '/approvals'),
+      targetRole: 'admin',
+    },
+  }).catch(() => {});
 
   revalidatePath('/customers');
   return { success: true };

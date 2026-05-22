@@ -20,6 +20,9 @@
 # test folders
 /tests
 /Testing
+/.playwright/
+/outputs
+/output
 
 # production
 /build
@@ -75,3 +78,5 @@ mobile/android/local.properties
 mobile/android/app/release/
 mobile/**/GeneratedPluginRegistrant.*
 mobile/.vscode/
+*.log
+*.yml

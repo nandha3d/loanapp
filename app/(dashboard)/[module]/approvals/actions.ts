@@ -7,6 +7,9 @@ import { auth } from '@/lib/auth';
 import { decryptAadharNumber, encryptAadharNumber, isMaskedAadharNumber } from '@/lib/pii';
 import { submitCollectionEntry } from '@/app/(dashboard)/[module]/collection/actions';
 import { calculateLoanPreview } from '@/lib/loanCalculator';
+import { findApprovalNotificationTarget } from '@/lib/approvalNotifications';
+import { modulePath } from '@/types/modules';
+import { getActiveBranchId } from '@/lib/branch';
 
 // Fields an agent is allowed to request changes to on a customer record
 const CUSTOMER_EDIT_ALLOW_LIST = new Set([
@@ -285,12 +288,31 @@ export async function reviewRequest(formData: FormData) {
         },
       });
 
-      return { success: true };
+      return { success: true as const, requestedById: request.requestedById, requestType: request.requestType };
     });
 
     if ((result as any)?.isStale) {
       revalidatePath('/approvals');
       return { success: false, error: 'This customer edit request is stale after another queued edit was approved.' };
+    }
+
+    // Notify the agent that their request was reviewed
+    if ((result as any)?.requestedById) {
+      const label = action === 'approve' ? 'approved' : 'rejected';
+      const requestLabel = ((result as any).requestType as string).replace(/_/g, ' ');
+      await prisma.systemNotification.create({
+        data: {
+          tenantId,
+          appType,
+          targetUserId: (result as any).requestedById,
+          targetRole: 'agent',
+          type: `request_${label}`,
+          icon: action === 'approve' ? 'check_circle' : 'cancel',
+          title: `Request ${label}`,
+          message: `Your ${requestLabel} request has been ${label}.${reviewNotes ? ` Note: ${reviewNotes}` : ''}`,
+          link: modulePath(appType, '/approvals'),
+        },
+      }).catch(() => {});
     }
 
     revalidatePath('/approvals');
@@ -303,6 +325,7 @@ export async function reviewRequest(formData: FormData) {
 export async function approveCustomerCreation(customerId: string) {
   const session = await auth();
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
   const userId = session?.user?.id;
   const userRole = (session?.user as any)?.role;
   if (userRole === 'agent') return { success: false, error: 'Unauthorized' };
@@ -310,7 +333,7 @@ export async function approveCustomerCreation(customerId: string) {
   // Verify customer belongs to this tenant
   const customer = await prisma.customer.findFirst({
     where: { id: customerId, tenantId },
-    select: { id: true },
+    select: { id: true, name: true, agentId: true, branchId: true },
   });
   if (!customer) return { success: false, error: 'Customer not found' };
 
@@ -330,6 +353,24 @@ export async function approveCustomerCreation(customerId: string) {
     },
   });
 
+  // Notify the agent that their customer creation was approved
+  if (customer.agentId) {
+    await prisma.systemNotification.create({
+      data: {
+        tenantId,
+        branchId: customer.branchId,
+        appType,
+        targetUserId: customer.agentId,
+        targetRole: 'agent',
+        type: 'customer_approved',
+        icon: 'check_circle',
+        title: 'Customer approved',
+        message: `Your customer ${customer.name} has been approved and is now active.`,
+        link: modulePath(appType, '/customers'),
+      },
+    }).catch(() => {});
+  }
+
   revalidatePath('/customers');
   revalidatePath('/dashboard');
   return { success: true };
@@ -348,6 +389,7 @@ export async function submitEditRequest(formData: FormData) {
   const appType = await getUserAppType();
   const userId = session?.user?.id;
   const userRole = (session?.user as any)?.role;
+  const agentBranchId = await getActiveBranchId();
 
   if (!userId) return { success: false, error: 'Not authenticated' };
 
@@ -361,7 +403,7 @@ export async function submitEditRequest(formData: FormData) {
   // Verify customer belongs to this tenant
   const customer = await prisma.customer.findFirst({
     where: { id: customerId, tenantId, appType },
-    select: { id: true, name: true, phone: true, address: true, aadharNumber: true, kycStatus: true },
+    select: { id: true, name: true, phone: true, address: true, aadharNumber: true, kycStatus: true, branchId: true },
   });
   if (!customer) return { success: false, error: 'Customer not found' };
 
@@ -409,6 +451,29 @@ export async function submitEditRequest(formData: FormData) {
     },
   });
 
+  // Notify admin that there's a new customer edit request
+  const notifBranchId = agentBranchId || customer.branchId;
+  const targetUserId = await findApprovalNotificationTarget({
+    tenantId,
+    appType,
+    agentId: userId,
+    branchId: notifBranchId,
+  });
+  await prisma.systemNotification.create({
+    data: {
+      tenantId,
+      branchId: notifBranchId,
+      targetUserId,
+      appType,
+      type: 'customer_edit_review',
+      icon: 'rate_review',
+      title: 'Customer edit pending review',
+      message: `Agent requested edits for customer ${customer.name}.`,
+      link: modulePath(appType, '/approvals'),
+      targetRole: 'admin',
+    },
+  }).catch(() => {});
+
   revalidatePath(`/customers/${customerId}`);
   revalidatePath('/approvals');
   return { success: true };
@@ -438,7 +503,7 @@ export async function reviewPendingLoan(formData: FormData) {
 
   const loan = await prisma.loan.findFirst({
     where: { id: loanId, tenantId, status: 'pending_review' },
-    select: { id: true, loanCode: true },
+    select: { id: true, loanCode: true, branchId: true, createdById: true },
   });
 
   if (!loan) {
@@ -465,12 +530,33 @@ export async function reviewPendingLoan(formData: FormData) {
 
   revalidatePath('/approvals');
   revalidatePath('/loans');
+
+  // Notify the agent that their loan was reviewed
+  if (loan.createdById) {
+    const label = action === 'approve' ? 'approved' : 'rejected';
+    await prisma.systemNotification.create({
+      data: {
+        tenantId,
+        branchId: loan.branchId,
+        appType,
+        targetUserId: loan.createdById,
+        targetRole: 'agent',
+        type: `loan_${label}`,
+        icon: action === 'approve' ? 'check_circle' : 'cancel',
+        title: `Loan ${label}`,
+        message: `Loan ${loan.loanCode} has been ${label}.${reviewNotes ? ` Note: ${reviewNotes}` : ''}`,
+        link: modulePath(appType, '/loans'),
+      },
+    }).catch(() => {});
+  }
+
   return { success: true };
 }
 
 export async function rejectCustomerCreation(customerId: string, reviewNotes?: string) {
   const session = await auth();
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
   const userId = session?.user?.id;
   const userRole = (session?.user as any)?.role;
   if (userRole === 'agent') return { success: false, error: 'Unauthorized' };
@@ -478,7 +564,7 @@ export async function rejectCustomerCreation(customerId: string, reviewNotes?: s
   // Verify customer belongs to this tenant
   const customer = await prisma.customer.findFirst({
     where: { id: customerId, tenantId, status: 'pending_review' },
-    select: { id: true },
+    select: { id: true, name: true, agentId: true, branchId: true },
   });
   if (!customer) return { success: false, error: 'Customer not found or not in pending review' };
 
@@ -497,6 +583,24 @@ export async function rejectCustomerCreation(customerId: string, reviewNotes?: s
       newValue: JSON.stringify({ action: 'reject_creation', status: 'inactive', reviewNotes }),
     },
   });
+
+  // Notify the agent that their customer creation was rejected
+  if (customer.agentId) {
+    await prisma.systemNotification.create({
+      data: {
+        tenantId,
+        branchId: customer.branchId,
+        appType,
+        targetUserId: customer.agentId,
+        targetRole: 'agent',
+        type: 'customer_rejected',
+        icon: 'cancel',
+        title: 'Customer rejected',
+        message: `Your customer ${customer.name} was not approved.${reviewNotes ? ` Note: ${reviewNotes}` : ''}`,
+        link: modulePath(appType, '/customers'),
+      },
+    }).catch(() => {});
+  }
 
   revalidatePath('/customers');
   revalidatePath('/dashboard');
