@@ -28,6 +28,7 @@ model Tenant {
   collections           DailyCollection[]
   loanPackages          LoanPackage[]
   loans                 Loan[]
+  moduleRequests        ModuleRequest[]
   notificationTemplates NotificationTemplate[]
   routes                Route[]
   notifications         SystemNotification[]
@@ -53,9 +54,10 @@ model Branch {
   updatedAt      DateTime           @updatedAt @map("updated_at")
   superadminId   String?            @map("superadmin_id")
   enabledModules String             @default(dbgenerated("(json_array())")) @map("enabled_modules") @db.LongText
-  branchRequests BranchRequest[]
-  superadmin     User?              @relation("SuperadminBranches", fields: [superadminId], references: [id])
-  tenant         Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchRequests        BranchRequest[]
+  superadmin            User?              @relation("SuperadminBranches", fields: [superadminId], references: [id])
+  tenant                Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  superadminBranchLinks SuperadminBranch[]
   chitGroups     ChitGroup[]
   customers      Customer[]
   collections    DailyCollection[]
@@ -97,17 +99,24 @@ model User {
   appType                  String             @default("microlending") @map("app_type")
   status                   String             @default("active")
   avatar                   String?
+  canCreateLoan            Boolean            @default(false) @map("can_create_loan")
   lastLoginAt              DateTime?          @map("last_login_at")
   createdAt                DateTime           @default(now()) @map("created_at")
   updatedAt                DateTime           @updatedAt @map("updated_at")
   deletedAt                DateTime?          @map("deleted_at")
   totpSecret               String?            @map("totp_secret")
-  approvalRequestsMade     ApprovalRequest[]  @relation("Requester")
-  approvalRequestsReviewed ApprovalRequest[]  @relation("Reviewer")
-  auditLogs                AuditLog[]
-  branchRequestsMade       BranchRequest[]    @relation("BranchRequestsMade")
-  branchRequestsReviewed   BranchRequest[]    @relation("BranchRequestsReviewed")
-  superadminBranches       Branch[]           @relation("SuperadminBranches")
+  approvalRequestsMade       ApprovalRequest[]  @relation("Requester")
+  approvalRequestsReviewed   ApprovalRequest[]  @relation("Reviewer")
+  auditLogs                  AuditLog[]
+  branchRequestsMade         BranchRequest[]    @relation("BranchRequestsMade")
+  branchRequestsReviewed     BranchRequest[]    @relation("BranchRequestsReviewed")
+  superadminBranches         Branch[]           @relation("SuperadminBranches")
+  superadminBranchLinks      SuperadminBranch[] @relation("SuperadminBranchLinks")
+  superadminBranchAssigned   SuperadminBranch[] @relation("SuperadminBranchAssigner")
+  userModules                UserModule[]       @relation("UserModuleUser")
+  userModuleAssigned         UserModule[]       @relation("UserModuleAssigner")
+  moduleRequestsMade         ModuleRequest[]    @relation("ModuleRequestsMade")
+  moduleRequestsReviewed     ModuleRequest[]    @relation("ModuleRequestsReviewed")
   collectionEntries        CollectionEntry[]
   assignedCustomers        Customer[]         @relation("AgentCustomers")
   dailyCollections         DailyCollection[]
@@ -879,4 +888,61 @@ model CashHandover {
   @@index([tenantId, agentId, status])
   @@index([adminId])
   @@map("cash_handovers")
+}
+
+/// Developer-assigned mapping of which branches a superadmin manages.
+model SuperadminBranch {
+  id           String   @id @default(cuid())
+  superadminId String   @map("superadmin_id")
+  branchId     String   @map("branch_id")
+  assignedById String?  @map("assigned_by_id")
+  assignedAt   DateTime @default(now()) @map("assigned_at")
+
+  superadmin User    @relation("SuperadminBranchLinks", fields: [superadminId], references: [id], onDelete: Cascade)
+  branch     Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  assignedBy User?   @relation("SuperadminBranchAssigner", fields: [assignedById], references: [id])
+
+  @@unique([superadminId, branchId])
+  @@index([branchId])
+  @@map("superadmin_branches")
+}
+
+/// Superadmin-assigned global module access for an admin or agent.
+/// Determines which app-modules (microlending, autofinance, chitfunds) the user can see.
+model UserModule {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  appType      String   @map("app_type")
+  assignedById String?  @map("assigned_by_id")
+  assignedAt   DateTime @default(now()) @map("assigned_at")
+
+  user       User  @relation("UserModuleUser", fields: [userId], references: [id], onDelete: Cascade)
+  assignedBy User? @relation("UserModuleAssigner", fields: [assignedById], references: [id])
+
+  @@unique([userId, appType])
+  @@index([userId])
+  @@map("user_modules")
+}
+
+/// Superadmin request to enable an additional module that is not yet in their subscription.
+model ModuleRequest {
+  id            String    @id @default(cuid())
+  tenantId      String    @map("tenant_id")
+  requestedById String    @map("requested_by_id")
+  appType       String    @map("app_type")
+  reason        String?   @db.Text
+  status        String    @default("pending")
+  reviewedById  String?   @map("reviewed_by_id")
+  reviewNote    String?   @map("review_note") @db.Text
+  reviewedAt    DateTime? @map("reviewed_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  requestedBy User    @relation("ModuleRequestsMade", fields: [requestedById], references: [id])
+  reviewedBy  User?   @relation("ModuleRequestsReviewed", fields: [reviewedById], references: [id])
+  tenant      Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([requestedById])
+  @@map("module_requests")
 }

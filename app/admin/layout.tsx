@@ -22,10 +22,12 @@ export default async function AdminLayout({
 
   // Fix 21: Fetch pending notification count for developer
   let pendingBranchRequestCount = 0;
+  let pendingModuleRequestCount = 0;
   if (userRole === 'developer') {
-    pendingBranchRequestCount = await prisma.branchRequest.count({
-      where: { status: 'pending' },
-    });
+    [pendingBranchRequestCount, pendingModuleRequestCount] = await Promise.all([
+      prisma.branchRequest.count({ where: { status: 'pending' } }),
+      prisma.moduleRequest.count({ where: { status: 'pending' } }),
+    ]);
   }
 
   return (
@@ -89,6 +91,27 @@ export default async function AdminLayout({
                     textAlign: 'center',
                   }}>
                     {pendingBranchRequestCount}
+                  </span>
+                )}
+              </Link>
+            )}
+            {userRole === 'developer' && (
+              <Link href="/admin/module-requests">
+                <span className="material-icons-outlined">extension</span>
+                Module Requests
+                {pendingModuleRequestCount > 0 && (
+                  <span style={{
+                    marginLeft: 'auto',
+                    background: 'var(--accent)',
+                    color: '#fff',
+                    borderRadius: '10px',
+                    padding: '2px 8px',
+                    fontSize: '0.7rem',
+                    fontWeight: 600,
+                    minWidth: '20px',
+                    textAlign: 'center',
+                  }}>
+                    {pendingModuleRequestCount}
                   </span>
                 )}
               </Link>

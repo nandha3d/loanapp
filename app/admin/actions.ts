@@ -46,10 +46,14 @@ export async function manageMasterUser(formData: FormData) {
   const phone = formData.get('phone') as string;
   const password = formData.get('password') as string;
   const requestedAppType = formData.get('appType') as string;
-  const branchId = formData.get('branchId') as string || null;
+  // For superadmins: branchId is ignored; branchIds[] is the multi-select
+  const rawBranchId = role === 'superadmin' ? null : (formData.get('branchId') as string || null);
+  const branchId = rawBranchId;
+  const superadminBranchIds = role === 'superadmin' ? formData.getAll('branchIds').map(String) : [];
   const status = formData.get('status') as string || 'active';
   const adminModules = normalizeModuleList(formData.getAll('adminModules'));
-  const appType = requestedAppType || adminModules[0] || 'microlending';
+  const userModuleList = normalizeModuleList(formData.getAll('userModules'));
+  const appType = requestedAppType || adminModules[0] || userModuleList[0] || 'microlending';
 
   if (!name || !username || !phone || !role || !appType) {
     return { success: false, error: 'Missing required fields' };
@@ -63,6 +67,10 @@ export async function manageMasterUser(formData: FormData) {
       if (!branch) {
         return { success: false, error: 'Unauthorized: You do not own the target branch.' };
       }
+    }
+    // Superadmins cannot assign branches to other superadmins
+    if (superadminBranchIds.length > 0) {
+      return { success: false, error: 'Unauthorized: Only developers can assign branches to superadmins.' };
     }
     if (id) {
       const targetUser = await prisma.user.findFirst({
@@ -196,6 +204,49 @@ export async function manageMasterUser(formData: FormData) {
           maxAgents: 5
         }
       });
+
+      // Developer can assign multiple branches to the superadmin via SuperadminBranch join table
+      if (userRole === 'developer' && superadminBranchIds.length > 0) {
+        // Validate all branches exist in the correct tenant
+        const validBranches = await prisma.branch.findMany({
+          where: { id: { in: superadminBranchIds }, tenantId },
+          select: { id: true },
+        });
+        const validIds = validBranches.map((b) => b.id);
+
+        // Replace all existing SuperadminBranch links for this superadmin
+        await prisma.superadminBranch.deleteMany({ where: { superadminId: savedUserId } });
+        if (validIds.length > 0) {
+          await prisma.superadminBranch.createMany({
+            data: validIds.map((bid) => ({
+              superadminId: savedUserId!,
+              branchId: bid,
+              assignedById: actorId,
+            })),
+          });
+          // Keep Branch.superadminId in sync (set to this superadmin)
+          await prisma.branch.updateMany({
+            where: { id: { in: validIds } },
+            data: { superadminId: savedUserId },
+          });
+        }
+      }
+    }
+
+    // Persist UserModule for admin/agent global module access
+    if ((role === 'admin' || role === 'agent') && savedUserId) {
+      const modulesToAssign = userModuleList.length > 0 ? userModuleList : adminModules;
+      if (modulesToAssign.length > 0) {
+        // Delete existing and re-insert for simplicity
+        await prisma.userModule.deleteMany({ where: { userId: savedUserId } });
+        await prisma.userModule.createMany({
+          data: modulesToAssign.map((mod) => ({
+            userId: savedUserId!,
+            appType: mod,
+            assignedById: actorId,
+          })),
+        });
+      }
     }
 
     // Handle UserBranchModule updates for admins/agents assigned to a branch
@@ -446,6 +497,75 @@ export async function toggleUserStatus(userId: string, newStatus: string) {
   }).catch(() => {});
 
   revalidatePath('/admin/users');
+  return { success: true };
+}
+
+/**
+ * Admin/superadmin/developer toggles an agent's loan-creation permission.
+ * Writes an AuditLog entry on every change.
+ */
+export async function toggleCanCreateLoan(userId: string, canCreate: boolean) {
+  const session = await auth();
+  const role = (session?.user as any)?.role;
+  const actorId = (session?.user as any)?.id;
+
+  if (role !== 'admin' && role !== 'superadmin' && role !== 'developer') {
+    return { success: false, error: 'Unauthorized' };
+  }
+
+  const tenantId = await getDefaultTenantId();
+
+  const target = await prisma.user.findFirst({
+    where: { id: userId, tenantId, role: 'agent' },
+    select: { id: true, canCreateLoan: true },
+  });
+  if (!target) return { success: false, error: 'Agent not found' };
+
+  // Admin can only toggle agents in branches they manage
+  if (role === 'admin') {
+    const actor = await prisma.user.findUnique({
+      where: { id: actorId },
+      select: { branchId: true },
+    });
+    const agentFull = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { branchId: true },
+    });
+    if (!actor?.branchId || actor.branchId !== agentFull?.branchId) {
+      return { success: false, error: 'Unauthorized: Agent is not in your branch.' };
+    }
+  }
+
+  // Superadmin can only toggle agents in branches they own
+  if (role === 'superadmin') {
+    const agentFull = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { branchId: true },
+    });
+    if (agentFull?.branchId) {
+      const branch = await prisma.branch.findFirst({
+        where: { id: agentFull.branchId, superadminId: actorId },
+      });
+      if (!branch) return { success: false, error: 'Unauthorized: Agent branch not owned by you.' };
+    }
+  }
+
+  await prisma.user.update({ where: { id: userId }, data: { canCreateLoan: canCreate } });
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId,
+      userId: actorId,
+      action: 'update',
+      entityType: 'user',
+      entityId: userId,
+      oldValue: JSON.stringify({ canCreateLoan: target.canCreateLoan }),
+      newValue: JSON.stringify({ canCreateLoan: canCreate }),
+    },
+  }).catch(() => {});
+
+  revalidatePath('/admin/users');
+  revalidatePath('/admin/team');
   return { success: true };
 }
 
