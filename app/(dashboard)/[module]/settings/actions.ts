@@ -505,7 +505,114 @@ export async function wipeDatabaseRecords(tablesToWipe: string[]) {
         await tx.accountEntry.deleteMany({ where: { tenantId } });
       }
 
+      // Helper function to delete a specific set of users
+      const deleteUsersByRole = async (rolesToDelete: string[]) => {
+        const usersToDelete = await tx.user.findMany({
+          where: { tenantId, role: { in: rolesToDelete } },
+          select: { id: true },
+        });
+        const userIds = usersToDelete.map(u => u.id);
+
+        if (userIds.length > 0) {
+          // Delete daily collections and their entries for these users
+          await tx.collectionEntry.deleteMany({
+            where: { agentId: { in: userIds } },
+          });
+          await tx.dailyCollection.deleteMany({
+            where: { agentId: { in: userIds } },
+          });
+
+          // Nullify customer agent assignments
+          await tx.customer.updateMany({
+            where: { tenantId, agentId: { in: userIds } },
+            data: { agentId: null },
+          });
+
+          // Nullify loan creator references
+          await tx.loan.updateMany({
+            where: { tenantId, createdById: { in: userIds } },
+            data: { createdById: null },
+          });
+
+          // Nullify penalty settler references
+          await tx.penalty.updateMany({
+            where: { settledById: { in: userIds } },
+            data: { settledById: null },
+          });
+
+          // Delete approval requests made/reviewed by these users
+          await tx.approvalRequest.deleteMany({
+            where: { tenantId, requestedById: { in: userIds } },
+          });
+          await tx.approvalRequest.deleteMany({
+            where: { tenantId, reviewedById: { in: userIds } },
+          });
+
+          // Delete branch requests made/reviewed by these users
+          await tx.branchRequest.deleteMany({
+            where: { tenantId, requestedById: { in: userIds } },
+          });
+          await tx.branchRequest.deleteMany({
+            where: { tenantId, reviewedById: { in: userIds } },
+          });
+
+          // Nullify route assigned agent references
+          await tx.route.updateMany({
+            where: { tenantId, assignedAgentId: { in: userIds } },
+            data: { assignedAgentId: null },
+          });
+
+          // Delete route-agent associations
+          await tx.routeAgent.deleteMany({
+            where: { agentId: { in: userIds } },
+          });
+
+          // Delete user-branch-module associations
+          await tx.userBranchModule.deleteMany({
+            where: { userId: { in: userIds } },
+          });
+
+          // Delete cash handover records
+          await tx.cashHandover.deleteMany({
+            where: {
+              OR: [
+                { agentId: { in: userIds } },
+                { adminId: { in: userIds } },
+              ]
+            },
+          });
+
+          // Nullify vehicle repo flag references
+          await tx.vehicle.updateMany({
+            where: { tenantId, repoFlaggedById: { in: userIds } },
+            data: { repoFlaggedById: null },
+          });
+
+          // Delete account entries created by these users
+          await tx.accountEntry.deleteMany({
+            where: { tenantId, createdBy: { in: userIds } },
+          });
+
+          // Delete the user records
+          await tx.user.deleteMany({
+            where: { id: { in: userIds } },
+          });
+        }
+      };
+
+      if (tablesToWipe.includes('agents')) {
+        await deleteUsersByRole(['agent']);
+      }
+
+      if (tablesToWipe.includes('admins')) {
+        await deleteUsersByRole(['admin']);
+      }
+
       if (tablesToWipe.includes('agents_routes')) {
+        // Delete both agents and admins when wiping routes
+        await deleteUsersByRole(['agent', 'admin']);
+
+        // Delete all routes and route-agent associations
         await tx.routeAgent.deleteMany({ where: { route: { tenantId } } });
         await tx.route.deleteMany({ where: { tenantId } });
       }
