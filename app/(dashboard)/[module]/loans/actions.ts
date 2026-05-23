@@ -57,17 +57,6 @@ export async function createLoan(formData: FormData) {
     return { error: 'Unauthorized to create loans.' };
   }
 
-  // Agents need explicit canCreateLoan permission (toggled per-agent by admin)
-  if (role === 'agent') {
-    const agentUser = await prisma.user.findUnique({
-      where: { id: createdById },
-      select: { canCreateLoan: true },
-    });
-    if (!agentUser?.canCreateLoan) {
-      return { error: 'You do not have permission to create loans. Please contact your admin.' };
-    }
-  }
-
   if (role !== 'developer' && !activeBranchId) {
     return { error: 'No active branch selected.' };
   }

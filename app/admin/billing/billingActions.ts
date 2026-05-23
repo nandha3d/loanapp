@@ -46,6 +46,17 @@ export async function updateSubscription(formData: FormData) {
       razorpaySubId,
     });
 
+    await prisma.branch.updateMany({
+      where: {
+        tenantId,
+        OR: [
+          { enabledModules: '[]' },
+          { enabledModules: '' },
+        ],
+      },
+      data: { enabledModules: JSON.stringify(enabledModules) },
+    });
+
     revalidatePath('/admin/billing');
     revalidatePath(`/admin/billing/${tenantId}`);
     revalidatePath('/admin/users');

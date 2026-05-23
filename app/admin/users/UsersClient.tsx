@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Modal from '@/components/Modal';
-import { manageMasterUser, toggleUserStatus, toggleCanCreateLoan } from '../actions';
+import { manageMasterUser, toggleUserStatus } from '../actions';
 import { updateSubscription } from '../billing/billingActions';
 import { ALL_MODULES, MODULE_LABELS, normalizeModuleList, type ModuleKey } from '@/types/modules';
 import { PLAN_LABELS, PLAN_FEATURES } from '@/lib/plans';
@@ -92,8 +92,6 @@ export default function UsersClient({
   const [selectedBranchId, setSelectedBranchId] = useState('');
   // Multi-branch selection for superadmin (developer assigns)
   const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>([]);
-  // UserModule selection for admin/agent
-  const [selectedUserModules, setSelectedUserModules] = useState<ModuleKey[]>([]);
   const [selectedModules, setSelectedModules] = useState<ModuleKey[]>(normalizeModuleList([defaultAppType]));
   const [viewingSuperadminId, setViewingSuperadminId] = useState<string | null>(
     viewerRole === 'superadmin' && superadmins.length > 0 ? superadmins[0].id : null
@@ -121,18 +119,23 @@ export default function UsersClient({
       : allowedPlanModules;
     const assigned = user?.userBranchModules?.find((row: any) => row.branchId === branchId);
     const assignedModules = normalizeModuleList(assigned?.enabledModules);
+    const globalModules = normalizeModuleList((user?.userModules || []).map((module: any) => module.appType));
     const fallback = normalizeModuleList([user?.appType || defaultAppType]);
+    const preferredModules = assignedModules.length > 0
+      ? assignedModules
+      : globalModules.length > 0
+        ? globalModules
+        : fallback;
+    const constrainedModules = viewerRole === 'developer'
+      ? preferredModules
+      : preferredModules.filter((module) => allowed.includes(module));
 
-    if (role === 'admin' && assignedModules.length > 0) {
-      setSelectedModules(assignedModules.filter((module) => allowed.includes(module)));
+    if ((role === 'admin' || role === 'agent') && constrainedModules.length > 0) {
+      setSelectedModules(constrainedModules);
       return;
     }
     
-    if (viewerRole === 'developer') {
-        setSelectedModules(allowed.length > 0 ? allowed : fallback);
-    } else {
-        setSelectedModules(allowed.length > 0 ? allowed : fallback);
-    }
+    setSelectedModules(allowed.length > 0 ? allowed : fallback);
   }
 
   const handleEdit = (user: any) => {
@@ -149,13 +152,9 @@ export default function UsersClient({
         setSelectedModules(normalizeModuleList([user.appType || defaultAppType]));
         setSelectedBranchIds([]);
       }
-      setSelectedUserModules([]);
     } else {
       resetModuleSelection(user.branchId || '', user.role, user);
       setSelectedBranchIds([]);
-      // Populate UserModule selections from user.userModules if present
-      const existingUserModules = normalizeModuleList((user.userModules || []).map((m: any) => m.appType));
-      setSelectedUserModules(existingUserModules);
     }
     setIsModalOpen(true);
   };
@@ -165,7 +164,6 @@ export default function UsersClient({
     setSelectedRole('agent');
     setSelectedBranchId('');
     setSelectedBranchIds([]);
-    setSelectedUserModules(allowedPlanModules.length > 0 ? [allowedPlanModules[0] as ModuleKey] : normalizeModuleList([defaultAppType]));
     setSelectedModules(allowedPlanModules.length > 0 ? [allowedPlanModules[0] as ModuleKey] : normalizeModuleList([defaultAppType]));
     setIsModalOpen(true);
   };
@@ -375,20 +373,6 @@ export default function UsersClient({
                         <td>
                           <div style={{ display: 'flex', gap: '8px' }}>
                             <button className="btn btn-ghost btn-sm" onClick={() => handleEdit(user)}>Edit</button>
-                            {user.role === 'agent' && (viewerRole === 'admin' || viewerRole === 'superadmin' || viewerRole === 'developer') && (
-                              <button
-                                className="btn btn-ghost btn-sm"
-                                style={{ color: user.canCreateLoan ? 'var(--success)' : 'var(--text-light)', fontSize: '0.75rem' }}
-                                title={user.canCreateLoan ? 'Revoke loan creation' : 'Grant loan creation'}
-                                onClick={async () => {
-                                  const res = await toggleCanCreateLoan(user.id, !user.canCreateLoan);
-                                  if (!res?.success) alert(res?.error || 'Failed');
-                                  else router.refresh();
-                                }}
-                              >
-                                {user.canCreateLoan ? 'Loan ✓' : 'Loan ✗'}
-                              </button>
-                            )}
                             <button 
                               className="btn btn-ghost btn-sm"
                               style={{ color: user.status === 'active' ? 'var(--danger)' : 'var(--success)' }}
@@ -501,7 +485,7 @@ export default function UsersClient({
             <div className="form-group">
               <label className="form-label">Branch Assignment</label>
               <select name="branchId" className="form-control" value={selectedBranchId} onChange={(e) => handleBranchChange(e.target.value)}>
-                <option value="">Global / Not assigned</option>
+                <option value="">No branch assigned</option>
                 {branches
                   .filter(b => !editingUser || b.tenantId === editingUser.tenantId)
                   .map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
@@ -526,71 +510,29 @@ export default function UsersClient({
               </div>
             </div>
           )}
-          <div className="form-group">
-            <label className="form-label">Module Access</label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-              {ALL_MODULES.map((module) => {
-                const isDeveloper = viewerRole === 'developer';
-                const enabled = isDeveloper || (allowedPlanModules.includes(module) && selectedBranchModules.length === 0 || selectedBranchModules.includes(module));
-                const checked = selectedModules.includes(module);
-                return (
-                  <label key={module} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', border: `1px solid ${checked ? 'var(--primary)' : 'var(--border)'}`, borderRadius: '8px', background: checked ? 'var(--primary-light)' : 'var(--surface)', opacity: enabled ? 1 : 0.45, cursor: enabled ? 'pointer' : 'not-allowed', color: checked ? 'var(--primary-dark)' : 'inherit', fontWeight: checked ? 600 : 400 }}>
-                    <input type="checkbox" name="adminModules" value={module} checked={checked} disabled={!enabled} onChange={() => toggleModule(module)} />
-                    <span>{MODULE_LABELS[module]}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* UserModule — superadmin assigns per-module access to admins/agents */}
-          {(selectedRole === 'admin' || selectedRole === 'agent') && (viewerRole === 'superadmin' || viewerRole === 'developer') && (
+          {/* Module Access - one picker for admin/agent access, persisted to both legacy tables */}
+          {selectedRole !== 'superadmin' && (
             <div className="form-group">
-              <label className="form-label">Global Module Access (UserModule)</label>
+              <label className="form-label">Module Access</label>
               <p className="text-muted" style={{ fontSize: '0.8rem', marginBottom: '8px' }}>
-                Restrict which modules this user can access across all branches.
+                Modules this user can access. Branch assignments limit the available choices.
               </p>
+              {selectedModules.map((module) => (
+                <input key={`user-module-${module}`} type="hidden" name="userModules" value={module} />
+              ))}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
                 {ALL_MODULES.map((module) => {
-                  const available = allowedPlanModules.includes(module);
-                  const checked = selectedUserModules.includes(module);
+                  const isDeveloper = viewerRole === 'developer';
+                  const enabled = isDeveloper || availableModules.includes(module);
+                  const checked = selectedModules.includes(module);
                   return (
-                    <label key={module} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', border: `1px solid ${checked ? 'var(--accent, #E94560)' : 'var(--border)'}`, borderRadius: '8px', background: checked ? 'rgba(233,69,96,0.08)' : 'var(--surface)', opacity: available ? 1 : 0.45, cursor: available ? 'pointer' : 'not-allowed', color: checked ? 'var(--accent, #E94560)' : 'inherit', fontWeight: checked ? 600 : 400 }}>
-                      <input
-                        type="checkbox"
-                        name="userModules"
-                        value={module}
-                        checked={checked}
-                        disabled={!available}
-                        onChange={() => setSelectedUserModules(prev => prev.includes(module) ? prev.filter(m => m !== module) : [...prev, module])}
-                      />
+                    <label key={module} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', border: `1px solid ${checked ? 'var(--primary)' : 'var(--border)'}`, borderRadius: '8px', background: checked ? 'var(--primary-light)' : 'var(--surface)', opacity: enabled ? 1 : 0.45, cursor: enabled ? 'pointer' : 'not-allowed', color: checked ? 'var(--primary-dark)' : 'inherit', fontWeight: checked ? 600 : 400 }}>
+                      <input type="checkbox" name="adminModules" value={module} checked={checked} disabled={!enabled} onChange={() => toggleModule(module)} />
                       <span>{MODULE_LABELS[module]}</span>
                     </label>
                   );
                 })}
               </div>
-            </div>
-          )}
-
-          {/* canCreateLoan toggle — admin/superadmin/developer can grant agents loan creation */}
-          {selectedRole === 'agent' && (viewerRole === 'admin' || viewerRole === 'superadmin' || viewerRole === 'developer') && (
-            <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--surface)' }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, marginBottom: '2px' }}>Loan Creation Permission</div>
-                <div className="text-muted" style={{ fontSize: '0.8rem' }}>
-                  When enabled, this agent can create loans from the customer profile page.
-                </div>
-              </div>
-              <label style={{ position: 'relative', display: 'inline-block', width: '44px', height: '24px', flexShrink: 0 }}>
-                <input
-                  type="checkbox"
-                  name="canCreateLoan"
-                  value="true"
-                  defaultChecked={editingUser?.canCreateLoan === true}
-                  style={{ opacity: 0, width: 0, height: 0 }}
-                />
-                <span style={{ position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0, background: editingUser?.canCreateLoan ? 'var(--success)' : 'var(--border)', borderRadius: '24px', transition: '0.3s' }} />
-              </label>
             </div>
           )}
 

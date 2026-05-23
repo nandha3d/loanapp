@@ -36,7 +36,8 @@ export default async function AdminUsersPage() {
           branch: {
             superadminId: session?.user?.id
           }
-        }
+        },
+        { branchId: null }
       ]
     };
   }
