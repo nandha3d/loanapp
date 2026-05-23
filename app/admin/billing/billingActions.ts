@@ -31,6 +31,7 @@ export async function updateSubscription(formData: FormData) {
     const receiptPdfAllowed = formData.get('receiptPdfAllowed') === 'true';
     const bureauEnabled = formData.get('bureauEnabled') === 'true';
     const npaEnabled = formData.get('npaEnabled') === 'true';
+    const kycEnabled = formData.get('kycEnabled') === 'true';
     const bureauPullsIncluded = parseInt(formData.get('bureauPullsIncluded') as string) || 0;
 
     const parseDate = (dStr: string | null) => {
@@ -51,10 +52,12 @@ export async function updateSubscription(formData: FormData) {
       bureauEnabled,
       bureauPullsIncluded,
       npaEnabled,
+      kycEnabled,
       trialEndsAt: parseDate(trialEndsAtStr),
       currentPeriodEnd: parseDate(currentPeriodEndStr),
       razorpaySubId,
     });
+
 
     await prisma.branch.updateMany({
       where: {

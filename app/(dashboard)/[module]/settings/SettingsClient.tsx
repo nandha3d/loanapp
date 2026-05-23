@@ -243,6 +243,31 @@ export default function SettingsClient({
                   <option value="false">{d.no}</option>
                 </select>
               </div>
+              <div className="settings-item" style={{ borderTop: '1px solid var(--border)', paddingTop: '16px', marginTop: '16px' }}>
+                <div className="si-info">
+                  <h4>Identity Verification (KYC) Method</h4>
+                  <p>Choose the KYC verification method for customers. Digio integration requires active credentials.</p>
+                </div>
+                <div style={{ width: '200px' }}>
+                  <select 
+                    name="kyc_method" 
+                    className="form-control" 
+                    defaultValue={settings.kyc_method || 'manual_upload'}
+                    disabled={!subscription?.kycEnabled}
+                  >
+                    <option value="manual_upload">Manual Document Upload</option>
+                    <option value="aadhaar_otp">Aadhaar OTP eKYC (Digio)</option>
+                    <option value="video_kyc">Video KYC (VCIP)</option>
+                    <option value="both">Both Aadhaar OTP + Video KYC</option>
+                  </select>
+                  {!subscription?.kycEnabled && (
+                    <div style={{ fontSize: '10px', color: 'var(--danger)', marginTop: '4px', fontWeight: 600 }}>
+                      ⚠️ Premium add-on disabled. Unlock under Superadmin Subscription.
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div style={{borderTop:'1px solid var(--border)', paddingTop:'20px', marginTop:'12px'}}>
                 <h4 style={{fontSize:'.95rem', fontWeight:700, marginBottom:'12px'}}>📝 Loan Code Prefixes</h4>
                 <p style={{fontSize:'.8rem', color:'var(--text-light)', marginBottom:'16px'}}>Customize the prefix used for loan codes based on repayment frequency.</p>

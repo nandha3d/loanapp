@@ -35,22 +35,163 @@ const CreditScoreGauge = ({ score, grade }: { score: number, grade: string }) =>
   );
 };
 
+import { useRouter } from 'next/navigation';
+
 export default function CustomerProfileClient({
   customer,
   currencySymbol,
   userRole,
   dict,
+  kycEnabled = false,
+  tenantKycMethod = 'manual_upload',
 }: {
   customer: any;
   currencySymbol: string;
   userRole: string;
   dict: any;
+  kycEnabled?: boolean;
+  tenantKycMethod?: string;
 }) {
+  const router = useRouter();
   const d = dict.customerProfile;
   const [activeTab, setActiveTab] = useState('loans');
   const [editRequestModal, setEditRequestModal] = useState(false);
   const [editRequestLoading, setEditRequestLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+
+  const [kycLoading, setKycLoading] = useState(false);
+  const [aadhaarInput, setAadhaarInput] = useState('');
+  const [aadhaarSessionId, setAadhaarSessionId] = useState<string | null>(null);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpValue, setOtpValue] = useState('');
+  const [otpError, setOtpError] = useState('');
+  const [videoKycSession, setVideoKycSession] = useState<{ sessionId: string, sessionUrl: string } | null>(null);
+  const [reviewNotes, setReviewNotes] = useState('');
+
+  const handleSendAadhaarOtp = async () => {
+    if (!aadhaarInput || aadhaarInput.length !== 12 || !/^\d+$/.test(aadhaarInput)) {
+      alert('Please enter a valid 12-digit Aadhaar number.');
+      return;
+    }
+    setKycLoading(true);
+    setOtpError('');
+    try {
+      const res = await fetch('/api/kyc/aadhaar-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'initiate',
+          customerId: customer.id,
+          aadhaarNumber: aadhaarInput,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setAadhaarSessionId(data.data.sessionId);
+        setOtpSent(true);
+      } else {
+        alert(data.error || 'Failed to send OTP.');
+      }
+    } catch (err) {
+      alert('An error occurred. Please try again.');
+    } finally {
+      setKycLoading(false);
+    }
+  };
+
+  const handleVerifyAadhaarOtp = async () => {
+    if (!otpValue || otpValue.length < 4) {
+      setOtpError('Please enter a valid OTP.');
+      return;
+    }
+    setKycLoading(true);
+    setOtpError('');
+    try {
+      const res = await fetch('/api/kyc/aadhaar-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'verify',
+          sessionId: aadhaarSessionId,
+          otp: otpValue,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        alert(d.otpVerified || 'Aadhaar verified successfully!');
+        setOtpSent(false);
+        setOtpValue('');
+        setAadhaarSessionId(null);
+        router.refresh();
+      } else {
+        setOtpError(data.error || d.invalidOtp || 'Verification failed. Invalid OTP.');
+      }
+    } catch (err) {
+      setOtpError('An error occurred during verification.');
+    } finally {
+      setKycLoading(false);
+    }
+  };
+
+  const handleInitiateVideoKyc = async () => {
+    setKycLoading(true);
+    try {
+      const res = await fetch('/api/kyc/video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'start',
+          customerId: customer.id,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setVideoKycSession({
+          sessionId: data.data.sessionId,
+          sessionUrl: data.data.sessionUrl,
+        });
+        router.refresh();
+      } else {
+        alert(data.error || 'Failed to initiate Video KYC.');
+      }
+    } catch (err) {
+      alert('An error occurred. Please try again.');
+    } finally {
+      setKycLoading(false);
+    }
+  };
+
+  const handleReviewVideoKyc = async (sessionId: string, decision: 'approved' | 'rejected') => {
+    if (decision === 'rejected' && !reviewNotes) {
+      alert('Please provide a reason/notes for rejecting the KYC.');
+      return;
+    }
+    setKycLoading(true);
+    try {
+      const res = await fetch('/api/kyc/video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'review',
+          sessionId,
+          decision,
+          notes: reviewNotes,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        alert(`Video KYC session successfully ${decision}.`);
+        setReviewNotes('');
+        router.refresh();
+      } else {
+        alert(data.error || 'Failed to submit review.');
+      }
+    } catch (err) {
+      alert('An error occurred. Please try again.');
+    } finally {
+      setKycLoading(false);
+    }
+  };
 
   const handleResetPassword = async () => {
     if (!window.confirm('Are you sure you want to reset the borrower portal password for this customer? They will be forced to verify via OTP and set a new password on their next login attempt.')) {
@@ -227,32 +368,378 @@ export default function CustomerProfileClient({
 
         {/* KYC Tab */}
         <div className={`tab-content ${activeTab === 'kyc' ? 'active' : ''}`}>
-          <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-            <div style={{ flex: 1, minWidth: '250px' }}>
-              <h4 style={{ marginBottom: '12px' }}>{d.aadharCard}</h4>
-              <div style={{ background: 'var(--bg)', borderRadius: 'var(--radius)', padding: '40px', textAlign: 'center', border: '1px solid var(--border)' }}>
-                <span className="material-icons-outlined" style={{ fontSize: '48px', color: 'var(--text-light)' }}>credit_card</span>
-                <p style={{ fontSize: '.85rem', color: 'var(--text-secondary)', marginTop: '8px' }}>
-                  Aadhar: <strong>{customer.aadharNumber || d.notProvided}</strong>
-                </p>
-                <p style={{ fontSize: '.75rem', color: 'var(--text-light)', marginTop: '4px' }}>{d.documentUploaded}</p>
+          {!kycEnabled ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ 
+                background: 'rgba(234, 179, 8, 0.05)', 
+                borderLeft: '4px solid var(--warning)', 
+                padding: '20px', 
+                borderRadius: '8px',
+                display: 'flex',
+                gap: '16px',
+                alignItems: 'start'
+              }}>
+                <span className="material-icons-outlined" style={{ color: 'var(--warning)', fontSize: '32px' }}>workspace_premium</span>
+                <div>
+                  <h4 style={{ margin: '0 0 6px 0', fontSize: '1.05rem', fontWeight: 700 }}>{dict.sidebar?.subscription || 'Premium Add-on'}</h4>
+                  <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    {d.kycAddonNeeded}
+                  </p>
+                </div>
               </div>
-            </div>
-            <div style={{ flex: 1, minWidth: '250px' }}>
-              <h4 style={{ marginBottom: '12px' }}>{d.verificationStatus}</h4>
-              <div className="card" style={{ background: 'var(--bg)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-                  <span className="material-icons-outlined" style={{ color: customer.kycStatus === 'verified' ? 'var(--success)' : 'var(--warning)', fontSize: '28px' }}>
-                    {customer.kycStatus === 'verified' ? 'verified' : 'pending_actions'}
-                  </span>
-                  <div>
-                    <strong style={{textTransform:'capitalize'}}>{customer.kycStatus}</strong>
-                    <p style={{ fontSize: '.78rem', color: 'var(--text-secondary)' }}>{d.statusChangedByAdmin}</p>
+
+              {/* Standard manual details as fallback */}
+              <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: '250px' }}>
+                  <h4 style={{ marginBottom: '12px' }}>{d.aadharCard}</h4>
+                  <div style={{ background: 'var(--bg)', borderRadius: 'var(--radius)', padding: '40px', textAlign: 'center', border: '1px solid var(--border)' }}>
+                    <span className="material-icons-outlined" style={{ fontSize: '48px', color: 'var(--text-light)' }}>credit_card</span>
+                    <p style={{ fontSize: '.85rem', color: 'var(--text-secondary)', marginTop: '8px' }}>
+                      Aadhar: <strong>{customer.aadharNumber || d.notProvided}</strong>
+                    </p>
+                    <p style={{ fontSize: '.75rem', color: 'var(--text-light)', marginTop: '4px' }}>{d.documentUploaded}</p>
+                  </div>
+                </div>
+                <div style={{ flex: 1, minWidth: '250px' }}>
+                  <h4 style={{ marginBottom: '12px' }}>{d.verificationStatus}</h4>
+                  <div className="card" style={{ background: 'var(--bg)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                      <span className="material-icons-outlined" style={{ color: customer.kycStatus === 'verified' ? 'var(--success)' : 'var(--warning)', fontSize: '28px' }}>
+                        {customer.kycStatus === 'verified' ? 'verified' : 'pending_actions'}
+                      </span>
+                      <div>
+                        <strong style={{textTransform:'capitalize'}}>{customer.kycStatus}</strong>
+                        <p style={{ fontSize: '.78rem', color: 'var(--text-secondary)' }}>{d.statusChangedByAdmin}</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+              {/* Left Side: Aadhar & Basic Status */}
+              <div style={{ flex: 1, minWidth: '300px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div>
+                  <h4 style={{ marginBottom: '12px' }}>{d.aadharCard}</h4>
+                  <div style={{ background: 'var(--bg)', borderRadius: 'var(--radius)', padding: '30px', textAlign: 'center', border: '1px solid var(--border)' }}>
+                    <span className="material-icons-outlined" style={{ fontSize: '48px', color: 'var(--text-light)' }}>credit_card</span>
+                    <p style={{ fontSize: '.85rem', color: 'var(--text-secondary)', marginTop: '8px' }}>
+                      Aadhar: <strong>{customer.aadharNumber || d.notProvided}</strong>
+                    </p>
+                    <p style={{ fontSize: '.75rem', color: 'var(--text-light)', marginTop: '4px' }}>{d.documentUploaded}</p>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 style={{ marginBottom: '12px' }}>{d.verificationStatus}</h4>
+                  <div className="card" style={{ background: 'var(--bg)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                      <span className="material-icons-outlined" style={{ 
+                        color: customer.kycStatus === 'verified' ? 'var(--success)' : customer.kycStatus === 'rejected' ? 'var(--danger)' : 'var(--warning)', 
+                        fontSize: '32px' 
+                      }}>
+                        {customer.kycStatus === 'verified' ? 'verified' : customer.kycStatus === 'rejected' ? 'cancel' : 'pending_actions'}
+                      </span>
+                      <div>
+                        <div style={{ fontSize: '.75rem', color: 'var(--text-light)', textTransform: 'uppercase', fontWeight: 600 }}>Current Status</div>
+                        <strong style={{textTransform:'capitalize', fontSize: '1.1rem'}}>{customer.kycStatus}</strong>
+                        {customer.kycRejectedReason && (
+                          <p style={{ fontSize: '.8rem', color: 'var(--danger)', marginTop: '4px' }}>
+                            <strong>Reason:</strong> {customer.kycRejectedReason}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: '12px', fontSize: '.8rem', color: 'var(--text-secondary)' }}>
+                      <div>{d.kycMethodLabel}: <strong>{d[`kycMethod_${customer.kycMethod || tenantKycMethod}`] || customer.kycMethod || tenantKycMethod}</strong></div>
+                      {customer.kycVerifiedAt && (
+                        <div style={{ marginTop: '4px' }}>Verified at: <strong>{formatDate(customer.kycVerifiedAt)}</strong></div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Side: Interactive KYC Panel */}
+              <div style={{ flex: 1.2, minWidth: '350px' }}>
+                <h4 style={{ marginBottom: '12px' }}>Automated KYC Verification</h4>
+                
+                {tenantKycMethod === 'aadhaar_otp' && (
+                  <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {customer.kycStatus === 'verified' && customer.kycMethod === 'aadhaar_otp' ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', color: 'var(--success)' }}>
+                          <span className="material-icons-outlined" style={{ fontSize: '24px' }}>check_circle</span>
+                          <strong style={{ fontSize: '0.95rem' }}>{d.otpVerified}</strong>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: 'var(--bg-alt)', padding: '16px', borderRadius: '6px', fontSize: '0.85rem' }}>
+                          <div style={{ fontWeight: 600, borderBottom: '1px solid var(--border)', paddingBottom: '6px', marginBottom: '4px' }}>{d.verifiedDetails}</div>
+                          <div>
+                            <span style={{ color: 'var(--text-light)', display: 'inline-block', width: '100px' }}>{d.aadhaarName}:</span>
+                            <strong>{customer.aadhaarName}</strong>
+                          </div>
+                          <div>
+                            <span style={{ color: 'var(--text-light)', display: 'inline-block', width: '100px' }}>{d.aadhaarDob}:</span>
+                            <strong>{customer.aadhaarDob}</strong>
+                          </div>
+                          <div>
+                            <span style={{ color: 'var(--text-light)', display: 'inline-block', width: '100px' }}>{d.aadhaarAddress}:</span>
+                            <strong style={{ fontWeight: 500 }}>{customer.aadhaarAddress}</strong>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+                          Verify the customer identity using secure Aadhaar OTP integration via Digio. An OTP will be sent to the customer's Aadhaar-linked mobile number.
+                        </p>
+
+                        {!otpSent ? (
+                          <div className="form-group" style={{ margin: 0 }}>
+                            <label className="form-label">Aadhaar Number (12 Digits)</label>
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                              <input 
+                                type="text" 
+                                className="form-control" 
+                                placeholder="Enter 12-digit Aadhaar Number" 
+                                maxLength={12}
+                                value={aadhaarInput}
+                                onChange={(e) => setAadhaarInput(e.target.value.replace(/\D/g, ''))}
+                                disabled={kycLoading}
+                              />
+                              <button 
+                                type="button" 
+                                className="btn btn-primary"
+                                onClick={handleSendAadhaarOtp}
+                                disabled={kycLoading || aadhaarInput.length !== 12}
+                              >
+                                {kycLoading ? 'Sending...' : d.sendAadhaarOtp}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                            <div className="alert alert-info" style={{ fontSize: '0.82rem', padding: '10px 14px', margin: 0 }}>
+                              {d.otpSent}
+                            </div>
+                            <div className="form-group" style={{ margin: 0 }}>
+                              <label className="form-label">{d.enterOtp}</label>
+                              <div style={{ display: 'flex', gap: '10px' }}>
+                                <input 
+                                  type="text" 
+                                  className="form-control" 
+                                  placeholder="Enter 6-digit OTP" 
+                                  maxLength={6}
+                                  value={otpValue}
+                                  onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, ''))}
+                                  disabled={kycLoading}
+                                />
+                                <button 
+                                  type="button" 
+                                  className="btn btn-primary"
+                                  onClick={handleVerifyAadhaarOtp}
+                                  disabled={kycLoading || otpValue.length < 4}
+                                >
+                                  {kycLoading ? 'Verifying...' : d.verifyOtp}
+                                </button>
+                              </div>
+                              {otpError && (
+                                <p style={{ color: 'var(--danger)', fontSize: '0.78rem', margin: '4px 0 0 0' }}>{otpError}</p>
+                              )}
+                            </div>
+                            <button 
+                              type="button" 
+                              className="btn btn-link btn-sm" 
+                              style={{ alignSelf: 'flex-start', padding: 0 }}
+                              onClick={() => { setOtpSent(false); setOtpValue(''); setOtpError(''); }}
+                              disabled={kycLoading}
+                            >
+                              Edit Aadhaar Number
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {tenantKycMethod === 'video_kyc' && (
+                  <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {(() => {
+                      const latestSession = customer.kycSessions?.find((s: any) => s.method === 'video_kyc');
+                      
+                      if (customer.kycStatus === 'verified' && latestSession?.status === 'video_approved') {
+                        return (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', color: 'var(--success)' }}>
+                              <span className="material-icons-outlined" style={{ fontSize: '24px' }}>verified_user</span>
+                              <strong style={{ fontSize: '0.95rem' }}>Video KYC Approved</strong>
+                            </div>
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+                              This customer's Video KYC session was successfully reviewed and approved.
+                            </p>
+                            {latestSession.reviewNotes && (
+                              <div style={{ background: 'var(--bg-alt)', padding: '12px', borderRadius: '4px', fontSize: '0.82rem' }}>
+                                <strong>Admin Notes:</strong> {latestSession.reviewNotes}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+
+                      if (customer.kycStatus === 'video_under_review' || latestSession?.status === 'video_reviewing') {
+                        // Under review state. Display review buttons for admins.
+                        const responseData = latestSession.responseData ? JSON.parse(latestSession.responseData) : null;
+                        const videoUrl = responseData?.video_url || latestSession.reviewNotes; // fallback
+
+                        return (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            <div className="alert alert-warning" style={{ fontSize: '0.82rem', padding: '10px 14px', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span className="material-icons-outlined" style={{ fontSize: '18px' }}>hourglass_empty</span>
+                              <span>{d.videoUnderReview}</span>
+                            </div>
+
+                            {videoUrl && (
+                              <a 
+                                href={videoUrl} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className="btn btn-secondary btn-sm"
+                                style={{ alignSelf: 'flex-start' }}
+                              >
+                                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>play_circle</span>
+                                View Recorded Video KYC
+                              </a>
+                            )}
+
+                            {userRole !== 'agent' ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px solid var(--border)', paddingTop: '14px' }}>
+                                <div className="form-group" style={{ margin: 0 }}>
+                                  <label className="form-label">Review Notes / Remarks</label>
+                                  <textarea 
+                                    className="form-control" 
+                                    rows={2} 
+                                    placeholder={d.notesPlaceholder}
+                                    value={reviewNotes}
+                                    onChange={(e) => setReviewNotes(e.target.value)}
+                                    disabled={kycLoading}
+                                  />
+                                </div>
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                  <button 
+                                    type="button" 
+                                    className="btn btn-primary"
+                                    onClick={() => handleReviewVideoKyc(latestSession.id, 'approved')}
+                                    disabled={kycLoading}
+                                  >
+                                    {kycLoading ? d.kycSubmitting : d.approveVideoKyc}
+                                  </button>
+                                  <button 
+                                    type="button" 
+                                    className="btn btn-secondary"
+                                    style={{ borderColor: 'var(--danger)', color: 'var(--danger)', background: 'transparent' }}
+                                    onClick={() => handleReviewVideoKyc(latestSession.id, 'rejected')}
+                                    disabled={kycLoading}
+                                  >
+                                    {kycLoading ? d.kycSubmitting : d.rejectVideoKyc}
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <p style={{ fontSize: '0.82rem', color: 'var(--text-light)', margin: 0 }}>
+                                Waiting for an administrator to review the recorded video session.
+                              </p>
+                            )}
+                          </div>
+                        );
+                      }
+
+                      if (customer.kycStatus === 'video_submitted' || latestSession?.status === 'initiated') {
+                        // Session is created, but not completed yet
+                        const sessionUrl = latestSession?.responseData ? JSON.parse(latestSession.responseData)?.sessionUrl : videoKycSession?.sessionUrl;
+                        const url = sessionUrl || videoKycSession?.sessionUrl;
+
+                        return (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+                              {d.videoKycInitiated}
+                            </p>
+                            {url ? (
+                              <a 
+                                href={url} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className="btn btn-primary"
+                                style={{ alignSelf: 'flex-start' }}
+                              >
+                                <span className="material-icons-outlined" style={{ fontSize: '18px' }}>videocam</span>
+                                {d.openVideoKyc}
+                              </a>
+                            ) : (
+                              <button 
+                                type="button" 
+                                className="btn btn-primary"
+                                onClick={handleInitiateVideoKyc}
+                                disabled={kycLoading}
+                              >
+                                {kycLoading ? 'Initiating...' : 'Refresh / Get Link'}
+                              </button>
+                            )}
+                          </div>
+                        );
+                      }
+
+                      // No active session or rejected/failed
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+                            Generate a Video KYC link for the customer. The customer will need to record a short video answering verification questions.
+                          </p>
+                          <button 
+                            type="button" 
+                            className="btn btn-primary"
+                            style={{ alignSelf: 'flex-start' }}
+                            onClick={handleInitiateVideoKyc}
+                            disabled={kycLoading}
+                          >
+                            {kycLoading ? 'Initiating...' : d.initiateVideoKyc}
+                          </button>
+
+                          {videoKycSession?.sessionUrl && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px', background: 'var(--bg-alt)', padding: '14px', borderRadius: '6px' }}>
+                              <p style={{ fontSize: '0.8.rem', color: 'var(--text-secondary)', margin: 0 }}>
+                                Copy the link below or open to complete verification:
+                              </p>
+                              <a 
+                                href={videoKycSession.sessionUrl} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className="btn btn-secondary btn-sm"
+                                style={{ alignSelf: 'flex-start' }}
+                              >
+                                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>launch</span>
+                                {d.openVideoKyc}
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+                
+                {tenantKycMethod === 'manual_upload' && (
+                  <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+                      The system is currently configured for Manual Document Upload. Automated integrations (Aadhaar OTP eKYC, Video KYC) can be enabled under System Config if the KYC premium add-on is active.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Cheques Tab */}

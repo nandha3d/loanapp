@@ -42,6 +42,8 @@ model Tenant {
   bureauCredential      BureauCredential?
   npaHistory            NpaHistory[]
   loanProvisioning      LoanProvisioning[]
+  kycSessions           KycSession[]
+
 
   @@map("tenants")
 }
@@ -126,12 +128,17 @@ model User {
   assignedCustomers        Customer[]         @relation("AgentCustomers")
   dailyCollections         DailyCollection[]
   createdLoans             Loan[]             @relation("LoanCreator")
+  foreclosedLoans           Loan[]             @relation("LoanForecloser")
   settledPenalties         Penalty[]          @relation("PenaltySettler")
   routeAgents              RouteAgent[]
   assignedRoutes           Route[]
   userBranchModules        UserBranchModule[]
+  kycVerifications         Customer[]         @relation("KycVerifier")
+  kycSessionsInitiated     KycSession[]       @relation("KycSessionInitiator")
+  kycSessionsReviewed      KycSession[]       @relation("KycSessionReviewer")
   branch                   Branch?            @relation(fields: [branchId], references: [id])
   tenant                   Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
   vehicleRepoFlags         Vehicle[]          @relation("VehicleRepoFlag")
   accountEntries           AccountEntry[]
   agentHandovers           CashHandover[]     @relation("AgentHandovers")
@@ -220,8 +227,23 @@ model Customer {
   routeId           String?           @map("route_id")
   agentId           String?           @map("agent_id")
   kycStatus         String            @default("pending")
+  kycMethod         String?           @map("kyc_method") // 'manual_upload' | 'aadhaar_otp' | 'video_kyc'
+  kycVerifiedAt     DateTime?         @map("kyc_verified_at")
+  kycVerifiedById   String?           @map("kyc_verified_by_id")
+  kycRejectedReason String?           @map("kyc_rejected_reason") @db.Text
+
+  // Aadhaar OTP fields (populated by UIDAI response via Digio)
+  aadhaarVerified   Boolean           @default(false) @map("aadhaar_verified")
+  aadhaarName       String?           @map("aadhaar_name")
+  aadhaarDob        String?           @map("aadhaar_dob")
+  aadhaarAddress    String?           @map("aadhaar_address") @db.Text
+  aadhaarPhoto      String?           @map("aadhaar_photo")    // path to stored photo from UIDAI
+
+  kycVerifiedBy     User?             @relation("KycVerifier", fields: [kycVerifiedById], references: [id])
+  kycSessions       KycSession[]
   profilePhoto      String?           @map("profile_photo")
   userId            String?           @unique @map("user_id")
+
   passwordHash      String?           @map("password_hash")
   status            String            @default("active")
   notes             String?           @db.Text
@@ -336,6 +358,10 @@ model Loan {
   totalInstalments  Int               @map("total_instalments")
   totalCollected    Decimal           @default(0.00) @map("total_collected") @db.Decimal(12, 2)
   closedAt          DateTime?         @map("closed_at")
+  closureType       String?           @map("closure_type")
+  foreclosureAmount Decimal?          @map("foreclosure_amount") @db.Decimal(12, 2)
+  foreclosureDiscount Decimal?        @map("foreclosure_discount") @db.Decimal(12, 2)
+  foreclosureById   String?           @map("foreclosure_by_id")
   createdById       String?           @map("created_by_id")
   createdAt         DateTime          @default(now()) @map("created_at")
   updatedAt         DateTime          @updatedAt @map("updated_at")
@@ -357,6 +383,7 @@ model Loan {
   collaterals       LoanCollateral[]
   branch            Branch?           @relation(fields: [branchId], references: [id])
   createdBy         User?             @relation("LoanCreator", fields: [createdById], references: [id])
+  foreclosedBy      User?             @relation("LoanForecloser", fields: [foreclosureById], references: [id])
   customer          Customer          @relation(fields: [customerId], references: [id])
   guarantor         Guarantor?        @relation(fields: [guarantorId], references: [id])
   package           LoanPackage?      @relation(fields: [packageId], references: [id])
@@ -375,6 +402,7 @@ model Loan {
   @@index([tenantId, appType, status])
   @@index([branchId], map: "loans_branch_id_fkey")
   @@index([createdById], map: "loans_created_by_id_fkey")
+  @@index([foreclosureById], map: "loans_foreclosure_by_id_fkey")
   @@index([customerId], map: "loans_customer_id_fkey")
   @@index([guarantorId], map: "loans_guarantor_id_fkey")
   @@index([packageId], map: "loans_package_id_fkey")
@@ -784,7 +812,10 @@ model TenantSubscription {
   bureauPullsIncluded Int       @default(50) @map("bureau_pulls_included")
   bureauPullsUsed     Int       @default(0) @map("bureau_pulls_used")
   npaEnabled          Boolean   @default(false) @map("npa_enabled")
+  foreclosureEnabled  Boolean   @default(false) @map("foreclosure_enabled")
+  kycEnabled          Boolean   @default(false) @map("kyc_enabled")
   trialEndsAt      DateTime? @map("trial_ends_at")
+
   currentPeriodEnd DateTime? @map("current_period_end")
   razorpaySubId    String?   @unique @map("razorpay_sub_id")
   createdAt        DateTime  @default(now()) @map("created_at")
@@ -1112,3 +1143,48 @@ model LoanProvisioning {
   @@index([tenantId, snapshotDate])
   @@map("loan_provisioning")
 }
+
+model KycSession {
+  id              String    @id @default(cuid())
+  tenantId        String    @map("tenant_id")
+  customerId      String    @map("customer_id")
+  method          String                         // 'aadhaar_otp' | 'video_kyc'
+  status          String    @default("initiated")
+  // 'initiated' | 'otp_sent' | 'otp_verified' | 'failed'
+  // 'video_uploaded' | 'video_reviewing' | 'video_approved' | 'video_rejected'
+
+  // Digio fields
+  digioRequestId  String?   @map("digio_request_id")  // Digio session/request ID
+  digioEntityId   String?   @map("digio_entity_id")
+
+  // OTP fields
+  otpReference    String?   @map("otp_reference")
+  otpExpiresAt    DateTime? @map("otp_expires_at")
+
+  // Video fields
+  videoFilePath   String?   @map("video_file_path")
+  videoFileName   String?   @map("video_file_name")
+  videoUploadedAt DateTime? @map("video_uploaded_at")
+
+  // Review fields
+  reviewedById    String?   @map("reviewed_by_id")
+  reviewedAt      DateTime? @map("reviewed_at")
+  reviewNotes     String?   @map("review_notes") @db.Text
+
+  // Response data (stored as JSON string)
+  responseData    String?   @map("response_data") @db.Text
+
+  initiatedById   String?   @map("initiated_by_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  customer        Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  initiatedBy     User?     @relation("KycSessionInitiator", fields: [initiatedById], references: [id])
+  reviewedBy      User?     @relation("KycSessionReviewer", fields: [reviewedById], references: [id])
+
+  @@index([tenantId, customerId])
+  @@index([digioRequestId])
+  @@map("kyc_sessions")
+}
+

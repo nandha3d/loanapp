@@ -165,7 +165,7 @@ export default function SubscriptionForm({
             />
             Allow Credit Bureau Checks (CRIF/CIBIL)
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+           <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
             <input
               type="checkbox"
               name="npaEnabled"
@@ -174,8 +174,18 @@ export default function SubscriptionForm({
             />
             Allow NPA Classification Engine (RBI Compliance)
           </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              name="kycEnabled"
+              value="true"
+              defaultChecked={subscription?.kycEnabled || false}
+            />
+            Allow Aadhaar OTP & Video KYC Verification (Digio)
+          </label>
         </div>
       </div>
+
 
       <div className="form-group" style={{ marginBottom: '16px' }}>
         <label className="form-label">Included Monthly Bureau Pulls</label>
