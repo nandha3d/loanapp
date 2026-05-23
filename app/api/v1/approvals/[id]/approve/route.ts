@@ -41,7 +41,7 @@ async function resolve(
       data: {
         status: decision,
         reviewedById: ctx.userId,
-        reviewNote: note,
+        reviewNotes: note,
         reviewedAt: new Date(),
       },
     });

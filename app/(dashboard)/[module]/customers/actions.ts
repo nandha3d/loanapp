@@ -205,10 +205,11 @@ export async function saveCustomer(formData: FormData) {
       ? `${routeAbbr}-${prefix}-${String(counter).padStart(4, '0')}`
       : `${prefix}-${String(counter).padStart(4, '0')}`;
     
-    // Save new counter
-    await prisma.appSetting.update({
+    // Save new counter (upsert in case the row doesn't exist yet)
+    await prisma.appSetting.upsert({
       where: { tenantId_key: { tenantId, key: 'customer_code_counter' } },
-      data: { value: counter.toString() }
+      update: { value: counter.toString() },
+      create: { tenantId, key: 'customer_code_counter', value: counter.toString() },
     });
 
     savedCustomer = await prisma.customer.create({

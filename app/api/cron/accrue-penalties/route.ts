@@ -4,6 +4,7 @@ import prisma from '@/lib/db';
 import { cleanupExpiredRateLimits } from '@/lib/rateLimit';
 import { calculatePenaltyAccrual, shouldUpdatePenaltyGross } from '@/lib/penalties';
 import { apiError } from '@/lib/utils';
+import { notifyLoanOverdue } from '@/lib/sms';
 
 /**
  * GET /api/cron/accrue-penalties
@@ -69,6 +70,7 @@ export async function GET(req: NextRequest) {
       include: {
         loan: {
           include: {
+            customer: true,
             tenant: {
               include: { settings: { where: { key: { in: ['default_penalty_per_day', 'penalty_grace_period', 'penalty_max_cap'] } } } },
             },
@@ -151,6 +153,19 @@ export async function GET(req: NextRequest) {
           where: { loanId, status: 'upcoming', dueDate: { lt: today } },
           data: { status: 'missed' },
         });
+
+        // Send notification
+        if (loan.customer?.phone) {
+          notifyLoanOverdue({
+            tenantId: loan.tenantId,
+            phone:    loan.customer.phone,
+            name:     loan.customer.name,
+            loanCode: loan.loanCode,
+            days:     String(totalMissedDays),
+            penalty:  String(grossPenalty),
+            loanId:   loan.id,
+          }).catch((err) => console.error(`Failed to send overdue notification for loan ${loan.id}:`, err));
+        }
       } catch (loanErr) {
         failed++;
         console.error(`[accrue-penalties] Failed for loan ${loanId}:`, loanErr);
