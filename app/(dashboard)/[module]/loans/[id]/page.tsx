@@ -40,6 +40,9 @@ export default async function LoanDetailPage({
         }
       },
       instalments: {
+        include: {
+          collectionEntry: { select: { id: true } }
+        },
         orderBy: { instalmentNo: 'asc' }
       },
       penalties: true,
@@ -54,6 +57,11 @@ export default async function LoanDetailPage({
   // Serialize Decimal fields for client component
   const serializedLoan = JSON.parse(JSON.stringify(loan));
 
+  const sub = await prisma.tenantSubscription.findUnique({ where: { tenantId } });
+  const isReceiptPdfAllowed = sub?.receiptPdfAllowed || false;
+  const isReceiptPdfActive = await getSetting(tenantId, 'receipt_pdf_active', 'false') === 'true';
+  const receiptPdfEnabled = isReceiptPdfAllowed && isReceiptPdfActive;
+
   return (
     <LoanDetailClient 
       loan={serializedLoan} 
@@ -61,6 +69,7 @@ export default async function LoanDetailPage({
       dict={dict} 
       userRole={role}
       userId={userId}
+      receiptPdfEnabled={receiptPdfEnabled}
     />
   );
 }

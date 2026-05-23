@@ -135,6 +135,59 @@ export default function SubscriptionForm({
         </div>
       </div>
 
+      <div className="form-group" style={{ marginBottom: '16px' }}>
+        <label className="form-label">Add-ons</label>
+        <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              name="whatsappSmsEnabled"
+              value="true"
+              defaultChecked={subscription?.whatsappSmsEnabled || false}
+            />
+            Allow WhatsApp & SMS Notifications
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              name="receiptPdfAllowed"
+              value="true"
+              defaultChecked={subscription?.receiptPdfAllowed || false}
+            />
+            Allow Receipt PDF Downloads
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              name="bureauEnabled"
+              value="true"
+              defaultChecked={subscription?.bureauEnabled || false}
+            />
+            Allow Credit Bureau Checks (CRIF/CIBIL)
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              name="npaEnabled"
+              value="true"
+              defaultChecked={subscription?.npaEnabled || false}
+            />
+            Allow NPA Classification Engine (RBI Compliance)
+          </label>
+        </div>
+      </div>
+
+      <div className="form-group" style={{ marginBottom: '16px' }}>
+        <label className="form-label">Included Monthly Bureau Pulls</label>
+        <input
+          name="bureauPullsIncluded"
+          type="number"
+          className="form-control"
+          defaultValue={subscription?.bureauPullsIncluded ?? 50}
+          min="0"
+        />
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
         <div className="form-group">
           <label className="form-label">Trial Ends At</label>

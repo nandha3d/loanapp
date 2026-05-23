@@ -7,6 +7,7 @@ import { auth } from '@/lib/auth';
 import { submitCollectionEntry, requestCollectionEdit } from '@/app/(dashboard)/[module]/collection/actions';
 import { reallocateLoanRepayments } from '@/lib/repayments';
 import { randomUUID } from 'crypto';
+import { notifyLoanClosed } from '@/lib/sms';
 export { requestCollectionEdit };
 
 export async function markInstalmentPaid(formData: FormData) {
@@ -239,6 +240,14 @@ export async function closeLoan(formData: FormData) {
       closedAt: new Date(),
     },
   });
+
+  notifyLoanClosed({
+    tenantId,
+    phone:    loan.customer.phone,
+    name:     loan.customer.name,
+    loanCode: loan.loanCode,
+    loanId:   loanId,
+  }).catch((err) => console.error('Failed to send loan closed notification', err));
 
   // Mark active security cheques as returned if confirmed
   if (markChequesReturned && loan.customer?.securityCheques?.length) {

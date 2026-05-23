@@ -7,7 +7,7 @@ import { auth } from '@/lib/auth';
 import { getAgentRouteIds } from '@/lib/access';
 import { randomUUID } from 'crypto';
 import { reallocateLoanRepayments } from '@/lib/repayments';
-import { sendPaymentReceipt } from '@/lib/sms';
+import { notifyPaymentReceived } from '@/lib/sms';
 import { recordPaymentLedger } from '@/lib/paymentService';
 import { buildCollectionIdempotencyKey, getCollectionSubmissionBlockReason } from '@/lib/collectionPolicy';
 
@@ -224,12 +224,18 @@ export async function submitCollectionEntry(formData: FormData) {
 
   // ── Send Notification (Fire and Forget) ──────────────────────────────────
   if (instalment.loan.customer.phone && appliedDelta > 0) {
-    sendPaymentReceipt(
-      instalment.loan.customer.phone,
-      appliedDelta,
-      instalment.loan.loanCode,
-      tenantId
-    ).catch(err => console.error('Failed to send payment receipt SMS', err));
+    const customer = instalment.loan.customer;
+    const balance = Number(instalment.loan.totalPayable || 0) - Number(instalment.loan.totalCollected || 0) - appliedDelta;
+    notifyPaymentReceived({
+      tenantId,
+      phone:    customer.phone,
+      name:     customer.name,
+      amount:   appliedDelta.toLocaleString('en-IN'),
+      loanCode: instalment.loan.loanCode,
+      date:     new Date().toLocaleDateString('en-IN'),
+      balance:  Math.max(0, balance).toLocaleString('en-IN'),
+      loanId:   instalment.loanId,
+    }).catch(err => console.error('Failed to send payment receipt', err));
   }
 
   return { success: true };

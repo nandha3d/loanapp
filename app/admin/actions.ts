@@ -172,19 +172,34 @@ export async function manageMasterUser(formData: FormData) {
       }
     }
 
-    const savedUser = await prisma.user.create({
-      data: {
-        tenantId,
-        name,
-        username,
-        phone,
-        passwordHash: await bcrypt.hash(password, 10),
-        role,
-        appType,
-        branchId,
-        status
+    let savedUser;
+    try {
+      savedUser = await prisma.user.create({
+        data: {
+          tenantId,
+          name,
+          username,
+          phone,
+          passwordHash: await bcrypt.hash(password, 10),
+          role,
+          appType,
+          branchId,
+          status
+        }
+      });
+    } catch (err: any) {
+      if (err.code === 'P2002') {
+        const fields: string[] = err.meta?.target ?? [];
+        if (fields.some((f: string) => f.includes('phone'))) {
+          return { success: false, error: 'A user with this phone number already exists.' };
+        }
+        if (fields.some((f: string) => f.includes('username'))) {
+          return { success: false, error: 'A user with this username already exists.' };
+        }
+        return { success: false, error: 'A user with these details already exists.' };
       }
-    });
+      throw err;
+    }
     savedUserId = savedUser.id;
     await prisma.auditLog.create({
       data: {

@@ -33,7 +33,7 @@ export async function PATCH(
       data: {
         status: 'rejected',
         reviewedById: ctx.userId,
-        reviewNote: note,
+        reviewNotes: note,
         reviewedAt: new Date(),
       },
     });

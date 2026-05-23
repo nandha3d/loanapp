@@ -102,13 +102,13 @@ export async function POST(req: NextRequest) {
         routeId: body.routeId ?? null,
         agentId: body.agentId ?? null,
         status: 'pending_review',
-        photoUrl: body.photoUrl ?? null,
+        profilePhoto: body.photoUrl ?? null,
         kycDocuments: body.kycDocs && body.kycDocs.length > 0
           ? {
               create: body.kycDocs.map((d) => ({
-                type: d.type,
-                url: d.url,
-                tenantId: ctx.tenantId,
+                docType: d.type,
+                filePath: d.url,
+                fileName: d.url.split('/').pop() || 'document',
               })),
             }
           : undefined,

@@ -486,6 +486,7 @@ export async function submitEditRequest(formData: FormData) {
 export async function reviewPendingLoan(formData: FormData) {
   const session = await auth();
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
   const userId = session?.user?.id;
   const userRole = (session?.user as any)?.role;
 

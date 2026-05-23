@@ -5,6 +5,7 @@ import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { getDictionary } from '@/lib/i18n';
 import { modulePath } from '@/types/modules';
+import { getSubscription } from '@/lib/subscription';
 
 export default async function SettingsPage() {
   const session = await auth();
@@ -17,7 +18,7 @@ export default async function SettingsPage() {
   const tenantId = await getDefaultTenantId();
   const dict = await getDictionary(tenantId);
   
-  const [routes, rawPackages, users, settings, currentUser] = await Promise.all([
+  const [routes, rawPackages, users, settings, currentUser, subscription, bureauCredential] = await Promise.all([
     prisma.route.findMany({ 
       where: { tenantId, appType },
       include: { 
@@ -29,7 +30,9 @@ export default async function SettingsPage() {
     prisma.loanPackage.findMany({ where: { tenantId, appType } }),
     prisma.user.findMany({ where: { tenantId, appType } }),
     getTenantSettings(tenantId),
-    prisma.user.findUnique({ where: { id: session?.user?.id } })
+    prisma.user.findUnique({ where: { id: session?.user?.id } }),
+    getSubscription(tenantId),
+    prisma.bureauCredential.findUnique({ where: { tenantId } }),
   ]);
 
   const packages = rawPackages.map(p => ({
@@ -40,6 +43,22 @@ export default async function SettingsPage() {
     penaltyRate: p.penaltyRate.toString(),
   }));
 
+  // Decrypt credential fields securely on the server
+  let decryptedCreds: any = null;
+  if (bureauCredential) {
+    const { decryptField } = await import('@/lib/pii');
+    decryptedCreds = {
+      provider: bureauCredential.provider,
+      memberId: decryptField(bureauCredential.memberId) || '',
+      apiKey: decryptField(bureauCredential.apiKey) || '',
+      apiSecret: bureauCredential.apiSecret ? (decryptField(bureauCredential.apiSecret) || '') : '',
+      environment: bureauCredential.environment,
+      isActive: bureauCredential.isActive,
+      hasCert: !!bureauCredential.bureauCert,
+      hasKey: !!bureauCredential.bureauKey,
+    };
+  }
+
   return (
     <SettingsClient 
       routes={routes} 
@@ -49,6 +68,8 @@ export default async function SettingsPage() {
       currencySymbol={settings.currency_symbol || '₹'}
       dict={dict}
       currentUser={currentUser}
+      subscription={subscription}
+      bureauCredential={decryptedCreds}
     />
   );
 }
