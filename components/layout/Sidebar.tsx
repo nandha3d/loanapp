@@ -67,7 +67,6 @@ export default function Sidebar({
     { section: dict.sidebar.sections.account },
     { id: 'branch-requests', icon: 'account_tree', label: 'Branch Requests', href: '/branch-requests', superadminOnly: true },
     { id: 'subscription', icon: 'credit_card', label: dict.sidebar.subscription, href: '/subscription', superadminOnly: true },
-    { id: 'portal-billing', icon: 'receipt_long', label: 'Billing & Invoices', href: '/portal/billing', superadminOnly: true },
     { id: 'billing', icon: 'manage_accounts', label: dict.sidebar.billing, href: '/admin/billing', developerOnly: true },
   ];
 

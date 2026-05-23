@@ -2,13 +2,17 @@
 
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 
 function LoginForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const rawCallbackUrl = searchParams.get('callbackUrl') || '/';
+  const callbackUrl = rawCallbackUrl.startsWith('/') ? rawCallbackUrl : '/';
+
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [totpCode, setTotpCode] = useState('');
-  const [show2fa, setShow2fa] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -18,21 +22,33 @@ function LoginForm() {
     setLoading(true);
 
     try {
-      const params = new URLSearchParams(window.location.search);
-      const rawCallbackUrl = params.get('callbackUrl') || '/';
-      const callbackUrl = rawCallbackUrl.startsWith('/') ? rawCallbackUrl : '/';
-
-      await signIn('credentials', {
+      const result = await signIn('credentials', {
         username,
         password,
-        rememberMe: rememberMe ? 'true' : 'false',
-        totpCode,
-        redirect: true,
-        callbackUrl,
+        redirect: false,
       });
+
+      if (result?.error) {
+        setError('Invalid username or password');
+        setLoading(false);
+        return;
+      }
+
+      router.push(callbackUrl);
+      router.refresh();
     } catch {
       setError('An unexpected error occurred');
       setLoading(false);
+    }
+  };
+
+  const setDemoCredentials = (role: 'admin' | 'agent') => {
+    if (role === 'admin') {
+      setUsername('admin');
+      setPassword('admin123');
+    } else {
+      setUsername('karthik');
+      setPassword('agent123');
     }
   };
 
@@ -66,7 +82,6 @@ function LoginForm() {
               onChange={(e) => setUsername(e.target.value)}
               required
               autoComplete="username"
-              suppressHydrationWarning
             />
           </div>
           <div className="form-group">
@@ -80,34 +95,11 @@ function LoginForm() {
               onChange={(e) => setPassword(e.target.value)}
               required
               autoComplete="current-password"
-              suppressHydrationWarning
             />
           </div>
-
-          {show2fa && (
-            <div className="form-group" style={{ animation: 'slideDown 0.3s ease-out' }}>
-              <label className="form-label" htmlFor="totpCode">2FA Code (Authenticator App)</label>
-              <input
-                type="text"
-                id="totpCode"
-                className="form-control"
-                placeholder="Enter 6-digit code"
-                value={totpCode}
-                onChange={(e) => setTotpCode(e.target.value)}
-                required
-                maxLength={6}
-                autoComplete="one-time-code"
-                autoFocus
-              />
-            </div>
-          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
             <label className="checkbox-label">
-              <input 
-                type="checkbox" 
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)} 
-              /> Remember me
+              <input type="checkbox" defaultChecked /> Remember me
             </label>
           </div>
           <button
@@ -128,5 +120,15 @@ function LoginForm() {
 }
 
 export default function LoginPage() {
-  return <LoginForm />;
+  return (
+    <Suspense fallback={
+      <div className="login-wrapper">
+        <div className="login-card">
+          <div style={{ textAlign: 'center', padding: '40px' }}>Loading...</div>
+        </div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
+  );
 }

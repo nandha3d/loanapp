@@ -109,7 +109,7 @@ export async function manageMasterUser(formData: FormData) {
     select: { enabledModules: true },
   });
   const planModules = normalizeEnabledModules(subscription?.enabledModules);
-  const requestedModules = adminModules.length > 0 ? adminModules : normalizeModuleList([appType]);
+  const requestedModules = userModuleList.length > 0 ? userModuleList : adminModules.length > 0 ? adminModules : normalizeModuleList([appType]);
   
   if (userRole !== 'developer') {
     const invalidPlanModules = requestedModules.filter((module) => !planModules.includes(module));
@@ -123,7 +123,8 @@ export async function manageMasterUser(formData: FormData) {
         select: { enabledModules: true },
       });
       const branchModules = normalizeModuleList(branch?.enabledModules);
-      const invalidBranchModules = requestedModules.filter((module) => !branchModules.includes(module));
+      const allowedBranchModules = branchModules.length > 0 ? branchModules : planModules;
+      const invalidBranchModules = requestedModules.filter((module) => !allowedBranchModules.includes(module));
       if (invalidBranchModules.length > 0) {
         return { success: false, error: `Modules not enabled for this branch: ${invalidBranchModules.join(', ')}` };
       }
@@ -133,7 +134,15 @@ export async function manageMasterUser(formData: FormData) {
   let savedUserId = id;
 
   if (id) {
-    const updateData: any = { name, username, phone, role, appType, branchId, status };
+    const updateData: any = {
+      name,
+      username,
+      phone,
+      role,
+      appType,
+      branchId,
+      status,
+    };
     if (password) {
       updateData.passwordHash = await bcrypt.hash(password, 10);
     }
@@ -258,7 +267,8 @@ export async function manageMasterUser(formData: FormData) {
           select: { enabledModules: true, name: true },
         });
         const branchModules = normalizeModuleList(branch?.enabledModules);
-        const invalid = adminModules.filter((module) => !branchModules.includes(module));
+        const allowedBranchModules = branchModules.length > 0 ? branchModules : planModules;
+        const invalid = adminModules.filter((module) => !allowedBranchModules.includes(module));
         if (invalid.length > 0) {
           return { success: false, error: `Branch "${branch?.name}" does not have these modules enabled: ${invalid.join(', ')}. Please enable them on the branch first.` };
         }
@@ -499,75 +509,4 @@ export async function toggleUserStatus(userId: string, newStatus: string) {
   revalidatePath('/admin/users');
   return { success: true };
 }
-
-/**
- * Admin/superadmin/developer toggles an agent's loan-creation permission.
- * Writes an AuditLog entry on every change.
- */
-export async function toggleCanCreateLoan(userId: string, canCreate: boolean) {
-  const session = await auth();
-  const role = (session?.user as any)?.role;
-  const actorId = (session?.user as any)?.id;
-
-  if (role !== 'admin' && role !== 'superadmin' && role !== 'developer') {
-    return { success: false, error: 'Unauthorized' };
-  }
-
-  const tenantId = await getDefaultTenantId();
-
-  const target = await prisma.user.findFirst({
-    where: { id: userId, tenantId, role: 'agent' },
-    select: { id: true, canCreateLoan: true },
-  });
-  if (!target) return { success: false, error: 'Agent not found' };
-
-  // Admin can only toggle agents in branches they manage
-  if (role === 'admin') {
-    const actor = await prisma.user.findUnique({
-      where: { id: actorId },
-      select: { branchId: true },
-    });
-    const agentFull = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { branchId: true },
-    });
-    if (!actor?.branchId || actor.branchId !== agentFull?.branchId) {
-      return { success: false, error: 'Unauthorized: Agent is not in your branch.' };
-    }
-  }
-
-  // Superadmin can only toggle agents in branches they own
-  if (role === 'superadmin') {
-    const agentFull = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { branchId: true },
-    });
-    if (agentFull?.branchId) {
-      const branch = await prisma.branch.findFirst({
-        where: { id: agentFull.branchId, superadminId: actorId },
-      });
-      if (!branch) return { success: false, error: 'Unauthorized: Agent branch not owned by you.' };
-    }
-  }
-
-  await prisma.user.update({ where: { id: userId }, data: { canCreateLoan: canCreate } });
-
-  await prisma.auditLog.create({
-    data: {
-      tenantId,
-      userId: actorId,
-      action: 'update',
-      entityType: 'user',
-      entityId: userId,
-      oldValue: JSON.stringify({ canCreateLoan: target.canCreateLoan }),
-      newValue: JSON.stringify({ canCreateLoan: canCreate }),
-    },
-  }).catch(() => {});
-
-  revalidatePath('/admin/users');
-  revalidatePath('/admin/team');
-  return { success: true };
-}
-
-
 
