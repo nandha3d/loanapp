@@ -7,6 +7,7 @@ import { getCreditScoreGaugePresentation } from '@/lib/creditScoreGauge';
 import Link from '@/components/layout/DashboardLink';
 import Modal from '@/components/Modal';
 import CustomerForm from '../../customers/new/CustomerForm';
+import { BureauReportCard } from '@/components/bureau/BureauReportCard';
 
 function formatCurrency(amount: number, symbol: string) {
   return symbol + amount.toLocaleString();
@@ -70,6 +71,51 @@ export default function LoanForm({
   const [history, setHistory] = useState<any | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [existingGuarantorId, setExistingGuarantorId] = useState<string | null>(null);
+
+  // Bureau checking states
+  const [insightsTab, setInsightsTab] = useState<'internal' | 'bureau'>('internal');
+  const [bureauReport, setBureauReport] = useState<any | null>(null);
+  const [loadingBureau, setLoadingBureau] = useState(false);
+  const [bureauStatusText, setBureauStatusText] = useState('');
+  const [consentObtained, setConsentObtained] = useState(false);
+  const [bureauError, setBureauError] = useState<string | null>(null);
+
+  const triggerBureauPull = () => {
+    if (!selectedCustomer) return;
+    setLoadingBureau(true);
+    setBureauError(null);
+    setBureauStatusText('Initializing connection...');
+
+    const url = `/api/bureau/pull?customerId=${selectedCustomer.id}&consentObtained=true&pullType=hard&consentMethod=verbal_recorded`;
+    const eventSource = new EventSource(url);
+
+    eventSource.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (payload.status === 'fetching') {
+          setBureauStatusText('Contacting credit bureau APIs...');
+        } else if (payload.status === 'success') {
+          setBureauReport(payload.data);
+          setLoadingBureau(false);
+          eventSource.close();
+        } else if (payload.status === 'error') {
+          setBureauError(payload.message || 'Bureau pull failed.');
+          setLoadingBureau(false);
+          eventSource.close();
+        }
+      } catch (err) {
+        setBureauError('Failed to parse status updates.');
+        setLoadingBureau(false);
+        eventSource.close();
+      }
+    };
+
+    eventSource.onerror = () => {
+      setBureauError('Connection to status server was interrupted.');
+      setLoadingBureau(false);
+      eventSource.close();
+    };
+  };
   
   // --- Cheque handlers ---
   const [cheques, setCheques] = useState<any[]>([]);
@@ -203,6 +249,13 @@ export default function LoanForm({
     if (id) {
       setLoadingHistory(true);
       setHistory(null);
+      
+      // Reset bureau pull panel variables
+      setBureauReport(null);
+      setBureauError(null);
+      setConsentObtained(false);
+      setInsightsTab('internal');
+
       try {
         const res = await fetch(`/api/customers/${id}/history`);
         if (res.ok) {
@@ -214,8 +267,26 @@ export default function LoanForm({
       } finally {
         setLoadingHistory(false);
       }
+
+      // Check for a valid cached bureau report pulled within 30 days
+      try {
+        const bRes = await fetch(`/api/bureau/history/${id}`);
+        if (bRes.ok) {
+          const bJson = await bRes.json();
+          if (bJson.success && bJson.data && bJson.data.length > 0) {
+            const latest = bJson.data[0];
+            const isValid = new Date(latest.validUntil) >= new Date();
+            if (isValid && latest.status === 'success') {
+              setBureauReport(latest);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch bureau history', err);
+      }
     } else {
       setHistory(null);
+      setBureauReport(null);
     }
   };
 
@@ -811,8 +882,48 @@ export default function LoanForm({
       </div>
 
       <div className="card sticky-top" style={{ top: '20px' }}>
-        <div className="card-header">
-          <h3>📊 {dict.creditInsights.title}</h3>
+        <div className="card-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '10px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3>📊 {dict.creditInsights.title}</h3>
+          </div>
+          {selectedCustomer && (
+            <div style={{ display: 'flex', background: 'var(--bg-alt)', padding: '4px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+              <button
+                type="button"
+                onClick={() => setInsightsTab('internal')}
+                style={{
+                  flex: 1,
+                  padding: '6px 12px',
+                  border: 'none',
+                  background: insightsTab === 'internal' ? 'var(--primary)' : 'transparent',
+                  color: insightsTab === 'internal' ? '#fff' : 'var(--text-secondary)',
+                  borderRadius: 'calc(var(--radius-sm) - 2px)',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontSize: '.82rem'
+                }}
+              >
+                Internal History
+              </button>
+              <button
+                type="button"
+                onClick={() => setInsightsTab('bureau')}
+                style={{
+                  flex: 1,
+                  padding: '6px 12px',
+                  border: 'none',
+                  background: insightsTab === 'bureau' ? 'var(--primary)' : 'transparent',
+                  color: insightsTab === 'bureau' ? '#fff' : 'var(--text-secondary)',
+                  borderRadius: 'calc(var(--radius-sm) - 2px)',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontSize: '.82rem'
+                }}
+              >
+                Bureau Connect
+              </button>
+            </div>
+          )}
         </div>
         
         {!selectedCustomer ? (
@@ -820,64 +931,109 @@ export default function LoanForm({
             <span className="material-icons-outlined" style={{ fontSize: '48px', color: 'var(--border)' }}>person_search</span>
             <p style={{ marginTop: '12px', fontSize: '.85rem' }}>{dict.creditInsights.history}</p>
           </div>
-        ) : loadingHistory ? (
-          <div style={{ padding: '40px', textAlign: 'center' }}>
-            <div className="spinner"></div>
-            <p style={{ marginTop: '12px', fontSize: '.85rem' }}>Analyzing...</p>
-          </div>
-        ) : history ? (
-          <div style={{ padding: '4px' }}>
-            <div style={{ 
-              background: 'var(--bg-alt)', 
-              color: 'var(--text)', padding: '24px 10px', borderRadius: 'var(--radius-md)', marginBottom: '20px',
-              textAlign: 'center', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)'
-            }}>
-              <div style={{ fontSize: '.75rem', textTransform: 'uppercase', letterSpacing: '1.2px', opacity: .6, marginBottom: '12px', fontWeight: 700 }}>{dict.creditInsights.score}</div>
-              <CreditScoreGauge score={history.profile.score} grade={history.profile.grade} />
+        ) : insightsTab === 'internal' ? (
+          loadingHistory ? (
+            <div style={{ padding: '40px', textAlign: 'center' }}>
+              <div className="spinner"></div>
+              <p style={{ marginTop: '12px', fontSize: '.85rem' }}>Analyzing...</p>
             </div>
+          ) : history ? (
+            <div style={{ padding: '4px' }}>
+              <div style={{ 
+                background: 'var(--bg-alt)', 
+                color: 'var(--text)', padding: '24px 10px', borderRadius: 'var(--radius-md)', marginBottom: '20px',
+                textAlign: 'center', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)'
+              }}>
+                <div style={{ fontSize: '.75rem', textTransform: 'uppercase', letterSpacing: '1.2px', opacity: .6, marginBottom: '12px', fontWeight: 700 }}>{dict.creditInsights.score}</div>
+                <CreditScoreGauge score={history.profile.score} grade={history.profile.grade} />
+              </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
-              <div style={{ background: 'var(--bg)', padding: '12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: '.7rem', color: 'var(--text-secondary)' }}>{dict.creditInsights.totalBorrowed}</div>
-                <div style={{ fontSize: '1rem', fontWeight: 700 }}>{formatCurrency(history.profile.stats.totalBorrowed, currencySymbol)}</div>
-              </div>
-              <div style={{ background: 'var(--bg)', padding: '12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: '.7rem', color: 'var(--text-secondary)' }}>{dict.creditInsights.totalPaid}</div>
-                <div style={{ fontSize: '1rem', fontWeight: 700 }}>{formatCurrency(history.profile.stats.totalPaid, currencySymbol)}</div>
-              </div>
-              <div style={{ background: 'var(--bg)', padding: '12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: '.7rem', color: 'var(--text-secondary)' }}>{dict.creditInsights.activeLoans}</div>
-                <div style={{ fontSize: '1rem', fontWeight: 700 }}>{history.profile.stats.activeLoans}</div>
-              </div>
-              <div style={{ background: 'var(--bg)', padding: '12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: '.7rem', color: 'var(--text-secondary)' }}>{dict.creditInsights.consistency}</div>
-                <div style={{ fontSize: '1rem', fontWeight: 700, color: history.profile.stats.punctuality > 80 ? 'var(--success)' : 'var(--warning)' }}>
-                  {history.profile.stats.punctuality}%
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
+                <div style={{ background: 'var(--bg)', padding: '12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: '.7rem', color: 'var(--text-secondary)' }}>{dict.creditInsights.totalBorrowed}</div>
+                  <div style={{ fontSize: '1rem', fontWeight: 700 }}>{formatCurrency(history.profile.stats.totalBorrowed, currencySymbol)}</div>
                 </div>
-              </div>
-            </div>
-
-            <h4 style={{ fontSize: '.85rem', marginBottom: '10px' }}>📜 {dict.creditInsights.history}</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {history.loans.length > 0 ? history.loans.slice(0, 5).map((l: any) => (
-                <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', fontSize: '.85rem' }}>
-                  <div>
-                    <strong>{l.loanCode}</strong>
-                    <div style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>{new Date(l.createdAt).toLocaleDateString()}</div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontWeight: 600 }}>{formatCurrency(Number(l.principal), currencySymbol)}</div>
-                    <span className={`badge ${l.status === 'closed' ? 'badge-closed' : l.status === 'overdue' ? 'badge-overdue' : 'badge-pending'}`} style={{ fontSize: '.7rem', padding: '2px 6px', borderRadius: '4px' }}>
-                      {l.status}
-                    </span>
+                <div style={{ background: 'var(--bg)', padding: '12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: '.7rem', color: 'var(--text-secondary)' }}>{dict.creditInsights.totalPaid}</div>
+                  <div style={{ fontSize: '1rem', fontWeight: 700 }}>{formatCurrency(history.profile.stats.totalPaid, currencySymbol)}</div>
+                </div>
+                <div style={{ background: 'var(--bg)', padding: '12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: '.7rem', color: 'var(--text-secondary)' }}>{dict.creditInsights.activeLoans}</div>
+                  <div style={{ fontSize: '1rem', fontWeight: 700 }}>{history.profile.stats.activeLoans}</div>
+                </div>
+                <div style={{ background: 'var(--bg)', padding: '12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: '.7rem', color: 'var(--text-secondary)' }}>{dict.creditInsights.consistency}</div>
+                  <div style={{ fontSize: '1rem', fontWeight: 700, color: history.profile.stats.punctuality > 80 ? 'var(--success)' : 'var(--warning)' }}>
+                    {history.profile.stats.punctuality}%
                   </div>
                 </div>
-              )) : (
-                <p style={{ fontSize: '.8rem', color: 'var(--text-light)', textAlign: 'center' }}>{dict.creditInsights.noHistory}</p>
-              )}
+              </div>
+
+              <h4 style={{ fontSize: '.85rem', marginBottom: '10px' }}>📜 {dict.creditInsights.history}</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {history.loans.length > 0 ? history.loans.slice(0, 5).map((l: any) => (
+                  <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', fontSize: '.85rem' }}>
+                    <div>
+                      <strong>{l.loanCode}</strong>
+                      <div style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>{new Date(l.createdAt).toLocaleDateString()}</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontWeight: 600 }}>{formatCurrency(Number(l.principal), currencySymbol)}</div>
+                      <span className={`badge ${l.status === 'closed' ? 'badge-closed' : l.status === 'overdue' ? 'badge-overdue' : 'badge-pending'}`} style={{ fontSize: '.7rem', padding: '2px 6px', borderRadius: '4px' }}>
+                        {l.status}
+                      </span>
+                    </div>
+                  </div>
+                )) : (
+                  <p style={{ fontSize: '.8rem', color: 'var(--text-light)', textAlign: 'center' }}>{dict.creditInsights.noHistory}</p>
+                )}
+              </div>
             </div>
+          ) : null
+        ) : (
+          /* Bureau Connect Panel */
+          <div style={{ padding: '12px 4px' }}>
+            {loadingBureau ? (
+              <div style={{ padding: '40px', textAlign: 'center' }}>
+                <div className="spinner" style={{ margin: '0 auto 12px' }}></div>
+                <p style={{ fontSize: '.85rem', color: 'var(--text-secondary)' }}>{bureauStatusText}</p>
+              </div>
+            ) : bureauReport ? (
+              <BureauReportCard report={bureauReport} />
+            ) : (
+              <div style={{ padding: '10px 4px' }}>
+                <p style={{ fontSize: '.85rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                  No active credit bureau report found for this customer. Trigger a new query below.
+                </p>
+                {bureauError && (
+                  <div style={{ color: 'var(--danger)', background: 'rgba(231, 76, 60, 0.05)', border: '1px solid var(--danger)', padding: '10px', borderRadius: '4px', fontSize: '.8rem', marginBottom: '16px' }}>
+                    ⚠️ {bureauError}
+                  </div>
+                )}
+                <div className="form-group" style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'flex', alignItems: 'start', gap: '8px', cursor: 'pointer', fontSize: '.82rem', lineHeight: 1.4 }}>
+                    <input 
+                      type="checkbox" 
+                      checked={consentObtained} 
+                      onChange={(e) => setConsentObtained(e.target.checked)} 
+                      style={{ marginTop: '3px' }}
+                    />
+                    <span>I confirm that the borrower has provided verbal/written consent for a credit bureau query as per RBI guidelines.</span>
+                  </label>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ width: '100%', padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                  disabled={!consentObtained}
+                  onClick={triggerBureauPull}
+                >
+                  <span className="material-icons-outlined" style={{ fontSize: '18px' }}>search</span> Pull Bureau Report
+                </button>
+              </div>
+            )}
           </div>
-        ) : null}
+        )}
       </div>
 
       <Modal isOpen={isCustomerModalOpen} onClose={() => setIsCustomerModalOpen(false)} title={dict.customers.registerTitle}>

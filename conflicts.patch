@@ -1,0 +1,762 @@
+﻿diff --cc app/(dashboard)/[module]/collection/CollectionClient.tsx
+index 2f5dee9,469f63d..0000000
+--- a/app/(dashboard)/[module]/collection/CollectionClient.tsx
++++ b/app/(dashboard)/[module]/collection/CollectionClient.tsx
+@@@ -449,15 -391,38 +452,50 @@@ export default function CollectionClien
+                    </span>
+                  </td>
+                  <td>
+++<<<<<<< HEAD
+ +                  {unpaidInstalments.length === 0 ? (
+ +                    <button className="btn btn-ghost btn-sm" onClick={() => openModal(visibleInstalments[0])}>
+ +                      <span className="material-icons-outlined" style={{ fontSize: '14px' }}>edit</span> Edit
+ +                    </button>
+ +                  ) : (
+ +                    <button className="btn btn-primary btn-sm" onClick={() => unpaidInstalments.length === 1 ? openModal(unpaidInstalments[0]) : setOverdueCustomerGroup(buildOverdueGroup(group))}>
+ +                      <span className="material-icons-outlined" style={{ fontSize: '14px' }}>payments</span> Pay
+ +                    </button>
+ +                  )}
+++=======
++                   <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
++                     {isPaid ? (
++                       <>
++                         {isAdmin ? (
++                           <button className="btn btn-ghost btn-sm" onClick={() => openModal(instalment)}>
++                             <span className="material-icons-outlined" style={{ fontSize: '14px' }}>edit</span> Edit
++                           </button>
++                         ) : (
++                           <button className="btn btn-ghost btn-sm" onClick={() => openModal(instalment)}>
++                             <span className="material-icons-outlined" style={{ fontSize: '14px' }}>history_edu</span> Request
++                           </button>
++                         )}
++                         {receiptPdfEnabled && instalment.collectionEntry?.id && (
++                           <a
++                             href={`/api/receipts/${instalment.collectionEntry.id}`}
++                             target="_blank"
++                             rel="noopener noreferrer"
++                             className="btn btn-ghost btn-sm"
++                             title="Download Receipt"
++                             style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}
++                           >
++                             <span className="material-icons-outlined" style={{ fontSize: '16px' }}>receipt_long</span>
++                             Receipt
++                           </a>
++                         )}
++                       </>
++                     ) : (
++                       <button className="btn btn-primary btn-sm" onClick={() => openModal(instalment)}>
++                         <span className="material-icons-outlined" style={{ fontSize: '14px' }}>payments</span> Pay
++                       </button>
++                     )}
++                   </div>
+++>>>>>>> origin/merged-all-branches
+                  </td>
+                </tr>
+              );
+diff --cc app/(dashboard)/[module]/loans/[id]/LoanDetailClient.tsx
+index f8eb108,6b6d718..0000000
+--- a/app/(dashboard)/[module]/loans/[id]/LoanDetailClient.tsx
++++ b/app/(dashboard)/[module]/loans/[id]/LoanDetailClient.tsx
+@@@ -655,14 -669,29 +669,40 @@@ export default function LoanDetailClien
+                        <td>{isPaid ? formatCurrency(inst.receivedAmount, currencySymbol) : 'ÔÇö'}</td>
+                        <td><span className={getBadgeClass(inst.status)} style={{textTransform:'capitalize'}}>{inst.status}</span></td>
+                        <td>
+++<<<<<<< HEAD
+ +                        {loan.status !== 'closed' && (
+ +                          <button className="btn btn-primary btn-sm" onClick={() => openPaymentModal(inst)} style={{ padding: '8px 12px', minHeight: '36px' }}>
+ +                            <span className="material-icons-outlined" style={{ fontSize: '14px' }}>
+ +                              {isPaid ? (isAdmin ? 'edit' : 'history_edu') : 'payments'}
+ +                            </span>{' '}
+ +                            {isPaid ? (isAdmin ? d.edit : d.requestWord) : d.pay}
+ +                          </button>
+ +                        )}
+++=======
++                         <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
++                           {loan.status !== 'closed' && (
++                             <button className="btn btn-primary btn-sm" onClick={() => openPaymentModal(inst)} style={{ padding: '8px 12px', minHeight: '36px' }}>
++                               <span className="material-icons-outlined" style={{ fontSize: '14px' }}>
++                                 {isPaid ? (isAdmin ? 'edit' : 'history_edu') : 'payments'}
++                               </span>{' '}
++                               {isPaid ? (isAdmin ? d.edit : 'Request') : d.pay}
++                             </button>
++                           )}
++                           {receiptPdfEnabled && inst.collectionEntry?.id && (
++                             <a
++                               href={`/api/receipts/${inst.collectionEntry.id}`}
++                               target="_blank"
++                               rel="noopener noreferrer"
++                               className="btn btn-ghost btn-sm"
++                               style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}
++                               title="Download Receipt"
++                             >
++                               <span className="material-icons-outlined" style={{ fontSize: '16px' }}>receipt_long</span>
++                               Receipt
++                             </a>
++                           )}
++                         </div>
+++>>>>>>> origin/merged-all-branches
+                        </td>
+                      </tr>
+                    );
+diff --cc app/(dashboard)/[module]/settings/SettingsClient.tsx
+index 9206dcb,804ceb4..0000000
+--- a/app/(dashboard)/[module]/settings/SettingsClient.tsx
++++ b/app/(dashboard)/[module]/settings/SettingsClient.tsx
+@@@ -54,8 -58,17 +58,22 @@@ export default function SettingsClient(
+          <div className={`tab ${activeTab === 'routes' ? 'active' : ''}`} onClick={() => setActiveTab('routes')}>{d.tabRoutes}</div>
+          <div className={`tab ${activeTab === 'penalty' ? 'active' : ''}`} onClick={() => setActiveTab('penalty')}>{d.tabPenalty}</div>
+          <div className={`tab ${activeTab === 'packages' ? 'active' : ''}`} onClick={() => setActiveTab('packages')}>{d.tabPackages}</div>
+++<<<<<<< HEAD
+ +        <div className={`tab ${activeTab === 'payment' ? 'active' : ''}`} onClick={() => setActiveTab('payment')}>{d.tabPayment}</div>
+ +        <div className={`tab ${activeTab === 'bulk' ? 'active' : ''}`} onClick={() => setActiveTab('bulk')}>{d.tabBulk}</div>
+++=======
++         <div className={`tab ${activeTab === 'payment' ? 'active' : ''}`} onClick={() => setActiveTab('payment')}>Payment</div>
++         {subscription?.whatsappSmsEnabled && (
++           <div className={`tab ${activeTab === 'notifications' ? 'active' : ''}`} onClick={() => setActiveTab('notifications')}>Notifications</div>
++         )}
++         <div className={`tab ${activeTab === 'bulk' ? 'active' : ''}`} onClick={() => setActiveTab('bulk')}>Bulk Tools</div>
++         {subscription?.bureauEnabled && (
++           <div className={`tab ${activeTab === 'bureau' ? 'active' : ''}`} onClick={() => setActiveTab('bureau')}>Bureau Connect</div>
++         )}
++         {subscription?.npaEnabled && (
++           <div className={`tab ${activeTab === 'npa' ? 'active' : ''}`} onClick={() => setActiveTab('npa')}>NPA Classification</div>
++         )}
+++>>>>>>> origin/merged-all-branches
+          {currentUser?.role === 'developer' && (
+            <div className={`tab ${activeTab === 'system' ? 'active' : ''}`} onClick={() => setActiveTab('system')}>{d.tabSystem}</div>
+          )}
+@@@ -230,12 -243,37 +248,37 @@@
+                    <option value="false">{d.no}</option>
+                  </select>
+                </div>
++               <div className="settings-item" style={{ borderTop: '1px solid var(--border)', paddingTop: '16px', marginTop: '16px' }}>
++                 <div className="si-info">
++                   <h4>Identity Verification (KYC) Method</h4>
++                   <p>Choose the KYC verification method for customers. Digio integration requires active credentials.</p>
++                 </div>
++                 <div style={{ width: '200px' }}>
++                   <select 
++                     name="kyc_method" 
++                     className="form-control" 
++                     defaultValue={settings.kyc_method || 'manual_upload'}
++                     disabled={!subscription?.kycEnabled}
++                   >
++                     <option value="manual_upload">Manual Document Upload</option>
++                     <option value="aadhaar_otp">Aadhaar OTP eKYC (Digio)</option>
++                     <option value="video_kyc">Video KYC (VCIP)</option>
++                     <option value="both">Both Aadhaar OTP + Video KYC</option>
++                   </select>
++                   {!subscription?.kycEnabled && (
++                     <div style={{ fontSize: '10px', color: 'var(--danger)', marginTop: '4px', fontWeight: 600 }}>
++                       ÔÜá´©Å Premium add-on disabled. Unlock under Superadmin Subscription.
++                     </div>
++                   )}
++                 </div>
++               </div>
++ 
+                <div style={{borderTop:'1px solid var(--border)', paddingTop:'20px', marginTop:'12px'}}>
+ -                <h4 style={{fontSize:'.95rem', fontWeight:700, marginBottom:'12px'}}>­ƒôØ Loan Code Prefixes</h4>
+ -                <p style={{fontSize:'.8rem', color:'var(--text-light)', marginBottom:'16px'}}>Customize the prefix used for loan codes based on repayment frequency.</p>
+ +                <h4 style={{fontSize:'.95rem', fontWeight:700, marginBottom:'12px'}}>­ƒôØ {d.loanCodePrefixes}</h4>
+ +                <p style={{fontSize:'.8rem', color:'var(--text-light)', marginBottom:'16px'}}>{d.loanCodePrefixesDesc}</p>
+                  <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px'}}>
+                    <div className="settings-item" style={{flexDirection:'column', alignItems:'flex-start', gap:'4px'}}>
+ -                    <label className="form-label" style={{fontSize:'.8rem', margin:0}}>Daily Prefix</label>
+ +                    <label className="form-label" style={{fontSize:'.8rem', margin:0}}>{d.dailyPrefix}</label>
+                      <input type="text" name="loan_prefix_daily" className="form-control" style={{width:'100px'}} defaultValue={settings.loan_prefix_daily || 'DL'} maxLength={4} />
+                    </div>
+                    <div className="settings-item" style={{flexDirection:'column', alignItems:'flex-start', gap:'4px'}}>
+@@@ -281,21 -319,93 +324,93 @@@
+                </div>
+              )}
+              <input type="file" name="upiQrCode" accept="image/*" className="form-control" />
+ -            <span style={{fontSize:'.75rem', color:'var(--text-light)', marginTop:'4px', display:'block'}}>Upload a screenshot or image of your UPI QR code (max 5MB).</span>
+ +            <span style={{fontSize:'.75rem', color:'var(--text-light)', marginTop:'4px', display:'block'}}>{d.upiQrHelper}</span>
+            </div>
++           {subscription?.receiptPdfAllowed && (
++             <div style={{ marginTop: '24px', borderTop: '1px solid var(--border)', paddingTop: '20px', marginBottom: '20px' }}>
++               <h4 style={{ marginBottom: '8px' }}>­ƒôä Payment Receipt PDF</h4>
++               <p style={{ fontSize: '.8rem', color: 'var(--text-light)', marginBottom: '12px' }}>
++                 Allow downloading of A5 branded collection receipt PDFs and customer account statement PDFs.
++               </p>
++               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
++                 <input 
++                   type="checkbox" 
++                   name="receipt_pdf_active" 
++                   value="true" 
++                   defaultChecked={settings.receipt_pdf_active === 'true'} 
++                 />
++                 <strong>Enable Receipt & Statement PDFs</strong>
++               </label>
++             </div>
++           )}
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              <span className="material-icons-outlined" style={{fontSize:'16px'}}>save</span> {loading ? d.saving : d.save}
+            </button>
+          </form>
+        </div>
+  
++       {/* Notifications Tab */}
++       {subscription?.whatsappSmsEnabled && (
++         <div className={`tab-content ${activeTab === 'notifications' ? 'active' : ''}`}>
++           <div className="card-header">
++             <h3>­ƒöö Automated SMS & WhatsApp Notifications</h3>
++           </div>
++           <form action={async (fd) => { 
++             setLoading(true); 
++             await saveNotificationSettings(fd); 
++             setLoading(false); 
++             showToast('Notification settings saved'); 
++           }} style={{ maxWidth: '500px' }}>
++             <div className="form-group" style={{ marginBottom: '20px' }}>
++               <p style={{ fontSize: '.85rem', color: 'var(--text-secondary)', marginBottom: '15px' }}>
++                 Toggle automatic SMS and WhatsApp alerts to borrowers. SMS messages are sent immediately. WhatsApp templates are triggered if configured and approved on MSG91.
++               </p>
++               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
++                 <input 
++                   type="checkbox" 
++                   name="whatsapp_sms_active" 
++                   value="true" 
++                   defaultChecked={settings.whatsapp_sms_active !== 'false'} 
++                 />
++                 <strong>Enable Automated Notifications</strong>
++               </label>
++               <span style={{ fontSize: '.75rem', color: 'var(--text-light)', marginTop: '6px', display: 'block' }}>
++                 If unchecked, no SMS or WhatsApp notifications will be sent to borrowers.
++               </span>
++             </div>
++ 
++             <div style={{ marginBottom: '25px', padding: '16px', background: 'var(--primary-light)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
++               <h4 style={{ fontSize: '.95rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary-dark)' }}>
++                 <span className="material-icons-outlined" style={{ fontSize: '18px' }}>list_alt</span>
++                 Notification Audit Trails
++               </h4>
++               <p style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginTop: '4px', marginBottom: '12px' }}>
++                 View the detailed logs of all notifications sent, failed, or pending.
++               </p>
++               <Link 
++                 href={`/${modulePrefix}/notifications/log`} 
++                 className="btn btn-secondary btn-sm"
++                 style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
++               >
++                 <span className="material-icons-outlined" style={{ fontSize: '14px' }}>history</span>
++                 View Notification Logs
++               </Link>
++             </div>
++ 
++             <button type="submit" className="btn btn-primary" disabled={loading}>
++               <span className="material-icons-outlined" style={{ fontSize: '16px' }}>save</span> {loading ? 'Saving...' : 'Save Settings'}
++             </button>
++           </form>
++         </div>
++       )}
++ 
+        {/* Bulk Tools Tab */}
+        <div className={`tab-content ${activeTab === 'bulk' ? 'active' : ''}`}>
+ -        <div className="card-header"><h3>­ƒôª Bulk Data Tools</h3></div>
+ +        <div className="card-header"><h3>­ƒôª {d.bulkDataTools}</h3></div>
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', maxWidth:'800px'}}>
+            <div className="card" style={{padding:'20px', border:'1px solid var(--border)'}}>
+ -            <h4>Import Customers</h4>
+ -            <p style={{fontSize:'.85rem', color:'var(--text-light)', marginBottom:'15px'}}>Upload a JSON file with customer records.</p>
+ +            <h4>{d.importCustomers}</h4>
+ +            <p style={{fontSize:'.85rem', color:'var(--text-light)', marginBottom:'15px'}}>{d.importCustomersDesc}</p>
+              <input type="file" accept=".json" onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+diff --cc app/api/cron/accrue-penalties/route.ts
+index 88e5e9e,44a2585..0000000
+--- a/app/api/cron/accrue-penalties/route.ts
++++ b/app/api/cron/accrue-penalties/route.ts
+@@@ -3,7 -4,7 +3,11 @@@ import prisma from '@/lib/db'
+  import { cleanupExpiredRateLimits } from '@/lib/rateLimit';
+  import { calculatePenaltyAccrual, shouldUpdatePenaltyGross } from '@/lib/penalties';
+  import { apiError } from '@/lib/utils';
+++<<<<<<< HEAD
+ +import { authorizeCron } from '@/lib/cronAuth';
+++=======
++ import { notifyLoanOverdue } from '@/lib/sms';
+++>>>>>>> origin/merged-all-branches
+  
+  /**
+   * GET /api/cron/accrue-penalties
+diff --cc app/api/cron/npa-classify/route.ts
+index 7e4bfc5,15393ca..0000000
+--- a/app/api/cron/npa-classify/route.ts
++++ b/app/api/cron/npa-classify/route.ts
+@@@ -1,65 -1,97 +1,105 @@@
+  import { NextResponse } from 'next/server';
+ -import crypto from 'node:crypto';
+  import prisma from '@/lib/db';
+++<<<<<<< HEAD
+ +import { authorizeCron } from '@/lib/cronAuth';
+++=======
++ import { runNpaClassification } from '@/lib/npa/npaClassifier';
++ import { apiError } from '@/lib/utils';
+++>>>>>>> origin/merged-all-branches
+  
++ /**
++  * GET /api/cron/npa-classify
++  *
++  * Full NPA classification engine. Runs daily at 2:00 AM (after penalty accrual at 1:00 AM).
++  * Classifies all active/NPA loans into RBI asset categories:
++  *   Standard ÔåÆ SMA-0 ÔåÆ SMA-1 ÔåÆ SMA-2 ÔåÆ Sub-Standard ÔåÆ Doubtful D1/D2/D3 ÔåÆ Loss
++  *
++  * Only processes tenants with npaEnabled = true in their subscription.
++  *
++  * Protect with CRON_SECRET via Authorization: Bearer <secret>
++  */
+  export async function GET(request: Request) {
+++<<<<<<< HEAD
+ +  const denied = authorizeCron(request);
+ +  if (denied) return denied;
+++=======
++   // Validate cron secret
++   const cronSecret = process.env.CRON_SECRET;
++   if (!cronSecret) {
++     return apiError('CRON_SECRET is not configured', 500);
++   }
++ 
++   const authHeader = request.headers.get('authorization');
++   const expectedToken = Buffer.from(cronSecret);
++   const providedTokenStr = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : '';
++   const providedToken = Buffer.from(providedTokenStr);
++ 
++   if (expectedToken.length !== providedToken.length || !crypto.timingSafeEqual(expectedToken, providedToken)) {
++     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
++   }
+++>>>>>>> origin/merged-all-branches
+  
+-   // 90 days ago
+-   const npaThresholdDate = new Date();
+-   npaThresholdDate.setDate(npaThresholdDate.getDate() - 90);
++   try {
++     // Cron locking to prevent concurrent NPA classification runs
++     const lockId = 'npa_classification';
++     const lockExpiryMinutes = 10;
++     const now = new Date();
+  
+-   // Find loans that have an unpaid instalment due before npaThresholdDate
+-   // and are not already classified as NPA
+-   const npaCandidateLoans = await prisma.loan.findMany({
+-     where: {
+-       status: 'active',
+-       npaStatus: null,
+-       instalments: {
+-         some: {
+-           // 'missed' and 'partial' imply receivedAmount < dueAmount by definition;
+-           // 'upcoming' that is 90+ days overdue has also not been fully paid.
+-           status: { in: ['missed', 'partial', 'upcoming'] },
+-           dueDate: { lt: npaThresholdDate },
+-         },
++     const existingLock = await prisma.cronLock.findUnique({ where: { id: lockId } });
++     if (existingLock && existingLock.expiresAt > now) {
++       return apiError('NPA classification job already running or recently completed.', 429);
++     }
++ 
++     await prisma.cronLock.upsert({
++       where: { id: lockId },
++       create: {
++         id: lockId,
++         lockedAt: now,
++         expiresAt: new Date(now.getTime() + lockExpiryMinutes * 60000),
++       },
++       update: {
++         lockedAt: now,
++         expiresAt: new Date(now.getTime() + lockExpiryMinutes * 60000),
+        },
+-     },
+-     select: { id: true, tenantId: true },
+-   });
++     });
+  
+-   if (npaCandidateLoans.length === 0) {
+-     return NextResponse.json({ ok: true, processed: 0 });
+-   }
++     // Only process tenants with npaEnabled = true
++     const enabledSubscriptions = await prisma.tenantSubscription.findMany({
++       where: { npaEnabled: true },
++       select: { tenantId: true },
++     });
++ 
++     const tenantIds = enabledSubscriptions.map((s) => s.tenantId);
+  
+-   let classifiedCount = 0;
++     // Get tenant details for reporting
++     const tenants = await prisma.tenant.findMany({
++       where: { id: { in: tenantIds }, status: 'active' },
++       select: { id: true, name: true },
++     });
++ 
++     const results: Record<string, unknown>[] = [];
+  
+-   for (const loan of npaCandidateLoans) {
+-     await prisma.$transaction(async (tx) => {
+-       await tx.loan.update({
+-         where: { id: loan.id },
+-         data: {
+-           npaStatus: 'NPA',
+-           npaClassifiedAt: new Date(),
+-         },
+-       });
++     for (const tenant of tenants) {
++       try {
++         const result = await runNpaClassification(tenant.id, 'cron_auto');
++         results.push({ tenantId: tenant.id, tenantName: tenant.name, ...result });
++       } catch (err) {
++         results.push({
++           tenantId: tenant.id,
++           tenantName: tenant.name,
++           error: (err as Error).message,
++         });
++       }
++     }
+  
+-       await tx.auditLog.create({
+-         data: {
+-           tenantId: loan.tenantId,
+-           userId: 'system',
+-           action: 'npa_classification',
+-           entityType: 'loan',
+-           entityId: loan.id,
+-         },
+-       });
+-       classifiedCount++;
++     return NextResponse.json({
++       success: true,
++       runDate: new Date().toISOString(),
++       tenantsProcessed: tenants.length,
++       results,
+      });
++   } catch (err) {
++     console.error('[npa-classify]', err);
++     return apiError('Internal server error', 500);
+    }
+- 
+-   return NextResponse.json({
+-     ok: true,
+-     processed: npaCandidateLoans.length,
+-     classifiedCount,
+-   });
+  }
+diff --cc app/api/v1/loans/route.ts
+index f8b1c59,7d6f770..0000000
+--- a/app/api/v1/loans/route.ts
++++ b/app/api/v1/loans/route.ts
+@@@ -172,27 -100,21 +172,45 @@@ export async function POST(req: NextReq
+          appType: ctx.appType,
+          loanCode,
+          customerId,
+ +        loanType,
+ +        collateralDetails,
+ +        guarantorId,
+          principal,
+++<<<<<<< HEAD
+ +        deduction: preview.deduction,
+ +        deductionType,
+ +        disbursed: preview.disbursedAmount,
+++=======
++         disbursed: preview.disbursedAmount,
++         deduction: preview.deduction,
++         deductionType: interestType,
++         tenure,
+++>>>>>>> origin/merged-all-branches
+          frequency,
+ +        dueDay,
+ +        tenure,
+          startDate,
+++<<<<<<< HEAD
+ +        endDate,
+ +        perInstalment: preview.perInstalment,
+ +        penaltyRate,
+ +        voucherRef,
+ +        totalPayable: preview.totalPayable,
+ +        totalInstalments: tenure,
+ +        createdById: ctx.userId,
+ +        status: ctx.role === 'agent' ? 'pending_review' : 'active',
+ +        instalments: {
+ +          create: preview.schedule.map((i) => ({
+++=======
++         endDate: new Date(preview.schedule[preview.schedule.length - 1].dueDate),
++         perInstalment: preview.perInstalment,
++         totalPayable: preview.totalPayable,
++         penaltyRate,
++         status: 'pending_review',
++         totalInstalments: tenure,
++         instalments: {
++           create: preview.schedule.map((i: any) => ({
+++>>>>>>> origin/merged-all-branches
+              instalmentNo: i.instalmentNo,
+              dueDate: new Date(i.dueDate),
+              dueAmount: i.dueAmount,
+diff --cc prisma/schema.prisma
+index 2f69d09,ac43ad1..0000000
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@@ -893,41 -966,225 +978,266 @@@ model CashHandover 
+    @@map("cash_handovers")
+  }
+  
+++<<<<<<< HEAD
+ +// GPS-02: ordered customer stops per route, with location.
+ +// Phase 3 will use this for nearest-neighbor route optimization.
+ +model RouteStop {
+ +  id          String   @id @default(cuid())
+ +  tenantId    String   @map("tenant_id")
+ +  routeId     String   @map("route_id")
+ +  customerId  String   @map("customer_id")
+ +  sequence    Int      @default(0)
+ +  lat         Float?
+ +  lng         Float?
+ +  createdAt   DateTime @default(now()) @map("created_at")
+ +  updatedAt   DateTime @updatedAt @map("updated_at")
+ +
+ +  @@unique([routeId, customerId])
+ +  @@index([tenantId])
+ +  @@index([routeId, sequence])
+ +  @@map("route_stops")
+ +}
+ +
+ +// GPS-03: agent location pings (live tracking + history).
+ +// Phase 3 will populate from POST /api/v1/gps/ping every 30s during
+ +// active collection sessions.
+ +model AgentLocationPing {
+ +  id           String   @id @default(cuid())
+ +  tenantId    String   @map("tenant_id")
+ +  agentId     String   @map("agent_id")
+ +  routeId     String?  @map("route_id")
+ +  lat         Float
+ +  lng         Float
+ +  accuracyM   Float?   @map("accuracy_m")
+ +  speedMps    Float?   @map("speed_mps")
+ +  capturedAt  DateTime @map("captured_at")
+ +  receivedAt  DateTime @default(now()) @map("received_at")
+ +
+ +  @@index([tenantId, agentId, capturedAt])
+ +  @@index([routeId, capturedAt])
+ +  @@map("agent_location_pings")
+ +}
+++=======
++ /// Developer-assigned mapping of which branches a superadmin manages.
++ model SuperadminBranch {
++   id           String   @id @default(cuid())
++   superadminId String   @map("superadmin_id")
++   branchId     String   @map("branch_id")
++   assignedById String?  @map("assigned_by_id")
++   assignedAt   DateTime @default(now()) @map("assigned_at")
++ 
++   superadmin User    @relation("SuperadminBranchLinks", fields: [superadminId], references: [id], onDelete: Cascade)
++   branch     Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
++   assignedBy User?   @relation("SuperadminBranchAssigner", fields: [assignedById], references: [id])
++ 
++   @@unique([superadminId, branchId])
++   @@index([branchId])
++   @@map("superadmin_branches")
++ }
++ 
++ /// Superadmin-assigned global module access for an admin or agent.
++ /// Determines which app-modules (microlending, autofinance, chitfunds) the user can see.
++ model UserModule {
++   id           String   @id @default(cuid())
++   userId       String   @map("user_id")
++   appType      String   @map("app_type")
++   assignedById String?  @map("assigned_by_id")
++   assignedAt   DateTime @default(now()) @map("assigned_at")
++ 
++   user       User  @relation("UserModuleUser", fields: [userId], references: [id], onDelete: Cascade)
++   assignedBy User? @relation("UserModuleAssigner", fields: [assignedById], references: [id])
++ 
++   @@unique([userId, appType])
++   @@index([userId])
++   @@map("user_modules")
++ }
++ 
++ /// Superadmin request to enable an additional module that is not yet in their subscription.
++ model ModuleRequest {
++   id            String    @id @default(cuid())
++   tenantId      String    @map("tenant_id")
++   requestedById String    @map("requested_by_id")
++   appType       String    @map("app_type")
++   reason        String?   @db.Text
++   status        String    @default("pending")
++   reviewedById  String?   @map("reviewed_by_id")
++   reviewNote    String?   @map("review_note") @db.Text
++   reviewedAt    DateTime? @map("reviewed_at")
++   createdAt     DateTime  @default(now()) @map("created_at")
++   updatedAt     DateTime  @updatedAt @map("updated_at")
++ 
++   requestedBy User    @relation("ModuleRequestsMade", fields: [requestedById], references: [id])
++   reviewedBy  User?   @relation("ModuleRequestsReviewed", fields: [reviewedById], references: [id])
++   tenant      Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++ 
++   @@index([tenantId, status])
++   @@index([requestedById])
++   @@map("module_requests")
++ }
++ 
++ model BureauCredential {
++   id              String   @id @default(cuid())
++   tenantId        String   @unique @map("tenant_id")
++   provider        String   @default("CRIF")
++   memberId        String   @db.Text
++   apiKey          String   @db.Text
++   apiSecret       String?  @db.Text
++   bureauCert      String?  @db.Text
++   bureauKey       String?  @db.Text
++   environment     String   @default("sandbox")
++   isActive        Boolean  @default(true) @map("is_active")
++   createdAt       DateTime @default(now()) @map("created_at")
++   updatedAt       DateTime @updatedAt @map("updated_at")
++ 
++   tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++ 
++   @@map("bureau_credentials")
++ }
++ 
++ model BureauReport {
++   id               String    @id @default(cuid())
++   tenantId         String    @map("tenant_id")
++   customerId       String    @map("customer_id")
++   loanId           String?   @map("loan_id")
++   bureauProvider   String    @map("bureau_provider")
++   pullType         String    @map("pull_type")
++   requestId        String    @unique @map("request_id")
++   status           String    @default("pending")
++ 
++   creditScore      Int?      @map("credit_score")
++   scoreModel       String?   @map("score_model")
++   totalAccounts    Int?      @map("total_accounts")
++   activeAccounts   Int?      @map("active_accounts")
++   overdueAccounts  Int?      @map("overdue_accounts")
++   totalOverdueAmt  Decimal?  @map("total_overdue_amt")  @db.Decimal(12, 2)
++   enquiryCount90d  Int?      @map("enquiry_count_90d")
++   activeMFILoans   Int?      @map("active_mfi_loans")
++   activeMFILoanAmt Decimal?  @map("active_mfi_loan_amt") @db.Decimal(12, 2)
++   writtenOffAccounts Int?    @map("written_off_accounts")
++   suitFiledAccounts  Int?    @map("suit_filed_accounts")
++ 
++   rawResponse      String?   @map("raw_response") @db.LongText
++ 
++   consentText      String    @map("consent_text") @db.Text
++   consentObtained  Boolean   @default(false) @map("consent_obtained")
++   consentTimestamp DateTime? @map("consent_timestamp")
++   consentIp        String?   @map("consent_ip")
++   consentMethod    String?   @map("consent_method")
++ 
++   validUntil       DateTime  @map("valid_until")
++   createdAt        DateTime  @default(now()) @map("created_at")
++   updatedAt        DateTime  @updatedAt @map("updated_at")
++ 
++   customer         Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
++   tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++   
++   linkedLoans      Loan[]    @relation("LoanBureauReport")
++   linkedInstalments Instalment[] @relation("InstalmentBureauReport")
++ 
++   @@index([customerId, createdAt])
++   @@index([tenantId, createdAt])
++   @@map("bureau_reports")
++ }
++ 
++ /// NPA classification history ÔÇö immutable audit trail for RBI inspection.
++ /// Records every classification change (Standard ÔåÆ SMA ÔåÆ Sub-Standard ÔåÆ Doubtful etc.).
++ model NpaHistory {
++   id              String    @id @default(cuid())
++   tenantId        String    @map("tenant_id")
++   loanId          String    @map("loan_id")
++   customerId      String    @map("customer_id")
++ 
++   // Transition recorded
++   fromCategory    String    @map("from_category")
++   toCategory      String    @map("to_category")
++   daysOverdue     Int       @map("days_overdue")
++   outstandingAmt  Decimal   @map("outstanding_amt") @db.Decimal(12, 2)
++ 
++   // Trigger information
++   triggeredBy     String    @map("triggered_by")    // 'cron_auto' | 'manual_admin' | 'rbi_inspection'
++   triggeredById   String?   @map("triggered_by_id") // userId if manual
++   notes           String?   @db.Text
++ 
++   // Provisioning at time of change
++   provisioningRate    Decimal @map("provisioning_rate") @db.Decimal(6, 2)
++   provisioningAmount  Decimal @map("provisioning_amount") @db.Decimal(12, 2)
++ 
++   createdAt       DateTime  @default(now()) @map("created_at")
++ 
++   loan            Loan      @relation(fields: [loanId], references: [id])
++   tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++ 
++   @@index([loanId, createdAt])
++   @@index([tenantId, toCategory, createdAt])
++   @@map("npa_history")
++ }
++ 
++ /// Daily provisioning snapshot per loan for RBI point-in-time reporting.
++ /// One snapshot per loan per day. Immutable ÔÇö cannot be modified once written.
++ model LoanProvisioning {
++   id              String    @id @default(cuid())
++   tenantId        String    @map("tenant_id")
++   loanId          String    @map("loan_id")
++   snapshotDate    DateTime  @map("snapshot_date") @db.Date
++ 
++   category        String    // asset category at snapshot
++   outstandingAmt  Decimal   @map("outstanding_amt") @db.Decimal(12, 2)
++   provisioningRate Decimal  @map("provisioning_rate") @db.Decimal(6, 2)
++   provisioningAmt  Decimal  @map("provisioning_amt") @db.Decimal(12, 2)
++   isSecured       Boolean   @default(false) @map("is_secured")
++ 
++   createdAt       DateTime  @default(now()) @map("created_at")
++ 
++   loan            Loan      @relation(fields: [loanId], references: [id])
++   tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++ 
++   @@unique([loanId, snapshotDate])
++   @@index([tenantId, snapshotDate])
++   @@map("loan_provisioning")
++ }
++ 
++ model KycSession {
++   id              String    @id @default(cuid())
++   tenantId        String    @map("tenant_id")
++   customerId      String    @map("customer_id")
++   method          String                         // 'aadhaar_otp' | 'video_kyc'
++   status          String    @default("initiated")
++   // 'initiated' | 'otp_sent' | 'otp_verified' | 'failed'
++   // 'video_uploaded' | 'video_reviewing' | 'video_approved' | 'video_rejected'
++ 
++   // Digio fields
++   digioRequestId  String?   @map("digio_request_id")  // Digio session/request ID
++   digioEntityId   String?   @map("digio_entity_id")
++ 
++   // OTP fields
++   otpReference    String?   @map("otp_reference")
++   otpExpiresAt    DateTime? @map("otp_expires_at")
++ 
++   // Video fields
++   videoFilePath   String?   @map("video_file_path")
++   videoFileName   String?   @map("video_file_name")
++   videoUploadedAt DateTime? @map("video_uploaded_at")
++ 
++   // Review fields
++   reviewedById    String?   @map("reviewed_by_id")
++   reviewedAt      DateTime? @map("reviewed_at")
++   reviewNotes     String?   @map("review_notes") @db.Text
++ 
++   // Response data (stored as JSON string)
++   responseData    String?   @map("response_data") @db.Text
++ 
++   initiatedById   String?   @map("initiated_by_id")
++   createdAt       DateTime  @default(now()) @map("created_at")
++   updatedAt       DateTime  @updatedAt @map("updated_at")
++ 
++   customer        Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
++   tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++   initiatedBy     User?     @relation("KycSessionInitiator", fields: [initiatedById], references: [id])
++   reviewedBy      User?     @relation("KycSessionReviewer", fields: [reviewedById], references: [id])
++ 
++   @@index([tenantId, customerId])
++   @@index([digioRequestId])
++   @@map("kyc_sessions")
++ }
++ 
+++>>>>>>> origin/merged-all-branches

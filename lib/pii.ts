@@ -139,3 +139,48 @@ export function isMaskedAadharNumber(value: string | null | undefined): boolean 
   return Boolean(value && /^x{4}\s*x{4}\s*\d{4}$/i.test(value.trim()));
 }
 
+const FIELD_ENCRYPTION_PREFIX = 'enc:field:v1';
+
+export function encryptField(value: string | null | undefined, rawKey?: string): string | null {
+  if (!value) return null;
+  if (value.startsWith(`${FIELD_ENCRYPTION_PREFIX}:`)) return value;
+
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', getEncryptionKey(rawKey), iv);
+  const encrypted = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+
+  return [
+    FIELD_ENCRYPTION_PREFIX,
+    iv.toString('base64url'),
+    tag.toString('base64url'),
+    encrypted.toString('base64url'),
+  ].join(':');
+}
+
+export function decryptField(value: string | null | undefined, rawKey?: string): string | null {
+  if (!value) return null;
+  if (!value.startsWith(`${FIELD_ENCRYPTION_PREFIX}:`)) {
+    return value;
+  }
+
+  const [, version, ivValue, tagValue, encryptedValue] = value.split(':');
+  if (version !== 'v1' || !ivValue || !tagValue || !encryptedValue) {
+    throw new Error('Unsupported field encryption payload.');
+  }
+
+  const decipher = crypto.createDecipheriv(
+    'aes-256-gcm',
+    getEncryptionKey(rawKey),
+    Buffer.from(ivValue, 'base64url'),
+  );
+  decipher.setAuthTag(Buffer.from(tagValue, 'base64url'));
+
+  const decrypted = Buffer.concat([
+    decipher.update(Buffer.from(encryptedValue, 'base64url')),
+    decipher.final(),
+  ]).toString('utf8');
+
+  return decrypted;
+}
+

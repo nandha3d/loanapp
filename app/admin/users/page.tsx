@@ -36,15 +36,16 @@ export default async function AdminUsersPage() {
           branch: {
             superadminId: session?.user?.id
           }
-        }
+        },
+        { branchId: null }
       ]
     };
   }
 
-  const [users, branches, subscriptions] = await Promise.all([
+  const [users, branches, subscriptions, superadminBranchLinks] = await Promise.all([
     prisma.user.findMany({ 
       where: userWhere,
-      include: { branch: true, userBranchModules: true },
+      include: { branch: true, userBranchModules: true, userModules: true },
       orderBy: { name: 'asc' }
     }),
     prisma.branch.findMany({
@@ -53,6 +54,11 @@ export default async function AdminUsersPage() {
       orderBy: { name: 'asc' },
     }),
     prisma.tenantSubscription.findMany(),
+    // All SuperadminBranch entries for this context (developer sees all, superadmin sees own)
+    prisma.superadminBranch.findMany({
+      where: userRole === 'developer' ? {} : { superadminId: session?.user?.id },
+      select: { superadminId: true, branchId: true },
+    }),
   ]);
 
   const currentSubscription = subscriptions.find(s => s.tenantId === tenantId);
@@ -91,6 +97,9 @@ export default async function AdminUsersPage() {
           customersCount: branch._count.customers,
           loansCount: branch._count.loans,
         })),
+        assignedBranchIds: superadminBranchLinks
+          .filter((l) => l.superadminId === superadmin.id)
+          .map((l) => l.branchId),
         adminCount: admins.length,
         agentCount: agents.length,
         modules,
@@ -106,6 +115,7 @@ export default async function AdminUsersPage() {
       subscription={currentSubscription}
       planModules={planModules}
       superadmins={superadmins}
+      allBranches={userRole === 'developer' ? await prisma.branch.findMany({ select: { id: true, name: true, code: true, tenantId: true } }) : branches.map(b => ({ id: b.id, name: b.name, code: b.code, tenantId: b.tenantId }))}
     />
   );
 }

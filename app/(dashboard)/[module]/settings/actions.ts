@@ -7,7 +7,7 @@ import { hash } from 'bcryptjs';
 import { auth } from '@/lib/auth';
 import { generateSecret, generateURI, verifySync } from 'otplib';
 import QRCode from 'qrcode';
-import { encryptAadharNumber } from '@/lib/pii';
+import { encryptAadharNumber, encryptField } from '@/lib/pii';
 import fs from 'fs';
 import path from 'path';
 import { getRouteDeletionBlockReason } from '@/lib/routePolicy';
@@ -31,6 +31,10 @@ export async function saveUpiQrCode(formData: FormData) {
   if (upiId) {
     await setSetting(tenantId, 'upi_id', upiId, 'payment');
   }
+
+  // Save Receipt PDF Active setting
+  const receiptPdfActive = formData.get('receipt_pdf_active') === 'true' ? 'true' : 'false';
+  await setSetting(tenantId, 'receipt_pdf_active', receiptPdfActive, 'payment');
 
   // Save QR code image
   if (qrFile && qrFile.size > 0) {
@@ -642,5 +646,106 @@ export async function wipeDatabaseRecords(tablesToWipe: string[]) {
     console.error('Failed to wipe database records:', err);
     return { success: false, error: err.message || 'Database wipe failed' };
   }
+}
+
+export async function saveNotificationSettings(formData: FormData) {
+  const session = await auth();
+  const role = (session?.user as any)?.role;
+  const userId = session?.user?.id;
+  if (!userId || !['admin', 'superadmin', 'developer'].includes(role)) {
+    return { success: false, error: 'Unauthorized' };
+  }
+  const tenantId = await getDefaultTenantId();
+  const whatsappSmsActive = formData.get('whatsapp_sms_active') === 'true' ? 'true' : 'false';
+
+  await setSetting(tenantId, 'whatsapp_sms_active', whatsappSmsActive, 'notification');
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId,
+      userId,
+      action: 'update',
+      entityType: 'settings',
+      newValue: JSON.stringify({ category: 'notification', whatsapp_sms_active: whatsappSmsActive }),
+    },
+  });
+
+  revalidatePath('/settings');
+  return { success: true };
+}
+
+export async function saveBureauSettings(formData: FormData) {
+  const session = await auth();
+  const role = (session?.user as any)?.role;
+  const userId = session?.user?.id;
+  if (!userId || !['admin', 'superadmin', 'developer'].includes(role)) {
+    return { success: false, error: 'Unauthorized' };
+  }
+  const tenantId = await getDefaultTenantId();
+
+  const provider = (formData.get('provider') as string) || 'CRIF';
+  const environment = (formData.get('environment') as string) || 'sandbox';
+  const memberId = formData.get('memberId') as string;
+  const apiKey = formData.get('apiKey') as string;
+  const apiSecret = formData.get('apiSecret') as string || '';
+  const isActive = formData.get('isActive') === 'true';
+
+  const certFile = formData.get('bureauCert') as File | null;
+  const keyFile = formData.get('bureauKey') as File | null;
+
+  const existingCred = await prisma.bureauCredential.findUnique({
+    where: { tenantId }
+  });
+
+  let certPemBase64 = existingCred?.bureauCert || null;
+  let keyPemBase64 = existingCred?.bureauKey || null;
+
+  if (certFile && certFile.size > 0) {
+    const certText = Buffer.from(await certFile.arrayBuffer()).toString('utf-8');
+    certPemBase64 = encryptField(certText);
+  }
+
+  if (keyFile && keyFile.size > 0) {
+    const keyText = Buffer.from(await keyFile.arrayBuffer()).toString('utf-8');
+    keyPemBase64 = encryptField(keyText);
+  }
+
+  await prisma.bureauCredential.upsert({
+    where: { tenantId },
+    update: {
+      provider,
+      memberId: encryptField(memberId) || '',
+      apiKey: encryptField(apiKey) || '',
+      apiSecret: apiSecret ? (encryptField(apiSecret) || '') : null,
+      bureauCert: certPemBase64,
+      bureauKey: keyPemBase64,
+      environment,
+      isActive,
+    },
+    create: {
+      tenantId,
+      provider,
+      memberId: encryptField(memberId) || '',
+      apiKey: encryptField(apiKey) || '',
+      apiSecret: apiSecret ? (encryptField(apiSecret) || '') : null,
+      bureauCert: certPemBase64,
+      bureauKey: keyPemBase64,
+      environment,
+      isActive,
+    }
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId,
+      userId,
+      action: 'update',
+      entityType: 'settings',
+      newValue: JSON.stringify({ category: 'bureau', provider, environment, hasCert: !!certPemBase64 }),
+    },
+  });
+
+  revalidatePath('/settings');
+  return { success: true };
 }
 

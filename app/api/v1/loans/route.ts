@@ -183,7 +183,7 @@ export async function POST(req: NextRequest) {
         dueDay,
         tenure,
         startDate,
-        endDate,
+        endDate: new Date(preview.schedule[preview.schedule.length - 1].dueDate),
         perInstalment: preview.perInstalment,
         penaltyRate,
         voucherRef,
@@ -192,11 +192,10 @@ export async function POST(req: NextRequest) {
         createdById: ctx.userId,
         status: ctx.role === 'agent' ? 'pending_review' : 'active',
         instalments: {
-          create: preview.schedule.map((i) => ({
+          create: preview.schedule.map((i: any) => ({
             instalmentNo: i.instalmentNo,
             dueDate: new Date(i.dueDate),
             dueAmount: i.dueAmount,
-            receivedAmount: 0,
             status: 'upcoming',
           })),
         },

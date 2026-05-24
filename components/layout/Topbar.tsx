@@ -221,6 +221,7 @@ export default function Topbar({
         <button
           className="btn btn-ghost btn-sm"
           title="Logout"
+          suppressHydrationWarning
           onClick={() => signOut({ callbackUrl: '/login' })}
         >
           <span className="material-icons-outlined" style={{ fontSize: '20px' }}>logout</span>

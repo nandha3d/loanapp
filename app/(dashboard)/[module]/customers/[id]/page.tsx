@@ -38,6 +38,10 @@ export default async function CustomerProfilePage({
           penalties: { select: { id: true } }
         },
         orderBy: { createdAt: 'desc' }
+      },
+      kycSessions: {
+        orderBy: { createdAt: 'desc' },
+        take: 5
       }
     }
   });
@@ -54,6 +58,9 @@ export default async function CustomerProfilePage({
   // ───────────────────────────────────────────────────────────────────────────
 
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
+  const sub = await prisma.tenantSubscription.findUnique({ where: { tenantId } });
+  const kycEnabled = sub?.kycEnabled || false;
+  const tenantKycMethod = await getSetting(tenantId, 'kyc_method', 'manual_upload');
 
   // Serialize Decimal fields for client component
   const serializedCustomer = JSON.parse(JSON.stringify(customer));
@@ -63,5 +70,15 @@ export default async function CustomerProfilePage({
     aadharNumber: maskAadharNumber(decryptAadharNumber(guarantor.aadharNumber)),
   }));
 
-  return <CustomerProfileClient customer={serializedCustomer} currencySymbol={currencySymbol} userRole={userRole} dict={dict} />;
+  return (
+    <CustomerProfileClient
+      customer={serializedCustomer}
+      currencySymbol={currencySymbol}
+      userRole={userRole}
+      dict={dict}
+      kycEnabled={kycEnabled}
+      tenantKycMethod={tenantKycMethod}
+    />
+  );
+
 }

@@ -46,10 +46,14 @@ export async function manageMasterUser(formData: FormData) {
   const phone = formData.get('phone') as string;
   const password = formData.get('password') as string;
   const requestedAppType = formData.get('appType') as string;
-  const branchId = formData.get('branchId') as string || null;
+  // For superadmins: branchId is ignored; branchIds[] is the multi-select
+  const rawBranchId = role === 'superadmin' ? null : (formData.get('branchId') as string || null);
+  const branchId = rawBranchId;
+  const superadminBranchIds = role === 'superadmin' ? formData.getAll('branchIds').map(String) : [];
   const status = formData.get('status') as string || 'active';
   const adminModules = normalizeModuleList(formData.getAll('adminModules'));
-  const appType = requestedAppType || adminModules[0] || 'microlending';
+  const userModuleList = normalizeModuleList(formData.getAll('userModules'));
+  const appType = requestedAppType || adminModules[0] || userModuleList[0] || 'microlending';
 
   if (!name || !username || !phone || !role || !appType) {
     return { success: false, error: 'Missing required fields' };
@@ -63,6 +67,10 @@ export async function manageMasterUser(formData: FormData) {
       if (!branch) {
         return { success: false, error: 'Unauthorized: You do not own the target branch.' };
       }
+    }
+    // Superadmins cannot assign branches to other superadmins
+    if (superadminBranchIds.length > 0) {
+      return { success: false, error: 'Unauthorized: Only developers can assign branches to superadmins.' };
     }
     if (id) {
       const targetUser = await prisma.user.findFirst({
@@ -101,7 +109,7 @@ export async function manageMasterUser(formData: FormData) {
     select: { enabledModules: true },
   });
   const planModules = normalizeEnabledModules(subscription?.enabledModules);
-  const requestedModules = adminModules.length > 0 ? adminModules : normalizeModuleList([appType]);
+  const requestedModules = userModuleList.length > 0 ? userModuleList : adminModules.length > 0 ? adminModules : normalizeModuleList([appType]);
   
   if (userRole !== 'developer') {
     const invalidPlanModules = requestedModules.filter((module) => !planModules.includes(module));
@@ -115,7 +123,8 @@ export async function manageMasterUser(formData: FormData) {
         select: { enabledModules: true },
       });
       const branchModules = normalizeModuleList(branch?.enabledModules);
-      const invalidBranchModules = requestedModules.filter((module) => !branchModules.includes(module));
+      const allowedBranchModules = branchModules.length > 0 ? branchModules : planModules;
+      const invalidBranchModules = requestedModules.filter((module) => !allowedBranchModules.includes(module));
       if (invalidBranchModules.length > 0) {
         return { success: false, error: `Modules not enabled for this branch: ${invalidBranchModules.join(', ')}` };
       }
@@ -125,7 +134,15 @@ export async function manageMasterUser(formData: FormData) {
   let savedUserId = id;
 
   if (id) {
-    const updateData: any = { name, username, phone, role, appType, branchId, status };
+    const updateData: any = {
+      name,
+      username,
+      phone,
+      role,
+      appType,
+      branchId,
+      status,
+    };
     if (password) {
       updateData.passwordHash = await bcrypt.hash(password, 10);
     }
@@ -155,19 +172,34 @@ export async function manageMasterUser(formData: FormData) {
       }
     }
 
-    const savedUser = await prisma.user.create({
-      data: {
-        tenantId,
-        name,
-        username,
-        phone,
-        passwordHash: await bcrypt.hash(password, 10),
-        role,
-        appType,
-        branchId,
-        status
+    let savedUser;
+    try {
+      savedUser = await prisma.user.create({
+        data: {
+          tenantId,
+          name,
+          username,
+          phone,
+          passwordHash: await bcrypt.hash(password, 10),
+          role,
+          appType,
+          branchId,
+          status
+        }
+      });
+    } catch (err: any) {
+      if (err.code === 'P2002') {
+        const fields: string[] = err.meta?.target ?? [];
+        if (fields.some((f: string) => f.includes('phone'))) {
+          return { success: false, error: 'A user with this phone number already exists.' };
+        }
+        if (fields.some((f: string) => f.includes('username'))) {
+          return { success: false, error: 'A user with this username already exists.' };
+        }
+        return { success: false, error: 'A user with these details already exists.' };
       }
-    });
+      throw err;
+    }
     savedUserId = savedUser.id;
     await prisma.auditLog.create({
       data: {
@@ -196,6 +228,49 @@ export async function manageMasterUser(formData: FormData) {
           maxAgents: 5
         }
       });
+
+      // Developer can assign multiple branches to the superadmin via SuperadminBranch join table
+      if (userRole === 'developer' && superadminBranchIds.length > 0) {
+        // Validate all branches exist in the correct tenant
+        const validBranches = await prisma.branch.findMany({
+          where: { id: { in: superadminBranchIds }, tenantId },
+          select: { id: true },
+        });
+        const validIds = validBranches.map((b) => b.id);
+
+        // Replace all existing SuperadminBranch links for this superadmin
+        await prisma.superadminBranch.deleteMany({ where: { superadminId: savedUserId } });
+        if (validIds.length > 0) {
+          await prisma.superadminBranch.createMany({
+            data: validIds.map((bid) => ({
+              superadminId: savedUserId!,
+              branchId: bid,
+              assignedById: actorId,
+            })),
+          });
+          // Keep Branch.superadminId in sync (set to this superadmin)
+          await prisma.branch.updateMany({
+            where: { id: { in: validIds } },
+            data: { superadminId: savedUserId },
+          });
+        }
+      }
+    }
+
+    // Persist UserModule for admin/agent global module access
+    if ((role === 'admin' || role === 'agent') && savedUserId) {
+      const modulesToAssign = userModuleList.length > 0 ? userModuleList : adminModules;
+      if (modulesToAssign.length > 0) {
+        // Delete existing and re-insert for simplicity
+        await prisma.userModule.deleteMany({ where: { userId: savedUserId } });
+        await prisma.userModule.createMany({
+          data: modulesToAssign.map((mod) => ({
+            userId: savedUserId!,
+            appType: mod,
+            assignedById: actorId,
+          })),
+        });
+      }
     }
 
     // Handle UserBranchModule updates for admins/agents assigned to a branch
@@ -207,7 +282,8 @@ export async function manageMasterUser(formData: FormData) {
           select: { enabledModules: true, name: true },
         });
         const branchModules = normalizeModuleList(branch?.enabledModules);
-        const invalid = adminModules.filter((module) => !branchModules.includes(module));
+        const allowedBranchModules = branchModules.length > 0 ? branchModules : planModules;
+        const invalid = adminModules.filter((module) => !allowedBranchModules.includes(module));
         if (invalid.length > 0) {
           return { success: false, error: `Branch "${branch?.name}" does not have these modules enabled: ${invalid.join(', ')}. Please enable them on the branch first.` };
         }
@@ -448,6 +524,4 @@ export async function toggleUserStatus(userId: string, newStatus: string) {
   revalidatePath('/admin/users');
   return { success: true };
 }
-
-
 

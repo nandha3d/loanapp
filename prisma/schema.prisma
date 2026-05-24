@@ -28,6 +28,7 @@ model Tenant {
   collections           DailyCollection[]
   loanPackages          LoanPackage[]
   loans                 Loan[]
+  moduleRequests        ModuleRequest[]
   notificationTemplates NotificationTemplate[]
   routes                Route[]
   notifications         SystemNotification[]
@@ -36,6 +37,13 @@ model Tenant {
   vehicles              Vehicle[]
   accountEntries        AccountEntry[]
   cashHandovers         CashHandover[]
+  notificationLogs      NotificationLog[]
+  bureauReports         BureauReport[]
+  bureauCredential      BureauCredential?
+  npaHistory            NpaHistory[]
+  loanProvisioning      LoanProvisioning[]
+  kycSessions           KycSession[]
+
 
   @@map("tenants")
 }
@@ -53,9 +61,10 @@ model Branch {
   updatedAt      DateTime           @updatedAt @map("updated_at")
   superadminId   String?            @map("superadmin_id")
   enabledModules String             @default(dbgenerated("(json_array())")) @map("enabled_modules") @db.LongText
-  branchRequests BranchRequest[]
-  superadmin     User?              @relation("SuperadminBranches", fields: [superadminId], references: [id])
-  tenant         Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchRequests        BranchRequest[]
+  superadmin            User?              @relation("SuperadminBranches", fields: [superadminId], references: [id])
+  tenant                Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  superadminBranchLinks SuperadminBranch[]
   chitGroups     ChitGroup[]
   customers      Customer[]
   collections    DailyCollection[]
@@ -97,27 +106,39 @@ model User {
   appType                  String             @default("microlending") @map("app_type")
   status                   String             @default("active")
   avatar                   String?
+  canCreateLoan            Boolean            @default(false) @map("can_create_loan")
   lastLoginAt              DateTime?          @map("last_login_at")
   createdAt                DateTime           @default(now()) @map("created_at")
   updatedAt                DateTime           @updatedAt @map("updated_at")
   deletedAt                DateTime?          @map("deleted_at")
   totpSecret               String?            @map("totp_secret")
-  approvalRequestsMade     ApprovalRequest[]  @relation("Requester")
-  approvalRequestsReviewed ApprovalRequest[]  @relation("Reviewer")
-  auditLogs                AuditLog[]
-  branchRequestsMade       BranchRequest[]    @relation("BranchRequestsMade")
-  branchRequestsReviewed   BranchRequest[]    @relation("BranchRequestsReviewed")
-  superadminBranches       Branch[]           @relation("SuperadminBranches")
+  approvalRequestsMade       ApprovalRequest[]  @relation("Requester")
+  approvalRequestsReviewed   ApprovalRequest[]  @relation("Reviewer")
+  auditLogs                  AuditLog[]
+  branchRequestsMade         BranchRequest[]    @relation("BranchRequestsMade")
+  branchRequestsReviewed     BranchRequest[]    @relation("BranchRequestsReviewed")
+  superadminBranches         Branch[]           @relation("SuperadminBranches")
+  superadminBranchLinks      SuperadminBranch[] @relation("SuperadminBranchLinks")
+  superadminBranchAssigned   SuperadminBranch[] @relation("SuperadminBranchAssigner")
+  userModules                UserModule[]       @relation("UserModuleUser")
+  userModuleAssigned         UserModule[]       @relation("UserModuleAssigner")
+  moduleRequestsMade         ModuleRequest[]    @relation("ModuleRequestsMade")
+  moduleRequestsReviewed     ModuleRequest[]    @relation("ModuleRequestsReviewed")
   collectionEntries        CollectionEntry[]
   assignedCustomers        Customer[]         @relation("AgentCustomers")
   dailyCollections         DailyCollection[]
   createdLoans             Loan[]             @relation("LoanCreator")
+  foreclosedLoans           Loan[]             @relation("LoanForecloser")
   settledPenalties         Penalty[]          @relation("PenaltySettler")
   routeAgents              RouteAgent[]
   assignedRoutes           Route[]
   userBranchModules        UserBranchModule[]
+  kycVerifications         Customer[]         @relation("KycVerifier")
+  kycSessionsInitiated     KycSession[]       @relation("KycSessionInitiator")
+  kycSessionsReviewed      KycSession[]       @relation("KycSessionReviewer")
   branch                   Branch?            @relation(fields: [branchId], references: [id])
   tenant                   Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
   vehicleRepoFlags         Vehicle[]          @relation("VehicleRepoFlag")
   accountEntries           AccountEntry[]
   agentHandovers           CashHandover[]     @relation("AgentHandovers")
@@ -206,8 +227,23 @@ model Customer {
   routeId           String?           @map("route_id")
   agentId           String?           @map("agent_id")
   kycStatus         String            @default("pending")
+  kycMethod         String?           @map("kyc_method") // 'manual_upload' | 'aadhaar_otp' | 'video_kyc'
+  kycVerifiedAt     DateTime?         @map("kyc_verified_at")
+  kycVerifiedById   String?           @map("kyc_verified_by_id")
+  kycRejectedReason String?           @map("kyc_rejected_reason") @db.Text
+
+  // Aadhaar OTP fields (populated by UIDAI response via Digio)
+  aadhaarVerified   Boolean           @default(false) @map("aadhaar_verified")
+  aadhaarName       String?           @map("aadhaar_name")
+  aadhaarDob        String?           @map("aadhaar_dob")
+  aadhaarAddress    String?           @map("aadhaar_address") @db.Text
+  aadhaarPhoto      String?           @map("aadhaar_photo")    // path to stored photo from UIDAI
+
+  kycVerifiedBy     User?             @relation("KycVerifier", fields: [kycVerifiedById], references: [id])
+  kycSessions       KycSession[]
   profilePhoto      String?           @map("profile_photo")
   userId            String?           @unique @map("user_id")
+
   passwordHash      String?           @map("password_hash")
   status            String            @default("active")
   notes             String?           @db.Text
@@ -232,6 +268,7 @@ model Customer {
   penalties         Penalty[]
   securityCheques   SecurityCheque[]
   vehicles          Vehicle[]
+  bureauReports     BureauReport[]
 
   @@unique([tenantId, customerCode])
   // ⚡ Bolt: Added composite index on tenantId, appType, and status to optimize frequent list queries across the app
@@ -326,19 +363,32 @@ model Loan {
   totalInstalments  Int               @map("total_instalments")
   totalCollected    Decimal           @default(0.00) @map("total_collected") @db.Decimal(12, 2)
   closedAt          DateTime?         @map("closed_at")
+  closureType       String?           @map("closure_type")
+  foreclosureAmount Decimal?          @map("foreclosure_amount") @db.Decimal(12, 2)
+  foreclosureDiscount Decimal?        @map("foreclosure_discount") @db.Decimal(12, 2)
+  foreclosureById   String?           @map("foreclosure_by_id")
   createdById       String?           @map("created_by_id")
   createdAt         DateTime          @default(now()) @map("created_at")
   updatedAt         DateTime          @updatedAt @map("updated_at")
   deductionType     String            @default("fixed") @map("deduction_type")
   deletedAt         DateTime?         @map("deleted_at")
-  npaClassifiedAt   DateTime?         @map("npa_classified_at")
-  npaStatus         String?           @map("npa_status")
+  npaClassifiedAt      DateTime?         @map("npa_classified_at")
+  npaStatus            String?           @map("npa_status")
+  npaSubCategory       String?           @map("npa_sub_category")
+  npaDaysOverdue       Int               @default(0) @map("npa_days_overdue")
+  npaUpgradeEligible   Boolean           @default(false) @map("npa_upgrade_eligible")
+  lastNpaReviewDate    DateTime?         @map("last_npa_review_date")
+  provisioningRate     Decimal           @default(0) @map("provisioning_rate") @db.Decimal(6, 2)
+  provisioningAmount   Decimal           @default(0) @map("provisioning_amount") @db.Decimal(12, 2)
+  provisioningCategory String            @default("standard") @map("provisioning_category")
+  isSecured            Boolean           @default(false) @map("is_secured")
   totalPayable      Decimal           @default(0.00) @map("total_payable") @db.Decimal(12, 2)
   collectionEntries CollectionEntry[]
   instalments       Instalment[]
   collaterals       LoanCollateral[]
   branch            Branch?           @relation(fields: [branchId], references: [id])
   createdBy         User?             @relation("LoanCreator", fields: [createdById], references: [id])
+  foreclosedBy      User?             @relation("LoanForecloser", fields: [foreclosureById], references: [id])
   customer          Customer          @relation(fields: [customerId], references: [id])
   guarantor         Guarantor?        @relation(fields: [guarantorId], references: [id])
   package           LoanPackage?      @relation(fields: [packageId], references: [id])
@@ -347,15 +397,22 @@ model Loan {
   penalties         Penalty[]
   securityCheques   SecurityCheque[]
   vehicle           Vehicle?
+  bureauReportId    String?           @map("bureau_report_id")
+  bureauReport      BureauReport?     @relation("LoanBureauReport", fields: [bureauReportId], references: [id])
+  npaHistory        NpaHistory[]
+  loanProvisioning  LoanProvisioning[]
 
   @@unique([tenantId, loanCode])
   // ⚡ Bolt: Added composite index on tenantId, appType, and status to optimize active loan queries and dashboard aggregations
   @@index([tenantId, appType, status])
   @@index([branchId], map: "loans_branch_id_fkey")
   @@index([createdById], map: "loans_created_by_id_fkey")
+  @@index([foreclosureById], map: "loans_foreclosure_by_id_fkey")
   @@index([customerId], map: "loans_customer_id_fkey")
   @@index([guarantorId], map: "loans_guarantor_id_fkey")
   @@index([packageId], map: "loans_package_id_fkey")
+  @@index([tenantId, npaStatus])
+  @@index([tenantId, npaDaysOverdue])
   @@map("loans")
 }
 
@@ -380,6 +437,8 @@ model Instalment {
   loan               Loan                @relation(fields: [loanId], references: [id], onDelete: Cascade)
   paymentAllocations PaymentAllocation[]
   penalties          Penalty[]
+  bureauReportId    String?           @map("bureau_report_id")
+  bureauReport      BureauReport?     @relation("InstalmentBureauReport", fields: [bureauReportId], references: [id])
 
   @@unique([loanId, instalmentNo])
   // ⚡ Bolt: Added composite index on loanId, dueDate, and status to optimize instalment lookups for specific loans, speeding up collection pages
@@ -522,6 +581,23 @@ model NotificationTemplate {
 
   @@unique([tenantId, name, channel])
   @@map("notification_templates")
+}
+
+model NotificationLog {
+  id           String   @id @default(cuid())
+  tenantId     String   @map("tenant_id")
+  channel      String                         // sms | whatsapp | email
+  recipient    String                         // phone or email
+  status       String   @default("sent")      // sent | failed | delivered
+  errorMessage String?  @map("error_message") @db.Text
+  entityType   String?  @map("entity_type")   // loan | customer | instalment
+  entityId     String?  @map("entity_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, channel, createdAt])
+  @@map("notification_logs")
 }
 
 model AuditLog {
@@ -742,7 +818,16 @@ model TenantSubscription {
   maxAgents        Int       @default(3) @map("max_agents")
   maxBranches      Int       @default(1) @map("max_branches")
   enabledModules   String    @map("enabled_modules") @db.LongText
+  whatsappSmsEnabled Boolean   @default(false) @map("whatsapp_sms_enabled")
+  receiptPdfAllowed  Boolean   @default(false) @map("receipt_pdf_allowed")
+  bureauEnabled      Boolean   @default(false) @map("bureau_enabled")
+  bureauPullsIncluded Int       @default(50) @map("bureau_pulls_included")
+  bureauPullsUsed     Int       @default(0) @map("bureau_pulls_used")
+  npaEnabled          Boolean   @default(false) @map("npa_enabled")
+  foreclosureEnabled  Boolean   @default(false) @map("foreclosure_enabled")
+  kycEnabled          Boolean   @default(false) @map("kyc_enabled")
   trialEndsAt      DateTime? @map("trial_ends_at")
+
   currentPeriodEnd DateTime? @map("current_period_end")
   razorpaySubId    String?   @unique @map("razorpay_sub_id")
   createdAt        DateTime  @default(now()) @map("created_at")
@@ -930,4 +1015,226 @@ model AgentLocationPing {
   @@index([tenantId, agentId, capturedAt])
   @@index([routeId, capturedAt])
   @@map("agent_location_pings")
+}
+
+/// Developer-assigned mapping of which branches a superadmin manages.
+model SuperadminBranch {
+  id           String   @id @default(cuid())
+  superadminId String   @map("superadmin_id")
+  branchId     String   @map("branch_id")
+  assignedById String?  @map("assigned_by_id")
+  assignedAt   DateTime @default(now()) @map("assigned_at")
+
+  superadmin User    @relation("SuperadminBranchLinks", fields: [superadminId], references: [id], onDelete: Cascade)
+  branch     Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  assignedBy User?   @relation("SuperadminBranchAssigner", fields: [assignedById], references: [id])
+
+  @@unique([superadminId, branchId])
+  @@index([branchId])
+  @@map("superadmin_branches")
+}
+
+/// Superadmin-assigned global module access for an admin or agent.
+/// Determines which app-modules (microlending, autofinance, chitfunds) the user can see.
+model UserModule {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  appType      String   @map("app_type")
+  assignedById String?  @map("assigned_by_id")
+  assignedAt   DateTime @default(now()) @map("assigned_at")
+
+  user       User  @relation("UserModuleUser", fields: [userId], references: [id], onDelete: Cascade)
+  assignedBy User? @relation("UserModuleAssigner", fields: [assignedById], references: [id])
+
+  @@unique([userId, appType])
+  @@index([userId])
+  @@map("user_modules")
+}
+
+/// Superadmin request to enable an additional module that is not yet in their subscription.
+model ModuleRequest {
+  id            String    @id @default(cuid())
+  tenantId      String    @map("tenant_id")
+  requestedById String    @map("requested_by_id")
+  appType       String    @map("app_type")
+  reason        String?   @db.Text
+  status        String    @default("pending")
+  reviewedById  String?   @map("reviewed_by_id")
+  reviewNote    String?   @map("review_note") @db.Text
+  reviewedAt    DateTime? @map("reviewed_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  requestedBy User    @relation("ModuleRequestsMade", fields: [requestedById], references: [id])
+  reviewedBy  User?   @relation("ModuleRequestsReviewed", fields: [reviewedById], references: [id])
+  tenant      Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([requestedById])
+  @@map("module_requests")
+}
+
+model BureauCredential {
+  id              String   @id @default(cuid())
+  tenantId        String   @unique @map("tenant_id")
+  provider        String   @default("CRIF")
+  memberId        String   @db.Text
+  apiKey          String   @db.Text
+  apiSecret       String?  @db.Text
+  bureauCert      String?  @db.Text
+  bureauKey       String?  @db.Text
+  environment     String   @default("sandbox")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("bureau_credentials")
+}
+
+model BureauReport {
+  id               String    @id @default(cuid())
+  tenantId         String    @map("tenant_id")
+  customerId       String    @map("customer_id")
+  loanId           String?   @map("loan_id")
+  bureauProvider   String    @map("bureau_provider")
+  pullType         String    @map("pull_type")
+  requestId        String    @unique @map("request_id")
+  status           String    @default("pending")
+
+  creditScore      Int?      @map("credit_score")
+  scoreModel       String?   @map("score_model")
+  totalAccounts    Int?      @map("total_accounts")
+  activeAccounts   Int?      @map("active_accounts")
+  overdueAccounts  Int?      @map("overdue_accounts")
+  totalOverdueAmt  Decimal?  @map("total_overdue_amt")  @db.Decimal(12, 2)
+  enquiryCount90d  Int?      @map("enquiry_count_90d")
+  activeMFILoans   Int?      @map("active_mfi_loans")
+  activeMFILoanAmt Decimal?  @map("active_mfi_loan_amt") @db.Decimal(12, 2)
+  writtenOffAccounts Int?    @map("written_off_accounts")
+  suitFiledAccounts  Int?    @map("suit_filed_accounts")
+
+  rawResponse      String?   @map("raw_response") @db.LongText
+
+  consentText      String    @map("consent_text") @db.Text
+  consentObtained  Boolean   @default(false) @map("consent_obtained")
+  consentTimestamp DateTime? @map("consent_timestamp")
+  consentIp        String?   @map("consent_ip")
+  consentMethod    String?   @map("consent_method")
+
+  validUntil       DateTime  @map("valid_until")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  customer         Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  linkedLoans      Loan[]    @relation("LoanBureauReport")
+  linkedInstalments Instalment[] @relation("InstalmentBureauReport")
+
+  @@index([customerId, createdAt])
+  @@index([tenantId, createdAt])
+  @@map("bureau_reports")
+}
+
+/// NPA classification history — immutable audit trail for RBI inspection.
+/// Records every classification change (Standard → SMA → Sub-Standard → Doubtful etc.).
+model NpaHistory {
+  id              String    @id @default(cuid())
+  tenantId        String    @map("tenant_id")
+  loanId          String    @map("loan_id")
+  customerId      String    @map("customer_id")
+
+  // Transition recorded
+  fromCategory    String    @map("from_category")
+  toCategory      String    @map("to_category")
+  daysOverdue     Int       @map("days_overdue")
+  outstandingAmt  Decimal   @map("outstanding_amt") @db.Decimal(12, 2)
+
+  // Trigger information
+  triggeredBy     String    @map("triggered_by")    // 'cron_auto' | 'manual_admin' | 'rbi_inspection'
+  triggeredById   String?   @map("triggered_by_id") // userId if manual
+  notes           String?   @db.Text
+
+  // Provisioning at time of change
+  provisioningRate    Decimal @map("provisioning_rate") @db.Decimal(6, 2)
+  provisioningAmount  Decimal @map("provisioning_amount") @db.Decimal(12, 2)
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  loan            Loan      @relation(fields: [loanId], references: [id])
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([loanId, createdAt])
+  @@index([tenantId, toCategory, createdAt])
+  @@map("npa_history")
+}
+
+/// Daily provisioning snapshot per loan for RBI point-in-time reporting.
+/// One snapshot per loan per day. Immutable — cannot be modified once written.
+model LoanProvisioning {
+  id              String    @id @default(cuid())
+  tenantId        String    @map("tenant_id")
+  loanId          String    @map("loan_id")
+  snapshotDate    DateTime  @map("snapshot_date") @db.Date
+
+  category        String    // asset category at snapshot
+  outstandingAmt  Decimal   @map("outstanding_amt") @db.Decimal(12, 2)
+  provisioningRate Decimal  @map("provisioning_rate") @db.Decimal(6, 2)
+  provisioningAmt  Decimal  @map("provisioning_amt") @db.Decimal(12, 2)
+  isSecured       Boolean   @default(false) @map("is_secured")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  loan            Loan      @relation(fields: [loanId], references: [id])
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([loanId, snapshotDate])
+  @@index([tenantId, snapshotDate])
+  @@map("loan_provisioning")
+}
+
+model KycSession {
+  id              String    @id @default(cuid())
+  tenantId        String    @map("tenant_id")
+  customerId      String    @map("customer_id")
+  method          String                         // 'aadhaar_otp' | 'video_kyc'
+  status          String    @default("initiated")
+  // 'initiated' | 'otp_sent' | 'otp_verified' | 'failed'
+  // 'video_uploaded' | 'video_reviewing' | 'video_approved' | 'video_rejected'
+
+  // Digio fields
+  digioRequestId  String?   @map("digio_request_id")  // Digio session/request ID
+  digioEntityId   String?   @map("digio_entity_id")
+
+  // OTP fields
+  otpReference    String?   @map("otp_reference")
+  otpExpiresAt    DateTime? @map("otp_expires_at")
+
+  // Video fields
+  videoFilePath   String?   @map("video_file_path")
+  videoFileName   String?   @map("video_file_name")
+  videoUploadedAt DateTime? @map("video_uploaded_at")
+
+  // Review fields
+  reviewedById    String?   @map("reviewed_by_id")
+  reviewedAt      DateTime? @map("reviewed_at")
+  reviewNotes     String?   @map("review_notes") @db.Text
+
+  // Response data (stored as JSON string)
+  responseData    String?   @map("response_data") @db.Text
+
+  initiatedById   String?   @map("initiated_by_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  customer        Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  initiatedBy     User?     @relation("KycSessionInitiator", fields: [initiatedById], references: [id])
+  reviewedBy      User?     @relation("KycSessionReviewer", fields: [reviewedById], references: [id])
+
+  @@index([tenantId, customerId])
+  @@index([digioRequestId])
+  @@map("kyc_sessions")
 }

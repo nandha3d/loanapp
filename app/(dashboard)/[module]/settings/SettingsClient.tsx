@@ -1,17 +1,21 @@
 'use client';
 
 import { useState } from 'react';
-import { saveSystemSettings, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, deleteLoanPackage, assignAgentToRoute, removeAgentFromRoute, setPrimaryAgent, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections, saveUpiQrCode } from './actions';
+import { saveSystemSettings, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, deleteLoanPackage, assignAgentToRoute, removeAgentFromRoute, setPrimaryAgent, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections, saveUpiQrCode, saveNotificationSettings, saveBureauSettings } from './actions';
 import Modal from '@/components/Modal';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 export default function SettingsClient({ 
-  routes, packages, users, settings, currencySymbol, dict, currentUser
+  routes, packages, users, settings, currencySymbol, dict, currentUser, subscription, bureauCredential
 }: { 
-  routes: any[], packages: any[], users: any[], settings: Record<string, string>, currencySymbol: string, dict: any, currentUser: any
+  routes: any[], packages: any[], users: any[], settings: Record<string, string>, currencySymbol: string, dict: any, currentUser: any, subscription: any, bureauCredential: any
 }) {
   const d = dict.settings;
   const [activeTab, setActiveTab] = useState('routes');
   const [loading, setLoading] = useState(false);
+  const pathname = usePathname();
+  const modulePrefix = pathname.split('/')[1] || 'microlending';
 
   // Modals state
   const [isRouteModalOpen, setIsRouteModalOpen] = useState(false);
@@ -55,7 +59,16 @@ export default function SettingsClient({
         <div className={`tab ${activeTab === 'penalty' ? 'active' : ''}`} onClick={() => setActiveTab('penalty')}>{d.tabPenalty}</div>
         <div className={`tab ${activeTab === 'packages' ? 'active' : ''}`} onClick={() => setActiveTab('packages')}>{d.tabPackages}</div>
         <div className={`tab ${activeTab === 'payment' ? 'active' : ''}`} onClick={() => setActiveTab('payment')}>{d.tabPayment}</div>
+        {subscription?.whatsappSmsEnabled && (
+          <div className={`tab ${activeTab === 'notifications' ? 'active' : ''}`} onClick={() => setActiveTab('notifications')}>Notifications</div>
+        )}
         <div className={`tab ${activeTab === 'bulk' ? 'active' : ''}`} onClick={() => setActiveTab('bulk')}>{d.tabBulk}</div>
+        {subscription?.bureauEnabled && (
+          <div className={`tab ${activeTab === 'bureau' ? 'active' : ''}`} onClick={() => setActiveTab('bureau')}>Bureau Connect</div>
+        )}
+        {subscription?.npaEnabled && (
+          <div className={`tab ${activeTab === 'npa' ? 'active' : ''}`} onClick={() => setActiveTab('npa')}>NPA Classification</div>
+        )}
         {currentUser?.role === 'developer' && (
           <div className={`tab ${activeTab === 'system' ? 'active' : ''}`} onClick={() => setActiveTab('system')}>{d.tabSystem}</div>
         )}
@@ -230,6 +243,31 @@ export default function SettingsClient({
                   <option value="false">{d.no}</option>
                 </select>
               </div>
+              <div className="settings-item" style={{ borderTop: '1px solid var(--border)', paddingTop: '16px', marginTop: '16px' }}>
+                <div className="si-info">
+                  <h4>Identity Verification (KYC) Method</h4>
+                  <p>Choose the KYC verification method for customers. Digio integration requires active credentials.</p>
+                </div>
+                <div style={{ width: '200px' }}>
+                  <select 
+                    name="kyc_method" 
+                    className="form-control" 
+                    defaultValue={settings.kyc_method || 'manual_upload'}
+                    disabled={!subscription?.kycEnabled}
+                  >
+                    <option value="manual_upload">Manual Document Upload</option>
+                    <option value="aadhaar_otp">Aadhaar OTP eKYC (Digio)</option>
+                    <option value="video_kyc">Video KYC (VCIP)</option>
+                    <option value="both">Both Aadhaar OTP + Video KYC</option>
+                  </select>
+                  {!subscription?.kycEnabled && (
+                    <div style={{ fontSize: '10px', color: 'var(--danger)', marginTop: '4px', fontWeight: 600 }}>
+                      ⚠️ Premium add-on disabled. Unlock under Superadmin Subscription.
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div style={{borderTop:'1px solid var(--border)', paddingTop:'20px', marginTop:'12px'}}>
                 <h4 style={{fontSize:'.95rem', fontWeight:700, marginBottom:'12px'}}>📝 {d.loanCodePrefixes}</h4>
                 <p style={{fontSize:'.8rem', color:'var(--text-light)', marginBottom:'16px'}}>{d.loanCodePrefixesDesc}</p>
@@ -283,11 +321,83 @@ export default function SettingsClient({
             <input type="file" name="upiQrCode" accept="image/*" className="form-control" />
             <span style={{fontSize:'.75rem', color:'var(--text-light)', marginTop:'4px', display:'block'}}>{d.upiQrHelper}</span>
           </div>
+          {subscription?.receiptPdfAllowed && (
+            <div style={{ marginTop: '24px', borderTop: '1px solid var(--border)', paddingTop: '20px', marginBottom: '20px' }}>
+              <h4 style={{ marginBottom: '8px' }}>📄 Payment Receipt PDF</h4>
+              <p style={{ fontSize: '.8rem', color: 'var(--text-light)', marginBottom: '12px' }}>
+                Allow downloading of A5 branded collection receipt PDFs and customer account statement PDFs.
+              </p>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  name="receipt_pdf_active" 
+                  value="true" 
+                  defaultChecked={settings.receipt_pdf_active === 'true'} 
+                />
+                <strong>Enable Receipt & Statement PDFs</strong>
+              </label>
+            </div>
+          )}
           <button type="submit" className="btn btn-primary" disabled={loading}>
             <span className="material-icons-outlined" style={{fontSize:'16px'}}>save</span> {loading ? d.saving : d.save}
           </button>
         </form>
       </div>
+
+      {/* Notifications Tab */}
+      {subscription?.whatsappSmsEnabled && (
+        <div className={`tab-content ${activeTab === 'notifications' ? 'active' : ''}`}>
+          <div className="card-header">
+            <h3>🔔 Automated SMS & WhatsApp Notifications</h3>
+          </div>
+          <form action={async (fd) => { 
+            setLoading(true); 
+            await saveNotificationSettings(fd); 
+            setLoading(false); 
+            showToast('Notification settings saved'); 
+          }} style={{ maxWidth: '500px' }}>
+            <div className="form-group" style={{ marginBottom: '20px' }}>
+              <p style={{ fontSize: '.85rem', color: 'var(--text-secondary)', marginBottom: '15px' }}>
+                Toggle automatic SMS and WhatsApp alerts to borrowers. SMS messages are sent immediately. WhatsApp templates are triggered if configured and approved on MSG91.
+              </p>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  name="whatsapp_sms_active" 
+                  value="true" 
+                  defaultChecked={settings.whatsapp_sms_active !== 'false'} 
+                />
+                <strong>Enable Automated Notifications</strong>
+              </label>
+              <span style={{ fontSize: '.75rem', color: 'var(--text-light)', marginTop: '6px', display: 'block' }}>
+                If unchecked, no SMS or WhatsApp notifications will be sent to borrowers.
+              </span>
+            </div>
+
+            <div style={{ marginBottom: '25px', padding: '16px', background: 'var(--primary-light)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+              <h4 style={{ fontSize: '.95rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary-dark)' }}>
+                <span className="material-icons-outlined" style={{ fontSize: '18px' }}>list_alt</span>
+                Notification Audit Trails
+              </h4>
+              <p style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginTop: '4px', marginBottom: '12px' }}>
+                View the detailed logs of all notifications sent, failed, or pending.
+              </p>
+              <Link 
+                href={`/${modulePrefix}/notifications/log`} 
+                className="btn btn-secondary btn-sm"
+                style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+              >
+                <span className="material-icons-outlined" style={{ fontSize: '14px' }}>history</span>
+                View Notification Logs
+              </Link>
+            </div>
+
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>save</span> {loading ? 'Saving...' : 'Save Settings'}
+            </button>
+          </form>
+        </div>
+      )}
 
       {/* Bulk Tools Tab */}
       <div className={`tab-content ${activeTab === 'bulk' ? 'active' : ''}`}>
@@ -438,6 +548,198 @@ export default function SettingsClient({
           </div>
         </div>
       </div>
+
+      {/* Bureau Connect Tab */}
+      {subscription?.bureauEnabled && (
+        <div className={`tab-content ${activeTab === 'bureau' ? 'active' : ''}`}>
+          <div className="card-header">
+            <h3>🏦 Credit Bureau Connect Settings</h3>
+          </div>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px', alignItems: 'start' }}>
+            {/* Settings Form */}
+            <form action={async (fd) => {
+              setLoading(true);
+              const res = await saveBureauSettings(fd);
+              setLoading(false);
+              if (res.success) {
+                showToast("Bureau credentials saved successfully!");
+                window.location.reload();
+              } else {
+                alert(res.error || "Failed to save settings.");
+              }
+            }} style={{ maxWidth: '600px' }}>
+              
+              <div className="form-group">
+                <label className="form-label">Bureau Provider</label>
+                <select name="provider" className="form-control" defaultValue={bureauCredential?.provider || 'CRIF'}>
+                  <option value="CRIF">CRIF High Mark (MFI focus)</option>
+                  <option value="CIBIL">TransUnion CIBIL (Consumer focus)</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Environment</label>
+                <select name="environment" className="form-control" defaultValue={bureauCredential?.environment || 'sandbox'}>
+                  <option value="sandbox">Sandbox (Testing / Mock Data)</option>
+                  <option value="production">Production (Live Bureau API)</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Member ID / Reference Number</label>
+                <input 
+                  type="text" 
+                  name="memberId" 
+                  className="form-control" 
+                  defaultValue={bureauCredential?.memberId || ''} 
+                  required 
+                  placeholder="e.g. MFI000001"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">API Key / User ID</label>
+                <input 
+                  type="password" 
+                  name="apiKey" 
+                  className="form-control" 
+                  defaultValue={bureauCredential?.apiKey || ''} 
+                  required
+                  placeholder="e.g. api_user_xxx"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">API Secret / Password (Optional)</label>
+                <input 
+                  type="password" 
+                  name="apiSecret" 
+                  className="form-control" 
+                  defaultValue={bureauCredential?.apiSecret || ''}
+                  placeholder="e.g. secret_pass_xxx"
+                />
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">SSL Client Certificate (.pem)</label>
+                  <input type="file" name="bureauCert" accept=".pem" className="form-control" />
+                  <span style={{ fontSize: '.75rem', color: bureauCredential?.hasCert ? 'var(--success)' : 'var(--text-light)', marginTop: '4px', display: 'block' }}>
+                    {bureauCredential?.hasCert ? '✅ Client SSL Certificate has been uploaded.' : '❌ No SSL Certificate uploaded yet.'}
+                  </span>
+                </div>
+                
+                <div className="form-group">
+                  <label className="form-label">SSL Private Key (.pem)</label>
+                  <input type="file" name="bureauKey" accept=".pem" className="form-control" />
+                  <span style={{ fontSize: '.75rem', color: bureauCredential?.hasKey ? 'var(--success)' : 'var(--text-light)', marginTop: '4px', display: 'block' }}>
+                    {bureauCredential?.hasKey ? '✅ Client Private Key has been uploaded.' : '❌ No Private Key uploaded yet.'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="form-group" style={{ margin: '16px 0' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input 
+                    type="checkbox" 
+                    name="isActive" 
+                    value="true" 
+                    defaultChecked={bureauCredential?.isActive !== false} 
+                  />
+                  <strong>Enable Bureau Pulls</strong>
+                </label>
+              </div>
+
+              <button type="submit" className="btn btn-primary" disabled={loading}>
+                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>save</span> {loading ? 'Saving...' : 'Save Bureau Credentials'}
+              </button>
+            </form>
+
+            {/* Checklist Guide */}
+            <div style={{ background: 'var(--bg-alt)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '20px' }}>
+              <h4 style={{ margin: '0 0 16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-icons-outlined" style={{ color: 'var(--primary)' }}>help_outline</span>
+                Go-Live Checklist
+              </h4>
+              <ol style={{ paddingLeft: '16px', fontSize: '.85rem', display: 'flex', flexDirection: 'column', gap: '12px', color: 'var(--text-secondary)' }}>
+                <li>
+                  <strong>Obtain CIC License:</strong> Secure a Credit Information Company license from RBI.
+                </li>
+                <li>
+                  <strong>Apply to CRIF/CIBIL:</strong> Apply independently for a Member ID and request "Ecosystem Sandbox Integration".
+                </li>
+                <li>
+                  <strong>Whitelist VPS Static IP:</strong> Request CRIF support to whitelist your VPS egress IP:
+                  <div style={{ margin: '6px 0', padding: '6px 10px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '4px', fontFamily: 'monospace', fontWeight: 600, display: 'inline-block' }}>
+                    195.12.34.56 {/* Replace with VPS Egress IP details */}
+                  </div>
+                </li>
+                <li>
+                  <strong>Upload SSL Certificates:</strong> Input Member ID, API key/secret, and upload PEM Client Certificate & Private Key issued by the bureau.
+                </li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NPA Classification Tab */}
+      {subscription?.npaEnabled && (
+        <div className={`tab-content ${activeTab === 'npa' ? 'active' : ''}`}>
+          <div className="card-header">
+            <h3>📊 NPA Classification Engine (RBI IRACP)</h3>
+          </div>
+          <div style={{ maxWidth: '700px' }}>
+            <div style={{ padding: '16px', background: 'var(--bg-alt)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: '20px' }}>
+              <h4 style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-icons-outlined" style={{ color: 'var(--success)', fontSize: '20px' }}>check_circle</span>
+                Module Active
+              </h4>
+              <p style={{ fontSize: '.85rem', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+                NPA Classification Engine is running on a daily automated schedule. All active and overdue loans are automatically classified
+                into RBI-compliant asset categories: Standard → SMA-0 → SMA-1 → SMA-2 → Sub-Standard → Doubtful (D1/D2/D3) → Loss.
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '.85rem' }}>
+                <div style={{ padding: '12px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                  <strong>Classification Schedule</strong>
+                  <p style={{ color: 'var(--text-light)', margin: '4px 0 0' }}>Daily at 2:00 AM IST (after penalty accrual)</p>
+                </div>
+                <div style={{ padding: '12px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                  <strong>Provisioning Basis</strong>
+                  <p style={{ color: 'var(--text-light)', margin: '4px 0 0' }}>RBI Master Circular IRACP 2023</p>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ padding: '16px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: '20px' }}>
+              <h4 style={{ marginBottom: '12px' }}>RBI Provisioning Rates</h4>
+              <table style={{ width: '100%', fontSize: '.82rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                    <th style={{ padding: '8px', textAlign: 'left' }}>Category</th>
+                    <th style={{ padding: '8px', textAlign: 'left' }}>Overdue Days</th>
+                    <th style={{ padding: '8px', textAlign: 'right' }}>Provisioning %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td style={{ padding: '6px 8px' }}>Standard</td><td style={{ padding: '6px 8px' }}>0</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>0.40%</td></tr>
+                  <tr style={{ background: 'var(--bg-alt)' }}><td style={{ padding: '6px 8px' }}>SMA-0 / SMA-1 / SMA-2</td><td style={{ padding: '6px 8px' }}>1–90</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>0.40%</td></tr>
+                  <tr><td style={{ padding: '6px 8px', color: 'var(--warning)' }}>Sub-Standard</td><td style={{ padding: '6px 8px' }}>91–365</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>15%</td></tr>
+                  <tr style={{ background: 'var(--bg-alt)' }}><td style={{ padding: '6px 8px', color: 'var(--danger)' }}>Doubtful D1</td><td style={{ padding: '6px 8px' }}>NPA 12–24 mo</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>100% (unsecured)</td></tr>
+                  <tr><td style={{ padding: '6px 8px', color: 'var(--danger)' }}>Doubtful D2</td><td style={{ padding: '6px 8px' }}>NPA 24–36 mo</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>100% (unsecured)</td></tr>
+                  <tr style={{ background: 'var(--bg-alt)' }}><td style={{ padding: '6px 8px', color: 'var(--danger)' }}>Doubtful D3 / Loss</td><td style={{ padding: '6px 8px' }}>NPA 36+ mo</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>100%</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <p style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>
+              NPA history and provisioning snapshots are immutable records maintained for RBI inspection readiness.
+              Classification changes are visible on each loan&apos;s detail page.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* --- Modals --- */}
       

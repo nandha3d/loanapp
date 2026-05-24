@@ -59,6 +59,7 @@ export default function Sidebar({
     { id: 'chits', icon: 'savings', label: dict.sidebar.chits, href: '/chits', adminOnly: true, appTypes: ['chitfunds'] },
     { id: 'penalties', icon: 'gavel', label: dict.sidebar.penalties, href: '/penalties', adminOnly: true, appTypes: ['microlending', 'autofinance'] },
     { id: 'approvals', icon: 'verified', label: dict.sidebar.approvals, href: '/approvals', appTypes: ['microlending', 'autofinance'] },
+    { id: 'kyc-review', icon: 'rate_review', label: 'KYC Review Queue', href: '/kyc-review', adminOnly: true, appTypes: ['microlending', 'autofinance'] },
     { id: 'accounting', icon: 'account_balance_wallet', label: 'Accounting', href: '/accounting', adminOnly: true, appTypes: ['microlending', 'autofinance'] },
     { section: dict.sidebar.sections.insights },
     { id: 'analytics', icon: 'insights', label: 'Reports & Analytics', href: '/analytics', adminOnly: true, appTypes: ['microlending', 'autofinance'] },
@@ -67,7 +68,6 @@ export default function Sidebar({
     { section: dict.sidebar.sections.account },
     { id: 'branch-requests', icon: 'account_tree', label: 'Branch Requests', href: '/branch-requests', superadminOnly: true },
     { id: 'subscription', icon: 'credit_card', label: dict.sidebar.subscription, href: '/subscription', superadminOnly: true },
-    { id: 'portal-billing', icon: 'receipt_long', label: 'Billing & Invoices', href: '/portal/billing', superadminOnly: true },
     { id: 'billing', icon: 'manage_accounts', label: dict.sidebar.billing, href: '/admin/billing', developerOnly: true },
   ];
 
@@ -90,7 +90,7 @@ export default function Sidebar({
 
     // Check if the route is enabled for the active app module
     if (item.href) {
-      const alwaysVisible = ['/dashboard', '/collection', '/approvals', '/settings', '/notifications', '/subscription', '/portal', '/admin'];
+      const alwaysVisible = ['/dashboard', '/collection', '/approvals', '/settings', '/notifications', '/subscription', '/portal', '/admin', '/kyc-review'];
       if (!alwaysVisible.some((path) => item.href!.startsWith(path))) {
         const routeEnabled = MODULE_ROUTES[userAppType as ModuleKey]?.some((route: string) =>
           item.href!.startsWith(route)

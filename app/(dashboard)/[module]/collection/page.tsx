@@ -89,6 +89,9 @@ export default async function CollectionPage() {
         customer: { include: { route: true } },
       },
     },
+    collectionEntry: {
+      select: { id: true },
+    },
   };
 
   const [todayInstalments, overdueInstalments, agentRoutes] = await Promise.all([
@@ -140,6 +143,11 @@ export default async function CollectionPage() {
   ));
   const routes = JSON.parse(JSON.stringify(agentRoutes));
 
+  const sub = await prisma.tenantSubscription.findUnique({ where: { tenantId } });
+  const isReceiptPdfAllowed = sub?.receiptPdfAllowed || false;
+  const isReceiptPdfActive = await getSetting(tenantId, 'receipt_pdf_active', 'false') === 'true';
+  const receiptPdfEnabled = isReceiptPdfAllowed && isReceiptPdfActive;
+
   return (
     <CollectionClient
       todayInstalments={todayRows}
@@ -155,6 +163,7 @@ export default async function CollectionPage() {
         status: dailyCollection.status,
         totalCollected: Number(dailyCollection.totalCollected)
       } : null}
+      receiptPdfEnabled={receiptPdfEnabled}
     />
   );
 }

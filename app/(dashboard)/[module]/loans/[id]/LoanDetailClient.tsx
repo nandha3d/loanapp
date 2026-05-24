@@ -43,12 +43,14 @@ export default function LoanDetailClient({
   dict,
   userRole,
   userId,
+  receiptPdfEnabled = false,
 }: {
   loan: any;
   currencySymbol: string;
   dict: any;
   userRole: string;
   userId?: string;
+  receiptPdfEnabled?: boolean;
 }) {
   const d = dict.loanDetail;
   const router = useRouter();
@@ -444,11 +446,23 @@ export default function LoanDetailClient({
         @media (max-width: 768px) { .meta-col { grid-template-columns: repeat(2, 1fr); } .avatar-col { border: none; padding-right: 0; width: 100%; margin-bottom: 16px; } .stats-col { width: 100%; justify-content: center; } }
       `}</style>
 
-      <div style={{ marginBottom: '12px' }}>
+      <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Link href="/loans" className="btn btn-ghost btn-sm">
           <span className="material-icons-outlined" style={{ fontSize: '16px' }}>arrow_back</span>
           {d.backToLoans}
         </Link>
+        {receiptPdfEnabled && (
+          <a
+            href={`/api/loans/${loan.id}/statement`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-secondary btn-sm"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none' }}
+          >
+            <span className="material-icons-outlined" style={{ fontSize: '18px' }}>download</span>
+            Download Statement
+          </a>
+        )}
       </div>
       
       <div className="card" style={{ marginBottom: '16px', padding: '12px 16px' }}>
@@ -655,14 +669,29 @@ export default function LoanDetailClient({
                       <td>{isPaid ? formatCurrency(inst.receivedAmount, currencySymbol) : '—'}</td>
                       <td><span className={getBadgeClass(inst.status)} style={{textTransform:'capitalize'}}>{inst.status}</span></td>
                       <td>
-                        {loan.status !== 'closed' && (
-                          <button className="btn btn-primary btn-sm" onClick={() => openPaymentModal(inst)} style={{ padding: '8px 12px', minHeight: '36px' }}>
-                            <span className="material-icons-outlined" style={{ fontSize: '14px' }}>
-                              {isPaid ? (isAdmin ? 'edit' : 'history_edu') : 'payments'}
-                            </span>{' '}
-                            {isPaid ? (isAdmin ? d.edit : d.requestWord) : d.pay}
-                          </button>
-                        )}
+                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                          {loan.status !== 'closed' && (
+                            <button className="btn btn-primary btn-sm" onClick={() => openPaymentModal(inst)} style={{ padding: '8px 12px', minHeight: '36px' }}>
+                              <span className="material-icons-outlined" style={{ fontSize: '14px' }}>
+                                {isPaid ? (isAdmin ? 'edit' : 'history_edu') : 'payments'}
+                              </span>{' '}
+                              {isPaid ? (isAdmin ? d.edit : d.requestWord) : d.pay}
+                            </button>
+                          )}
+                          {receiptPdfEnabled && inst.collectionEntry?.id && (
+                            <a
+                              href={`/api/receipts/${inst.collectionEntry.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn btn-ghost btn-sm"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}
+                              title="Download Receipt"
+                            >
+                              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>receipt_long</span>
+                              Receipt
+                            </a>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

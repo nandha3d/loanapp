@@ -33,6 +33,7 @@ type CollectionRow = {
       route?: { id: string; name: string } | null;
     };
   };
+  collectionEntry?: { id: string } | null;
 };
 
 type RouteOption = {
@@ -75,6 +76,7 @@ export default function CollectionClient({
   currencySymbol,
   dict,
   dailyCollection,
+  receiptPdfEnabled = false,
 }: {
   todayInstalments: CollectionRow[];
   overdueInstalments: CollectionRow[];
@@ -85,6 +87,7 @@ export default function CollectionClient({
   currencySymbol: string;
   dict: any;
   dailyCollection: { id: string; status: string; totalCollected: number } | null;
+  receiptPdfEnabled?: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -449,15 +452,32 @@ export default function CollectionClient({
                   </span>
                 </td>
                 <td>
-                  {unpaidInstalments.length === 0 ? (
-                    <button className="btn btn-ghost btn-sm" onClick={() => openModal(visibleInstalments[0])}>
-                      <span className="material-icons-outlined" style={{ fontSize: '14px' }}>edit</span> Edit
-                    </button>
-                  ) : (
-                    <button className="btn btn-primary btn-sm" onClick={() => unpaidInstalments.length === 1 ? openModal(unpaidInstalments[0]) : setOverdueCustomerGroup(buildOverdueGroup(group))}>
-                      <span className="material-icons-outlined" style={{ fontSize: '14px' }}>payments</span> Pay
-                    </button>
-                  )}
+                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    {unpaidInstalments.length === 0 ? (
+                      <>
+                        <button className="btn btn-ghost btn-sm" onClick={() => openModal(visibleInstalments[0])}>
+                          <span className="material-icons-outlined" style={{ fontSize: '14px' }}>{isAdmin ? 'edit' : 'history_edu'}</span> {isAdmin ? 'Edit' : 'Request'}
+                        </button>
+                        {receiptPdfEnabled && visibleInstalments[0]?.collectionEntry?.id && (
+                          <a
+                            href={`/api/receipts/${visibleInstalments[0].collectionEntry.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn-ghost btn-sm"
+                            title="Download Receipt"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}
+                          >
+                            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>receipt_long</span>
+                            Receipt
+                          </a>
+                        )}
+                      </>
+                    ) : (
+                      <button className="btn btn-primary btn-sm" onClick={() => unpaidInstalments.length === 1 ? openModal(unpaidInstalments[0]) : setOverdueCustomerGroup(buildOverdueGroup(group))}>
+                        <span className="material-icons-outlined" style={{ fontSize: '14px' }}>payments</span> Pay
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             );

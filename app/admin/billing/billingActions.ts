@@ -27,6 +27,12 @@ export async function updateSubscription(formData: FormData) {
     const trialEndsAtStr = formData.get('trialEndsAt') as string | null;
     const currentPeriodEndStr = formData.get('currentPeriodEnd') as string | null;
     const razorpaySubId = (formData.get('razorpaySubId') as string) || null;
+    const whatsappSmsEnabled = formData.get('whatsappSmsEnabled') === 'true';
+    const receiptPdfAllowed = formData.get('receiptPdfAllowed') === 'true';
+    const bureauEnabled = formData.get('bureauEnabled') === 'true';
+    const npaEnabled = formData.get('npaEnabled') === 'true';
+    const kycEnabled = formData.get('kycEnabled') === 'true';
+    const bureauPullsIncluded = parseInt(formData.get('bureauPullsIncluded') as string) || 0;
 
     const parseDate = (dStr: string | null) => {
       if (!dStr) return null;
@@ -41,9 +47,27 @@ export async function updateSubscription(formData: FormData) {
       maxAgents,
       maxBranches,
       enabledModules: JSON.stringify(enabledModules),
+      whatsappSmsEnabled,
+      receiptPdfAllowed,
+      bureauEnabled,
+      bureauPullsIncluded,
+      npaEnabled,
+      kycEnabled,
       trialEndsAt: parseDate(trialEndsAtStr),
       currentPeriodEnd: parseDate(currentPeriodEndStr),
       razorpaySubId,
+    });
+
+
+    await prisma.branch.updateMany({
+      where: {
+        tenantId,
+        OR: [
+          { enabledModules: '[]' },
+          { enabledModules: '' },
+        ],
+      },
+      data: { enabledModules: JSON.stringify(enabledModules) },
     });
 
     revalidatePath('/admin/billing');

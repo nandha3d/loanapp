@@ -18,6 +18,7 @@ import { calculateLoanPreview } from '@/lib/loanCalculator';
 import { validateGuarantorPhone } from '@/lib/guarantorPolicy';
 import { modulePath } from '@/types/modules';
 import { findApprovalNotificationTarget } from '@/lib/approvalNotifications';
+import { notifyLoanDisbursed } from '@/lib/sms';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'private', 'uploads');
 
@@ -385,6 +386,17 @@ export async function createLoan(formData: FormData) {
     } catch (e) {
       console.error('Failed to create accounting entry:', e);
     }
+
+    const firstInstalment = instalments[0]?.dueDate;
+    notifyLoanDisbursed({
+      tenantId,
+      phone:    customer.phone,
+      name:     customer.name,
+      amount:   disbursed.toLocaleString('en-IN'),
+      loanCode,
+      firstDue: firstInstalment ? new Date(firstInstalment).toLocaleDateString('en-IN') : '-',
+      loanId:   loan.id,
+    }).catch((err) => console.error('Failed to send loan disburse notification', err));
   }
 
   revalidatePath(modulePath(appType, '/loans'));
