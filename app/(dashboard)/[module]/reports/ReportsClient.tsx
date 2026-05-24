@@ -15,6 +15,7 @@ export default function ReportsClient({
   currencySymbol,
   filters,
   dict,
+  subscription,
 }: {
   collectionEfficiency: { expected: number; collected: number; efficiency: number };
   agingBuckets: {
@@ -30,6 +31,7 @@ export default function ReportsClient({
   currencySymbol: string;
   filters: { from: string; to: string; routeId: string; agentId: string };
   dict: any;
+  subscription: any;
 }) {
   const d = dict.reports;
   const setPreset = (preset: string) => {
@@ -77,7 +79,7 @@ export default function ReportsClient({
         </form>
 
         {/* Export Buttons */}
-        <div style={{ display: 'flex', gap: '8px', marginTop: '12px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+        <div style={{ display: 'flex', gap: '8px', marginTop: '12px', borderTop: '1px solid var(--border)', paddingTop: '12px', flexWrap: 'wrap' }}>
           <a
             href={`/api/export/collections?from=${filters.from}&to=${filters.to}`}
             className="btn btn-secondary btn-sm"
@@ -102,6 +104,29 @@ export default function ReportsClient({
             <span className="material-icons-outlined" style={{ fontSize: '14px' }}>download</span>
             {d.defaultersCSV}
           </a>
+          {subscription?.receiptPdfAllowed ? (
+            <a
+              href={`/api/reports/pdf?from=${filters.from}&to=${filters.to}`}
+              className="btn btn-primary btn-sm"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+            >
+              <span className="material-icons-outlined" style={{ fontSize: '14px' }}>picture_as_pdf</span>
+              Export PDF Report
+            </a>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled
+              title="Unlock PDF reports under Superadmin Subscription"
+              style={{ opacity: 0.6, cursor: 'not-allowed', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+            >
+              <span className="material-icons-outlined" style={{ fontSize: '14px' }}>lock</span>
+              Export PDF Report
+            </button>
+          )}
         </div>
       </div>
 
