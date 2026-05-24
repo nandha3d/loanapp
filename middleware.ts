@@ -4,6 +4,10 @@ import type { NextRequest } from 'next/server';
 import { parseModulePath } from '@/types/modules';
 
 const AGENT_BLOCKED = [
+  '/dashboard',
+  '/loans',
+  '/vehicles',
+  '/chits',
   '/penalties',
   '/reports',
   '/settings',
@@ -77,7 +81,7 @@ export function getRoleRedirectTarget(
 
   if (role === 'agent') {
     if (module && AGENT_BLOCKED.some((prefix) => page === prefix || page.startsWith(`${prefix}/`))) {
-      return `/${module}/collection`;
+      return `/${module}/agent-dashboard`;
     }
     if (!module && AGENT_BLOCKED.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
       return '/portal';
@@ -92,7 +96,7 @@ export function getRoleRedirectTarget(
       return '/customers';
     }
     if (SUPERADMIN_ONLY.some((prefix) => pathname.startsWith(prefix))) {
-      return module ? `/${module}/collection` : '/portal';
+      return module ? `/${module}/agent-dashboard` : '/portal';
     }
   }
 

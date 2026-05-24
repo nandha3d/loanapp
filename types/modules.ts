@@ -19,8 +19,8 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
 };
 
 export const MODULE_ROUTES: Record<ModuleKey, string[]> = {
-  microlending: ['/loans', '/customers', '/collection', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications'],
-  autofinance: ['/vehicles', '/loans', '/customers', '/collection', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications'],
+  microlending: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard'],
+  autofinance: ['/vehicles', '/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard'],
   chitfunds: ['/chits', '/customers', '/notifications'],
 };
 

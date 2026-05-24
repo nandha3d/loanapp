@@ -18,7 +18,7 @@ import { calculateLoanPreview } from '@/lib/loanCalculator';
 import { validateGuarantorPhone } from '@/lib/guarantorPolicy';
 import { modulePath } from '@/types/modules';
 import { findApprovalNotificationTarget } from '@/lib/approvalNotifications';
-import { notifyLoanDisbursed } from '@/lib/sms';
+import { notify } from '@/lib/notify/events';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'private', 'uploads');
 
@@ -388,14 +388,18 @@ export async function createLoan(formData: FormData) {
     }
 
     const firstInstalment = instalments[0]?.dueDate;
-    notifyLoanDisbursed({
+    notify({
       tenantId,
-      phone:    customer.phone,
-      name:     customer.name,
-      amount:   disbursed.toLocaleString('en-IN'),
-      loanCode,
-      firstDue: firstInstalment ? new Date(firstInstalment).toLocaleDateString('en-IN') : '-',
-      loanId:   loan.id,
+      event: 'loan_disbursed',
+      phone: customer.phone,
+      email: customer.email ?? undefined,
+      data: {
+        name: customer.name,
+        amount: disbursed.toLocaleString('en-IN'),
+        loanCode,
+        firstDue: firstInstalment ? new Date(firstInstalment).toLocaleDateString('en-IN') : '-',
+      },
+      meta: { entityType: 'loan', entityId: loan.id },
     }).catch((err) => console.error('Failed to send loan disburse notification', err));
   }
 

@@ -183,6 +183,15 @@ export default function SubscriptionForm({
             />
             Allow Aadhaar OTP & Video KYC Verification (Digio)
           </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              name="gpsTrackingEnabled"
+              value="true"
+              defaultChecked={subscription?.gpsTrackingEnabled || false}
+            />
+            Allow GPS Collection Tracking
+          </label>
         </div>
       </div>
 

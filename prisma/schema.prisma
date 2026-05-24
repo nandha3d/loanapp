@@ -43,6 +43,8 @@ model Tenant {
   npaHistory            NpaHistory[]
   loanProvisioning      LoanProvisioning[]
   kycSessions           KycSession[]
+  agentLocationPings    AgentLocationPing[]
+  customerGeocodes      CustomerGeocode[]
 
 
   @@map("tenants")
@@ -73,6 +75,7 @@ model Branch {
   userModules    UserBranchModule[]
   users          User[]
   accountEntries AccountEntry[]
+  agentLocationPings AgentLocationPing[]
 
   @@unique([tenantId, code])
   @@index([superadminId], map: "branches_superadmin_id_fkey")
@@ -143,6 +146,7 @@ model User {
   accountEntries           AccountEntry[]
   agentHandovers           CashHandover[]     @relation("AgentHandovers")
   adminHandovers           CashHandover[]     @relation("AdminHandovers")
+  agentLocationPings       AgentLocationPing[]
 
   @@unique([tenantId, username])
   @@unique([tenantId, phone])
@@ -265,6 +269,7 @@ model Customer {
   securityCheques   SecurityCheque[]
   vehicles          Vehicle[]
   bureauReports     BureauReport[]
+  geocode           CustomerGeocode?
 
   @@unique([tenantId, customerCode])
   // ⚡ Bolt: Added composite index on tenantId, appType, and status to optimize frequent list queries across the app
@@ -515,6 +520,15 @@ model CollectionEntry {
   verificationStatus String      @default("pending") @map("verification_status")
   tenantId       String?         @map("tenant_id")
   idempotencyKey String?         @unique @map("idempotency_key")
+  latitude       Float?
+  longitude      Float?
+  gpsAccuracy    Float?          @map("gps_accuracy")
+  gpsTimestamp   DateTime?       @map("gps_timestamp")
+  gpsAltitude    Float?          @map("gps_altitude")
+  locationStatus String          @default("not_captured") @map("location_status")
+  distanceFromBorrower Float?    @map("distance_from_borrower")
+  borrowerLat    Float?          @map("borrower_lat")
+  borrowerLng    Float?          @map("borrower_lng")
   agent          User            @relation(fields: [agentId], references: [id])
   collection     DailyCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
   customer       Customer        @relation(fields: [customerId], references: [id])
@@ -527,7 +541,50 @@ model CollectionEntry {
   @@index([customerId], map: "collection_entries_customer_id_fkey")
   @@index([loanId], map: "collection_entries_loan_id_fkey")
   @@index([tenantId])
+  @@index([tenantId, locationStatus])
   @@map("collection_entries")
+}
+
+model AgentLocationPing {
+  id         String   @id @default(cuid())
+  tenantId   String   @map("tenant_id")
+  agentId    String   @map("agent_id")
+  branchId   String?  @map("branch_id")
+  latitude   Float
+  longitude  Float
+  accuracy   Float?
+  pingType   String   @default("heartbeat") @map("ping_type")
+  deviceTime DateTime @map("device_time")
+  serverTime DateTime @default(now()) @map("server_time")
+  isOnDuty   Boolean  @default(true) @map("is_on_duty")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  agent  User   @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  branch Branch? @relation(fields: [branchId], references: [id])
+
+  @@index([agentId, serverTime])
+  @@index([tenantId, serverTime])
+  @@index([branchId, serverTime])
+  @@map("agent_location_pings")
+}
+
+model CustomerGeocode {
+  id         String   @id @default(cuid())
+  tenantId   String   @map("tenant_id")
+  customerId String   @unique @map("customer_id")
+  latitude   Float
+  longitude  Float
+  accuracy   String   @default("approximate")
+  source     String   @default("manual")
+  rawAddress String   @map("raw_address") @db.Text
+  geocodedAt DateTime @default(now()) @map("geocoded_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("customer_geocodes")
 }
 
 model SystemNotification {
@@ -572,19 +629,24 @@ model NotificationTemplate {
 }
 
 model NotificationLog {
-  id           String   @id @default(cuid())
-  tenantId     String   @map("tenant_id")
-  channel      String                         // sms | whatsapp | email
-  recipient    String                         // phone or email
-  status       String   @default("sent")      // sent | failed | delivered
-  errorMessage String?  @map("error_message") @db.Text
-  entityType   String?  @map("entity_type")   // loan | customer | instalment
-  entityId     String?  @map("entity_id")
-  createdAt    DateTime @default(now()) @map("created_at")
+  id            String    @id @default(cuid())
+  tenantId      String    @map("tenant_id")
+  channel       String                          // sms | whatsapp | email | inapp
+  recipient     String                          // phone number or email address
+  status        String    @default("pending")   // pending | sent | delivered | failed
+  errorMessage  String?   @map("error_message") @db.Text
+  entityType    String?   @map("entity_type")   // loan | customer | instalment | agent
+  entityId      String?   @map("entity_id")
+  event         String?                          // e.g. payment_received, loan_disbursed
+  messageBody   String?   @map("message_body")  @db.Text
+  provider      String?                          // msg91 | smtp | digio
+  providerMsgId String?   @map("provider_msg_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, channel, createdAt])
+  @@index([entityType, entityId])
   @@map("notification_logs")
 }
 
@@ -814,6 +876,7 @@ model TenantSubscription {
   npaEnabled          Boolean   @default(false) @map("npa_enabled")
   foreclosureEnabled  Boolean   @default(false) @map("foreclosure_enabled")
   kycEnabled          Boolean   @default(false) @map("kyc_enabled")
+  gpsTrackingEnabled  Boolean   @default(false) @map("gps_tracking_enabled")
   trialEndsAt      DateTime? @map("trial_ends_at")
 
   currentPeriodEnd DateTime? @map("current_period_end")
