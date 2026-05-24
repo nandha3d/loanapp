@@ -10,7 +10,8 @@ class AnalyticsService {
   final Dio _dio;
 
   Future<AnalyticsSummary> summary() async {
-    final res = await _dio.get<Map<String, dynamic>>(Endpoints.analyticsSummary);
+    final res =
+        await _dio.get<Map<String, dynamic>>(Endpoints.analyticsSummary);
     return unwrapEnvelope(
       res,
       (dynamic d) => AnalyticsSummary.fromJson(d as Map<String, dynamic>),
@@ -18,10 +19,12 @@ class AnalyticsService {
   }
 
   Future<List<CollectionPoint>> collections() async {
-    final res = await _dio.get<Map<String, dynamic>>(Endpoints.analyticsCollections);
+    final res =
+        await _dio.get<Map<String, dynamic>>(Endpoints.analyticsCollections);
     return unwrapEnvelope(res, (dynamic d) {
       return (d as List<dynamic>)
-          .map((dynamic e) => CollectionPoint.fromJson(e as Map<String, dynamic>))
+          .map((dynamic e) =>
+              CollectionPoint.fromJson(e as Map<String, dynamic>))
           .toList(growable: false);
     });
   }
@@ -30,8 +33,9 @@ class AnalyticsService {
     final res = await _dio.get<Map<String, dynamic>>(Endpoints.analyticsAgents);
     return unwrapEnvelope(res, (dynamic d) {
       return (d as List<dynamic>)
-          .map((dynamic e) =>
-              AgentPerformance.fromJson(e as Map<String, dynamic>))
+          .map(
+            (dynamic e) => AgentPerformance.fromJson(e as Map<String, dynamic>),
+          )
           .toList(growable: false);
     });
   }

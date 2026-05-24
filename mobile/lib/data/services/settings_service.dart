@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:loantrack/core/network/dio_client.dart';
+import 'package:loantrack/data/models/analytics.dart';
 import 'package:loantrack/data/models/route_model.dart';
 import 'package:loantrack/shared/constants/endpoints.dart';
 
@@ -40,6 +41,33 @@ class SettingsService {
       res,
       (dynamic d) => AppRoute.fromJson(d as Map<String, dynamic>),
     );
+  }
+
+  Future<AgentPerformance> createAgent({
+    required String name,
+    required String email,
+    required String phone,
+    required String password,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.agents,
+      data: {
+        'name': name,
+        'email': email,
+        'phone': phone,
+        'password': password,
+      },
+    );
+    return unwrapEnvelope(res, (dynamic d) {
+      final map = d as Map<String, dynamic>;
+      return AgentPerformance(
+        id: map['id'] as String,
+        name: (map['name'] as String?) ?? '',
+        expected: 0,
+        collected: 0,
+        hitRate: 0,
+      );
+    });
   }
 
   Future<List<LoanPackage>> packages() async {

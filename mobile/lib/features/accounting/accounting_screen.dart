@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
@@ -25,10 +26,11 @@ class AccountingScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Accounting & P&L'),
+        title: Text(t.x('title.accounting')),
         centerTitle: true,
         actions: [
           IconButton(
@@ -66,14 +68,15 @@ class AccountingScreen extends ConsumerWidget {
   }
 }
 
-class _DailySection extends StatelessWidget {
+class _DailySection extends ConsumerWidget {
   const _DailySection({required this.dailyAsync});
   final AsyncValue<Map<String, dynamic>> dailyAsync;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     return _Card(
-      title: "Today's Summary",
+      title: t.x('acc.today_summary'),
       child: dailyAsync.when(
         loading: () => const Skeleton(height: 160),
         error: (e, _) => _InlineError(message: e.toString()),
@@ -83,7 +86,7 @@ class _DailySection extends StatelessWidget {
   }
 }
 
-class _DailyBody extends StatelessWidget {
+class _DailyBody extends ConsumerWidget {
   const _DailyBody({required this.data});
   final Map<String, dynamic> data;
 
@@ -95,7 +98,8 @@ class _DailyBody extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     final fmt = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
 
     final collected = _num(data, 'totalCollected');
@@ -111,7 +115,7 @@ class _DailyBody extends StatelessWidget {
           icon: Icons.arrow_downward_rounded,
           iconColor: AppColors.success,
           iconBg: AppColors.successBg,
-          label: 'Collected',
+          label: t.x('acc.collected'),
           value: fmt.format(collected),
           valueColor: AppColors.success,
         ),
@@ -120,7 +124,7 @@ class _DailyBody extends StatelessWidget {
           icon: Icons.arrow_upward_rounded,
           iconColor: AppColors.danger,
           iconBg: AppColors.dangerBg,
-          label: 'Disbursed',
+          label: t.x('acc.disbursed'),
           value: fmt.format(disbursed),
           valueColor: AppColors.danger,
         ),
@@ -129,7 +133,7 @@ class _DailyBody extends StatelessWidget {
           icon: Icons.receipt_long_outlined,
           iconColor: AppColors.warning,
           iconBg: AppColors.warningBg,
-          label: 'Expenses',
+          label: t.x('acc.expenses'),
           value: fmt.format(expenses),
           valueColor: AppColors.textPrimary,
         ),
@@ -138,7 +142,7 @@ class _DailyBody extends StatelessWidget {
           icon: Icons.account_balance_outlined,
           iconColor: AppColors.info,
           iconBg: AppColors.infoBg,
-          label: 'Capital Balance',
+          label: t.x('acc.capital_balance'),
           value: fmt.format(capital),
           valueColor: AppColors.info,
         ),
@@ -161,7 +165,7 @@ class _DailyBody extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Text(
-                'Net P&L',
+                t.x('acc.net_pl'),
                 style: AppTypography.bodyLarge.copyWith(
                   color: isProfitable ? AppColors.successText : AppColors.dangerText,
                 ),
@@ -232,23 +236,24 @@ class _Divider extends StatelessWidget {
   }
 }
 
-class _OverdueSection extends StatelessWidget {
+class _OverdueSection extends ConsumerWidget {
   const _OverdueSection({required this.overdueAsync});
   final AsyncValue<List<Map<String, dynamic>>> overdueAsync;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     return _Card(
-      title: 'Overdue Accounts',
+      title: t.x('acc.overdue_accounts'),
       child: overdueAsync.when(
         loading: () => const Skeleton(height: 120),
         error: (e, _) => _InlineError(message: e.toString()),
         data: (list) => list.isEmpty
-            ? const SizedBox(
+            ? SizedBox(
                 height: 100,
                 child: EmptyState(
                   icon: Icons.check_circle_outline_rounded,
-                  title: 'No overdue accounts',
+                  title: t.x('acc.no_overdue'),
                 ),
               )
             : _OverdueList(items: list),

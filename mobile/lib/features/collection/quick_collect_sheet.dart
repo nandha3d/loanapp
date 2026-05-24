@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'package:loantrack/core/a11y/voice_assist.dart';
 import 'package:loantrack/core/l10n/language_controller.dart';
+import 'package:loantrack/core/network/api_exception.dart';
+import 'package:loantrack/core/network/dio_client.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/data/local/collection_queue.dart';
 import 'package:loantrack/data/models/collection_entry.dart';
 import 'package:loantrack/data/services/collection_service.dart';
+import 'package:loantrack/data/services/payment_service.dart';
 
 class QuickCollectSheet extends ConsumerStatefulWidget {
   const QuickCollectSheet({super.key, required this.row});
@@ -69,9 +71,10 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
   }
 
   Future<void> _submit() async {
+    final t = T.of(ref);
     final amt = _value;
     if (amt <= 0) {
-      setState(() => _error = 'Enter a valid amount');
+      setState(() => _error = t.x('err.enter_valid_amount'));
       return;
     }
     setState(() {
@@ -102,18 +105,10 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
         await ref.read(collectionSyncProvider.notifier).refresh();
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Saved offline — will sync')),
+          SnackBar(content: Text(t.x('sync.saved_offline'))),
         );
         Navigator.of(context).pop();
         return;
-      }
-
-      if (_mode == 'upi') {
-        final amount = amt.toStringAsFixed(2);
-        final uri = Uri.parse(
-          'upi://pay?pa=merchant@upi&pn=LoanTrack&am=$amount&tn=${widget.row.loanCode}',
-        );
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
       }
 
       await svc.submit(
@@ -127,27 +122,36 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Collected ₹${amt.round()} from ${widget.row.customerName}'),
+          content: Text('${t.x('msg.collected_from')} ₹${amt.round()} — ${widget.row.customerName}'),
           backgroundColor: AppColors.success,
         ),
       );
       Navigator.of(context).pop();
     } catch (e) {
-      await queue.add(
-        QueuedCollection(
-          idempotencyKey: key,
-          instalmentId: widget.row.instalmentId,
-          receivedAmount: amt,
-          paymentMode: _mode,
-          collectionDate: today,
-          status: 'pending',
-          customerName: widget.row.customerName,
-          loanCode: widget.row.loanCode,
-        ),
-      );
-      await ref.read(collectionSyncProvider.notifier).refresh();
-      if (!mounted) return;
-      setState(() => _error = 'Saved offline: $e');
+      final isServerReject = e is ApiException &&
+          e.statusCode != null &&
+          e.statusCode! >= 400 &&
+          e.statusCode! < 500;
+      if (isServerReject) {
+        if (!mounted) return;
+        setState(() => _error = e.message);
+      } else {
+        await queue.add(
+          QueuedCollection(
+            idempotencyKey: key,
+            instalmentId: widget.row.instalmentId,
+            receivedAmount: amt,
+            paymentMode: _mode,
+            collectionDate: today,
+            status: 'pending',
+            customerName: widget.row.customerName,
+            loanCode: widget.row.loanCode,
+          ),
+        );
+        await ref.read(collectionSyncProvider.notifier).refresh();
+        if (!mounted) return;
+        setState(() => _error = '${t.x('sync.saved_offline_err')}: $e');
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -212,7 +216,7 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
               _NumberPad(onPress: _press),
               const SizedBox(height: 18),
               Text(
-                'Payment Mode',
+                t.x('coll.payment_mode'),
                 style: AppTypography.label.copyWith(
                   color: AppColors.textSecondary,
                 ),
@@ -223,6 +227,10 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
                 onChange: (m) => setState(() => _mode = m),
                 t: t,
               ),
+              if (_mode == 'upi') ...[
+                const SizedBox(height: 14),
+                _UpiQrSection(amount: _value),
+              ],
               if (_error != null) ...[
                 const SizedBox(height: 12),
                 Container(
@@ -277,7 +285,7 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
                           color: Colors.white,
                         ),
                   label: Text(
-                    'CONFIRM ${fmt.format(_value)}',
+                    '${t.x('coll.confirm_prefix')} ${fmt.format(_value)}',
                     style: AppTypography.bigKey.copyWith(
                       color: Colors.white,
                       fontSize: 16,
@@ -303,13 +311,14 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
 
 // ───────────────────────────── Header row ───────────────────────────
 
-class _HeaderRow extends StatelessWidget {
+class _HeaderRow extends ConsumerWidget {
   const _HeaderRow({required this.row, required this.fmt});
   final CollectionRow row;
   final NumberFormat fmt;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     return Row(
       children: [
         Container(
@@ -342,7 +351,7 @@ class _HeaderRow extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
               Text(
-                '${row.loanCode} • Due ${fmt.format(row.dueAmount)}',
+                '${row.loanCode} • ${t.x('coll.due_label')} ${fmt.format(row.dueAmount)}',
                 style: AppTypography.caption,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -357,7 +366,7 @@ class _HeaderRow extends StatelessWidget {
 
 // ───────────────────────────── Amount display ───────────────────────
 
-class _AmountDisplay extends StatelessWidget {
+class _AmountDisplay extends ConsumerWidget {
   const _AmountDisplay({
     required this.value,
     required this.outstanding,
@@ -368,24 +377,25 @@ class _AmountDisplay extends StatelessWidget {
   final bool isOver, isPartial;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     final fmt =
         NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
     final Color color;
     final String hint;
     if (isOver) {
       color = AppColors.warning;
-      hint = 'Above outstanding ${fmt.format(outstanding)}';
+      hint = '${t.x('coll.above_outstanding')} ${fmt.format(outstanding)}';
     } else if (isPartial) {
       color = AppColors.info;
       hint =
-          'Partial • ${fmt.format(outstanding - value)} will remain due';
+          '${t.x('coll.partial_remaining')}: ${fmt.format(outstanding - value)}';
     } else if (value == outstanding && value > 0) {
       color = AppColors.success;
-      hint = 'Settles the instalment in full';
+      hint = t.x('coll.settles_full');
     } else {
       color = AppColors.textPrimary;
-      hint = 'Outstanding ${fmt.format(outstanding)}';
+      hint = '${t.x('coll.outstanding_label')} ${fmt.format(outstanding)}';
     }
 
     return Container(
@@ -415,7 +425,7 @@ class _AmountDisplay extends StatelessWidget {
 
 // ───────────────────────────── Quick amounts ────────────────────────
 
-class _QuickAmountRow extends StatelessWidget {
+class _QuickAmountRow extends ConsumerWidget {
   const _QuickAmountRow({
     required this.outstanding,
     required this.due,
@@ -425,7 +435,8 @@ class _QuickAmountRow extends StatelessWidget {
   final ValueChanged<double> onPick;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     final half = (outstanding / 2).roundToDouble();
     final fmt =
         NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
@@ -434,7 +445,7 @@ class _QuickAmountRow extends StatelessWidget {
       children: [
         Expanded(
           child: _Quick(
-            label: 'Full',
+            label: t.x('coll.quick_full'),
             value: fmt.format(outstanding),
             color: AppColors.success,
             onTap: () => onPick(outstanding),
@@ -443,7 +454,7 @@ class _QuickAmountRow extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: _Quick(
-            label: 'Half',
+            label: t.x('coll.quick_half'),
             value: fmt.format(half),
             color: AppColors.info,
             onTap: () => onPick(half),
@@ -452,7 +463,7 @@ class _QuickAmountRow extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: _Quick(
-            label: 'Due',
+            label: t.x('coll.quick_due'),
             value: fmt.format(due),
             color: AppColors.warning,
             onTap: () => onPick(due),
@@ -678,6 +689,78 @@ class _ModeBtn extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ───────────────────────────── UPI QR section ───────────────────────
+
+class _UpiQrSection extends ConsumerWidget {
+  const _UpiQrSection({required this.amount});
+  final double amount;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
+    final qrAsync = ref.watch(paymentQrProvider);
+    return qrAsync.when(
+      loading: () => const SizedBox(
+        height: 48,
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      ),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (qr) {
+        if (qr.qrUrl == null && qr.upiId == null) return const SizedBox.shrink();
+        final baseOrigin = Uri.parse(kDefaultBaseUrl)
+            .replace(path: '', query: '')
+            .toString()
+            .replaceAll(RegExp(r'/$'), '');
+        final imageUrl = qr.qrUrl != null
+            ? (qr.qrUrl!.startsWith('http') ? qr.qrUrl! : '$baseOrigin${qr.qrUrl!}')
+            : null;
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            children: [
+              if (imageUrl != null)
+                Image.network(
+                  imageUrl,
+                  width: 180,
+                  height: 180,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Icon(
+                    Icons.qr_code_2_rounded,
+                    size: 80,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              if (qr.upiId != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  qr.upiId!,
+                  style: AppTypography.body.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  t.x('coll.scan_to_pay'),
+                  style: AppTypography.caption.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 }

@@ -3,10 +3,12 @@ import { verifySync } from 'otplib';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { issueMobileToken } from '@/lib/api/v1-auth';
+import { checkRateLimit, getClientIp, routeKey } from '@/lib/rateLimit';
 
 /**
  * Step 2 of mobile login when the user has TOTP enabled.
  * Body: { username, code }.
+ * SEC-08: rate-limited per IP+username — 5 attempts per 10 min.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -17,6 +19,16 @@ export async function POST(req: NextRequest) {
       return fail('username and code are required', 400);
     }
     const username = body.username.trim().toLowerCase();
+
+    const ip = getClientIp(req);
+    const rl = await checkRateLimit(routeKey(`mobile-2fa:${username}`, ip), {
+      limit: 5,
+      windowMs: 10 * 60 * 1000,
+    });
+    if (!rl.allowed) {
+      return fail('Too many attempts. Try again later.', 429);
+    }
+
     const user = await prisma.user.findFirst({
       where: {
         OR: [{ username }, { phone: username }],

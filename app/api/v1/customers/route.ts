@@ -1,11 +1,12 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { ok, fail } from '@/lib/api/v1-envelope';
+import { ok, fail, parseCursorPaging } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { getAgentRouteIds } from '@/lib/access';
 import { encryptAadharNumber } from '@/lib/pii';
 import { getBranding } from '@/lib/tenant';
 import { generateCode } from '@/lib/utils';
+import { writeAudit } from '@/lib/audit';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -14,6 +15,8 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const q = searchParams.get('q');
+  // PAGE-01: cursor pagination (default 20, max 100).
+  const { cursor, limit } = parseCursorPaging(req.url, { defaultLimit: 20, maxLimit: 100 });
 
   const where: any = {
     tenantId: ctx.tenantId,
@@ -23,7 +26,7 @@ export async function GET(req: NextRequest) {
 
   if (ctx.role === 'agent') {
     const routeIds = await getAgentRouteIds(ctx.userId);
-    if (routeIds.length === 0) return ok([]);
+    if (routeIds.length === 0) return ok([], { nextCursor: null, limit });
     where.routeId = { in: routeIds };
   }
 
@@ -36,18 +39,39 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const customers = await prisma.customer.findMany({
+    // PERF-02: drop nested loans array (N+1). Use _count for active loan
+    // count; aggregate outstanding principal in one groupBy. Client fetches
+    // loan detail on demand via /api/v1/customers/:id/loans.
+    const rows = await prisma.customer.findMany({
       where,
       include: {
         route: { select: { id: true, name: true } },
-        loans: {
-          where: { status: 'active' },
-          select: { id: true, principal: true, status: true },
-        },
+        _count: { select: { loans: { where: { status: 'active' } } } },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { id: 'desc' },
+      take: limit + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
-    return ok(customers);
+    const hasMore = rows.length > limit;
+    const data = hasMore ? rows.slice(0, limit) : rows;
+    const nextCursor = hasMore ? data[data.length - 1]!.id : null;
+
+    // One groupBy gets outstanding principal per visible customer.
+    const customerIds = data.map((c) => c.id);
+    const totals = customerIds.length
+      ? await prisma.loan.groupBy({
+          by: ['customerId'],
+          where: { customerId: { in: customerIds }, status: 'active' },
+          _sum: { principal: true },
+        })
+      : [];
+    const totalMap = new Map(totals.map((t) => [t.customerId, Number(t._sum.principal ?? 0)]));
+    const enriched = data.map((c) => ({
+      ...c,
+      activeLoanCount: c._count.loans,
+      activeLoanPrincipal: totalMap.get(c.id) ?? 0,
+    }));
+    return ok(enriched, { nextCursor, limit });
   } catch (e: any) {
     return fail(e?.message ?? 'Customers list failed', 500);
   }
@@ -116,15 +140,13 @@ export async function POST(req: NextRequest) {
       include: { route: { select: { id: true, name: true } }, kycDocuments: true },
     });
 
-    await prisma.auditLog.create({
-      data: {
-        tenantId: ctx.tenantId,
-        userId: ctx.userId,
-        action: 'create',
-        entityType: 'customer',
-        entityId: customer.id,
-        newValue: JSON.stringify({ customerCode, name: body.name }),
-      },
+    await writeAudit({
+      tenantId: ctx.tenantId,
+      userId: ctx.userId,
+      action: 'create',
+      entityType: 'customer',
+      entityId: customer.id,
+      newValue: { customerCode, name: body.name },
     });
 
     return ok(customer);

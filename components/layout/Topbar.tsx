@@ -154,6 +154,9 @@ export default function Topbar({
           <option value="en">English</option>
           <option value="ta">Tamil (தமிழ்)</option>
           <option value="hi">Hindi (हिन्दी)</option>
+          <option value="te">Telugu (తెలుగు)</option>
+          <option value="kn">Kannada (ಕನ್ನಡ)</option>
+          <option value="ml">Malayalam (മലയാളം)</option>
         </select>
 
         <span className="topbar-date">{todayDate}</span>

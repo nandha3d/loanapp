@@ -61,7 +61,7 @@ class Customer {
       kycStatus: json['kycStatus'] as String?,
       routeName: route?['name'] as String?,
       agentName: agent?['name'] as String?,
-      photoUrl: json['photoUrl'] as String?,
+      photoUrl: json['profilePhoto'] as String? ?? json['photoUrl'] as String?,
       kycDocuments: (json['kycDocuments'] as List<dynamic>? ?? const [])
           .map((dynamic e) => KycDocument.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),

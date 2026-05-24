@@ -54,15 +54,15 @@ export default function SettingsClient({
         <div className={`tab ${activeTab === 'routes' ? 'active' : ''}`} onClick={() => setActiveTab('routes')}>{d.tabRoutes}</div>
         <div className={`tab ${activeTab === 'penalty' ? 'active' : ''}`} onClick={() => setActiveTab('penalty')}>{d.tabPenalty}</div>
         <div className={`tab ${activeTab === 'packages' ? 'active' : ''}`} onClick={() => setActiveTab('packages')}>{d.tabPackages}</div>
-        <div className={`tab ${activeTab === 'payment' ? 'active' : ''}`} onClick={() => setActiveTab('payment')}>Payment</div>
-        <div className={`tab ${activeTab === 'bulk' ? 'active' : ''}`} onClick={() => setActiveTab('bulk')}>Bulk Tools</div>
+        <div className={`tab ${activeTab === 'payment' ? 'active' : ''}`} onClick={() => setActiveTab('payment')}>{d.tabPayment}</div>
+        <div className={`tab ${activeTab === 'bulk' ? 'active' : ''}`} onClick={() => setActiveTab('bulk')}>{d.tabBulk}</div>
         {currentUser?.role === 'developer' && (
           <div className={`tab ${activeTab === 'system' ? 'active' : ''}`} onClick={() => setActiveTab('system')}>{d.tabSystem}</div>
         )}
         {currentUser?.role === 'superadmin' && (
-          <div className={`tab ${activeTab === 'data' ? 'active' : ''}`} style={{color: 'var(--danger)'}} onClick={() => setActiveTab('data')}>Data Management</div>
+          <div className={`tab ${activeTab === 'data' ? 'active' : ''}`} style={{color: 'var(--danger)'}} onClick={() => setActiveTab('data')}>{d.tabData}</div>
         )}
-        <div className={`tab ${activeTab === 'security' ? 'active' : ''}`} onClick={() => setActiveTab('security')}>Security</div>
+        <div className={`tab ${activeTab === 'security' ? 'active' : ''}`} onClick={() => setActiveTab('security')}>{d.tabSecurity}</div>
       </div>
 
       {/* Routes Tab */}
@@ -103,7 +103,7 @@ export default function SettingsClient({
                     ) : (
                       <span
                         style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                        title="Click to change primary agent"
+                        title={d.clickToChangePrimary}
                         onClick={() => setEditingPrimaryRouteId(r.id)}
                       >
                         {r.assignedAgent?.name ? (
@@ -119,7 +119,7 @@ export default function SettingsClient({
                       {(r.routeAgents || []).map((ra: any) => (
                         <span key={ra.agentId} style={{display:'inline-flex', alignItems:'center', gap:'3px', background:'var(--bg-muted)', borderRadius:'var(--radius-sm)', padding:'2px 6px', fontSize:'.72rem'}}>
                           {ra.agent?.name}
-                          <button style={{background:'none', border:'none', cursor:'pointer', color:'var(--text-light)', fontSize:'12px', lineHeight:1, padding:'0 1px'}} title="Remove" onClick={async () => { if(confirm(d.removeAgent)) { await removeAgentFromRoute(r.id, ra.agentId); window.location.reload(); } }}>✕</button>
+                          <button style={{background:'none', border:'none', cursor:'pointer', color:'var(--text-light)', fontSize:'12px', lineHeight:1, padding:'0 1px'}} title={d.remove} onClick={async () => { if(confirm(d.removeAgent)) { await removeAgentFromRoute(r.id, ra.agentId); window.location.reload(); } }}>✕</button>
                         </span>
                       ))}
                       <button className="btn btn-ghost btn-sm" style={{fontSize:'.7rem', padding:'2px 6px'}} onClick={() => { setRouteAgentModal({ routeId: r.id, routeName: r.name, agents: r.routeAgents || [] }); setRaAgentId(''); }}>
@@ -231,23 +231,23 @@ export default function SettingsClient({
                 </select>
               </div>
               <div style={{borderTop:'1px solid var(--border)', paddingTop:'20px', marginTop:'12px'}}>
-                <h4 style={{fontSize:'.95rem', fontWeight:700, marginBottom:'12px'}}>📝 Loan Code Prefixes</h4>
-                <p style={{fontSize:'.8rem', color:'var(--text-light)', marginBottom:'16px'}}>Customize the prefix used for loan codes based on repayment frequency.</p>
+                <h4 style={{fontSize:'.95rem', fontWeight:700, marginBottom:'12px'}}>📝 {d.loanCodePrefixes}</h4>
+                <p style={{fontSize:'.8rem', color:'var(--text-light)', marginBottom:'16px'}}>{d.loanCodePrefixesDesc}</p>
                 <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px'}}>
                   <div className="settings-item" style={{flexDirection:'column', alignItems:'flex-start', gap:'4px'}}>
-                    <label className="form-label" style={{fontSize:'.8rem', margin:0}}>Daily Prefix</label>
+                    <label className="form-label" style={{fontSize:'.8rem', margin:0}}>{d.dailyPrefix}</label>
                     <input type="text" name="loan_prefix_daily" className="form-control" style={{width:'100px'}} defaultValue={settings.loan_prefix_daily || 'DL'} maxLength={4} />
                   </div>
                   <div className="settings-item" style={{flexDirection:'column', alignItems:'flex-start', gap:'4px'}}>
-                    <label className="form-label" style={{fontSize:'.8rem', margin:0}}>Weekly Prefix</label>
+                    <label className="form-label" style={{fontSize:'.8rem', margin:0}}>{d.weeklyPrefix}</label>
                     <input type="text" name="loan_prefix_weekly" className="form-control" style={{width:'100px'}} defaultValue={settings.loan_prefix_weekly || 'WK'} maxLength={4} />
                   </div>
                   <div className="settings-item" style={{flexDirection:'column', alignItems:'flex-start', gap:'4px'}}>
-                    <label className="form-label" style={{fontSize:'.8rem', margin:0}}>Bi-Weekly Prefix</label>
+                    <label className="form-label" style={{fontSize:'.8rem', margin:0}}>{d.biWeeklyPrefix}</label>
                     <input type="text" name="loan_prefix_biweekly" className="form-control" style={{width:'100px'}} defaultValue={settings.loan_prefix_biweekly || 'BW'} maxLength={4} />
                   </div>
                   <div className="settings-item" style={{flexDirection:'column', alignItems:'flex-start', gap:'4px'}}>
-                    <label className="form-label" style={{fontSize:'.8rem', margin:0}}>Monthly Prefix</label>
+                    <label className="form-label" style={{fontSize:'.8rem', margin:0}}>{d.monthlyPrefix}</label>
                     <input type="text" name="loan_prefix_monthly" className="form-control" style={{width:'100px'}} defaultValue={settings.loan_prefix_monthly || 'ML'} maxLength={4} />
                   </div>
                 </div>
@@ -266,22 +266,22 @@ export default function SettingsClient({
 
       {/* Payment / UPI Tab */}
       <div className={`tab-content ${activeTab === 'payment' ? 'active' : ''}`}>
-        <div className="card-header"><h3>💳 Payment Settings</h3></div>
-        <form action={async (fd) => { await saveUpiQrCode(fd); showToast('Payment settings saved'); }} style={{maxWidth:'500px'}}>
+        <div className="card-header"><h3>💳 {d.paymentSettings}</h3></div>
+        <form action={async (fd) => { await saveUpiQrCode(fd); showToast(d.paymentSaved); }} style={{maxWidth:'500px'}}>
           <div className="form-group">
-            <label className="form-label">UPI ID</label>
-            <input type="text" name="upiId" className="form-control" defaultValue={settings.upi_id || ''} placeholder="e.g. business@ybl" />
-            <span style={{fontSize:'.75rem', color:'var(--text-light)', marginTop:'4px', display:'block'}}>This UPI ID will be shown to customers for payment.</span>
+            <label className="form-label">{d.upiId}</label>
+            <input type="text" name="upiId" className="form-control" defaultValue={settings.upi_id || ''} placeholder={d.upiIdPlaceholder} />
+            <span style={{fontSize:'.75rem', color:'var(--text-light)', marginTop:'4px', display:'block'}}>{d.upiIdHelper}</span>
           </div>
           <div className="form-group">
-            <label className="form-label">UPI QR Code Image</label>
+            <label className="form-label">{d.upiQrImage}</label>
             {settings.upi_qr_url && (
               <div style={{marginBottom:'12px', padding:'12px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', background:'#fff', display:'inline-block'}}>
-                <img src={settings.upi_qr_url} alt="UPI QR Code" style={{width:'180px', height:'180px', objectFit:'contain'}} />
+                <img src={settings.upi_qr_url} alt={d.upiQrImage} style={{width:'180px', height:'180px', objectFit:'contain'}} />
               </div>
             )}
             <input type="file" name="upiQrCode" accept="image/*" className="form-control" />
-            <span style={{fontSize:'.75rem', color:'var(--text-light)', marginTop:'4px', display:'block'}}>Upload a screenshot or image of your UPI QR code (max 5MB).</span>
+            <span style={{fontSize:'.75rem', color:'var(--text-light)', marginTop:'4px', display:'block'}}>{d.upiQrHelper}</span>
           </div>
           <button type="submit" className="btn btn-primary" disabled={loading}>
             <span className="material-icons-outlined" style={{fontSize:'16px'}}>save</span> {loading ? d.saving : d.save}
@@ -291,11 +291,11 @@ export default function SettingsClient({
 
       {/* Bulk Tools Tab */}
       <div className={`tab-content ${activeTab === 'bulk' ? 'active' : ''}`}>
-        <div className="card-header"><h3>📦 Bulk Data Tools</h3></div>
+        <div className="card-header"><h3>📦 {d.bulkDataTools}</h3></div>
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', maxWidth:'800px'}}>
           <div className="card" style={{padding:'20px', border:'1px solid var(--border)'}}>
-            <h4>Import Customers</h4>
-            <p style={{fontSize:'.85rem', color:'var(--text-light)', marginBottom:'15px'}}>Upload a JSON file with customer records.</p>
+            <h4>{d.importCustomers}</h4>
+            <p style={{fontSize:'.85rem', color:'var(--text-light)', marginBottom:'15px'}}>{d.importCustomersDesc}</p>
             <input type="file" accept=".json" onChange={async (e) => {
               const file = e.target.files?.[0];
               if (!file) return;
@@ -303,15 +303,15 @@ export default function SettingsClient({
               try {
                 const data = JSON.parse(text);
                 const res = await importCustomers(data);
-                alert(`Import complete: ${res.success} succeeded, ${res.failed} failed.`);
+                alert(`${d.importComplete}: ${res.success} ${d.succeeded}, ${res.failed} ${d.failedCount}.`);
               } catch {
-                alert('Invalid JSON file');
+                alert(d.invalidJson);
               }
             }} />
           </div>
           <div className="card" style={{padding:'20px', border:'1px solid var(--border)'}}>
-            <h4>Import Collections</h4>
-            <p style={{fontSize:'.85rem', color:'var(--text-light)', marginBottom:'15px'}}>Upload a JSON file with payment history.</p>
+            <h4>{d.importCollections}</h4>
+            <p style={{fontSize:'.85rem', color:'var(--text-light)', marginBottom:'15px'}}>{d.importCollectionsDesc}</p>
             <input type="file" accept=".json" disabled />
           </div>
         </div>
@@ -320,86 +320,86 @@ export default function SettingsClient({
       {/* Data Management Tab */}
       <div className={`tab-content ${activeTab === 'data' ? 'active' : ''}`}>
         <div className="card-header">
-          <h3 style={{ color: 'var(--danger)' }}>⚠️ Danger Zone: Database Management</h3>
+          <h3 style={{ color: 'var(--danger)' }}>⚠️ {d.dangerZone}</h3>
         </div>
         <div style={{ maxWidth: '800px' }}>
           <p style={{ marginBottom: '20px', color: 'var(--text-secondary)' }}>
-            Warning: The actions below will permanently delete data from the database. This cannot be undone. System settings, users, and branches are preserved.
+            {d.dangerWarning}
           </p>
 
           <div className="settings-item" style={{ border: '1px solid var(--border)', padding: '20px', borderRadius: 'var(--radius)', marginBottom: '20px', background: 'var(--bg)' }}>
             <div className="si-info" style={{ marginBottom: '16px' }}>
               <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span className="material-icons-outlined" style={{ color: 'var(--primary)' }}>download_for_offline</span>
-                Database Backup (Excel / CSV)
+                {d.databaseBackup}
               </h4>
-              <p>Download a complete backup of all database tables (Customers, Loans, Accounting, Routes) to an Excel-compatible CSV spreadsheet before performing a wipe or for regular archiving.</p>
+              <p>{d.databaseBackupDesc}</p>
             </div>
             <div>
               <a href="/api/backup/export" className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }} download>
                 <span className="material-icons-outlined" style={{ fontSize: '18px' }}>download</span>
-                Download Excel Backup
+                {d.downloadBackup}
               </a>
             </div>
           </div>
 
           <div className="settings-item" style={{ border: '1px solid var(--danger)', padding: '20px', borderRadius: 'var(--radius)', background: 'rgba(231, 76, 60, 0.05)' }}>
             <div className="si-info" style={{ marginBottom: '16px' }}>
-              <h4 style={{ color: 'var(--danger)' }}>Wipe Transactional Data</h4>
-              <p>Select the data modules you wish to permanently delete.</p>
+              <h4 style={{ color: 'var(--danger)' }}>{d.wipeData}</h4>
+              <p>{d.wipeDataDesc}</p>
             </div>
             <form action={async (fd) => {
               const tables = fd.getAll('tables') as string[];
               if (tables.length === 0) {
-                alert('Please select at least one data module to wipe.');
+                alert(d.selectAtLeastOne);
                 return;
               }
-              if (confirm(`Are you absolutely sure you want to permanently delete the selected data modules? This action is irreversible.`)) {
+              if (confirm(d.wipeConfirm)) {
                 setLoading(true);
                 const { wipeDatabaseRecords } = await import('./actions');
                 const res = await wipeDatabaseRecords(tables);
                 setLoading(false);
                 if (res.success) {
-                  alert('Data successfully wiped.');
+                  alert(d.wipeSuccess);
                   window.location.reload();
                 } else {
-                  alert('Failed to wipe data: ' + res.error);
+                  alert(d.wipeFailed + ': ' + res.error);
                 }
               }
             }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                   <input type="checkbox" name="tables" value="loans" />
-                  <strong>Loans & Payments</strong> <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>(Loans, Instalments, Penalties, Collections)</span>
+                  <strong>{d.loansAndPayments}</strong> <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>{d.loansAndPaymentsDesc}</span>
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                   <input type="checkbox" name="tables" value="customers" />
-                  <strong>Customers & Guarantors</strong> <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>(Profiles, KYC, Vehicles, Cheques)</span>
+                  <strong>{d.customersAndGuarantors}</strong> <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>{d.customersAndGuarantorsDesc}</span>
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                   <input type="checkbox" name="tables" value="accounting" />
-                  <strong>Accounting</strong> <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>(Capital Entries, Expenses, Adjustments)</span>
+                  <strong>{d.accounting}</strong> <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>{d.accountingDesc}</span>
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                   <input type="checkbox" name="tables" value="agents" />
-                  <strong style={{ color: 'var(--warning)' }}>Agents Only</strong> <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>(Delete all agents and their collections)</span>
+                  <strong style={{ color: 'var(--warning)' }}>{d.agentsOnly}</strong> <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>{d.agentsOnlyDesc}</span>
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                   <input type="checkbox" name="tables" value="admins" />
-                  <strong style={{ color: 'var(--danger)' }}>Admins Only</strong> <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>(Delete all admin users)</span>
+                  <strong style={{ color: 'var(--danger)' }}>{d.adminsOnly}</strong> <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>{d.adminsOnlyDesc}</span>
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                   <input type="checkbox" name="tables" value="agents_routes" />
-                  <strong>Agents & Routes</strong> <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>(All agents, Routes, Route Assignments, Collections)</span>
+                  <strong>{d.agentsAndRoutes}</strong> <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>{d.agentsAndRoutesDesc}</span>
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                   <input type="checkbox" name="tables" value="approvals" />
-                  <strong>Approvals & Audit Logs</strong> <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>(Pending requests, Action history)</span>
+                  <strong>{d.approvalsAndAudit}</strong> <span style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>{d.approvalsAndAuditDesc}</span>
                 </label>
               </div>
               <button type="submit" className="btn btn-danger" disabled={loading}>
-                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>delete_forever</span> 
-                {loading ? 'Wiping Data...' : 'Permanently Delete Selected'}
+                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>delete_forever</span>
+                {loading ? d.wipingData : d.permanentlyDelete}
               </button>
             </form>
           </div>
@@ -408,22 +408,21 @@ export default function SettingsClient({
 
       {/* Security Tab */}
       <div className={`tab-content ${activeTab === 'security' ? 'active' : ''}`}>
-        <div className="card-header"><h3>🔒 Security & 2FA</h3></div>
+        <div className="card-header"><h3>🔒 {d.securityAndTwoFa}</h3></div>
         <div style={{maxWidth:'600px'}}>
           <p style={{marginBottom:'20px', color:'var(--text-secondary)'}}>
-            Two-Factor Authentication (2FA) adds an extra layer of security to your account. 
-            Once enabled, you will need to enter a code from your authenticator app (like Google Authenticator or Authy) to log in.
+            {d.twoFaIntro}
           </p>
-          
+
           <div className="settings-item" style={{border:'1px solid var(--border)', padding:'20px', borderRadius:'var(--radius)'}}>
             <div className="si-info">
-              <h4>Two-Factor Authentication</h4>
-              <p>{currentUser?.totpSecret ? 'Status: ENABLED' : 'Status: DISABLED'}</p>
+              <h4>{d.twoFa}</h4>
+              <p>{currentUser?.totpSecret ? d.statusEnabled : d.statusDisabled}</p>
             </div>
             <div>
               {currentUser?.totpSecret ? (
-                <button className="btn btn-ghost btn-sm" style={{color:'var(--danger)'}} onClick={async () => { if(confirm('Are you sure you want to disable 2FA?')) { await disable2fa(); window.location.reload(); } }}>
-                  Disable 2FA
+                <button className="btn btn-ghost btn-sm" style={{color:'var(--danger)'}} onClick={async () => { if(confirm(d.disableTwoFaConfirm)) { await disable2fa(); window.location.reload(); } }}>
+                  {d.disableTwoFa}
                 </button>
               ) : (
                 <button className="btn btn-primary btn-sm" onClick={async () => {
@@ -432,7 +431,7 @@ export default function SettingsClient({
                   setQrCode(qrCodeUrl);
                   setIs2faModalOpen(true);
                 }}>
-                  Enable 2FA
+                  {d.enableTwoFa}
                 </button>
               )}
             </div>
@@ -447,7 +446,7 @@ export default function SettingsClient({
         <form action={async (fd) => { await createRoute(fd); setIsRouteModalOpen(false); showToast(d.routeCreated); }}>
           <div className="form-group">
             <label className="form-label">{d.routeName}</label>
-            <input type="text" name="name" className="form-control" required placeholder="e.g. Town Center" />
+            <input type="text" name="name" className="form-control" required placeholder={d.routeNamePlaceholder} />
           </div>
           <div className="form-group">
             <label className="form-label">{d.primaryAgent}</label>
@@ -457,13 +456,13 @@ export default function SettingsClient({
                 <option key={u.id} value={u.id}>{u.name}</option>
               ))}
             </select>
-            <span style={{ fontSize: '.75rem', color: 'var(--text-light)', marginTop: '4px', display: 'block' }}>The main agent responsible for this route.</span>
+            <span style={{ fontSize: '.75rem', color: 'var(--text-light)', marginTop: '4px', display: 'block' }}>{d.primaryAgentHelper}</span>
           </div>
           <div className="form-group">
             <label className="form-label">{d.sharedAgents}</label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', border: '1px solid var(--border)', padding: '12px', borderRadius: 'var(--radius-sm)', maxHeight: '150px', overflowY: 'auto', background: 'var(--bg)' }}>
               {users.filter(u => u.role === 'agent').length === 0 ? (
-                <span style={{ fontSize: '.85rem', color: 'var(--text-light)' }}>No agents available</span>
+                <span style={{ fontSize: '.85rem', color: 'var(--text-light)' }}>{d.noAgentsAvailable}</span>
               ) : (
                 users.filter(u => u.role === 'agent').map(u => (
                   <label key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '.9rem' }}>
@@ -473,7 +472,7 @@ export default function SettingsClient({
                 ))
               )}
             </div>
-            <span style={{ fontSize: '.75rem', color: 'var(--text-light)', marginTop: '4px', display: 'block' }}>Additional agents who can also collect on this route.</span>
+            <span style={{ fontSize: '.75rem', color: 'var(--text-light)', marginTop: '4px', display: 'block' }}>{d.sharedAgentsHelper}</span>
           </div>
           <div className="form-actions" style={{marginTop:'20px'}}>
             <button type="submit" className="btn btn-primary">{d.createRoute}</button>
@@ -487,7 +486,7 @@ export default function SettingsClient({
         <form action={async (fd) => { await createLoanPackage(fd); setIsPackageModalOpen(false); showToast(d.packageCreated); }}>
           <div className="form-group">
             <label className="form-label">{d.packageName}</label>
-            <input type="text" name="name" className="form-control" required placeholder="e.g. Gold Loan 50K" />
+            <input type="text" name="name" className="form-control" required placeholder={d.packageNamePlaceholder} />
           </div>
           <div className="form-row">
             <div className="form-group">
@@ -579,24 +578,24 @@ export default function SettingsClient({
       )}
 
       {/* 2FA Modal */}
-      <Modal isOpen={is2faModalOpen} onClose={() => setIs2faModalOpen(false)} title="Enable Two-Factor Authentication">
+      <Modal isOpen={is2faModalOpen} onClose={() => setIs2faModalOpen(false)} title={d.enableTwoFaTitle}>
         <div style={{textAlign:'center'}}>
-          <p style={{marginBottom:'15px', fontSize:'.9rem'}}>Scan this QR code with your authenticator app:</p>
+          <p style={{marginBottom:'15px', fontSize:'.9rem'}}>{d.scanQr}</p>
           {qrCode && <img src={qrCode} alt="QR Code" style={{width:'200px', height:'200px', margin:'0 auto 15px', border:'8px solid #fff', borderRadius:'var(--radius)'}} />}
-          <p style={{fontSize:'.8rem', color:'var(--text-light)', marginBottom:'20px'}}>Secret Key: <code>{tempSecret}</code></p>
-          
+          <p style={{fontSize:'.8rem', color:'var(--text-light)', marginBottom:'20px'}}>{d.secretKey}: <code>{tempSecret}</code></p>
+
           <div className="form-group" style={{textAlign:'left'}}>
-            <label className="form-label">Enter 6-digit code from app</label>
-            <input 
-              type="text" 
-              className="form-control" 
-              placeholder="000000" 
-              maxLength={6} 
-              value={totpCode} 
+            <label className="form-label">{d.enterSixDigit}</label>
+            <input
+              type="text"
+              className="form-control"
+              placeholder={d.sixDigitPlaceholder}
+              maxLength={6}
+              value={totpCode}
               onChange={e => setTotpCode(e.target.value)}
             />
           </div>
-          
+
           <div className="form-actions" style={{marginTop:'20px'}}>
             <button className="btn btn-primary" style={{width:'100%'}} disabled={totpCode.length !== 6 || isEnabling} onClick={async () => {
               setIsEnabling(true);
@@ -608,7 +607,7 @@ export default function SettingsClient({
                 setIsEnabling(false);
               }
             }}>
-              {isEnabling ? 'Verifying...' : 'Verify & Enable'}
+              {isEnabling ? d.verifying : d.verifyAndEnable}
             </button>
           </div>
         </div>

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
@@ -17,11 +18,13 @@ final _summaryProvider = FutureProvider.autoDispose<AnalyticsSummary>((ref) {
   return ref.watch(analyticsServiceProvider).summary();
 });
 
-final _collectionsProvider = FutureProvider.autoDispose<List<CollectionPoint>>((ref) {
+final _collectionsProvider =
+    FutureProvider.autoDispose<List<CollectionPoint>>((ref) {
   return ref.watch(analyticsServiceProvider).collections();
 });
 
-final _agentsProvider = FutureProvider.autoDispose<List<AgentPerformance>>((ref) {
+final _agentsProvider =
+    FutureProvider.autoDispose<List<AgentPerformance>>((ref) {
   return ref.watch(analyticsServiceProvider).agents();
 });
 
@@ -30,11 +33,14 @@ class AnalyticsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final fmt = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+    final fmt =
+        NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+    final t = T.of(ref);
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Reports & Analytics'), centerTitle: true),
+      appBar:
+          AppBar(title: Text(t.x('title.analytics')), centerTitle: true),
       body: RefreshIndicator(
         color: AppColors.primary,
         onRefresh: () async {
@@ -46,22 +52,24 @@ class AnalyticsScreen extends ConsumerWidget {
           padding: const EdgeInsets.all(16),
           children: [
             ref.watch(_summaryProvider).when(
-              loading: () => const _KpiSkeleton(),
-              error: (e, _) => _ErrorCard(message: e.toString()),
-              data: (s) => _SummaryKpis(summary: s, fmt: fmt),
-            ),
+                  loading: () => const _KpiSkeleton(),
+                  error: (e, _) => _ErrorCard(message: e.toString()),
+                  data: (s) => _SummaryKpis(summary: s, fmt: fmt),
+                ),
             const SizedBox(height: 16),
             ref.watch(_collectionsProvider).when(
-              loading: () => const Skeleton(height: 220, borderRadius: AppTokens.radius),
-              error: (e, _) => _ErrorCard(message: e.toString()),
-              data: (pts) => _CollectionChart(points: pts),
-            ),
+                  loading: () => const Skeleton(
+                      height: 220, borderRadius: AppTokens.radius),
+                  error: (e, _) => _ErrorCard(message: e.toString()),
+                  data: (pts) => _CollectionChart(points: pts),
+                ),
             const SizedBox(height: 16),
             ref.watch(_agentsProvider).when(
-              loading: () => const Skeleton(height: 180, borderRadius: AppTokens.radius),
-              error: (e, _) => _ErrorCard(message: e.toString()),
-              data: (agents) => _AgentLeaderboard(agents: agents, fmt: fmt),
-            ),
+                  loading: () => const Skeleton(
+                      height: 180, borderRadius: AppTokens.radius),
+                  error: (e, _) => _ErrorCard(message: e.toString()),
+                  data: (agents) => _AgentLeaderboard(agents: agents, fmt: fmt),
+                ),
             const SizedBox(height: 16),
           ],
         ),
@@ -71,13 +79,14 @@ class AnalyticsScreen extends ConsumerWidget {
   }
 }
 
-class _SummaryKpis extends StatelessWidget {
+class _SummaryKpis extends ConsumerWidget {
   const _SummaryKpis({required this.summary, required this.fmt});
   final AnalyticsSummary summary;
   final NumberFormat fmt;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     final eff = summary.efficiency.toStringAsFixed(1);
     return Column(
       children: [
@@ -87,7 +96,7 @@ class _SummaryKpis extends StatelessWidget {
               child: KpiCard(
                 icon: Icons.trending_up,
                 value: '${summary.activeLoans}',
-                label: 'Active Loans',
+                label: t.x('dash.active_loans'),
                 tone: KpiTone.blue,
               ),
             ),
@@ -96,7 +105,7 @@ class _SummaryKpis extends StatelessWidget {
               child: KpiCard(
                 icon: Icons.warning_amber_rounded,
                 value: '${summary.overdueLoans}',
-                label: 'Overdue',
+                label: t.x('status.overdue'),
                 tone: KpiTone.red,
               ),
             ),
@@ -109,7 +118,7 @@ class _SummaryKpis extends StatelessWidget {
               child: KpiCard(
                 icon: Icons.account_balance_wallet,
                 value: fmt.format(summary.monthCollected),
-                label: 'Month Collected',
+                label: t.x('an.month_collected'),
                 tone: KpiTone.green,
               ),
             ),
@@ -118,7 +127,7 @@ class _SummaryKpis extends StatelessWidget {
               child: KpiCard(
                 icon: Icons.percent,
                 value: '$eff%',
-                label: 'Efficiency',
+                label: t.x('an.efficiency'),
                 tone: KpiTone.orange,
               ),
             ),
@@ -129,12 +138,13 @@ class _SummaryKpis extends StatelessWidget {
   }
 }
 
-class _CollectionChart extends StatelessWidget {
+class _CollectionChart extends ConsumerWidget {
   const _CollectionChart({required this.points});
   final List<CollectionPoint> points;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     if (points.isEmpty) {
       return Container(
         height: 180,
@@ -143,7 +153,8 @@ class _CollectionChart extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppTokens.radius),
           boxShadow: AppTokens.shadow,
         ),
-        child: const EmptyState(icon: Icons.bar_chart_outlined, title: 'No data yet'),
+        child: EmptyState(
+            icon: Icons.bar_chart_outlined, title: t.x('an.no_data_yet')),
       );
     }
 
@@ -177,11 +188,12 @@ class _CollectionChart extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text('Collection Trend', style: AppTypography.sectionTitle),
+              Text(t.x('an.collection_trend'),
+                  style: AppTypography.sectionTitle),
               const Spacer(),
-              _Legend(color: const Color(0xFFCBD5E1), label: 'Expected'),
+              _Legend(color: const Color(0xFFCBD5E1), label: t.x('an.expected')),
               const SizedBox(width: 12),
-              _Legend(color: AppColors.primary, label: 'Collected'),
+              _Legend(color: AppColors.primary, label: t.x('an.collected')),
             ],
           ),
           const SizedBox(height: 20),
@@ -199,9 +211,12 @@ class _CollectionChart extends StatelessWidget {
                 ),
                 borderData: FlBorderData(show: false),
                 titlesData: FlTitlesData(
-                  leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  leftTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false)),
+                  topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false)),
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
@@ -209,10 +224,12 @@ class _CollectionChart extends StatelessWidget {
                       reservedSize: 22,
                       getTitlesWidget: (value, _) {
                         final idx = value.toInt();
-                        if (idx < 0 || idx >= labels.length) return const SizedBox.shrink();
+                        if (idx < 0 || idx >= labels.length)
+                          return const SizedBox.shrink();
                         return Padding(
                           padding: const EdgeInsets.only(top: 6),
-                          child: Text(labels[idx], style: AppTypography.extraTiny),
+                          child:
+                              Text(labels[idx], style: AppTypography.extraTiny),
                         );
                       },
                     ),
@@ -263,13 +280,14 @@ class _Legend extends StatelessWidget {
       );
 }
 
-class _AgentLeaderboard extends StatelessWidget {
+class _AgentLeaderboard extends ConsumerWidget {
   const _AgentLeaderboard({required this.agents, required this.fmt});
   final List<AgentPerformance> agents;
   final NumberFormat fmt;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     if (agents.isEmpty) {
       return Container(
         height: 120,
@@ -278,7 +296,8 @@ class _AgentLeaderboard extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppTokens.radius),
           boxShadow: AppTokens.shadow,
         ),
-        child: const EmptyState(icon: Icons.leaderboard_outlined, title: 'No agent data'),
+        child: EmptyState(
+            icon: Icons.leaderboard_outlined, title: t.x('an.no_agent_data')),
       );
     }
 
@@ -292,7 +311,8 @@ class _AgentLeaderboard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Agent Leaderboard', style: AppTypography.sectionTitle),
+          Text(t.x('an.agent_leaderboard'),
+              style: AppTypography.sectionTitle),
           const SizedBox(height: 16),
           ...agents.asMap().entries.map(
                 (e) => _AgentRow(rank: e.key + 1, agent: e.value, fmt: fmt),
@@ -303,14 +323,15 @@ class _AgentLeaderboard extends StatelessWidget {
   }
 }
 
-class _AgentRow extends StatelessWidget {
+class _AgentRow extends ConsumerWidget {
   const _AgentRow({required this.rank, required this.agent, required this.fmt});
   final int rank;
   final AgentPerformance agent;
   final NumberFormat fmt;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     final pct = agent.expected > 0
         ? (agent.collected / agent.expected).clamp(0.0, 1.0)
         : 0.0;
@@ -338,8 +359,10 @@ class _AgentRow extends StatelessWidget {
               shape: BoxShape.circle,
             ),
             child: Center(
-              child: Text('$rank',
-                  style: AppTypography.label.copyWith(color: rankColor)),
+              child: Text(
+                '$rank',
+                style: AppTypography.label.copyWith(color: rankColor),
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -351,13 +374,17 @@ class _AgentRow extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Expanded(
-                      child: Text(agent.name,
-                          style: AppTypography.bodyLarge,
-                          overflow: TextOverflow.ellipsis),
+                      child: Text(
+                        agent.name,
+                        style: AppTypography.bodyLarge,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    Text(fmt.format(agent.collected),
-                        style: AppTypography.label
-                            .copyWith(color: AppColors.success)),
+                    Text(
+                      fmt.format(agent.collected),
+                      style: AppTypography.label
+                          .copyWith(color: AppColors.success),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 6),
@@ -372,7 +399,8 @@ class _AgentRow extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 3),
-                Text('${agent.hitRate}% hit rate', style: AppTypography.caption),
+                Text('${agent.hitRate}% ${t.x('an.hit_rate')}',
+                    style: AppTypography.caption),
               ],
             ),
           ),
@@ -386,21 +414,25 @@ class _KpiSkeleton extends StatelessWidget {
   const _KpiSkeleton();
 
   @override
-  Widget build(BuildContext context) => Column(
+  Widget build(BuildContext context) => const Column(
         children: [
           Row(
             children: [
-              const Expanded(child: Skeleton(height: 80, borderRadius: AppTokens.radius)),
-              const SizedBox(width: 12),
-              const Expanded(child: Skeleton(height: 80, borderRadius: AppTokens.radius)),
+              Expanded(
+                  child: Skeleton(height: 80, borderRadius: AppTokens.radius)),
+              SizedBox(width: 12),
+              Expanded(
+                  child: Skeleton(height: 80, borderRadius: AppTokens.radius)),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Row(
             children: [
-              const Expanded(child: Skeleton(height: 80, borderRadius: AppTokens.radius)),
-              const SizedBox(width: 12),
-              const Expanded(child: Skeleton(height: 80, borderRadius: AppTokens.radius)),
+              Expanded(
+                  child: Skeleton(height: 80, borderRadius: AppTokens.radius)),
+              SizedBox(width: 12),
+              Expanded(
+                  child: Skeleton(height: 80, borderRadius: AppTokens.radius)),
             ],
           ),
         ],
@@ -418,7 +450,9 @@ class _ErrorCard extends StatelessWidget {
           color: AppColors.dangerBg,
           borderRadius: BorderRadius.circular(AppTokens.radius),
         ),
-        child: Text(message,
-            style: AppTypography.body.copyWith(color: AppColors.danger)),
+        child: Text(
+          message,
+          style: AppTypography.body.copyWith(color: AppColors.danger),
+        ),
       );
 }

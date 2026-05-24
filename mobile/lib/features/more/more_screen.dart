@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
@@ -9,80 +11,81 @@ import 'package:loantrack/shared/widgets/bottom_nav.dart';
 class _ModuleItem {
   const _ModuleItem({
     required this.icon,
-    required this.label,
-    required this.subtitle,
+    required this.labelKey,
+    required this.subtitleKey,
     required this.route,
     required this.color,
     required this.bgColor,
   });
   final IconData icon;
-  final String label, subtitle, route;
+  final String labelKey, subtitleKey, route;
   final Color color, bgColor;
 }
 
 const _modules = <_ModuleItem>[
   _ModuleItem(
     icon: Icons.warning_amber_rounded,
-    label: 'Penalties',
-    subtitle: 'Manage & settle overdue fines',
+    labelKey: 'title.penalties',
+    subtitleKey: 'more.penalties_sub',
     route: '/penalties',
     color: AppColors.danger,
     bgColor: AppColors.dangerBg,
   ),
   _ModuleItem(
     icon: Icons.fact_check_outlined,
-    label: 'Approvals',
-    subtitle: 'Review pending requests',
+    labelKey: 'title.approvals',
+    subtitleKey: 'more.approvals_sub',
     route: '/approvals',
     color: AppColors.success,
     bgColor: AppColors.successBg,
   ),
   _ModuleItem(
     icon: Icons.bar_chart_rounded,
-    label: 'Reports & Analytics',
-    subtitle: 'Collection trends & agent performance',
+    labelKey: 'title.analytics',
+    subtitleKey: 'more.analytics_sub',
     route: '/analytics',
     color: AppColors.info,
     bgColor: AppColors.infoBg,
   ),
   _ModuleItem(
     icon: Icons.savings_outlined,
-    label: 'Chit Funds',
-    subtitle: 'Group savings management',
+    labelKey: 'title.chits',
+    subtitleKey: 'more.chits_sub',
     route: '/chits',
     color: AppColors.purple,
     bgColor: AppColors.purpleBg,
   ),
   _ModuleItem(
     icon: Icons.account_balance_outlined,
-    label: 'Accounting & P&L',
-    subtitle: 'Daily financials, capital & overdue',
+    labelKey: 'title.accounting',
+    subtitleKey: 'more.accounting_sub',
     route: '/accounting',
     color: AppColors.info,
     bgColor: AppColors.infoBg,
   ),
   _ModuleItem(
     icon: Icons.settings_outlined,
-    label: 'Settings',
-    subtitle: 'Routes, account & app preferences',
+    labelKey: 'set.title',
+    subtitleKey: 'more.settings_sub',
     route: '/settings',
     color: AppColors.textSecondary,
     bgColor: AppColors.background,
   ),
 ];
 
-class MoreScreen extends StatelessWidget {
+class MoreScreen extends ConsumerWidget {
   const MoreScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('More'), centerTitle: true),
+      appBar: AppBar(title: Text(t.x('title.more')), centerTitle: true),
       body: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: _modules.length,
-        itemBuilder: (_, i) => _ModuleTile(item: _modules[i]),
+        itemBuilder: (_, i) => _ModuleTile(item: _modules[i], t: t),
       ),
       bottomNavigationBar: const AppBottomNav(currentRoute: '/more'),
     );
@@ -90,8 +93,9 @@ class MoreScreen extends StatelessWidget {
 }
 
 class _ModuleTile extends StatelessWidget {
-  const _ModuleTile({required this.item});
+  const _ModuleTile({required this.item, required this.t});
   final _ModuleItem item;
+  final T t;
 
   @override
   Widget build(BuildContext context) {
@@ -115,7 +119,8 @@ class _ModuleTile extends StatelessWidget {
                   height: 52,
                   decoration: BoxDecoration(
                     color: item.bgColor,
-                    borderRadius: BorderRadius.circular(AppTokens.radiusKpiIcon),
+                    borderRadius:
+                        BorderRadius.circular(AppTokens.radiusKpiIcon),
                   ),
                   child: Icon(item.icon, color: item.color, size: 26),
                 ),
@@ -124,10 +129,11 @@ class _ModuleTile extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(item.label, style: AppTypography.sectionTitle),
+                      Text(t.x(item.labelKey),
+                          style: AppTypography.sectionTitle),
                       const SizedBox(height: 3),
                       Text(
-                        item.subtitle,
+                        t.x(item.subtitleKey),
                         style: AppTypography.caption,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -136,7 +142,7 @@ class _ModuleTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Icon(Icons.chevron_right_rounded,
+                const Icon(Icons.chevron_right_rounded,
                     color: AppColors.textLight, size: 20),
               ],
             ),

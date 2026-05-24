@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
@@ -24,12 +25,14 @@ class ChitsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final groups = ref.watch(_chitGroupsProvider);
     final filter = ref.watch(_chitFilterProvider);
-    final fmt = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+    final t = T.of(ref);
+    final fmt =
+        NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Chit Funds'),
+        title: Text(t.x('title.chits')),
         centerTitle: true,
         actions: [
           IconButton(
@@ -71,8 +74,8 @@ class ChitsScreen extends ConsumerWidget {
                     child: EmptyState(
                       icon: Icons.savings_outlined,
                       title: filter == 'all'
-                          ? 'No chit groups'
-                          : 'No $filter groups',
+                          ? t.x('ch.no_groups')
+                          : t.x('ch.no_groups'),
                     ),
                   )
                 else
@@ -87,7 +90,7 @@ class ChitsScreen extends ConsumerWidget {
   }
 }
 
-class _KpiRow extends StatelessWidget {
+class _KpiRow extends ConsumerWidget {
   const _KpiRow({
     required this.total,
     required this.active,
@@ -99,17 +102,26 @@ class _KpiRow extends StatelessWidget {
   final NumberFormat fmt;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     return Row(
       children: [
-        Expanded(child: _KpiChip(value: '$total', label: 'Total Groups', color: AppColors.info)),
+        Expanded(
+            child: _KpiChip(
+                value: '$total',
+                label: t.x('ch.total_groups'),
+                color: AppColors.info)),
         const SizedBox(width: 10),
-        Expanded(child: _KpiChip(value: '$active', label: 'Active', color: AppColors.success)),
+        Expanded(
+            child: _KpiChip(
+                value: '$active',
+                label: t.x('status.active'),
+                color: AppColors.success)),
         const SizedBox(width: 10),
         Expanded(
           child: _KpiChip(
             value: fmt.format(totalValue),
-            label: 'Total Value',
+            label: t.x('ch.total_value'),
             color: AppColors.primary,
           ),
         ),
@@ -119,7 +131,8 @@ class _KpiRow extends StatelessWidget {
 }
 
 class _KpiChip extends StatelessWidget {
-  const _KpiChip({required this.value, required this.label, required this.color});
+  const _KpiChip(
+      {required this.value, required this.label, required this.color});
   final String value, label;
   final Color color;
 
@@ -149,14 +162,15 @@ class _FilterBar extends ConsumerWidget {
   final String selected;
 
   static const _filters = <_FilterOption>[
-    _FilterOption('all', 'All'),
-    _FilterOption('active', 'Active'),
-    _FilterOption('completed', 'Completed'),
-    _FilterOption('cancelled', 'Cancelled'),
+    _FilterOption('all', 'status.all'),
+    _FilterOption('active', 'status.active'),
+    _FilterOption('completed', 'status.completed'),
+    _FilterOption('cancelled', 'status.cancelled'),
   ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
@@ -169,7 +183,8 @@ class _FilterBar extends ConsumerWidget {
               child: AnimatedContainer(
                 duration: AppTokens.transition,
                 curve: AppTokens.transitionCurve,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                 decoration: BoxDecoration(
                   color: isActive ? AppColors.primary : AppColors.surface,
                   borderRadius: BorderRadius.circular(AppTokens.radiusBadge),
@@ -178,7 +193,7 @@ class _FilterBar extends ConsumerWidget {
                   ),
                 ),
                 child: Text(
-                  f.label,
+                  t.x(f.label),
                   style: AppTypography.label.copyWith(
                     color: isActive ? Colors.white : AppColors.textSecondary,
                   ),
@@ -197,7 +212,7 @@ class _FilterOption {
   final String key, label;
 }
 
-class _GroupCard extends StatelessWidget {
+class _GroupCard extends ConsumerWidget {
   const _GroupCard({required this.group, required this.fmt});
   final ChitGroup group;
   final NumberFormat fmt;
@@ -216,15 +231,16 @@ class _GroupCard extends StatelessWidget {
     return AppColors.background;
   }
 
-  String get _statusLabel {
-    if (group.status == 'active') return 'Active';
-    if (group.status == 'completed') return 'Completed';
-    if (group.status == 'cancelled') return 'Cancelled';
+  String _statusLabel(T t) {
+    if (group.status == 'active') return t.x('status.active');
+    if (group.status == 'completed') return t.x('status.completed');
+    if (group.status == 'cancelled') return t.x('status.cancelled');
     return group.status;
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     final dateFmt = DateFormat('MMM yyyy');
 
     return Padding(
@@ -248,10 +264,14 @@ class _GroupCard extends StatelessWidget {
                       height: 42,
                       decoration: BoxDecoration(
                         color: AppColors.purpleBg,
-                        borderRadius: BorderRadius.circular(AppTokens.radiusKpiIcon),
+                        borderRadius:
+                            BorderRadius.circular(AppTokens.radiusKpiIcon),
                       ),
-                      child: const Icon(Icons.savings_outlined,
-                          color: AppColors.purple, size: 22),
+                      child: const Icon(
+                        Icons.savings_outlined,
+                        color: AppColors.purple,
+                        size: 22,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -261,20 +281,22 @@ class _GroupCard extends StatelessWidget {
                           Text(group.name, style: AppTypography.bodyLarge),
                           const SizedBox(height: 2),
                           Text(
-                            'Started ${dateFmt.format(group.startDate)}',
+                            '${t.x('ch.started')} ${dateFmt.format(group.startDate)}',
                             style: AppTypography.caption,
                           ),
                         ],
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: _statusBg,
-                        borderRadius: BorderRadius.circular(AppTokens.radiusBadge),
+                        borderRadius:
+                            BorderRadius.circular(AppTokens.radiusBadge),
                       ),
                       child: Text(
-                        _statusLabel,
+                        _statusLabel(t),
                         style: AppTypography.tiny.copyWith(color: _statusColor),
                       ),
                     ),
@@ -287,25 +309,25 @@ class _GroupCard extends StatelessWidget {
                   children: [
                     Expanded(
                       child: _Stat(
-                        label: 'Chit Value',
+                        label: t.x('ch.chit_value'),
                         value: fmt.format(group.chitValue),
                       ),
                     ),
                     Expanded(
                       child: _Stat(
-                        label: 'Monthly',
+                        label: t.x('ch.monthly'),
                         value: fmt.format(group.monthlyContrib),
                       ),
                     ),
                     Expanded(
                       child: _Stat(
-                        label: 'Members',
+                        label: t.x('ch.members'),
                         value: '${group.memberCount}/${group.totalMembers}',
                       ),
                     ),
                     Expanded(
                       child: _Stat(
-                        label: 'Duration',
+                        label: t.x('ch.duration'),
                         value: '${group.durationMonths}mo',
                       ),
                     ),
@@ -315,16 +337,22 @@ class _GroupCard extends StatelessWidget {
                   const SizedBox(height: 10),
                   Row(
                     children: [
-                      const Icon(Icons.gavel_rounded,
-                          size: 13, color: AppColors.textLight),
+                      const Icon(
+                        Icons.gavel_rounded,
+                        size: 13,
+                        color: AppColors.textLight,
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         '${group.auctionCount} auction${group.auctionCount == 1 ? '' : 's'} held',
                         style: AppTypography.caption,
                       ),
                       const Spacer(),
-                      Icon(Icons.chevron_right_rounded,
-                          size: 16, color: AppColors.textLight),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        size: 16,
+                        color: AppColors.textLight,
+                      ),
                     ],
                   ),
                 ],
@@ -385,7 +413,8 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final fmt = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+    final fmt =
+        NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
     final h = MediaQuery.of(context).size.height * 0.85;
     final group = widget.group;
 
@@ -438,7 +467,8 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                         FutureBuilder<List<ChitMember>>(
                           future: _membersFuture,
                           builder: (ctx, snap) {
-                            if (snap.connectionState == ConnectionState.waiting) {
+                            if (snap.connectionState ==
+                                ConnectionState.waiting) {
                               return const Padding(
                                 padding: EdgeInsets.all(16),
                                 child: Skeleton(height: 200),
@@ -446,8 +476,10 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                             }
                             if (snap.hasError) {
                               return Center(
-                                child: Text(snap.error.toString(),
-                                    style: AppTypography.body),
+                                child: Text(
+                                  snap.error.toString(),
+                                  style: AppTypography.body,
+                                ),
                               );
                             }
                             final members = snap.data ?? [];
@@ -460,8 +492,8 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                             return ListView.separated(
                               padding: const EdgeInsets.all(16),
                               itemCount: members.length,
-                              separatorBuilder: (_, __) =>
-                                  const Divider(color: AppColors.border, height: 16),
+                              separatorBuilder: (_, __) => const Divider(
+                                  color: AppColors.border, height: 16),
                               itemBuilder: (_, i) {
                                 final m = members[i];
                                 return Row(
@@ -478,28 +510,36 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                                     const SizedBox(width: 12),
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          Text(m.customerName,
-                                              style: AppTypography.bodyLarge),
-                                          Text(m.customerCode,
-                                              style: AppTypography.caption),
+                                          Text(
+                                            m.customerName,
+                                            style: AppTypography.bodyLarge,
+                                          ),
+                                          Text(
+                                            m.customerCode,
+                                            style: AppTypography.caption,
+                                          ),
                                         ],
                                       ),
                                     ),
                                     if (m.hasWon)
                                       Container(
                                         padding: const EdgeInsets.symmetric(
-                                            horizontal: 8, vertical: 3),
+                                          horizontal: 8,
+                                          vertical: 3,
+                                        ),
                                         decoration: BoxDecoration(
                                           color: AppColors.successBg,
                                           borderRadius: BorderRadius.circular(
-                                              AppTokens.radiusBadge),
+                                            AppTokens.radiusBadge,
+                                          ),
                                         ),
                                         child: Text(
                                           'Won',
-                                          style: AppTypography.tiny
-                                              .copyWith(color: AppColors.success),
+                                          style: AppTypography.tiny.copyWith(
+                                              color: AppColors.success),
                                         ),
                                       ),
                                   ],
@@ -511,7 +551,8 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                         FutureBuilder<List<ChitAuction>>(
                           future: _auctionsFuture,
                           builder: (ctx, snap) {
-                            if (snap.connectionState == ConnectionState.waiting) {
+                            if (snap.connectionState ==
+                                ConnectionState.waiting) {
                               return const Padding(
                                 padding: EdgeInsets.all(16),
                                 child: Skeleton(height: 200),
@@ -519,8 +560,10 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                             }
                             if (snap.hasError) {
                               return Center(
-                                child: Text(snap.error.toString(),
-                                    style: AppTypography.body),
+                                child: Text(
+                                  snap.error.toString(),
+                                  style: AppTypography.body,
+                                ),
                               );
                             }
                             final auctions = snap.data ?? [];
@@ -533,8 +576,8 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                             return ListView.separated(
                               padding: const EdgeInsets.all(16),
                               itemCount: auctions.length,
-                              separatorBuilder: (_, __) =>
-                                  const Divider(color: AppColors.border, height: 16),
+                              separatorBuilder: (_, __) => const Divider(
+                                  color: AppColors.border, height: 16),
                               itemBuilder: (_, i) {
                                 final a = auctions[i];
                                 final dateFmt = DateFormat('d MMM yyyy');
@@ -549,7 +592,8 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                                             ? AppColors.warningBg
                                             : AppColors.successBg,
                                         borderRadius: BorderRadius.circular(
-                                            AppTokens.radiusSm),
+                                          AppTokens.radiusSm,
+                                        ),
                                       ),
                                       child: Icon(
                                         isPending
@@ -564,7 +608,8 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                                     const SizedBox(width: 12),
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             'Period ${a.periodNumber}',
@@ -584,13 +629,15 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                                       ),
                                     ),
                                     Column(
-                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
                                       children: [
                                         if (a.prizeAmount != null)
                                           Text(
                                             fmt.format(a.prizeAmount!),
                                             style: AppTypography.bodyLarge
-                                                .copyWith(color: AppColors.success),
+                                                .copyWith(
+                                                    color: AppColors.success),
                                           ),
                                         if (a.dividend != null)
                                           Text(
@@ -656,11 +703,15 @@ class _ErrorView extends StatelessWidget {
           children: [
             const Icon(Icons.cloud_off, size: 48, color: AppColors.textLight),
             const SizedBox(height: 12),
-            Text('Could not load chit groups', style: AppTypography.sectionTitle),
+            Text('Could not load chit groups',
+                style: AppTypography.sectionTitle),
             const SizedBox(height: 6),
-            Text(message,
-                textAlign: TextAlign.center,
-                style: AppTypography.body.copyWith(color: AppColors.textSecondary)),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style:
+                  AppTypography.body.copyWith(color: AppColors.textSecondary),
+            ),
           ],
         ),
       ),

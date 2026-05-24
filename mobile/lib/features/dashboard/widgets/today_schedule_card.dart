@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
@@ -8,7 +10,7 @@ import 'package:loantrack/data/models/dashboard_summary.dart';
 import 'package:loantrack/shared/widgets/app_badge.dart';
 import 'package:loantrack/shared/widgets/app_button.dart';
 
-class TodayScheduleCard extends StatelessWidget {
+class TodayScheduleCard extends ConsumerWidget {
   const TodayScheduleCard({
     super.key,
     required this.item,
@@ -19,7 +21,8 @@ class TodayScheduleCard extends StatelessWidget {
   final VoidCallback onCollect;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     final fmt = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
     return Container(
       width: 200,
@@ -59,7 +62,7 @@ class TodayScheduleCard extends StatelessWidget {
           AppBadge(label: item.status, kind: _kindFor(item.status)),
           const SizedBox(height: 8),
           AppButton(
-            label: 'Collect',
+            label: t.x('btn.collect'),
             size: AppButtonSize.small,
             onPressed: onCollect,
           ),

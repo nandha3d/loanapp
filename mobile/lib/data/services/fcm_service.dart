@@ -1,4 +1,8 @@
+import 'dart:async';
+import 'dart:io' show Platform;
+
 import 'package:dio/dio.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:loantrack/core/network/dio_client.dart';
@@ -6,12 +10,38 @@ import 'package:loantrack/core/network/dio_client.dart';
 class FcmService {
   FcmService(this._dio);
   final Dio _dio;
+  StreamSubscription<String>? _refreshSub;
 
   Future<void> registerToken({required String token, required String platform}) async {
     await _dio.post<Map<String, dynamic>>(
       '/fcm-token',
       data: {'token': token, 'platform': platform},
     );
+  }
+
+  /// MOB-02: registers initial token + listens for rotation.
+  /// Call once after login. `dispose()` on logout.
+  Future<void> startTokenSync() async {
+    final fm = FirebaseMessaging.instance;
+    try {
+      await fm.requestPermission(alert: true, badge: true, sound: true);
+      final platform = Platform.isAndroid ? 'android' : (Platform.isIOS ? 'ios' : 'other');
+      final initial = await fm.getToken();
+      if (initial != null) {
+        await registerToken(token: initial, platform: platform).catchError((_) {});
+      }
+      _refreshSub?.cancel();
+      _refreshSub = fm.onTokenRefresh.listen((t) {
+        registerToken(token: t, platform: platform).catchError((_) {});
+      });
+    } catch (_) {
+      // Permission denied / FCM unavailable — silent.
+    }
+  }
+
+  Future<void> dispose() async {
+    await _refreshSub?.cancel();
+    _refreshSub = null;
   }
 }
 

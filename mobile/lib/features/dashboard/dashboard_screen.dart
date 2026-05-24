@@ -12,6 +12,7 @@ import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/data/models/dashboard_summary.dart';
+import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/data/repositories/dashboard_repository.dart';
 import 'package:loantrack/shared/widgets/bottom_nav.dart';
 import 'package:loantrack/shared/widgets/empty_state.dart';
@@ -207,7 +208,7 @@ class _HeroBalance extends ConsumerWidget {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        'LIVE',
+                        t.x('dash.live'),
                         style: AppTypography.tiny.copyWith(
                           color: AppColors.primary,
                         ),
@@ -340,7 +341,7 @@ class _MoneyFlowRow extends StatelessWidget {
             iconBg: AppColors.successBg,
             label: t.x('dash.active_loans'),
             value: '${summary.activeLoans}',
-            sub: '${summary.totalCustomers} customers',
+            sub: '${summary.totalCustomers} ${t.x('dash.customers_suffix')}',
           ),
         ),
         const SizedBox(width: 12),
@@ -349,9 +350,9 @@ class _MoneyFlowRow extends StatelessWidget {
             icon: Icons.groups_2_outlined,
             iconColor: AppColors.info,
             iconBg: AppColors.infoBg,
-            label: 'Agents',
+            label: t.x('dash.agents'),
             value: '${summary.activeAgents}',
-            sub: 'on field',
+            sub: t.x('dash.on_field'),
           ),
         ),
       ],
@@ -542,7 +543,7 @@ class _QuickActions extends StatelessWidget {
         Expanded(
           child: _ActionBtn(
             icon: Icons.person_add_alt_1_rounded,
-            label: 'New\nCustomer',
+            label: t.x('dash.new_customer'),
             color: AppColors.info,
             onTap: () => context.go('/customers/new'),
           ),
@@ -551,7 +552,7 @@ class _QuickActions extends StatelessWidget {
         Expanded(
           child: _ActionBtn(
             icon: Icons.add_card_rounded,
-            label: 'New\nLoan',
+            label: t.x('dash.new_loan'),
             color: AppColors.success,
             onTap: () => context.go('/loans'),
           ),
@@ -789,7 +790,7 @@ class _ActivitySection extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                               ),
                               Text(
-                                'New loan ${l.loanCode}',
+                                '${t.x('dash.new_loan_for')} ${l.loanCode}',
                                 style: AppTypography.caption,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -949,19 +950,20 @@ class _LoadingSkeleton extends StatelessWidget {
   }
 }
 
-class _ErrorState extends StatelessWidget {
+class _ErrorState extends ConsumerWidget {
   const _ErrorState({required this.message});
   final String message;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     return ListView(
       children: [
         const SizedBox(height: 80),
         const Icon(Icons.cloud_off, size: 56, color: AppColors.textLight),
         const SizedBox(height: 12),
         Text(
-          'Could not load dashboard',
+          t.x('err.could_not_load_dashboard'),
           textAlign: TextAlign.center,
           style: AppTypography.sectionTitle,
         ),
@@ -985,6 +987,7 @@ class _SideDrawer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     return Drawer(
       backgroundColor: AppColors.sidebarBg,
       child: SafeArea(
@@ -1019,50 +1022,58 @@ class _SideDrawer extends ConsumerWidget {
             const Divider(color: Colors.white12, height: 1),
             _DrawerLink(
               icon: Icons.dashboard_outlined,
-              label: 'Dashboard',
+              label: t.x('drawer.dashboard'),
               onTap: () => context.go('/dashboard'),
             ),
             _DrawerLink(
               icon: Icons.payments_outlined,
-              label: 'Collection Entry',
+              label: t.x('drawer.collection_entry'),
               onTap: () => context.go('/collection'),
             ),
-            const _DrawerSection(label: 'MANAGEMENT'),
+            _DrawerSection(label: t.x('drawer.section_management')),
             _DrawerLink(
               icon: Icons.people_outline,
-              label: 'Customers',
+              label: t.x('nav.customers'),
               onTap: () => context.go('/customers'),
             ),
             _DrawerLink(
               icon: Icons.account_balance_wallet_outlined,
-              label: 'Loans',
+              label: t.x('nav.loans'),
               onTap: () => context.go('/loans'),
             ),
             _DrawerLink(
               icon: Icons.warning_amber_outlined,
-              label: 'Penalties',
+              label: t.x('title.penalties'),
               onTap: () => context.go('/penalties'),
             ),
             _DrawerLink(
               icon: Icons.fact_check_outlined,
-              label: 'Approvals',
+              label: t.x('title.approvals'),
               onTap: () => context.go('/approvals'),
             ),
-            const _DrawerSection(label: 'INSIGHTS'),
+            _DrawerSection(label: t.x('drawer.section_insights')),
+            if (ref.watch(authControllerProvider).user?.role == UserRole.admin || 
+                ref.watch(authControllerProvider).user?.role == UserRole.superadmin || 
+                ref.watch(authControllerProvider).user?.role == UserRole.developer)
+              _DrawerLink(
+                icon: Icons.map_outlined,
+                label: t.x('admin.agent_tracking'),
+                onTap: () => context.go('/tracking'),
+              ),
             _DrawerLink(
               icon: Icons.bar_chart_rounded,
-              label: 'Analytics',
+              label: t.x('title.analytics'),
               onTap: () => context.go('/analytics'),
             ),
             _DrawerLink(
               icon: Icons.account_balance_outlined,
-              label: 'Accounting & P&L',
+              label: t.x('title.accounting'),
               onTap: () => context.go('/accounting'),
             ),
-            const _DrawerSection(label: 'ACCOUNT'),
+            _DrawerSection(label: t.x('drawer.section_account')),
             _DrawerLink(
               icon: Icons.settings_outlined,
-              label: 'Settings',
+              label: t.x('set.title'),
               onTap: () => context.go('/settings'),
             ),
             const Spacer(),

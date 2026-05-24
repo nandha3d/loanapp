@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
@@ -16,7 +18,7 @@ import 'package:loantrack/data/models/instalment.dart';
 ///
 /// Tap a cell → bottom sheet with that instalment's details
 /// (and an optional `onJump` callback to scroll the schedule list).
-class LoanHeatmap extends StatelessWidget {
+class LoanHeatmap extends ConsumerWidget {
   const LoanHeatmap({
     super.key,
     required this.instalments,
@@ -31,7 +33,8 @@ class LoanHeatmap extends StatelessWidget {
   final void Function(int instalmentNo)? onJump;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -64,12 +67,12 @@ class LoanHeatmap extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           if (instalments.isEmpty)
-            const SizedBox(
+            SizedBox(
               height: 60,
               child: Center(
                 child: Text(
-                  'No instalments',
-                  style: TextStyle(color: AppColors.textLight),
+                  t.x('loan.no_instalments'),
+                  style: const TextStyle(color: AppColors.textLight),
                 ),
               ),
             )
@@ -87,7 +90,7 @@ class LoanHeatmap extends StatelessWidget {
               ],
             ),
           const SizedBox(height: 14),
-          const _Legend(),
+          _Legend(t: t),
         ],
       ),
     );
@@ -124,13 +127,15 @@ class _HeatCell extends StatelessWidget {
   final VoidCallback onTap;
 
   Color get _bg {
-    switch (inst.status) {
+    switch (inst.dynamicStatus) {
       case 'paid':
         return AppColors.success;
       case 'partial':
         return AppColors.warning;
       case 'missed':
         return AppColors.danger;
+      case 'due_today':
+        return AppColors.primary;
       default:
         return AppColors.border;
     }
@@ -138,9 +143,10 @@ class _HeatCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ds = inst.dynamicStatus;
     return Semantics(
       label:
-          'Instalment ${inst.instalmentNo}, ${inst.status}, due ${DateFormat('d MMM').format(inst.dueDate)}',
+          'Instalment ${inst.instalmentNo}, $ds, due ${DateFormat('d MMM').format(inst.dueDate)}',
       button: true,
       child: InkWell(
         onTap: onTap,
@@ -153,15 +159,21 @@ class _HeatCell extends StatelessWidget {
             borderRadius: BorderRadius.circular(4),
           ),
           alignment: Alignment.center,
-          child: inst.status == 'paid'
+          child: ds == 'paid'
               ? const Icon(Icons.check, color: Colors.white, size: 12)
-              : inst.status == 'missed'
+              : ds == 'missed'
                   ? const Icon(
                       Icons.priority_high,
                       color: Colors.white,
                       size: 12,
                     )
-                  : null,
+                  : ds == 'due_today'
+                      ? const Icon(
+                          Icons.today,
+                          color: Colors.white,
+                          size: 12,
+                        )
+                      : null,
         ),
       ),
     );
@@ -169,18 +181,20 @@ class _HeatCell extends StatelessWidget {
 }
 
 class _Legend extends StatelessWidget {
-  const _Legend();
+  const _Legend({required this.t});
+  final T t;
 
   @override
   Widget build(BuildContext context) {
-    return const Wrap(
+    return Wrap(
       spacing: 14,
       runSpacing: 6,
       children: [
-        _LegendDot(color: AppColors.success, label: 'Paid'),
-        _LegendDot(color: AppColors.warning, label: 'Partial'),
-        _LegendDot(color: AppColors.danger, label: 'Missed'),
-        _LegendDot(color: AppColors.border, label: 'Upcoming'),
+        _LegendDot(color: AppColors.success, label: t.x('loan.legend_paid')),
+        _LegendDot(color: AppColors.warning, label: t.x('loan.legend_partial')),
+        _LegendDot(color: AppColors.danger, label: t.x('loan.legend_missed')),
+        _LegendDot(color: AppColors.primary, label: t.x('loan.legend_due_today')),
+        _LegendDot(color: AppColors.border, label: t.x('loan.legend_upcoming')),
       ],
     );
   }
@@ -209,26 +223,29 @@ class _LegendDot extends StatelessWidget {
   }
 }
 
-class _InstSheet extends StatelessWidget {
+class _InstSheet extends ConsumerWidget {
   const _InstSheet({required this.inst, required this.onJump});
   final Instalment inst;
   final VoidCallback? onJump;
 
   Color get _statusColor {
-    switch (inst.status) {
+    switch (inst.dynamicStatus) {
       case 'paid':
         return AppColors.success;
       case 'partial':
         return AppColors.warning;
       case 'missed':
         return AppColors.danger;
+      case 'due_today':
+        return AppColors.primary;
       default:
         return AppColors.textLight;
     }
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     final fmt =
         NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
     final dateFmt = DateFormat('EEE, d MMM yyyy');
@@ -274,7 +291,7 @@ class _InstSheet extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Instalment ${inst.instalmentNo}',
+                        '${t.x('loan.instalment_n')} ${inst.instalmentNo}',
                         style: AppTypography.sectionTitle,
                       ),
                       Text(
@@ -294,16 +311,16 @@ class _InstSheet extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    inst.status.toUpperCase(),
+                    inst.dynamicStatus.toUpperCase(),
                     style: AppTypography.tiny.copyWith(color: _statusColor),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 18),
-            _Row(label: 'Expected', value: fmt.format(inst.dueAmount)),
+            _Row(label: t.x('loan.expected'), value: fmt.format(inst.dueAmount)),
             _Row(
-              label: 'Collected',
+              label: t.x('loan.collected'),
               value: fmt.format(inst.receivedAmount),
               valueColor: inst.receivedAmount > 0
                   ? AppColors.success
@@ -311,12 +328,12 @@ class _InstSheet extends StatelessWidget {
             ),
             if (inst.paidAt != null)
               _Row(
-                label: 'Paid at',
+                label: t.x('loan.paid_at'),
                 value:
                     '${dateFmt.format(inst.paidAt!)} • ${timeFmt.format(inst.paidAt!)}',
               ),
             if (inst.paymentMode != null && inst.paymentMode!.isNotEmpty)
-              _Row(label: 'Mode', value: inst.paymentMode!.toUpperCase()),
+              _Row(label: t.x('loan.mode'), value: inst.paymentMode!.toUpperCase()),
             if (onJump != null) ...[
               const SizedBox(height: 16),
               SizedBox(
@@ -329,7 +346,7 @@ class _InstSheet extends StatelessWidget {
                   onPressed: onJump,
                   icon: const Icon(Icons.arrow_downward_rounded),
                   label: Text(
-                    'Jump to row',
+                    t.x('loan.jump_to_row'),
                     style: AppTypography.actionLabel
                         .copyWith(color: Colors.white),
                   ),

@@ -59,8 +59,9 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
       widget.onRefresh();
     } catch (e) {
       if (!mounted) return;
+      final t = T.of(ref);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Update failed: $e')),
+        SnackBar(content: Text('${t.x('msg.update_failed')}: $e')),
       );
     } finally {
       if (mounted) setState(() => _suspending = false);
@@ -114,7 +115,9 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
               children: [
                 Expanded(
                   child: AppButton(
-                    label: c.status == 'suspended' ? 'Unsuspend' : 'Suspend',
+                    label: c.status == 'suspended'
+                        ? t.x('cust.unsuspend')
+                        : t.x('cust.suspend'),
                     variant: c.status == 'suspended'
                         ? AppButtonVariant.secondary
                         : AppButtonVariant.danger,
@@ -127,7 +130,7 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                 Expanded(
                   flex: 2,
                   child: AppButton(
-                    label: 'Edit Profile',
+                    label: t.x('cust.edit_profile'),
                     expand: true,
                     onPressed: () {},
                   ),
@@ -320,7 +323,7 @@ class _QuickContact extends ConsumerWidget {
           Expanded(
             child: _ContactBtn(
               icon: Icons.send_rounded,
-              label: 'WhatsApp',
+              label: t.x('cust.whatsapp'),
               color: const Color(0xFF25D366),
               onTap: () => _launch(
                 Uri.parse('https://wa.me/${_digits(customer.phone)}'),
@@ -405,27 +408,27 @@ class _RiskCard extends StatelessWidget {
   ({String label, Color color, Color bg}) _band(int? score) {
     if (score == null) {
       return (
-        label: 'Unrated',
+        label: t.x('cust.risk_unrated'),
         color: AppColors.textLight,
         bg: AppColors.background
       );
     }
     if (score >= 80) {
       return (
-        label: 'Low Risk',
+        label: t.x('cust.risk_low'),
         color: AppColors.success,
         bg: AppColors.successBg
       );
     }
     if (score >= 60) {
       return (
-        label: 'Medium Risk',
+        label: t.x('cust.risk_medium'),
         color: AppColors.warning,
         bg: AppColors.warningBg
       );
     }
     return (
-      label: 'High Risk',
+      label: t.x('cust.risk_high'),
       color: AppColors.danger,
       bg: AppColors.dangerBg
     );
@@ -520,10 +523,10 @@ class _RiskCard extends StatelessWidget {
   }
 
   String _explainer(int? score) {
-    if (score == null) return 'Not enough data yet. Build history with on-time payments.';
-    if (score >= 80) return 'Strong repayment history. Consider higher limits.';
-    if (score >= 60) return 'Acceptable history. Watch for missed instalments.';
-    return 'High default risk. Add guarantor or reduce loan size.';
+    if (score == null) return t.x('cust.risk_explainer_none');
+    if (score >= 80) return t.x('cust.risk_explainer_low');
+    if (score >= 60) return t.x('cust.risk_explainer_medium');
+    return t.x('cust.risk_explainer_high');
   }
 }
 
@@ -639,15 +642,15 @@ class _LoansSection extends StatelessWidget {
     if (customer.loans.isEmpty) {
       return _Card(
         title: t.x('cust.loans_tab'),
-        child: const Padding(
-          padding: EdgeInsets.symmetric(vertical: 14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14),
           child: Row(
             children: [
-              Icon(Icons.info_outline, color: AppColors.textLight, size: 18),
-              SizedBox(width: 8),
+              const Icon(Icons.info_outline, color: AppColors.textLight, size: 18),
+              const SizedBox(width: 8),
               Text(
-                'No loans yet for this customer',
-                style: TextStyle(color: AppColors.textLight),
+                t.x('cust.no_loans_yet'),
+                style: const TextStyle(color: AppColors.textLight),
               ),
             ],
           ),
@@ -760,25 +763,25 @@ class _IdentitySection extends StatelessWidget {
         children: [
           _IdRow(
             icon: Icons.phone_outlined,
-            label: 'Phone',
+            label: t.x('fld.phone'),
             value: customer.phone,
           ),
           if (customer.address != null && customer.address!.isNotEmpty)
             _IdRow(
               icon: Icons.location_on_outlined,
-              label: 'Address',
+              label: t.x('fld.address_label'),
               value: customer.address!,
             ),
           if (customer.aadharNumberMasked != null)
             _IdRow(
               icon: Icons.credit_card_outlined,
-              label: 'Aadhaar',
+              label: t.x('fld.aadhaar_label'),
               value: customer.aadharNumberMasked!,
             ),
           if (customer.kycStatus != null)
             _IdRow(
               icon: Icons.verified_user_outlined,
-              label: 'KYC',
+              label: t.x('fld.kyc'),
               value: customer.kycStatus!.toUpperCase(),
               valueColor: customer.kycStatus == 'verified'
                   ? AppColors.success
@@ -787,13 +790,13 @@ class _IdentitySection extends StatelessWidget {
           if (customer.routeName != null)
             _IdRow(
               icon: Icons.route_outlined,
-              label: 'Route',
+              label: t.x('fld.route'),
               value: customer.routeName!,
             ),
           if (customer.agentName != null)
             _IdRow(
               icon: Icons.person_outline,
-              label: 'Agent',
+              label: t.x('fld.agent'),
               value: customer.agentName!,
             ),
         ],
@@ -851,14 +854,15 @@ class _IdRow extends StatelessWidget {
 
 // ───────────────────────────── Guarantors ───────────────────────────
 
-class _GuarantorsSection extends StatelessWidget {
+class _GuarantorsSection extends ConsumerWidget {
   const _GuarantorsSection({required this.guarantors});
   final List<Guarantor> guarantors;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     return _Card(
-      title: 'Guarantors',
+      title: t.x('sec.guarantors'),
       trailing: Text('${guarantors.length}', style: AppTypography.caption),
       child: Column(
         children: [
@@ -914,14 +918,15 @@ class _GuarantorsSection extends StatelessWidget {
 
 // ───────────────────────────── KYC docs ─────────────────────────────
 
-class _KycDocsSection extends StatelessWidget {
+class _KycDocsSection extends ConsumerWidget {
   const _KycDocsSection({required this.docs});
   final List<KycDocument> docs;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     return _Card(
-      title: 'KYC Documents',
+      title: t.x('sec.kyc_docs'),
       trailing: Text('${docs.length}', style: AppTypography.caption),
       child: Wrap(
         spacing: 10,
@@ -1024,11 +1029,12 @@ class _LoadingDetail extends StatelessWidget {
   }
 }
 
-class _ErrorDetail extends StatelessWidget {
+class _ErrorDetail extends ConsumerWidget {
   const _ErrorDetail({required this.message});
   final String message;
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     return SafeArea(
       child: Center(
         child: Padding(
@@ -1038,7 +1044,7 @@ class _ErrorDetail extends StatelessWidget {
             children: [
               const Icon(Icons.cloud_off, size: 56, color: AppColors.textLight),
               const SizedBox(height: 12),
-              Text('Could not load customer', style: AppTypography.sectionTitle),
+              Text(t.x('err.could_not_load_customer'), style: AppTypography.sectionTitle),
               const SizedBox(height: 6),
               Text(
                 message,

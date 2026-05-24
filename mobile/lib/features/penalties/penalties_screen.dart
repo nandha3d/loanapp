@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/network/dio_client.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
@@ -35,13 +36,14 @@ class PenaltiesScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final status = ref.watch(_statusFilter);
     final async = ref.watch(_penaltiesProvider);
+    final t = T.of(ref);
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Penalties'), centerTitle: true),
+      appBar: AppBar(title: Text(t.x('title.penalties')), centerTitle: true),
       body: async.when(
         loading: () => _buildLoading(),
-        error: (e, _) => _ErrorState(message: e.toString()),
+        error: (e, _) => _ErrorState(message: e.toString(), label: t.x('err.failed_to_load')),
         data: (all) {
           final list = status == 'all'
               ? all
@@ -73,12 +75,27 @@ class _PenaltiesBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final status = ref.watch(_statusFilter);
+    final t = T.of(ref);
     final fmt = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
 
     final totalGross = all.fold<double>(0, (s, p) => s + p.grossPenalty);
     final totalSettled = all.fold<double>(0, (s, p) => s + p.settledAmount);
     final totalWaived = all.fold<double>(0, (s, p) => s + p.waivedAmount);
     final netOutstanding = totalGross - totalSettled - totalWaived;
+
+    String statusLabel(String s) {
+      switch (s) {
+        case 'all':
+          return t.x('status.all');
+        case 'pending':
+          return t.x('status.pending');
+        case 'settled':
+          return t.x('pen.settled');
+        case 'waived':
+          return t.x('pen.waived');
+      }
+      return s;
+    }
 
     return RefreshIndicator(
       color: AppColors.primary,
@@ -88,14 +105,14 @@ class _PenaltiesBody extends ConsumerWidget {
         children: [
           Row(children: [
             Expanded(child: _SummaryCard(
-              label: 'Total Gross',
+              label: t.x('pen.total_gross'),
               value: fmt.format(totalGross),
               color: AppColors.danger,
               bgColor: AppColors.dangerBg,
             )),
             const SizedBox(width: 10),
             Expanded(child: _SummaryCard(
-              label: 'Settled',
+              label: t.x('pen.settled'),
               value: fmt.format(totalSettled),
               color: AppColors.success,
               bgColor: AppColors.successBg,
@@ -104,14 +121,14 @@ class _PenaltiesBody extends ConsumerWidget {
           const SizedBox(height: 10),
           Row(children: [
             Expanded(child: _SummaryCard(
-              label: 'Waived',
+              label: t.x('pen.waived'),
               value: fmt.format(totalWaived),
               color: AppColors.purple,
               bgColor: AppColors.purpleBg,
             )),
             const SizedBox(width: 10),
             Expanded(child: _SummaryCard(
-              label: 'Net Outstanding',
+              label: t.x('pen.net_outstanding'),
               value: fmt.format(netOutstanding),
               color: AppColors.warning,
               bgColor: AppColors.warningBg,
@@ -139,7 +156,7 @@ class _PenaltiesBody extends ConsumerWidget {
                         boxShadow: active ? AppTokens.shadow : null,
                       ),
                       child: Text(
-                        s[0].toUpperCase() + s.substring(1),
+                        statusLabel(s),
                         style: AppTypography.label.copyWith(
                           color: active ? Colors.white : AppColors.textSecondary,
                         ),
@@ -157,9 +174,9 @@ class _PenaltiesBody extends ConsumerWidget {
               child: EmptyState(
                 icon: Icons.check_circle_outline,
                 title: status == 'all'
-                    ? 'No penalties recorded'
-                    : 'No $status penalties',
-                subtitle: 'Clean slate!',
+                    ? t.x('pen.no_recorded')
+                    : '${t.x('status.no_status_penalties_prefix')} ${statusLabel(status)} ${t.x('pen.suffix')}',
+                subtitle: t.x('pen.clean_slate'),
               ),
             )
           else
@@ -226,6 +243,7 @@ class _PenaltyCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     final net = penalty.grossPenalty - penalty.settledAmount - penalty.waivedAmount;
     final BadgeKind badgeKind = penalty.status == 'settled'
         ? BadgeKind.active
@@ -277,22 +295,22 @@ class _PenaltyCard extends ConsumerWidget {
                 Row(
                   children: [
                     _AmountCol(
-                      label: 'Gross',
+                      label: t.x('pen.gross'),
                       value: fmt.format(penalty.grossPenalty),
                       color: AppColors.danger,
                     ),
                     _AmountCol(
-                      label: 'Settled',
+                      label: t.x('pen.settled'),
                       value: fmt.format(penalty.settledAmount),
                       color: AppColors.success,
                     ),
                     _AmountCol(
-                      label: 'Waived',
+                      label: t.x('pen.waived'),
                       value: fmt.format(penalty.waivedAmount),
                       color: AppColors.purple,
                     ),
                     _AmountCol(
-                      label: 'Net Due',
+                      label: t.x('pen.net_due'),
                       value: fmt.format(net),
                       color: AppColors.warning,
                     ),
@@ -312,7 +330,7 @@ class _PenaltyCard extends ConsumerWidget {
                             padding:
                                 const EdgeInsets.symmetric(vertical: 8),
                           ),
-                          child: const Text('Settle'),
+                          child: Text(t.x('btn.settle')),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -326,7 +344,7 @@ class _PenaltyCard extends ConsumerWidget {
                             padding:
                                 const EdgeInsets.symmetric(vertical: 8),
                           ),
-                          child: const Text('Waive'),
+                          child: Text(t.x('btn.waive')),
                         ),
                       ),
                     ],
@@ -346,6 +364,7 @@ class _PenaltyCard extends ConsumerWidget {
     Penalty p,
     double net,
   ) {
+    final t = T.of(ref);
     final ctrl = TextEditingController(text: net.toStringAsFixed(0));
     showModalBottomSheet<void>(
       context: context,
@@ -375,7 +394,7 @@ class _PenaltyCard extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            Text('Settle Penalty', style: AppTypography.sectionTitle),
+            Text(t.x('pen.settle_title'), style: AppTypography.sectionTitle),
             const SizedBox(height: 4),
             Text('${p.customerName} · ${p.loanCode}',
                 style: AppTypography.caption),
@@ -384,7 +403,7 @@ class _PenaltyCard extends ConsumerWidget {
               controller: ctrl,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
-                labelText: 'Amount (₹)',
+                labelText: t.x('pen.amount_rupee'),
                 prefixIcon: const Icon(Icons.currency_rupee, size: 18),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(AppTokens.radiusSm),
@@ -412,9 +431,9 @@ class _PenaltyCard extends ConsumerWidget {
                       .settle(id: p.id, amount: amount);
                   ref.invalidate(_penaltiesProvider);
                 },
-                child: const Text(
-                  'Confirm Settlement',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                child: Text(
+                  t.x('pen.confirm_settle'),
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                 ),
               ),
             ),
@@ -426,17 +445,18 @@ class _PenaltyCard extends ConsumerWidget {
 
   Future<void> _confirmWaive(
       BuildContext context, WidgetRef ref, Penalty p) async {
+    final t = T.of(ref);
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppTokens.radius)),
-        title: const Text('Waive Penalty'),
-        content: Text('Waive the full outstanding penalty for ${p.customerName}?'),
+        title: Text(t.x('pen.waive_title')),
+        content: Text('${t.x('pen.waive_full_prompt')} (${p.customerName})'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: Text(t.x('common.cancel')),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -445,7 +465,7 @@ class _PenaltyCard extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(AppTokens.radiusSm)),
             ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Waive', style: TextStyle(color: Colors.white)),
+            child: Text(t.x('btn.waive'), style: const TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -485,8 +505,9 @@ class _AmountCol extends StatelessWidget {
 }
 
 class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.message});
+  const _ErrorState({required this.message, required this.label});
   final String message;
+  final String label;
 
   @override
   Widget build(BuildContext context) => Center(
@@ -497,7 +518,7 @@ class _ErrorState extends StatelessWidget {
             children: [
               const Icon(Icons.cloud_off, size: 48, color: AppColors.textLight),
               const SizedBox(height: 12),
-              Text('Failed to load', style: AppTypography.sectionTitle),
+              Text(label, style: AppTypography.sectionTitle),
               const SizedBox(height: 6),
               Text(message,
                   style: AppTypography.body, textAlign: TextAlign.center),

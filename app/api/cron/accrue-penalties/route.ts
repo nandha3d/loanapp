@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'node:crypto';
 import prisma from '@/lib/db';
 import { cleanupExpiredRateLimits } from '@/lib/rateLimit';
 import { calculatePenaltyAccrual, shouldUpdatePenaltyGross } from '@/lib/penalties';
 import { apiError } from '@/lib/utils';
+import { authorizeCron } from '@/lib/cronAuth';
 
 /**
  * GET /api/cron/accrue-penalties
@@ -17,20 +17,8 @@ import { apiError } from '@/lib/utils';
  * with the header:  Authorization: Bearer <CRON_SECRET>
  */
 export async function GET(req: NextRequest) {
-  // Validate cron secret (must be set in env)
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) {
-    return apiError('CRON_SECRET is not configured', 500);
-  }
-
-  const authHeader = req.headers.get('authorization');
-  const expectedToken = Buffer.from(cronSecret);
-  const providedTokenStr = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : '';
-  const providedToken = Buffer.from(providedTokenStr);
-
-  if (expectedToken.length !== providedToken.length || !crypto.timingSafeEqual(expectedToken, providedToken)) {
-    return apiError('Unauthorized', 401);
-  }
+  const denied = authorizeCron(req);
+  if (denied) return denied;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);

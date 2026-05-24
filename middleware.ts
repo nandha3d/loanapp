@@ -2,6 +2,7 @@ import { getToken } from 'next-auth/jwt';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { parseModulePath } from '@/types/modules';
+import { corsHeadersFor } from '@/lib/cors';
 
 const AGENT_BLOCKED = [
   '/penalties',
@@ -166,6 +167,22 @@ function nextWithTenantHeaders(
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const tenantSlug = extractTenantSlugFromHost(request.headers.get('host'));
+
+  // CORS-01/02/03: mobile API gets CORS treatment.
+  if (pathname.startsWith('/api/v1') || pathname.startsWith('/api/auth')) {
+    const origin = request.headers.get('origin');
+    const corsHeaders = corsHeadersFor(origin);
+
+    // CORS-02: preflight short-circuit — 204 with CORS headers.
+    if (request.method === 'OPTIONS') {
+      return new NextResponse(null, { status: 204, headers: corsHeaders });
+    }
+
+    // Normal request flows through; attach CORS headers on the way back.
+    const res = NextResponse.next();
+    for (const [k, v] of Object.entries(corsHeaders)) res.headers.set(k, v);
+    return res;
+  }
 
   // 1. Handle Public Paths
   if (isPublicPath(pathname)) {

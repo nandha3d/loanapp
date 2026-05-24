@@ -219,9 +219,9 @@ export default function LoanDetailClient({
       setLoading(false);
       if (result.success) {
         setPaymentModal(null);
-        alert('Edit request submitted successfully.');
+        alert(d.editRequestSubmittedOk);
       } else {
-        alert(result.error || 'Failed to submit request');
+        alert(result.error || d.failedToSubmitRequest);
       }
     } else {
       fd.set('receivedAmount', String(payAmount));
@@ -313,7 +313,7 @@ export default function LoanDetailClient({
   const handlePrecloseLoan = async (e: React.FormEvent) => {
     e.preventDefault();
     if (payAmount < outstanding) {
-      alert(`Preclose requires the full outstanding amount of ${formatCurrency(outstanding, currencySymbol)}`);
+      alert(`${d.preclosureRequiresFull} ${formatCurrency(outstanding, currencySymbol)}`);
       return;
     }
     setLoading(true);
@@ -329,7 +329,7 @@ export default function LoanDetailClient({
       setPrecloseModal(false);
       router.refresh();
     } else {
-      alert((result as any).error || 'Failed to preclose loan');
+      alert((result as any).error || d.failedToPrecloseLoan);
     }
   };
 
@@ -360,13 +360,13 @@ export default function LoanDetailClient({
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <span style={{ fontSize: '.75rem', color: 'var(--danger)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Dues Pending (Overdue)</span>
+          <span style={{ fontSize: '.75rem', color: 'var(--danger)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{d.duesPendingOverdue}</span>
           <div style={{ fontSize: '1.6rem', fontWeight: 900, color: 'var(--danger)', marginTop: '2px', lineHeight: 1.1 }}>
             {formatCurrency(duesPending, currencySymbol)}
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <span style={{ fontSize: '.75rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Outstanding</span>
+          <span style={{ fontSize: '.75rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{d.totalOutstandingLabel}</span>
           <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text)', marginTop: '2px', lineHeight: 1.1 }}>
             {formatCurrency(outstanding, currencySymbol)}
           </div>
@@ -473,12 +473,12 @@ export default function LoanDetailClient({
                 type="button"
                 onClick={() => setViewMode('actual')}
                 style={{ padding: '4px 10px', fontSize: '.7rem', fontWeight: 600, border: 'none', background: viewMode === 'actual' ? '#fff' : 'transparent', color: viewMode === 'actual' ? 'var(--primary)' : 'var(--text-secondary)', borderRadius: '4px', cursor: 'pointer', boxShadow: viewMode === 'actual' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none', transition: 'all 0.2s' }}
-              >Actual</button>
-              <button 
+              >{d.actual}</button>
+              <button
                 type="button"
                 onClick={() => setViewMode('distributed')}
                 style={{ padding: '4px 10px', fontSize: '.7rem', fontWeight: 600, border: 'none', background: viewMode === 'distributed' ? '#fff' : 'transparent', color: viewMode === 'distributed' ? 'var(--primary)' : 'var(--text-secondary)', borderRadius: '4px', cursor: 'pointer', boxShadow: viewMode === 'distributed' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none', transition: 'all 0.2s' }}
-              >Distributed</button>
+              >{d.distributed}</button>
             </div>
           </div>
  
@@ -507,31 +507,31 @@ export default function LoanDetailClient({
               <div><div className="cm-label">{d.outstanding}</div><div className="cm-value" style={{ color: outstanding > 0 ? 'var(--danger)' : 'var(--success)' }}>{formatCurrency(outstanding, currencySymbol)}</div></div>
               
               <div>
-                <div className="cm-label">Paid Period</div>
+                <div className="cm-label">{d.paidPeriod}</div>
                 <div className="cm-value" style={{ color: 'var(--success)' }}>
-                  {dynamicPaidCount} {loan.frequency === 'daily' ? 'Days' : loan.frequency === 'weekly' ? 'Weeks' : 'Months'}
+                  {dynamicPaidCount} {loan.frequency === 'daily' ? d.daysWord : loan.frequency === 'weekly' ? d.weeksWord : d.monthsWord}
                 </div>
               </div>
               <div>
-                <div className="cm-label">Remaining</div>
+                <div className="cm-label">{d.remaining}</div>
                 <div className="cm-value" style={{ color: 'var(--danger)' }}>
-                  {dynamicRemainingCount} {loan.frequency === 'daily' ? 'Days' : loan.frequency === 'weekly' ? 'Weeks' : 'Months'}
+                  {dynamicRemainingCount} {loan.frequency === 'daily' ? d.daysWord : loan.frequency === 'weekly' ? d.weeksWord : d.monthsWord}
                 </div>
               </div>
 
               {outstanding > 0 && (
                 <div style={{ gridColumn: 'span 4', borderTop: '1px dashed var(--border)', paddingTop: '12px', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <span style={{ fontSize: '.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>💡 Finishing Rate Option (Even Distribution)</span>
+                    <span style={{ fontSize: '.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>💡 {d.finishingRate}</span>
                     <p style={{ fontSize: '.68rem', color: 'var(--text-light)', margin: '2px 0 0' }}>
-                      To settle outstanding {formatCurrency(outstanding, currencySymbol)} on-time across the remaining {dynamicRemainingCount} scheduled {loan.frequency === 'daily' ? 'days' : loan.frequency === 'weekly' ? 'weeks' : 'months'}:
+                      {d.toSettleOutstanding} {formatCurrency(outstanding, currencySymbol)} {d.onTimeAcrossRemaining} {dynamicRemainingCount} {d.scheduledWord} {loan.frequency === 'daily' ? d.daysWord.toLowerCase() : loan.frequency === 'weekly' ? d.weeksWord.toLowerCase() : d.monthsWord.toLowerCase()}:
                     </p>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <span style={{ fontSize: '.9rem', fontWeight: 800, color: 'var(--primary)' }}>
                       {formatCurrency(adjustedInstallment, currencySymbol)}
                     </span>
-                    <span style={{ fontSize: '.68rem', color: 'var(--text-light)' }}> / {loan.frequency === 'daily' ? 'Day' : loan.frequency === 'weekly' ? 'Week' : 'Month'}</span>
+                    <span style={{ fontSize: '.68rem', color: 'var(--text-light)' }}> / {loan.frequency === 'daily' ? d.dayWord : loan.frequency === 'weekly' ? d.weekWord : d.monthWord}</span>
                   </div>
                 </div>
               )}
@@ -539,8 +539,8 @@ export default function LoanDetailClient({
  
             <div className="heatmap-col">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', borderBottom: '1px solid #F1F5F9', paddingBottom: '4px' }}>
-                <span style={{ fontSize: '.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>📊 Calendar Tracker</span>
-                <span style={{ fontSize: '.65rem', color: 'var(--text-light)' }}>Hover for info • Click to scroll</span>
+                <span style={{ fontSize: '.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>📊 {d.calendarTracker}</span>
+                <span style={{ fontSize: '.65rem', color: 'var(--text-light)' }}>{d.hoverInfoClickScroll}</span>
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', padding: '8px 0' }}>
                 {displayInstalments.map((inst: any) => {
@@ -557,16 +557,16 @@ export default function LoanDetailClient({
                     >
                       <div className="tooltip-content">
                         <div style={{ fontWeight: 800, marginBottom: '2px', borderBottom: '1px solid #475569', paddingBottom: '2px', fontSize: '.75rem' }}>
-                          Instalment #{inst.instalmentNo}
+                          {d.instalmentHash} #{inst.instalmentNo}
                         </div>
-                        <div>Due: <strong>{formatDate(inst.dueDate)}</strong></div>
-                        <div>Expected: <strong>{formatCurrency(inst.dueAmount, currencySymbol)}</strong></div>
-                        <div>Collected: <strong>{formatCurrency(inst.receivedAmount || 0, currencySymbol)}</strong></div>
+                        <div>{d.dueLabel}: <strong>{formatDate(inst.dueDate)}</strong></div>
+                        <div>{d.expectedLabel}: <strong>{formatCurrency(inst.dueAmount, currencySymbol)}</strong></div>
+                        <div>{d.collectedTooltip}: <strong>{formatCurrency(inst.receivedAmount || 0, currencySymbol)}</strong></div>
                         <div style={{ textTransform: 'capitalize', marginTop: '2px', fontWeight: 700, color: inst.status === 'paid' ? '#4ADE80' : inst.status === 'partial' ? '#FBBF24' : '#F87171' }}>
-                          Status: {inst.status}
+                          {d.statusLabel}: {inst.status}
                         </div>
                         <div style={{ fontSize: '.58rem', color: '#94A3B8', marginTop: '4px', textAlign: 'center', fontStyle: 'italic' }}>
-                          Click to scroll & highlight
+                          {d.clickScrollHighlight}
                         </div>
                       </div>
                     </div>
@@ -606,7 +606,7 @@ export default function LoanDetailClient({
                   onChange={(e) => setShowRestructuredRates(e.target.checked)} 
                   style={{ width: '13px', height: '13px', cursor: 'pointer' }}
                 />
-                <strong>Show Restructured Rate</strong>
+                <strong>{d.showRestructuredRate}</strong>
               </label>
             )}
           </div>
@@ -660,7 +660,7 @@ export default function LoanDetailClient({
                             <span className="material-icons-outlined" style={{ fontSize: '14px' }}>
                               {isPaid ? (isAdmin ? 'edit' : 'history_edu') : 'payments'}
                             </span>{' '}
-                            {isPaid ? (isAdmin ? d.edit : 'Request') : d.pay}
+                            {isPaid ? (isAdmin ? d.edit : d.requestWord) : d.pay}
                           </button>
                         )}
                       </td>
@@ -710,20 +710,20 @@ export default function LoanDetailClient({
           {loan.status !== 'closed' && (
             <div className="card" style={{ marginBottom: '20px' }}>
               <div className="card-header">
-                <h3>{isAdmin ? `🔧 ${d.adminActions}` : '⚙️ Actions'}</h3>
+                <h3>{isAdmin ? `🔧 ${d.adminActions}` : `⚙️ ${d.actionsLabel}`}</h3>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
                 <Link href={`/loans/${loan.loanCode}/edit`} className="btn btn-ghost" style={{ justifyContent: 'center', border: '1px solid var(--border)' }}>
-                  {isAdmin ? d.editLoan : 'Request Loan Edit'}
+                  {isAdmin ? d.editLoan : d.requestLoanEdit}
                 </Link>
                 {isAdmin && (
                   <>
                     <button className="btn btn-warning" style={{ background: '#F59E0B', color: '#fff', border: 'none' }} onClick={() => {
                       setPayAmount(outstanding);
                       setPayMode('cash');
-                      setPayRemarks('Preclosure Full Settlement');
+                      setPayRemarks(d.preclosureFullRef);
                       setPrecloseModal(true);
-                    }}>Preclose & Settle</button>
+                    }}>{d.precloseAndSettle}</button>
                     <button className="btn btn-danger" onClick={() => setCloseModal(true)}>{d.closeLoan}</button>
                     <button className="btn btn-secondary" onClick={() => setRenewModal(true)}>{d.renewLoan}</button>
                   </>
@@ -733,7 +733,7 @@ export default function LoanDetailClient({
           )}
 
           <div className="card">
-            <div className="card-header"><h3>📄 Collateral Details ({loan.loanType})</h3></div>
+            <div className="card-header"><h3>📄 {d.collateralDetailsLabel} ({loan.loanType})</h3></div>
             <div style={{ padding: '0 16px 16px' }}>
               {(() => {
                 let col: any = {};
@@ -744,9 +744,9 @@ export default function LoanDetailClient({
                 if (loan.loanType === 'gold') {
                   return (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '.85rem' }}>
-                      <div><strong style={{ color: 'var(--text-secondary)' }}>Weight:</strong><br />{col.grams || '—'} g</div>
-                      <div><strong style={{ color: 'var(--text-secondary)' }}>Purity:</strong><br />{col.carat || '—'}</div>
-                      <div style={{ gridColumn: '1 / -1' }}><strong style={{ color: 'var(--text-secondary)' }}>Items:</strong><br />{col.items || '—'}</div>
+                      <div><strong style={{ color: 'var(--text-secondary)' }}>{d.weight}:</strong><br />{col.grams || '—'} g</div>
+                      <div><strong style={{ color: 'var(--text-secondary)' }}>{d.purity}:</strong><br />{col.carat || '—'}</div>
+                      <div style={{ gridColumn: '1 / -1' }}><strong style={{ color: 'var(--text-secondary)' }}>{d.items}:</strong><br />{col.items || '—'}</div>
                     </div>
                   );
                 }
@@ -754,9 +754,9 @@ export default function LoanDetailClient({
                 if (loan.loanType === 'property') {
                   return (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '.85rem' }}>
-                      <div><strong style={{ color: 'var(--text-secondary)' }}>Type:</strong><br /><span style={{ textTransform: 'capitalize' }}>{col.type || '—'}</span></div>
-                      <div><strong style={{ color: 'var(--text-secondary)' }}>Est. Value:</strong><br />{formatCurrency(col.value || 0, currencySymbol)}</div>
-                      <div style={{ gridColumn: '1 / -1' }}><strong style={{ color: 'var(--text-secondary)' }}>Address:</strong><br />{col.address || '—'}</div>
+                      <div><strong style={{ color: 'var(--text-secondary)' }}>{d.typeLabel}:</strong><br /><span style={{ textTransform: 'capitalize' }}>{col.type || '—'}</span></div>
+                      <div><strong style={{ color: 'var(--text-secondary)' }}>{d.estValue}:</strong><br />{formatCurrency(col.value || 0, currencySymbol)}</div>
+                      <div style={{ gridColumn: '1 / -1' }}><strong style={{ color: 'var(--text-secondary)' }}>{d.addressLabel}:</strong><br />{col.address || '—'}</div>
                     </div>
                   );
                 }
@@ -766,9 +766,9 @@ export default function LoanDetailClient({
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {col.bankName && (
                       <div style={{ fontSize: '.85rem' }}>
-                        <div><strong style={{ color: 'var(--text-secondary)' }}>Bank:</strong> {col.bankName}</div>
-                        <div><strong style={{ color: 'var(--text-secondary)' }}>Cheque No:</strong> {col.chequeNumber}</div>
-                        <div><strong style={{ color: 'var(--text-secondary)' }}>Amount:</strong> {formatCurrency(col.chequeAmount || 0, currencySymbol)}</div>
+                        <div><strong style={{ color: 'var(--text-secondary)' }}>{d.bankLabel}:</strong> {col.bankName}</div>
+                        <div><strong style={{ color: 'var(--text-secondary)' }}>{d.chequeNoLabel}:</strong> {col.chequeNumber}</div>
+                        <div><strong style={{ color: 'var(--text-secondary)' }}>{d.amountLabel2}:</strong> {formatCurrency(col.chequeAmount || 0, currencySymbol)}</div>
                       </div>
                     )}
                     {loan.customer?.securityCheques?.map((ch: any) => (
@@ -778,7 +778,7 @@ export default function LoanDetailClient({
                       </div>
                     ))}
                     {!col.bankName && (!loan.customer?.securityCheques || loan.customer.securityCheques.length === 0) && (
-                      <p style={{ fontSize: '.8rem', color: 'var(--text-light)', margin: 0 }}>No collateral recorded.</p>
+                      <p style={{ fontSize: '.8rem', color: 'var(--text-light)', margin: 0 }}>{d.noCollateralRecorded}</p>
                     )}
                   </div>
                 );
@@ -793,7 +793,7 @@ export default function LoanDetailClient({
           <div className="modal-overlay show" onClick={(e) => { if (e.target === e.currentTarget) setPaymentModal(null); }}>
             <div className="modal">
               <div className="modal-header">
-                <h3>💰 {Number(paymentModal.receivedAmount) > 0 ? (isAdmin ? 'Edit Payment' : 'Request Edit') : d.submit}</h3>
+                <h3>💰 {Number(paymentModal.receivedAmount) > 0 ? (isAdmin ? d.editPayment : d.requestEditTitle) : d.submit}</h3>
                 <button className="modal-close material-icons-outlined" onClick={() => setPaymentModal(null)}>close</button>
               </div>
               <div className="modal-body">
@@ -802,27 +802,27 @@ export default function LoanDetailClient({
                 <div style={{ background: 'var(--bg)', borderRadius: 'var(--radius-sm)', padding: '14px', marginBottom: '16px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.9rem' }}>
                     <span><strong>{loan.customer.name}</strong></span>
-                    <span style={{ color: 'var(--text-secondary)' }}>Instalment #{paymentModal.instalmentNo}</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>{d.instalmentHash} #{paymentModal.instalmentNo}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.82rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
                     <span>{d.dueDateLabel}: {formatDate(paymentModal.dueDate)}</span>
-                    <span>{Number(paymentModal.receivedAmount) > 0 ? 'Previously Paid' : d.amountLabel}: <strong>{formatCurrency(Number(paymentModal.receivedAmount) > 0 ? paymentModal.receivedAmount : paymentModal.dueAmount, currencySymbol)}</strong></span>
+                    <span>{Number(paymentModal.receivedAmount) > 0 ? d.previouslyPaid : d.amountLabel}: <strong>{formatCurrency(Number(paymentModal.receivedAmount) > 0 ? paymentModal.receivedAmount : paymentModal.dueAmount, currencySymbol)}</strong></span>
                   </div>
                 </div>
 
               {Number(paymentModal.receivedAmount) > 0 && !isAdmin ? (
                 <div className="form-group">
-                  <label className="form-label">Correct Amount ({currencySymbol}) *</label>
+                  <label className="form-label">{d.correctAmount} ({currencySymbol}) *</label>
                   <input type="number" className="form-control" style={{ fontSize: '1.1rem', padding: '12px' }} value={payAmount} onChange={(e) => setPayAmount(Number(e.target.value))} min={0} required />
                   <div style={{ marginTop: '12px' }}>
-                    <label className="form-label">Reason for change *</label>
-                    <textarea className="form-control" value={payReason} onChange={(e) => setPayReason(e.target.value)} placeholder="Explain why this change is needed..." required rows={3} />
+                    <label className="form-label">{d.reasonForChange} *</label>
+                    <textarea className="form-control" value={payReason} onChange={(e) => setPayReason(e.target.value)} placeholder={d.explainChange} required rows={3} />
                   </div>
                 </div>
               ) : (
                 <>
                   <div className="form-group">
-                    <label className="form-label">{Number(paymentModal.receivedAmount) > 0 ? 'Corrected Total' : d.receivedAmount} ({currencySymbol}) *</label>
+                    <label className="form-label">{Number(paymentModal.receivedAmount) > 0 ? d.correctedTotal : d.receivedAmount} ({currencySymbol}) *</label>
                     <input type="number" className="form-control" style={{ fontSize: '1.1rem', padding: '12px' }} value={payAmount} onChange={(e) => setPayAmount(Number(e.target.value))} min={0} required />
                   </div>
                   <div className="form-group">
@@ -836,7 +836,7 @@ export default function LoanDetailClient({
                   </div>
                   {payMode === 'upi' && qrCodeUrl && (
                     <div style={{ textAlign: 'center', margin: '16px 0', padding: '16px', background: '#fff', border: '1px dashed var(--border)', borderRadius: '8px' }}>
-                      <p style={{ fontSize: '.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px', marginTop: 0 }}>Scan to Pay via UPI</p>
+                      <p style={{ fontSize: '.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px', marginTop: 0 }}>{d.scanToPayUpi}</p>
                       <img src={qrCodeUrl} alt="UPI QR Code" style={{ display: 'block', margin: '0 auto', width: '150px', height: '150px' }} />
                     </div>
                   )}
@@ -851,7 +851,7 @@ export default function LoanDetailClient({
               <button className="btn btn-secondary" onClick={() => setPaymentModal(null)}>{d.cancel}</button>
               <button className="btn btn-primary" onClick={handleSubmitPayment} disabled={loading || payAmount < 0 || (Number(paymentModal.receivedAmount) > 0 && !isAdmin && !payReason.trim())}>
                 <span className="material-icons-outlined" style={{ fontSize: '18px' }}>check</span>
-                {loading ? (Number(paymentModal.receivedAmount) > 0 && !isAdmin ? 'Sending...' : d.submitting) : (Number(paymentModal.receivedAmount) > 0 ? (isAdmin ? 'Update Payment' : 'Send Request') : d.submitPayment)}
+                {loading ? (Number(paymentModal.receivedAmount) > 0 && !isAdmin ? d.sending : d.submitting) : (Number(paymentModal.receivedAmount) > 0 ? (isAdmin ? d.updatePayment : d.sendRequest) : d.submitPayment)}
               </button>
             </div>
           </div>
@@ -864,7 +864,7 @@ export default function LoanDetailClient({
         <div className="modal-overlay show" onClick={(e) => { if (e.target === e.currentTarget) setPenaltyModal(null); }}>
           <div className="modal">
             <div className="modal-header">
-              <h3>⚖️ {penAction === 'waive' ? 'Waive' : 'Settle'} Penalty</h3>
+              <h3>⚖️ {penAction === 'waive' ? d.waisePenalty : d.settlePenalty}</h3>
               <button className="modal-close material-icons-outlined" onClick={() => setPenaltyModal(null)}>close</button>
             </div>
             <div className="modal-body">
@@ -873,23 +873,23 @@ export default function LoanDetailClient({
               <div style={{ background: 'var(--bg)', borderRadius: 'var(--radius-sm)', padding: '14px', marginBottom: '16px' }}>
                 <p style={{ fontSize: '.85rem' }}><strong>{loan.customer.name}</strong> — {loan.loanCode}</p>
                 <p style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--danger)', marginTop: '6px' }}>
-                  Gross Penalty: {formatCurrency(penaltyModal.grossPenalty, currencySymbol)}
+                  {d.grossPenalty}: {formatCurrency(penaltyModal.grossPenalty, currencySymbol)}
                 </p>
               </div>
               <div className="form-group">
-                <label className="form-label">{penAction === 'waive' ? 'Waive' : 'Settlement'} Amount ({currencySymbol})</label>
+                <label className="form-label">{penAction === 'waive' ? d.waive : d.settlement} {d.amountLabel2} ({currencySymbol})</label>
                 <input type="number" className="form-control" value={penAmount} onChange={(e) => setPenAmount(Number(e.target.value))} min={0} />
               </div>
               <div className="form-group">
-                <label className="form-label">Notes</label>
-                <input type="text" className="form-control" value={penNotes} onChange={(e) => setPenNotes(e.target.value)} placeholder="Add notes..." />
+                <label className="form-label">{d.notes}</label>
+                <input type="text" className="form-control" value={penNotes} onChange={(e) => setPenNotes(e.target.value)} placeholder={d.notesPlaceholder} />
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setPenaltyModal(null)}>Cancel</button>
+              <button className="btn btn-secondary" onClick={() => setPenaltyModal(null)}>{d.cancel}</button>
               <button className="btn btn-primary" onClick={handleSubmitPenalty} disabled={loading}>
                 <span className="material-icons-outlined" style={{ fontSize: '16px' }}>check</span>
-                {loading ? 'Processing...' : 'Confirm'}
+                {loading ? dict.penalties.processing : dict.penalties.confirm}
               </button>
             </div>
           </div>
@@ -901,21 +901,21 @@ export default function LoanDetailClient({
         <div className="modal-overlay show" onClick={(e) => { if (e.target === e.currentTarget) setPrecloseModal(false); }}>
           <div className="modal">
             <div className="modal-header">
-              <h3>⚡ Preclose Loan</h3>
+              <h3>⚡ {d.preclose}</h3>
               <button className="modal-close material-icons-outlined" onClick={() => setPrecloseModal(false)}>close</button>
             </div>
             <div className="modal-body">
               {duesPendingBox}
 
               <div style={{ background: '#FFFBEB', borderRadius: 'var(--radius-sm)', padding: '16px', marginBottom: '16px', border: '1px solid #FCD34D' }}>
-                <p style={{ fontSize: '.9rem', fontWeight: 600, color: '#92400E' }}>Preclose & Full Settlement</p>
+                <p style={{ fontSize: '.9rem', fontWeight: 600, color: '#92400E' }}>{d.preclosureFullSettlement}</p>
                 <p style={{ fontSize: '.82rem', color: '#B45309', marginTop: '6px' }}>
-                  This action will collect the full outstanding amount of <strong>{formatCurrency(outstanding, currencySymbol)}</strong>. All unpaid instalments will be marked as paid and the loan will be <strong>CLOSED</strong>.
+                  {d.preclosureDescStart} <strong>{formatCurrency(outstanding, currencySymbol)}</strong>{d.preclosureDescEnd} <strong>{d.closedUpper}</strong>.
                 </p>
               </div>
 
               <div className="form-group">
-                <label className="form-label">Preclosure Total ({currencySymbol})</label>
+                <label className="form-label">{d.preclosureTotal} ({currencySymbol})</label>
                 <input type="number" className="form-control" style={{ fontSize: '1.1rem', padding: '12px' }} value={payAmount} onChange={(e) => setPayAmount(Number(e.target.value))} min={0} disabled />
               </div>
               <div className="form-group">
@@ -928,15 +928,15 @@ export default function LoanDetailClient({
                 </select>
               </div>
               <div className="form-group">
-                <label className="form-label">Remarks / Reference</label>
+                <label className="form-label">{d.remarksReference}</label>
                 <input type="text" className="form-control" style={{ fontSize: '1rem', padding: '12px' }} value={payRemarks} onChange={(e) => setPayRemarks(e.target.value)} />
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setPrecloseModal(false)}>Cancel</button>
+              <button className="btn btn-secondary" onClick={() => setPrecloseModal(false)}>{d.cancel}</button>
               <button className="btn btn-warning" style={{ background: '#F59E0B', color: '#fff', border: 'none' }} onClick={handlePrecloseLoan} disabled={loading || payAmount < outstanding}>
                 <span className="material-icons-outlined" style={{ fontSize: '16px' }}>done_all</span>
-                {loading ? 'Processing...' : 'Settle & Close'}
+                {loading ? dict.penalties.processing : d.settleAndClose}
               </button>
             </div>
           </div>
@@ -948,18 +948,18 @@ export default function LoanDetailClient({
         <div className="modal-overlay show" onClick={(e) => { if (e.target === e.currentTarget) setCloseModal(false); }}>
           <div className="modal">
             <div className="modal-header">
-              <h3>🔒 Close Loan</h3>
+              <h3>🔒 {d.closeLoan}</h3>
               <button className="modal-close material-icons-outlined" onClick={() => setCloseModal(false)}>close</button>
             </div>
             <div className="modal-body">
               {duesPendingBox}
 
               <div style={{ background: '#FEF2F2', borderRadius: 'var(--radius-sm)', padding: '16px', marginBottom: '16px' }}>
-                <p style={{ fontSize: '.9rem', fontWeight: 600, color: '#991B1B' }}>Are you sure you want to close this loan?</p>
+                <p style={{ fontSize: '.9rem', fontWeight: 600, color: '#991B1B' }}>{d.confirmCloseQuestion}</p>
                 <p style={{ fontSize: '.82rem', color: '#B91C1C', marginTop: '6px' }}>
-                  This will permanently mark <strong>{loan.loanCode}</strong> as closed. 
+                  {d.willPermanentlyMark} <strong>{loan.loanCode}</strong> {d.asClosed}
                   {loan.paidCount < loan.totalInstalments && (
-                    <span> {loan.totalInstalments - loan.paidCount} instalments are still unpaid.</span>
+                    <span> {loan.totalInstalments - loan.paidCount} {d.instalmentUnpaid}</span>
                   )}
                 </p>
               </div>
@@ -971,7 +971,7 @@ export default function LoanDetailClient({
                 return (
                   <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 'var(--radius-sm)', padding: '14px' }}>
                     <p style={{ fontSize: '.88rem', fontWeight: 600, color: '#92400E', marginBottom: '10px' }}>
-                      ⚠️ {activeChqs.length} security cheque{activeChqs.length > 1 ? 's' : ''} on file — please return to borrower
+                      ⚠️ {activeChqs.length} {d.securityChequeWord}{activeChqs.length > 1 ? 's' : ''} {d.chequesOnFileReturn}
                     </p>
                     <ul style={{ fontSize: '.82rem', color: '#78350F', marginBottom: '12px', paddingLeft: '18px' }}>
                       {activeChqs.map((c: any) => (
@@ -984,17 +984,17 @@ export default function LoanDetailClient({
                         checked={chequeReturned}
                         onChange={(e) => setChequeReturned(e.target.checked)}
                       />
-                      I confirm all security cheques have been returned to the borrower
+                      {d.confirmChequesReturned}
                     </label>
                   </div>
                 );
               })()}
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setCloseModal(false)}>Cancel</button>
+              <button className="btn btn-secondary" onClick={() => setCloseModal(false)}>{d.cancel}</button>
               <button className="btn btn-danger" onClick={handleCloseLoan} disabled={loading}>
                 <span className="material-icons-outlined" style={{ fontSize: '16px' }}>lock</span>
-                {loading ? 'Closing...' : 'Close Loan'}
+                {loading ? d.closing : d.closeLoan}
               </button>
             </div>
           </div>
@@ -1006,26 +1006,26 @@ export default function LoanDetailClient({
         <div className="modal-overlay show" onClick={(e) => { if (e.target === e.currentTarget) setRenewModal(false); }}>
           <div className="modal">
             <div className="modal-header">
-              <h3>🔄 Renew Loan</h3>
+              <h3>🔄 {d.renewLoan}</h3>
               <button className="modal-close material-icons-outlined" onClick={() => setRenewModal(false)}>close</button>
             </div>
             <div className="modal-body">
               {duesPendingBox}
 
               <div style={{ background: '#EFF6FF', borderRadius: 'var(--radius-sm)', padding: '16px', marginBottom: '12px' }}>
-                <p style={{ fontSize: '.9rem', fontWeight: 600, color: '#1E40AF' }}>Renew <strong>{loan.loanCode}</strong>?</p>
+                <p style={{ fontSize: '.9rem', fontWeight: 600, color: '#1E40AF' }}>{d.renewQuestion} <strong>{loan.loanCode}</strong>?</p>
                 <p style={{ fontSize: '.82rem', color: '#1D4ED8', marginTop: '6px' }}>
-                  This will close the current loan and create a fresh loan with the same principal 
-                  ({loan.frequency}, {loan.tenure} instalments) starting today.
-                  The old loan code will be preserved for reference.
+                  {d.renewLoanDesc}
+                  ({loan.frequency}, {loan.tenure} {d.instalmentsStarting}
+                  {d.oldLoanPreserved}
                 </p>
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setRenewModal(false)}>Cancel</button>
+              <button className="btn btn-secondary" onClick={() => setRenewModal(false)}>{d.cancel}</button>
               <button className="btn btn-primary" onClick={handleRenewLoan} disabled={loading}>
                 <span className="material-icons-outlined" style={{ fontSize: '16px' }}>autorenew</span>
-                {loading ? 'Renewing...' : 'Renew Loan'}
+                {loading ? d.renewing : d.renewLoan}
               </button>
             </div>
           </div>

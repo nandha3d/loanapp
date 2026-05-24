@@ -372,6 +372,8 @@ export async function removeAgentFromRoute(routeId: string, agentId: string) {
 }
 
 export async function updateLanguage(lang: string) {
+  const valid = ['en', 'ta', 'hi', 'te', 'kn', 'ml'];
+  if (!valid.includes(lang)) return { success: false, error: 'Unsupported language' };
   const tenantId = await getDefaultTenantId();
   await setSetting(tenantId, 'language', lang, 'system');
   revalidatePath('/');

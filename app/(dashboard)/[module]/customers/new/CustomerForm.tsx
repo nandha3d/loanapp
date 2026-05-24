@@ -153,20 +153,20 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">{dict.customers.fullName} *</label>
-                <input type="text" name="name" className="form-control" placeholder="Enter full name" defaultValue={customer?.name} required style={{ fontSize: '1rem', padding: '12px' }} />
+                <input type="text" name="name" className="form-control" placeholder={dict.customers.enterFullName} defaultValue={customer?.name} required style={{ fontSize: '1rem', padding: '12px' }} />
               </div>
               <div className="form-group">
                 <label className="form-label">{dict.customers.phone} *</label>
-                <input type="tel" name="phone" className="form-control" placeholder="Enter 10-digit phone" defaultValue={customer?.phone} required style={{ fontSize: '1rem', padding: '12px' }} />
+                <input type="tel" name="phone" className="form-control" placeholder={dict.customers.enterPhoneShort} defaultValue={customer?.phone} required style={{ fontSize: '1rem', padding: '12px' }} />
               </div>
             </div>
             <div className="form-group">
-              <label className="form-label">Aadhar Number</label>
-              <input type="text" name="aadharNumber" className="form-control" placeholder="12-digit Aadhar number" defaultValue={customer?.aadharNumber} style={{ fontSize: '1rem', padding: '12px' }} />
+              <label className="form-label">{dict.customers.aadharNumber}</label>
+              <input type="text" name="aadharNumber" className="form-control" placeholder={dict.customers.aadharPlaceholder} defaultValue={customer?.aadharNumber} style={{ fontSize: '1rem', padding: '12px' }} />
             </div>
             <div className="form-group">
               <label className="form-label">{dict.customers.address}</label>
-              <textarea name="address" className="form-control" rows={2} placeholder="Complete postal address" defaultValue={customer?.address} style={{ fontSize: '1rem', padding: '12px' }} />
+              <textarea name="address" className="form-control" rows={2} placeholder={dict.customers.completeAddress} defaultValue={customer?.address} style={{ fontSize: '1rem', padding: '12px' }} />
             </div>
           </div>
         </div>
@@ -176,11 +176,11 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
               <label className="form-label" style={{ margin: 0 }}>{dict.customers.route} *</label>
               <button type="button" onClick={() => setIsRouteModalOpen(true)} className="btn btn-ghost btn-sm" style={{ padding: '2px 8px', fontSize: '.75rem' }}>
-                + New Route
+                {dict.customers.newRoute}
               </button>
             </div>
             <select name="routeId" className="form-control" value={selectedRouteId} onChange={e => setSelectedRouteId(e.target.value)} required style={{ fontSize: '1rem', padding: '12px' }}>
-              <option value="">Select Route</option>
+              <option value="">{dict.customers.selectRoute}</option>
               {localRoutes.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
           </div>
@@ -188,11 +188,11 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
               <label className="form-label" style={{ margin: 0 }}>{dict.customers.agent} *</label>
               <button type="button" onClick={() => setIsAgentModalOpen(true)} className="btn btn-ghost btn-sm" style={{ padding: '2px 8px', fontSize: '.75rem' }}>
-                + New Agent
+                {dict.customers.newAgent}
               </button>
             </div>
             <select name="agentId" className="form-control" value={selectedAgentId} onChange={e => setSelectedAgentId(e.target.value)} required style={{ fontSize: '1rem', padding: '12px' }}>
-              <option value="">Select Agent</option>
+              <option value="">{dict.customers.selectAgent}</option>
               {localAgents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
           </div>
@@ -221,7 +221,7 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
           borderRadius: 'var(--radius-sm)', justifyContent: 'center'
         }}>
           <span className="material-icons-outlined" style={{ color: 'var(--primary)' }}>cloud_upload</span>
-          <span style={{ fontSize: '.85rem' }}>Tap to upload documents (JPG, PNG, PDF)</span>
+          <span style={{ fontSize: '.85rem' }}>{dict.customers.uploadDocsHint}</span>
           <input type="file" name="documents" accept="image/*,.pdf" capture="environment" multiple style={{ display: 'none' }}
             onChange={e => {
               const files = Array.from(e.target.files || []);
@@ -235,7 +235,7 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
         {guarantors.map((g, index) => (
           <div key={g.id} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '14px', marginBottom: '12px', background: 'var(--bg)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-              <strong style={{ fontSize: '.85rem' }}>Guarantor #{index + 1}</strong>
+              <strong style={{ fontSize: '.85rem' }}>{dict.customers.guarantorLabel} #{index + 1}</strong>
               <button type="button" onClick={() => removeGuarantor(g.id)} style={{ color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer' }}>
                 <span className="material-icons-outlined" style={{ fontSize: '18px' }}>delete</span>
               </button>
@@ -243,50 +243,50 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">{dict.customers.fullName} *</label>
-                <input type="text" name={`guarantorName_${index}`} className="form-control" placeholder="Guarantor name" value={g.name}
+                <input type="text" name={`guarantorName_${index}`} className="form-control" placeholder={dict.customers.guarantorNamePlaceholder} value={g.name}
                   onChange={e => updateGuarantor(g.id, 'name', e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} required />
               </div>
               <div className="form-group">
                 <label className="form-label">{dict.customers.phone} *</label>
-                <input type="tel" name={`guarantorPhone_${index}`} className="form-control" placeholder="Phone number" value={g.phone}
+                <input type="tel" name={`guarantorPhone_${index}`} className="form-control" placeholder={dict.customers.phonePlaceholder} value={g.phone}
                   onChange={e => updateGuarantor(g.id, 'phone', e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} required />
               </div>
             </div>
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">Relation</label>
+                <label className="form-label">{dict.customers.relation}</label>
                 <select name={`guarantorRelation_${index}`} className="form-control" value={g.relation}
                   onChange={e => updateGuarantor(g.id, 'relation', e.target.value)} style={{ fontSize: '1rem', padding: '10px' }}>
-                  <option value="">Select Relation</option>
-                  <option value="friend">Friend</option>
-                  <option value="relative">Relative</option>
-                  <option value="business_partner">Business Partner</option>
-                  <option value="other">Other</option>
+                  <option value="">{dict.customers.selectRelation}</option>
+                  <option value="friend">{dict.customers.friend}</option>
+                  <option value="relative">{dict.customers.relative}</option>
+                  <option value="business_partner">{dict.customers.businessPartner}</option>
+                  <option value="other">{dict.customers.other}</option>
                 </select>
               </div>
               <div className="form-group">
-                <label className="form-label">Photo</label>
+                <label className="form-label">{dict.customers.photo}</label>
                 <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', padding: '10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '.85rem' }}>
                   {guarantorPreviews[g.id] ? (
                     <img src={guarantorPreviews[g.id]} alt="Guarantor" style={{ width: '20px', height: '20px', objectFit: 'cover', borderRadius: '2px' }} />
                   ) : (
                     <span className="material-icons-outlined" style={{ fontSize: '16px' }}>{g.photoName ? 'check_circle' : 'add_a_photo'}</span>
                   )}
-                  {g.photoName || 'Upload Photo'}
+                  {g.photoName || dict.customers.uploadPhoto}
                   <input type="file" name={`guarantorPhoto_${index}`} accept="image/*" capture="environment" style={{ display: 'none' }}
                     onChange={e => handleGuarantorPhotoChange(g.id, e.target.files?.[0] || null)} />
                 </label>
               </div>
             </div>
             <div className="form-group">
-              <label className="form-label">Address</label>
-              <input type="text" name={`guarantorAddress_${index}`} className="form-control" placeholder="Address" value={g.address}
+              <label className="form-label">{dict.customers.address}</label>
+              <input type="text" name={`guarantorAddress_${index}`} className="form-control" placeholder={dict.customers.address} value={g.address}
                 onChange={e => updateGuarantor(g.id, 'address', e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} />
             </div>
           </div>
         ))}
         <button type="button" className="btn btn-secondary btn-sm" onClick={addGuarantor} style={{ padding: '8px 14px' }}>
-          <span className="material-icons-outlined" style={{ fontSize: '14px' }}>person_add</span> Add Guarantor
+          <span className="material-icons-outlined" style={{ fontSize: '14px' }}>person_add</span> {dict.customers.addGuarantor}
         </button>
 
         {/* --- Submit --- */}
@@ -299,16 +299,16 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
 
       {/* --- Modals --- */}
       {isRouteModalOpen && (
-        <Modal isOpen={isRouteModalOpen} onClose={() => setIsRouteModalOpen(false)} title="Add New Route">
+        <Modal isOpen={isRouteModalOpen} onClose={() => setIsRouteModalOpen(false)} title={dict.customers.addNewRoute}>
           <form onSubmit={handleCreateRoute}>
             <div className="form-group">
-              <label className="form-label">Route Name</label>
+              <label className="form-label">{dict.customers.routeName}</label>
               <input type="text" name="name" className="form-control" required />
             </div>
             <div className="modal-actions">
-              <button type="button" onClick={() => setIsRouteModalOpen(false)} className="btn btn-ghost">Cancel</button>
+              <button type="button" onClick={() => setIsRouteModalOpen(false)} className="btn btn-ghost">{dict.customers.cancel}</button>
               <button type="submit" className="btn btn-primary" disabled={creatingRoute}>
-                {creatingRoute ? 'Creating...' : 'Create Route'}
+                {creatingRoute ? dict.customers.creating : dict.customers.createRoute}
               </button>
             </div>
           </form>
@@ -316,24 +316,24 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
       )}
 
       {isAgentModalOpen && (
-        <Modal isOpen={isAgentModalOpen} onClose={() => setIsAgentModalOpen(false)} title="Add New Agent">
+        <Modal isOpen={isAgentModalOpen} onClose={() => setIsAgentModalOpen(false)} title={dict.customers.addNewAgent}>
           <form onSubmit={handleCreateAgent}>
             <div className="form-group">
-              <label className="form-label">Agent Name</label>
+              <label className="form-label">{dict.customers.agentName}</label>
               <input type="text" name="name" className="form-control" required />
             </div>
             <div className="form-group">
-              <label className="form-label">Email</label>
+              <label className="form-label">{dict.customers.email}</label>
               <input type="email" name="email" className="form-control" required />
             </div>
             <div className="form-group">
-              <label className="form-label">Password</label>
+              <label className="form-label">{dict.customers.password}</label>
               <input type="password" name="password" className="form-control" required />
             </div>
             <div className="modal-actions">
-              <button type="button" onClick={() => setIsAgentModalOpen(false)} className="btn btn-ghost">Cancel</button>
+              <button type="button" onClick={() => setIsAgentModalOpen(false)} className="btn btn-ghost">{dict.customers.cancel}</button>
               <button type="submit" className="btn btn-primary" disabled={creatingAgent}>
-                {creatingAgent ? 'Creating...' : 'Create Agent'}
+                {creatingAgent ? dict.customers.creating : dict.customers.createAgent}
               </button>
             </div>
           </form>

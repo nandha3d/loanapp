@@ -276,7 +276,7 @@ export default function LoanForm({
         <div className="card-header" style={{ flexWrap: 'wrap', gap: '10px' }}>
           <h3>📝 {dict.loans.createTitle}</h3>
           <select className="form-control" style={{ width: 'auto', fontSize: '1rem', padding: '10px' }} onChange={e => handlePackageChange(e.target.value)} value={packageId}>
-            <option value="">Premade Template</option>
+            <option value="">{dict.loans.premadeTemplate}</option>
             {localPackages.map(pkg => (
               <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
             ))}
@@ -426,16 +426,16 @@ export default function LoanForm({
               {loanType === 'cheque' && (
                 <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label">Bank Name</label>
-                    <input type="text" className="form-control" value={chequeBankName} onChange={e=>setChequeBankName(e.target.value)} placeholder="e.g. HDFC Bank" />
+                    <label className="form-label">{dict.loans.bankName}</label>
+                    <input type="text" className="form-control" value={chequeBankName} onChange={e=>setChequeBankName(e.target.value)} placeholder={dict.loans.bankPlaceholder} />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Cheque Number</label>
+                    <label className="form-label">{dict.loans.chequeNumber}</label>
                     <input type="text" className="form-control" value={chequeNumber} onChange={e=>setChequeNumber(e.target.value)} placeholder="000000" />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Cheque Amount</label>
-                    <input type="number" className="form-control" value={chequeAmount} onChange={e=>setChequeAmount(e.target.value ? Number(e.target.value) : '')} placeholder="Amount" />
+                    <label className="form-label">{dict.loans.chequeAmount}</label>
+                    <input type="number" className="form-control" value={chequeAmount} onChange={e=>setChequeAmount(e.target.value ? Number(e.target.value) : '')} placeholder={dict.loans.amount} />
                   </div>
                 </div>
               )}
@@ -456,7 +456,7 @@ export default function LoanForm({
                     </select>
                   </div>
                   <div className="form-group" style={{ flex: '1 1 100%' }}>
-                    <label className="form-label">Items Description</label>
+                    <label className="form-label">{dict.loans.itemsDescription}</label>
                     <input type="text" className="form-control" value={goldItems} onChange={e=>setGoldItems(e.target.value)} placeholder="e.g. 2 Bangles, 1 Chain" />
                   </div>
                 </div>
@@ -465,11 +465,11 @@ export default function LoanForm({
               {loanType === 'property' && (
                 <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label">Property Type</label>
+                    <label className="form-label">{dict.loans.propertyType}</label>
                     <select className="form-control" value={propertyType} onChange={e=>setPropertyType(e.target.value)}>
-                      <option value="residential">Residential</option>
-                      <option value="commercial">Commercial</option>
-                      <option value="land">Land</option>
+                      <option value="residential">{dict.loans.residential}</option>
+                      <option value="commercial">{dict.loans.commercial}</option>
+                      <option value="land">{dict.loans.land}</option>
                     </select>
                   </div>
                   <div className="form-group">
@@ -477,8 +477,8 @@ export default function LoanForm({
                     <input type="number" className="form-control" value={propertyValue} onChange={e=>setPropertyValue(e.target.value ? Number(e.target.value) : '')} placeholder="e.g. 500000" />
                   </div>
                   <div className="form-group" style={{ flex: '1 1 100%' }}>
-                    <label className="form-label">Property Address</label>
-                    <textarea className="form-control" rows={2} value={propertyAddress} onChange={e=>setPropertyAddress(e.target.value)} placeholder="Full address" />
+                    <label className="form-label">{dict.loans.propertyAddress}</label>
+                    <textarea className="form-control" rows={2} value={propertyAddress} onChange={e=>setPropertyAddress(e.target.value)} placeholder={dict.loans.fullAddress} />
                   </div>
                 </div>
               )}
@@ -503,7 +503,7 @@ export default function LoanForm({
             </div>
 
             <div style={{ flex: '1.2', minWidth: '300px' }}>
-              <label className="form-label" style={{ fontWeight: '600', marginBottom: '8px', display: 'block' }}>Repayment Plan Model</label>
+              <label className="form-label" style={{ fontWeight: '600', marginBottom: '8px', display: 'block' }}>{dict.loans.repaymentPlanModel}</label>
               <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '4px', background: 'var(--bg-alt)', height: '54px', alignItems: 'center' }}>
                 <button 
                   type="button" 
@@ -600,7 +600,7 @@ export default function LoanForm({
               <div className="form-computed" style={{ color: 'var(--primary-dark)' }}>{currencySymbol}{calculatedData.disbursedAmount.toLocaleString()}</div>
             </div>
             <div className="form-group">
-              <label className="form-label">Total Payable</label>
+              <label className="form-label">{dict.loans.totalPayable}</label>
               <div className="form-computed">{currencySymbol}{calculatedData.totalPayable.toLocaleString()}</div>
             </div>
           </div>
@@ -619,7 +619,7 @@ export default function LoanForm({
               <div className="form-group">
                 <label className="form-label">Due Day *</label>
                 <select name="dueDay" className="form-control" value={dueDay} onChange={e => setDueDay(e.target.value ? Number(e.target.value) : '')} required style={{ fontSize: '1rem', padding: '12px' }}>
-                  <option value="">Select Day</option>
+                  <option value="">{dict.loans.selectDay}</option>
                   {['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((day, i) => (
                     <option key={i} value={i}>{day}</option>
                   ))}
@@ -630,7 +630,7 @@ export default function LoanForm({
               <div className="form-group">
                 <label className="form-label">Due Date (Day of Month) *</label>
                 <select name="dueDay" className="form-control" value={dueDay} onChange={e => setDueDay(e.target.value ? Number(e.target.value) : '')} required style={{ fontSize: '1rem', padding: '12px' }}>
-                  <option value="">Select Date</option>
+                  <option value="">{dict.loans.selectDate}</option>
                   {Array.from({ length: 28 }, (_, i) => i + 1).map(d => (
                     <option key={d} value={d}>{d}</option>
                   ))}
@@ -677,9 +677,9 @@ export default function LoanForm({
               {cheques.map((cheque, index) => (
                 <div key={cheque.id} style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '8px' }}>
                   <div style={{ width: '24px', textAlign: 'center', fontWeight: 600, color: 'var(--primary)' }}>{index + 1}</div>
-                  <input type="text" name={`bankName_${index}`} className="form-control" placeholder="Bank Name" value={cheque.bank}
+                  <input type="text" name={`bankName_${index}`} className="form-control" placeholder={dict.loans.bankName} value={cheque.bank}
                     onChange={e => updateCheque(cheque.id, 'bank', e.target.value)} style={{ flex: 1, fontSize: '1rem', padding: '10px' }} />
-                  <input type="text" name={`chequeNumber_${index}`} className="form-control" placeholder="Cheque Number" value={cheque.num}
+                  <input type="text" name={`chequeNumber_${index}`} className="form-control" placeholder={dict.loans.chequeNumber} value={cheque.num}
                     onChange={e => updateCheque(cheque.id, 'num', e.target.value)} style={{ flex: 1, fontSize: '1rem', padding: '10px' }} />
                   <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '.8rem', overflow: 'hidden', maxWidth: '150px' }}>
                     {chequePreviews[cheque.id] ? (
@@ -749,29 +749,29 @@ export default function LoanForm({
             
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">Aadhar Number</label>
+                <label className="form-label">{dict.loans.aadharNumber}</label>
                 <input type="text" name="guarantorAadhar" className="form-control" placeholder="12-digit Aadhar" value={guarantorAadhar} onChange={e => setGuarantorAadhar(e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} />
               </div>
               <div className="form-group">
-                <label className="form-label">Relation</label>
+                <label className="form-label">{dict.loans.relation}</label>
                 <select name="guarantorRelation" className="form-control" value={guarantorRelation} onChange={e => setGuarantorRelation(e.target.value)} style={{ fontSize: '1rem', padding: '10px' }}>
-                  <option value="">Select Relation</option>
-                  <option value="Friend">Friend</option>
-                  <option value="Relative">Relative</option>
-                  <option value="Colleague">Colleague</option>
-                  <option value="Business Partner">Business Partner</option>
-                  <option value="Other">Other</option>
+                  <option value="">{dict.loans.selectRelation}</option>
+                  <option value="Friend">{dict.loans.friend}</option>
+                  <option value="Relative">{dict.loans.relative}</option>
+                  <option value="Colleague">{dict.loans.colleague}</option>
+                  <option value="Business Partner">{dict.loans.businessPartner}</option>
+                  <option value="Other">{dict.loans.other}</option>
                 </select>
               </div>
             </div>
 
             <div className="form-group">
-              <label className="form-label">Guarantor Address</label>
-              <textarea name="guarantorAddress" className="form-control" rows={2} placeholder="Complete address" value={guarantorAddress} onChange={e => setGuarantorAddress(e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} />
+              <label className="form-label">{dict.loans.guarantorAddress}</label>
+              <textarea name="guarantorAddress" className="form-control" rows={2} placeholder={dict.loans.completeAddress} value={guarantorAddress} onChange={e => setGuarantorAddress(e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} />
             </div>
 
             <div className="form-group">
-              <label className="form-label">Guarantor Photo</label>
+              <label className="form-label">{dict.loans.guarantorPhoto}</label>
               <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                 <div style={{ 
                   width: '140px', height: '140px', borderRadius: '12px', 

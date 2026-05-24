@@ -20,7 +20,7 @@ export async function GET(
       ...scopedBranchWhere(ctx),
     },
     include: {
-      customer: { select: { id: true, name: true, customerCode: true, phone: true } },
+      customer: { select: { id: true, name: true, customerCode: true, phone: true, profilePhoto: true } },
       instalments: { orderBy: { instalmentNo: 'asc' } },
       penalties: { orderBy: { createdAt: 'desc' } },
       collaterals: true,

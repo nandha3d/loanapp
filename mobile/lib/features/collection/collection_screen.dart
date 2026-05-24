@@ -65,8 +65,8 @@ class CollectionScreen extends ConsumerWidget {
                 const SizedBox(width: 6),
                 Text(
                   sync.pending > 0
-                      ? '${sync.pending} queued'
-                      : (sync.online ? 'Synced' : 'Offline'),
+                      ? '${sync.pending} ${t.x('sync.queued_suffix')}'
+                      : (sync.online ? t.x('sync.synced') : t.x('sync.offline')),
                   style: AppTypography.caption,
                 ),
               ],
@@ -84,7 +84,7 @@ class CollectionScreen extends ConsumerWidget {
         ),
         error: (e, _) => EmptyState(
           icon: Icons.cloud_off,
-          title: 'Could not load',
+          title: t.x('err.could_not_load'),
           subtitle: e.toString(),
         ),
         data: (rows) {
@@ -113,12 +113,14 @@ class CollectionScreen extends ConsumerWidget {
                   totalCollected: totalCollected,
                   pendingCount: pendingCount,
                   fmt: fmt,
+                  t: t,
                 ),
                 const SizedBox(height: 14),
                 _FilterPills(
                   current: filter,
                   rows: rows,
                   onTap: (k) => ref.read(_filterProvider.notifier).state = k,
+                  t: t,
                 ),
                 const SizedBox(height: 12),
                 ..._groupByRoute(filtered).entries.expand(
@@ -137,7 +139,7 @@ class CollectionScreen extends ConsumerWidget {
                     padding: const EdgeInsets.only(top: 40),
                     child: Center(
                       child: Text(
-                        'Nothing in this filter',
+                        t.x('coll.nothing_filter'),
                         style: AppTypography.caption,
                       ),
                     ),
@@ -182,10 +184,12 @@ class _ProgressHero extends StatelessWidget {
     required this.totalCollected,
     required this.pendingCount,
     required this.fmt,
+    required this.t,
   });
   final double totalDue, totalCollected;
   final int pendingCount;
   final NumberFormat fmt;
+  final T t;
 
   @override
   Widget build(BuildContext context) {
@@ -216,7 +220,7 @@ class _ProgressHero extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               Text(
-                'Today',
+                t.x('coll.today'),
                 style: AppTypography.heroLabel.copyWith(color: Colors.white),
               ),
               const Spacer(),
@@ -230,7 +234,7 @@ class _ProgressHero extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  '$pendingCount pending',
+                  '$pendingCount ${t.x('coll.pending_suffix')}',
                   style: AppTypography.tiny.copyWith(color: Colors.white),
                 ),
               ),
@@ -242,7 +246,7 @@ class _ProgressHero extends StatelessWidget {
             style: AppTypography.heroNumber.copyWith(color: Colors.white),
           ),
           Text(
-            'of ${fmt.format(totalDue)} due',
+            '${t.x('coll.of_due')} ${fmt.format(totalDue)} ${t.x('coll.due_suffix')}',
             style: AppTypography.heroMeta.copyWith(color: Colors.white70),
           ),
           const SizedBox(height: 14),
@@ -269,7 +273,7 @@ class _ProgressHero extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '${(pct * 100).round()}% collected',
+            '${(pct * 100).round()}% ${t.x('coll.collected_pct')}',
             style: AppTypography.caption.copyWith(color: Colors.white70),
           ),
         ],
@@ -285,10 +289,12 @@ class _FilterPills extends StatelessWidget {
     required this.current,
     required this.rows,
     required this.onTap,
+    required this.t,
   });
   final String current;
   final List<CollectionRow> rows;
   final ValueChanged<String> onTap;
+  final T t;
 
   @override
   Widget build(BuildContext context) {
@@ -303,27 +309,27 @@ class _FilterPills extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         children: [
           _Pill(
-            label: 'Pending',
+            label: t.x('coll.filter_pending'),
             count: pendingC,
             active: current == 'pending',
             onTap: () => onTap('pending'),
           ),
           _Pill(
-            label: 'Overdue',
+            label: t.x('coll.filter_overdue'),
             count: overdueC,
             active: current == 'overdue',
             color: AppColors.danger,
             onTap: () => onTap('overdue'),
           ),
           _Pill(
-            label: 'Paid',
+            label: t.x('coll.filter_paid'),
             count: paidC,
             active: current == 'paid',
             color: AppColors.success,
             onTap: () => onTap('paid'),
           ),
           _Pill(
-            label: 'All',
+            label: t.x('coll.filter_all'),
             count: rows.length,
             active: current == 'all',
             onTap: () => onTap('all'),
@@ -457,11 +463,11 @@ class _CollectionCard extends ConsumerWidget {
     return AppColors.info;
   }
 
-  String _statusLabel() {
-    if (row.status == 'paid') return 'PAID';
-    if (row.status == 'partial') return 'PARTIAL';
-    if (row.daysOverdue > 0) return '${row.daysOverdue}d OVERDUE';
-    return 'DUE TODAY';
+  String _statusLabel(T t) {
+    if (row.status == 'paid') return t.x('coll.status_paid');
+    if (row.status == 'partial') return t.x('coll.status_partial');
+    if (row.daysOverdue > 0) return '${row.daysOverdue}d ${t.x('coll.status_overdue_days')}';
+    return t.x('coll.status_due_today');
   }
 
   void _open(BuildContext context, WidgetRef ref) {
@@ -476,6 +482,7 @@ class _CollectionCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     final isPaid = row.status == 'paid';
     final statusColor = _statusColor();
 
@@ -548,7 +555,7 @@ class _CollectionCard extends ConsumerWidget {
                           ),
                         ),
                         Text(
-                          'of ${fmt.format(row.dueAmount)} due',
+                          '${t.x('coll.of_due')} ${fmt.format(row.dueAmount)} ${t.x('coll.due_suffix')}',
                           style: AppTypography.caption,
                         ),
                       ],
@@ -564,7 +571,7 @@ class _CollectionCard extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      _statusLabel(),
+                      _statusLabel(t),
                       style: AppTypography.tiny.copyWith(color: statusColor),
                     ),
                   ),
@@ -590,7 +597,7 @@ class _CollectionCard extends ConsumerWidget {
                     color: Colors.white,
                   ),
                   label: Text(
-                    isPaid ? 'COLLECTED' : 'TAP TO COLLECT',
+                    isPaid ? t.x('coll.collected_label') : t.x('coll.tap_to_collect'),
                     style: AppTypography.actionLabel
                         .copyWith(color: Colors.white, letterSpacing: 1),
                   ),

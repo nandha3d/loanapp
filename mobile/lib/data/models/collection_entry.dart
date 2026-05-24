@@ -80,7 +80,7 @@ class CollectionRow {
       routeName: route?['name'] as String?,
       dueAmount: n(json['dueAmount']),
       receivedAmount: n(json['receivedAmount']),
-      dueDate: DateTime.parse(json['dueDate'] as String),
+      dueDate: DateTime.parse(json['dueDate'] as String).toLocal(),
       status: (json['status'] as String?) ?? 'upcoming',
     );
   }

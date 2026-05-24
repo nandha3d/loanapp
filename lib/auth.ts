@@ -5,6 +5,16 @@ import { compare } from 'bcryptjs';
 import { verifySync } from 'otplib';
 import { checkRateLimit, getClientIp, loginIpKey, loginUserKey } from './rateLimit';
 
+// SEC-03: Fail fast if AUTH_SECRET is missing in production. Without it
+// NextAuth signs JWTs with a default key that anyone can forge.
+const _AUTH_SECRET = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
+if (!_AUTH_SECRET && process.env.NODE_ENV === 'production') {
+  throw new Error('FATAL: AUTH_SECRET (or NEXTAUTH_SECRET) not set in production');
+}
+if (_AUTH_SECRET && _AUTH_SECRET.length < 32 && process.env.NODE_ENV === 'production') {
+  throw new Error('FATAL: AUTH_SECRET too short — need >= 32 chars');
+}
+
 const LOGIN_MAX_ATTEMPTS = Number(process.env.LOGIN_MAX_ATTEMPTS || 10);
 const LOGIN_WINDOW_MS = Number(process.env.LOGIN_WINDOW_MS || 15 * 60 * 1000);
 // Per-IP limit: higher ceiling — blocks distributed attacks

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { ok, fail } from '@/lib/api/v1-envelope';
+import { ok, fail, parseCursorPaging } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 
 export async function GET(req: NextRequest) {
@@ -12,6 +12,8 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url);
+  const { cursor, limit } = parseCursorPaging(req.url, { defaultLimit: 50, maxLimit: 100 });
+
   const where: any = {
     loan: {
       tenantId: ctx.tenantId,
@@ -23,7 +25,7 @@ export async function GET(req: NextRequest) {
   if (status) where.status = status;
 
   try {
-    const penalties = await prisma.penalty.findMany({
+    const rows = await prisma.penalty.findMany({
       where,
       include: {
         loan: {
@@ -35,8 +37,14 @@ export async function GET(req: NextRequest) {
         },
       },
       orderBy: { createdAt: 'desc' },
+      take: limit + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
-    return ok(penalties);
+
+    const hasMore = rows.length > limit;
+    const data = hasMore ? rows.slice(0, limit) : rows;
+    const nextCursor = hasMore ? data[data.length - 1].id : null;
+    return ok(data, { nextCursor, limit });
   } catch (e: any) {
     return fail(e?.message ?? 'Penalties failed', 500);
   }

@@ -8,6 +8,7 @@ import 'package:loantrack/features/accounting/accounting_screen.dart';
 import 'package:loantrack/features/analytics/analytics_screen.dart';
 import 'package:loantrack/features/approvals/approvals_screen.dart';
 import 'package:loantrack/features/auth/biometric_lock_screen.dart';
+import 'package:loantrack/features/admin/tracking/agent_tracking_screen.dart';
 import 'package:loantrack/features/auth/login_screen.dart';
 import 'package:loantrack/features/auth/totp_screen.dart';
 import 'package:loantrack/features/chits/chits_screen.dart';
@@ -16,7 +17,9 @@ import 'package:loantrack/features/customers/customer_detail_screen.dart';
 import 'package:loantrack/features/customers/customers_screen.dart';
 import 'package:loantrack/features/customers/new_customer_screen.dart';
 import 'package:loantrack/features/dashboard/dashboard_screen.dart';
+import 'package:loantrack/features/loans/loan_detail_screen.dart';
 import 'package:loantrack/features/loans/loans_screen.dart';
+import 'package:loantrack/features/loans/new_loan_screen.dart';
 import 'package:loantrack/features/more/more_screen.dart';
 import 'package:loantrack/features/penalties/penalties_screen.dart';
 import 'package:loantrack/features/settings/settings_screen.dart';
@@ -82,7 +85,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/customers',
         builder: (_, __) => const CustomersScreen(),
         routes: [
-          GoRoute(path: 'new', builder: (_, __) => const NewCustomerScreen()),
+          GoRoute(
+            path: 'new',
+            builder: (_, state) {
+              final returnTo = state.uri.queryParameters['returnTo'];
+              return NewCustomerScreen(returnTo: returnTo);
+            },
+          ),
           GoRoute(
             path: ':id',
             builder: (_, state) =>
@@ -90,7 +99,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
-      GoRoute(path: '/loans', builder: (_, __) => const LoansScreen()),
+      GoRoute(
+        path: '/loans',
+        builder: (_, __) => const LoansScreen(),
+        routes: [
+          GoRoute(path: 'new', builder: (_, __) => const NewLoanScreen()),
+          GoRoute(
+            path: ':id',
+            builder: (_, state) =>
+                LoanDetailScreen(id: state.pathParameters['id']!),
+          ),
+        ],
+      ),
       GoRoute(path: '/collection', builder: (_, __) => const CollectionScreen()),
       GoRoute(path: '/penalties', builder: (_, __) => const PenaltiesScreen()),
       GoRoute(path: '/approvals', builder: (_, __) => const ApprovalsScreen()),
@@ -99,6 +119,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/accounting', builder: (_, __) => const AccountingScreen()),
       GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
       GoRoute(path: '/more', builder: (_, __) => const MoreScreen()),
+      GoRoute(path: '/tracking', builder: (_, __) => const AgentTrackingScreen()),
     ],
     errorBuilder: (_, __) =>
         const Scaffold(body: Center(child: Text('Route not found'))),

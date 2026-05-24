@@ -96,7 +96,7 @@ export default function LoanEditForm({
   const [cheques, setCheques] = useState<any[]>(loan.securityCheques?.map((c: any) => ({ id: c.id, bank: c.bankName, num: c.chequeNumber, fileName: c.imagePath })) || []);
   const [chequePreviews, setChequePreviews] = useState<Record<number, string>>({});
   const addChequeRow = () => {
-    if (cheques.length >= 5) { alert('Maximum 5 cheques allowed'); return; }
+    if (cheques.length >= 5) { alert(dict.loans.maxFiveCheques); return; }
     setCheques([...cheques, { id: Date.now(), bank: '', num: '' }]);
   };
   const removeChequeRow = (id: number) => setCheques(cheques.filter(c => c.id !== id));
@@ -173,9 +173,9 @@ export default function LoanEditForm({
   };
 
   const loanTypeLabels: Record<string, string> = {
-    cheque: appType === 'autofinance' ? 'Vehicle / Cheque' : (dict.loans.chequeBased || 'Cheque Based'),
+    cheque: appType === 'autofinance' ? dict.loans.vehicleCheque : (dict.loans.chequeBased || 'Cheque Based'),
   };
-  
+
   if (appType !== 'autofinance') {
     loanTypeLabels['gold'] = dict.loans.goldBased || 'Gold Based';
     loanTypeLabels['property'] = dict.loans.propertyBased || 'Property Based';
@@ -218,7 +218,7 @@ export default function LoanEditForm({
     
     if (userRole === 'agent') {
       if (!reason.trim()) {
-        setError('Reason for edit request is required.');
+        setError(dict.loans.reasonRequired);
         setLoading(false);
         return;
       }
@@ -248,8 +248,8 @@ export default function LoanEditForm({
   return (
     <div className="card" style={{ maxWidth: '900px', margin: '0 auto' }}>
       <div className="card-header">
-        <h3>🛠️ {dict.loans.editTitle || 'Edit Loan'}: {loan.loanCode}</h3>
-        <span className="badge badge-warning">Caution: Changing core values will regenerate the schedule</span>
+        <h3>🛠️ {dict.loans.editTitle}: {loan.loanCode}</h3>
+        <span className="badge badge-warning">{dict.loans.cautionRegenerate}</span>
       </div>
       
       <form action={handleSubmit} style={{ padding: '24px' }}>
@@ -262,7 +262,7 @@ export default function LoanEditForm({
 
         <div style={{ marginBottom: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
           <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1rem', color: 'var(--primary-dark)' }}>
-            <span className="material-icons-outlined">person</span> 👤 Customer Information
+            <span className="material-icons-outlined">person</span> 👤 {dict.loans.customerInformation}
           </h4>
         </div>
 
@@ -276,7 +276,7 @@ export default function LoanEditForm({
         {/* Collateral Header (Always Visible) */}
         <div style={{ marginTop: '32px', marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
           <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1.05rem', color: 'var(--primary-dark)', fontWeight: 600 }}>
-            <span className="material-icons-outlined">settings</span> ⚙️ {dict.loans.loanType || 'Loan Configuration'}
+            <span className="material-icons-outlined">settings</span> ⚙️ {dict.loans.loanConfiguration}
           </h4>
         </div>
 
@@ -324,7 +324,7 @@ export default function LoanEditForm({
         >
           <span style={{ fontSize: '.9rem', fontWeight: 700, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span className="material-icons-outlined" style={{ fontSize: '18px', color: 'var(--primary)' }}>info</span>
-            {loanTypeLabels[loanType]} Details
+            {loanTypeLabels[loanType]} {dict.loans.detailsSuffix}
           </span>
           <span 
             className="material-icons-outlined" 
@@ -345,16 +345,16 @@ export default function LoanEditForm({
             {loanType === 'cheque' && (
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Bank Name</label>
-                  <input type="text" className="form-control" value={chequeBankName} onChange={e=>setChequeBankName(e.target.value)} placeholder="e.g. HDFC Bank" />
+                  <label className="form-label">{dict.loans.bankName}</label>
+                  <input type="text" className="form-control" value={chequeBankName} onChange={e=>setChequeBankName(e.target.value)} placeholder={dict.loans.bankPlaceholderEx} />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Cheque Number</label>
-                  <input type="text" className="form-control" value={chequeNumber} onChange={e=>setChequeNumber(e.target.value)} placeholder="000000" />
+                  <label className="form-label">{dict.loans.chequeNumber}</label>
+                  <input type="text" className="form-control" value={chequeNumber} onChange={e=>setChequeNumber(e.target.value)} placeholder={dict.loans.chequeZeros} />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Cheque Amount</label>
-                  <input type="number" className="form-control" value={chequeAmount} onChange={e=>setChequeAmount(e.target.value ? Number(e.target.value) : '')} placeholder="Amount" />
+                  <label className="form-label">{dict.loans.chequeAmount}</label>
+                  <input type="number" className="form-control" value={chequeAmount} onChange={e=>setChequeAmount(e.target.value ? Number(e.target.value) : '')} placeholder={dict.loans.amount} />
                 </div>
               </div>
             )}

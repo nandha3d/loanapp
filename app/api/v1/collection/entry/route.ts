@@ -13,6 +13,18 @@ function parseDay(value: string | null) {
   return d;
 }
 
+// Haversine distance in meters between two WGS84 points.
+function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
 /**
  * Mobile collection submit. Body: `{instalmentId, receivedAmount, paymentMode,
  * remarks?, idempotencyKey?}`. Honors a client-supplied idempotency key
@@ -29,6 +41,11 @@ export async function POST(req: NextRequest) {
     const receivedAmount = Number(body.receivedAmount);
     const paymentMode = String(body.paymentMode || 'cash');
     const remarks = body.remarks ? String(body.remarks) : null;
+    // GPS-06: optional lat/lng + accuracy from device.
+    const lat = typeof body.lat === 'number' ? body.lat : null;
+    const lng = typeof body.lng === 'number' ? body.lng : null;
+    const gpsAccuracyM = typeof body.gpsAccuracyM === 'number' ? body.gpsAccuracyM : null;
+    const gpsCapturedAt = body.gpsCapturedAt ? new Date(body.gpsCapturedAt) : null;
     if (!instalmentId || isNaN(receivedAmount) || receivedAmount <= 0) {
       return fail('Invalid amount', 400);
     }
@@ -107,6 +124,13 @@ export async function POST(req: NextRequest) {
         Number(instalment.dueAmount) - Number(instalment.receivedAmount || 0);
       const applied = Math.min(receivedAmount, dueRemaining);
 
+      // GPS-06: distance from customer (Haversine, meters).
+      let distanceFromCustomerM: number | null = null;
+      const cust = instalment.loan.customer as any;
+      if (lat != null && lng != null && cust.lat != null && cust.lng != null) {
+        distanceFromCustomerM = haversineMeters(lat, lng, cust.lat, cust.lng);
+      }
+
       const created = await tx.collectionEntry.create({
         data: {
           tenantId: ctx.tenantId,
@@ -119,6 +143,11 @@ export async function POST(req: NextRequest) {
           paymentMode,
           remarks,
           agentId: ctx.userId,
+          lat,
+          lng,
+          gpsAccuracyM,
+          gpsCapturedAt,
+          distanceFromCustomerM,
         },
       });
 

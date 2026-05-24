@@ -52,7 +52,9 @@ class CustomerTile extends StatelessWidget {
                       const SizedBox(height: 4),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.primaryLight,
                           borderRadius: BorderRadius.circular(6),
@@ -72,7 +74,8 @@ class CustomerTile extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  AppBadge(label: customer.status, kind: _kindFor(customer.status)),
+                  AppBadge(
+                      label: customer.status, kind: _kindFor(customer.status)),
                   const SizedBox(height: 8),
                   const Icon(
                     Icons.chevron_right,

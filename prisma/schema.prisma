@@ -216,6 +216,10 @@ model Customer {
   updatedAt         DateTime          @updatedAt @map("updated_at")
   deletedAt         DateTime?         @map("deleted_at")
   pan               String?           @map("pan")
+  // GPS-01 / GPS-07: geocoded home location for geofence + route planning.
+  lat               Float?            @map("lat")
+  lng               Float?            @map("lng")
+  geocodedAt        DateTime?         @map("geocoded_at")
   chitGroupMembers  ChitMember[]
   collectionEntries CollectionEntry[]
   agent             User?             @relation("AgentCustomers", fields: [agentId], references: [id])
@@ -235,6 +239,7 @@ model Customer {
   @@index([agentId], map: "customers_agent_id_fkey")
   @@index([branchId], map: "customers_branch_id_fkey")
   @@index([routeId], map: "customers_route_id_fkey")
+  @@index([phone])
   @@map("customers")
 }
 
@@ -456,6 +461,12 @@ model CollectionEntry {
   verificationStatus String      @default("pending") @map("verification_status")
   tenantId       String?         @map("tenant_id")
   idempotencyKey String?         @unique @map("idempotency_key")
+  // GPS-01: location of agent at collection time. Nullable for back-compat.
+  lat            Float?          @map("lat")
+  lng            Float?          @map("lng")
+  gpsAccuracyM   Float?          @map("gps_accuracy_m")
+  gpsCapturedAt  DateTime?       @map("gps_captured_at")
+  distanceFromCustomerM Float?   @map("distance_from_customer_m")
   agent          User            @relation(fields: [agentId], references: [id])
   collection     DailyCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
   customer       Customer        @relation(fields: [customerId], references: [id])
@@ -468,6 +479,7 @@ model CollectionEntry {
   @@index([customerId], map: "collection_entries_customer_id_fkey")
   @@index([loanId], map: "collection_entries_loan_id_fkey")
   @@index([tenantId])
+  @@index([submittedAt])
   @@map("collection_entries")
 }
 
@@ -879,4 +891,43 @@ model CashHandover {
   @@index([tenantId, agentId, status])
   @@index([adminId])
   @@map("cash_handovers")
+}
+
+// GPS-02: ordered customer stops per route, with location.
+// Phase 3 will use this for nearest-neighbor route optimization.
+model RouteStop {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  routeId     String   @map("route_id")
+  customerId  String   @map("customer_id")
+  sequence    Int      @default(0)
+  lat         Float?
+  lng         Float?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([routeId, customerId])
+  @@index([tenantId])
+  @@index([routeId, sequence])
+  @@map("route_stops")
+}
+
+// GPS-03: agent location pings (live tracking + history).
+// Phase 3 will populate from POST /api/v1/gps/ping every 30s during
+// active collection sessions.
+model AgentLocationPing {
+  id           String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  agentId     String   @map("agent_id")
+  routeId     String?  @map("route_id")
+  lat         Float
+  lng         Float
+  accuracyM   Float?   @map("accuracy_m")
+  speedMps    Float?   @map("speed_mps")
+  capturedAt  DateTime @map("captured_at")
+  receivedAt  DateTime @default(now()) @map("received_at")
+
+  @@index([tenantId, agentId, capturedAt])
+  @@index([routeId, capturedAt])
+  @@map("agent_location_pings")
 }

@@ -40,7 +40,7 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           _Section(
-            title: 'Preferences',
+            title: t.x('set.preferences'),
             child: Column(
               children: [
                 _PrefRow(
@@ -72,10 +72,10 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           _Section(
-            title: 'Routes',
+            title: t.x('set.routes'),
             trailing: TextButton.icon(
               icon: const Icon(Icons.add, size: 16),
-              label: const Text('Add Route'),
+              label: Text(t.x('set.add_route')),
               onPressed: () => _showAddRoute(context, ref),
             ),
             child: ref.watch(_routesProvider).when(
@@ -89,25 +89,25 @@ class SettingsScreen extends ConsumerWidget {
                       ? Padding(
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           child: Text(
-                            'No routes configured.',
+                            t.x('set.no_routes'),
                             style: AppTypography.body
                                 .copyWith(color: AppColors.textSecondary),
                           ),
                         )
                       : Column(
                           children:
-                              routes.map((r) => _RouteRow(route: r)).toList(),
+                              routes.map((r) => _RouteRow(route: r, t: t)).toList(),
                         ),
                 ),
           ),
           const SizedBox(height: 16),
           _Section(
-            title: 'Account',
+            title: t.x('set.account'),
             child: Column(
               children: [
                 _ActionRow(
                   icon: Icons.logout_rounded,
-                  label: 'Logout',
+                  label: t.x('set.logout'),
                   color: AppColors.danger,
                   onTap: () => _confirmLogout(context, ref),
                 ),
@@ -126,6 +126,7 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   Future<void> _showAddRoute(BuildContext context, WidgetRef ref) async {
+    final t = T.of(ref);
     final ctrl = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
@@ -133,12 +134,12 @@ class SettingsScreen extends ConsumerWidget {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppTokens.radius),
         ),
-        title: const Text('Add Route'),
+        title: Text(t.x('set.add_route')),
         content: TextField(
           controller: ctrl,
           autofocus: true,
           decoration: InputDecoration(
-            labelText: 'Route name',
+            labelText: t.x('set.route_name'),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppTokens.radiusSm),
             ),
@@ -147,7 +148,7 @@ class SettingsScreen extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: Text(t.x('common.cancel')),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -157,7 +158,7 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Create', style: TextStyle(color: Colors.white)),
+            child: Text(t.x('btn.create'), style: const TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -199,7 +200,7 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 14),
-              Text('Choose Language', style: AppTypography.sectionTitle),
+              Text(T.of(ref).x('set.choose_language'), style: AppTypography.sectionTitle),
               const SizedBox(height: 12),
               for (final lang in AppLang.values)
                 _LangTile(
@@ -219,18 +220,19 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   Future<void> _confirmLogout(BuildContext context, WidgetRef ref) async {
+    final t = T.of(ref);
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppTokens.radius),
         ),
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
+        title: Text(t.x('set.logout')),
+        content: Text(t.x('set.logout_confirm')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: Text(t.x('common.cancel')),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -240,7 +242,7 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Logout', style: TextStyle(color: Colors.white)),
+            child: Text(t.x('set.logout'), style: const TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -323,8 +325,9 @@ class _ProfileCard extends StatelessWidget {
 }
 
 class _RouteRow extends StatelessWidget {
-  const _RouteRow({required this.route});
+  const _RouteRow({required this.route, required this.t});
   final AppRoute route;
+  final T t;
 
   @override
   Widget build(BuildContext context) {
@@ -354,7 +357,7 @@ class _RouteRow extends StatelessWidget {
             ),
           ),
           Text(
-            '${route.customerCount} customers',
+            '${route.customerCount} ${t.x('set.customers_suffix')}',
             style: AppTypography.caption,
           ),
         ],

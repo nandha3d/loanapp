@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
@@ -21,13 +22,14 @@ class ApprovalsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(_approvalsProvider);
+    final t = T.of(ref);
 
     return DefaultTabController(
       length: 3,
       child: Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
-          title: const Text('Approvals'),
+          title: Text(t.x('title.approvals')),
           centerTitle: true,
           bottom: TabBar(
             indicatorColor: AppColors.primary,
@@ -35,10 +37,10 @@ class ApprovalsScreen extends ConsumerWidget {
             labelColor: AppColors.primary,
             unselectedLabelColor: AppColors.textSecondary,
             labelStyle: AppTypography.label,
-            tabs: const [
-              Tab(text: 'Customers'),
-              Tab(text: 'Loans'),
-              Tab(text: 'General'),
+            tabs: [
+              Tab(text: t.x('tab.customers')),
+              Tab(text: t.x('tab.loans')),
+              Tab(text: t.x('tab.general')),
             ],
           ),
         ),
@@ -52,7 +54,7 @@ class ApprovalsScreen extends ConsumerWidget {
                 children: [
                   const Icon(Icons.cloud_off, size: 48, color: AppColors.textLight),
                   const SizedBox(height: 12),
-                  Text('Failed to load', style: AppTypography.sectionTitle),
+                  Text(t.x('err.failed_to_load'), style: AppTypography.sectionTitle),
                   const SizedBox(height: 6),
                   Text(e.toString(), style: AppTypography.body, textAlign: TextAlign.center),
                 ],
@@ -68,9 +70,9 @@ class ApprovalsScreen extends ConsumerWidget {
             void refresh() => ref.invalidate(_approvalsProvider);
             return TabBarView(
               children: [
-                _ApprovalList(approvals: customers, emptyTitle: 'No pending customer registrations', onRefresh: refresh),
-                _ApprovalList(approvals: loans, emptyTitle: 'No pending loan applications', onRefresh: refresh),
-                _ApprovalList(approvals: other, emptyTitle: 'No pending general requests', onRefresh: refresh),
+                _ApprovalList(approvals: customers, emptyTitle: t.x('appr.no_customer_pending'), subtitle: t.x('appr.all_caught_up'), onRefresh: refresh),
+                _ApprovalList(approvals: loans, emptyTitle: t.x('appr.no_loan_pending'), subtitle: t.x('appr.all_caught_up'), onRefresh: refresh),
+                _ApprovalList(approvals: other, emptyTitle: t.x('appr.no_general_pending'), subtitle: t.x('appr.all_caught_up'), onRefresh: refresh),
               ],
             );
           },
@@ -85,10 +87,12 @@ class _ApprovalList extends StatelessWidget {
   const _ApprovalList({
     required this.approvals,
     required this.emptyTitle,
+    required this.subtitle,
     required this.onRefresh,
   });
   final List<Approval> approvals;
   final String emptyTitle;
+  final String subtitle;
   final VoidCallback onRefresh;
 
   @override
@@ -97,7 +101,7 @@ class _ApprovalList extends StatelessWidget {
       return EmptyState(
         icon: Icons.task_alt_outlined,
         title: emptyTitle,
-        subtitle: 'All caught up!',
+        subtitle: subtitle,
       );
     }
     return RefreshIndicator(
@@ -120,25 +124,26 @@ class _ApprovalCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final fmt = DateFormat('dd MMM yyyy, hh:mm a');
+    final t = T.of(ref);
 
     String entityLabel;
     if (approval.entityType == 'customer') {
-      entityLabel = 'Customer';
+      entityLabel = t.x('ent.customer');
     } else if (approval.entityType == 'loan') {
-      entityLabel = 'Loan';
+      entityLabel = t.x('ent.loan');
     } else if (approval.entityType == 'branch_request') {
-      entityLabel = 'Branch';
+      entityLabel = t.x('ent.branch');
     } else {
-      entityLabel = 'General';
+      entityLabel = t.x('ent.general');
     }
 
     String actionLabel;
     if (approval.action == 'create') {
-      actionLabel = 'New';
+      actionLabel = t.x('act.new');
     } else if (approval.action == 'update') {
-      actionLabel = 'Edit';
+      actionLabel = t.x('act.edit');
     } else if (approval.action == 'delete') {
-      actionLabel = 'Delete';
+      actionLabel = t.x('act.delete');
     } else {
       actionLabel = approval.action;
     }
@@ -197,7 +202,7 @@ class _ApprovalCard extends ConsumerWidget {
                         ],
                       ),
                       const SizedBox(height: 6),
-                      Text('By ${approval.requestedByName}', style: AppTypography.bodyLarge),
+                      Text('${t.x('appr.by')} ${approval.requestedByName}', style: AppTypography.bodyLarge),
                       const SizedBox(height: 2),
                       Text(fmt.format(approval.createdAt), style: AppTypography.caption),
                       if (approval.reviewNote != null) ...[
@@ -223,7 +228,7 @@ class _ApprovalCard extends ConsumerWidget {
                 Expanded(
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.close, size: 16),
-                    label: const Text('Reject'),
+                    label: Text(t.x('btn.reject')),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.danger,
                       side: const BorderSide(color: AppColors.danger),
@@ -239,7 +244,7 @@ class _ApprovalCard extends ConsumerWidget {
                 Expanded(
                   child: ElevatedButton.icon(
                     icon: const Icon(Icons.check, size: 16, color: Colors.white),
-                    label: const Text('Approve', style: TextStyle(color: Colors.white)),
+                    label: Text(t.x('btn.approve'), style: const TextStyle(color: Colors.white)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.success,
                       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -259,29 +264,30 @@ class _ApprovalCard extends ConsumerWidget {
   }
 
   Future<void> _handleAction(BuildContext context, WidgetRef ref, bool approve) async {
+    final t = T.of(ref);
     final noteCtrl = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radius)),
-        title: Text(approve ? 'Approve Request' : 'Reject Request'),
+        title: Text(approve ? t.x('appr.approve_request') : t.x('appr.reject_request')),
         content: TextField(
           controller: noteCtrl,
           decoration: InputDecoration(
-            labelText: 'Note (optional)',
+            labelText: t.x('appr.note_optional'),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTokens.radiusSm)),
           ),
           maxLines: 2,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t.x('common.cancel'))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: approve ? AppColors.success : AppColors.danger,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radiusSm)),
             ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(approve ? 'Approve' : 'Reject', style: const TextStyle(color: Colors.white)),
+            child: Text(approve ? t.x('btn.approve') : t.x('btn.reject'), style: const TextStyle(color: Colors.white)),
           ),
         ],
       ),
