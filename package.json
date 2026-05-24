@@ -12,6 +12,8 @@
     "test:authdb": "tsx tests/authDatabase.test.ts",
     "test:ml-1101": "tsx tests/microlendingAutomation1101.test.ts",
     "test:ml-remaining": "tsx tests/microlendingRemainingAutomation.test.ts",
+    "test:dashboard-kpi": "cross-env-shell DATABASE_URL=mysql://root:root@localhost:3306/loantrack_qa tsx tests/dashboardKPI-full.test.ts",
+    "test:dashboard-kpi-unit": "tsx tests/dashboardKPI.test.ts",
     "test:ml-1213-fixes": "tsx tests/ml1213Fixes.test.ts",
     "test:ci": "npm run test:repayments && npm run test:security",
     "test:coverage": "c8 --check-coverage --lines 40 --functions 45 --branches 60 --statements 40 --exclude=lib/utils.ts npm run test:ci",
@@ -45,6 +47,7 @@
     "react-dom": "19.2.4",
     "recharts": "^3.8.1",
     "sharp": "^0.34.5",
+    "xlsx": "^0.18.5",
     "zod": "^4.4.3"
   },
   "devDependencies": {

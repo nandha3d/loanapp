@@ -16,7 +16,7 @@ const _items = <NavItem>[
   NavItem(icon: Icons.people_outline, label: 'Customers', route: '/customers'),
   NavItem(icon: Icons.account_balance_wallet_outlined, label: 'Loans', route: '/loans'),
   NavItem(icon: Icons.payments_outlined, label: 'Collection', route: '/collection'),
-  NavItem(icon: Icons.more_horiz, label: 'More', route: '/settings'),
+  NavItem(icon: Icons.more_horiz_rounded, label: 'More', route: '/more'),
 ];
 
 class AppBottomNav extends StatelessWidget {
@@ -41,7 +41,16 @@ class AppBottomNav extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: _items.map((item) {
-              final active = currentRoute.startsWith(item.route);
+              // "More" is active if on /more OR on any secondary route
+              final isMore = item.route == '/more' &&
+                  (currentRoute == '/more' ||
+                      currentRoute.startsWith('/penalties') ||
+                      currentRoute.startsWith('/approvals') ||
+                      currentRoute.startsWith('/analytics') ||
+                      currentRoute.startsWith('/chits') ||
+                      currentRoute.startsWith('/accounting') ||
+                      currentRoute.startsWith('/settings'));
+              final active = isMore || currentRoute.startsWith(item.route);
               final color = active ? AppColors.primary : AppColors.textLight;
               return Expanded(
                 child: InkWell(
@@ -55,14 +64,15 @@ class AppBottomNav extends StatelessWidget {
                         item.label,
                         style: AppTypography.caption.copyWith(
                           color: color,
-                          fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                          fontWeight:
+                              active ? FontWeight.w600 : FontWeight.w400,
                         ),
                       ),
                     ],
                   ),
                 ),
               );
-            }).toList(growable: false),
+            }).toList(),
           ),
         ),
       ),

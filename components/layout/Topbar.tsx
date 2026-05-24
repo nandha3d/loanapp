@@ -31,6 +31,7 @@ export default function Topbar({
   const pagePath = parseModulePath(pathname).page;
   const [notifOpen, setNotifOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [notifItems, setNotifItems] = useState<any[]>([]);
   const [todayDate, setTodayDate] = useState('');
   const notifRef = useRef<HTMLDivElement>(null);
   
@@ -90,6 +91,7 @@ export default function Topbar({
         if (res.ok) {
           const data = await res.json();
           setUnreadCount(data.count || 0);
+          setNotifItems(data.items || []);
         }
       } catch {
         // silently fail
@@ -164,11 +166,52 @@ export default function Topbar({
               <span>{dict.sidebar.notifications}</span>
               <Link href="/notifications" className="btn-ghost btn-sm" style={{ fontSize: '.78rem' }}>{dict.dashboard.viewAll}</Link>
             </div>
-            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-light)', fontSize: '.85rem' }}>
-              {unreadCount > 0
-                ? `${unreadCount} unread notification${unreadCount > 1 ? 's' : ''}`
-                : 'No new notifications'}
-            </div>
+            {notifItems.length === 0 ? (
+              <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-light)', fontSize: '.85rem' }}>
+                No new notifications
+              </div>
+            ) : (
+              <div>
+                {notifItems.map((n) => (
+                  <Link
+                    key={n.id}
+                    href={n.link || '/notifications'}
+                    onClick={() => setNotifOpen(false)}
+                    style={{
+                      display: 'flex',
+                      gap: '10px',
+                      padding: '10px 16px',
+                      borderBottom: '1px solid var(--border)',
+                      textDecoration: 'none',
+                      color: 'inherit',
+                      background: n.isRead ? 'transparent' : 'var(--primary-light)',
+                    }}
+                  >
+                    <span
+                      className="material-icons-outlined"
+                      style={{ fontSize: '18px', color: 'var(--primary)', marginTop: '2px', flexShrink: 0 }}
+                    >
+                      {n.icon || 'notifications'}
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '.82rem', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {n.title}
+                      </div>
+                      <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {n.message}
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+                <Link
+                  href="/notifications"
+                  onClick={() => setNotifOpen(false)}
+                  style={{ display: 'block', padding: '10px', textAlign: 'center', fontSize: '.78rem', color: 'var(--primary)' }}
+                >
+                  {dict.dashboard.viewAll}
+                </Link>
+              </div>
+            )}
           </div>
         </div>
 

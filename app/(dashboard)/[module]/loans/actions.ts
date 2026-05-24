@@ -17,6 +17,7 @@ import { canCreateLoanForRole, validateLoanNumericInputs } from '@/lib/loanPolic
 import { calculateLoanPreview } from '@/lib/loanCalculator';
 import { validateGuarantorPhone } from '@/lib/guarantorPolicy';
 import { modulePath } from '@/types/modules';
+import { findApprovalNotificationTarget } from '@/lib/approvalNotifications';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'private', 'uploads');
 
@@ -342,10 +343,18 @@ export async function createLoan(formData: FormData) {
   }
 
   if (role === 'agent' && activeBranchId) {
+    const targetUserId = await findApprovalNotificationTarget({
+      tenantId,
+      appType,
+      agentId: createdById,
+      branchId: activeBranchId,
+    });
+
     await prisma.systemNotification.create({
       data: {
         tenantId,
         branchId: activeBranchId,
+        targetUserId,
         appType,
         type: 'loan_review',
         icon: 'assignment',
@@ -677,10 +686,18 @@ export async function requestLoanEdit(formData: FormData) {
   });
 
   if (loan.branchId) {
+    const targetUserId = await findApprovalNotificationTarget({
+      tenantId,
+      appType,
+      agentId: userId,
+      branchId: loan.branchId,
+    });
+
     await prisma.systemNotification.create({
       data: {
         tenantId,
         branchId: loan.branchId,
+        targetUserId,
         appType,
         type: 'loan_edit_review',
         icon: 'rate_review',

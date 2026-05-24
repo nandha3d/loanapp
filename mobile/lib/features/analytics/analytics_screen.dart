@@ -8,44 +8,33 @@ import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/data/models/analytics.dart';
 import 'package:loantrack/data/services/analytics_service.dart';
-import 'package:loantrack/features/customers/widgets/filter_pill.dart';
+import 'package:loantrack/features/dashboard/widgets/kpi_card.dart';
+import 'package:loantrack/shared/widgets/bottom_nav.dart';
+import 'package:loantrack/shared/widgets/empty_state.dart';
+import 'package:loantrack/shared/widgets/skeleton.dart';
 
-final _summaryProvider = FutureProvider.autoDispose<AnalyticsSummary>(
-  (ref) => ref.watch(analyticsServiceProvider).summary(),
-);
-final _collectionsProvider =
-    FutureProvider.autoDispose<List<CollectionPoint>>(
-  (ref) => ref.watch(analyticsServiceProvider).collections(),
-);
-final _agentsProvider = FutureProvider.autoDispose<List<AgentPerformance>>(
-  (ref) => ref.watch(analyticsServiceProvider).agents(),
-);
+final _summaryProvider = FutureProvider.autoDispose<AnalyticsSummary>((ref) {
+  return ref.watch(analyticsServiceProvider).summary();
+});
 
-class AnalyticsScreen extends ConsumerStatefulWidget {
+final _collectionsProvider = FutureProvider.autoDispose<List<CollectionPoint>>((ref) {
+  return ref.watch(analyticsServiceProvider).collections();
+});
+
+final _agentsProvider = FutureProvider.autoDispose<List<AgentPerformance>>((ref) {
+  return ref.watch(analyticsServiceProvider).agents();
+});
+
+class AnalyticsScreen extends ConsumerWidget {
   const AnalyticsScreen({super.key});
 
   @override
-  ConsumerState<AnalyticsScreen> createState() => _AnalyticsScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final fmt = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
 
-class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
-  String _period = 'month';
-
-  @override
-  Widget build(BuildContext context) {
-    final summary = ref.watch(_summaryProvider);
-    final collections = ref.watch(_collectionsProvider);
-    final agents = ref.watch(_agentsProvider);
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Analytics'),
-        centerTitle: true,
-        actions: const [
-          Icon(Icons.ios_share_outlined, color: AppColors.textSecondary),
-          SizedBox(width: 16),
-        ],
-      ),
+      appBar: AppBar(title: const Text('Reports & Analytics'), centerTitle: true),
       body: RefreshIndicator(
         color: AppColors.primary,
         onRefresh: () async {
@@ -54,289 +43,128 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
           ref.invalidate(_agentsProvider);
         },
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          padding: const EdgeInsets.all(16),
           children: [
-            _periodSelector(),
-            const SizedBox(height: 12),
-            _Card(
-              title: 'Collection Trend',
-              subtitle: DateFormat('MMMM y').format(DateTime.now()),
-              child: collections.when(
-                loading: () => const SizedBox(
-                    height: 160,
-                    child: Center(child: CircularProgressIndicator())),
-                error: (e, _) => SizedBox(
-                    height: 160,
-                    child: Center(child: Text('$e', style: AppTypography.bodySmall))),
-                data: _trendChart,
+            ref.watch(_summaryProvider).when(
+              loading: () => const _KpiSkeleton(),
+              error: (e, _) => _ErrorCard(message: e.toString()),
+              data: (s) => _SummaryKpis(summary: s, fmt: fmt),
+            ),
+            const SizedBox(height: 16),
+            ref.watch(_collectionsProvider).when(
+              loading: () => const Skeleton(height: 220, borderRadius: AppTokens.radius),
+              error: (e, _) => _ErrorCard(message: e.toString()),
+              data: (pts) => _CollectionChart(points: pts),
+            ),
+            const SizedBox(height: 16),
+            ref.watch(_agentsProvider).when(
+              loading: () => const Skeleton(height: 180, borderRadius: AppTokens.radius),
+              error: (e, _) => _ErrorCard(message: e.toString()),
+              data: (agents) => _AgentLeaderboard(agents: agents, fmt: fmt),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+      bottomNavigationBar: const AppBottomNav(currentRoute: '/analytics'),
+    );
+  }
+}
+
+class _SummaryKpis extends StatelessWidget {
+  const _SummaryKpis({required this.summary, required this.fmt});
+  final AnalyticsSummary summary;
+  final NumberFormat fmt;
+
+  @override
+  Widget build(BuildContext context) {
+    final eff = summary.efficiency.toStringAsFixed(1);
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: KpiCard(
+                icon: Icons.trending_up,
+                value: '${summary.activeLoans}',
+                label: 'Active Loans',
+                tone: KpiTone.blue,
               ),
             ),
-            const SizedBox(height: 12),
-            _Card(
-              title: 'Loan Status',
-              child: summary.when(
-                loading: () => const SizedBox(
-                    height: 200,
-                    child: Center(child: CircularProgressIndicator())),
-                error: (e, _) => SizedBox(
-                    height: 200,
-                    child: Center(child: Text('$e', style: AppTypography.bodySmall))),
-                data: _loanStatusDonut,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _Card(
-              title: 'Agent Performance',
-              child: agents.when(
-                loading: () => const Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Center(child: CircularProgressIndicator())),
-                error: (e, _) => Text('$e', style: AppTypography.bodySmall),
-                data: _agentBars,
+            const SizedBox(width: 12),
+            Expanded(
+              child: KpiCard(
+                icon: Icons.warning_amber_rounded,
+                value: '${summary.overdueLoans}',
+                label: 'Overdue',
+                tone: KpiTone.red,
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _periodSelector() {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        border: Border.all(color: AppColors.border),
-        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-      ),
-      child: Row(
-        children: [
-          FilterPill(
-            label: 'Today',
-            selected: _period == 'today',
-            onTap: () => setState(() => _period = 'today'),
-          ),
-          const SizedBox(width: 6),
-          FilterPill(
-            label: 'Week',
-            selected: _period == 'week',
-            onTap: () => setState(() => _period = 'week'),
-          ),
-          const SizedBox(width: 6),
-          FilterPill(
-            label: 'Month',
-            selected: _period == 'month',
-            onTap: () => setState(() => _period = 'month'),
-          ),
-          const SizedBox(width: 6),
-          FilterPill(
-            label: 'Custom',
-            selected: _period == 'custom',
-            onTap: () => setState(() => _period = 'custom'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _trendChart(List<CollectionPoint> points) {
-    if (points.isEmpty) {
-      return const SizedBox(
-        height: 160,
-        child: Center(child: Text('No data')),
-      );
-    }
-    final max = points
-        .map((p) => p.collected > p.expected ? p.collected : p.expected)
-        .fold<double>(0, (a, b) => a > b ? a : b);
-    final groups = <BarChartGroupData>[
-      for (var i = 0; i < points.length; i++)
-        BarChartGroupData(
-          x: i,
-          barRods: [
-            BarChartRodData(
-              toY: points[i].collected,
-              color: i == points.length - 1
-                  ? AppColors.primaryDark
-                  : AppColors.primary,
-              width: 14,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(4)),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: KpiCard(
+                icon: Icons.account_balance_wallet,
+                value: fmt.format(summary.monthCollected),
+                label: 'Month Collected',
+                tone: KpiTone.green,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: KpiCard(
+                icon: Icons.percent,
+                value: '$eff%',
+                label: 'Efficiency',
+                tone: KpiTone.orange,
+              ),
             ),
           ],
         ),
-    ];
-    return SizedBox(
-      height: 180,
-      child: BarChart(
-        BarChartData(
-          maxY: max == 0 ? 1 : max * 1.15,
-          barGroups: groups,
-          gridData: const FlGridData(show: false),
-          borderData: FlBorderData(show: false),
-          titlesData: FlTitlesData(
-            leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            bottomTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                reservedSize: 24,
-                interval: (points.length / 6).ceilToDouble().clamp(1, 10),
-                getTitlesWidget: (v, _) {
-                  final i = v.toInt();
-                  if (i < 0 || i >= points.length) return const SizedBox.shrink();
-                  return Text(
-                    points[i].date.substring(points[i].date.length - 2),
-                    style: AppTypography.extraTiny,
-                  );
-                },
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _loanStatusDonut(AnalyticsSummary s) {
-    final total = s.activeLoans + s.overdueLoans + s.closedLoans;
-    if (total == 0) {
-      return const SizedBox(
-        height: 200,
-        child: Center(child: Text('No loans')),
-      );
-    }
-    return Column(
-      children: [
-        SizedBox(
-          height: 200,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              PieChart(
-                PieChartData(
-                  sectionsSpace: 2,
-                  centerSpaceRadius: 56,
-                  sections: [
-                    PieChartSectionData(
-                      value: s.activeLoans.toDouble(),
-                      color: AppColors.primary,
-                      showTitle: false,
-                      radius: 30,
-                    ),
-                    PieChartSectionData(
-                      value: s.overdueLoans.toDouble(),
-                      color: AppColors.danger,
-                      showTitle: false,
-                      radius: 30,
-                    ),
-                    PieChartSectionData(
-                      value: s.closedLoans.toDouble(),
-                      color: AppColors.infoBg,
-                      showTitle: false,
-                      radius: 30,
-                    ),
-                  ],
-                ),
-              ),
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('$total', style: AppTypography.sectionTitle),
-                  Text('Loans', style: AppTypography.caption),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        _legend('Active', s.activeLoans, AppColors.primary),
-        _legend('Overdue', s.overdueLoans, AppColors.danger),
-        _legend('Closed', s.closedLoans, AppColors.info),
-      ],
-    );
-  }
-
-  Widget _legend(String label, int count, Color color) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        children: [
-          Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 10),
-          Expanded(child: Text(label, style: AppTypography.bodySmall)),
-          Text(
-            '$count',
-            style: AppTypography.bodySmall.copyWith(fontWeight: FontWeight.w700),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _agentBars(List<AgentPerformance> list) {
-    if (list.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(12),
-        child: Text('No agents'),
-      );
-    }
-    return Column(
-      children: [
-        for (final a in list)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: Text(a.name, style: AppTypography.bodySmall),
-                ),
-                Expanded(
-                  flex: 6,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: (a.hitRate / 100).clamp(0.0, 1.0),
-                      minHeight: 8,
-                      backgroundColor: AppColors.background,
-                      valueColor:
-                          const AlwaysStoppedAnimation<Color>(AppColors.primary),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                SizedBox(
-                  width: 36,
-                  child: Text(
-                    '${a.hitRate}%',
-                    textAlign: TextAlign.right,
-                    style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
       ],
     );
   }
 }
 
-class _Card extends StatelessWidget {
-  const _Card({required this.title, required this.child, this.subtitle});
-  final String title;
-  final String? subtitle;
-  final Widget child;
+class _CollectionChart extends StatelessWidget {
+  const _CollectionChart({required this.points});
+  final List<CollectionPoint> points;
 
   @override
   Widget build(BuildContext context) {
+    if (points.isEmpty) {
+      return Container(
+        height: 180,
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppTokens.radius),
+          boxShadow: AppTokens.shadow,
+        ),
+        child: const EmptyState(icon: Icons.bar_chart_outlined, title: 'No data yet'),
+      );
+    }
+
+    double maxY = 100;
+    for (final p in points) {
+      if (p.expected > maxY) maxY = p.expected;
+      if (p.collected > maxY) maxY = p.collected;
+    }
+    maxY *= 1.2;
+
+    final expectedSpots = <FlSpot>[];
+    final collectedSpots = <FlSpot>[];
+    final labels = <String>[];
+    for (var i = 0; i < points.length; i++) {
+      final p = points[i];
+      expectedSpots.add(FlSpot(i.toDouble(), p.expected));
+      collectedSpots.add(FlSpot(i.toDouble(), p.collected));
+      final parts = p.date.split('-');
+      labels.add(parts.length >= 3 ? parts[2] : p.date);
+    }
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -347,15 +175,250 @@ class _Card extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: AppTypography.sectionTitle.copyWith(fontSize: 14)),
-          if (subtitle != null) ...[
-            const SizedBox(height: 2),
-            Text(subtitle!, style: AppTypography.caption),
-          ],
-          const SizedBox(height: 12),
-          child,
+          Row(
+            children: [
+              Text('Collection Trend', style: AppTypography.sectionTitle),
+              const Spacer(),
+              _Legend(color: const Color(0xFFCBD5E1), label: 'Expected'),
+              const SizedBox(width: 12),
+              _Legend(color: AppColors.primary, label: 'Collected'),
+            ],
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            height: 160,
+            child: LineChart(
+              LineChartData(
+                maxY: maxY,
+                minY: 0,
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  getDrawingHorizontalLine: (_) =>
+                      const FlLine(color: Color(0xFFE2E8F0), strokeWidth: 1),
+                ),
+                borderData: FlBorderData(show: false),
+                titlesData: FlTitlesData(
+                  leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      interval: 1,
+                      reservedSize: 22,
+                      getTitlesWidget: (value, _) {
+                        final idx = value.toInt();
+                        if (idx < 0 || idx >= labels.length) return const SizedBox.shrink();
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(labels[idx], style: AppTypography.extraTiny),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: expectedSpots,
+                    isCurved: true,
+                    color: const Color(0xFFCBD5E1),
+                    barWidth: 2,
+                    dotData: const FlDotData(show: false),
+                    dashArray: [5, 4],
+                  ),
+                  LineChartBarData(
+                    spots: collectedSpots,
+                    isCurved: true,
+                    color: AppColors.primary,
+                    barWidth: 2.5,
+                    dotData: const FlDotData(show: false),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: const Color(0x14F5A623),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
+}
+
+class _Legend extends StatelessWidget {
+  const _Legend({required this.color, required this.label});
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        children: [
+          Container(width: 16, height: 2.5, color: color),
+          const SizedBox(width: 4),
+          Text(label, style: AppTypography.caption),
+        ],
+      );
+}
+
+class _AgentLeaderboard extends StatelessWidget {
+  const _AgentLeaderboard({required this.agents, required this.fmt});
+  final List<AgentPerformance> agents;
+  final NumberFormat fmt;
+
+  @override
+  Widget build(BuildContext context) {
+    if (agents.isEmpty) {
+      return Container(
+        height: 120,
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppTokens.radius),
+          boxShadow: AppTokens.shadow,
+        ),
+        child: const EmptyState(icon: Icons.leaderboard_outlined, title: 'No agent data'),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppTokens.radius),
+        boxShadow: AppTokens.shadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Agent Leaderboard', style: AppTypography.sectionTitle),
+          const SizedBox(height: 16),
+          ...agents.asMap().entries.map(
+                (e) => _AgentRow(rank: e.key + 1, agent: e.value, fmt: fmt),
+              ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AgentRow extends StatelessWidget {
+  const _AgentRow({required this.rank, required this.agent, required this.fmt});
+  final int rank;
+  final AgentPerformance agent;
+  final NumberFormat fmt;
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = agent.expected > 0
+        ? (agent.collected / agent.expected).clamp(0.0, 1.0)
+        : 0.0;
+
+    Color rankColor;
+    if (rank == 1) {
+      rankColor = const Color(0xFFFFD700);
+    } else if (rank == 2) {
+      rankColor = const Color(0xFFC0C0C0);
+    } else if (rank == 3) {
+      rankColor = const Color(0xFFCD7F32);
+    } else {
+      rankColor = AppColors.textLight;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: rankColor.withAlpha(38),
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text('$rank',
+                  style: AppTypography.label.copyWith(color: rankColor)),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(agent.name,
+                          style: AppTypography.bodyLarge,
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                    Text(fmt.format(agent.collected),
+                        style: AppTypography.label
+                            .copyWith(color: AppColors.success)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(2),
+                  child: LinearProgressIndicator(
+                    value: pct,
+                    backgroundColor: AppColors.border,
+                    valueColor:
+                        const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                    minHeight: 4,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text('${agent.hitRate}% hit rate', style: AppTypography.caption),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _KpiSkeleton extends StatelessWidget {
+  const _KpiSkeleton();
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          Row(
+            children: [
+              const Expanded(child: Skeleton(height: 80, borderRadius: AppTokens.radius)),
+              const SizedBox(width: 12),
+              const Expanded(child: Skeleton(height: 80, borderRadius: AppTokens.radius)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Expanded(child: Skeleton(height: 80, borderRadius: AppTokens.radius)),
+              const SizedBox(width: 12),
+              const Expanded(child: Skeleton(height: 80, borderRadius: AppTokens.radius)),
+            ],
+          ),
+        ],
+      );
+}
+
+class _ErrorCard extends StatelessWidget {
+  const _ErrorCard({required this.message});
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.dangerBg,
+          borderRadius: BorderRadius.circular(AppTokens.radius),
+        ),
+        child: Text(message,
+            style: AppTypography.body.copyWith(color: AppColors.danger)),
+      );
 }

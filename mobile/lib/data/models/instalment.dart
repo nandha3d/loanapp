@@ -23,14 +23,15 @@ class Instalment {
   final String? paymentMode; // cash | upi | bank
 
   factory Instalment.fromJson(Map<String, dynamic> json) {
-    double _num(dynamic v) => v is num ? v.toDouble() : double.parse(v as String);
+    double toNum(dynamic v) =>
+        v is num ? v.toDouble() : double.parse(v as String);
     return Instalment(
       id: json['id'] as String,
       loanId: json['loanId'] as String,
       instalmentNo: (json['instalmentNo'] as num).toInt(),
       dueDate: DateTime.parse(json['dueDate'] as String),
-      dueAmount: _num(json['dueAmount']),
-      receivedAmount: _num(json['receivedAmount'] ?? 0),
+      dueAmount: toNum(json['dueAmount']),
+      receivedAmount: toNum(json['receivedAmount'] ?? 0),
       status: json['status'] as String,
       paidAt: json['paidAt'] == null
           ? null
