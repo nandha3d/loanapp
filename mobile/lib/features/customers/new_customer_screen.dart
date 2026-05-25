@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
@@ -92,6 +93,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
   // ── Photo picking ─────────────────────────────────────────────────────
 
   void _showPhotoSourcePicker() {
+    final t = T.of(ref);
     showModalBottomSheet<void>(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -115,7 +117,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
               ListTile(
                 leading: const Icon(Icons.camera_alt_outlined,
                     color: AppColors.primary),
-                title: const Text('Take photo'),
+                title: Text(t.x('btn.take_photo')),
                 onTap: () {
                   Navigator.pop(context);
                   _pickImage(ImageSource.camera, isPhoto: true);
@@ -124,7 +126,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
               ListTile(
                 leading: const Icon(Icons.photo_library_outlined,
                     color: AppColors.primary),
-                title: const Text('Choose from gallery'),
+                title: Text(t.x('btn.choose_gallery')),
                 onTap: () {
                   Navigator.pop(context);
                   _pickImage(ImageSource.gallery, isPhoto: true);
@@ -138,6 +140,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
   }
 
   void _showDocSourcePicker() {
+    final t = T.of(ref);
     showModalBottomSheet<void>(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -161,7 +164,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
               ListTile(
                 leading: const Icon(Icons.camera_alt_outlined,
                     color: AppColors.primary),
-                title: const Text('Scan document'),
+                title: Text(t.x('btn.scan_doc')),
                 onTap: () {
                   Navigator.pop(context);
                   _pickImage(ImageSource.camera, isPhoto: false);
@@ -170,7 +173,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
               ListTile(
                 leading: const Icon(Icons.photo_library_outlined,
                     color: AppColors.primary),
-                title: const Text('Choose from gallery'),
+                title: Text(t.x('btn.choose_gallery')),
                 onTap: () {
                   Navigator.pop(context);
                   _pickImage(ImageSource.gallery, isPhoto: false);
@@ -184,6 +187,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
   }
 
   Future<void> _pickGuarantorPhoto(int index) async {
+    final t = T.of(ref);
     ImageSource? source;
     await showModalBottomSheet<void>(
       context: context,
@@ -208,7 +212,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
               ListTile(
                 leading: const Icon(Icons.camera_alt_outlined,
                     color: AppColors.primary),
-                title: const Text('Take photo'),
+                title: Text(t.x('btn.take_photo')),
                 onTap: () {
                   source = ImageSource.camera;
                   Navigator.pop(ctx);
@@ -217,7 +221,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
               ListTile(
                 leading: const Icon(Icons.photo_library_outlined,
                     color: AppColors.primary),
-                title: const Text('Choose from gallery'),
+                title: Text(t.x('btn.choose_gallery')),
                 onTap: () {
                   source = ImageSource.gallery;
                   Navigator.pop(ctx);
@@ -259,19 +263,20 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
   // ── Validation ────────────────────────────────────────────────────────
 
   bool _validate() {
+    final t = T.of(ref);
     final errs = <String, String?>{};
-    if (_nameCtrl.text.trim().isEmpty) errs['name'] = 'Full name is required';
+    if (_nameCtrl.text.trim().isEmpty) errs['name'] = t.x('err.name_required');
     final phone = _phoneCtrl.text.trim();
     if (phone.isEmpty) {
-      errs['phone'] = 'Phone number is required';
+      errs['phone'] = t.x('err.phone_required');
     } else if (!RegExp(r'^\d{10}$').hasMatch(phone)) {
-      errs['phone'] = 'Enter a valid 10-digit number';
+      errs['phone'] = t.x('err.phone_invalid');
     }
     final aadhar = _aadharCtrl.text.trim();
     if (aadhar.isNotEmpty && !RegExp(r'^\d{12}$').hasMatch(aadhar)) {
-      errs['aadhar'] = 'Aadhar must be 12 digits';
+      errs['aadhar'] = t.x('err.aadhar_invalid');
     }
-    if (_routeId == null) errs['route'] = 'Select a route';
+    if (_routeId == null) errs['route'] = t.x('err.route_required');
     setState(() => _fieldErrors
       ..clear()
       ..addAll(errs));
@@ -314,9 +319,10 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
           );
       if (!mounted) return;
       ref.invalidate(customerListProvider);
+      final t = T.of(ref);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Customer ${created.customerCode} created'),
+          content: Text('${t.x('msg.customer_created_code')} ${created.customerCode} ${t.x('msg.created')}'),
           backgroundColor: AppColors.success,
         ),
       );
@@ -335,6 +341,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
   // ── New agent dialog ──────────────────────────────────────────────────
 
   Future<void> _showNewAgentDialog() async {
+    final t = T.of(ref);
     final nameCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
     final emailCtrl = TextEditingController();
@@ -347,7 +354,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
         bool creating = false;
         return StatefulBuilder(
           builder: (ctx, setLocal) => AlertDialog(
-            title: const Text('Add New Agent'),
+            title: Text(t.x('dlg.add_agent')),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -369,25 +376,25 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                   TextField(
                     controller: nameCtrl,
                     textCapitalization: TextCapitalization.words,
-                    decoration: const InputDecoration(labelText: 'Agent Name'),
+                    decoration: InputDecoration(labelText: t.x('fld.agent_name')),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: phoneCtrl,
                     keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(labelText: 'Phone'),
+                    decoration: InputDecoration(labelText: t.x('fld.phone')),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: emailCtrl,
                     keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(labelText: 'Email'),
+                    decoration: InputDecoration(labelText: t.x('fld.email')),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: passCtrl,
                     obscureText: true,
-                    decoration: const InputDecoration(labelText: 'Password'),
+                    decoration: InputDecoration(labelText: t.x('fld.password_label')),
                   ),
                 ],
               ),
@@ -395,7 +402,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel'),
+                child: Text(t.x('common.cancel')),
               ),
               FilledButton(
                 style: FilledButton.styleFrom(
@@ -407,7 +414,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                             phoneCtrl.text.trim().isEmpty ||
                             emailCtrl.text.trim().isEmpty ||
                             passCtrl.text.isEmpty) {
-                          setLocal(() => err = 'All fields required');
+                          setLocal(() => err = t.x('err.all_fields_required'));
                           return;
                         }
                         setLocal(() {
@@ -440,7 +447,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                         child: CircularProgressIndicator(
                             color: Colors.white, strokeWidth: 2),
                       )
-                    : const Text('Create Agent'),
+                    : Text(t.x('btn.create_agent')),
               ),
             ],
           ),
@@ -462,20 +469,21 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
   // ── New route dialog ──────────────────────────────────────────────────
 
   Future<void> _showNewRouteDialog() async {
+    final t = T.of(ref);
     final ctrl = TextEditingController();
     final created = await showDialog<AppRoute>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('New Route'),
+        title: Text(t.x('dlg.new_route')),
         content: TextField(
           controller: ctrl,
           autofocus: true,
-          decoration: const InputDecoration(labelText: 'Route name'),
+          decoration: InputDecoration(labelText: t.x('fld.route_name')),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text(t.x('common.cancel')),
           ),
           FilledButton(
             onPressed: () async {
@@ -489,7 +497,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                 if (ctx.mounted) Navigator.pop(ctx);
               }
             },
-            child: const Text('Create'),
+            child: Text(t.x('btn.create')),
           ),
         ],
       ),
@@ -505,13 +513,14 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = T.of(ref);
     final routesAsync = ref.watch(_routeListProvider);
     final agentsAsync = ref.watch(_agentListProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Register New Customer'),
+        title: Text(t.x('cust.register_title')),
         centerTitle: false,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -540,6 +549,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                     children: [
                       _PhotoAvatar(
                         photo: _photo,
+                        label: t.x('btn.add_photo'),
                         onTap: _showPhotoSourcePicker,
                       ),
                       const SizedBox(width: 16),
@@ -547,7 +557,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                         child: Column(
                           children: [
                             _LabeledField(
-                              label: 'Full Name',
+                              label: t.x('fld.full_name'),
                               required: true,
                               child: TextField(
                                 controller: _nameCtrl,
@@ -557,14 +567,14 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                                     () => _fieldErrors.remove('name')),
                                 style: AppTypography.body,
                                 decoration: _inputDec(
-                                  'Enter full name',
+                                  t.x('fld.enter_full_name'),
                                   error: _fieldErrors['name'],
                                 ),
                               ),
                             ),
                             const SizedBox(height: 12),
                             _LabeledField(
-                              label: 'Phone Number',
+                              label: t.x('fld.phone'),
                               required: true,
                               child: TextField(
                                 controller: _phoneCtrl,
@@ -573,7 +583,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                                     () => _fieldErrors.remove('phone')),
                                 style: AppTypography.body,
                                 decoration: _inputDec(
-                                  'Enter 10-digit phone',
+                                  t.x('fld.enter_phone'),
                                   error: _fieldErrors['phone'],
                                 ),
                               ),
@@ -588,7 +598,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
 
                   // ── Aadhar ───────────────────────────────────────
                   _LabeledField(
-                    label: 'Aadhar Number',
+                    label: t.x('fld.aadhar'),
                     child: TextField(
                       controller: _aadharCtrl,
                       keyboardType: TextInputType.number,
@@ -597,7 +607,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                           setState(() => _fieldErrors.remove('aadhar')),
                       style: AppTypography.body,
                       decoration: _inputDec(
-                        '12-digit Aadhar number',
+                        t.x('fld.aadhar_hint'),
                         error: _fieldErrors['aadhar'],
                         counter: false,
                       ),
@@ -608,12 +618,12 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
 
                   // ── Address ──────────────────────────────────────
                   _LabeledField(
-                    label: 'Address',
+                    label: t.x('fld.address'),
                     child: TextField(
                       controller: _addressCtrl,
                       maxLines: 3,
                       style: AppTypography.body,
-                      decoration: _inputDec('Complete postal address'),
+                      decoration: _inputDec(t.x('fld.address_postal')),
                     ),
                   ),
 
@@ -625,7 +635,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                     children: [
                       Expanded(
                         child: _LabeledField(
-                          label: 'Route / Line',
+                          label: t.x('fld.route_line'),
                           required: true,
                           trailing: TextButton(
                             style: TextButton.styleFrom(
@@ -635,17 +645,17 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                             ),
                             onPressed: _showNewRouteDialog,
                             child: Text(
-                              '+ New Route',
+                              t.x('btn.new_route'),
                               style: AppTypography.caption
                                   .copyWith(color: AppColors.primary),
                             ),
                           ),
                           child: routesAsync.when(
                             loading: () => _dropdownSkeleton(),
-                            error: (_, __) => _dropdownError('Routes unavailable'),
+                            error: (_, __) => _dropdownError(t.x('err.routes_unavail')),
                             data: (routes) => _AppDropdown<String>(
                               value: _routeId,
-                              hint: 'Select Route',
+                              hint: t.x('fld.select_route'),
                               error: _fieldErrors['route'],
                               items: routes
                                   .map(
@@ -669,7 +679,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: _LabeledField(
-                          label: 'Assigned Agent',
+                          label: t.x('fld.assigned_agent'),
                           trailing: TextButton(
                             style: TextButton.styleFrom(
                               padding: EdgeInsets.zero,
@@ -678,17 +688,17 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                             ),
                             onPressed: _showNewAgentDialog,
                             child: Text(
-                              '+ New Agent',
+                              t.x('btn.new_agent'),
                               style: AppTypography.caption
                                   .copyWith(color: AppColors.primary),
                             ),
                           ),
                           child: agentsAsync.when(
                             loading: () => _dropdownSkeleton(),
-                            error: (_, __) => _dropdownError('Agents unavailable'),
+                            error: (_, __) => _dropdownError(t.x('err.agents_unavail')),
                             data: (agents) => _AppDropdown<String>(
                               value: _agentId,
-                              hint: 'Select Agent',
+                              hint: t.x('fld.select_agent'),
                               items: agents
                                   .map(
                                     (a) => DropdownMenuItem(
@@ -717,20 +727,20 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
             // ── Documents section ──────────────────────────────────────
             _SectionCard(
               icon: Icons.attachment_rounded,
-              title: 'Documents (Aadhar, PAN, etc.)',
+              title: t.x('sec.documents_label'),
               child: Column(
                 children: [
                   for (int i = 0; i < _docs.length; i++) ...[
                     _DocTile(
                       entry: _docs[i],
                       onRemove: () => setState(() => _docs.removeAt(i)),
-                      onTypeChange: (t) =>
-                          setState(() => _docs[i].type = t),
+                      onTypeChange: (type) =>
+                          setState(() => _docs[i].type = type),
                     ),
                     const SizedBox(height: 8),
                   ],
                   _UploadButton(
-                    label: 'Tap to upload documents (JPG, PNG, PDF)',
+                    label: t.x('btn.upload_docs'),
                     onTap: _showDocSourcePicker,
                   ),
                 ],
@@ -743,7 +753,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
             _SectionCard(
               icon: Icons.people_alt_outlined,
               iconColor: AppColors.warning,
-              title: 'Guarantors / Surety',
+              title: t.x('sec.guarantors_surety'),
               child: Column(
                 children: [
                   for (int i = 0; i < _guarantors.length; i++) ...[
@@ -764,7 +774,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                     onPressed: () =>
                         setState(() => _guarantors.add(_GuarantorEntry())),
                     icon: const Icon(Icons.person_add_outlined, size: 18),
-                    label: const Text('Add Guarantor'),
+                    label: Text(t.x('btn.add_guarantor')),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.primary,
                       side: const BorderSide(color: AppColors.primary),
@@ -831,7 +841,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                       ),
                     )
                   : Text(
-                      'Submit',
+                      t.x('btn.submit'),
                       style: AppTypography.body.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.w600,
@@ -911,8 +921,9 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
 // ── Photo avatar ────────────────────────────────────────────────────────────
 
 class _PhotoAvatar extends StatelessWidget {
-  const _PhotoAvatar({required this.photo, required this.onTap});
+  const _PhotoAvatar({required this.photo, required this.label, required this.onTap});
   final File? photo;
+  final String label;
   final VoidCallback onTap;
 
   @override
@@ -947,7 +958,7 @@ class _PhotoAvatar extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Add Photo',
+            label,
             style: AppTypography.tiny.copyWith(color: AppColors.textSecondary),
           ),
         ],
@@ -1003,7 +1014,7 @@ class _LabeledField extends StatelessWidget {
 
 // ── Dropdown ────────────────────────────────────────────────────────────────
 
-class _AppDropdown<T> extends StatelessWidget {
+class _AppDropdown<V> extends StatelessWidget {
   const _AppDropdown({
     required this.value,
     required this.hint,
@@ -1011,10 +1022,10 @@ class _AppDropdown<T> extends StatelessWidget {
     required this.onChanged,
     this.error,
   });
-  final T? value;
+  final V? value;
   final String hint;
-  final List<DropdownMenuItem<T>> items;
-  final ValueChanged<T?> onChanged;
+  final List<DropdownMenuItem<V>> items;
+  final ValueChanged<V?> onChanged;
   final String? error;
 
   @override
@@ -1030,7 +1041,7 @@ class _AppDropdown<T> extends StatelessWidget {
             ),
           ),
           child: DropdownButtonHideUnderline(
-            child: DropdownButton<T>(
+            child: DropdownButton<V>(
               value: value,
               hint: Text(
                 hint,
@@ -1141,7 +1152,7 @@ class _UploadButton extends StatelessWidget {
 
 // ── Document tile ────────────────────────────────────────────────────────────
 
-class _DocTile extends StatelessWidget {
+class _DocTile extends ConsumerWidget {
   const _DocTile({
     required this.entry,
     required this.onRemove,
@@ -1151,15 +1162,15 @@ class _DocTile extends StatelessWidget {
   final VoidCallback onRemove;
   final ValueChanged<String> onTypeChange;
 
-  static const _types = [
-    ('aadhar', 'Aadhar'),
-    ('pan', 'PAN'),
-    ('passport', 'Passport'),
-    ('other', 'Other'),
-  ];
-
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
+    final types = [
+      ('aadhar', t.x('doc.aadhar')),
+      ('pan', t.x('doc.pan')),
+      ('passport', t.x('doc.passport')),
+      ('other', t.x('doc.other')),
+    ];
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(AppTokens.radiusSm),
@@ -1192,11 +1203,11 @@ class _DocTile extends StatelessWidget {
                 value: entry.type,
                 isDense: true,
                 style: AppTypography.bodySmall,
-                items: _types
+                items: types
                     .map(
-                      (t) => DropdownMenuItem(
-                        value: t.$1,
-                        child: Text(t.$2),
+                      (tp) => DropdownMenuItem(
+                        value: tp.$1,
+                        child: Text(tp.$2),
                       ),
                     )
                     .toList(),
@@ -1219,7 +1230,7 @@ class _DocTile extends StatelessWidget {
 
 // ── Guarantor tile ────────────────────────────────────────────────────────────
 
-class _GuarantorTile extends StatelessWidget {
+class _GuarantorTile extends ConsumerWidget {
   const _GuarantorTile({
     required this.entry,
     required this.index,
@@ -1232,15 +1243,6 @@ class _GuarantorTile extends StatelessWidget {
   final VoidCallback onRemove;
   final VoidCallback onChanged;
   final VoidCallback onPickPhoto;
-
-  static const _relations = [
-    ('father', 'Father'),
-    ('mother', 'Mother'),
-    ('spouse', 'Spouse'),
-    ('sibling', 'Sibling'),
-    ('friend', 'Friend'),
-    ('other', 'Other'),
-  ];
 
   static InputDecoration _dec(String hint) => InputDecoration(
         hintText: hint,
@@ -1263,7 +1265,16 @@ class _GuarantorTile extends StatelessWidget {
       );
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
+    final relations = [
+      ('father', t.x('rel.father')),
+      ('mother', t.x('rel.mother')),
+      ('spouse', t.x('rel.spouse')),
+      ('sibling', t.x('rel.sibling')),
+      ('friend', t.x('rel.friend')),
+      ('other', t.x('rel.other')),
+    ];
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -1278,7 +1289,7 @@ class _GuarantorTile extends StatelessWidget {
           Row(
             children: [
               Text(
-                'Guarantor $index',
+                '${t.x('guar.title')} $index',
                 style: AppTypography.label
                     .copyWith(color: AppColors.textSecondary),
               ),
@@ -1302,9 +1313,9 @@ class _GuarantorTile extends StatelessWidget {
                     RichText(
                       text: TextSpan(
                         style: AppTypography.label,
-                        children: const [
-                          TextSpan(text: 'Full Name'),
-                          TextSpan(
+                        children: [
+                          TextSpan(text: t.x('fld.full_name')),
+                          const TextSpan(
                               text: ' *',
                               style: TextStyle(color: AppColors.danger)),
                         ],
@@ -1315,7 +1326,7 @@ class _GuarantorTile extends StatelessWidget {
                       controller: entry.name,
                       textCapitalization: TextCapitalization.words,
                       style: AppTypography.body,
-                      decoration: _dec('Guarantor name'),
+                      decoration: _dec(t.x('guar.name_hint')),
                     ),
                   ],
                 ),
@@ -1328,9 +1339,9 @@ class _GuarantorTile extends StatelessWidget {
                     RichText(
                       text: TextSpan(
                         style: AppTypography.label,
-                        children: const [
-                          TextSpan(text: 'Phone Number'),
-                          TextSpan(
+                        children: [
+                          TextSpan(text: t.x('fld.phone')),
+                          const TextSpan(
                               text: ' *',
                               style: TextStyle(color: AppColors.danger)),
                         ],
@@ -1341,7 +1352,7 @@ class _GuarantorTile extends StatelessWidget {
                       controller: entry.phone,
                       keyboardType: TextInputType.phone,
                       style: AppTypography.body,
-                      decoration: _dec('Phone number'),
+                      decoration: _dec(t.x('guar.phone_hint')),
                     ),
                   ],
                 ),
@@ -1357,7 +1368,7 @@ class _GuarantorTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Relation', style: AppTypography.label),
+                    Text(t.x('fld.relation'), style: AppTypography.label),
                     const SizedBox(height: 6),
                     Container(
                       decoration: BoxDecoration(
@@ -1369,7 +1380,7 @@ class _GuarantorTile extends StatelessWidget {
                         child: DropdownButton<String>(
                           value: entry.relation,
                           hint: Text(
-                            'Select Relation',
+                            t.x('fld.select_relation'),
                             style: AppTypography.body
                                 .copyWith(color: AppColors.textLight),
                           ),
@@ -1380,7 +1391,7 @@ class _GuarantorTile extends StatelessWidget {
                           borderRadius:
                               BorderRadius.circular(AppTokens.radiusSm),
                           style: AppTypography.body,
-                          items: _relations
+                          items: relations
                               .map((r) => DropdownMenuItem(
                                     value: r.$1,
                                     child: Text(r.$2),
@@ -1401,7 +1412,7 @@ class _GuarantorTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Photo', style: AppTypography.label),
+                    Text(t.x('fld.photo'), style: AppTypography.label),
                     const SizedBox(height: 6),
                     GestureDetector(
                       onTap: onPickPhoto,
@@ -1425,7 +1436,7 @@ class _GuarantorTile extends StatelessWidget {
                                       size: 16, color: AppColors.primary),
                                   const SizedBox(width: 6),
                                   Text(
-                                    'Upload Photo',
+                                    t.x('btn.upload_photo'),
                                     style: AppTypography.bodySmall
                                         .copyWith(color: AppColors.primary),
                                   ),
@@ -1443,12 +1454,12 @@ class _GuarantorTile extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Address', style: AppTypography.label),
+              Text(t.x('fld.address'), style: AppTypography.label),
               const SizedBox(height: 6),
               TextField(
                 controller: entry.address,
                 style: AppTypography.body,
-                decoration: _dec('Address'),
+                decoration: _dec(t.x('guar.address_hint')),
               ),
             ],
           ),

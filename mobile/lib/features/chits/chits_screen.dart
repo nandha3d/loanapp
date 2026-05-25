@@ -44,7 +44,10 @@ class ChitsScreen extends ConsumerWidget {
       ),
       body: groups.when(
         loading: () => const _LoadingSkeleton(),
-        error: (e, _) => _ErrorView(message: e.toString()),
+        error: (e, _) => _ErrorView(
+          title: t.x('err.could_not_load_chits'),
+          message: e.toString(),
+        ),
         data: (all) {
           final filtered = filter == 'all'
               ? all
@@ -73,9 +76,7 @@ class ChitsScreen extends ConsumerWidget {
                     height: 200,
                     child: EmptyState(
                       icon: Icons.savings_outlined,
-                      title: filter == 'all'
-                          ? t.x('ch.no_groups')
-                          : t.x('ch.no_groups'),
+                      title: t.x('ch.no_groups'),
                     ),
                   )
                 else
@@ -344,7 +345,7 @@ class _GroupCard extends ConsumerWidget {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        '${group.auctionCount} auction${group.auctionCount == 1 ? '' : 's'} held',
+                        '${group.auctionCount} ${t.x('ch.auctions_held_suffix')}',
                         style: AppTypography.caption,
                       ),
                       const Spacer(),
@@ -413,6 +414,7 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final t = T.of(ref);
     final fmt =
         NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
     final h = MediaQuery.of(context).size.height * 0.85;
@@ -455,10 +457,10 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
               length: 2,
               child: Column(
                 children: [
-                  const TabBar(
+                  TabBar(
                     tabs: [
-                      Tab(text: 'Members'),
-                      Tab(text: 'Auctions'),
+                      Tab(text: t.x('ch.members_tab')),
+                      Tab(text: t.x('ch.auctions_tab')),
                     ],
                   ),
                   Expanded(
@@ -484,9 +486,9 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                             }
                             final members = snap.data ?? [];
                             if (members.isEmpty) {
-                              return const EmptyState(
+                              return EmptyState(
                                 icon: Icons.people_outline,
-                                title: 'No members yet',
+                                title: t.x('ch.no_members_yet'),
                               );
                             }
                             return ListView.separated(
@@ -537,7 +539,7 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                                           ),
                                         ),
                                         child: Text(
-                                          'Won',
+                                          t.x('ch.won_badge'),
                                           style: AppTypography.tiny.copyWith(
                                               color: AppColors.success),
                                         ),
@@ -568,9 +570,9 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                             }
                             final auctions = snap.data ?? [];
                             if (auctions.isEmpty) {
-                              return const EmptyState(
+                              return EmptyState(
                                 icon: Icons.gavel_rounded,
-                                title: 'No auctions yet',
+                                title: t.x('ch.no_auctions_yet'),
                               );
                             }
                             return ListView.separated(
@@ -612,7 +614,7 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                                             CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            'Period ${a.periodNumber}',
+                                            '${t.x('ch.period_prefix')} ${a.periodNumber}',
                                             style: AppTypography.bodyLarge,
                                           ),
                                           if (a.winnerName != null)
@@ -690,8 +692,8 @@ class _LoadingSkeleton extends StatelessWidget {
 }
 
 class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.message});
-  final String message;
+  const _ErrorView({required this.title, required this.message});
+  final String title, message;
 
   @override
   Widget build(BuildContext context) {
@@ -703,8 +705,7 @@ class _ErrorView extends StatelessWidget {
           children: [
             const Icon(Icons.cloud_off, size: 48, color: AppColors.textLight),
             const SizedBox(height: 12),
-            Text('Could not load chit groups',
-                style: AppTypography.sectionTitle),
+            Text(title, style: AppTypography.sectionTitle),
             const SizedBox(height: 6),
             Text(
               message,

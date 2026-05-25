@@ -21,8 +21,12 @@ import 'package:loantrack/features/loans/loan_detail_screen.dart';
 import 'package:loantrack/features/loans/loans_screen.dart';
 import 'package:loantrack/features/loans/new_loan_screen.dart';
 import 'package:loantrack/features/more/more_screen.dart';
+import 'package:loantrack/features/notifications/notifications_screen.dart';
 import 'package:loantrack/features/penalties/penalties_screen.dart';
+import 'package:loantrack/features/reports/reports_screen.dart';
 import 'package:loantrack/features/settings/settings_screen.dart';
+import 'package:loantrack/features/vehicles/vehicles_screen.dart';
+import 'package:loantrack/features/vehicles/vehicle_detail_screen.dart';
 
 /// Module keys — server returns these in `User.enabledModules` (spec §5).
 class ModuleKey {
@@ -36,6 +40,8 @@ class ModuleKey {
   static const analytics = 'analytics';
   static const chits = 'chits';
   static const reports = 'reports';
+  static const vehicles = 'vehicles';
+  static const notifications = 'notifications';
   static const accounting = 'accounting';
   static const settings = 'settings';
 }
@@ -120,6 +126,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
       GoRoute(path: '/more', builder: (_, __) => const MoreScreen()),
       GoRoute(path: '/tracking', builder: (_, __) => const AgentTrackingScreen()),
+      GoRoute(path: '/reports', builder: (_, __) => const ReportsScreen()),
+      GoRoute(path: '/notifications', builder: (_, __) => const NotificationsScreen()),
+      GoRoute(
+        path: '/vehicles',
+        builder: (_, __) => const VehiclesScreen(),
+        routes: [
+          GoRoute(
+            path: ':id',
+            builder: (_, state) =>
+                VehicleDetailScreen(id: state.pathParameters['id']!),
+          ),
+        ],
+      ),
     ],
     errorBuilder: (_, __) =>
         const Scaffold(body: Center(child: Text('Route not found'))),
@@ -133,6 +152,8 @@ bool _moduleBlocked(String location, User user) {
   if (location.startsWith('/chits')) required = ModuleKey.chits;
   if (location.startsWith('/accounting')) required = ModuleKey.accounting;
   if (location.startsWith('/settings')) required = ModuleKey.settings;
+  if (location.startsWith('/reports')) required = ModuleKey.reports;
+  if (location.startsWith('/vehicles')) required = ModuleKey.vehicles;
   if (required == null) return false;
 
   if (user.enabledModules.isNotEmpty) {

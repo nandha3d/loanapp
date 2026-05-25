@@ -123,7 +123,7 @@ class CollectionScreen extends ConsumerWidget {
                   t: t,
                 ),
                 const SizedBox(height: 12),
-                ..._groupByRoute(filtered).entries.expand(
+                ..._groupByRoute(filtered, t.x('coll.unassigned')).entries.expand(
                   (e) => [
                     _RouteHeader(routeName: e.key, count: e.value.length),
                     const SizedBox(height: 8),
@@ -167,10 +167,11 @@ class CollectionScreen extends ConsumerWidget {
     }
   }
 
-  Map<String, List<CollectionRow>> _groupByRoute(List<CollectionRow> rows) {
+  Map<String, List<CollectionRow>> _groupByRoute(
+      List<CollectionRow> rows, String unassigned) {
     final m = <String, List<CollectionRow>>{};
     for (final r in rows) {
-      m.putIfAbsent(r.routeName ?? 'Unassigned', () => []).add(r);
+      m.putIfAbsent(r.routeName ?? unassigned, () => []).add(r);
     }
     return m;
   }

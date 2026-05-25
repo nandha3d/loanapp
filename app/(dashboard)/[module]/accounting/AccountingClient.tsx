@@ -4,21 +4,6 @@ import { useState, useMemo } from 'react';
 import { addAccountEntry } from './actions';
 import Modal from '@/components/Modal';
 
-const TYPE_OPTIONS = [
-  { value: 'capital_add', label: '💰 Capital Addition', color: 'var(--success)' },
-  { value: 'capital_withdraw', label: '🏧 Capital Withdrawal', color: 'var(--danger)' },
-  { value: 'expense', label: '📤 Expense', color: 'var(--warning)' },
-];
-
-const CATEGORY_OPTIONS = [
-  { value: 'cash', label: 'Cash' },
-  { value: 'bank', label: 'Bank Transfer' },
-  { value: 'upi', label: 'UPI' },
-  { value: 'salary', label: 'Salary' },
-  { value: 'rent', label: 'Rent' },
-  { value: 'other', label: 'Other' },
-];
-
 function formatCurrency(amount: number, symbol: string) {
   return `${symbol}${Math.abs(amount).toLocaleString('en-IN', { minimumFractionDigits: 0 })}`;
 }
@@ -28,21 +13,10 @@ function formatDate(date: Date | string) {
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function getTypeInfo(type: string) {
-  switch (type) {
-    case 'capital_add': return { label: 'Capital Add', icon: 'add_circle', color: 'var(--success)', sign: '+' };
-    case 'capital_withdraw': return { label: 'Capital Withdraw', icon: 'remove_circle', color: 'var(--danger)', sign: '-' };
-    case 'loan_disburse': return { label: 'Loan Disbursed', icon: 'account_balance', color: '#E67E22', sign: '-' };
-    case 'collection': return { label: 'Collection', icon: 'point_of_sale', color: 'var(--success)', sign: '+' };
-    case 'expense': return { label: 'Expense', icon: 'receipt_long', color: 'var(--warning)', sign: '-' };
-    case 'adjustment': return { label: 'Adjustment', icon: 'tune', color: 'var(--text-secondary)', sign: '±' };
-    default: return { label: type, icon: 'help', color: 'var(--text-secondary)', sign: '' };
-  }
-}
-
 export default function AccountingClient({
   summary,
   currencySymbol,
+  dict,
 }: {
   summary: {
     capitalIn: number;
@@ -57,7 +31,37 @@ export default function AccountingClient({
     entries: any[];
   };
   currencySymbol: string;
+  dict: any;
 }) {
+  const ac = dict.accounting || {};
+
+  const TYPE_OPTIONS = [
+    { value: 'capital_add', label: ac.capitalAddLabel || '💰 Capital Addition', color: 'var(--success)' },
+    { value: 'capital_withdraw', label: ac.capitalWithdrawLabel || '🏧 Capital Withdrawal', color: 'var(--danger)' },
+    { value: 'expense', label: ac.expenseLabel || '📤 Expense', color: 'var(--warning)' },
+  ];
+
+  const CATEGORY_OPTIONS = [
+    { value: 'cash', label: ac.cashCategory || 'Cash' },
+    { value: 'bank', label: ac.bankCategory || 'Bank Transfer' },
+    { value: 'upi', label: ac.upiCategory || 'UPI' },
+    { value: 'salary', label: ac.salaryCategory || 'Salary' },
+    { value: 'rent', label: ac.rentCategory || 'Rent' },
+    { value: 'other', label: ac.otherCategory || 'Other' },
+  ];
+
+  function getTypeInfo(type: string) {
+    switch (type) {
+      case 'capital_add': return { label: ac.capitalAdd || 'Capital Add', icon: 'add_circle', color: 'var(--success)', sign: '+' };
+      case 'capital_withdraw': return { label: ac.withdraw || 'Capital Withdraw', icon: 'remove_circle', color: 'var(--danger)', sign: '-' };
+      case 'loan_disburse': return { label: 'Loan Disbursed', icon: 'account_balance', color: '#E67E22', sign: '-' };
+      case 'collection': return { label: 'Collection', icon: 'point_of_sale', color: 'var(--success)', sign: '+' };
+      case 'expense': return { label: ac.expense || 'Expense', icon: 'receipt_long', color: 'var(--warning)', sign: '-' };
+      case 'adjustment': return { label: 'Adjustment', icon: 'tune', color: 'var(--text-secondary)', sign: '±' };
+      default: return { label: type, icon: 'help', color: 'var(--text-secondary)', sign: '' };
+    }
+  }
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState('capital_add');
   const [loading, setLoading] = useState(false);
@@ -179,33 +183,33 @@ export default function AccountingClient({
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span className="material-icons-outlined" style={{ color: 'var(--primary)', fontSize: '20px' }}>filter_alt</span>
-            <span style={{ fontSize: '.9rem', fontWeight: 700, color: 'var(--text)' }}>Filter P&L Period</span>
+            <span style={{ fontSize: '.9rem', fontWeight: 700, color: 'var(--text)' }}>{ac.filterPeriod || 'Filter P&L Period'}</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '.8rem', color: 'var(--text-secondary)' }}>From:</span>
-              <input 
-                type="date" 
-                value={fromDate} 
-                onChange={(e) => setFromDate(e.target.value)} 
-                className="form-control" 
-                style={{ width: '150px', padding: '6px 10px', fontSize: '.85rem' }} 
+              <span style={{ fontSize: '.8rem', color: 'var(--text-secondary)' }}>{ac.from || 'From'}:</span>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="form-control"
+                style={{ width: '150px', padding: '6px 10px', fontSize: '.85rem' }}
               />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '.8rem', color: 'var(--text-secondary)' }}>To:</span>
-              <input 
-                type="date" 
-                value={toDate} 
-                onChange={(e) => setToDate(e.target.value)} 
-                className="form-control" 
-                style={{ width: '150px', padding: '6px 10px', fontSize: '.85rem' }} 
+              <span style={{ fontSize: '.8rem', color: 'var(--text-secondary)' }}>{ac.to || 'To'}:</span>
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="form-control"
+                style={{ width: '150px', padding: '6px 10px', fontSize: '.85rem' }}
               />
             </div>
             <div style={{ display: 'flex', gap: '6px' }}>
-              <button 
-                type="button" 
-                className="btn btn-ghost btn-sm" 
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
                 onClick={() => {
                   const now = new Date();
                   const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -213,10 +217,10 @@ export default function AccountingClient({
                   setToDate(now.toISOString().split('T')[0]);
                 }}
                 style={{ fontSize: '.75rem', background: 'var(--bg)', padding: '6px 12px' }}
-              >This Month</button>
-              <button 
-                type="button" 
-                className="btn btn-ghost btn-sm" 
+              >{ac.thisMonth || 'This Month'}</button>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
                 onClick={() => {
                   const now = new Date();
                   const past30 = new Date();
@@ -225,17 +229,17 @@ export default function AccountingClient({
                   setToDate(now.toISOString().split('T')[0]);
                 }}
                 style={{ fontSize: '.75rem', background: 'var(--bg)', padding: '6px 12px' }}
-              >Last 30 Days</button>
+              >{ac.last30Days || 'Last 30 Days'}</button>
               {(fromDate || toDate) && (
-                <button 
-                  type="button" 
-                  className="btn btn-ghost btn-sm" 
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
                   onClick={() => {
                     setFromDate('');
                     setToDate('');
                   }}
                   style={{ fontSize: '.75rem', color: 'var(--danger)', background: 'rgba(231, 76, 60, 0.1)', padding: '6px 12px' }}
-                >Clear</button>
+                >{ac.clear || 'Clear'}</button>
               )}
             </div>
           </div>
@@ -248,21 +252,21 @@ export default function AccountingClient({
           <div className="kpi-icon green"><span className="material-icons-outlined">savings</span></div>
           <div>
             <div className="kpi-value">{formatCurrency(summary.currentCapital, currencySymbol)}</div>
-            <div className="kpi-label">Current Capital</div>
+            <div className="kpi-label">{ac.currentCapital || 'Current Capital'}</div>
           </div>
         </div>
         <div className="kpi-card">
           <div className="kpi-icon blue"><span className="material-icons-outlined">account_balance</span></div>
           <div>
             <div className="kpi-value">{formatCurrency(metrics.totalDisbursed, currencySymbol)}</div>
-            <div className="kpi-label">Total Disbursed</div>
+            <div className="kpi-label">{ac.totalDisbursed || 'Total Disbursed'}</div>
           </div>
         </div>
         <div className="kpi-card">
           <div className="kpi-icon orange"><span className="material-icons-outlined">point_of_sale</span></div>
           <div>
             <div className="kpi-value">{formatCurrency(metrics.totalCollected, currencySymbol)}</div>
-            <div className="kpi-label">Total Collected</div>
+            <div className="kpi-label">{ac.totalCollected || 'Total Collected'}</div>
           </div>
         </div>
         <div className="kpi-card">
@@ -273,7 +277,7 @@ export default function AccountingClient({
             <div className="kpi-value" style={{ color: metrics.projectedProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}>
               {metrics.projectedProfit >= 0 ? '+' : '-'}{formatCurrency(metrics.projectedProfit, currencySymbol)}
             </div>
-            <div className="kpi-label">Projected Profit</div>
+            <div className="kpi-label">{ac.projectedProfit || 'Projected Profit'}</div>
           </div>
         </div>
       </div>
@@ -282,40 +286,40 @@ export default function AccountingClient({
       <div className="grid-60-40" style={{ marginTop: '20px' }}>
         <div className="card">
           <div className="card-header">
-            <h3>💰 Capital Flow</h3>
+            <h3>💰 {ac.capitalFlow || 'Capital Flow'}</h3>
           </div>
           <div style={{ padding: '0 20px 20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Capital Added</div>
+                <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{ac.capitalAdded || 'Capital Added'}</div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--success)' }}>+{formatCurrency(metrics.capitalIn, currencySymbol)}</div>
               </div>
               <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Capital Withdrawn</div>
+                <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{ac.capitalWithdrawn || 'Capital Withdrawn'}</div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--danger)' }}>-{formatCurrency(metrics.capitalOut, currencySymbol)}</div>
               </div>
               <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Total Deductions (Upfront Fees)</div>
+                <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{ac.totalDeductions || 'Total Deductions (Upfront Fees)'}</div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--success)' }}>{formatCurrency(metrics.totalDeductions, currencySymbol)}</div>
               </div>
               <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Total Interest</div>
+                <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{ac.totalInterest || 'Total Interest'}</div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--success)' }}>{formatCurrency(metrics.totalInterest, currencySymbol)}</div>
               </div>
               <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Projected Revenue</div>
+                <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{ac.projectedRevenue || 'Projected Revenue'}</div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--primary)' }}>{formatCurrency(metrics.projectedRevenue, currencySymbol)}</div>
-                <div style={{ fontSize: '.7rem', color: 'var(--text-light)', marginTop: '2px' }}>Deductions + Interest</div>
+                <div style={{ fontSize: '.7rem', color: 'var(--text-light)', marginTop: '2px' }}>{ac.deductionsInterest || 'Deductions + Interest'}</div>
               </div>
               <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Expenses</div>
+                <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{ac.expenses || 'Expenses'}</div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--warning)' }}>-{formatCurrency(metrics.totalExpenses, currencySymbol)}</div>
               </div>
             </div>
             <div style={{ padding: '16px', background: metrics.projectedProfit >= 0 ? 'rgba(16, 185, 129, 0.06)' : 'rgba(239, 68, 68, 0.06)', borderRadius: 'var(--radius-sm)', border: `1px solid ${metrics.projectedProfit >= 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
-                <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Projected Profit</div>
-                <div style={{ fontSize: '.7rem', color: 'var(--text-light)' }}>Projected Revenue − Expenses</div>
+                <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{ac.projectedProfitLabel || 'Projected Profit'}</div>
+                <div style={{ fontSize: '.7rem', color: 'var(--text-light)' }}>{ac.projectedRevenueMinusExpenses || 'Projected Revenue − Expenses'}</div>
               </div>
               <div style={{ fontSize: '1.4rem', fontWeight: 800, color: metrics.projectedProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}>
                 {metrics.projectedProfit >= 0 ? '' : '-'}{formatCurrency(metrics.projectedProfit, currencySymbol)}
@@ -326,22 +330,22 @@ export default function AccountingClient({
 
         <div className="card">
           <div className="card-header">
-            <h3>Quick Actions</h3>
+            <h3>{ac.quickActions || 'Quick Actions'}</h3>
           </div>
           <div style={{ padding: '0 20px 20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
               <button className="btn btn-primary" onClick={() => openModal('capital_add')}>
-                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>add_circle</span> Capital Add
+                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>add_circle</span> {ac.capitalAdd || 'Capital Add'}
               </button>
               <button className="btn btn-danger" onClick={() => openModal('capital_withdraw')}>
-                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>remove_circle</span> Withdraw
+                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>remove_circle</span> {ac.withdraw || 'Withdraw'}
               </button>
               <button className="btn btn-warning" onClick={() => openModal('expense')}>
-                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>receipt_long</span> Expense
+                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>receipt_long</span> {ac.expense || 'Expense'}
               </button>
             </div>
             <p style={{ fontSize: '.8rem', color: 'var(--text-light)', textAlign: 'center', margin: '8px 0 0' }}>
-              Loan disbursements and collections are recorded automatically.
+              {ac.autoRecorded || 'Loan disbursements and collections are recorded automatically.'}
             </p>
           </div>
         </div>
@@ -372,14 +376,14 @@ export default function AccountingClient({
       <div className="card" style={{ marginTop: '20px' }}>
         <div className="card-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '12px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3>📒 Transaction Ledger</h3>
+            <h3>📒 {ac.transactionLedger || 'Transaction Ledger'}</h3>
             <span style={{ fontSize: '.78rem', color: 'var(--text-light)' }}>
-              {ledgerEntries.length} entries
+              {ledgerEntries.length} {ac.entries || 'entries'}
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '.78rem', color: 'var(--text-secondary)' }}>From:</span>
+              <span style={{ fontSize: '.78rem', color: 'var(--text-secondary)' }}>{ac.from || 'From'}:</span>
               <input
                 type="date"
                 value={ledgerFrom}
@@ -389,7 +393,7 @@ export default function AccountingClient({
               />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '.78rem', color: 'var(--text-secondary)' }}>To:</span>
+              <span style={{ fontSize: '.78rem', color: 'var(--text-secondary)' }}>{ac.to || 'To'}:</span>
               <input
                 type="date"
                 value={ledgerTo}
@@ -409,7 +413,7 @@ export default function AccountingClient({
                   setLedgerPage(1);
                 }}
                 style={{ fontSize: '.72rem', padding: '4px 10px', background: 'var(--bg)' }}
-              >Today</button>
+              >{ac.today || 'Today'}</button>
               <button
                 type="button"
                 className="btn btn-ghost btn-sm"
@@ -422,7 +426,7 @@ export default function AccountingClient({
                   setLedgerPage(1);
                 }}
                 style={{ fontSize: '.72rem', padding: '4px 10px', background: 'var(--bg)' }}
-              >7 Days</button>
+              >{ac.sevenDays || '7 Days'}</button>
               <button
                 type="button"
                 className="btn btn-ghost btn-sm"
@@ -434,14 +438,14 @@ export default function AccountingClient({
                   setLedgerPage(1);
                 }}
                 style={{ fontSize: '.72rem', padding: '4px 10px', background: 'var(--bg)' }}
-              >This Month</button>
+              >{ac.thisMonth || 'This Month'}</button>
               {(ledgerFrom || ledgerTo) && (
                 <button
                   type="button"
                   className="btn btn-ghost btn-sm"
                   onClick={() => { setLedgerFrom(''); setLedgerTo(''); setLedgerPage(1); }}
                   style={{ fontSize: '.72rem', padding: '4px 10px', color: 'var(--danger)', background: 'rgba(231,76,60,0.08)' }}
-                >Clear</button>
+                >{ac.clear || 'Clear'}</button>
               )}
             </div>
           </div>
@@ -450,12 +454,12 @@ export default function AccountingClient({
           <table>
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Type</th>
-                <th>Category</th>
-                <th>Amount</th>
-                <th>Description</th>
-                <th>By</th>
+                <th>{ac.date || 'Date'}</th>
+                <th>{ac.type || 'Type'}</th>
+                <th>{ac.category || 'Category'}</th>
+                <th>{ac.amount || 'Amount'}</th>
+                <th>{ac.description || 'Description'}</th>
+                <th>{ac.by || 'By'}</th>
               </tr>
             </thead>
             <tbody>
@@ -463,7 +467,7 @@ export default function AccountingClient({
                 <tr>
                   <td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-light)' }}>
                     <span className="material-icons-outlined" style={{ fontSize: '36px', display: 'block', marginBottom: '8px' }}>account_balance_wallet</span>
-                    No entries found.
+                    {ac.noEntriesFound || 'No entries found.'}
                   </td>
                 </tr>
               )}
@@ -485,7 +489,7 @@ export default function AccountingClient({
                     <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {entry.description || '-'}
                     </td>
-                    <td style={{ fontSize: '.8rem', color: 'var(--text-secondary)' }}>{entry.user?.name || 'System'}</td>
+                    <td style={{ fontSize: '.8rem', color: 'var(--text-secondary)' }}>{entry.user?.name || ac.system || 'System'}</td>
                   </tr>
                 );
               })}
@@ -496,7 +500,7 @@ export default function AccountingClient({
         {totalPages > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderTop: '1px solid var(--border)', fontSize: '.82rem' }}>
             <span style={{ color: 'var(--text-secondary)' }}>
-              Showing {startIdx + 1}–{Math.min(startIdx + LEDGER_PAGE_SIZE, ledgerEntries.length)} of {ledgerEntries.length}
+              {ac.showing || 'Showing'} {startIdx + 1}–{Math.min(startIdx + LEDGER_PAGE_SIZE, ledgerEntries.length)} {ac.of || 'of'} {ledgerEntries.length}
             </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <button
@@ -506,9 +510,9 @@ export default function AccountingClient({
                 onClick={() => setLedgerPage(p => Math.max(1, p - 1))}
                 style={{ padding: '4px 10px', fontSize: '.78rem', opacity: safePage <= 1 ? 0.4 : 1 }}
               >
-                <span className="material-icons-outlined" style={{ fontSize: 16 }}>chevron_left</span> Prev
+                <span className="material-icons-outlined" style={{ fontSize: 16 }}>chevron_left</span> {ac.prev || 'Prev'}
               </button>
-              <span style={{ fontWeight: 700, color: 'var(--primary)' }}>Page {safePage} / {totalPages}</span>
+              <span style={{ fontWeight: 700, color: 'var(--primary)' }}>{ac.page || 'Page'} {safePage} / {totalPages}</span>
               <button
                 type="button"
                 className="btn btn-ghost btn-sm"
@@ -516,7 +520,7 @@ export default function AccountingClient({
                 onClick={() => setLedgerPage(p => Math.min(totalPages, p + 1))}
                 style={{ padding: '4px 10px', fontSize: '.78rem', opacity: safePage >= totalPages ? 0.4 : 1 }}
               >
-                Next <span className="material-icons-outlined" style={{ fontSize: 16 }}>chevron_right</span>
+                {ac.next || 'Next'} <span className="material-icons-outlined" style={{ fontSize: 16 }}>chevron_right</span>
               </button>
             </div>
           </div>
@@ -526,10 +530,10 @@ export default function AccountingClient({
       })()}
 
       {/* Add Entry Modal */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add Account Entry">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={ac.addAccountEntry || 'Add Account Entry'}>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="form-label">Entry Type *</label>
+            <label className="form-label">{ac.entryType || 'Entry Type'} *</label>
             <select name="type" className="form-control" value={modalType} onChange={e => setModalType(e.target.value)} required>
               {TYPE_OPTIONS.map(opt => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -538,11 +542,11 @@ export default function AccountingClient({
           </div>
           <div className="form-row">
             <div className="form-group">
-              <label className="form-label">Amount ({currencySymbol}) *</label>
+              <label className="form-label">{ac.amount || 'Amount'} ({currencySymbol}) *</label>
               <input type="number" name="amount" className="form-control" required min="1" step="0.01" />
             </div>
             <div className="form-group">
-              <label className="form-label">Category</label>
+              <label className="form-label">{ac.category || 'Category'}</label>
               <select name="category" className="form-control">
                 {CATEGORY_OPTIONS.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -551,18 +555,18 @@ export default function AccountingClient({
             </div>
           </div>
           <div className="form-group">
-            <label className="form-label">Date</label>
+            <label className="form-label">{ac.date || 'Date'}</label>
             <input type="date" name="entryDate" className="form-control" defaultValue={new Date().toISOString().slice(0, 10)} />
           </div>
           <div className="form-group">
-            <label className="form-label">Description</label>
-            <textarea name="description" className="form-control" rows={2} placeholder="Optional notes..." />
+            <label className="form-label">{ac.description || 'Description'}</label>
+            <textarea name="description" className="form-control" rows={2} placeholder={ac.optionalNotes || 'Optional notes...'} />
           </div>
           <div className="form-actions" style={{ marginTop: '20px' }}>
             <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? 'Saving...' : 'Add Entry'}
+              {loading ? (ac.saving || 'Saving...') : (ac.addEntry || 'Add Entry')}
             </button>
-            <button type="button" className="btn btn-ghost" onClick={() => setIsModalOpen(false)}>Cancel</button>
+            <button type="button" className="btn btn-ghost" onClick={() => setIsModalOpen(false)}>{ac.cancel || 'Cancel'}</button>
           </div>
         </form>
       </Modal>

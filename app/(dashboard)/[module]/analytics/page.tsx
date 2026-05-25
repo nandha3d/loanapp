@@ -221,7 +221,7 @@ export default async function AnalyticsPage({
         </div>
       </div>
       
-      <AnalyticsClient data={serialized} currencySymbol={branding.currencySymbol} />
+      <AnalyticsClient data={serialized} currencySymbol={branding.currencySymbol} dict={dict} />
       
       <div style={{ marginTop: '40px', borderTop: '1px solid var(--border)', paddingTop: '32px' }}>
         <h3 style={{ marginBottom: '20px', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px' }}>

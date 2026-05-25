@@ -2,6 +2,7 @@ import { getBorrowerSession } from '@/lib/borrowerAuth';
 import { redirect } from 'next/navigation';
 import prisma from '@/lib/db';
 import BorrowerDashboardClient from './BorrowerDashboardClient';
+import { getDictionary } from '@/lib/i18n';
 
 export default async function BorrowerDashboard() {
   const session = await getBorrowerSession();
@@ -59,11 +60,14 @@ export default async function BorrowerDashboard() {
   // Convert rich Prisma types (Decimal, Date) to plain JSON objects for Client Components compatibility
   const serializedLoans = JSON.parse(JSON.stringify(loans));
 
+  const dict = await getDictionary(session.tenantId);
+
   return (
     <BorrowerDashboardClient
       loans={serializedLoans}
       initialLoanId={session.loanId}
       paymentSettings={paymentSettings}
+      dict={dict}
     />
   );
 }

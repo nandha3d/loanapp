@@ -252,6 +252,12 @@ model Customer {
   updatedAt         DateTime          @updatedAt @map("updated_at")
   deletedAt         DateTime?         @map("deleted_at")
   pan               String?           @map("pan")
+  // Company / Employment details
+  companyName       String?           @map("company_name")
+  companyType       String?           @map("company_type")   // 'salaried' | 'self_employed' | 'business' | 'unemployed'
+  occupation        String?           @map("occupation")
+  monthlyIncome     Float?            @map("monthly_income")
+  gstNumber         String?           @map("gst_number")
   // GPS-01 / GPS-07: geocoded home location for geofence + route planning.
   lat               Float?            @map("lat")
   lng               Float?            @map("lng")

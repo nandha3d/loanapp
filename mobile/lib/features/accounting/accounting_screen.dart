@@ -6,20 +6,25 @@ import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
+import 'package:loantrack/data/models/reports.dart';
 import 'package:loantrack/data/services/reports_service.dart';
 import 'package:loantrack/shared/widgets/bottom_nav.dart';
 import 'package:loantrack/shared/widgets/empty_state.dart';
 import 'package:loantrack/shared/widgets/skeleton.dart';
 
-final _dailyReportProvider =
-    FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
-  return ref.watch(reportsServiceProvider).daily();
+// ── Providers ────────────────────────────────────────────────────────────────
+
+final _accountingSummaryProvider =
+    FutureProvider.autoDispose<AccountingSummary>((ref) {
+  return ref.watch(reportsServiceProvider).fetchAccountingSummary();
 });
 
 final _overdueReportProvider =
-    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
-  return ref.watch(reportsServiceProvider).overdue();
+    FutureProvider.autoDispose<List<OverdueItem>>((ref) {
+  return ref.watch(reportsServiceProvider).fetchOverdueReport();
 });
+
+// ── Screen ────────────────────────────────────────────────────────────────────
 
 class AccountingScreen extends ConsumerWidget {
   const AccountingScreen({super.key});
@@ -36,7 +41,7 @@ class AccountingScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             onPressed: () {
-              ref.invalidate(_dailyReportProvider);
+              ref.invalidate(_accountingSummaryProvider);
               ref.invalidate(_overdueReportProvider);
             },
           ),
@@ -46,17 +51,17 @@ class AccountingScreen extends ConsumerWidget {
       body: RefreshIndicator(
         color: AppColors.primary,
         onRefresh: () async {
-          ref.invalidate(_dailyReportProvider);
+          ref.invalidate(_accountingSummaryProvider);
           ref.invalidate(_overdueReportProvider);
           await Future.wait([
-            ref.read(_dailyReportProvider.future),
+            ref.read(_accountingSummaryProvider.future),
             ref.read(_overdueReportProvider.future),
           ]);
         },
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _DailySection(dailyAsync: ref.watch(_dailyReportProvider)),
+            _SummarySection(summaryAsync: ref.watch(_accountingSummaryProvider)),
             const SizedBox(height: 16),
             _OverdueSection(overdueAsync: ref.watch(_overdueReportProvider)),
             const SizedBox(height: 24),
@@ -68,46 +73,37 @@ class AccountingScreen extends ConsumerWidget {
   }
 }
 
-class _DailySection extends ConsumerWidget {
-  const _DailySection({required this.dailyAsync});
-  final AsyncValue<Map<String, dynamic>> dailyAsync;
+// ── Summary Section ───────────────────────────────────────────────────────────
+
+class _SummarySection extends ConsumerWidget {
+  const _SummarySection({required this.summaryAsync});
+  final AsyncValue<AccountingSummary> summaryAsync;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
     return _Card(
       title: t.x('acc.today_summary'),
-      child: dailyAsync.when(
+      child: summaryAsync.when(
         loading: () => const Skeleton(height: 160),
         error: (e, _) => _InlineError(message: e.toString()),
-        data: (d) => _DailyBody(data: d),
+        data: (s) => _SummaryBody(summary: s),
       ),
     );
   }
 }
 
-class _DailyBody extends ConsumerWidget {
-  const _DailyBody({required this.data});
-  final Map<String, dynamic> data;
-
-  static double _num(Map<String, dynamic> d, String key) {
-    final v = d[key];
-    if (v == null) return 0;
-    if (v is num) return v.toDouble();
-    return double.tryParse(v.toString()) ?? 0;
-  }
+class _SummaryBody extends ConsumerWidget {
+  const _SummaryBody({required this.summary});
+  final AccountingSummary summary;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
-    final fmt = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
-
-    final collected = _num(data, 'totalCollected');
-    final disbursed = _num(data, 'totalDisbursed');
-    final expenses = _num(data, 'totalExpenses');
-    final capital = _num(data, 'currentCapital');
-    final netProfit = _num(data, 'netProfit');
-    final isProfitable = netProfit >= 0;
+    final fmt = NumberFormat.currency(
+      locale: 'en_IN', symbol: '₹', decimalDigits: 0,
+    );
+    final isProfitable = summary.netProfit >= 0;
 
     return Column(
       children: [
@@ -116,7 +112,7 @@ class _DailyBody extends ConsumerWidget {
           iconColor: AppColors.success,
           iconBg: AppColors.successBg,
           label: t.x('acc.collected'),
-          value: fmt.format(collected),
+          value: fmt.format(summary.totalCollected),
           valueColor: AppColors.success,
         ),
         const _Divider(),
@@ -125,7 +121,7 @@ class _DailyBody extends ConsumerWidget {
           iconColor: AppColors.danger,
           iconBg: AppColors.dangerBg,
           label: t.x('acc.disbursed'),
-          value: fmt.format(disbursed),
+          value: fmt.format(summary.totalDisbursed),
           valueColor: AppColors.danger,
         ),
         const _Divider(),
@@ -134,7 +130,7 @@ class _DailyBody extends ConsumerWidget {
           iconColor: AppColors.warning,
           iconBg: AppColors.warningBg,
           label: t.x('acc.expenses'),
-          value: fmt.format(expenses),
+          value: fmt.format(summary.totalExpenses),
           valueColor: AppColors.textPrimary,
         ),
         const _Divider(),
@@ -143,7 +139,7 @@ class _DailyBody extends ConsumerWidget {
           iconColor: AppColors.info,
           iconBg: AppColors.infoBg,
           label: t.x('acc.capital_balance'),
-          value: fmt.format(capital),
+          value: fmt.format(summary.currentCapital),
           valueColor: AppColors.info,
         ),
         const SizedBox(height: 12),
@@ -167,12 +163,14 @@ class _DailyBody extends ConsumerWidget {
               Text(
                 t.x('acc.net_pl'),
                 style: AppTypography.bodyLarge.copyWith(
-                  color: isProfitable ? AppColors.successText : AppColors.dangerText,
+                  color: isProfitable
+                      ? AppColors.successText
+                      : AppColors.dangerText,
                 ),
               ),
               const Spacer(),
               Text(
-                fmt.format(netProfit),
+                fmt.format(summary.netProfit),
                 style: AppTypography.sectionTitle.copyWith(
                   color: isProfitable ? AppColors.success : AppColors.danger,
                 ),
@@ -184,6 +182,107 @@ class _DailyBody extends ConsumerWidget {
     );
   }
 }
+
+// ── Overdue Section ───────────────────────────────────────────────────────────
+
+class _OverdueSection extends ConsumerWidget {
+  const _OverdueSection({required this.overdueAsync});
+  final AsyncValue<List<OverdueItem>> overdueAsync;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
+    return _Card(
+      title: t.x('acc.overdue_accounts'),
+      child: overdueAsync.when(
+        loading: () => const Skeleton(height: 120),
+        error: (e, _) => _InlineError(message: e.toString()),
+        data: (list) => list.isEmpty
+            ? SizedBox(
+                height: 100,
+                child: EmptyState(
+                  icon: Icons.check_circle_outline_rounded,
+                  title: t.x('acc.no_overdue'),
+                ),
+              )
+            : _OverdueList(items: list),
+      ),
+    );
+  }
+}
+
+class _OverdueList extends ConsumerWidget {
+  const _OverdueList({required this.items});
+  final List<OverdueItem> items;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
+    final fmt = NumberFormat.currency(
+      locale: 'en_IN', symbol: '₹', decimalDigits: 0,
+    );
+    final shown = items.length > 10 ? items.sublist(0, 10) : items;
+
+    return Column(
+      children: [
+        ...shown.map((item) => Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: AppColors.dangerBg,
+                  borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                ),
+                child: const Icon(
+                  Icons.warning_amber_rounded,
+                  color: AppColors.danger,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(item.customerName, style: AppTypography.bodyLarge),
+                    Text(item.loanCode, style: AppTypography.caption),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    fmt.format(item.overdueAmount),
+                    style: AppTypography.bodyLarge
+                        .copyWith(color: AppColors.danger),
+                  ),
+                  Text(
+                    '${item.overdueDays} ${t.x('acc.overdue_days_suffix')}',
+                    style: AppTypography.caption,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),),
+        if (items.length > 10)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              '+ ${items.length - 10} ${t.x('acc.n_more')}',
+              style: AppTypography.caption,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// ── Shared Widgets ────────────────────────────────────────────────────────────
 
 class _FinRow extends StatelessWidget {
   const _FinRow({
@@ -214,9 +313,7 @@ class _FinRow extends StatelessWidget {
             child: Icon(icon, color: iconColor, size: 18),
           ),
           const SizedBox(width: 12),
-          Expanded(
-            child: Text(label, style: AppTypography.bodyLarge),
-          ),
+          Expanded(child: Text(label, style: AppTypography.bodyLarge)),
           Text(
             value,
             style: AppTypography.bodyLarge.copyWith(color: valueColor),
@@ -231,123 +328,8 @@ class _Divider extends StatelessWidget {
   const _Divider();
 
   @override
-  Widget build(BuildContext context) {
-    return const Divider(color: AppColors.border, height: 1);
-  }
-}
-
-class _OverdueSection extends ConsumerWidget {
-  const _OverdueSection({required this.overdueAsync});
-  final AsyncValue<List<Map<String, dynamic>>> overdueAsync;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = T.of(ref);
-    return _Card(
-      title: t.x('acc.overdue_accounts'),
-      child: overdueAsync.when(
-        loading: () => const Skeleton(height: 120),
-        error: (e, _) => _InlineError(message: e.toString()),
-        data: (list) => list.isEmpty
-            ? SizedBox(
-                height: 100,
-                child: EmptyState(
-                  icon: Icons.check_circle_outline_rounded,
-                  title: t.x('acc.no_overdue'),
-                ),
-              )
-            : _OverdueList(items: list),
-      ),
-    );
-  }
-}
-
-class _OverdueList extends StatelessWidget {
-  const _OverdueList({required this.items});
-  final List<Map<String, dynamic>> items;
-
-  static String _str(Map<String, dynamic> d, String key, [String fallback = '—']) {
-    final v = d[key];
-    return v?.toString().isNotEmpty == true ? v.toString() : fallback;
-  }
-
-  static double _num(Map<String, dynamic> d, String key) {
-    final v = d[key];
-    if (v == null) return 0;
-    if (v is num) return v.toDouble();
-    return double.tryParse(v.toString()) ?? 0;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final fmt = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
-    final shown = items.length > 10 ? items.sublist(0, 10) : items;
-
-    return Column(
-      children: [
-        ...shown.map((item) {
-          final amount = _num(item, 'overdueAmount');
-          final name = _str(item, 'customerName');
-          final code = _str(item, 'loanCode');
-          final days = item['daysOverdue'];
-
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Row(
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: AppColors.dangerBg,
-                    borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-                  ),
-                  child: const Icon(
-                    Icons.warning_amber_rounded,
-                    color: AppColors.danger,
-                    size: 18,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(name, style: AppTypography.bodyLarge),
-                      Text(code, style: AppTypography.caption),
-                    ],
-                  ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      fmt.format(amount),
-                      style: AppTypography.bodyLarge
-                          .copyWith(color: AppColors.danger),
-                    ),
-                    if (days != null)
-                      Text(
-                        '$days days',
-                        style: AppTypography.caption,
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        }),
-        if (items.length > 10)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              '+ ${items.length - 10} more',
-              style: AppTypography.caption,
-            ),
-          ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) =>
+      const Divider(color: AppColors.border, height: 1);
 }
 
 class _Card extends StatelessWidget {

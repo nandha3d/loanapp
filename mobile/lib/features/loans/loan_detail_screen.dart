@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import 'package:loantrack/core/l10n/language_controller.dart';
@@ -19,6 +20,11 @@ import 'package:loantrack/shared/widgets/skeleton.dart';
 final _loanDetailProvider =
     FutureProvider.autoDispose.family<Loan, String>((ref, id) {
   return ref.watch(loanServiceProvider).getById(id);
+});
+
+final _customerLoansProvider = FutureProvider.autoDispose
+    .family<List<Map<String, dynamic>>, String>((ref, customerId) {
+  return ref.watch(loanServiceProvider).list(customerId: customerId);
 });
 
 class LoanDetailScreen extends ConsumerWidget {
@@ -104,6 +110,10 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
       controller: _scrollCtrl,
       padding: const EdgeInsets.all(16),
       children: [
+        _BorrowerHeader(loan: loan),
+        const SizedBox(height: 12),
+        _LoanPillRow(loan: loan),
+        const SizedBox(height: 14),
         _buildSummaryCards(loan, fmt, progress, paid),
         const SizedBox(height: 14),
         LoanHeatmap(
@@ -362,6 +372,7 @@ class _SummaryCardOverview extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     final pct = (progress * 100).round();
     final totalCollected = loan.instalments.fold(0.0, (sum, i) => sum + i.receivedAmount);
     final totalRepayable = (loan.instalments.isNotEmpty ? loan.instalments.first.dueAmount : 0) * loan.instalmentCount;
@@ -455,7 +466,7 @@ class _SummaryCardOverview extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('PRINCIPAL', style: AppTypography.tiny.copyWith(color: AppColors.textLight, fontWeight: FontWeight.w600)),
+                    Text(t.x('loan.lbl_principal').toUpperCase(), style: AppTypography.tiny.copyWith(color: AppColors.textLight, fontWeight: FontWeight.w600)),
                     Text(fmt.format(loan.principalAmount), style: AppTypography.bodyLarge.copyWith(color: AppColors.textPrimary)),
                   ],
                 ),
@@ -464,7 +475,7 @@ class _SummaryCardOverview extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text('OUTSTANDING', style: AppTypography.tiny.copyWith(color: AppColors.textLight, fontWeight: FontWeight.w600)),
+                    Text(t.x('loan.lbl_outstanding').toUpperCase(), style: AppTypography.tiny.copyWith(color: AppColors.textLight, fontWeight: FontWeight.w600)),
                     Text(fmt.format(outstanding), style: AppTypography.bodyLarge.copyWith(color: AppColors.danger)),
                   ],
                 ),
@@ -795,5 +806,207 @@ class _PayButton extends ConsumerWidget {
       ref.invalidate(_loanDetailProvider(loan.id));
       onCompleted?.call();
     });
+  }
+}
+
+class _BorrowerHeader extends ConsumerWidget {
+  const _BorrowerHeader({required this.loan});
+  final Loan loan;
+
+  BadgeKind _badge(String s) => switch (s) {
+        'active' => BadgeKind.active,
+        'overdue' => BadgeKind.overdue,
+        'closed' => BadgeKind.closed,
+        'pending_review' || 'pending' => BadgeKind.pending,
+        _ => BadgeKind.info,
+      };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final name = loan.customer?.name ?? '—';
+    final code = loan.customer?.customerCode ?? '';
+    final photo = loan.customer?.photoUrl;
+    final initials = loan.customer?.initials ?? '?';
+
+    return GestureDetector(
+      onTap: () => context.push('/customers/${loan.customerId}'),
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        children: [
+          if (photo != null && photo.isNotEmpty)
+            CircleAvatar(radius: 36, backgroundImage: NetworkImage(photo))
+          else
+            CircleAvatar(
+              radius: 36,
+              backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+              child: Text(
+                initials,
+                style: const TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 22,
+                ),
+              ),
+            ),
+          const SizedBox(height: 10),
+          Text(
+            name,
+            style: AppTypography.sectionTitle.copyWith(
+              fontSize: 18,
+              letterSpacing: -0.3,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (code.isNotEmpty) ...[
+                Text(code, style: AppTypography.caption),
+                const SizedBox(width: 8),
+              ],
+              AppBadge(label: loan.status, kind: _badge(loan.status)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LoanPillRow extends ConsumerWidget {
+  const _LoanPillRow({required this.loan});
+  final Loan loan;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(_customerLoansProvider(loan.customerId));
+    return async.when(
+      loading: () => const SizedBox(height: 36),
+      error: (_, __) => const SizedBox(height: 0),
+      data: (loans) {
+        if (loans.length <= 1) return const SizedBox.shrink();
+        final visible = loans.take(3).toList(growable: false);
+        final extra = loans.length - visible.length;
+        return Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final l in visible)
+              _LoanPill(
+                code: (l['loanCode'] as String?) ?? '',
+                status: (l['status'] as String?) ?? 'active',
+                active: (l['id'] as String?) == loan.id,
+                onTap: () {
+                  final id = l['id'] as String?;
+                  if (id != null && id != loan.id) {
+                    context.go('/loans/$id');
+                  }
+                },
+              ),
+            if (extra > 0)
+              _LoanPillMore(
+                count: extra,
+                onTap: () => context.push('/customers/${loan.customerId}'),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _LoanPill extends StatelessWidget {
+  const _LoanPill({
+    required this.code,
+    required this.status,
+    required this.active,
+    required this.onTap,
+  });
+  final String code;
+  final String status;
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final dot = switch (status) {
+      'overdue' => AppColors.danger,
+      'closed' => AppColors.textLight,
+      'pending_review' || 'pending' => AppColors.warning,
+      _ => AppColors.success,
+    };
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: active ? AppColors.primary.withValues(alpha: 0.10) : AppColors.surface,
+          border: Border.all(
+            color: active ? AppColors.primary : AppColors.border,
+            width: 1.5,
+          ),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              code.isEmpty ? '—' : code,
+              style: AppTypography.caption.copyWith(
+                fontWeight: FontWeight.w700,
+                color: active ? AppColors.primary : AppColors.textPrimary,
+                fontFamily: 'monospace',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LoanPillMore extends StatelessWidget {
+  const _LoanPillMore({required this.count, required this.onTap});
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          border: Border.all(color: AppColors.border, width: 1.5),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '+$count more',
+              style: AppTypography.caption.copyWith(
+                fontWeight: FontWeight.w700,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right, size: 14, color: AppColors.textLight),
+          ],
+        ),
+      ),
+    );
   }
 }

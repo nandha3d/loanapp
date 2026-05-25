@@ -29,6 +29,7 @@ type Props = {
   activeBranch: { name: string; code: string | null; enabledModules?: string } | null;
   viewerRole: string;
   allowedModules: string[];
+  dict: any;
 };
 
 export default function TeamClient({
@@ -37,7 +38,9 @@ export default function TeamClient({
   activeBranch,
   viewerRole,
   allowedModules,
+  dict,
 }: Props) {
+  const a = dict.admin || {};
   const router = useRouter();
   const [agents, setAgents] = useState<Agent[]>(initialAgents);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -66,20 +69,14 @@ export default function TeamClient({
         agent.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         agent.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
         agent.phone.includes(searchQuery);
-
-      const matchesStatus =
-        statusFilter === 'all' || agent.status === statusFilter;
-
+      const matchesStatus = statusFilter === 'all' || agent.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
   }, [initialAgents, searchQuery, statusFilter]);
 
   const handleOpenNew = () => {
     setEditingAgent(null);
-    setName('');
-    setUsername('');
-    setPhone('');
-    setPassword('');
+    setName(''); setUsername(''); setPhone(''); setPassword('');
     setStatus('active');
     setSelectedModules(activeBranchModules.length > 0 ? [activeBranchModules[0]] : ['microlending']);
     setError(null);
@@ -88,35 +85,31 @@ export default function TeamClient({
 
   const handleEdit = (agent: Agent) => {
     setEditingAgent(agent);
-    setName(agent.name);
-    setUsername(agent.username);
-    setPhone(agent.phone);
-    setPassword('');
-    setStatus(agent.status);
-    
+    setName(agent.name); setUsername(agent.username);
+    setPhone(agent.phone); setPassword(''); setStatus(agent.status);
     const assigned = agent.userBranchModules?.find((row: any) => row.branchId === agent.branchId);
     const assignedModules = normalizeModuleList(assigned?.enabledModules);
     setSelectedModules(assignedModules.length > 0 ? assignedModules : (agent.appType ? [agent.appType as ModuleKey] : []));
-    
     setError(null);
     setIsModalOpen(true);
   };
 
   const handleToggleStatus = async (agent: Agent) => {
-    if (!confirm(`Are you sure you want to ${agent.status === 'active' ? 'deactivate' : 'activate'} this agent?`)) {
-      return;
-    }
+    const confirmMsg = agent.status === 'active'
+      ? (a.deactivateConfirm || 'Are you sure you want to deactivate this agent?')
+      : (a.activateConfirm || 'Are you sure you want to activate this agent?');
+    if (!confirm(confirmMsg)) return;
 
     try {
       const res = await toggleAgentStatus(agent.id, agent.status);
       if (res.success) {
         router.refresh();
       } else {
-        alert(res.error || 'Failed to update agent status');
+        alert(res.error || a.failedToUpdate || 'Failed to update agent status');
       }
     } catch (err) {
       console.error(err);
-      alert('An unexpected error occurred.');
+      alert(a.unexpectedError || 'An unexpected error occurred.');
     }
   };
 
@@ -137,18 +130,13 @@ export default function TeamClient({
     setError(null);
 
     const formData = new FormData();
-    if (editingAgent) {
-      formData.append('id', editingAgent.id);
-    }
+    if (editingAgent) formData.append('id', editingAgent.id);
     formData.append('name', name);
     formData.append('username', username);
     formData.append('phone', phone);
     formData.append('password', password);
     formData.append('status', status);
-    
-    selectedModules.forEach((module) => {
-      formData.append('adminModules', module);
-    });
+    selectedModules.forEach((module) => formData.append('adminModules', module));
 
     try {
       const res = await manageAgent(formData);
@@ -156,11 +144,11 @@ export default function TeamClient({
         setIsModalOpen(false);
         router.refresh();
       } else {
-        setError(res.error || 'Failed to save agent');
+        setError(res.error || a.failedToSave || 'Failed to save agent');
       }
     } catch (err) {
       console.error(err);
-      setError('An unexpected error occurred.');
+      setError(a.unexpectedError || 'An unexpected error occurred.');
     } finally {
       setLoading(false);
     }
@@ -170,22 +158,25 @@ export default function TeamClient({
     <div className="container-fluid" style={{ padding: '24px' }}>
       <div className="page-header" style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 style={{ fontSize: '1.8rem', fontWeight: 700, margin: 0, color: 'var(--text)' }}>Manage Agents</h1>
+          <h1 style={{ fontSize: '1.8rem', fontWeight: 700, margin: 0, color: 'var(--text)' }}>
+            {a.manageAgents || 'Manage Agents'}
+          </h1>
           <p className="text-muted" style={{ margin: '4px 0 0 0' }}>
             {activeBranch ? (
               <span className="badge" style={{ background: 'var(--primary-bg)', color: 'var(--primary)', padding: '6px 12px', borderRadius: '20px' }}>
                 <span className="material-icons-outlined" style={{ fontSize: '14px', verticalAlign: 'middle', marginRight: '4px' }}>storefront</span>
-                Branch: {activeBranch.name} {activeBranch.code ? `(${activeBranch.code})` : ''}
+                {a.branch || 'Branch'}: {activeBranch.name} {activeBranch.code ? `(${activeBranch.code})` : ''}
               </span>
             ) : (
-              'Manage field collection agents and view performance.'
+              a.manageAgentsDesc || 'Manage field collection agents and view performance.'
             )}
           </p>
         </div>
         <div>
-          <button className="btn btn-primary" onClick={handleOpenNew} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderRadius: 'var(--radius-md)' }}>
+          <button className="btn btn-primary" onClick={handleOpenNew}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderRadius: 'var(--radius-md)' }}>
             <span className="material-icons-outlined">add</span>
-            New Agent
+            {a.newAgent || 'New Agent'}
           </button>
         </div>
       </div>
@@ -197,7 +188,7 @@ export default function TeamClient({
             <span className="material-icons-outlined" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-light)' }}>search</span>
             <input
               type="text"
-              placeholder="Search by name, username, or phone..."
+              placeholder={a.searchAgents || 'Search by name, username, or phone...'}
               className="form-control"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -211,9 +202,9 @@ export default function TeamClient({
               onChange={(e) => setStatusFilter(e.target.value)}
               style={{ height: '42px', borderRadius: 'var(--radius-sm)' }}
             >
-              <option value="all">All Statuses</option>
-              <option value="active">Active Only</option>
-              <option value="inactive">Inactive Only</option>
+              <option value="all">{a.allStatuses || 'All Statuses'}</option>
+              <option value="active">{a.activeOnly || 'Active Only'}</option>
+              <option value="inactive">{a.inactiveOnly || 'Inactive Only'}</option>
             </select>
           </div>
         </div>
@@ -223,8 +214,8 @@ export default function TeamClient({
       {filteredAgents.length === 0 ? (
         <div className="card" style={{ padding: '48px', textAlign: 'center', borderRadius: 'var(--radius-md)' }}>
           <span className="material-icons-outlined" style={{ fontSize: '48px', color: 'var(--text-light)', marginBottom: '12px' }}>badge</span>
-          <h3 style={{ margin: 0, fontWeight: 600 }}>No Agents Found</h3>
-          <p className="text-muted" style={{ margin: '8px 0 0 0' }}>Try adjusting your search query or create a new agent.</p>
+          <h3 style={{ margin: 0, fontWeight: 600 }}>{a.noAgentsFound || 'No Agents Found'}</h3>
+          <p className="text-muted" style={{ margin: '8px 0 0 0' }}>{a.noAgentsHint || 'Try adjusting your search query or create a new agent.'}</p>
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
@@ -234,16 +225,11 @@ export default function TeamClient({
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                   <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                     <div style={{
-                      width: '44px',
-                      height: '44px',
-                      borderRadius: '50%',
+                      width: '44px', height: '44px', borderRadius: '50%',
                       background: agent.status === 'active' ? 'var(--primary-bg)' : 'var(--bg-dark)',
                       color: agent.status === 'active' ? 'var(--primary)' : 'var(--text-light)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontWeight: 'bold',
-                      fontSize: '1.1rem'
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontWeight: 'bold', fontSize: '1.1rem'
                     }}>
                       {agent.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
                     </div>
@@ -252,15 +238,12 @@ export default function TeamClient({
                       <p className="text-muted" style={{ margin: 0, fontSize: '0.85rem' }}>@{agent.username}</p>
                     </div>
                   </div>
-                  <span className={`badge ${agent.status === 'active' ? 'badge-success' : 'badge-danger'}`} style={{
+                  <span style={{
                     background: agent.status === 'active' ? 'var(--success-bg)' : 'var(--danger-bg)',
                     color: agent.status === 'active' ? 'var(--success)' : 'var(--danger)',
-                    padding: '4px 8px',
-                    borderRadius: '12px',
-                    fontSize: '0.75rem',
-                    fontWeight: 600
+                    padding: '4px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600
                   }}>
-                    {agent.status.toUpperCase()}
+                    {agent.status === 'active' ? (a.active || 'ACTIVE') : (a.inactive || 'INACTIVE')}
                   </span>
                 </div>
 
@@ -271,7 +254,7 @@ export default function TeamClient({
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span className="material-icons-outlined" style={{ fontSize: '18px' }}>calendar_today</span>
-                    <span>Joined {new Date(agent.createdAt).toLocaleDateString()}</span>
+                    <span>{a.joinDate || 'Joined'} {new Date(agent.createdAt).toLocaleDateString()}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                     <span className="material-icons-outlined" style={{ fontSize: '18px' }}>apps</span>
@@ -281,7 +264,7 @@ export default function TeamClient({
                         const assignedModules = normalizeModuleList(assigned?.enabledModules);
                         const list = assignedModules.length > 0 ? assignedModules : (agent.appType ? [agent.appType] : []);
                         return list.map((module: any) => (
-                          <span key={module} className="badge" style={{ background: 'var(--primary-bg)', color: 'var(--primary)', border: '1px solid var(--primary-light)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 600 }}>
+                          <span key={module} style={{ background: 'var(--primary-bg)', color: 'var(--primary)', border: '1px solid var(--primary-light)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 600 }}>
                             {MODULE_LABELS[module as ModuleKey] || module}
                           </span>
                         ));
@@ -291,33 +274,24 @@ export default function TeamClient({
                 </div>
 
                 <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
-                  <button
-                    className="btn btn-outline"
-                    onClick={() => handleEdit(agent)}
-                    style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px', fontSize: '0.85rem' }}
-                  >
+                  <button className="btn btn-outline" onClick={() => handleEdit(agent)}
+                    style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px', fontSize: '0.85rem' }}>
                     <span className="material-icons-outlined" style={{ fontSize: '16px' }}>edit</span>
-                    Edit
+                    {a.editAgent || 'Edit'}
                   </button>
                   <button
                     className={`btn ${agent.status === 'active' ? 'btn-ghost' : 'btn-primary'}`}
                     onClick={() => handleToggleStatus(agent)}
                     style={{
-                      flex: 1,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px',
-                      padding: '8px',
-                      fontSize: '0.85rem',
+                      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      gap: '6px', padding: '8px', fontSize: '0.85rem',
                       color: agent.status === 'active' ? 'var(--danger)' : undefined,
                       background: agent.status === 'active' ? 'var(--danger-bg)' : undefined,
-                    }}
-                  >
+                    }}>
                     <span className="material-icons-outlined" style={{ fontSize: '16px' }}>
                       {agent.status === 'active' ? 'block' : 'check_circle'}
                     </span>
-                    {agent.status === 'active' ? 'Deactivate' : 'Activate'}
+                    {agent.status === 'active' ? (a.deactivateConfirm ? (dict.settings?.deactivate || 'Deactivate') : 'Deactivate') : (a.active || 'Activate')}
                   </button>
                 </div>
               </div>
@@ -327,68 +301,47 @@ export default function TeamClient({
       )}
 
       {/* Add / Edit Agent Modal */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingAgent ? 'Edit Agent Details' : 'Add New Field Agent'}>
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}
+        title={editingAgent ? (a.editAgent || 'Edit Agent Details') : (a.addAgent || 'Add New Field Agent')}>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '4px' }}>
           {error && (
-            <div className="alert alert-danger" style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--danger-bg)', color: 'var(--danger)', padding: '12px', borderRadius: 'var(--radius-sm)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--danger-bg)', color: 'var(--danger)', padding: '12px', borderRadius: 'var(--radius-sm)' }}>
               <span className="material-icons-outlined">error</span>
               <span>{error}</span>
             </div>
           )}
 
           <div className="form-group">
-            <label className="form-label" style={{ fontWeight: 600, marginBottom: '6px' }}>Agent Name *</label>
-            <input
-              type="text"
-              className="form-control"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. John Doe"
-              required
-            />
+            <label className="form-label" style={{ fontWeight: 600, marginBottom: '6px' }}>{a.name || 'Agent Name'} *</label>
+            <input type="text" className="form-control" value={name}
+              onChange={(e) => setName(e.target.value)} placeholder="e.g. John Doe" required />
           </div>
 
           <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
             <div className="form-group" style={{ flex: 1, minWidth: '200px' }}>
-              <label className="form-label" style={{ fontWeight: 600, marginBottom: '6px' }}>Username *</label>
-              <input
-                type="text"
-                className="form-control"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="e.g. johndoe"
-                required
-              />
+              <label className="form-label" style={{ fontWeight: 600, marginBottom: '6px' }}>{a.username || 'Username'} *</label>
+              <input type="text" className="form-control" value={username}
+                onChange={(e) => setUsername(e.target.value)} placeholder="e.g. johndoe" required />
             </div>
             <div className="form-group" style={{ flex: 1, minWidth: '200px' }}>
-              <label className="form-label" style={{ fontWeight: 600, marginBottom: '6px' }}>Phone Number *</label>
-              <input
-                type="tel"
-                className="form-control"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="e.g. 9876543210"
-                required
-              />
+              <label className="form-label" style={{ fontWeight: 600, marginBottom: '6px' }}>{a.phone || 'Phone Number'} *</label>
+              <input type="tel" className="form-control" value={phone}
+                onChange={(e) => setPhone(e.target.value)} placeholder="e.g. 9876543210" required />
             </div>
           </div>
 
           <div className="form-group">
             <label className="form-label" style={{ fontWeight: 600, marginBottom: '6px' }}>
-              {editingAgent ? 'New Password (leave blank to keep unchanged)' : 'Password *'}
+              {editingAgent ? `${a.password || 'Password'} (leave blank to keep unchanged)` : `${a.password || 'Password'} *`}
             </label>
-            <input
-              type="password"
-              className="form-control"
-              value={password}
+            <input type="password" className="form-control" value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder={editingAgent ? 'Enter new password' : 'Enter agent password'}
-              required={!editingAgent}
-            />
+              required={!editingAgent} />
           </div>
 
           <div className="form-group">
-            <label className="form-label" style={{ fontWeight: 600, marginBottom: '6px' }}>Module Access</label>
+            <label className="form-label" style={{ fontWeight: 600, marginBottom: '6px' }}>{a.modules || 'Module Access'}</label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px' }}>
               {activeBranchModules.map((module) => {
                 const checked = selectedModules.includes(module);
@@ -404,25 +357,22 @@ export default function TeamClient({
 
           {editingAgent && (
             <div className="form-group">
-              <label className="form-label" style={{ fontWeight: 600, marginBottom: '6px' }}>Status</label>
-              <select
-                className="form-control"
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-              >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
+              <label className="form-label" style={{ fontWeight: 600, marginBottom: '6px' }}>{a.status || 'Status'}</label>
+              <select className="form-control" value={status} onChange={(e) => setStatus(e.target.value)}>
+                <option value="active">{a.active || 'Active'}</option>
+                <option value="inactive">{a.inactive || 'Inactive'}</option>
               </select>
             </div>
           )}
 
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '12px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
             <button type="button" className="btn btn-ghost" onClick={() => setIsModalOpen(false)}>
-              Cancel
+              {a.cancel || 'Cancel'}
             </button>
-            <button type="submit" className="btn btn-primary" disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button type="submit" className="btn btn-primary" disabled={loading}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               {loading && <span className="material-icons-outlined style-spin">sync</span>}
-              {editingAgent ? 'Save Changes' : 'Create Agent'}
+              {loading ? (a.saving || 'Saving...') : (a.save || 'Save')}
             </button>
           </div>
         </form>

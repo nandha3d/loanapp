@@ -11,12 +11,20 @@ import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
+import 'package:loantrack/data/models/collection_entry.dart';
 import 'package:loantrack/data/models/dashboard_summary.dart';
 import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/data/repositories/dashboard_repository.dart';
+import 'package:loantrack/data/services/collection_service.dart';
+import 'package:loantrack/features/collection/quick_collect_sheet.dart';
 import 'package:loantrack/shared/widgets/bottom_nav.dart';
 import 'package:loantrack/shared/widgets/empty_state.dart';
 import 'package:loantrack/shared/widgets/skeleton.dart';
+
+final _collectionTodayProvider =
+    FutureProvider.autoDispose<List<CollectionRow>>((ref) {
+  return ref.watch(collectionServiceProvider).today();
+});
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -98,7 +106,7 @@ class _DashboardBody extends ConsumerWidget {
         const SizedBox(height: 18),
         _QuickActions(t: t),
         const SizedBox(height: 18),
-        _ScheduleSection(summary: summary, fmt: fmt, t: t),
+        _UpNextPager(fmt: fmt, t: t),
         const SizedBox(height: 18),
         _ActivitySection(summary: summary, t: t),
       ],
@@ -168,6 +176,13 @@ class _HeroBalance extends ConsumerWidget {
     final collected = summary.todayCollected;
     final expected = summary.todayExpected;
     final pct = expected <= 0 ? 0.0 : (collected / expected).clamp(0.0, 1.0);
+    final paid = summary.todayInstalments.where((i) => i.status == 'paid').length;
+    final pending = summary.todayInstalments
+        .where((i) => i.status == 'upcoming' || i.status == 'partial')
+        .length;
+    final overdue = summary.todayInstalments
+        .where((i) => i.status == 'missed' || i.status == 'overdue')
+        .length;
 
     return GestureDetector(
       onTap: () => ref.speak(
@@ -265,9 +280,69 @@ class _HeroBalance extends ConsumerWidget {
                 _ProgressArc(pct: pct),
               ],
             ),
+            const SizedBox(height: 16),
+            Container(
+              height: 1,
+              color: Colors.white.withAlpha(20),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _HeroStat(
+                    n: paid,
+                    label: t.x('coll.filter_paid'),
+                  ),
+                ),
+                Container(width: 1, height: 28, color: Colors.white.withAlpha(20)),
+                Expanded(
+                  child: _HeroStat(
+                    n: pending,
+                    label: t.x('coll.filter_pending'),
+                  ),
+                ),
+                Container(width: 1, height: 28, color: Colors.white.withAlpha(20)),
+                Expanded(
+                  child: _HeroStat(
+                    n: overdue,
+                    label: t.x('coll.filter_overdue'),
+                    tone: const Color(0xFFFF8674),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _HeroStat extends StatelessWidget {
+  const _HeroStat({required this.n, required this.label, this.tone});
+  final int n;
+  final String label;
+  final Color? tone;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          '$n',
+          style: AppTypography.heroNumber.copyWith(
+            color: tone ?? Colors.white,
+            fontSize: 22,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: AppTypography.tiny.copyWith(color: Colors.white54),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
     );
   }
 }
@@ -616,140 +691,324 @@ class _ActionBtn extends StatelessWidget {
   }
 }
 
-class _ScheduleSection extends ConsumerWidget {
-  const _ScheduleSection({
-    required this.summary,
-    required this.fmt,
-    required this.t,
-  });
-  final DashboardSummary summary;
+class _UpNextPager extends ConsumerStatefulWidget {
+  const _UpNextPager({required this.fmt, required this.t});
   final NumberFormat fmt;
   final T t;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return _Section(
-      title: t.x('dash.today_schedule'),
-      trailing: Text(
-        '${summary.todayInstalments.length}',
-        style: AppTypography.caption,
-      ),
-      child: summary.todayInstalments.isEmpty
-          ? SizedBox(
-              height: 140,
-              child: EmptyState(
-                icon: Icons.calendar_today_outlined,
-                title: t.x('dash.no_schedule'),
+  ConsumerState<_UpNextPager> createState() => _UpNextPagerState();
+}
+
+class _UpNextPagerState extends ConsumerState<_UpNextPager> {
+  final _ctrl = PageController(viewportFraction: 0.94);
+  int _idx = 0;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.t;
+    final async = ref.watch(_collectionTodayProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Row(
+            children: [
+              Text(
+                t.x('dash.up_next').toUpperCase(),
+                style: AppTypography.tiny.copyWith(
+                  color: AppColors.textSecondary,
+                  letterSpacing: 1,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-            )
-          : SizedBox(
-              height: 178,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                itemCount: summary.todayInstalments.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (_, i) {
-                  final inst = summary.todayInstalments[i];
-                  return _ScheduleCard(
-                    inst: inst,
-                    fmt: fmt,
-                    onTap: () {
-                      ref.speak(
-                        '${inst.customerName}, ${fmt.format(inst.dueAmount)}',
-                      );
-                      context.go('/collection');
-                    },
-                  );
-                },
+              const Spacer(),
+              GestureDetector(
+                onTap: () => context.go('/collection'),
+                child: Text(
+                  '${t.x('common.see_all')} →',
+                  style: AppTypography.caption.copyWith(
+                    color: AppColors.textLight,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        async.when(
+          loading: () => const Skeleton(height: 156, borderRadius: 18),
+          error: (e, _) => SizedBox(
+            height: 130,
+            child: EmptyState(
+              icon: Icons.cloud_off,
+              title: t.x('err.failed_to_load'),
             ),
+          ),
+          data: (rows) {
+            final pending = rows
+                .where((r) => r.status != 'paid')
+                .toList(growable: false);
+            if (pending.isEmpty) {
+              return Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: AppTokens.shadow,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: AppColors.successBg,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.check_circle_outline,
+                        color: AppColors.success,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(t.x('dash.all_done_title'),
+                              style: AppTypography.bodyLarge),
+                          const SizedBox(height: 2),
+                          Text(t.x('dash.all_done_sub'),
+                              style: AppTypography.caption),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+            return Column(
+              children: [
+                SizedBox(
+                  height: 156,
+                  child: PageView.builder(
+                    controller: _ctrl,
+                    itemCount: pending.length,
+                    onPageChanged: (i) => setState(() => _idx = i),
+                    itemBuilder: (_, i) => Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: _UpNextCard(row: pending[i], fmt: widget.fmt),
+                    ),
+                  ),
+                ),
+                if (pending.length > 1) ...[
+                  const SizedBox(height: 10),
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.background,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Text(
+                        '${_idx + 1}/${pending.length}',
+                        style: AppTypography.caption.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textSecondary,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            );
+          },
+        ),
+      ],
     );
   }
 }
 
-class _ScheduleCard extends StatelessWidget {
-  const _ScheduleCard({
-    required this.inst,
-    required this.fmt,
-    required this.onTap,
-  });
-  final TodayInstalment inst;
+class _UpNextCard extends ConsumerWidget {
+  const _UpNextCard({required this.row, required this.fmt});
+  final CollectionRow row;
   final NumberFormat fmt;
-  final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
-    final isPaid = inst.status == 'paid';
-    final isPartial = inst.status == 'partial';
-    final statusColor = isPaid
-        ? AppColors.success
-        : isPartial
-            ? AppColors.warning
-            : AppColors.info;
-    final statusBg = isPaid
-        ? AppColors.successBg
-        : isPartial
-            ? AppColors.warningBg
-            : AppColors.infoBg;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
+    final time = TimeOfDay.fromDateTime(row.dueDate).format(context);
+    final route = row.routeName;
+    final due = row.outstanding > 0 ? row.outstanding : row.dueAmount;
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 200,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppTokens.radius),
-          boxShadow: AppTokens.shadow,
-          border: Border.all(color: statusColor.withAlpha(40)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                _Avatar(name: inst.customerName, size: 36),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        inst.customerName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.bodyLarge,
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: AppTokens.shadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _Avatar(name: row.customerName, size: 44),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      row.customerName,
+                      style: AppTypography.bodyLarge.copyWith(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
                       ),
-                      Text(inst.loanCode, style: AppTypography.caption),
-                    ],
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.access_time_rounded,
+                          size: 12,
+                          color: AppColors.textLight,
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            [time, if (route != null && route.isNotEmpty) route]
+                                .join(' · '),
+                            style: AppTypography.caption,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    t.x('coll.status_due_today').toUpperCase(),
+                    style: AppTypography.extraTiny.copyWith(
+                      color: AppColors.textLight,
+                      letterSpacing: 0.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    fmt.format(due),
+                    style: AppTypography.heroNumber.copyWith(
+                      fontSize: 22,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: Material(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(12),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => _openCollect(context, ref),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.payments_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Collect now',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-              ],
-            ),
-            const Spacer(),
-            Text(
-              fmt.format(inst.dueAmount),
-              style: AppTypography.moneyLg.copyWith(
-                color: AppColors.textPrimary,
               ),
-            ),
-            const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: statusBg,
-                borderRadius: BorderRadius.circular(20),
+              const SizedBox(width: 10),
+              Material(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(12),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => _callCustomer(ref, row.customerId),
+                  child: Container(
+                    width: 46,
+                    height: 46,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: AppColors.border),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.phone_outlined,
+                      size: 18,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
               ),
-              child: Text(
-                inst.status.toUpperCase(),
-                style: AppTypography.tiny.copyWith(color: statusColor),
-              ),
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
     );
+  }
+
+  void _openCollect(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => QuickCollectSheet(row: row),
+    ).then((_) {
+      ref.invalidate(_collectionTodayProvider);
+      ref.invalidate(dashboardSummaryProvider);
+    });
+  }
+
+  void _callCustomer(WidgetRef ref, String customerId) {
+    final ctx = ref.context;
+    if (ctx.mounted) ctx.push('/customers/$customerId');
   }
 }
 
@@ -799,7 +1058,7 @@ class _ActivitySection extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          _relTime(l.createdAt),
+                          _relTime(l.createdAt, t),
                           style: AppTypography.extraTiny,
                         ),
                       ],
@@ -811,9 +1070,9 @@ class _ActivitySection extends StatelessWidget {
   }
 }
 
-String _relTime(DateTime dt) {
+String _relTime(DateTime dt, T t) {
   final d = DateTime.now().difference(dt);
-  if (d.inMinutes < 1) return 'now';
+  if (d.inMinutes < 1) return t.x('common.now');
   if (d.inHours < 1) return '${d.inMinutes}m';
   if (d.inDays < 1) return '${d.inHours}h';
   if (d.inDays < 7) return '${d.inDays}d';

@@ -295,12 +295,23 @@ class _ApprovalCard extends ConsumerWidget {
     if (ok == true && context.mounted) {
       final note = noteCtrl.text.trim().isEmpty ? null : noteCtrl.text.trim();
       final svc = ref.read(approvalServiceProvider);
-      if (approve) {
-        await svc.approve(approval.id, note: note);
-      } else {
-        await svc.reject(approval.id, note: note);
+      try {
+        if (approve) {
+          await svc.approve(approval.id, note: note);
+        } else {
+          await svc.reject(approval.id, note: note);
+        }
+        onAction();
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e.toString()),
+              backgroundColor: AppColors.danger,
+            ),
+          );
+        }
       }
-      onAction();
     }
   }
 }

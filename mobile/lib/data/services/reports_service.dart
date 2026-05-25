@@ -2,42 +2,56 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:loantrack/core/network/dio_client.dart';
+import 'package:loantrack/data/models/reports.dart';
 import 'package:loantrack/shared/constants/endpoints.dart';
 
 class ReportsService {
   ReportsService(this._dio);
   final Dio _dio;
 
-  Future<Map<String, dynamic>> daily({DateTime? date}) async {
-    final res = await _dio.get<Map<String, dynamic>>(
-      Endpoints.reportsDaily,
-      queryParameters: {
-        if (date != null) 'date': date.toIso8601String(),
-      },
+  /// Fetch accounting capital summary.
+  Future<AccountingSummary> fetchAccountingSummary() async {
+    final res =
+        await _dio.get<Map<String, dynamic>>(Endpoints.accountingSummary);
+    return unwrapEnvelope(
+      res,
+      (dynamic d) =>
+          AccountingSummary.fromJson(d as Map<String, dynamic>),
     );
-    return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
   }
 
-  Future<Map<String, dynamic>> agent({DateTime? from, DateTime? to, String? agentId}) async {
-    final res = await _dio.get<Map<String, dynamic>>(
-      Endpoints.reportsAgent,
-      queryParameters: {
-        if (from != null) 'from': from.toIso8601String(),
-        if (to != null) 'to': to.toIso8601String(),
-        if (agentId != null) 'agentId': agentId,
-      },
-    );
-    return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
-  }
-
-  Future<List<Map<String, dynamic>>> overdue() async {
-    final res = await _dio.get<Map<String, dynamic>>(Endpoints.reportsOverdue);
+  /// Fetch overdue loans report.
+  Future<List<OverdueItem>> fetchOverdueReport() async {
+    final res =
+        await _dio.get<Map<String, dynamic>>(Endpoints.reportsOverdue);
     return unwrapEnvelope(res, (dynamic d) {
       return (d as List<dynamic>)
-          .map((dynamic e) => e as Map<String, dynamic>)
+          .map((dynamic e) => OverdueItem.fromJson(e as Map<String, dynamic>))
           .toList(growable: false);
     });
   }
+
+  /// Fetch agent performance report for a date range.
+  Future<List<AgentPerf>> fetchAgentPerformance(
+      DateTime from, DateTime to) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.reportsAgent,
+      queryParameters: <String, String>{
+        'from': _fmtDate(from),
+        'to': _fmtDate(to),
+      },
+    );
+    return unwrapEnvelope(res, (dynamic d) {
+      return (d as List<dynamic>)
+          .map((dynamic e) => AgentPerf.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false);
+    });
+  }
+
+  static String _fmtDate(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-'
+      '${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
 }
 
 final reportsServiceProvider = Provider<ReportsService>(

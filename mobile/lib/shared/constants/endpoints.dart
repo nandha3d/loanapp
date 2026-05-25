@@ -65,4 +65,14 @@ class Endpoints {
 
   // Payment
   static const String paymentQr = '/payment/qr';
+
+  // Notifications
+  static const String notifications = '/notifications';
+
+  // Vehicles
+  static const String vehicles = '/vehicles';
+  static String vehicle(String id) => '/vehicles/$id';
+
+  // Accounting
+  static const String accountingSummary = '/accounting';
 }

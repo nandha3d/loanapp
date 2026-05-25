@@ -2,6 +2,7 @@ import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { getDefaultTenantId } from '@/lib/tenant';
 import { getActiveBranchId } from '@/lib/branch';
+import { getDictionary } from '@/lib/i18n';
 import prisma from '@/lib/db';
 import TeamClient from './TeamClient';
 
@@ -16,6 +17,7 @@ export default async function TeamPage() {
 
   const tenantId = await getDefaultTenantId();
   const activeBranchId = await getActiveBranchId();
+  const dict = await getDictionary(tenantId);
 
   // Find all agents in this tenant and branch
   const whereClause: any = {
@@ -81,12 +83,13 @@ export default async function TeamPage() {
   }
 
   return (
-    <TeamClient 
-      initialAgents={visibleAgents} 
+    <TeamClient
+      initialAgents={visibleAgents}
       branches={branches}
       activeBranch={activeBranch}
       viewerRole={userRole}
       allowedModules={allowedModules}
+      dict={dict}
     />
   );
 }

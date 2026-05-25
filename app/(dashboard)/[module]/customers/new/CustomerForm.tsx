@@ -89,6 +89,7 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
     setCreatingAgent(false);
   };
 
+  const [companyType, setCompanyType] = useState<string>(customer?.companyType || '');
   const [documents, setDocuments] = useState<any[]>([]);
 
   // --- Submit ---
@@ -197,6 +198,41 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
             </select>
           </div>
         </div>
+
+        {/* --- Company / Employment --- */}
+        <h4 style={{ margin: '24px 0 12px', fontSize: '.9rem', fontWeight: 600 }}>🏢 {dict.customers.companyDetails}</h4>
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">{dict.customers.companyType}</label>
+            <select name="companyType" className="form-control" value={companyType} onChange={e => setCompanyType(e.target.value)} style={{ fontSize: '1rem', padding: '12px' }}>
+              <option value="">{dict.customers.selectEmploymentType}</option>
+              <option value="salaried">{dict.customers.salaried}</option>
+              <option value="self_employed">{dict.customers.selfEmployed}</option>
+              <option value="business">{dict.customers.business}</option>
+              <option value="unemployed">{dict.customers.unemployed}</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">{dict.customers.occupation}</label>
+            <input type="text" name="occupation" className="form-control" placeholder={dict.customers.occupationPlaceholder} defaultValue={customer?.occupation} style={{ fontSize: '1rem', padding: '12px' }} />
+          </div>
+        </div>
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">{dict.customers.companyName}</label>
+            <input type="text" name="companyName" className="form-control" placeholder={dict.customers.companyNamePlaceholder} defaultValue={customer?.companyName} style={{ fontSize: '1rem', padding: '12px' }} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">{dict.customers.monthlyIncome}</label>
+            <input type="number" name="monthlyIncome" className="form-control" placeholder={dict.customers.monthlyIncomePlaceholder} defaultValue={customer?.monthlyIncome ?? ''} min="0" style={{ fontSize: '1rem', padding: '12px' }} />
+          </div>
+        </div>
+        {(companyType === 'business' || companyType === 'self_employed') && (
+          <div className="form-group">
+            <label className="form-label">{dict.customers.gstNumber}</label>
+            <input type="text" name="gstNumber" className="form-control" placeholder={dict.customers.gstPlaceholder} defaultValue={customer?.gstNumber} style={{ fontSize: '1rem', padding: '12px' }} />
+          </div>
+        )}
 
         {/* --- KYC Documents --- */}
         <h4 style={{ margin: '24px 0 12px', fontSize: '.9rem', fontWeight: 600 }}>📄 {dict.customers.documents}</h4>

@@ -5,6 +5,7 @@ import AccountingClient from './AccountingClient';
 import { getAccountingSummary } from './actions';
 import { getActiveBranchId } from '@/lib/branch';
 import { modulePath } from '@/types/modules';
+import { getDictionary } from '@/lib/i18n';
 
 export default async function AccountingPage() {
   const session = await auth();
@@ -15,6 +16,7 @@ export default async function AccountingPage() {
   const tenantId = await getDefaultTenantId();
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
   const activeBranchId = await getActiveBranchId();
+  const dict = await getDictionary(tenantId);
   const summary = await getAccountingSummary(tenantId, activeBranchId);
 
   // Serialize Decimal fields
@@ -28,7 +30,7 @@ export default async function AccountingPage() {
           Track capital flow, loan disbursements, collections, and expenses.
         </p>
       </div>
-      <AccountingClient summary={serializedSummary} currencySymbol={currencySymbol} />
+      <AccountingClient summary={serializedSummary} currencySymbol={currencySymbol} dict={dict} />
     </div>
   );
 }

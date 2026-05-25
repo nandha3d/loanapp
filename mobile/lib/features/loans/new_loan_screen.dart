@@ -58,8 +58,22 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
 
   // Step 1 — loan type & cheques
   String _loanType = 'cheque';
-  final _collateralDetails = TextEditingController();
   final _cheques = <_ChequeEntry>[];
+
+  // Cheque loan collateral fields
+  final _chequeBankName = TextEditingController();
+  final _chequeNumber = TextEditingController();
+  final _chequeAmount = TextEditingController();
+
+  // Gold loan fields
+  final _goldGrams = TextEditingController();
+  String _goldCarat = '22K';
+  final _goldItems = TextEditingController();
+
+  // Property loan fields
+  String _propertyType = 'residential';
+  final _propertyValue = TextEditingController();
+  final _propertyAddress = TextEditingController();
 
   // Step 2 — principal/terms
   final _principal = TextEditingController(text: '30000');
@@ -91,10 +105,12 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
   @override
   void dispose() {
     _searchCtrl.dispose();
-    _collateralDetails.dispose();
     for (final c in _cheques) {
       c.dispose();
     }
+    _chequeBankName.dispose();
+    _chequeNumber.dispose();
+    _chequeAmount.dispose();
     _principal.dispose();
     _deduction.dispose();
     _tenure.dispose();
@@ -104,6 +120,10 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
     _gAadhar.dispose();
     _gAddress.dispose();
     _voucherRef.dispose();
+    _goldGrams.dispose();
+    _goldItems.dispose();
+    _propertyValue.dispose();
+    _propertyAddress.dispose();
     _page.dispose();
     super.dispose();
   }
@@ -121,6 +141,17 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
   double get _principalNum => double.tryParse(_principal.text) ?? 0;
   double get _deductionNum => double.tryParse(_deduction.text) ?? 0;
   int get _tenureNum => int.tryParse(_tenure.text) ?? 0;
+
+  String _buildCollateralJson() {
+    if (_loanType == 'cheque') {
+      return '{"bankName":"${_chequeBankName.text}","chequeNumber":"${_chequeNumber.text}","chequeAmount":${double.tryParse(_chequeAmount.text) ?? 0}}';
+    } else if (_loanType == 'gold') {
+      return '{"grams":${double.tryParse(_goldGrams.text) ?? 0},"carat":"$_goldCarat","items":"${_goldItems.text}"}';
+    } else if (_loanType == 'property') {
+      return '{"type":"$_propertyType","value":${double.tryParse(_propertyValue.text) ?? 0},"address":"${_propertyAddress.text}"}';
+    }
+    return '';
+  }
 
   double _netDisbursed() {
     switch (_deductionType) {
@@ -212,9 +243,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
             startDate: _startDate,
             penaltyRate: double.tryParse(_penaltyRate.text) ?? 0,
             loanType: _loanType,
-            collateralDetails: _collateralDetails.text.trim().isEmpty
-                ? null
-                : _collateralDetails.text.trim(),
+            collateralDetails: _buildCollateralJson(),
             voucherRef: _voucherRef.text.trim().isEmpty
                 ? null
                 : _voucherRef.text.trim(),
@@ -528,12 +557,84 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
           ],
         ),
         const SizedBox(height: 16),
-        if (_loanType != 'cheque') ...[
+        if (_loanType == 'cheque') ...[
           AppTextField(
-            label: _loanType == 'gold'
-                ? tr.x('lt.gold')
-                : tr.x('lt.property'),
-            controller: _collateralDetails,
+            label: tr.x('fld.bank_name'),
+            controller: _chequeBankName,
+          ),
+          const SizedBox(height: 12),
+          AppTextField(
+            label: tr.x('fld.cheque_no'),
+            controller: _chequeNumber,
+            keyboardType: TextInputType.number,
+          ),
+          const SizedBox(height: 12),
+          AppTextField(
+            label: tr.x('fld.amount'),
+            controller: _chequeAmount,
+            keyboardType: TextInputType.number,
+          ),
+          const SizedBox(height: 16),
+        ] else if (_loanType == 'gold') ...[
+          AppTextField(
+            label: tr.x('fld.gold_weight'),
+            controller: _goldGrams,
+            keyboardType: TextInputType.number,
+          ),
+          const SizedBox(height: 12),
+          Text(tr.x('fld.gold_purity'), style: AppTypography.label),
+          const SizedBox(height: 6),
+          DropdownButtonFormField<String>(
+            initialValue: _goldCarat,
+            decoration: InputDecoration(
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+              ),
+              isDense: true,
+            ),
+            items: [
+              for (final c in ['18K', '20K', '22K', '24K'])
+                DropdownMenuItem(value: c, child: Text(c)),
+            ],
+            onChanged: (v) => setState(() => _goldCarat = v ?? '22K'),
+          ),
+          const SizedBox(height: 12),
+          AppTextField(
+            label: tr.x('fld.gold_items'),
+            controller: _goldItems,
+            hintText: 'e.g. 2 Bangles, 1 Chain',
+          ),
+          const SizedBox(height: 16),
+        ] else if (_loanType == 'property') ...[
+          Text(tr.x('fld.property_type'), style: AppTypography.label),
+          const SizedBox(height: 6),
+          DropdownButtonFormField<String>(
+            initialValue: _propertyType,
+            decoration: InputDecoration(
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+              ),
+              isDense: true,
+            ),
+            items: [
+              DropdownMenuItem(value: 'residential', child: Text(tr.x('fld.property_type_residential'))),
+              DropdownMenuItem(value: 'commercial', child: Text(tr.x('fld.property_type_commercial'))),
+              DropdownMenuItem(value: 'land', child: Text(tr.x('fld.property_type_land'))),
+            ],
+            onChanged: (v) => setState(() => _propertyType = v ?? 'residential'),
+          ),
+          const SizedBox(height: 12),
+          AppTextField(
+            label: tr.x('fld.property_value'),
+            controller: _propertyValue,
+            keyboardType: TextInputType.number,
+            hintText: 'e.g. 500000',
+          ),
+          const SizedBox(height: 12),
+          AppTextField(
+            label: tr.x('fld.property_address'),
+            controller: _propertyAddress,
+            hintText: tr.x('fld.address'),
           ),
           const SizedBox(height: 16),
         ],
@@ -849,6 +950,30 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
               _kv(tr.x('rev.frequency'), _frequency),
               _kv(tr.x('rev.start'), DateFormat('dd MMM yyyy').format(_startDate)),
               _kv(tr.x('rev.penalty'), _penaltyRate.text),
+              if (_loanType == 'cheque')
+                ...[
+                  if (_chequeBankName.text.isNotEmpty)
+                    _kv(tr.x('fld.bank_name'), _chequeBankName.text),
+                  if (_chequeNumber.text.isNotEmpty)
+                    _kv(tr.x('fld.cheque_no'), _chequeNumber.text),
+                  if (_chequeAmount.text.isNotEmpty)
+                    _kv(tr.x('fld.amount'), '₹${_chequeAmount.text}'),
+                ]
+              else if (_loanType == 'gold')
+                ...[
+                  _kv(tr.x('fld.gold_weight'), '${_goldGrams.text} g'),
+                  _kv(tr.x('fld.gold_purity'), _goldCarat),
+                  if (_goldItems.text.isNotEmpty)
+                    _kv(tr.x('fld.gold_items'), _goldItems.text),
+                ]
+              else if (_loanType == 'property')
+                ...[
+                  _kv(tr.x('fld.property_type'), _propertyType),
+                  if (_propertyValue.text.isNotEmpty)
+                    _kv(tr.x('fld.property_value'), '₹${_propertyValue.text}'),
+                  if (_propertyAddress.text.isNotEmpty)
+                    _kv(tr.x('fld.property_address'), _propertyAddress.text),
+                ],
               if (_calc != null) ...[
                 const Divider(),
                 _kv(tr.x('rev.per_instalment'), fmt.format(_calc!.perInstalment)),
