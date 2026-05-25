@@ -80,3 +80,16 @@ mobile/**/GeneratedPluginRegistrant.*
 mobile/.vscode/
 *.log
 *.yml
+
+# Build artifacts / large binaries — never commit
+*.zip
+mobile/firebase_sdk.zip
+mobile/mobile.zip
+loanapp-standalone-hostinger.zip
+loanapp.zip
+loanapp_source_*.zip
+app.zip
+app_01.zip
+prototype.zip
+loantrack_end_to_end_markdown_docs.zip
+.playwright-cli/*.png
