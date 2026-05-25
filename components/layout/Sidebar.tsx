@@ -13,6 +13,7 @@ interface NavItem {
   label?: string;
   href?: string;
   adminOnly?: boolean;
+  agentOnly?: boolean;
   developerOnly?: boolean;
   superadminOnly?: boolean;
   appTypes?: string[];
@@ -50,11 +51,13 @@ export default function Sidebar({
 
   const navItems: NavItem[] = [
     { section: dict.sidebar.sections.main },
-    { id: 'dashboard', icon: 'dashboard', label: dict.sidebar.dashboard, href: '/dashboard', appTypes: ['microlending', 'autofinance'] },
+    { id: 'agent-dashboard', icon: 'dashboard', label: dict.sidebar.dashboard, href: '/agent-dashboard', agentOnly: true, appTypes: ['microlending', 'autofinance'] },
+    { id: 'dashboard', icon: 'dashboard', label: dict.sidebar.dashboard, href: '/dashboard', adminOnly: true, appTypes: ['microlending', 'autofinance'] },
     { id: 'collection', icon: 'point_of_sale', label: dict.sidebar.collection, href: '/collection' },
+    { id: 'route-tracker', icon: 'map', label: 'Route Tracker', href: '/route-tracker', adminOnly: true, appTypes: ['microlending', 'autofinance'] },
     { section: dict.sidebar.sections.management },
     { id: 'customers', icon: 'people', label: dict.sidebar.customers, href: '/customers' },
-    { id: 'loans', icon: 'account_balance', label: dict.sidebar.loans, href: '/loans', appTypes: ['microlending', 'autofinance'] },
+    { id: 'loans', icon: 'account_balance', label: dict.sidebar.loans, href: '/loans', adminOnly: true, appTypes: ['microlending', 'autofinance'] },
     { id: 'vehicles', icon: 'directions_car', label: dict.sidebar.vehicles, href: '/vehicles', adminOnly: true, appTypes: ['autofinance'] },
     { id: 'chits', icon: 'savings', label: dict.sidebar.chits, href: '/chits', adminOnly: true, appTypes: ['chitfunds'] },
     { id: 'penalties', icon: 'gavel', label: dict.sidebar.penalties, href: '/penalties', adminOnly: true, appTypes: ['microlending', 'autofinance'] },
@@ -82,6 +85,7 @@ export default function Sidebar({
   const filteredNav = navItems.filter(item => {
     if (item.section) return false; // sections evaluated separately below
     if (item.adminOnly && role !== 'admin' && role !== 'superadmin' && role !== 'developer') return false;
+    if (item.agentOnly && role !== 'agent') return false;
     if (item.developerOnly && role !== 'developer') return false;
     if (item.superadminOnly && role !== 'superadmin') return false;
     
@@ -90,7 +94,7 @@ export default function Sidebar({
 
     // Check if the route is enabled for the active app module
     if (item.href) {
-      const alwaysVisible = ['/dashboard', '/collection', '/approvals', '/settings', '/notifications', '/subscription', '/portal', '/admin', '/kyc-review'];
+      const alwaysVisible = ['/dashboard', '/agent-dashboard', '/collection', '/approvals', '/settings', '/notifications', '/subscription', '/portal', '/admin', '/kyc-review'];
       if (!alwaysVisible.some((path) => item.href!.startsWith(path))) {
         const routeEnabled = MODULE_ROUTES[userAppType as ModuleKey]?.some((route: string) =>
           item.href!.startsWith(route)

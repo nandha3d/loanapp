@@ -7,9 +7,15 @@ import { auth } from '@/lib/auth';
 import { getAgentRouteIds } from '@/lib/access';
 import { randomUUID } from 'crypto';
 import { reallocateLoanRepayments } from '@/lib/repayments';
-import { notifyPaymentReceived } from '@/lib/sms';
+import { notify } from '@/lib/notify/events';
 import { recordPaymentLedger } from '@/lib/paymentService';
 import { buildCollectionIdempotencyKey, getCollectionSubmissionBlockReason } from '@/lib/collectionPolicy';
+import {
+  isGpsTrackingEnabled,
+  normalizeGpsFormData,
+  recordCollectionLocationPing,
+  verifyAndPersistCollectionLocation,
+} from '@/lib/gps/locationVerifier';
 
 /**
  * Atomically gets or creates the DailyCollection for (tenantId, appType, agentId, today).
@@ -59,6 +65,8 @@ export async function submitCollectionEntry(formData: FormData) {
   const receivedAmount = Number(formData.get('receivedAmount'));
   const paymentMode = (formData.get('paymentMode') as string) || 'cash';
   const remarks = (formData.get('remarks') as string) || null;
+  const gpsTrackingEnabled = await isGpsTrackingEnabled(tenantId);
+  const gpsCapture = normalizeGpsFormData(formData, gpsTrackingEnabled);
 
   if (!instalmentId || isNaN(receivedAmount) || receivedAmount <= 0) {
     return { success: false, error: 'Invalid amount' };
@@ -119,6 +127,7 @@ export async function submitCollectionEntry(formData: FormData) {
     collectionDate: new Date(),
   });
   let appliedDelta = delta;
+  let createdEntryId: string | null = null;
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -155,8 +164,15 @@ export async function submitCollectionEntry(formData: FormData) {
         paymentMode,
         remarks: mergedRemarks,
         agentId: userId,
+        lat: gpsCapture.latitude,
+        lng: gpsCapture.longitude,
+        gpsAccuracyM: gpsCapture.gpsAccuracy,
+        gpsCapturedAt: gpsCapture.gpsTimestamp,
+        gpsAltitude: gpsCapture.gpsAltitude,
+        locationStatus: gpsCapture.locationStatus,
       },
     });
+    createdEntryId = entry.id;
 
     // Create Payment + PaymentAllocation via shared service
     await recordPaymentLedger(tx, {
@@ -216,6 +232,29 @@ export async function submitCollectionEntry(formData: FormData) {
     }
     throw error;
   }
+
+  if (gpsTrackingEnabled && createdEntryId) {
+    try {
+      await Promise.all([
+        verifyAndPersistCollectionLocation({
+          entryId: createdEntryId,
+          tenantId,
+          customerId: instalment.loan.customerId,
+          latitude: gpsCapture.latitude,
+          longitude: gpsCapture.longitude,
+        }),
+        recordCollectionLocationPing({
+          tenantId,
+          agentId: userId,
+          branchId: instalment.loan.branchId ?? null,
+          capture: gpsCapture,
+        }),
+      ]);
+    } catch (error) {
+      console.error('GPS verification failed:', error);
+    }
+  }
+
   // Note: AccountEntry is NO LONGER created here. 
   // Capital reflects only upon Cash Handover or UPI Verification.
   revalidatePath('/collection');
@@ -226,15 +265,18 @@ export async function submitCollectionEntry(formData: FormData) {
   if (instalment.loan.customer.phone && appliedDelta > 0) {
     const customer = instalment.loan.customer;
     const balance = Number(instalment.loan.totalPayable || 0) - Number(instalment.loan.totalCollected || 0) - appliedDelta;
-    notifyPaymentReceived({
+    notify({
       tenantId,
-      phone:    customer.phone,
-      name:     customer.name,
-      amount:   appliedDelta.toLocaleString('en-IN'),
-      loanCode: instalment.loan.loanCode,
-      date:     new Date().toLocaleDateString('en-IN'),
-      balance:  Math.max(0, balance).toLocaleString('en-IN'),
-      loanId:   instalment.loanId,
+      event: 'payment_received',
+      phone: customer.phone,
+      data: {
+        name: customer.name,
+        amount: appliedDelta.toLocaleString('en-IN'),
+        loanCode: instalment.loan.loanCode,
+        date: new Date().toLocaleDateString('en-IN'),
+        balance: Math.max(0, balance).toLocaleString('en-IN'),
+      },
+      meta: { entityType: 'loan', entityId: instalment.loanId },
     }).catch(err => console.error('Failed to send payment receipt', err));
   }
 

@@ -66,6 +66,15 @@ type CustomerOverdueGroup = {
   statusLabel: string;
 };
 
+type BrowserGpsCapture = {
+  status: string;
+  latitude?: number;
+  longitude?: number;
+  accuracy?: number;
+  altitude?: number | null;
+  timestamp?: string;
+};
+
 export default function CollectionClient({
   todayInstalments,
   overdueInstalments,
@@ -77,6 +86,7 @@ export default function CollectionClient({
   dict,
   dailyCollection,
   receiptPdfEnabled = false,
+  gpsTrackingEnabled = false,
 }: {
   todayInstalments: CollectionRow[];
   overdueInstalments: CollectionRow[];
@@ -88,6 +98,7 @@ export default function CollectionClient({
   dict: any;
   dailyCollection: { id: string; status: string; totalCollected: number } | null;
   receiptPdfEnabled?: boolean;
+  gpsTrackingEnabled?: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -115,6 +126,7 @@ export default function CollectionClient({
   const [overdueMinDays, setOverdueMinDays] = useState('');
   const [overdueMaxDays, setOverdueMaxDays] = useState('');
   const [selectedLoanForCustomer, setSelectedLoanForCustomer] = useState<Record<string, string>>({});
+  const [gpsStatusText, setGpsStatusText] = useState('');
 
   const handleLoanChange = (customerId: string, loanCode: string) => {
     setSelectedLoanForCustomer(prev => ({ ...prev, [customerId]: loanCode }));
@@ -268,7 +280,41 @@ export default function CollectionClient({
     setMode('cash');
     setRemarks('');
     setReason('');
+    setGpsStatusText('');
     setModal(instalment);
+  };
+
+  const captureCurrentLocation = (): Promise<BrowserGpsCapture> => {
+    if (!gpsTrackingEnabled) {
+      return Promise.resolve({ status: 'not_captured' });
+    }
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setGpsStatusText('Location unavailable');
+      return Promise.resolve({ status: 'not_captured' });
+    }
+
+    setGpsStatusText('Capturing location...');
+    return new Promise<BrowserGpsCapture>((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setGpsStatusText('Location captured');
+          resolve({
+            status: 'captured',
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            altitude: position.coords.altitude,
+            timestamp: new Date(position.timestamp).toISOString(),
+          });
+        },
+        (error) => {
+          const status = error.code === error.PERMISSION_DENIED ? 'location_denied' : 'gps_timeout';
+          setGpsStatusText(status === 'location_denied' ? 'Location denied' : 'Location timed out');
+          resolve({ status });
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+      );
+    });
   };
 
   const handleSubmit = async () => {
@@ -295,6 +341,13 @@ export default function CollectionClient({
         fd.set('receivedAmount', String(amount));
         fd.set('paymentMode', mode);
         fd.set('remarks', remarks);
+        const gps = await captureCurrentLocation();
+        fd.set('gpsStatus', gps.status);
+        if (gps.latitude !== undefined) fd.set('gpsLatitude', String(gps.latitude));
+        if (gps.longitude !== undefined) fd.set('gpsLongitude', String(gps.longitude));
+        if (gps.accuracy !== undefined) fd.set('gpsAccuracy', String(gps.accuracy));
+        if (gps.altitude !== undefined && gps.altitude !== null) fd.set('gpsAltitude', String(gps.altitude));
+        if (gps.timestamp) fd.set('gpsTimestamp', gps.timestamp);
         const result = await submitCollectionEntry(fd);
         setLoading(false);
         if (result.success) {
@@ -931,6 +984,19 @@ export default function CollectionClient({
                     <label className="form-label">Remarks</label>
                     <input type="text" className="form-control" value={remarks} onChange={(event) => setRemarks(event.target.value)} placeholder="Optional note" />
                   </div>
+                  {gpsTrackingEnabled && (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      fontSize: '.78rem',
+                      color: 'var(--text-secondary)',
+                      marginTop: '-4px',
+                    }}>
+                      <span className="material-icons-outlined" style={{ fontSize: '15px' }}>my_location</span>
+                      <span>{gpsStatusText || 'Location will be stamped on submit'}</span>
+                    </div>
+                  )}
                 </>
               )}
             </div>

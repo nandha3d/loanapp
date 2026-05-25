@@ -239,6 +239,7 @@ export default async function AnalyticsPage({
           currencySymbol={currencySymbol}
           filters={{ from: fromStr, to: toStr, routeId, agentId }}
           dict={dict}
+          subscription={null}
         />
       </div>
     </div>

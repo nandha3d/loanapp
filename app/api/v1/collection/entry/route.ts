@@ -6,6 +6,12 @@ import { getAgentRouteIds } from '@/lib/access';
 import { recordPaymentLedger } from '@/lib/paymentService';
 import { reallocateLoanRepayments } from '@/lib/repayments';
 import { buildCollectionIdempotencyKey, getCollectionSubmissionBlockReason } from '@/lib/collectionPolicy';
+import {
+  isGpsTrackingEnabled,
+  normalizeGpsBody,
+  recordCollectionLocationPing,
+  verifyAndPersistCollectionLocation,
+} from '@/lib/gps/locationVerifier';
 
 function parseDay(value: string | null) {
   const d = value ? new Date(value) : new Date();
@@ -46,6 +52,9 @@ export async function POST(req: NextRequest) {
     const lng = typeof body.lng === 'number' ? body.lng : null;
     const gpsAccuracyM = typeof body.gpsAccuracyM === 'number' ? body.gpsAccuracyM : null;
     const gpsCapturedAt = body.gpsCapturedAt ? new Date(body.gpsCapturedAt) : null;
+    // Additional verification: subscription gating + altitude/status capture from normalized body.
+    const gpsTrackingEnabled = await isGpsTrackingEnabled(ctx.tenantId);
+    const gpsCapture = normalizeGpsBody(body, gpsTrackingEnabled);
     if (!instalmentId || isNaN(receivedAmount) || receivedAmount <= 0) {
       return fail('Invalid amount', 400);
     }
@@ -148,6 +157,8 @@ export async function POST(req: NextRequest) {
           gpsAccuracyM,
           gpsCapturedAt,
           distanceFromCustomerM,
+          gpsAltitude: gpsCapture.gpsAltitude,
+          locationStatus: gpsCapture.locationStatus,
         },
       });
 
@@ -183,6 +194,28 @@ export async function POST(req: NextRequest) {
 
       return created;
     });
+
+    if (gpsTrackingEnabled) {
+      try {
+        await Promise.all([
+          verifyAndPersistCollectionLocation({
+            entryId: entry.id,
+            tenantId: ctx.tenantId,
+            customerId: instalment.loan.customerId,
+            latitude: gpsCapture.latitude,
+            longitude: gpsCapture.longitude,
+          }),
+          recordCollectionLocationPing({
+            tenantId: ctx.tenantId,
+            agentId: ctx.userId,
+            branchId: instalment.loan.branchId ?? null,
+            capture: gpsCapture,
+          }),
+        ]);
+      } catch (error) {
+        console.error('GPS verification failed:', error);
+      }
+    }
 
     return ok(entry);
   } catch (e: any) {

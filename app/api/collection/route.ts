@@ -10,6 +10,12 @@ import {
 import { recordPaymentLedger } from '@/lib/paymentService';
 import { getClientIp, checkRateLimit, routeKey } from '@/lib/rateLimit';
 import { buildCollectionIdempotencyKey, getCollectionSubmissionBlockReason } from '@/lib/collectionPolicy';
+import {
+  isGpsTrackingEnabled,
+  normalizeGpsBody,
+  recordCollectionLocationPing,
+  verifyAndPersistCollectionLocation,
+} from '@/lib/gps/locationVerifier';
 
 function parseDay(value: string | null) {
   const day = value ? new Date(value) : new Date();
@@ -88,6 +94,8 @@ export async function POST(request: Request) {
     const receivedAmount = Number(body.receivedAmount);
     const paymentMode = String(body.paymentMode || 'cash');
     const remarks = body.remarks ? String(body.remarks) : null;
+    const gpsTrackingEnabled = await isGpsTrackingEnabled(context.tenantId);
+    const gpsCapture = normalizeGpsBody(body, gpsTrackingEnabled);
     if (!instalmentId || isNaN(receivedAmount) || receivedAmount <= 0) return apiError('Invalid amount', 400);
 
     const instalment = await prisma.instalment.findUnique({
@@ -178,6 +186,12 @@ export async function POST(request: Request) {
           paymentMode,
           remarks: mergedRemarks,
           agentId: context.userId,
+          lat: gpsCapture.latitude,
+          lng: gpsCapture.longitude,
+          gpsAccuracyM: gpsCapture.gpsAccuracy,
+          gpsCapturedAt: gpsCapture.gpsTimestamp,
+          gpsAltitude: gpsCapture.gpsAltitude,
+          locationStatus: gpsCapture.locationStatus,
         },
       });
 
@@ -224,6 +238,28 @@ export async function POST(request: Request) {
 
       return created;
     });
+
+    if (gpsTrackingEnabled) {
+      try {
+        await Promise.all([
+          verifyAndPersistCollectionLocation({
+            entryId: entry.id,
+            tenantId: context.tenantId,
+            customerId: instalment.loan.customerId,
+            latitude: gpsCapture.latitude,
+            longitude: gpsCapture.longitude,
+          }),
+          recordCollectionLocationPing({
+            tenantId: context.tenantId,
+            agentId: context.userId,
+            branchId: instalment.loan.branchId ?? null,
+            capture: gpsCapture,
+          }),
+        ]);
+      } catch (error) {
+        console.error('GPS verification failed:', error);
+      }
+    }
 
     return apiCreated(entry);
   } catch (error: any) {

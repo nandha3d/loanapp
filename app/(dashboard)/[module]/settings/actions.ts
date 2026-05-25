@@ -656,9 +656,49 @@ export async function saveNotificationSettings(formData: FormData) {
     return { success: false, error: 'Unauthorized' };
   }
   const tenantId = await getDefaultTenantId();
-  const whatsappSmsActive = formData.get('whatsapp_sms_active') === 'true' ? 'true' : 'false';
 
-  await setSetting(tenantId, 'whatsapp_sms_active', whatsappSmsActive, 'notification');
+  const whatsappSmsActive = formData.get('whatsapp_sms_active') === 'true' ? 'true' : 'false';
+  const notifyChannelSms = formData.get('notify_channel_sms') === 'true' ? 'true' : 'false';
+  const notifyChannelWhatsapp = formData.get('notify_channel_whatsapp') === 'true' ? 'true' : 'false';
+  const notifyChannelEmail = formData.get('notify_channel_email') === 'true' ? 'true' : 'false';
+
+  const notifyEventPaymentReceived = formData.get('notify_event_payment_received') === 'true' ? 'true' : 'false';
+  const notifyEventDueReminder = formData.get('notify_event_due_reminder') === 'true' ? 'true' : 'false';
+  const notifyEventLoanDisbursed = formData.get('notify_event_loan_disbursed') === 'true' ? 'true' : 'false';
+  const notifyEventLoanOverdue = formData.get('notify_event_loan_overdue') === 'true' ? 'true' : 'false';
+  const notifyEventLoanClosed = formData.get('notify_event_loan_closed') === 'true' ? 'true' : 'false';
+  const notifyEventPenaltyAccrued = formData.get('notify_event_penalty_accrued') === 'true' ? 'true' : 'false';
+
+  const msg91AuthKey = (formData.get('msg91_auth_key') as string) || '';
+  const msg91SenderId = (formData.get('msg91_sender_id') as string) || 'LNTRCK';
+  const msg91WhatsappNumber = (formData.get('msg91_whatsapp_number') as string) || '';
+
+  const smtpHost = (formData.get('smtp_host') as string) || '';
+  const smtpPort = (formData.get('smtp_port') as string) || '587';
+  const smtpUser = (formData.get('smtp_user') as string) || '';
+  const smtpPass = (formData.get('smtp_pass') as string) || '';
+  const smtpFromName = (formData.get('smtp_from_name') as string) || '';
+
+  await Promise.all([
+    setSetting(tenantId, 'whatsapp_sms_active', whatsappSmsActive, 'notification'),
+    setSetting(tenantId, 'notify_channel_sms', notifyChannelSms, 'notification'),
+    setSetting(tenantId, 'notify_channel_whatsapp', notifyChannelWhatsapp, 'notification'),
+    setSetting(tenantId, 'notify_channel_email', notifyChannelEmail, 'notification'),
+    setSetting(tenantId, 'notify_event_payment_received', notifyEventPaymentReceived, 'notification'),
+    setSetting(tenantId, 'notify_event_due_reminder', notifyEventDueReminder, 'notification'),
+    setSetting(tenantId, 'notify_event_loan_disbursed', notifyEventLoanDisbursed, 'notification'),
+    setSetting(tenantId, 'notify_event_loan_overdue', notifyEventLoanOverdue, 'notification'),
+    setSetting(tenantId, 'notify_event_loan_closed', notifyEventLoanClosed, 'notification'),
+    setSetting(tenantId, 'notify_event_penalty_accrued', notifyEventPenaltyAccrued, 'notification'),
+    setSetting(tenantId, 'msg91_auth_key', msg91AuthKey, 'notification'),
+    setSetting(tenantId, 'msg91_sender_id', msg91SenderId, 'notification'),
+    setSetting(tenantId, 'msg91_whatsapp_number', msg91WhatsappNumber, 'notification'),
+    setSetting(tenantId, 'smtp_host', smtpHost, 'notification'),
+    setSetting(tenantId, 'smtp_port', smtpPort, 'notification'),
+    setSetting(tenantId, 'smtp_user', smtpUser, 'notification'),
+    setSetting(tenantId, 'smtp_pass', smtpPass, 'notification'),
+    setSetting(tenantId, 'smtp_from_name', smtpFromName, 'notification'),
+  ]);
 
   await prisma.auditLog.create({
     data: {

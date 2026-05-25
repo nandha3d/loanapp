@@ -345,59 +345,230 @@ export default function SettingsClient({
       </div>
 
       {/* Notifications Tab */}
-      {subscription?.whatsappSmsEnabled && (
-        <div className={`tab-content ${activeTab === 'notifications' ? 'active' : ''}`}>
-          <div className="card-header">
-            <h3>🔔 Automated SMS & WhatsApp Notifications</h3>
+      {/* Notifications Tab */}
+      <div className={`tab-content ${activeTab === 'notifications' ? 'active' : ''}`}>
+        <div className="card-header">
+          <h3>🔔 Automated Notification Settings</h3>
+        </div>
+        <form action={async (fd) => { 
+          setLoading(true); 
+          await saveNotificationSettings(fd); 
+          setLoading(false); 
+          showToast('Notification settings saved'); 
+        }} style={{ maxWidth: '800px' }}>
+          
+          <div className="form-group" style={{ marginBottom: '20px' }}>
+            <p style={{ fontSize: '.85rem', color: 'var(--text-secondary)', marginBottom: '15px' }}>
+              Configure automated outbound notifications to borrowers and admins. SMS/WhatsApp alerts require the MSG91 provider, while email alerts use SMTP.
+            </p>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <input 
+                type="checkbox" 
+                name="whatsapp_sms_active" 
+                value="true" 
+                defaultChecked={settings.whatsapp_sms_active !== 'false'} 
+              />
+              <strong>Enable Automated Notifications (Master Switch)</strong>
+            </label>
+            <span style={{ fontSize: '.75rem', color: 'var(--text-light)', marginTop: '6px', display: 'block' }}>
+              If unchecked, all automatic outbound notifications will be disabled.
+            </span>
           </div>
-          <form action={async (fd) => { 
-            setLoading(true); 
-            await saveNotificationSettings(fd); 
-            setLoading(false); 
-            showToast('Notification settings saved'); 
-          }} style={{ maxWidth: '500px' }}>
-            <div className="form-group" style={{ marginBottom: '20px' }}>
-              <p style={{ fontSize: '.85rem', color: 'var(--text-secondary)', marginBottom: '15px' }}>
-                Toggle automatic SMS and WhatsApp alerts to borrowers. SMS messages are sent immediately. WhatsApp templates are triggered if configured and approved on MSG91.
-              </p>
+
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px', marginTop: '12px' }}>
+            <h4 style={{ fontSize: '.95rem', fontWeight: 700, marginBottom: '12px' }}>📡 Active Channels</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '20px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: subscription?.whatsappSmsEnabled ? 'pointer' : 'not-allowed', opacity: subscription?.whatsappSmsEnabled ? 1 : 0.6 }}>
+                <input 
+                  type="checkbox" 
+                  name="notify_channel_sms" 
+                  value="true" 
+                  defaultChecked={settings.notify_channel_sms === 'true'} 
+                  disabled={!subscription?.whatsappSmsEnabled}
+                />
+                <span>SMS (via MSG91)</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: subscription?.whatsappSmsEnabled ? 'pointer' : 'not-allowed', opacity: subscription?.whatsappSmsEnabled ? 1 : 0.6 }}>
+                <input 
+                  type="checkbox" 
+                  name="notify_channel_whatsapp" 
+                  value="true" 
+                  defaultChecked={settings.notify_channel_whatsapp === 'true'} 
+                  disabled={!subscription?.whatsappSmsEnabled}
+                />
+                <span>WhatsApp (via MSG91)</span>
+              </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                 <input 
                   type="checkbox" 
-                  name="whatsapp_sms_active" 
+                  name="notify_channel_email" 
                   value="true" 
-                  defaultChecked={settings.whatsapp_sms_active !== 'false'} 
+                  defaultChecked={settings.notify_channel_email === 'true'} 
                 />
-                <strong>Enable Automated Notifications</strong>
+                <span>Email (via SMTP)</span>
               </label>
-              <span style={{ fontSize: '.75rem', color: 'var(--text-light)', marginTop: '6px', display: 'block' }}>
-                If unchecked, no SMS or WhatsApp notifications will be sent to borrowers.
-              </span>
             </div>
+            {!subscription?.whatsappSmsEnabled && (
+              <div style={{ padding: '10px 12px', background: 'var(--danger-light)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', color: 'var(--danger)', fontSize: '.8rem', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: '6px', marginBottom: '20px' }}>
+                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>warning</span>
+                SMS & WhatsApp channels are locked under your current subscription.
+              </div>
+            )}
+          </div>
 
-            <div style={{ marginBottom: '25px', padding: '16px', background: 'var(--primary-light)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-              <h4 style={{ fontSize: '.95rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary-dark)' }}>
+          {/* MSG91 settings (only if subscription enabled, else display alert) */}
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px', marginTop: '12px' }}>
+            <h4 style={{ fontSize: '.95rem', fontWeight: 700, marginBottom: '12px', color: 'var(--primary)' }}>💬 MSG91 Provider Credentials</h4>
+            {subscription?.whatsappSmsEnabled ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '20px' }}>
+                <div className="form-group">
+                  <label className="form-label" style={{ fontSize: '.8rem' }}>MSG91 Auth Key</label>
+                  <input 
+                    type="password" 
+                    name="msg91_auth_key" 
+                    className="form-control" 
+                    placeholder="Enter MSG91 API Key" 
+                    defaultValue={settings.msg91_auth_key || ''} 
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label" style={{ fontSize: '.8rem' }}>SMS Sender ID</label>
+                  <input 
+                    type="text" 
+                    name="msg91_sender_id" 
+                    className="form-control" 
+                    placeholder="e.g. LNTRCK" 
+                    defaultValue={settings.msg91_sender_id || 'LNTRCK'} 
+                    maxLength={6} 
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label" style={{ fontSize: '.8rem' }}>WhatsApp Sender Number</label>
+                  <input 
+                    type="text" 
+                    name="msg91_whatsapp_number" 
+                    className="form-control" 
+                    placeholder="e.g. 917xxxxxxxxxx" 
+                    defaultValue={settings.msg91_whatsapp_number || ''} 
+                  />
+                </div>
+              </div>
+            ) : (
+              <p style={{ fontSize: '.8rem', color: 'var(--text-light)', marginBottom: '20px' }}>
+                Unlock MSG91 configurations by enabling the SMS & WhatsApp notifications subscription addon.
+              </p>
+            )}
+          </div>
+
+          {/* SMTP settings (always available) */}
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px', marginTop: '12px' }}>
+            <h4 style={{ fontSize: '.95rem', fontWeight: 700, marginBottom: '12px', color: 'var(--primary)' }}>✉️ SMTP Email Server Settings</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: '.8rem' }}>SMTP Host</label>
+                <input 
+                  type="text" 
+                  name="smtp_host" 
+                  className="form-control" 
+                  placeholder="e.g. smtp.gmail.com" 
+                  defaultValue={settings.smtp_host || ''} 
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: '.8rem' }}>SMTP Port</label>
+                <input 
+                  type="text" 
+                  name="smtp_port" 
+                  className="form-control" 
+                  placeholder="e.g. 587" 
+                  defaultValue={settings.smtp_port || '587'} 
+                />
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: '.8rem' }}>SMTP Username</label>
+                <input 
+                  type="text" 
+                  name="smtp_user" 
+                  className="form-control" 
+                  placeholder="Sender email address" 
+                  defaultValue={settings.smtp_user || ''} 
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: '.8rem' }}>SMTP Password</label>
+                <input 
+                  type="password" 
+                  name="smtp_pass" 
+                  className="form-control" 
+                  placeholder="SMTP / App Password" 
+                  defaultValue={settings.smtp_pass || ''} 
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: '.8rem' }}>From Display Name</label>
+                <input 
+                  type="text" 
+                  name="smtp_from_name" 
+                  className="form-control" 
+                  placeholder="e.g. Erode Finance" 
+                  defaultValue={settings.smtp_from_name || ''} 
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Event settings (always available) */}
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px', marginTop: '12px' }}>
+            <h4 style={{ fontSize: '.95rem', fontWeight: 700, marginBottom: '12px' }}>🔔 Notification Triggers</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '25px' }}>
+              {[
+                { key: 'notify_event_payment_received', label: 'Payment received' },
+                { key: 'notify_event_due_reminder', label: 'Due date reminder' },
+                { key: 'notify_event_loan_disbursed', label: 'Loan disbursed' },
+                { key: 'notify_event_loan_overdue', label: 'Loan overdue' },
+                { key: 'notify_event_loan_closed', label: 'Loan closed' },
+                { key: 'notify_event_penalty_accrued', label: 'Penalty accrued' },
+              ].map(({ key, label }) => (
+                <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input 
+                    type="checkbox" 
+                    name={key} 
+                    value="true" 
+                    defaultChecked={settings[key] !== 'false'} 
+                  />
+                  <span style={{ fontSize: '.85rem' }}>{label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '25px', padding: '16px', background: 'var(--primary-light)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h4 style={{ fontSize: '.95rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary-dark)', margin: 0 }}>
                 <span className="material-icons-outlined" style={{ fontSize: '18px' }}>list_alt</span>
                 Notification Audit Trails
               </h4>
-              <p style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginTop: '4px', marginBottom: '12px' }}>
-                View the detailed logs of all notifications sent, failed, or pending.
+              <p style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginTop: '4px', margin: 0 }}>
+                Review details of sent, failed, and pending borrower alerts.
               </p>
-              <Link 
-                href={`/${modulePrefix}/notifications/log`} 
-                className="btn btn-secondary btn-sm"
-                style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-              >
-                <span className="material-icons-outlined" style={{ fontSize: '14px' }}>history</span>
-                View Notification Logs
-              </Link>
             </div>
+            <Link 
+              href={`/${modulePrefix}/notifications/log`} 
+              className="btn btn-secondary btn-sm"
+              style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px', height: 'fit-content' }}
+            >
+              <span className="material-icons-outlined" style={{ fontSize: '14px' }}>history</span>
+              View Logs
+            </Link>
+          </div>
 
-            <button type="submit" className="btn btn-primary" disabled={loading}>
-              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>save</span> {loading ? 'Saving...' : 'Save Settings'}
-            </button>
-          </form>
-        </div>
-      )}
+          <button type="submit" className="btn btn-primary" disabled={loading}>
+            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>save</span> {loading ? 'Saving...' : 'Save Settings'}
+          </button>
+        </form>
+      </div>
 
       {/* Bulk Tools Tab */}
       <div className={`tab-content ${activeTab === 'bulk' ? 'active' : ''}`}>

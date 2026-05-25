@@ -22,7 +22,7 @@ export default async function Home() {
       redirect('/portal');
     }
     const module = modules[0] ?? 'microlending';
-    redirect(modulePath(module, role === 'agent' ? '/collection' : '/dashboard'));
+    redirect(modulePath(module, role === 'agent' ? '/agent-dashboard' : '/dashboard'));
   }
   
   redirect('/portal');

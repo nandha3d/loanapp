@@ -147,6 +147,7 @@ export default async function CollectionPage() {
   const isReceiptPdfAllowed = sub?.receiptPdfAllowed || false;
   const isReceiptPdfActive = await getSetting(tenantId, 'receipt_pdf_active', 'false') === 'true';
   const receiptPdfEnabled = isReceiptPdfAllowed && isReceiptPdfActive;
+  const gpsTrackingEnabled = sub?.gpsTrackingEnabled || false;
 
   return (
     <CollectionClient
@@ -164,6 +165,7 @@ export default async function CollectionPage() {
         totalCollected: Number(dailyCollection.totalCollected)
       } : null}
       receiptPdfEnabled={receiptPdfEnabled}
+      gpsTrackingEnabled={gpsTrackingEnabled}
     />
   );
 }

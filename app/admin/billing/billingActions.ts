@@ -32,6 +32,7 @@ export async function updateSubscription(formData: FormData) {
     const bureauEnabled = formData.get('bureauEnabled') === 'true';
     const npaEnabled = formData.get('npaEnabled') === 'true';
     const kycEnabled = formData.get('kycEnabled') === 'true';
+    const gpsTrackingEnabled = formData.get('gpsTrackingEnabled') === 'true';
     const bureauPullsIncluded = parseInt(formData.get('bureauPullsIncluded') as string) || 0;
 
     const parseDate = (dStr: string | null) => {
@@ -53,6 +54,7 @@ export async function updateSubscription(formData: FormData) {
       bureauPullsIncluded,
       npaEnabled,
       kycEnabled,
+      gpsTrackingEnabled,
       trialEndsAt: parseDate(trialEndsAtStr),
       currentPeriodEnd: parseDate(currentPeriodEndStr),
       razorpaySubId,
