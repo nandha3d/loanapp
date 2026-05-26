@@ -113,10 +113,31 @@ export function isRouteEnabledForModules(path: string, modules: readonly string[
       return true;
     }
   }
-  
+
   // If the path is not restricted by ANY module, it's enabled by default
   const isRestrictedByAny = Object.values(MODULE_ROUTES).some((routes) =>
     routes.some((route) => page === route || page.startsWith(`${route}/`))
   );
   return !isRestrictedByAny;
+}
+
+// ─── Add-on keys (feature flags, not full app types) ──────────────────────────
+export const ADDON_KEYS = ['premium_accounting'] as const;
+export type AddOnKey = (typeof ADDON_KEYS)[number];
+
+export const ADDON_LABELS: Record<AddOnKey, string> = {
+  premium_accounting: 'Premium Accounting',
+};
+
+export function isAddOnKey(value: string | null | undefined): value is AddOnKey {
+  return typeof value === 'string' && (ADDON_KEYS as readonly string[]).includes(value);
+}
+
+export function isAddOnEnabled(
+  subscription: { premiumAccountingEnabled?: boolean } | null | undefined,
+  key: AddOnKey,
+): boolean {
+  if (!subscription) return false;
+  if (key === 'premium_accounting') return Boolean(subscription.premiumAccountingEnabled);
+  return false;
 }

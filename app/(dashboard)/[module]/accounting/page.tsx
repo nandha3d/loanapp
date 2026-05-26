@@ -6,6 +6,7 @@ import { getAccountingSummary } from './actions';
 import { getActiveBranchId } from '@/lib/branch';
 import { modulePath } from '@/types/modules';
 import { getDictionary } from '@/lib/i18n';
+import { isPremiumAccountingEnabled } from '@/lib/accounting/premium';
 
 export default async function AccountingPage() {
   const session = await auth();
@@ -14,6 +15,11 @@ export default async function AccountingPage() {
   if (!role || role === 'agent') redirect(modulePath(appType, '/collection'));
 
   const tenantId = await getDefaultTenantId();
+  const premiumEnabled = await isPremiumAccountingEnabled(tenantId);
+
+  // Premium takes over — redirect entirely
+  if (premiumEnabled) redirect(`/${appType}/accounting/premium`);
+
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
   const activeBranchId = await getActiveBranchId();
   const dict = await getDictionary(tenantId);

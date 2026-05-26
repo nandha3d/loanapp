@@ -192,6 +192,15 @@ export default function SubscriptionForm({
             />
             Allow GPS Collection Tracking
           </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              name="premiumAccountingEnabled"
+              value="true"
+              defaultChecked={subscription?.premiumAccountingEnabled || false}
+            />
+            💎 Allow Premium Accounting (double-entry, GST, Tally export)
+          </label>
         </div>
       </div>
 
