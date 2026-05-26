@@ -22,23 +22,24 @@ class DashboardSummary {
   final List<TodayInstalment> todayInstalments;
 
   factory DashboardSummary.fromJson(Map<String, dynamic> json) {
-    double _num(dynamic v) => v == null
+    double toNum(dynamic v) => v == null
         ? 0
         : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
     return DashboardSummary(
       activeLoans: (json['activeLoans'] as num?)?.toInt() ?? 0,
       overdueLoans: (json['overdueLoans'] as num?)?.toInt() ?? 0,
       totalCustomers: (json['totalCustomers'] as num?)?.toInt() ?? 0,
-      todayExpected: _num(json['todayExpected']),
-      todayCollected: _num(json['todayCollected']),
+      todayExpected: toNum(json['todayExpected']),
+      todayCollected: toNum(json['todayCollected']),
       pendingPenalties: (json['pendingPenalties'] as num?)?.toInt() ?? 0,
       activeAgents: (json['activeAgents'] as num?)?.toInt() ?? 0,
       recentLoans: (json['recentLoans'] as List<dynamic>? ?? const [])
           .map((dynamic e) => RecentLoan.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),
       todayInstalments: (json['todayInstalments'] as List<dynamic>? ?? const [])
-          .map((dynamic e) =>
-              TodayInstalment.fromJson(e as Map<String, dynamic>))
+          .map(
+            (dynamic e) => TodayInstalment.fromJson(e as Map<String, dynamic>),
+          )
           .toList(growable: false),
     );
   }
@@ -89,14 +90,15 @@ class TodayInstalment {
   final String loanCode;
 
   factory TodayInstalment.fromJson(Map<String, dynamic> json) {
-    double _num(dynamic v) =>
-        v == null ? 0 : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
+    double toNum(dynamic v) => v == null
+        ? 0
+        : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
     final loan = (json['loan'] as Map<String, dynamic>?) ?? const {};
     final customer = (loan['customer'] as Map<String, dynamic>?) ?? const {};
     return TodayInstalment(
       id: json['id'] as String,
-      dueAmount: _num(json['dueAmount']),
-      receivedAmount: _num(json['receivedAmount']),
+      dueAmount: toNum(json['dueAmount']),
+      receivedAmount: toNum(json['receivedAmount']),
       status: (json['status'] as String?) ?? 'upcoming',
       customerName: (customer['name'] as String?) ?? '—',
       loanCode: (loan['loanCode'] as String?) ?? '',

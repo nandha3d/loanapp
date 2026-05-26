@@ -1,3 +1,4 @@
+import 'package:loantrack/data/models/customer.dart';
 import 'package:loantrack/data/models/instalment.dart';
 
 /// Loan model — spec §3.3.
@@ -15,6 +16,7 @@ class Loan {
     required this.instalmentCount,
     required this.penaltyRate,
     required this.instalments,
+    this.customer,
     this.endDate,
   });
 
@@ -31,27 +33,41 @@ class Loan {
   final int instalmentCount;
   final double penaltyRate;
   final List<Instalment> instalments;
+  final Customer? customer;
 
   factory Loan.fromJson(Map<String, dynamic> json) {
-    double _num(dynamic v) => v is num ? v.toDouble() : double.parse(v as String);
+    double num$(dynamic v) {
+      if (v == null) return 0;
+      if (v is num) return v.toDouble();
+      return double.tryParse(v.toString()) ?? 0;
+    }
+    int int$(dynamic v) {
+      if (v == null) return 0;
+      if (v is num) return v.toInt();
+      return int.tryParse(v.toString()) ?? 0;
+    }
     return Loan(
       id: json['id'] as String,
-      loanCode: json['loanCode'] as String,
-      customerId: json['customerId'] as String,
-      principalAmount: _num(json['principalAmount'] ?? json['principal']),
-      disbursedAmount: _num(json['disbursedAmount'] ?? json['disbursed']),
-      interestRate: _num(json['interestRate']),
-      frequency: json['frequency'] as String,
-      status: json['status'] as String,
+      loanCode: (json['loanCode'] as String?) ?? '',
+      customerId: (json['customerId'] as String?) ?? '',
+      principalAmount: num$(json['principalAmount'] ?? json['principal']),
+      disbursedAmount: num$(json['disbursedAmount'] ?? json['disbursed']),
+      interestRate: num$(json['interestRate']),
+      frequency: (json['frequency'] as String?) ?? 'daily',
+      status: (json['status'] as String?) ?? 'active',
       startDate: DateTime.parse(json['startDate'] as String),
       endDate: json['endDate'] == null
           ? null
           : DateTime.parse(json['endDate'] as String),
-      instalmentCount: (json['instalmentCount'] as num).toInt(),
-      penaltyRate: _num(json['penaltyRate']),
+      instalmentCount:
+          int$(json['instalmentCount'] ?? json['totalInstalments'] ?? json['tenure']),
+      penaltyRate: num$(json['penaltyRate']),
       instalments: (json['instalments'] as List<dynamic>? ?? const [])
           .map((dynamic e) => Instalment.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),
+      customer: json['customer'] is Map<String, dynamic>
+          ? Customer.fromJson(json['customer'] as Map<String, dynamic>)
+          : null,
     );
   }
 }

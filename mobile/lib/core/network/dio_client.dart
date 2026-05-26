@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -9,10 +10,13 @@ import 'package:loantrack/core/auth/auth_storage.dart';
 import 'package:loantrack/core/network/api_exception.dart';
 
 /// Base URL — override via --dart-define=API_BASE_URL=...
-const String kDefaultBaseUrl = String.fromEnvironment(
-  'API_BASE_URL',
-  defaultValue: 'http://10.0.2.2:3000/api/v1',
-);
+/// Android emulator uses 10.0.2.2 to reach host localhost; all other platforms use localhost directly.
+String get kDefaultBaseUrl {
+  const envUrl = String.fromEnvironment('API_BASE_URL');
+  if (envUrl.isNotEmpty) return envUrl;
+  final host = (!kIsWeb && Platform.isAndroid) ? '10.0.2.2' : 'localhost';
+  return 'http://$host:3000/api/v1';
+}
 
 /// Global 401 broadcast — UI listens to force logout (spec §9.3 rule 6).
 final unauthorizedStreamProvider = Provider<Stream<void>>((ref) {

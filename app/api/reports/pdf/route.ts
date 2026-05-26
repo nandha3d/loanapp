@@ -35,9 +35,9 @@ export async function GET(req: NextRequest) {
       branchName: branding.appTagline,
       currencySymbol,
     },
-  }));
+  }) as any);
 
-  return new NextResponse(buffer, {
+  return new NextResponse(new Uint8Array(buffer), {
     headers: {
       'Content-Type':        'application/pdf',
       'Content-Disposition': `attachment; filename="report-${from}-to-${to}.pdf"`,

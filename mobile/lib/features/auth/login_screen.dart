@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:loantrack/core/auth/auth_controller.dart';
+import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
@@ -93,17 +94,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             SafeArea(
               child: Center(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
                   child: FadeTransition(
                     opacity: _fade,
                     child: SlideTransition(
                       position: Tween<Offset>(
                         begin: const Offset(0, 0.05),
                         end: Offset.zero,
-                      ).animate(CurvedAnimation(
-                        parent: _fade,
-                        curve: Curves.easeOut,
-                      )),
+                      ).animate(
+                        CurvedAnimation(
+                          parent: _fade,
+                          curve: Curves.easeOut,
+                        ),
+                      ),
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 420),
                         child: _LoginCard(
@@ -129,7 +133,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 }
 
-class _LoginCard extends StatelessWidget {
+class _LoginCard extends ConsumerWidget {
   const _LoginCard({
     required this.username,
     required this.password,
@@ -149,7 +153,8 @@ class _LoginCard extends StatelessWidget {
   final Future<void> Function() onSubmit;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
       decoration: BoxDecoration(
@@ -171,8 +176,11 @@ class _LoginCard extends StatelessWidget {
                   color: AppColors.primaryLight,
                   borderRadius: BorderRadius.circular(AppTokens.radiusKpiIcon),
                 ),
-                child: const Icon(Icons.currency_rupee,
-                    color: AppColors.primary, size: 24),
+                child: const Icon(
+                  Icons.currency_rupee,
+                  color: AppColors.primary,
+                  size: 24,
+                ),
               ),
               const SizedBox(width: 12),
               RichText(
@@ -201,21 +209,23 @@ class _LoginCard extends StatelessWidget {
             const SizedBox(height: 16),
           ],
           AppTextField(
-            label: 'Username',
+            label: t.x('login.username'),
             controller: username,
             prefixIcon: Icons.person_outline,
             autofillHints: const [AutofillHints.username],
           ),
           const SizedBox(height: 16),
           AppTextField(
-            label: 'Password',
+            label: t.x('login.password'),
             controller: password,
             obscureText: obscure,
             prefixIcon: Icons.lock_outline,
             autofillHints: const [AutofillHints.password],
             suffixIcon: IconButton(
               icon: Icon(
-                obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                obscure
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
                 size: 18,
                 color: AppColors.textSecondary,
               ),
@@ -226,7 +236,7 @@ class _LoginCard extends StatelessWidget {
           SizedBox(
             height: 48,
             child: AppButton(
-              label: 'Sign In',
+              label: t.x('login.sign_in'),
               expand: true,
               loading: loading,
               onPressed: onSubmit,
@@ -237,8 +247,9 @@ class _LoginCard extends StatelessWidget {
             child: TextButton(
               onPressed: () {}, // TODO Sprint 2: forgot password flow
               child: Text(
-                'Forgot Password?',
-                style: AppTypography.body.copyWith(color: AppColors.primaryDark),
+                t.x('login.forgot'),
+                style:
+                    AppTypography.body.copyWith(color: AppColors.primaryDark),
               ),
             ),
           ),
@@ -262,13 +273,17 @@ class _ErrorBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.warning_amber_rounded,
-              size: 18, color: AppColors.danger),
+          const Icon(
+            Icons.warning_amber_rounded,
+            size: 18,
+            color: AppColors.danger,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               message,
-              style: AppTypography.bodySmall.copyWith(color: AppColors.dangerText),
+              style:
+                  AppTypography.bodySmall.copyWith(color: AppColors.dangerText),
             ),
           ),
         ],

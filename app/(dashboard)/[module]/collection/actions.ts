@@ -10,6 +10,7 @@ import { reallocateLoanRepayments } from '@/lib/repayments';
 import { notify } from '@/lib/notify/events';
 import { recordPaymentLedger } from '@/lib/paymentService';
 import { buildCollectionIdempotencyKey, getCollectionSubmissionBlockReason } from '@/lib/collectionPolicy';
+import { autoPostCollection } from '@/lib/accounting/autoPost';
 import {
   isGpsTrackingEnabled,
   normalizeGpsFormData,
@@ -164,10 +165,10 @@ export async function submitCollectionEntry(formData: FormData) {
         paymentMode,
         remarks: mergedRemarks,
         agentId: userId,
-        latitude: gpsCapture.latitude,
-        longitude: gpsCapture.longitude,
-        gpsAccuracy: gpsCapture.gpsAccuracy,
-        gpsTimestamp: gpsCapture.gpsTimestamp,
+        lat: gpsCapture.latitude,
+        lng: gpsCapture.longitude,
+        gpsAccuracyM: gpsCapture.gpsAccuracy,
+        gpsCapturedAt: gpsCapture.gpsTimestamp,
         gpsAltitude: gpsCapture.gpsAltitude,
         locationStatus: gpsCapture.locationStatus,
       },
@@ -392,7 +393,7 @@ export async function verifyUpiPayment(entryId: string) {
   const role = (session?.user as { role?: string })?.role;
   const userId = session?.user?.id;
 
-  if (role !== 'admin' && role !== 'superadmin') {
+  if (!['admin', 'superadmin', 'developer'].includes(role ?? '')) {
     return { success: false, error: 'Unauthorized' };
   }
 
@@ -427,6 +428,18 @@ export async function verifyUpiPayment(entryId: string) {
       });
     });
 
+    autoPostCollection({
+      tenantId,
+      entryId: entry.id,
+      loanId: entry.loanId,
+      loanCode: entry.loan.loanCode,
+      amount: Number(entry.receivedAmount),
+      date: new Date(),
+      branchId: entry.loan.branchId,
+      createdById: userId,
+      paymentMode: 'upi',
+    }).catch(() => {});
+
     revalidatePath('/dashboard');
     revalidatePath('/collection');
     return { success: true };
@@ -442,11 +455,14 @@ export async function collectAgentCash(routeId: string, agentId: string) {
   const role = (session?.user as { role?: string })?.role;
   const userId = session?.user?.id;
 
-  if (role !== 'admin' && role !== 'superadmin') {
+  if (!['admin', 'superadmin', 'developer'].includes(role ?? '')) {
     return { success: false, error: 'Unauthorized' };
   }
 
   if (!userId) return { success: false, error: 'Unauthorized' };
+
+  let handoverTotal = 0;
+  let handoverBranchId: string | null = null;
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -468,6 +484,8 @@ export async function collectAgentCash(routeId: string, agentId: string) {
       if (totalToCollect <= 0) throw new Error('No pending cash to collect for this route/agent combo');
 
       const branchId = entries[0]?.loan?.branchId || null;
+      handoverTotal = totalToCollect;
+      handoverBranchId = branchId;
 
       await tx.collectionEntry.updateMany({
         where: {
@@ -505,6 +523,20 @@ export async function collectAgentCash(routeId: string, agentId: string) {
       });
     });
 
+    if (handoverTotal > 0) {
+      autoPostCollection({
+        tenantId,
+        entryId: `handover-${routeId}-${agentId}-${Date.now()}`,
+        loanId: routeId,
+        loanCode: `Route/${routeId.slice(0, 8)}`,
+        amount: handoverTotal,
+        date: new Date(),
+        branchId: handoverBranchId,
+        createdById: userId,
+        paymentMode: 'cash',
+      }).catch(() => {});
+    }
+
     revalidatePath('/dashboard');
     revalidatePath('/collection');
     return { success: true };
@@ -520,7 +552,7 @@ export async function bulkVerifyUpiPayments(entryIds: string[]) {
   const role = (session?.user as { role?: string })?.role;
   const userId = session?.user?.id;
 
-  if (role !== 'admin' && role !== 'superadmin') {
+  if (!['admin', 'superadmin', 'developer'].includes(role ?? '')) {
     return { success: false, error: 'Unauthorized' };
   }
 

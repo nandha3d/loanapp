@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { ok, fail } from '@/lib/api/v1-envelope';
+import { ok, fail, parseCursorPaging } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { getAgentRouteIds } from '@/lib/access';
 
@@ -18,6 +18,8 @@ export async function GET(req: NextRequest) {
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
+  const { cursor, limit } = parseCursorPaging(req.url, { defaultLimit: 50, maxLimit: 200 });
+
   const loanWhere: any = {
     tenantId: ctx.tenantId,
     appType: ctx.appType,
@@ -25,12 +27,12 @@ export async function GET(req: NextRequest) {
   };
   if (ctx.role === 'agent') {
     const routeIds = await getAgentRouteIds(ctx.userId);
-    if (routeIds.length === 0) return ok([]);
+    if (routeIds.length === 0) return ok([], { nextCursor: null, limit });
     loanWhere.customer = { routeId: { in: routeIds } };
   }
 
   try {
-    const instalments = await prisma.instalment.findMany({
+    const rows = await prisma.instalment.findMany({
       where: {
         loan: loanWhere,
         OR: [
@@ -55,8 +57,14 @@ export async function GET(req: NextRequest) {
         },
       },
       orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
+      take: limit + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
-    return ok(instalments);
+
+    const hasMore = rows.length > limit;
+    const data = hasMore ? rows.slice(0, limit) : rows;
+    const nextCursor = hasMore ? data[data.length - 1].id : null;
+    return ok(data, { nextCursor, limit });
   } catch (e: any) {
     return fail(e?.message ?? 'Collection list failed', 500);
   }

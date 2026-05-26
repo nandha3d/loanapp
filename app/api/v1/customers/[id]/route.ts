@@ -12,6 +12,7 @@ import {
   encryptAadharNumber,
   maskAadharNumber,
 } from '@/lib/pii';
+import { writeAudit } from '@/lib/audit';
 
 const CUSTOMER_UPDATE_FIELDS = [
   'name',
@@ -103,16 +104,14 @@ export async function PATCH(
       data,
     });
 
-    await prisma.auditLog.create({
-      data: {
-        tenantId: ctx.tenantId,
-        userId: ctx.userId,
-        action: 'update',
-        entityType: 'customer',
-        entityId: existing.id,
-        oldValue: JSON.stringify(existing),
-        newValue: JSON.stringify(data),
-      },
+    await writeAudit({
+      tenantId: ctx.tenantId,
+      userId: ctx.userId,
+      action: 'update',
+      entityType: 'customer',
+      entityId: existing.id,
+      oldValue: existing,
+      newValue: data,
     });
 
     return ok({

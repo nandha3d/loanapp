@@ -52,6 +52,12 @@ export async function saveCustomer(formData: FormData) {
     : undefined;
   const routeId = formData.get('routeId') as string;
   const agentId = formData.get('agentId') as string;
+  const companyName = (formData.get('companyName') as string) || null;
+  const companyType = (formData.get('companyType') as string) || null;
+  const occupation = (formData.get('occupation') as string) || null;
+  const monthlyIncomeRaw = formData.get('monthlyIncome') as string | null;
+  const monthlyIncome = monthlyIncomeRaw ? parseFloat(monthlyIncomeRaw) : null;
+  const gstNumber = (formData.get('gstNumber') as string) || null;
 
   const isPopup = formData.get('isPopup') === 'true';
 
@@ -159,6 +165,11 @@ export async function saveCustomer(formData: FormData) {
         name, phone, address, routeId, agentId,
         ...(encryptedAadharNumber !== undefined ? { aadharNumber: encryptedAadharNumber } : {}),
         profilePhoto: profilePhoto ?? undefined,
+        companyName,
+        companyType,
+        occupation,
+        monthlyIncome,
+        gstNumber,
       },
       include: { route: true }
     });
@@ -224,6 +235,11 @@ export async function saveCustomer(formData: FormData) {
         agentId,
         appType,
         branchId: activeBranchId,
+        companyName,
+        companyType,
+        occupation,
+        monthlyIncome,
+        gstNumber,
         status: userRole === 'agent' ? 'pending_review' : 'active',
         ...(profilePhoto ? { profilePhoto } : {}),
         securityCheques: {

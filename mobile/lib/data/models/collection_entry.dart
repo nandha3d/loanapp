@@ -14,13 +14,14 @@ class CollectionEntry {
   final String paymentMode;
 
   factory CollectionEntry.fromJson(Map<String, dynamic> json) {
-    double _n(dynamic v) =>
-        v == null ? 0 : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
+    double n(dynamic v) => v == null
+        ? 0
+        : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
     return CollectionEntry(
       id: json['id'] as String,
       idempotencyKey: (json['idempotencyKey'] as String?) ?? '',
       instalmentId: json['instalmentId'] as String?,
-      receivedAmount: _n(json['receivedAmount']),
+      receivedAmount: n(json['receivedAmount']),
       paymentMode: (json['paymentMode'] as String?) ?? 'cash',
     );
   }
@@ -63,8 +64,9 @@ class CollectionRow {
   }
 
   factory CollectionRow.fromJson(Map<String, dynamic> json) {
-    double _n(dynamic v) =>
-        v == null ? 0 : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
+    double n(dynamic v) => v == null
+        ? 0
+        : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
     final loan = (json['loan'] as Map<String, dynamic>?) ?? const {};
     final customer = (loan['customer'] as Map<String, dynamic>?) ?? const {};
     final route = customer['route'] as Map<String, dynamic>?;
@@ -76,9 +78,9 @@ class CollectionRow {
       customerName: (customer['name'] as String?) ?? '—',
       customerCode: (customer['customerCode'] as String?) ?? '',
       routeName: route?['name'] as String?,
-      dueAmount: _n(json['dueAmount']),
-      receivedAmount: _n(json['receivedAmount']),
-      dueDate: DateTime.parse(json['dueDate'] as String),
+      dueAmount: n(json['dueAmount']),
+      receivedAmount: n(json['receivedAmount']),
+      dueDate: DateTime.parse(json['dueDate'] as String).toLocal(),
       status: (json['status'] as String?) ?? 'upcoming',
     );
   }

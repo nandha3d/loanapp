@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:loantrack/core/auth/auth_controller.dart';
+import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/shared/widgets/app_button.dart';
@@ -31,6 +32,7 @@ class _TotpScreenState extends ConsumerState<TotpScreen> {
   @override
   Widget build(BuildContext context) {
     final error = ref.watch(authControllerProvider).error;
+    final t = T.of(ref);
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -44,10 +46,10 @@ class _TotpScreenState extends ConsumerState<TotpScreen> {
                     ref.read(authControllerProvider.notifier).logout(),
               ),
               const SizedBox(height: 24),
-              Text('Two-Factor Authentication', style: AppTypography.display),
+              Text(t.x('title.2fa'), style: AppTypography.display),
               const SizedBox(height: 8),
               Text(
-                'Enter the 6-digit code from your authenticator app.',
+                t.x('tfa.enter_code'),
                 style:
                     AppTypography.body.copyWith(color: AppColors.textSecondary),
               ),
@@ -75,7 +77,7 @@ class _TotpScreenState extends ConsumerState<TotpScreen> {
               SizedBox(
                 height: 48,
                 child: AppButton(
-                  label: 'Verify',
+                  label: t.x('tfa.verify'),
                   expand: true,
                   onPressed: _submit,
                 ),

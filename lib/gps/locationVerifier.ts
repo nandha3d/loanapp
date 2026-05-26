@@ -87,10 +87,14 @@ export function normalizeGpsBody(body: any, enabled: boolean): GpsCapture {
   const formData = new FormData();
   const gps = body?.gps ?? body ?? {};
   if (gps.status) formData.set('gpsStatus', String(gps.status));
-  if (gps.latitude !== undefined && gps.latitude !== null) formData.set('gpsLatitude', String(gps.latitude));
-  if (gps.longitude !== undefined && gps.longitude !== null) formData.set('gpsLongitude', String(gps.longitude));
-  if (gps.accuracy !== undefined && gps.accuracy !== null) formData.set('gpsAccuracy', String(gps.accuracy));
-  if (gps.timestamp) formData.set('gpsTimestamp', String(gps.timestamp));
+  const latitude = gps.latitude ?? gps.lat;
+  const longitude = gps.longitude ?? gps.lng;
+  const accuracy = gps.accuracy ?? gps.accuracyM ?? gps.gpsAccuracyM;
+  const timestamp = gps.timestamp ?? gps.capturedAt ?? gps.gpsCapturedAt ?? gps.deviceTime;
+  if (latitude !== undefined && latitude !== null) formData.set('gpsLatitude', String(latitude));
+  if (longitude !== undefined && longitude !== null) formData.set('gpsLongitude', String(longitude));
+  if (accuracy !== undefined && accuracy !== null) formData.set('gpsAccuracy', String(accuracy));
+  if (timestamp) formData.set('gpsTimestamp', String(timestamp));
   if (gps.altitude !== undefined && gps.altitude !== null) formData.set('gpsAltitude', String(gps.altitude));
   return normalizeGpsFormData(formData, enabled);
 }
@@ -180,14 +184,27 @@ export async function verifyAndPersistCollectionLocation(input: {
 }) {
   if (!validCoordinates(input.latitude, input.longitude)) return;
 
+  // Prefer the dedicated CustomerGeocode row; fall back to the lat/lng stored
+  // directly on the Customer model (GPS-01).
   const geocode = await prisma.customerGeocode.findFirst({
     where: { tenantId: input.tenantId, customerId: input.customerId },
     select: { latitude: true, longitude: true },
   });
 
+  let borrowerPoint: GeocodePoint | null = geocode;
+  if (!borrowerPoint) {
+    const customer = await prisma.customer.findUnique({
+      where: { id: input.customerId },
+      select: { lat: true, lng: true },
+    });
+    if (customer?.lat != null && customer?.lng != null) {
+      borrowerPoint = { latitude: customer.lat, longitude: customer.lng };
+    }
+  }
+
   const result = verifyGpsAgainstGeocode(
     { latitude: input.latitude!, longitude: input.longitude! },
-    geocode,
+    borrowerPoint,
     DEFAULT_GPS_THRESHOLD_METRES,
   );
 
@@ -195,7 +212,7 @@ export async function verifyAndPersistCollectionLocation(input: {
     where: { id: input.entryId },
     data: {
       locationStatus: result.status,
-      distanceFromBorrower: result.distanceMetres,
+      distanceFromCustomerM: result.distanceMetres,
       borrowerLat: result.borrowerLat,
       borrowerLng: result.borrowerLng,
     },
@@ -209,16 +226,17 @@ export async function recordCollectionLocationPing(input: {
   capture: GpsCapture;
 }) {
   if (!validCoordinates(input.capture.latitude, input.capture.longitude)) return;
+  const capturedAt = input.capture.gpsTimestamp ?? new Date();
   await prisma.agentLocationPing.create({
     data: {
       tenantId: input.tenantId,
       agentId: input.agentId,
       branchId: input.branchId,
-      latitude: input.capture.latitude!,
-      longitude: input.capture.longitude!,
-      accuracy: input.capture.gpsAccuracy,
+      lat: input.capture.latitude!,
+      lng: input.capture.longitude!,
+      accuracyM: input.capture.gpsAccuracy,
       pingType: 'collection',
-      deviceTime: input.capture.gpsTimestamp ?? new Date(),
+      capturedAt,
       isOnDuty: true,
     },
   });

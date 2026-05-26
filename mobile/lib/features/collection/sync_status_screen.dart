@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
@@ -38,16 +39,17 @@ class _SyncStatusScreenState extends ConsumerState<SyncStatusScreen> {
     final fmt =
         NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
     final sync = ref.watch(collectionSyncProvider);
+    final t = T.of(ref);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Sync Status'), centerTitle: true),
+      appBar: AppBar(title: Text(t.x('title.sync_status')), centerTitle: true),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _items.isEmpty
-              ? const EmptyState(
+              ? EmptyState(
                   icon: Icons.cloud_done_outlined,
-                  title: 'Queue is empty',
-                  subtitle: 'All collections synced.',
+                  title: t.x('sync.queue_empty'),
+                  subtitle: t.x('sync.all_synced'),
                 )
               : ListView.separated(
                   padding: const EdgeInsets.all(16),
@@ -61,8 +63,8 @@ class _SyncStatusScreenState extends ConsumerState<SyncStatusScreen> {
           padding: const EdgeInsets.all(16),
           child: AppButton(
             label: sync.online
-                ? 'Sync now (${sync.pending} pending)'
-                : 'Offline — cannot sync',
+                ? '${t.x('sync.now')} (${sync.pending} ${t.x('sync.pending_suffix')})'
+                : t.x('sync.offline_cant'),
             expand: true,
             onPressed: sync.online && sync.pending > 0
                 ? () async {
@@ -96,20 +98,26 @@ class _SyncStatusScreenState extends ConsumerState<SyncStatusScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(q.customerName ?? '—', style: AppTypography.bodyLarge),
-                Text('${q.loanCode ?? ''} • ${q.paymentMode}',
-                    style: AppTypography.caption),
+                Text(
+                  '${q.loanCode ?? ''} • ${q.paymentMode}',
+                  style: AppTypography.caption,
+                ),
                 if (q.failureReason != null)
-                  Text(q.failureReason!,
-                      style: AppTypography.caption
-                          .copyWith(color: AppColors.danger)),
+                  Text(
+                    q.failureReason!,
+                    style:
+                        AppTypography.caption.copyWith(color: AppColors.danger),
+                  ),
               ],
             ),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(fmt.format(q.receivedAmount),
-                  style: AppTypography.bodyLarge),
+              Text(
+                fmt.format(q.receivedAmount),
+                style: AppTypography.bodyLarge,
+              ),
               const SizedBox(height: 4),
               AppBadge(label: q.status, kind: kind),
             ],

@@ -8,6 +8,10 @@ export async function GET(req: NextRequest) {
   if (auth.response) return auth.response;
   const ctx = auth.context;
 
+  const { searchParams } = new URL(req.url);
+  const page = Math.max(1, Number(searchParams.get('page') || 1));
+  const pageSize = Math.min(100, Math.max(1, Number(searchParams.get('pageSize') || 50)));
+
   try {
     const loans = await prisma.loan.findMany({
       where: {
@@ -52,7 +56,10 @@ export async function GET(req: NextRequest) {
       .filter((i) => i.overdueAmount > 0)
       .sort((a, b) => b.overdueDays - a.overdueDays);
 
-    return ok(items);
+    const total = items.length;
+    const start = (page - 1) * pageSize;
+    const slice = items.slice(start, start + pageSize);
+    return ok(slice, { page, pageSize, total });
   } catch (e: any) {
     return fail(e?.message ?? 'Report failed', 500);
   }

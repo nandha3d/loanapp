@@ -83,8 +83,10 @@ class CollectionQueue {
   Future<List<QueuedCollection>> all() async {
     final box = await _open();
     return box.values
-        .map((raw) =>
-            QueuedCollection.fromJson(jsonDecode(raw) as Map<String, dynamic>))
+        .map(
+          (raw) => QueuedCollection.fromJson(
+              jsonDecode(raw) as Map<String, dynamic>),
+        )
         .toList(growable: false);
   }
 
@@ -135,8 +137,7 @@ class CollectionSyncController extends StateNotifier<CollectionSyncState> {
   CollectionSyncController(this._queue)
       : super(const CollectionSyncState(online: true, pending: 0)) {
     _conn = Connectivity().onConnectivityChanged.listen((results) async {
-      final online =
-          results.any((r) => r != ConnectivityResult.none);
+      final online = results.any((r) => r != ConnectivityResult.none);
       state = state.copyWith(online: online);
       if (online) await sync();
     });

@@ -48,16 +48,17 @@ class LoanPackage {
   final double penaltyRate;
 
   factory LoanPackage.fromJson(Map<String, dynamic> json) {
-    double _n(dynamic v) =>
-        v == null ? 0 : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
+    double n(dynamic v) => v == null
+        ? 0
+        : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
     return LoanPackage(
       id: json['id'] as String,
       name: (json['name'] as String?) ?? '',
-      principal: _n(json['principal']),
+      principal: n(json['principal']),
       tenure: (json['tenure'] as num?)?.toInt() ?? 0,
       frequency: (json['frequency'] as String?) ?? 'daily',
-      perInstalment: _n(json['perInstalment']),
-      penaltyRate: _n(json['penaltyRate']),
+      perInstalment: n(json['perInstalment']),
+      penaltyRate: n(json['penaltyRate']),
     );
   }
 }

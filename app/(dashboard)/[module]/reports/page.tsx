@@ -69,7 +69,7 @@ export default async function ReportsPage({
 
   return (
     <ReportsClient
-      collectionEfficiency={{ expected: totalExpected, collected: totalCollected, efficiency }}
+      collectionEfficiency={collectionEfficiency}
       agingBuckets={agingBuckets}
       penaltyReport={penaltyReport}
       disbursement={disbursement}

@@ -18,18 +18,20 @@ class AnalyticsSummary {
   final int onTimeRatio;
 
   factory AnalyticsSummary.fromJson(Map<String, dynamic> json) {
-    double _n(dynamic v) =>
-        v == null ? 0 : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
-    int _i(dynamic v) =>
-        v == null ? 0 : (v is num ? v.toInt() : int.tryParse(v.toString()) ?? 0);
+    double n(dynamic v) => v == null
+        ? 0
+        : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
+    int i(dynamic v) => v == null
+        ? 0
+        : (v is num ? v.toInt() : int.tryParse(v.toString()) ?? 0);
     return AnalyticsSummary(
-      activeLoans: _i(json['activeLoans']),
-      overdueLoans: _i(json['overdueLoans']),
-      closedLoans: _i(json['closedLoans']),
-      monthExpected: _n(json['monthExpected']),
-      monthCollected: _n(json['monthCollected']),
-      efficiency: _n(json['efficiency']),
-      onTimeRatio: _i(json['onTimeRatio']),
+      activeLoans: i(json['activeLoans']),
+      overdueLoans: i(json['overdueLoans']),
+      closedLoans: i(json['closedLoans']),
+      monthExpected: n(json['monthExpected']),
+      monthCollected: n(json['monthCollected']),
+      efficiency: n(json['efficiency']),
+      onTimeRatio: i(json['onTimeRatio']),
     );
   }
 }
@@ -45,12 +47,13 @@ class CollectionPoint {
   final double collected;
 
   factory CollectionPoint.fromJson(Map<String, dynamic> json) {
-    double _n(dynamic v) =>
-        v == null ? 0 : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
+    double n(dynamic v) => v == null
+        ? 0
+        : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
     return CollectionPoint(
       date: json['date'] as String,
-      expected: _n(json['expected']),
-      collected: _n(json['collected']),
+      expected: n(json['expected']),
+      collected: n(json['collected']),
     );
   }
 }
@@ -70,13 +73,14 @@ class AgentPerformance {
   final int hitRate;
 
   factory AgentPerformance.fromJson(Map<String, dynamic> json) {
-    double _n(dynamic v) =>
-        v == null ? 0 : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
+    double n(dynamic v) => v == null
+        ? 0
+        : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
     return AgentPerformance(
       id: json['id'] as String,
       name: (json['name'] as String?) ?? '',
-      expected: _n(json['expected']),
-      collected: _n(json['collected']),
+      expected: n(json['expected']),
+      collected: n(json['collected']),
       hitRate: (json['hitRate'] as num?)?.toInt() ?? 0,
     );
   }

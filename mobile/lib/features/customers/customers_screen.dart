@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/data/repositories/customer_repository.dart';
@@ -32,10 +33,10 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
   Timer? _debounce;
 
   static const List<_StatusOpt> _statuses = [
-    _StatusOpt('all', 'All'),
-    _StatusOpt('active', 'Active'),
-    _StatusOpt('pending_review', 'Pending'),
-    _StatusOpt('suspended', 'Suspended'),
+    _StatusOpt('all', 'status.all'),
+    _StatusOpt('active', 'status.active'),
+    _StatusOpt('pending_review', 'status.pending'),
+    _StatusOpt('suspended', 'status.suspended'),
   ];
 
   @override
@@ -58,10 +59,11 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
   Widget build(BuildContext context) {
     final filter = ref.watch(customerFilterProvider);
     final listAsync = ref.watch(customerListProvider);
+    final t = T.of(ref);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Customers'),
+        title: Text(t.x('title.customers')),
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -77,7 +79,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
               onChanged: _onSearchChanged,
               style: AppTypography.body,
               decoration: InputDecoration(
-                hintText: 'Search by name, code or phone',
+                hintText: t.x('fld.search_customer_full'),
                 hintStyle: AppTypography.body.copyWith(
                   color: AppColors.textLight,
                 ),
@@ -106,7 +108,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
               children: [
                 for (final opt in _statuses) ...[
                   FilterPill(
-                    label: opt.label,
+                    label: t.x(opt.label),
                     selected: filter.status == opt.key,
                     onTap: () => ref
                         .read(customerFilterProvider.notifier)
@@ -135,19 +137,19 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                     const SizedBox(height: 80),
                     EmptyState(
                       icon: Icons.cloud_off,
-                      title: 'Could not load customers',
+                      title: t.x('err.could_not_load_customers'),
                       subtitle: err.toString(),
                     ),
                   ],
                 ),
                 data: (customers) => customers.isEmpty
                     ? ListView(
-                        children: const [
-                          SizedBox(height: 80),
+                        children: [
+                          const SizedBox(height: 80),
                           EmptyState(
                             icon: Icons.people_outline,
-                            title: 'No customers',
-                            subtitle: 'Tap the button below to add one.',
+                            title: t.x('empty.no_customers'),
+                            subtitle: t.x('empty.tap_add_below'),
                           ),
                         ],
                       )
@@ -169,7 +171,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
       ),
       floatingActionButton: FabExtended(
         icon: Icons.person_add_alt_1,
-        label: 'Add Customer',
+        label: t.x('btn.add_customer'),
         onPressed: () => context.push('/customers/new'),
       ),
       bottomNavigationBar: const AppBottomNav(currentRoute: '/customers'),

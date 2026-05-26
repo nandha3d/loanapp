@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
@@ -24,12 +25,13 @@ class LoansScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(_loansProvider);
+    final t = T.of(ref);
     final fmt =
         NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Loans'),
+        title: Text(t.x('title.loans')),
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -45,14 +47,14 @@ class LoansScreen extends ConsumerWidget {
         ),
         error: (e, _) => EmptyState(
           icon: Icons.cloud_off,
-          title: 'Could not load loans',
+          title: t.x('err.failed_to_load'),
           subtitle: e.toString(),
         ),
         data: (loans) => loans.isEmpty
-            ? const EmptyState(
+            ? EmptyState(
                 icon: Icons.account_balance_wallet_outlined,
-                title: 'No loans',
-                subtitle: 'Tap the button below to create one.',
+                title: t.x('title.loans'),
+                subtitle: t.x('empty.tap_new'),
               )
             : RefreshIndicator(
                 color: AppColors.primary,
@@ -64,15 +66,14 @@ class LoansScreen extends ConsumerWidget {
                   itemBuilder: (_, i) => _LoanTile(
                     loan: loans[i],
                     fmt: fmt,
-                    onTap: () =>
-                        context.push('/loans/${loans[i]['id']}'),
+                    onTap: () => context.push('/loans/${loans[i]['id']}'),
                   ),
                 ),
               ),
       ),
       floatingActionButton: FabExtended(
         icon: Icons.add,
-        label: 'New Loan',
+        label: t.x('title.new_loan'),
         onPressed: () => context.push('/loans/new'),
       ),
       bottomNavigationBar: const AppBottomNav(currentRoute: '/loans'),
@@ -137,9 +138,12 @@ class _LoanTile extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(fmt.format(principal),
-                      style: AppTypography.bodyLarge.copyWith(
-                          color: AppColors.primaryDark)),
+                  Text(
+                    fmt.format(principal),
+                    style: AppTypography.bodyLarge.copyWith(
+                      color: AppColors.primaryDark,
+                    ),
+                  ),
                   const SizedBox(height: 4),
                   AppBadge(label: status, kind: kind),
                 ],

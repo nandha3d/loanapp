@@ -56,9 +56,23 @@ class Endpoints {
   static const String settings = '/settings';
   static const String routes = '/routes';
   static const String packages = '/packages';
+  static const String agents = '/agents';
 
   // Reports
   static const String reportsDaily = '/reports/daily';
   static const String reportsAgent = '/reports/agent';
   static const String reportsOverdue = '/reports/overdue';
+
+  // Payment
+  static const String paymentQr = '/payment/qr';
+
+  // Notifications
+  static const String notifications = '/notifications';
+
+  // Vehicles
+  static const String vehicles = '/vehicles';
+  static String vehicle(String id) => '/vehicles/$id';
+
+  // Accounting
+  static const String accountingSummary = '/accounting';
 }

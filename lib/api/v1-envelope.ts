@@ -11,10 +11,28 @@ export type Envelope<T> = {
 };
 
 export type Pagination = {
-  page: number;
-  pageSize: number;
-  total: number;
+  page?: number;
+  pageSize?: number;
+  total?: number;
+  // PAGE-01/02: cursor-based pagination for large lists.
+  // `nextCursor` = id of last row, client passes back as `?cursor=<id>`.
+  // `null` = end of stream.
+  nextCursor?: string | null;
+  limit?: number;
 };
+
+/** Parse `?cursor` + `?limit` from a Request URL. */
+export function parseCursorPaging(
+  url: string,
+  opts: { defaultLimit?: number; maxLimit?: number } = {},
+): { cursor: string | null; limit: number } {
+  const { defaultLimit = 20, maxLimit = 100 } = opts;
+  const { searchParams } = new URL(url);
+  const cursor = searchParams.get('cursor');
+  const raw = Number(searchParams.get('limit') || defaultLimit);
+  const limit = Math.min(Math.max(1, Number.isFinite(raw) ? raw : defaultLimit), maxLimit);
+  return { cursor: cursor || null, limit };
+}
 
 export function ok<T>(data: T, pagination: Pagination | null = null): NextResponse {
   const body: Envelope<T> = { data, error: null, pagination };

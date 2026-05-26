@@ -35,10 +35,10 @@ export async function getRouteProgressForBranch(input: {
     prisma.agentLocationPing.findMany({
       where: {
         tenantId: input.tenantId,
-        serverTime: { gte: dayStart, lt: dayEnd },
+        receivedAt: { gte: dayStart, lt: dayEnd },
         agentId: { in: agents.map((agent) => agent.id) },
       },
-      orderBy: { serverTime: 'asc' },
+      orderBy: { receivedAt: 'asc' },
     }),
     prisma.collectionEntry.findMany({
       where: {
@@ -49,8 +49,8 @@ export async function getRouteProgressForBranch(input: {
       select: {
         id: true,
         agentId: true,
-        latitude: true,
-        longitude: true,
+        lat: true,
+        lng: true,
         locationStatus: true,
         receivedAmount: true,
         submittedAt: true,
@@ -65,7 +65,7 @@ export async function getRouteProgressForBranch(input: {
     const last = agentPings.length ? agentPings[agentPings.length - 1] : null;
     const agentEntries = entries.filter((entry) => entry.agentId === agent.id);
     const mismatchCount = agentEntries.filter((entry) => entry.locationStatus === 'mismatch').length;
-    const lastSeenMinutes = minutesSince(last?.serverTime);
+    const lastSeenMinutes = minutesSince(last?.receivedAt);
     const alerts = [
       lastSeenMinutes !== null && lastSeenMinutes >= 120 ? 'not_moved_2h' : null,
       lastSeenMinutes !== null && lastSeenMinutes >= 30 ? 'offline_30m' : null,
@@ -76,22 +76,22 @@ export async function getRouteProgressForBranch(input: {
       agentId: agent.id,
       agentName: agent.name,
       branchId: agent.branchId,
-      lastLocation: last ? { lat: last.latitude, lng: last.longitude, time: last.serverTime } : null,
+      lastLocation: last ? { lat: last.lat, lng: last.lng, time: last.receivedAt } : null,
       minutesSinceLastPing: lastSeenMinutes,
       collectionsDoneToday: agentEntries.length,
       alerts,
       path: agentPings.map((ping) => ({
-        lat: ping.latitude,
-        lng: ping.longitude,
-        time: ping.serverTime,
+        lat: ping.lat,
+        lng: ping.lng,
+        time: ping.receivedAt,
         type: ping.pingType,
       })),
       collectionPoints: agentEntries
-        .filter((entry) => entry.latitude !== null && entry.longitude !== null)
+        .filter((entry) => entry.lat !== null && entry.lng !== null)
         .map((entry) => ({
           id: entry.id,
-          lat: entry.latitude!,
-          lng: entry.longitude!,
+          lat: entry.lat!,
+          lng: entry.lng!,
           customerName: entry.customer.name,
           amount: Number(entry.receivedAmount),
           time: entry.submittedAt,

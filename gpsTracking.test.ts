@@ -71,7 +71,18 @@ assert.equal(disabled.latitude, null, 'GPS coords are ignored when add-on is dis
 const schema = read('prisma/schema.prisma');
 assert.match(schema, /gpsTrackingEnabled\s+Boolean\s+@default\(false\)\s+@map\("gps_tracking_enabled"\)/, 'subscription has gpsTrackingEnabled add-on flag');
 assert.match(schema, /model AgentLocationPing/, 'AgentLocationPing model exists for heartbeat tracking');
+assert.match(schema, /model RouteStop/, 'Ganand GPS model includes route stops for ordered route planning');
+assert.match(schema, /lat\s+Float(?:\s+@map\("lat"\))?/, 'AgentLocationPing uses Ganand lat column');
+assert.match(schema, /lng\s+Float(?:\s+@map\("lng"\))?/, 'AgentLocationPing uses Ganand lng column');
+assert.match(schema, /accuracyM\s+Float\?\s+@map\("accuracy_m"\)/, 'AgentLocationPing uses accuracyM');
+assert.match(schema, /capturedAt\s+DateTime\s+@map\("captured_at"\)/, 'AgentLocationPing stores capturedAt');
+assert.match(schema, /receivedAt\s+DateTime\s+@default\(now\(\)\)\s+@map\("received_at"\)/, 'AgentLocationPing stores receivedAt');
+assert.doesNotMatch(schema, /deviceTime\s+DateTime\s+@map\("device_time"\)/, 'old deviceTime GPS field is removed');
+assert.doesNotMatch(schema, /serverTime\s+DateTime\s+@default\(now\(\)\)\s+@map\("server_time"\)/, 'old serverTime GPS field is removed');
 assert.match(schema, /model CustomerGeocode/, 'CustomerGeocode model exists for borrower location verification');
+assert.match(schema, /gpsAccuracyM\s+Float\?\s+@map\("gps_accuracy_m"\)/, 'CollectionEntry uses Ganand gpsAccuracyM column');
+assert.match(schema, /gpsCapturedAt\s+DateTime\?\s+@map\("gps_captured_at"\)/, 'CollectionEntry uses Ganand gpsCapturedAt column');
+assert.match(schema, /distanceFromCustomerM\s+Float\?\s+@map\("distance_from_customer_m"\)/, 'CollectionEntry stores distance from customer');
 assert.match(schema, /locationStatus\s+String\s+@default\("not_captured"\)\s+@map\("location_status"\)/, 'CollectionEntry stores location status');
 
 const billingAction = read('app/admin/billing/billingActions.ts');

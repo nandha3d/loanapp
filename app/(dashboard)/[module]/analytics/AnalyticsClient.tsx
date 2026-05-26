@@ -9,7 +9,8 @@ import {
   PieChart, Pie, Cell, RadialBarChart, RadialBar,
 } from 'recharts';
 
-export default function AnalyticsClient({ data, currencySymbol }: { data: AnalyticsData; currencySymbol: string }) {
+export default function AnalyticsClient({ data, currencySymbol, dict }: { data: AnalyticsData; currencySymbol: string; dict: any }) {
+  const an = dict.analytics || {};
   const [borrowerFilter, setBorrowerFilter] = useState<'volume' | 'nodela' | 'overdue'>('volume');
   const fc = (n: number) => formatCurrency(n, currencySymbol);
   const eff = data.collectionEfficiency;
@@ -44,7 +45,7 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
           </div>
           <div>
             <div style={{ fontSize: '1.1rem', fontWeight: 800, color: eff.color }}>{eff.label}</div>
-            <div className="kpi-label">Collection Efficiency</div>
+            <div className="kpi-label">{an.collectionEfficiency || 'Collection Efficiency'}</div>
             <div style={{ fontSize: '.72rem', color: 'var(--text-secondary)', marginTop: 2 }}>{fc(eff.collected)} / {fc(eff.expected)}</div>
           </div>
         </div>
@@ -54,7 +55,7 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
           <div className={`kpi-icon ${data.capitalBalance >= 0 ? 'green' : 'red'}`}><span className="material-icons-outlined">savings</span></div>
           <div>
             <div className="kpi-value">{fc(data.capitalBalance)}</div>
-            <div className="kpi-label">Capital Balance</div>
+            <div className="kpi-label">{an.capitalBalance || 'Capital Balance'}</div>
           </div>
         </div>
 
@@ -63,8 +64,8 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
           <div className="kpi-icon blue"><span className="material-icons-outlined">account_balance</span></div>
           <div>
             <div className="kpi-value">{fc(p.activePrincipal)}</div>
-            <div className="kpi-label">Active Portfolio</div>
-            <div style={{ fontSize: '.72rem', color: 'var(--text-secondary)' }}>{p.activeCount} loans</div>
+            <div className="kpi-label">{an.activePortfolio || 'Active Portfolio'}</div>
+            <div style={{ fontSize: '.72rem', color: 'var(--text-secondary)' }}>{p.activeCount} {an.loans || 'loans'}</div>
           </div>
         </div>
 
@@ -73,7 +74,7 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
           <div className="kpi-icon green"><span className="material-icons-outlined">trending_up</span></div>
           <div>
             <div className="kpi-value">{p.recoveryRatio}%</div>
-            <div className="kpi-label">Recovery Ratio</div>
+            <div className="kpi-label">{an.recoveryRatio || 'Recovery Ratio'}</div>
           </div>
         </div>
       </div>
@@ -84,12 +85,12 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
           <div className="card-header">
             <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span className="material-icons-outlined" style={{ color: 'var(--primary)', fontSize: 20 }}>show_chart</span>
-              Collection Trend (7 Days)
+              {an.collectionTrend || 'Collection Trend (7 Days)'}
             </h3>
             {wow !== 0 && (
               <span style={{ fontSize: '.78rem', fontWeight: 700, color: wow > 0 ? '#10B981' : '#EF4444', display: 'flex', alignItems: 'center', gap: 4 }}>
                 <span className="material-icons-outlined" style={{ fontSize: 16 }}>{wow > 0 ? 'trending_up' : 'trending_down'}</span>
-                {wow > 0 ? '+' : ''}{wow}% vs last week
+                {wow > 0 ? '+' : ''}{wow}% {an.vsLastWeek || 'vs last week'}
               </span>
             )}
           </div>
@@ -102,19 +103,19 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
               <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
               <YAxis hide />
               <Tooltip formatter={(v: any) => fc(v)} contentStyle={{ borderRadius: 10, fontSize: '.82rem' }} />
-              <Area type="monotone" dataKey="expected" stroke="#3B82F6" fill="url(#gExp)" strokeWidth={2} name="Expected" />
-              <Area type="monotone" dataKey="collected" stroke="#10B981" fill="url(#gCol)" strokeWidth={2} name="Collected" />
+              <Area type="monotone" dataKey="expected" stroke="#3B82F6" fill="url(#gExp)" strokeWidth={2} name={an.expected || 'Expected'} />
+              <Area type="monotone" dataKey="collected" stroke="#10B981" fill="url(#gCol)" strokeWidth={2} name={an.collected || 'Collected'} />
             </AreaChart>
           </ResponsiveContainer>
           <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 8, fontSize: '.75rem' }}>
-            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#3B82F6', borderRadius: 2, marginRight: 4 }} />Expected</span>
-            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#10B981', borderRadius: 2, marginRight: 4 }} />Collected</span>
+            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#3B82F6', borderRadius: 2, marginRight: 4 }} />{an.expected || 'Expected'}</span>
+            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#10B981', borderRadius: 2, marginRight: 4 }} />{an.collected || 'Collected'}</span>
           </div>
         </div>
 
         {/* Collection Funnel */}
         <div className="card">
-          <div className="card-header"><h3>Collection Funnel</h3></div>
+          <div className="card-header"><h3>{an.collectionFunnel || 'Collection Funnel'}</h3></div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 0' }}>
             {data.collectionFunnel.map((step, i) => {
               const maxCount = Math.max(1, data.collectionFunnel[0]?.count || 1);
@@ -134,10 +135,10 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
           {/* Cash/UPI split */}
           {(data.todayCashCollected > 0 || data.todayUpiCollected > 0) && (
             <div style={{ marginTop: 12, padding: '12px', background: '#f8fafc', borderRadius: 10 }}>
-              <div style={{ fontSize: '.75rem', fontWeight: 700, marginBottom: 6, color: 'var(--text-secondary)' }}>Today&apos;s Split</div>
+              <div style={{ fontSize: '.75rem', fontWeight: 700, marginBottom: 6, color: 'var(--text-secondary)' }}>{an.todaySplit || "Today's Split"}</div>
               <div style={{ display: 'flex', gap: 16, fontSize: '.8rem' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: '#27AE60' }} />Cash: <b>{fc(data.todayCashCollected)}</b></span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: '#8E44AD' }} />UPI: <b>{fc(data.todayUpiCollected)}</b></span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: '#27AE60' }} />{an.cash || 'Cash'}: <b>{fc(data.todayCashCollected)}</b></span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: '#8E44AD' }} />{an.upi || 'UPI'}: <b>{fc(data.todayUpiCollected)}</b></span>
               </div>
             </div>
           )}
@@ -148,7 +149,7 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '20px' }}>
         {/* Risk Score */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-          <h3 style={{ fontSize: '.9rem', fontWeight: 700, margin: '0 0 8px' }}>Portfolio Risk Score</h3>
+          <h3 style={{ fontSize: '.9rem', fontWeight: 700, margin: '0 0 8px' }}>{an.portfolioRiskScore || 'Portfolio Risk Score'}</h3>
           <div style={{ width: 140, height: 140 }}>
             <ResponsiveContainer>
               <RadialBarChart cx="50%" cy="50%" innerRadius="70%" outerRadius="100%" startAngle={180} endAngle={0} data={[{ value: data.riskScore.score, fill: data.riskScore.color }]}>
@@ -158,10 +159,10 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
           </div>
           <div style={{ marginTop: -20, textAlign: 'center' }}>
             <div style={{ fontSize: '1.8rem', fontWeight: 800, color: data.riskScore.color }}>{data.riskScore.score}</div>
-            <div style={{ fontSize: '.85rem', fontWeight: 700, color: data.riskScore.color, marginTop: 2 }}>{data.riskScore.label} Risk</div>
+            <div style={{ fontSize: '.85rem', fontWeight: 700, color: data.riskScore.color, marginTop: 2 }}>{data.riskScore.label} {an.risk || 'Risk'}</div>
           </div>
           <div style={{ marginTop: 16, fontSize: '.75rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
-            Based on overdue ratio, missed EMIs, and penalty accumulation
+            {an.riskBasis || 'Based on overdue ratio, missed EMIs, and penalty accumulation'}
           </div>
         </div>
 
@@ -170,16 +171,16 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
           <div className="card-header" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
             <h3 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span className="material-icons-outlined" style={{ color: 'var(--primary)', fontSize: 20 }}>timer</span>
-              Aging Analysis (Overdue Tracker)
+              {an.agingAnalysis || 'Aging Analysis (Overdue Tracker)'}
             </h3>
             <p style={{ margin: 0, fontSize: '.75rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-              Categorizes total unpaid amount by how many days late it is. 1–7 days means recently missed (low risk), while 90+ days indicates long-term default (NPA). This helps lenders evaluate portfolio risk and prioritize collection follow-ups.
+              {an.agingDesc || 'Categorizes total unpaid amount by how many days late it is. 1–7 days means recently missed (low risk), while 90+ days indicates long-term default (NPA).'}
             </p>
           </div>
           <div className="table-wrapper">
             <table>
               <thead>
-                <tr><th>Overdue Age</th><th style={{ textAlign: 'center' }}>Count</th><th style={{ textAlign: 'right' }}>Amount</th></tr>
+                <tr><th>{an.overdueAge || 'Overdue Age'}</th><th style={{ textAlign: 'center' }}>{an.count || 'Count'}</th><th style={{ textAlign: 'right' }}>{an.amount || 'Amount'}</th></tr>
               </thead>
               <tbody>
                 {data.agingBuckets.map((b, i) => (
@@ -190,7 +191,7 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
                   </tr>
                 ))}
                 <tr style={{ borderTop: '2px solid var(--border)', fontWeight: 700 }}>
-                  <td>Total</td>
+                  <td>{an.total || 'Total'}</td>
                   <td style={{ textAlign: 'center' }}>{data.agingBuckets.reduce((s, b) => s + b.count, 0)}</td>
                   <td style={{ textAlign: 'right', color: '#EF4444' }}>{fc(data.agingBuckets.reduce((s, b) => s + b.amount, 0))}</td>
                 </tr>
@@ -202,18 +203,18 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
 
       {/* ── AGENT LEADERBOARD & FREQUENCY PORTFOLIO ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
-        {/* Shrunk Agent Leaderboard */}
+        {/* Agent Leaderboard */}
         <div className="card" style={{ height: 'fit-content' }}>
           <div className="card-header">
             <h3 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span className="material-icons-outlined" style={{ fontSize: 18, color: '#F59E0B' }}>emoji_events</span>
-              Agent Leaderboard (This Week)
+              {an.agentLeaderboard || 'Agent Leaderboard (This Week)'}
             </h3>
           </div>
           {data.agentLeaderboard.length > 0 ? (
             <div className="table-wrapper">
               <table>
-                <thead><tr><th>#</th><th>Agent</th><th style={{ textAlign: 'right' }}>Collections</th></tr></thead>
+                <thead><tr><th>#</th><th>{an.agent || 'Agent'}</th><th style={{ textAlign: 'right' }}>{an.collections || 'Collections'}</th></tr></thead>
                 <tbody>
                   {data.agentLeaderboard.slice(0, 5).map((a, i) => (
                     <tr key={a.id}>
@@ -226,7 +227,7 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
               </table>
             </div>
           ) : (
-            <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-light)', fontSize: '.85rem' }}>No collection data this week.</div>
+            <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-light)', fontSize: '.85rem' }}>{an.noCollectionData || 'No collection data this week.'}</div>
           )}
         </div>
 
@@ -235,16 +236,16 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
           <div className="card-header">
             <h3 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span className="material-icons-outlined" style={{ fontSize: 18, color: 'var(--primary)' }}>pie_chart</span>
-              Portfolio by Frequency
+              {an.portfolioByFrequency || 'Portfolio by Frequency'}
             </h3>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 0' }}>
             {(() => {
               const freqItems = [
-                { label: 'Daily', value: data.frequencyTotals.daily, color: '#3B82F6' },
-                { label: 'Weekly', value: data.frequencyTotals.weekly, color: '#10B981' },
-                { label: 'Bi-Weekly', value: data.frequencyTotals.biweekly, color: '#F59E0B' },
-                { label: 'Monthly', value: data.frequencyTotals.monthly, color: '#8B5CF6' },
+                { label: an.daily || 'Daily', value: data.frequencyTotals.daily, color: '#3B82F6' },
+                { label: an.weekly || 'Weekly', value: data.frequencyTotals.weekly, color: '#10B981' },
+                { label: an.biWeekly || 'Bi-Weekly', value: data.frequencyTotals.biweekly, color: '#F59E0B' },
+                { label: an.monthly || 'Monthly', value: data.frequencyTotals.monthly, color: '#8B5CF6' },
               ];
               const maxVal = Math.max(1, ...freqItems.map(f => f.value));
               return freqItems.map((f, i) => {
@@ -272,12 +273,12 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
             <div key={i} className="card" style={{ padding: '16px' }}>
               <div style={{ fontWeight: 700, fontSize: '.9rem', marginBottom: 8 }}>{r.name}</div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.78rem', color: 'var(--text-secondary)' }}>
-                <span>{r.customers} customers</span>
+                <span>{r.customers} {an.customers || 'customers'}</span>
                 <span style={{ color: r.overdue > 0 ? '#EF4444' : '#10B981', fontWeight: 700 }}>
-                  {r.overdue > 0 ? fc(r.overdue) + ' overdue' : '✓ Clear'}
+                  {r.overdue > 0 ? fc(r.overdue) + ' ' + (an.overdue || 'overdue') : an.clear || '✓ Clear'}
                 </span>
               </div>
-              {r.collected > 0 && <div style={{ fontSize: '.72rem', color: '#10B981', marginTop: 4 }}>Collected today: {fc(r.collected)}</div>}
+              {r.collected > 0 && <div style={{ fontSize: '.72rem', color: '#10B981', marginTop: 4 }}>{an.collectedToday || 'Collected today'}: {fc(r.collected)}</div>}
             </div>
           ))}
         </div>
@@ -288,13 +289,13 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
         <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
           <h3 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span className="material-icons-outlined" style={{ fontSize: 18, color: '#3B82F6' }}>groups</span>
-            Borrower Leaderboard
+            {an.borrowerLeaderboard || 'Borrower Leaderboard'}
           </h3>
           <div style={{ display: 'flex', gap: 6, background: '#f1f5f9', padding: 4, borderRadius: 8 }}>
             {[
-              { id: 'volume', label: 'Highest Loan' },
-              { id: 'nodela', label: 'No Delayers' },
-              { id: 'overdue', label: 'Critical Overdue' }
+              { id: 'volume', label: an.highestLoan || 'Highest Loan' },
+              { id: 'nodela', label: an.noDelayers || 'No Delayers' },
+              { id: 'overdue', label: an.criticalOverdue || 'Critical Overdue' }
             ].map(tab => (
               <button
                 key={tab.id}
@@ -322,10 +323,10 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
             <table>
               <thead>
                 <tr>
-                  <th>Customer</th>
-                  <th style={{ textAlign: 'right' }}>Active Principal</th>
-                  <th style={{ textAlign: 'right' }}>Overdue Amount</th>
-                  <th style={{ textAlign: 'center' }}>Missed EMIs</th>
+                  <th>{an.customer || 'Customer'}</th>
+                  <th style={{ textAlign: 'right' }}>{an.activePrincipal || 'Active Principal'}</th>
+                  <th style={{ textAlign: 'right' }}>{an.overdueAmount || 'Overdue Amount'}</th>
+                  <th style={{ textAlign: 'center' }}>{an.missedEmis || 'Missed EMIs'}</th>
                 </tr>
               </thead>
               <tbody>
@@ -344,7 +345,7 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
             </table>
           </div>
         ) : (
-          <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-light)', fontSize: '.85rem' }}>No borrowers found for this filter.</div>
+          <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-light)', fontSize: '.85rem' }}>{an.noBorrowersFound || 'No borrowers found for this filter.'}</div>
         )}
       </div>
 
@@ -352,7 +353,7 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '20px' }}>
         {/* Borrower Segments */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div className="card-header" style={{ width: '100%' }}><h3>Borrower Segments</h3></div>
+          <div className="card-header" style={{ width: '100%' }}><h3>{an.borrowerSegments || 'Borrower Segments'}</h3></div>
           <div style={{ width: 200, height: 200 }}>
             <ResponsiveContainer>
               <PieChart>
@@ -375,9 +376,9 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
         {/* Cashflow Forecast */}
         <div className="card">
           <div className="card-header">
-            <h3>Cashflow Forecast</h3>
+            <h3>{an.cashflowForecast || 'Cashflow Forecast'}</h3>
             <div style={{ fontSize: '.78rem', color: 'var(--text-secondary)' }}>
-              30-day expected: <b style={{ color: 'var(--primary)' }}>{fc(data.cashflowForecast30d.total)}</b>
+              {an.thirtyDayExpected || '30-day expected'}: <b style={{ color: 'var(--primary)' }}>{fc(data.cashflowForecast30d.total)}</b>
             </div>
           </div>
           <ResponsiveContainer width="100%" height={200}>
@@ -388,8 +389,8 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
               <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
               <YAxis hide />
               <Tooltip formatter={(v: any) => fc(v)} contentStyle={{ borderRadius: 10, fontSize: '.82rem' }} />
-              <Area type="monotone" dataKey="expected" stroke="#8B5CF6" fill="url(#gFc)" strokeWidth={2} name="Expected Inflow" />
-              <Area type="monotone" dataKey="cumulative" stroke="#3B82F6" fill="none" strokeWidth={2} strokeDasharray="5 5" name="Cumulative" />
+              <Area type="monotone" dataKey="expected" stroke="#8B5CF6" fill="url(#gFc)" strokeWidth={2} name={an.expectedInflow || 'Expected Inflow'} />
+              <Area type="monotone" dataKey="cumulative" stroke="#3B82F6" fill="none" strokeWidth={2} strokeDasharray="5 5" name={an.cumulative || 'Cumulative'} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -397,15 +398,15 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
 
       {/* ── PORTFOLIO SUMMARY ── */}
       <div className="card">
-        <div className="card-header"><h3>Portfolio Summary</h3></div>
+        <div className="card-header"><h3>{an.portfolioSummary || 'Portfolio Summary'}</h3></div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16 }}>
           {[
-            { label: 'Total Disbursed', value: fc(p.totalDisbursed), icon: 'payments', color: '#3B82F6' },
-            { label: 'Active Principal', value: fc(p.activePrincipal), icon: 'account_balance', color: '#F59E0B' },
-            { label: 'Total Recovered', value: fc(p.totalRecovered), icon: 'savings', color: '#10B981' },
-            { label: 'NPA / Overdue', value: fc(p.npaAmount), icon: 'warning', color: '#EF4444' },
-            { label: 'Avg Loan Size', value: fc(p.avgLoanSize), icon: 'bar_chart', color: '#8B5CF6' },
-            { label: 'EMI Pressure', value: `${data.emiPressure.count} customers`, icon: 'schedule', color: '#F97316' },
+            { label: an.totalDisbursed || 'Total Disbursed', value: fc(p.totalDisbursed), icon: 'payments', color: '#3B82F6' },
+            { label: an.activePrincipal || 'Active Principal', value: fc(p.activePrincipal), icon: 'account_balance', color: '#F59E0B' },
+            { label: an.totalRecovered || 'Total Recovered', value: fc(p.totalRecovered), icon: 'savings', color: '#10B981' },
+            { label: an.npaOverdue || 'NPA / Overdue', value: fc(p.npaAmount), icon: 'warning', color: '#EF4444' },
+            { label: an.avgLoanSize || 'Avg Loan Size', value: fc(p.avgLoanSize), icon: 'bar_chart', color: '#8B5CF6' },
+            { label: an.emiPressure || 'EMI Pressure', value: `${data.emiPressure.count} ${an.customers || 'customers'}`, icon: 'schedule', color: '#F97316' },
           ].map((item, i) => (
             <div key={i} style={{ padding: '14px', background: `${item.color}08`, borderRadius: 12, border: `1px solid ${item.color}20` }}>
               <span className="material-icons-outlined" style={{ fontSize: 18, color: item.color }}>{item.icon}</span>
@@ -420,11 +421,11 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
       <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '20px' }}>
         {/* Loans Requiring Attention */}
         <div className="card">
-          <div className="card-header"><h3 style={{ color: '#EF4444' }}>⚠ Loans Requiring Attention</h3></div>
+          <div className="card-header"><h3 style={{ color: '#EF4444' }}>{an.loansRequiringAttention || '⚠ Loans Requiring Attention'}</h3></div>
           {data.attentionLoans.length > 0 ? (
             <div className="table-wrapper">
               <table>
-                <thead><tr><th>Customer</th><th>Overdue</th><th>Amount</th><th>Risk</th><th>Action</th></tr></thead>
+                <thead><tr><th>{an.customer || 'Customer'}</th><th>{an.overdueLabel || 'Overdue'}</th><th>{an.amount || 'Amount'}</th><th>Risk</th><th>{an.view || 'Action'}</th></tr></thead>
                 <tbody>
                   {data.attentionLoans.map((loan, i) => (
                     <tr key={i}>
@@ -442,7 +443,7 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
                           <span key={j} style={{ display: 'block', fontSize: '.65rem', color: '#EF4444', marginTop: 2 }}>• {b}</span>
                         ))}
                       </td>
-                      <td><Link href={`/loans/${loan.loanCode}`} className="btn btn-ghost btn-sm">View</Link></td>
+                      <td><Link href={`/loans/${loan.loanCode}`} className="btn btn-ghost btn-sm">{an.view || 'View'}</Link></td>
                     </tr>
                   ))}
                 </tbody>
@@ -451,7 +452,7 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
           ) : (
             <div style={{ padding: 24, textAlign: 'center', color: 'var(--success)' }}>
               <span className="material-icons-outlined" style={{ fontSize: 36 }}>check_circle</span>
-              <p style={{ marginTop: 8, fontSize: '.85rem' }}>No urgent loans requiring attention.</p>
+              <p style={{ marginTop: 8, fontSize: '.85rem' }}>{an.noUrgentLoans || 'No urgent loans requiring attention.'}</p>
             </div>
           )}
         </div>
@@ -459,7 +460,7 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
         {/* Smart Insights + Feed */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div className="card">
-            <div className="card-header"><h3>💡 Smart Insights</h3></div>
+            <div className="card-header"><h3>{an.smartInsights || '💡 Smart Insights'}</h3></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {data.smartInsights.map((ins, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: `${ins.color}0A`, borderRadius: 10, border: `1px solid ${ins.color}20` }}>
@@ -471,7 +472,7 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
           </div>
 
           <div className="card">
-            <div className="card-header"><h3>Recent Activity</h3></div>
+            <div className="card-header"><h3>{an.recentActivity || 'Recent Activity'}</h3></div>
             <div style={{ maxHeight: 250, overflow: 'auto' }}>
               {data.operationalFeed.slice(0, 8).map(log => (
                 <div className="activity-item" key={log.id}>
@@ -483,7 +484,7 @@ export default function AnalyticsClient({ data, currencySymbol }: { data: Analyt
                 </div>
               ))}
               {data.operationalFeed.length === 0 && (
-                <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-light)', fontSize: '.85rem' }}>No activity.</div>
+                <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-light)', fontSize: '.85rem' }}>{an.noActivity || 'No activity.'}</div>
               )}
             </div>
           </div>

@@ -387,6 +387,18 @@ export async function createLoan(formData: FormData) {
       console.error('Failed to create accounting entry:', e);
     }
 
+    const { autoPostLoanDisburse } = await import('@/lib/accounting/autoPost');
+    autoPostLoanDisburse({
+      tenantId,
+      loanId: loan.id,
+      loanCode,
+      amount: disbursed,
+      date: startDate,
+      branchId: activeBranchId || null,
+      createdById: createdById || null,
+      category: 'cash',
+    }).catch(() => {});
+
     const firstInstalment = instalments[0]?.dueDate;
     notify({
       tenantId,

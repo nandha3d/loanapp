@@ -19,6 +19,13 @@ type CollectionRow = {
   loan: {
     id: string;
     loanCode: string;
+    totalPayable: number;
+    totalCollected: number;
+    principal: number;
+    totalInstalments: number;
+    paidCount: number;
+    perInstalment: number;
+    frequency: string;
     customer: {
       id: string;
       name: string;
@@ -32,6 +39,15 @@ type CollectionRow = {
 type RouteOption = {
   id: string;
   name: string;
+};
+
+type UnifiedGroup = {
+  customerId: string;
+  customerName: string;
+  customerCode: string;
+  routeName: string;
+  instalments: CollectionRow[];
+  loanCodes: string[];
 };
 
 type CustomerOverdueGroup = {
@@ -106,9 +122,15 @@ export default function CollectionClient({
       return 'all';
     },
   );
+  const [frequencyFilter, setFrequencyFilter] = useState('');
   const [overdueMinDays, setOverdueMinDays] = useState('');
   const [overdueMaxDays, setOverdueMaxDays] = useState('');
+  const [selectedLoanForCustomer, setSelectedLoanForCustomer] = useState<Record<string, string>>({});
   const [gpsStatusText, setGpsStatusText] = useState('');
+
+  const handleLoanChange = (customerId: string, loanCode: string) => {
+    setSelectedLoanForCustomer(prev => ({ ...prev, [customerId]: loanCode }));
+  };
 
   const isAdmin = agentRole === 'admin' || agentRole === 'superadmin';
   const modalRef = useRef<HTMLDivElement>(null);
@@ -191,15 +213,16 @@ export default function CollectionClient({
         || row.loan.loanCode.toLowerCase().includes(search);
       const matchesRoute = !routeFilter || row.loan.customer.route?.id === routeFilter;
       const matchesStatus = !statusFilter || row.status === statusFilter;
+      const matchesFrequency = !frequencyFilter || row.loan.frequency === frequencyFilter;
 
       // Overdue days range filter
       const minD = overdueMinDays ? Number(overdueMinDays) : 0;
       const maxD = overdueMaxDays ? Number(overdueMaxDays) : Infinity;
       const matchesOverdueDays = row.daysOverdue >= minD && row.daysOverdue <= maxD;
 
-      return matchesDate && matchesCustomer && matchesRoute && matchesStatus && matchesOverdueDays;
+      return matchesDate && matchesCustomer && matchesRoute && matchesStatus && matchesFrequency && matchesOverdueDays;
     });
-  }, [allInstalments, typeFilter, customerFilter, dateFilter, routeFilter, statusFilter, overdueMinDays, overdueMaxDays]);
+  }, [allInstalments, typeFilter, customerFilter, dateFilter, routeFilter, statusFilter, frequencyFilter, overdueMinDays, overdueMaxDays]);
 
   const todayTotals = useMemo(() => {
     return {
@@ -217,12 +240,9 @@ export default function CollectionClient({
     };
   }, [overdueInstalments]);
 
-  // Keep groupedOverdue for the detail popup (still used when clicking Details)
-  const groupedOverdue = useMemo<CustomerOverdueGroup[]>(() => {
-    const map = new Map<string, CustomerOverdueGroup>();
-    const today = new Date().toISOString().slice(0, 10);
-    const rows = filteredRows.filter(r => r.daysOverdue > 0 && r.outstandingAmount > 0);
-    for (const row of rows) {
+  const unifiedGroups = useMemo<UnifiedGroup[]>(() => {
+    const map = new Map<string, UnifiedGroup>();
+    for (const row of filteredRows) {
       const cid = row.loan.customer.id;
       if (!map.has(cid)) {
         map.set(cid, {
@@ -232,13 +252,6 @@ export default function CollectionClient({
           routeName: row.loan.customer.route?.name || '-',
           instalments: [],
           loanCodes: [],
-          earliestDueDate: row.dueDate,
-          dueToday: 0,
-          receivedAmount: 0,
-          totalOutstanding: 0,
-          totalOverdue: 0,
-          maxDaysOverdue: 0,
-          statusLabel: row.status,
         });
       }
       const g = map.get(cid)!;
@@ -246,24 +259,11 @@ export default function CollectionClient({
       if (!g.loanCodes.includes(row.loan.loanCode)) {
         g.loanCodes.push(row.loan.loanCode);
       }
-      if (row.dueDate < g.earliestDueDate) {
-        g.earliestDueDate = row.dueDate;
-      }
-      if (row.dueDate === today) {
-        g.dueToday += row.dueAmount;
-      }
-      g.receivedAmount += row.receivedAmount;
-      g.totalOutstanding += row.outstandingAmount;
-      g.totalOverdue += row.overdueAmount;
-      g.maxDaysOverdue = Math.max(g.maxDaysOverdue, row.daysOverdue);
-      if (g.statusLabel !== row.status) {
-        g.statusLabel = 'mixed';
-      }
     }
     for (const g of map.values()) {
-      g.instalments.sort((a, b) => b.daysOverdue - a.daysOverdue);
+      g.instalments.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
     }
-    return Array.from(map.values()).sort((a, b) => b.maxDaysOverdue - a.maxDaysOverdue);
+    return Array.from(map.values()).sort((a, b) => a.customerName.localeCompare(b.customerName));
   }, [filteredRows]);
 
   const todayStr = new Date().toLocaleDateString('en-IN', {
@@ -369,6 +369,7 @@ export default function CollectionClient({
     setCustomerFilter('');
     setRouteFilter('');
     setStatusFilter('');
+    setFrequencyFilter('');
     setTypeFilter('all');
     setOverdueMinDays('');
     setOverdueMaxDays('');
@@ -376,13 +377,13 @@ export default function CollectionClient({
 
   useEffect(() => {
     setPage(1);
-  }, [typeFilter, customerFilter, dateFilter, routeFilter, statusFilter, overdueMinDays, overdueMaxDays]);
+  }, [typeFilter, customerFilter, dateFilter, routeFilter, statusFilter, frequencyFilter, overdueMinDays, overdueMaxDays]);
 
-  const hasActiveFilters = dateFilter || customerFilter || routeFilter || statusFilter || typeFilter !== 'all' || overdueMinDays || overdueMaxDays;
+  const hasActiveFilters = dateFilter || customerFilter || routeFilter || statusFilter || frequencyFilter || typeFilter !== 'all' || overdueMinDays || overdueMaxDays;
 
   const pageSize = 20;
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
-  const paginatedRows = filteredRows.slice((page - 1) * pageSize, page * pageSize);
+  const totalPages = Math.max(1, Math.ceil(unifiedGroups.length / pageSize));
+  const paginatedGroups = unifiedGroups.slice((page - 1) * pageSize, page * pageSize);
   const pageButtons = getPaginationPages(page, totalPages);
 
   useEffect(() => {
@@ -391,7 +392,20 @@ export default function CollectionClient({
     }
   }, [page, totalPages]);
 
-  const renderRows = (rows: CollectionRow[]) => (
+  const buildOverdueGroup = (group: UnifiedGroup): CustomerOverdueGroup => {
+    return {
+      ...group,
+      earliestDueDate: group.instalments.map(i => i.dueDate).sort()[0],
+      dueToday: group.instalments.filter(i => i.dueDate.slice(0, 10) === todayISO).reduce((s, i) => s + i.dueAmount, 0),
+      receivedAmount: group.instalments.reduce((s, i) => s + i.receivedAmount, 0),
+      totalOutstanding: group.instalments.reduce((s, i) => s + i.outstandingAmount, 0),
+      totalOverdue: group.instalments.filter(i => i.daysOverdue > 0).reduce((s, i) => s + i.overdueAmount, 0),
+      maxDaysOverdue: Math.max(0, ...group.instalments.map(i => i.daysOverdue)),
+      statusLabel: 'Mixed'
+    };
+  };
+
+  const renderUnifiedRows = (groups: UnifiedGroup[]) => (
     <div className="table-wrapper">
       <table>
         <thead>
@@ -408,57 +422,98 @@ export default function CollectionClient({
           </tr>
         </thead>
         <tbody>
-          {rows.map((instalment) => {
-            const isSettled = instalment.outstandingAmount <= 0;
-            const isPaid = instalment.receivedAmount > 0;
+          {groups.map((group) => {
+            const currentLoanCode = selectedLoanForCustomer[group.customerId] || 'all';
+            const visibleInstalments = currentLoanCode === 'all' 
+              ? group.instalments 
+              : group.instalments.filter(i => i.loan.loanCode === currentLoanCode);
+
+            const earliestDateIso = visibleInstalments.map(i => i.dueDate).sort()[0] || '';
+            const dueTodayAmount = visibleInstalments.filter(i => i.dueDate.slice(0, 10) === todayISO).reduce((sum, i) => sum + i.dueAmount, 0);
+            const receivedAmount = visibleInstalments.reduce((sum, i) => sum + i.receivedAmount, 0);
+            
+            const uniqueLoans = Array.from(new Map(visibleInstalments.map(i => [i.loan.id, i.loan])).values());
+            const totalLoanPayable = uniqueLoans.reduce((sum, l) => sum + l.totalPayable, 0);
+            const totalLoanCollected = uniqueLoans.reduce((sum, l) => sum + l.totalCollected, 0);
+            const totalLoanOutstanding = totalLoanPayable - totalLoanCollected;
+            const remainingInstalments = uniqueLoans.reduce((sum, l) => sum + (l.totalInstalments - l.paidCount), 0);
+
+            const overdueInstalments = visibleInstalments.filter(i => i.daysOverdue > 0 && i.outstandingAmount > 0);
+            const maxDaysOverdue = overdueInstalments.length > 0 ? Math.max(...overdueInstalments.map(i => i.daysOverdue)) : 0;
+            const totalOverdueAmount = overdueInstalments.reduce((sum, i) => sum + i.overdueAmount, 0);
+
+            const statuses = Array.from(new Set(visibleInstalments.map(i => {
+               if (i.status === 'upcoming' && i.dueDate.slice(0,10) === todayISO) return 'Due Today';
+               if (i.status === 'upcoming' && i.dueDate.slice(0,10) < todayISO) return 'Missed';
+               return i.status;
+            })));
+            const displayStatus = statuses.length === 1 ? statuses[0] : 'Overdue';
+
+            const isSettled = visibleInstalments.every(i => i.outstandingAmount <= 0);
+            const unpaidInstalments = visibleInstalments.filter(i => i.outstandingAmount > 0);
+
             return (
-              <tr key={instalment.id} className="collection-entry" style={{ opacity: isSettled ? 0.62 : 1 }}>
+              <tr key={group.customerId} className="collection-entry" style={{ opacity: isSettled ? 0.62 : 1 }}>
                 <td>
-                  <Link href={`/customers/${instalment.loan.customer.customerCode}`}>
-                    <strong>{instalment.loan.customer.name}</strong>
-                  </Link>
-                  <br />
-                  <span style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>
-                    {instalment.loan.customer.customerCode} · {instalment.loan.customer.route?.name || '-'}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div className="profile-avatar" style={{ width: '32px', height: '32px', fontSize: '.75rem', flexShrink: 0 }}>
+                      {getInitials(group.customerName)}
+                    </div>
+                    <Link href={`/customers/${group.customerCode}`}>
+                      <strong>{group.customerName}</strong>
+                    </Link>
+                  </div>
                 </td>
                 <td>
-                  <Link href={`/loans/${instalment.loan.loanCode}`}>{instalment.loan.loanCode}</Link>
-                  <br />
-                  <span style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>#{instalment.instalmentNo}</span>
+                  {group.loanCodes.length === 1 ? (
+                    <Link href={`/loans/${group.loanCodes[0]}`}>{group.loanCodes[0]}</Link>
+                  ) : (
+                    <select 
+                      className="form-control" 
+                      style={{ padding: '2px 24px 2px 8px', fontSize: '.8rem', height: 'auto', minHeight: '28px' }}
+                      value={currentLoanCode} 
+                      onChange={(e) => handleLoanChange(group.customerId, e.target.value)}
+                    >
+                      <option value="all">All Loans ({group.loanCodes.length})</option>
+                      {group.loanCodes.map(code => (
+                        <option key={code} value={code}>{code}</option>
+                      ))}
+                    </select>
+                  )}
                 </td>
-                <td>{formatDate(instalment.dueDate)}</td>
-                <td>{instalment.dueDate === todayISO ? formatCurrency(instalment.dueAmount, currencySymbol) : '-'}</td>
-                <td>{instalment.receivedAmount > 0 ? formatCurrency(instalment.receivedAmount, currencySymbol) : '-'}</td>
-                <td style={{ fontWeight: 700, color: instalment.outstandingAmount > 0 ? 'var(--danger)' : 'var(--success)' }}>
-                  {formatCurrency(instalment.outstandingAmount, currencySymbol)}
+                <td>{earliestDateIso ? formatDate(earliestDateIso) : '-'}</td>
+                <td>{dueTodayAmount > 0 ? formatCurrency(dueTodayAmount, currencySymbol) : '-'}</td>
+                <td>{receivedAmount > 0 ? formatCurrency(receivedAmount, currencySymbol) : '-'}</td>
+                <td 
+                  title={`Total Payable: ${formatCurrency(totalLoanPayable, currencySymbol)}\nTotal Paid: ${formatCurrency(totalLoanCollected, currencySymbol)}\nRemaining Instalments: ${remainingInstalments}`}
+                  style={{ fontWeight: 700, color: totalLoanOutstanding > 0 ? 'var(--danger)' : 'var(--success)', cursor: 'help' }}
+                >
+                  {formatCurrency(totalLoanOutstanding, currencySymbol)}
                 </td>
                 <td>
-                  {instalment.daysOverdue > 0 && instalment.overdueAmount > 0 ? (
-                    <span>{instalment.daysOverdue}d · {formatCurrency(instalment.overdueAmount, currencySymbol)}</span>
+                  {overdueInstalments.length > 0 ? (
+                    <button className="btn btn-ghost btn-sm" onClick={() => setOverdueCustomerGroup(buildOverdueGroup(group))} style={{ padding: '2px 6px', height: 'auto', minHeight: '26px' }}>
+                      <span style={{ color: 'var(--danger)', fontWeight: 600 }}>{maxDaysOverdue}d</span>
+                      <span style={{ margin: '0 4px', color: 'var(--text-light)' }}>·</span>
+                      <span>{formatCurrency(totalOverdueAmount, currencySymbol)}</span>
+                    </button>
                   ) : '-'}
                 </td>
                 <td>
-                  <span className={getBadgeClass(instalment.status)} style={{ textTransform: 'capitalize' }}>
-                    {instalment.status}
+                  <span className={getBadgeClass(displayStatus.toLowerCase())} style={{ textTransform: 'capitalize' }}>
+                    {displayStatus}
                   </span>
                 </td>
                 <td>
                   <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                    {isPaid ? (
+                    {unpaidInstalments.length === 0 ? (
                       <>
-                        {isAdmin ? (
-                          <button className="btn btn-ghost btn-sm" onClick={() => openModal(instalment)}>
-                            <span className="material-icons-outlined" style={{ fontSize: '14px' }}>edit</span> Edit
-                          </button>
-                        ) : (
-                          <button className="btn btn-ghost btn-sm" onClick={() => openModal(instalment)}>
-                            <span className="material-icons-outlined" style={{ fontSize: '14px' }}>history_edu</span> Request
-                          </button>
-                        )}
-                        {receiptPdfEnabled && instalment.collectionEntry?.id && (
+                        <button className="btn btn-ghost btn-sm" onClick={() => openModal(visibleInstalments[0])}>
+                          <span className="material-icons-outlined" style={{ fontSize: '14px' }}>{isAdmin ? 'edit' : 'history_edu'}</span> {isAdmin ? 'Edit' : 'Request'}
+                        </button>
+                        {receiptPdfEnabled && visibleInstalments[0]?.collectionEntry?.id && (
                           <a
-                            href={`/api/receipts/${instalment.collectionEntry.id}`}
+                            href={`/api/receipts/${visibleInstalments[0].collectionEntry.id}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="btn btn-ghost btn-sm"
@@ -471,7 +526,7 @@ export default function CollectionClient({
                         )}
                       </>
                     ) : (
-                      <button className="btn btn-primary btn-sm" onClick={() => openModal(instalment)}>
+                      <button className="btn btn-primary btn-sm" onClick={() => unpaidInstalments.length === 1 ? openModal(unpaidInstalments[0]) : setOverdueCustomerGroup(buildOverdueGroup(group))}>
                         <span className="material-icons-outlined" style={{ fontSize: '14px' }}>payments</span> Pay
                       </button>
                     )}
@@ -480,90 +535,6 @@ export default function CollectionClient({
               </tr>
             );
           })}
-          {rows.length === 0 && (
-            <tr>
-              <td colSpan={9} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-light)' }}>
-                No instalments match the current filters.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
-
-  const renderGroupedRows = (groups: CustomerOverdueGroup[]) => (
-    <div className="table-wrapper">
-      <table>
-        <thead>
-          <tr>
-            <th>{dict.customers.title}</th>
-            <th>{dict.sidebar.loans}</th>
-            <th>Due Date</th>
-            <th>Due Today</th>
-            <th>Received</th>
-            <th>Outstanding</th>
-            <th>Overdue</th>
-            <th>Status</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {groups.map((group) => (
-            <tr key={group.customerId} className="collection-entry">
-              <td>
-                <Link href={`/customers/${group.customerCode}`}>
-                  <strong>{group.customerName}</strong>
-                </Link>
-                <br />
-                <span style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>
-                  {group.customerCode} · {group.routeName}
-                </span>
-              </td>
-              <td>
-                {group.loanCodes.length === 1 ? (
-                  <Link href={`/loans/${group.loanCodes[0]}`}>{group.loanCodes[0]}</Link>
-                ) : (
-                  <details>
-                    <summary style={{ cursor: 'pointer', fontWeight: 600 }}>{group.loanCodes[0]} +{group.loanCodes.length - 1}</summary>
-                    <ul style={{ margin: '8px 0 0', padding: '0 0 0 16px', listStyle: 'disc' }}>
-                      {group.loanCodes.map((code) => (
-                        <li key={code} style={{ fontSize: '.82rem' }}>
-                          <Link href={`/loans/${code}`}>{code}</Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
-                )}
-              </td>
-              <td>{formatDate(group.earliestDueDate)}</td>
-              <td>{group.dueToday > 0 ? formatCurrency(group.dueToday, currencySymbol) : '-'}</td>
-              <td>{group.receivedAmount > 0 ? formatCurrency(group.receivedAmount, currencySymbol) : '-'}</td>
-              <td style={{ fontWeight: 700, color: group.totalOutstanding > 0 ? 'var(--danger)' : 'var(--success)' }}>
-                {formatCurrency(group.totalOutstanding, currencySymbol)}
-              </td>
-              <td>
-                <button className="btn btn-ghost btn-sm" onClick={() => setOverdueCustomerGroup(group)}>
-                  <span style={{ display: 'block', lineHeight: 1.2 }}>
-                    {group.maxDaysOverdue}d · {group.instalments.length} inst
-                  </span>
-                  <span style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>
-                    {formatCurrency(group.totalOverdue, currencySymbol)} overdue
-                  </span>
-                </button>
-              </td>
-              <td>
-                <span className={getBadgeClass(group.statusLabel)} style={{ textTransform: 'capitalize' }}>
-                  {group.statusLabel}
-                </span>
-              </td>
-              <td>
-                <button className="btn btn-primary btn-sm" onClick={() => setOverdueCustomerGroup(group)}>
-                  Details
-                </button>
-              </td>
-            </tr>
-          ))}
           {groups.length === 0 && (
             <tr>
               <td colSpan={9} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-light)' }}>
@@ -575,98 +546,6 @@ export default function CollectionClient({
       </table>
     </div>
   );
-
-  const renderOverdueCards = (groups: CustomerOverdueGroup[]) => {
-    if (groups.length === 0) {
-      return (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-light)' }}>
-          <span className="material-icons-outlined" style={{ fontSize: '36px', display: 'block', marginBottom: '8px' }}>check_circle</span>
-          No overdue instalments match these filters.
-        </div>
-      );
-    }
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {groups.map((group) => (
-          <div
-            key={group.customerId}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              padding: '12px 16px',
-              borderRadius: 'var(--radius-sm)',
-              background: 'var(--bg)',
-              border: '1px solid var(--border)',
-            }}
-          >
-            {/* Avatar */}
-            <div className="profile-avatar" style={{ width: '40px', height: '40px', fontSize: '.8rem', flexShrink: 0 }}>
-              {getInitials(group.customerName)}
-            </div>
-
-            {/* Customer info */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <Link href={`/customers/${group.customerCode}`} style={{ fontWeight: 600, fontSize: '.92rem' }}>
-                {group.customerName}
-              </Link>
-              <div style={{ fontSize: '.72rem', color: 'var(--text-light)', marginTop: '2px' }}>
-                {group.customerCode} · {group.routeName}
-              </div>
-            </div>
-
-            {/* Missed count */}
-            <span style={{
-              flexShrink: 0,
-              fontSize: '.72rem',
-              fontWeight: 600,
-              padding: '3px 8px',
-              borderRadius: '20px',
-              background: 'rgba(245,158,11,.12)',
-              color: 'var(--warning, #D97706)',
-              whiteSpace: 'nowrap',
-            }}>
-              {group.instalments.length} missed
-            </span>
-
-            {/* Max days overdue */}
-            {group.maxDaysOverdue > 0 && (
-              <span style={{
-                flexShrink: 0,
-                fontSize: '.72rem',
-                fontWeight: 700,
-                padding: '3px 8px',
-                borderRadius: '20px',
-                background: 'rgba(239,68,68,.1)',
-                color: 'var(--danger)',
-                whiteSpace: 'nowrap',
-              }}>
-                {group.maxDaysOverdue}d overdue
-              </span>
-            )}
-
-            {/* Total outstanding */}
-            <div style={{ textAlign: 'right', flexShrink: 0, minWidth: '88px' }}>
-              <div style={{ fontWeight: 700, color: 'var(--danger)', fontSize: '.92rem' }}>
-                {formatCurrency(group.totalOutstanding, currencySymbol)}
-              </div>
-              <div style={{ fontSize: '.7rem', color: 'var(--text-light)' }}>outstanding</div>
-            </div>
-
-            {/* Details button */}
-            <button
-              className="btn btn-ghost btn-sm"
-              style={{ flexShrink: 0 }}
-              onClick={() => setOverdueCustomerGroup(group)}
-            >
-              <span className="material-icons-outlined" style={{ fontSize: '14px' }}>receipt_long</span>
-              Details
-            </button>
-          </div>
-        ))}
-      </div>
-    );
-  };
 
   return (
     <>
@@ -805,6 +684,16 @@ export default function CollectionClient({
             </select>
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Frequency</label>
+            <select className="form-control" value={frequencyFilter} onChange={(event) => setFrequencyFilter(event.target.value)}>
+              <option value="">All Types</option>
+              <option value="daily">Daily Loan</option>
+              <option value="weekly">Weekly Loan</option>
+              <option value="biweekly">Bi-weekly Loan</option>
+              <option value="monthly">Monthly Loan</option>
+            </select>
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Overdue Days (min)</label>
             <input type="number" className="form-control" value={overdueMinDays} onChange={(event) => setOverdueMinDays(event.target.value)} placeholder="0" min={0} />
           </div>
@@ -814,9 +703,9 @@ export default function CollectionClient({
           </div>
         </div>
 
-        {typeFilter === 'overdue' ? renderGroupedRows(groupedOverdue) : renderRows(paginatedRows)}
+        {renderUnifiedRows(paginatedGroups)}
 
-        {totalPages > 1 && typeFilter !== 'overdue' && (
+        {totalPages > 1 && (
           <div className="pagination" style={{ justifyContent: 'center', marginTop: '12px' }}>
             <div className="pages">
               <button

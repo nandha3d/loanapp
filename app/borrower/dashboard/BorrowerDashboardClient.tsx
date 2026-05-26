@@ -12,9 +12,11 @@ interface BorrowerDashboardClientProps {
     upiId: string;
     upiQrUrl: string;
   };
+  dict: any;
 }
 
-export default function BorrowerDashboardClient({ loans, initialLoanId, paymentSettings }: BorrowerDashboardClientProps) {
+export default function BorrowerDashboardClient({ loans, initialLoanId, paymentSettings, dict }: BorrowerDashboardClientProps) {
+  const b = dict.borrower;
   const [selectedLoanId, setSelectedLoanId] = useState(initialLoanId);
   const loan = loans.find((l) => l.id === selectedLoanId) || loans[0] || null;
 
@@ -28,9 +30,9 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
 
   const getGreeting = () => {
     const hrs = new Date().getHours();
-    if (hrs < 12) return 'Hello, Good Morning';
-    if (hrs < 17) return 'Hello, Good Afternoon';
-    return 'Hello, Good Evening';
+    if (hrs < 12) return b.goodMorning;
+    if (hrs < 17) return b.goodAfternoon;
+    return b.goodEvening;
   };
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentStep, setPaymentStep] = useState<'input' | 'simulate' | 'success'>('input');
@@ -76,9 +78,9 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
   if (!loan) {
     return (
       <div style={{ maxWidth: '640px', margin: '40px auto', padding: '16px', textAlign: 'center' }}>
-        <h2>No Loans Found</h2>
-        <p>There are no active or historic loan accounts associated with this customer profile.</p>
-        <a href="/api/borrower/logout" className="btn btn-primary" style={{ marginTop: '16px' }}>Logout</a>
+        <h2>{b.noLoansFound}</h2>
+        <p>{b.noLoansDesc}</p>
+        <a href="/api/borrower/logout" className="btn btn-primary" style={{ marginTop: '16px' }}>{b.logout}</a>
       </div>
     );
   }
@@ -270,7 +272,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
         {loans.length > 1 && (
           <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,.08)' }}>
             <label style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.4)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>
-              Select Active Account
+              {b.selectActiveAccount}
             </label>
             <div style={{ position: 'relative' }}>
               <select
@@ -320,46 +322,46 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
         )}
 
         <nav className="sidebar-nav">
-          <div className="nav-section">Borrower Portal</div>
-          <a 
-            href="#" 
-            className={activeTab === 'dashboard' ? 'active' : ''} 
+          <div className="nav-section">{b.borrowerPortal}</div>
+          <a
+            href="#"
+            className={activeTab === 'dashboard' ? 'active' : ''}
             onClick={(e) => { e.preventDefault(); setActiveTab('dashboard'); setIsSidebarOpen(false); }}
           >
             <span className="material-icons-outlined">dashboard</span>
-            <span>Dashboard</span>
+            <span>{b.navDashboard}</span>
           </a>
-          <a 
-            href="#" 
-            className={activeTab === 'schedule' ? 'active' : ''} 
+          <a
+            href="#"
+            className={activeTab === 'schedule' ? 'active' : ''}
             onClick={(e) => { e.preventDefault(); setActiveTab('schedule'); setIsSidebarOpen(false); }}
           >
             <span className="material-icons-outlined">receipt_long</span>
-            <span>Schedule</span>
+            <span>{b.navSchedule}</span>
           </a>
-          <a 
-            href="#" 
-            className={activeTab === 'history' ? 'active' : ''} 
+          <a
+            href="#"
+            className={activeTab === 'history' ? 'active' : ''}
             onClick={(e) => { e.preventDefault(); setActiveTab('history'); setIsSidebarOpen(false); }}
           >
             <span className="material-icons-outlined">history</span>
-            <span>Payment Ledger</span>
+            <span>{b.navPaymentLedger}</span>
           </a>
-          <a 
-            href="#" 
-            className={activeTab === 'calculator' ? 'active' : ''} 
+          <a
+            href="#"
+            className={activeTab === 'calculator' ? 'active' : ''}
             onClick={(e) => { e.preventDefault(); setActiveTab('calculator'); setIsSidebarOpen(false); }}
           >
             <span className="material-icons-outlined">calculate</span>
-            <span>EMI Planner</span>
+            <span>{b.navEmiPlanner}</span>
           </a>
-          <a 
-            href="#" 
-            className={activeTab === 'details' ? 'active' : ''} 
+          <a
+            href="#"
+            className={activeTab === 'details' ? 'active' : ''}
             onClick={(e) => { e.preventDefault(); setActiveTab('details'); setIsSidebarOpen(false); }}
           >
             <span className="material-icons-outlined">info</span>
-            <span>Specs & Collateral</span>
+            <span>{b.navSpecsCollateral}</span>
           </a>
         </nav>
 
@@ -373,13 +375,13 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                 <div className="user-name" style={{ color: '#fff', fontSize: '0.85rem', fontWeight: 600 }}>
                   {loan.customer.name}
                 </div>
-                <div className="user-role" style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.7rem' }}>Borrower</div>
+                <div className="user-role" style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.7rem' }}>{b.borrowerRole}</div>
               </div>
             </div>
             <a
               href="/api/borrower/logout"
               className="btn-icon"
-              title="Logout"
+              title={b.logout}
               style={{ color: 'rgba(255,255,255,0.6)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >
               <span className="material-icons-outlined" style={{ fontSize: '20px' }}>logout</span>
@@ -401,7 +403,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                 <span style={{ fontSize: '1.2rem' }}>👋</span>
               </h2>
               <div className="breadcrumb" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                <span>Borrower Portal</span>
+                <span>{b.borrowerPortal}</span>
                 <span>/</span>
                 <span style={{ textTransform: 'capitalize', fontWeight: 500, color: 'var(--primary-dark)' }}>{activeTab}</span>
               </div>
@@ -415,11 +417,11 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
             <a
               href={`/api/borrower/statement?loanId=${selectedLoanId}`}
               className="btn btn-secondary btn-sm"
-              title="Download Statement"
+              title={b.statement}
               style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
             >
               <span className="material-icons-outlined" style={{ fontSize: '16px' }}>download</span>
-              <span className="btn-text-desktop">Statement</span>
+              <span className="btn-text-desktop">{b.statement}</span>
             </a>
           </div>
         </header>
@@ -441,13 +443,13 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                       </div>
                       <div>
                         <div style={{ fontSize: '0.78rem', fontWeight: 600, opacity: 0.85 }}>
-                          Instalment #{nextDueInstalment.instalmentNo} is Due
+                          {b.instalmentDue.replace('{no}', nextDueInstalment.instalmentNo)}
                         </div>
                         <div style={{ fontSize: '1.5rem', fontWeight: 800, marginTop: '2px', letterSpacing: '-0.5px' }}>
                           {formatCurrency(Number(nextDueInstalment.dueAmount) - Number(nextDueInstalment.receivedAmount))}
                         </div>
                         <div style={{ fontSize: '0.72rem', fontWeight: 500, opacity: 0.85, marginTop: '2px' }}>
-                          Due Date: {formatDate(nextDueInstalment.dueDate)}
+                          {b.dueDate}: {formatDate(nextDueInstalment.dueDate)}
                         </div>
                       </div>
                     </div>
@@ -463,7 +465,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                         className="btn btn-primary"
                         style={{ padding: '12px 24px', borderRadius: '12px', boxShadow: '0 4px 14px rgba(245,166,35,0.4)', fontWeight: 700, fontSize: '0.9rem' }}
                       >
-                        Pay Instalment
+                        {b.payInstalment}
                       </button>
                     </div>
                   </div>
@@ -473,8 +475,8 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                       <span className="material-icons-outlined" style={{ fontSize: '28px', color: 'var(--success)' }}>celebration</span>
                     </div>
                     <div>
-                      <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700 }}>All Instalments Fully Settled!</h4>
-                      <p style={{ margin: '2px 0 0', fontSize: '0.78rem', opacity: 0.9 }}>Thank you for your timely repayments. Your loan account is closed.</p>
+                      <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700 }}>{b.allSettled}</h4>
+                      <p style={{ margin: '2px 0 0', fontSize: '0.78rem', opacity: 0.9 }}>{b.allSettledDesc}</p>
                     </div>
                   </div>
                 )}
@@ -503,7 +505,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                       </svg>
                       <div style={{ position: 'absolute', textAlign: 'center' }}>
                         <span style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text)' }}>{paidPercent}%</span>
-                        <div style={{ fontSize: '0.6rem', color: 'var(--text-secondary)', fontWeight: 600, marginTop: '-2px' }}>REPAID</div>
+                        <div style={{ fontSize: '0.6rem', color: 'var(--text-secondary)', fontWeight: 600, marginTop: '-2px' }}>{b.repaid}</div>
                       </div>
                     </div>
                   </div>
@@ -512,21 +514,21 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                       <div>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Total Loan Payable</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 500 }}>{b.totalLoanPayable}</div>
                         <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text)', marginTop: '2px' }}>{formatCurrency(totalPayable)}</div>
                       </div>
                       <div>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Total Disbursed</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 500 }}>{b.totalDisbursed}</div>
                         <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--info)', marginTop: '2px' }}>{formatCurrency(Number(loan.disbursed))}</div>
                       </div>
                     </div>
                     <div style={{ borderTop: '1px solid var(--border)', paddingTop: '12px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                       <div>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Successfully Repaid</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 500 }}>{b.successfullyRepaid}</div>
                         <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--success)', marginTop: '2px' }}>{formatCurrency(totalPaid)}</div>
                       </div>
                       <div>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Outstanding Balance</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 500 }}>{b.outstandingBalance}</div>
                         <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--danger)', marginTop: '2px' }}>{formatCurrency(outstandingBalance)}</div>
                       </div>
                     </div>
@@ -537,17 +539,17 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                 <div className="card" style={{ padding: '20px 24px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                     <div>
-                      <h3 style={{ fontSize: '0.95rem', fontWeight: 700, margin: 0 }}>Repayment Trajectory</h3>
-                      <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '2px 0 0' }}>Cumulative schedule vs actual payments progress</p>
+                      <h3 style={{ fontSize: '0.95rem', fontWeight: 700, margin: 0 }}>{b.repaymentTrajectory}</h3>
+                      <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '2px 0 0' }}>{b.trajectoryDesc}</p>
                     </div>
                     <div style={{ display: 'flex', gap: '12px', fontSize: '0.72rem', fontWeight: 600 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#F5A623' }}></span>
-                        <span>Scheduled Target</span>
+                        <span>{b.scheduledTarget}</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#27AE60' }}></span>
-                        <span>Actual Paid</span>
+                        <span>{b.actualPaid}</span>
                       </div>
                     </div>
                   </div>
@@ -604,7 +606,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                     ) : (
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-light)', fontSize: '0.8rem' }}>
                         <span className="material-icons-outlined" style={{ animation: 'spin 1.5s linear infinite', marginRight: '6px' }}>autorenew</span>
-                        Loading trajectory chart...
+                        {b.loadingChart}
                       </div>
                     )}
                   </div>
@@ -711,8 +713,8 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                 {/* Recent Payments Feed Log summary */}
                 <div className="card" style={{ padding: '20px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                    <h3 style={{ fontSize: '0.9rem', fontWeight: 700, margin: 0 }}>Recent Activity</h3>
-                    <a href="#" onClick={(e) => { e.preventDefault(); setActiveTab('history'); }} style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--primary-dark)' }}>View Ledger</a>
+                    <h3 style={{ fontSize: '0.9rem', fontWeight: 700, margin: 0 }}>{b.recentActivity}</h3>
+                    <a href="#" onClick={(e) => { e.preventDefault(); setActiveTab('history'); }} style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--primary-dark)' }}>{b.viewLedger}</a>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {loan.payments && loan.payments.length > 0 ? (
@@ -723,7 +725,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                               <span className="material-icons-outlined" style={{ fontSize: '16px' }}>check_circle</span>
                             </div>
                             <div>
-                              <div style={{ fontSize: '0.8rem', fontWeight: 700 }}>Simulated Repayment</div>
+                              <div style={{ fontSize: '0.8rem', fontWeight: 700 }}>{b.simulatedRepayment}</div>
                               <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
                                 {formatDate(p.paymentDate)}
                               </div>
@@ -738,8 +740,8 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                     ) : (
                       <div style={{ textAlign: 'center', padding: '24px 12px', color: 'var(--text-secondary)' }}>
                         <span className="material-icons-outlined" style={{ fontSize: '32px', color: 'var(--text-light)' }}>history</span>
-                        <div style={{ fontSize: '0.8rem', fontWeight: 600, marginTop: '6px' }}>No Payments Yet</div>
-                        <p style={{ fontSize: '0.7rem', margin: '2px 0 0' }}>Repayments will appear here once simulated.</p>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 600, marginTop: '6px' }}>{b.noPaymentsYet}</div>
+                        <p style={{ fontSize: '0.7rem', margin: '2px 0 0' }}>{b.noPaymentsYetDesc}</p>
                       </div>
                     )}
                   </div>
@@ -792,12 +794,12 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
               {/* Title & Select Account Header */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
-                  <h2 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>Instalment Ledger & Sync Schedule</h2>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '2px 0 0' }}>Verifiable, dual-handshake payment journal for this account</p>
+                  <h2 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>{b.instalmentLedger}</h2>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '2px 0 0' }}>{b.instalmentLedgerDesc}</p>
                 </div>
                 {loans.length > 1 && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Account:</span>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 600 }}>{b.account}:</span>
                     <select
                       value={selectedLoanId}
                       onChange={(e) => setSelectedLoanId(e.target.value)}
@@ -836,11 +838,11 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                         textTransform: 'uppercase', 
                         letterSpacing: '1px' 
                       }}>
-                        <th style={{ padding: '14px 18px', width: '12%' }}>Instalment</th>
-                        <th style={{ padding: '14px 18px', width: '22%' }}>Scheduled</th>
-                        <th style={{ padding: '14px 18px', width: '32%' }}>Payment Receipt</th>
-                        <th style={{ padding: '14px 18px', width: '22%' }}>Security Seal</th>
-                        <th style={{ padding: '14px 18px', width: '12%', textAlign: 'right' }}>Status</th>
+                        <th style={{ padding: '14px 18px', width: '12%' }}>{b.colInstalment}</th>
+                        <th style={{ padding: '14px 18px', width: '22%' }}>{b.colScheduled}</th>
+                        <th style={{ padding: '14px 18px', width: '32%' }}>{b.colPaymentReceipt}</th>
+                        <th style={{ padding: '14px 18px', width: '22%' }}>{b.colSecuritySeal}</th>
+                        <th style={{ padding: '14px 18px', width: '12%', textAlign: 'right' }}>{b.colStatus}</th>
                       </tr>
                     </thead>
                     <tbody style={{ color: 'var(--text)' }}>
@@ -924,7 +926,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                                       {formatCurrency(actualReceived)}
                                     </span>
                                     <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                                      {inst.receivedAt ? formatDate(inst.receivedAt) : 'Synced'}
+                                      {inst.receivedAt ? formatDate(inst.receivedAt) : b.synced}
                                     </span>
                                     <span style={{ fontSize: '0.65rem', color: 'var(--text-light)', display: 'flex', alignItems: 'center', gap: '3px' }}>
                                       <span className="material-icons-outlined" style={{ fontSize: '10px' }}>
@@ -949,7 +951,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                                         {verificationHash}
                                       </span>
                                       <span style={{ fontSize: '0.55rem', color: 'var(--text-light)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                        {inst.collectionEntry ? 'Dual-Sync Signed' : 'Gateway Signed'}
+                                        {inst.collectionEntry ? b.dualSyncSigned : b.gatewaySigned}
                                       </span>
                                     </div>
                                   </div>
@@ -957,7 +959,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', opacity: 0.6 }}>
                                     <span className="material-icons-outlined" style={{ fontSize: '14px', color: 'var(--text-light)' }}>lock_open</span>
                                     <span style={{ fontSize: '0.65rem', color: 'var(--text-light)' }}>
-                                      Awaiting Sync
+                                      {b.awaitingSync}
                                     </span>
                                   </div>
                                 )}
@@ -982,7 +984,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                                     minWidth: '68px'
                                   }}
                                 >
-                                  {isPaid ? 'Paid' : isOverdue ? 'Overdue' : hasPartial ? 'Partial' : 'Upcoming'}
+                                  {isPaid ? b.statusPaid : isOverdue ? b.statusOverdue : hasPartial ? b.statusPartial : b.statusUpcoming}
                                 </span>
                               </td>
                             </tr>
@@ -1222,8 +1224,8 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
           {activeTab === 'history' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
-                <h2 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>Payment Ledger</h2>
-                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '2px 0 0' }}>Complete audit trail of all payments made to this account</p>
+                <h2 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>{b.paymentLedger}</h2>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '2px 0 0' }}>{b.paymentLedgerDesc}</p>
               </div>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1236,21 +1238,21 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                             <span className="material-icons-outlined" style={{ fontSize: '20px', color: 'var(--success)' }}>
                               check_circle
                             </span>
-                            <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>Simulated Repayment</span>
+                            <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{b.simulatedRepayment}</span>
                           </div>
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
                             {formatDate(p.paymentDate)} • {p.paymentMode.toUpperCase()}
                           </div>
                           {p.referenceNumber && (
                             <div style={{ fontSize: '0.68rem', color: 'var(--text-light)', fontFamily: 'monospace', marginTop: '2px' }}>
-                              Reference No: {p.referenceNumber}
+                              {b.referenceNo}: {p.referenceNumber}
                             </div>
                           )}
                         </div>
                         <div style={{ textAlign: 'right' }}>
                           <div style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--success)' }}>+{formatCurrency(Number(p.amount))}</div>
                           <span className="badge badge-paid" style={{ fontSize: '0.6rem', padding: '2px 6px', marginTop: '4px' }}>
-                            Completed
+                            {b.completed}
                           </span>
                         </div>
                       </div>
@@ -1259,8 +1261,8 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                 ) : (
                   <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-secondary)', background: 'var(--surface)', borderRadius: '16px', boxShadow: 'var(--shadow)' }}>
                     <span className="material-icons-outlined" style={{ fontSize: '48px', color: 'var(--text-light)' }}>history</span>
-                    <h4 style={{ margin: '12px 0 4px', fontSize: '0.95rem', fontWeight: 600 }}>No Payments Recorded</h4>
-                    <p style={{ fontSize: '0.8rem', margin: 0 }}>Your payment ledger will populate once simulations are run.</p>
+                    <h4 style={{ margin: '12px 0 4px', fontSize: '0.95rem', fontWeight: 600 }}>{b.noPaymentsRecorded}</h4>
+                    <p style={{ fontSize: '0.8rem', margin: 0 }}>{b.noPaymentsRecordedDesc}</p>
                   </div>
                 )}
               </div>
@@ -1271,47 +1273,47 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
           {activeTab === 'details' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
-                <h2 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>Loan Details & Collateral</h2>
-                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '2px 0 0' }}>Comprehensive parameters, specs, and linked assets for this account</p>
+                <h2 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>{b.loanDetails}</h2>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '2px 0 0' }}>{b.loanDetailsDesc}</p>
               </div>
               
               <div style={{ display: 'grid', gridTemplateColumns: loan.appType === 'autofinance' && loan.vehicle ? '1fr 1fr' : '1fr', gap: '20px' }} className="grid-2">
                 {/* Parameters */}
                 <div className="card" style={{ padding: '20px 24px' }}>
                   <h3 style={{ fontSize: '0.9rem', fontWeight: 700, borderBottom: '1px solid var(--border)', paddingBottom: '10px', marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    Loan Parameters
+                    {b.loanParameters}
                   </h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '0.85rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Loan Principal</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>{b.loanPrincipal}</span>
                       <span style={{ fontWeight: 600 }}>{formatCurrency(Number(loan.principal))}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Interest Deduction</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>{b.interestDeduction}</span>
                       <span style={{ fontWeight: 600 }}>{formatCurrency(Number(loan.deduction))}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Disbursed Amount</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>{b.disbursedAmount}</span>
                       <span style={{ fontWeight: 600 }}>{formatCurrency(Number(loan.disbursed))}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Repayment Frequency</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>{b.repaymentFrequency}</span>
                       <span style={{ fontWeight: 600, textTransform: 'capitalize' }}>{loan.frequency}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Total Tenure</span>
-                      <span style={{ fontWeight: 600 }}>{loan.tenure} Instalments</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>{b.totalTenure}</span>
+                      <span style={{ fontWeight: 600 }}>{loan.tenure} {b.instalments}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Amount Per Instalment</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>{b.amountPerInstalment}</span>
                       <span style={{ fontWeight: 600 }}>{formatCurrency(Number(loan.perInstalment))}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Start Date</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>{b.startDate}</span>
                       <span style={{ fontWeight: 600 }}>{formatDate(loan.startDate)}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Account Status</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>{b.accountStatus}</span>
                       <span className={`badge ${loan.status === 'closed' ? 'badge-paid' : loan.status === 'overdue' ? 'badge-overdue' : 'badge-upcoming'}`} style={{ fontWeight: 700 }}>
                         {loan.status.toUpperCase()}
                       </span>
@@ -1323,37 +1325,37 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                 {loan.appType === 'autofinance' && loan.vehicle && (
                   <div className="card" style={{ padding: '20px 24px', borderLeft: '4px solid var(--info)' }}>
                     <h3 style={{ fontSize: '0.9rem', fontWeight: 700, borderBottom: '1px solid var(--border)', paddingBottom: '10px', marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--info)' }}>
-                      Vehicle Collateral Details
+                      {b.vehicleCollateral}
                     </h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '0.85rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Registration Number</span>
+                        <span style={{ color: 'var(--text-secondary)' }}>{b.registrationNumber}</span>
                         <span style={{ fontWeight: 700 }}>{loan.vehicle.registrationNo}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Make & Model</span>
+                        <span style={{ color: 'var(--text-secondary)' }}>{b.makeAndModel}</span>
                         <span style={{ fontWeight: 600 }}>{loan.vehicle.make} {loan.vehicle.model}</span>
                       </div>
                       {loan.vehicle.year && (
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Year of Manufacture</span>
+                          <span style={{ color: 'var(--text-secondary)' }}>{b.yearOfManufacture}</span>
                           <span style={{ fontWeight: 600 }}>{loan.vehicle.year}</span>
                         </div>
                       )}
                       {loan.vehicle.engineNo && (
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Engine Number</span>
+                          <span style={{ color: 'var(--text-secondary)' }}>{b.engineNumber}</span>
                           <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>{loan.vehicle.engineNo}</span>
                         </div>
                       )}
                       {loan.vehicle.chassisNo && (
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Chassis Number</span>
+                          <span style={{ color: 'var(--text-secondary)' }}>{b.chassisNumber}</span>
                           <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>{loan.vehicle.chassisNo}</span>
                         </div>
                       )}
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Collateral Status</span>
+                        <span style={{ color: 'var(--text-secondary)' }}>{b.collateralStatus}</span>
                         <span className="badge badge-active">{loan.vehicle.status}</span>
                       </div>
                     </div>
@@ -1367,21 +1369,21 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
           {activeTab === 'calculator' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
-                <h2 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>Interactive EMI Planner</h2>
-                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '2px 0 0' }}>Plan and project prospective loans with real-time flat rate models</p>
+                <h2 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>{b.emiPlanner}</h2>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '2px 0 0' }}>{b.emiPlannerDesc}</p>
               </div>
               
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }} className="grid-2">
                 {/* Left Column: Sliders */}
                 <div className="card" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <h3 style={{ fontSize: '0.88rem', fontWeight: 700, borderBottom: '1px solid var(--border)', paddingBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    Configure Loan
+                    {b.configureLoan}
                   </h3>
                   
                   {/* Principal Slider */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
-                      <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Principal Amount</span>
+                      <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{b.principalAmount}</span>
                       <span style={{ fontWeight: 800, color: 'var(--primary)' }}>{formatCurrency(calcPrincipal)}</span>
                     </div>
                     <input
@@ -1402,7 +1404,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                   {/* Rate Slider */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
-                      <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Interest Rate (Flat Annual)</span>
+                      <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{b.interestRateFlat}</span>
                       <span style={{ fontWeight: 800, color: 'var(--primary)' }}>{calcRate}%</span>
                     </div>
                     <input
@@ -1423,8 +1425,8 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                   {/* Tenure Slider */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
-                      <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Tenure (Payments Count)</span>
-                      <span style={{ fontWeight: 800, color: 'var(--primary)' }}>{calcTenure} instalments</span>
+                      <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{b.tenurePayments}</span>
+                      <span style={{ fontWeight: 800, color: 'var(--primary)' }}>{calcTenure} {b.instalments}</span>
                     </div>
                     <input
                       type="range"
@@ -1443,7 +1445,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
 
                   {/* Frequency Selector */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Collection / Repayment Frequency</span>
+                    <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', fontWeight: 600 }}>{b.frequency}</span>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       {(['daily', 'weekly', 'monthly'] as const).map((freq) => {
                         const active = calcFrequency === freq;
@@ -1466,7 +1468,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                               transition: 'all 0.2s ease',
                             }}
                           >
-                            {freq}
+                            {freq === 'daily' ? b.freqDaily : freq === 'weekly' ? b.freqWeekly : b.freqMonthly}
                           </button>
                         );
                       })}
@@ -1478,22 +1480,22 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                   <div className="card" style={{ padding: '20px', background: 'linear-gradient(135deg, var(--surface) 0%, #fffdf5 100%)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     <h3 style={{ fontSize: '0.88rem', fontWeight: 700, borderBottom: '1px solid var(--border)', paddingBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Calculated Estimate Summary
+                      {b.estimatedSummary}
                     </h3>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', textAlign: 'center' }}>
                       <div style={{ background: 'var(--bg)', padding: '12px', borderRadius: '12px', border: '1px solid var(--border)' }}>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Estimated EMI</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 600 }}>{b.estimatedEmi}</div>
                         <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary)', marginTop: '4px' }}>{formatCurrency(emi)}</div>
                       </div>
                       <div style={{ background: 'var(--bg)', padding: '12px', borderRadius: '12px', border: '1px solid var(--border)' }}>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Total Interest</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 600 }}>{b.totalInterest}</div>
                         <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#b45309', marginTop: '4px' }}>{formatCurrency(totalInterest)}</div>
                       </div>
                     </div>
 
                     <div style={{ borderTop: '1px solid var(--border)', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
-                      <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Total Payable Amount</span>
+                      <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{b.totalPayableAmount}</span>
                       <span style={{ fontWeight: 800, fontSize: '1.15rem', color: 'var(--text)' }}>{formatCurrency(totalPayableCalc)}</span>
                     </div>
                   </div>
@@ -1501,13 +1503,13 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                   {/* Scrollable schedule preview */}
                   <div className="card" style={{ padding: '16px 20px', maxHeight: '250px', display: 'flex', flexDirection: 'column' }}>
                     <h3 style={{ fontSize: '0.88rem', fontWeight: 700, borderBottom: '1px solid var(--border)', paddingBottom: '8px', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Amortization Preview
+                      {b.amortizationPreview}
                     </h3>
                     <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {calcSchedule.map((item) => (
                         <div key={item.instalmentNo} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: 'var(--bg)', borderRadius: '10px', fontSize: '0.78rem', border: '1px solid var(--border)' }}>
                           <div>
-                            <div style={{ fontWeight: 700 }}>Payment #{item.instalmentNo}</div>
+                            <div style={{ fontWeight: 700 }}>{b.payment} #{item.instalmentNo}</div>
                             <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
                               Due: {item.dueDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                             </div>
@@ -1515,7 +1517,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                           <div style={{ textAlign: 'right' }}>
                             <div style={{ fontWeight: 700, color: 'var(--text)' }}>{formatCurrency(item.emi)}</div>
                             <div style={{ fontSize: '0.65rem', color: 'var(--text-light)', marginTop: '2px' }}>
-                              Bal: {formatCurrency(item.remainingBalance)}
+                              {b.bal}: {formatCurrency(item.remainingBalance)}
                             </div>
                           </div>
                         </div>
@@ -1549,7 +1551,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
             style={{ width: '100%', maxWidth: '600px', height: '48px', justifyContent: 'center', fontSize: '0.95rem', borderRadius: '14px', boxShadow: '0 4px 20px rgba(245,166,35,0.4)', display: 'flex', alignItems: 'center', gap: '8px' }}
           >
             <span className="material-icons-outlined">payments</span>
-            <span>Make a Repayment</span>
+            <span>{b.makeRepayment}</span>
           </button>
         </div>
       )}
@@ -1564,7 +1566,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span className="material-icons-outlined" style={{ color: 'var(--primary)' }}>account_balance_wallet</span>
                 <h3 style={{ fontSize: '0.95rem', fontWeight: 700, margin: 0 }}>
-                  {paymentStep === 'input' ? 'Simulate Repayment' : paymentStep === 'simulate' ? 'Complete Verification' : 'Repayment Success'}
+                  {paymentStep === 'input' ? b.simulateRepayment : paymentStep === 'simulate' ? b.completeVerification : b.repaymentSuccess}
                 </h3>
               </div>
               <button
@@ -1594,7 +1596,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                     <div style={{ background: '#fef2f2', color: '#991b1b', padding: '12px 14px', borderRadius: '12px', border: '1px solid rgba(239,68,68,0.2)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       <div style={{ fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <span className="material-icons-outlined" style={{ fontSize: '18px', color: '#dc2626' }}>error_outline</span>
-                        Overdue Balance Alert
+                        {b.overdueAlert}
                       </div>
                       <div style={{ fontSize: '0.72rem', opacity: 0.9 }}>
                         You have <strong>{overdueInstalments.length} overdue instalment{overdueInstalments.length > 1 ? 's' : ''}</strong> totaling <strong>{formatCurrency(overdueAmount)}</strong>. Please prioritize settling this outstanding balance to avoid late fee penalties.
@@ -1638,7 +1640,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                             transition: 'all 0.2s ease',
                           }}
                         >
-                          {type === 'next' ? 'Next Due' : type === 'partial' ? 'Partial Pay' : 'Preclose & Settle'}
+                          {type === 'next' ? b.nextDue : type === 'partial' ? b.partialPay : b.precloseSettle}
                         </button>
                       );
                     })}
@@ -1649,7 +1651,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                     <div style={{ background: '#ecfdf5', color: '#065f46', padding: '12px 14px', borderRadius: '12px', border: '1px solid rgba(52,211,153,0.3)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       <div style={{ fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <span className="material-icons-outlined" style={{ fontSize: '18px' }}>check_circle</span>
-                        Preclosure Settlement Notice
+                        {b.preclosureNotice}
                       </div>
                       <div style={{ fontSize: '0.72rem', opacity: 0.9 }}>
                         This option will simulate paying off the complete outstanding balance of <strong>{formatCurrency(outstandingBalance)}</strong>. Upon receipt, all remaining instalments will be marked as settled, and the account status will transition to <strong>CLOSED</strong>.
@@ -1659,14 +1661,14 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
 
                   {/* Amount Control */}
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label" style={{ fontWeight: 600 }}>Repayment Amount (INR)</label>
+                    <label className="form-label" style={{ fontWeight: 600 }}>{b.repaymentAmountLabel}</label>
                     <div style={{ position: 'relative' }}>
                       <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', fontWeight: 700, color: 'var(--text-secondary)' }}>₹</span>
                       <input
                         type="number"
                         className="form-control"
                         style={{ paddingLeft: '28px', fontSize: '1.25rem', fontWeight: 700, height: '48px', color: isExceedingTotal ? 'var(--danger)' : 'var(--text)', background: paymentType !== 'partial' ? 'var(--bg)' : 'inherit' }}
-                        placeholder="Enter amount to pay"
+                        placeholder={b.enterAmount}
                         value={paymentAmount}
                         onChange={(e) => setPaymentAmount(e.target.value)}
                         disabled={paymentType !== 'partial'}
@@ -1683,7 +1685,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
 
                   {/* Payment Methods Selector (Fintech Pill buttons) */}
                   <div>
-                    <label className="form-label" style={{ fontWeight: 600 }}>Select Simulation Method</label>
+                    <label className="form-label" style={{ fontWeight: 600 }}>{b.selectSimulationMethod}</label>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px' }}>
                       <button
                         onClick={() => setPaymentMode('upi')}
@@ -1701,7 +1703,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                         }}
                       >
                         <span className="material-icons-outlined" style={{ color: 'var(--primary)', fontSize: '20px' }}>qr_code_2</span>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 600 }}>UPI QR</span>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 600 }}>{b.upiQr}</span>
                       </button>
                       <button
                         onClick={() => setPaymentMode('card')}
@@ -1719,7 +1721,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                         }}
                       >
                         <span className="material-icons-outlined" style={{ color: 'var(--primary)', fontSize: '20px' }}>credit_card</span>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 600 }}>Debit Card</span>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 600 }}>{b.debitCard}</span>
                       </button>
                       <button
                         onClick={() => setPaymentMode('netbanking')}
@@ -1737,7 +1739,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                         }}
                       >
                         <span className="material-icons-outlined" style={{ color: 'var(--primary)', fontSize: '20px' }}>account_balance</span>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 600 }}>Net Banking</span>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 600 }}>{b.netBanking}</span>
                       </button>
                       <button
                         onClick={() => setPaymentMode('cash')}
@@ -1755,7 +1757,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                         }}
                       >
                         <span className="material-icons-outlined" style={{ color: 'var(--primary)', fontSize: '20px' }}>payments</span>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 600 }}>Cash</span>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 600 }}>{b.cash}</span>
                       </button>
                     </div>
                   </div>
@@ -1764,7 +1766,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                   {simulatedAllocations.length > 0 && !isExceedingTotal && (
                     <div style={{ background: 'var(--bg)', borderRadius: '16px', padding: '14px 16px', border: '1px dashed var(--border)' }}>
                       <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
-                        Repayment Allocation Breakdown
+                        {b.allocationBreakdown}
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                         {simulatedAllocations.map((alloc, i) => (
