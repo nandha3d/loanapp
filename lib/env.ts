@@ -1,0 +1,71 @@
+/**
+ * Startup env validation (SEC-03 / INFRA-11).
+ *
+ * Imported at app boot via `instrumentation.ts`. Throws on missing
+ * required secrets so we fail fast instead of silently running with
+ * weak defaults (NextAuth + PII encryption).
+ */
+
+const REQUIRED = [
+  'DATABASE_URL',
+  'AUTH_SECRET',
+  'PII_ENCRYPTION_KEY',
+] as const;
+
+const RECOMMENDED = [
+  'CRON_SECRET',
+  'NEXT_PUBLIC_APP_URL',
+  'NEXT_PUBLIC_ROOT_DOMAIN',
+] as const;
+
+let _validated = false;
+
+export function validateEnv(): void {
+  if (_validated) return;
+  _validated = true;
+
+  const missing: string[] = [];
+  for (const key of REQUIRED) {
+    const v = process.env[key];
+    if (!v || v.trim() === '') missing.push(key);
+  }
+
+  if (missing.length > 0) {
+    const msg = `FATAL: Missing required env vars: ${missing.join(', ')}`;
+    // In prod -> throw. Dev -> warn loudly so docker compose etc. still works.
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(msg);
+    }
+    console.error(`[ENV_VALIDATE] ${msg}`);
+  }
+
+  // SEC-04: PII key must have enough entropy. Accept 64-hex (32 raw bytes),
+  // a 32-byte utf8 string, or a passphrase >= 24 chars. Anything weaker
+  // throws in prod.
+  const piiKey = process.env.PII_ENCRYPTION_KEY || '';
+  if (piiKey) {
+    const ok =
+      /^[a-f0-9]{64}$/i.test(piiKey) ||
+      Buffer.byteLength(piiKey, 'utf8') >= 24;
+    if (!ok) {
+      const msg = `FATAL: PII_ENCRYPTION_KEY too weak (need 64 hex chars OR >= 24 utf8 bytes).`;
+      if (process.env.NODE_ENV === 'production') throw new Error(msg);
+      console.error(`[ENV_VALIDATE] ${msg}`);
+    }
+  }
+
+  // Auth secret length sanity check.
+  const authSecret = process.env.AUTH_SECRET || '';
+  if (authSecret && authSecret.length < 32) {
+    const msg = `FATAL: AUTH_SECRET too short (need >= 32 chars).`;
+    if (process.env.NODE_ENV === 'production') throw new Error(msg);
+    console.error(`[ENV_VALIDATE] ${msg}`);
+  }
+
+  const missingRec = RECOMMENDED.filter((k) => !process.env[k]);
+  if (missingRec.length > 0) {
+    console.warn(
+      `[ENV_VALIDATE] Recommended env vars not set: ${missingRec.join(', ')}`,
+    );
+  }
+}
