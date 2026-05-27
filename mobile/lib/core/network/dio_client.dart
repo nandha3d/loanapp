@@ -79,17 +79,21 @@ final dioProvider = Provider<Dio>((ref) {
     ),
   );
 
-  dio.interceptors.add(_AuthInterceptor(storage, () {
-    if (!ctrl.isClosed) ctrl.add(null);
-  }));
+  dio.interceptors.add(
+    _AuthInterceptor(storage, () {
+      if (!ctrl.isClosed) ctrl.add(null);
+    }),
+  );
 
   if (kDebugMode) {
-    dio.interceptors.add(PrettyDioLogger(
-      requestHeader: true,
-      requestBody: true,
-      responseBody: false,
-      compact: true,
-    ));
+    dio.interceptors.add(
+      PrettyDioLogger(
+        requestHeader: true,
+        requestBody: true,
+        responseBody: false,
+        compact: true,
+      ),
+    );
   }
 
   return dio;

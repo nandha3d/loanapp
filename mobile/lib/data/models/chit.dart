@@ -24,14 +24,14 @@ class ChitGroup {
   final int auctionCount;
 
   factory ChitGroup.fromJson(Map<String, dynamic> json) {
-    double _n(dynamic v) =>
+    double n(dynamic v) =>
         v == null ? 0 : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
     final counts = (json['_count'] as Map<String, dynamic>?) ?? const {};
     return ChitGroup(
       id: json['id'] as String,
       name: json['name'] as String,
-      chitValue: _n(json['chitValue']),
-      monthlyContrib: _n(json['monthlyContrib']),
+      chitValue: n(json['chitValue']),
+      monthlyContrib: n(json['monthlyContrib']),
       totalMembers: (json['totalMembers'] as num?)?.toInt() ?? 0,
       durationMonths: (json['durationMonths'] as num?)?.toInt() ?? 0,
       status: (json['status'] as String?) ?? 'active',
@@ -87,7 +87,7 @@ class ChitAuction {
   final DateTime? auctionDate;
 
   factory ChitAuction.fromJson(Map<String, dynamic> json) {
-    double? _n(dynamic v) =>
+    double? n(dynamic v) =>
         v == null ? null : (v is num ? v.toDouble() : double.tryParse(v.toString()));
     final w = json['winnerMember'] as Map<String, dynamic>?;
     final wc = w == null ? null : w['customer'] as Map<String, dynamic>?;
@@ -96,8 +96,8 @@ class ChitAuction {
       periodNumber: (json['periodNumber'] as num).toInt(),
       status: (json['status'] as String?) ?? 'pending',
       winnerName: wc?['name'] as String?,
-      prizeAmount: _n(json['prizeAmount']),
-      dividend: _n(json['dividend']),
+      prizeAmount: n(json['prizeAmount']),
+      dividend: n(json['dividend']),
       auctionDate: json['auctionDate'] == null
           ? null
           : DateTime.parse(json['auctionDate'] as String),

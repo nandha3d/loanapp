@@ -24,7 +24,7 @@ class Penalty {
   final DateTime createdAt;
 
   factory Penalty.fromJson(Map<String, dynamic> json) {
-    double _num(dynamic v) =>
+    double num(dynamic v) =>
         v == null ? 0 : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
     final loan = (json['loan'] as Map<String, dynamic>?) ?? const {};
     final customer = (loan['customer'] as Map<String, dynamic>?) ?? const {};
@@ -34,9 +34,9 @@ class Penalty {
       loanCode: (loan['loanCode'] as String?) ?? '',
       customerName: (customer['name'] as String?) ?? '—',
       customerCode: (customer['customerCode'] as String?) ?? '',
-      grossPenalty: _num(json['grossPenalty']),
-      settledAmount: _num(json['settledAmount']),
-      waivedAmount: _num(json['waivedAmount']),
+      grossPenalty: num(json['grossPenalty']),
+      settledAmount: num(json['settledAmount']),
+      waivedAmount: num(json['waivedAmount']),
       status: (json['status'] as String?) ?? 'pending',
       createdAt: DateTime.parse(json['createdAt'] as String),
     );
