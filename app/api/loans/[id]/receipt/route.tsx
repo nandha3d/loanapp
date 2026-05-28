@@ -4,6 +4,28 @@ import prisma from '@/lib/db';
 import React from 'react';
 import { Page, Text, View, Document, StyleSheet, renderToStream } from '@react-pdf/renderer';
 
+/**
+ * Redirects to the canonical receipt endpoint at /api/receipts/:entryId.
+ * The full-featured PDF is generated there using lib/receipt.tsx.
+ */
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const entryId = searchParams.get('entryId');
+
+  if (!entryId) {
+    return NextResponse.json({ error: 'Missing entryId' }, { status: 400 });
+  }
+
+  return NextResponse.redirect(new URL(`/api/receipts/${entryId}`, request.url));
+}
+
+
+
 // Create styles
 const styles = StyleSheet.create({
   page: {
@@ -81,48 +103,48 @@ const ReceiptDocument = ({ entry, tenant }: { entry: any, tenant: any }) => (
   </Document>
 );
 
-export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+// export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+//   const { id } = await params;
+//   const session = await auth();
+//   if (!session?.user) {
+//     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+//   }
 
-  const { searchParams } = new URL(request.url);
-  const entryId = searchParams.get('entryId');
+//   const { searchParams } = new URL(request.url);
+//   const entryId = searchParams.get('entryId');
 
-  if (!entryId) {
-    return NextResponse.json({ error: 'Missing entryId' }, { status: 400 });
-  }
+//   if (!entryId) {
+//     return NextResponse.json({ error: 'Missing entryId' }, { status: 400 });
+//   }
 
-  const tenantId = (session.user as any).tenantId;
+//   const tenantId = (session.user as any).tenantId;
 
-  // Retrieve the collection entry and ensure it belongs to the tenant
-  const entry = await prisma.collectionEntry.findUnique({
-    where: { id: entryId, tenantId },
-    include: {
-      loan: {
-        include: { customer: true }
-      },
-      tenant: true,
-    }
-  });
+//   // Retrieve the collection entry and ensure it belongs to the tenant
+//   const entry = await prisma.collectionEntry.findUnique({
+//     where: { id: entryId, tenantId },
+//     include: {
+//       loan: {
+//         include: { customer: true }
+//       },
+//       tenant: true,
+//     }
+//   });
 
-  if (!entry) {
-    return NextResponse.json({ error: 'Receipt not found' }, { status: 404 });
-  }
+//   if (!entry) {
+//     return NextResponse.json({ error: 'Receipt not found' }, { status: 404 });
+//   }
 
-  try {
-    const stream = await renderToStream(<ReceiptDocument entry={entry} tenant={entry.tenant} />);
+//   try {
+//     const stream = await renderToStream(<ReceiptDocument entry={entry} tenant={entry.tenant} />);
     
-    return new NextResponse(stream as any, {
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="receipt_${entry.id}.pdf"`,
-      },
-    });
-  } catch (err) {
-    console.error('PDF Generation error', err);
-    return NextResponse.json({ error: 'Failed to generate PDF' }, { status: 500 });
-  }
-}
+//     return new NextResponse(stream as any, {
+//       headers: {
+//         'Content-Type': 'application/pdf',
+//         'Content-Disposition': `inline; filename="receipt_${entry.id}.pdf"`,
+//       },
+//     });
+//   } catch (err) {
+//     console.error('PDF Generation error', err);
+//     return NextResponse.json({ error: 'Failed to generate PDF' }, { status: 500 });
+//   }
+// }

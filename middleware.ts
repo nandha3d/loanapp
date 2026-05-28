@@ -5,6 +5,7 @@ import { parseModulePath } from '@/types/modules';
 
 const AGENT_BLOCKED = [
   '/dashboard',
+  '/loans',
   '/vehicles',
   '/chits',
   '/penalties',

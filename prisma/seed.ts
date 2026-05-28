@@ -18,6 +18,30 @@ async function main() {
   });
   console.log('✅ Tenant created:', tenant.id);
 
+  // ── Create Default Tenant Subscription ──
+  await prisma.tenantSubscription.upsert({
+    where: { tenantId: tenant.id },
+    update: { npaEnabled: true },
+    create: {
+      tenantId: tenant.id,
+      plan: 'pro',
+      status: 'active',
+      maxActiveLoans: 500,
+      maxAgents: 20,
+      maxBranches: 10,
+      enabledModules: JSON.stringify(['microlending', 'autofinance', 'chitfunds']),
+      whatsappSmsEnabled: true,
+      receiptPdfAllowed: true,
+      bureauEnabled: false,
+      npaEnabled: true,
+      foreclosureEnabled: true,
+      kycEnabled: false,
+      gpsTrackingEnabled: false,
+      premiumAccountingEnabled: false,
+    },
+  });
+  console.log('✅ Tenant subscription created');
+
   // ── Create Default Branch ──
   const branch = await prisma.branch.upsert({
     where: { tenantId_code: { tenantId: tenant.id, code: 'HQ' } },

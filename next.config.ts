@@ -26,6 +26,7 @@ const noStoreHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
   typescript: {
     ignoreBuildErrors: true,
   },
