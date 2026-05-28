@@ -9,7 +9,31 @@ export async function getSettings() {
   const session = await auth();
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
-  return getOrCreateAccountingSettings(tenantId);
+  const settings = await getOrCreateAccountingSettings(tenantId);
+  return {
+    fiscalYearStartMonth: settings.fiscalYearStartMonth,
+    gstin: settings.gstin,
+    state: settings.state,
+    gstScheme: settings.gstScheme,
+    baseCurrency: settings.baseCurrency,
+    postingOverrides: settings.postingOverrides,
+    costCentresEnabled: settings.costCentresEnabled,
+    baseAccountingMode: settings.baseAccountingMode,
+    showPremiumBannerInBase: settings.showPremiumBannerInBase,
+    adminJeCap: Number(settings.adminJeCap),
+    adminBillCap: Number(settings.adminBillCap),
+    twoLevelApprovalThreshold: Number(settings.twoLevelApprovalThreshold),
+    adminCanEditCoA: settings.adminCanEditCoA,
+    adminCanLockPeriod: settings.adminCanLockPeriod,
+    varianceAlertPct: Number(settings.varianceAlertPct),
+    apOverdueAlertDays: settings.apOverdueAlertDays,
+    tallyConnectorEnabled: settings.tallyConnectorEnabled,
+    tallyConnectorUrl: settings.tallyConnectorUrl,
+    tallyCompanyName: settings.tallyCompanyName,
+    allowFutureDated: settings.allowFutureDated,
+    defaultBankAccountId: settings.defaultBankAccountId,
+    defaultCashAccountId: settings.defaultCashAccountId,
+  };
 }
 
 export async function updateSettings(input: Partial<{

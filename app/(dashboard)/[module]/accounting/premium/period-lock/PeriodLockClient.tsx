@@ -4,7 +4,7 @@ import { formatIndianCurrency } from '@/lib/accounting/utils';
 import { softLockPeriod, lockPeriod, closePeriod, unlockPeriod, reopenPeriod, listAuditLog } from './actions';
 import {
   AcStyles, AcModal, AcButton, AcBadge, AcTable,
-  AcField, AcTextarea, AcInput, AcPageHeader, AcSectionHead, AcAmt, AcEmpty, AcSelect,
+  AcField, AcTextarea, AcInput, AcPageHeader, AcSectionHead, AcAmt, AcEmpty, AcSelect, AcAlert,
 } from '../ui';
 
 interface Period {
@@ -22,6 +22,7 @@ interface AuditRow {
 interface Props {
   module: string; periods: Period[]; auditRows: AuditRow[];
   fiscalYears: string[]; currentFy: string;
+  canManagePeriods?: boolean;
 }
 
 function periodLabel(pk: string) {
@@ -29,11 +30,12 @@ function periodLabel(pk: string) {
   return new Date(parseInt(y), parseInt(m) - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
 }
 
-export default function PeriodLockClient({ module, periods: initialPeriods, auditRows: initialAudit, fiscalYears, currentFy }: Props) {
+export default function PeriodLockClient({ module, periods: initialPeriods, auditRows: initialAudit, fiscalYears, currentFy, canManagePeriods = false }: Props) {
   const [periods, setPeriods] = useState(initialPeriods);
   const [auditRows, setAuditRows] = useState(initialAudit);
   const [selectedFy, setSelectedFy] = useState(currentFy);
   const [isPending, startTransition] = useTransition();
+  const [err, setErr] = useState('');
 
   const [unlockModal, setUnlockModal] = useState<{ periodId: string; action: 'unlock' | 'reopen' } | null>(null);
   const [unlockReason, setUnlockReason] = useState('');
@@ -48,22 +50,28 @@ export default function PeriodLockClient({ module, periods: initialPeriods, audi
       if (action === 'soft_lock') res = await softLockPeriod(periodId);
       else if (action === 'lock') res = await lockPeriod(periodId);
       else { res = await closePeriod(periodId); setCloseModal(null); }
-      if (!res.ok) alert(res.error);
-      else window.location.reload();
+      if (!res.ok) setErr(res.error ?? 'Period action failed.');
+      else {
+        const status = action === 'soft_lock' ? 'soft_locked' : action === 'lock' ? 'locked' : 'closed';
+        setPeriods(prev => prev.map(p => p.id === periodId ? { ...p, status } : p));
+      }
     });
   };
 
   const handleUnlock = () => {
     if (!unlockModal || unlockReason.trim().length < 10) {
-      alert('Reason required (≥ 10 characters).');
+      setErr('Reason must be at least 10 characters.');
       return;
     }
     startTransition(async () => {
       const res = unlockModal.action === 'unlock'
         ? await unlockPeriod(unlockModal.periodId, unlockReason)
         : await reopenPeriod(unlockModal.periodId, unlockReason);
-      if (!res.ok) alert(res.error);
-      else { setUnlockModal(null); setUnlockReason(''); window.location.reload(); }
+      if (!res.ok) setErr(res.error ?? 'Unable to unlock period.');
+      else {
+        setPeriods(prev => prev.map(p => p.id === unlockModal.periodId ? { ...p, status: 'open' } : p));
+        setUnlockModal(null); setUnlockReason('');
+      }
     });
   };
 
@@ -75,7 +83,7 @@ export default function PeriodLockClient({ module, periods: initialPeriods, audi
   };
 
   const periodCols = [
-    { key: 'period', label: 'Period', render: (p: Period) => <span style={{ fontWeight: 600 }}>{periodLabel(p.periodKey)}</span> },
+    { key: 'period', label: 'Period', render: (p: Period) => <span style={{ fontWeight: 600 }}>{p.periodKey} · {periodLabel(p.periodKey)}</span> },
     { key: 'status', label: 'Status', render: (p: Period) => <AcBadge status={p.status}>{p.status.replace(/_/g, ' ')}</AcBadge> },
     {
       key: 'net', label: 'Net Profit', align: 'right' as const,
@@ -87,20 +95,22 @@ export default function PeriodLockClient({ module, periods: initialPeriods, audi
         : <span style={{ color: 'var(--text-secondary)' }}>—</span>,
     },
     {
-      key: 'actions', label: '', render: (p: Period) => (
+      key: 'actions', label: 'Actions', render: (p: Period) => (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {p.status === 'open' && (
+          {!canManagePeriods ? (
+            <span style={{ color: 'var(--text-secondary)' }}>-</span>
+          ) : p.status === 'open' && (
             <AcButton size="sm" variant="ghost" onClick={() => handleAction(p.id, 'soft_lock')} loading={isPending}>Soft Lock</AcButton>
           )}
-          {p.status === 'soft_locked' && <>
+          {canManagePeriods && p.status === 'soft_locked' && <>
             <AcButton size="sm" variant="primary" onClick={() => handleAction(p.id, 'lock')} loading={isPending}>Lock</AcButton>
             <AcButton size="sm" variant="ghost"   onClick={() => setUnlockModal({ periodId: p.id, action: 'unlock' })} loading={isPending}>Unlock</AcButton>
           </>}
-          {p.status === 'locked' && <>
+          {canManagePeriods && p.status === 'locked' && <>
             <AcButton size="sm" variant="success" onClick={() => setCloseModal(p)} loading={isPending}>Close</AcButton>
             <AcButton size="sm" variant="ghost"   onClick={() => setUnlockModal({ periodId: p.id, action: 'unlock' })} loading={isPending}>Unlock</AcButton>
           </>}
-          {p.status === 'closed' && (
+          {canManagePeriods && p.status === 'closed' && (
             <AcButton size="sm" variant="ghost" onClick={() => setUnlockModal({ periodId: p.id, action: 'reopen' })} loading={isPending}>Reopen</AcButton>
           )}
         </div>
@@ -128,6 +138,8 @@ export default function PeriodLockClient({ module, periods: initialPeriods, audi
           </AcSelect>
         }
       />
+
+      {err && <div style={{ marginBottom: 12 }}><AcAlert type="error">{err} <AcButton variant="link" size="sm" onClick={() => setErr('')}>✕</AcButton></AcAlert></div>}
 
       {/* Periods table */}
       <div className="ac-card" style={{ padding: 0, overflow: 'hidden', marginBottom: 28 }}>

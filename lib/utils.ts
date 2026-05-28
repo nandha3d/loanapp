@@ -3,8 +3,8 @@ import { Decimal } from '@prisma/client/runtime/library';
 // ─── Currency Formatting ──────────────────────
 export function formatCurrency(amount: number | Decimal | string, symbol: string = '₹'): string {
   const num = typeof amount === 'string' ? parseFloat(amount) : typeof amount === 'number' ? amount : amount.toNumber();
-  const candidateSymbol = typeof symbol === 'string' ? symbol.trim() : '';
-  const safeSymbol = candidateSymbol && candidateSymbol !== '???' ? candidateSymbol : '₹';
+  const candidateSymbol = typeof symbol === 'string' ? symbol : '';
+  const safeSymbol = candidateSymbol.trim() && candidateSymbol.trim() !== '???' ? candidateSymbol : '₹';
   return safeSymbol + num.toLocaleString('en-IN');
 }
 

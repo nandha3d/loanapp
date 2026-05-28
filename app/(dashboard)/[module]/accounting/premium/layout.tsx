@@ -17,7 +17,8 @@ export default async function PremiumAccountingLayout({
   const { module } = await params;
   const session = await auth();
   const role = (session?.user as any)?.role;
-  if (!role || role === 'agent') redirect(modulePath(module, '/dashboard'));
+  if (!session || !role) redirect('/login');
+  if (role === 'agent') redirect(modulePath(module, '/dashboard'));
 
   const tenantId = await getDefaultTenantId();
   const enabled = await isPremiumAccountingEnabled(tenantId);

@@ -4,7 +4,7 @@
 import { Page, expect } from '@playwright/test';
 
 /** Module slug from env or default. All accounting URLs are /{MODULE}/accounting/premium/... */
-export const MODULE = process.env.TEST_MODULE ?? 'demo';
+export const MODULE = process.env.TEST_MODULE ?? 'microlending';
 
 /** Prefix for all accounting premium routes. */
 export const AC = `/${MODULE}/accounting/premium`;
@@ -59,7 +59,7 @@ export async function pickAccount(page: Page, rowIdx: number, accountText: strin
 
 /** Assert an AcAlert with type="success" is visible containing text. */
 export async function expectSuccess(page: Page, text?: string | RegExp) {
-  const alert = page.locator('[class*="ac-alert"]').filter({ hasText: text ?? /./s });
+  const alert = page.locator('[class*="ac-alert"]').filter({ hasText: text ?? /[\s\S]/ });
   await expect(alert).toBeVisible({ timeout: 8_000 });
 }
 
@@ -77,5 +77,5 @@ export async function expectURL(page: Page, fragment: string) {
 
 /** Close the currently open AcModal via the × button. */
 export async function closeModal(page: Page) {
-  await page.locator('[class*="ac-modal"] button[aria-label="Close"], [class*="ac-modal"] button:has-text("✕"), [class*="ac-modal"] button:has-text("Cancel")').first().click();
+  await page.locator('.ac-modal button[aria-label="Close"], .ac-modal button:has-text("✕"), .ac-modal button:has-text("Cancel")').first().click();
 }

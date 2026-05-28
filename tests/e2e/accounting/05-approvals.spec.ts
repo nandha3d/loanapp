@@ -28,10 +28,10 @@ test.describe('Approvals', () => {
   test('approvals page renders table and filters', async ({ page }) => {
     await expect(page.locator('table.ac-table')).toBeVisible();
     // Status filter
-    const statusSel = page.locator('select').first();
+    const statusSel = page.getByLabel('Approval status');
     await expect(statusSel).toBeVisible();
     // Entity type filter
-    await expect(page.locator('select').nth(1)).toBeVisible();
+    await expect(page.getByLabel('Approval type')).toBeVisible();
   });
 
   test('table columns present', async ({ page }) => {
@@ -45,11 +45,12 @@ test.describe('Approvals', () => {
   // ── Filters ──────────────────────────────────────────────────────────────
 
   test('filter by status "pending" shows only pending rows', async ({ page }) => {
-    await page.locator('select').first().selectOption({ label: 'pending' });
+    await page.getByLabel('Approval status').selectOption({ label: 'pending' });
     await page.waitForLoadState('networkidle');
     const rows = page.locator('table.ac-table tbody tr');
     const count = await rows.count();
     if (count === 0) return;
+    if ((await rows.first().textContent())?.toLowerCase().includes('no approvals')) return;
     for (let i = 0; i < Math.min(count, 5); i++) {
       const rowText = await rows.nth(i).textContent();
       expect(rowText?.toLowerCase()).toContain('pending');
@@ -57,11 +58,12 @@ test.describe('Approvals', () => {
   });
 
   test('filter by entity type "journal_entry"', async ({ page }) => {
-    await page.locator('select').nth(1).selectOption({ label: 'journal_entry' });
+    await page.getByLabel('Approval type').selectOption({ label: 'journal_entry' });
     await page.waitForLoadState('networkidle');
     const rows = page.locator('table.ac-table tbody tr');
     const count = await rows.count();
     if (count === 0) return;
+    if ((await rows.first().textContent())?.toLowerCase().includes('no approvals')) return;
     for (let i = 0; i < Math.min(count, 5); i++) {
       const rowText = await rows.nth(i).textContent();
       expect(rowText?.toLowerCase()).toContain('journal');
@@ -69,11 +71,12 @@ test.describe('Approvals', () => {
   });
 
   test('filter by entity type "bill"', async ({ page }) => {
-    await page.locator('select').nth(1).selectOption({ label: 'bill' });
+    await page.getByLabel('Approval type').selectOption({ label: 'bill' });
     await page.waitForLoadState('networkidle');
     const rows = page.locator('table.ac-table tbody tr');
     const count = await rows.count();
     if (count === 0) return;
+    if ((await rows.first().textContent())?.toLowerCase().includes('no approvals')) return;
     for (let i = 0; i < Math.min(count, 3); i++) {
       const rowText = await rows.nth(i).textContent();
       expect(rowText?.toLowerCase()).toContain('bill');
@@ -81,11 +84,11 @@ test.describe('Approvals', () => {
   });
 
   test('clear filters shows all approvals', async ({ page }) => {
-    await page.locator('select').first().selectOption({ label: 'pending' });
+    await page.getByLabel('Approval status').selectOption({ label: 'pending' });
     await page.waitForLoadState('networkidle');
     const filteredCount = await page.locator('table.ac-table tbody tr').count();
 
-    await page.locator('select').first().selectOption({ label: 'all' });
+    await page.getByLabel('Approval status').selectOption('');
     await page.waitForLoadState('networkidle');
     const allCount = await page.locator('table.ac-table tbody tr').count();
     expect(allCount).toBeGreaterThanOrEqual(filteredCount);
@@ -94,7 +97,7 @@ test.describe('Approvals', () => {
   // ── Approve ──────────────────────────────────────────────────────────────
 
   test('approve pending entry — modal shows note textarea', async ({ page }) => {
-    await page.locator('select').first().selectOption({ label: 'pending' });
+    await page.getByLabel('Approval status').selectOption({ label: 'pending' });
     await page.waitForLoadState('networkidle');
 
     const pendingRow = page.locator('table.ac-table tbody tr').filter({ hasText: /pending/i }).first();
@@ -102,21 +105,21 @@ test.describe('Approvals', () => {
 
     await pendingRow.getByRole('button', { name: /approve/i }).click();
 
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await expect(modal).toBeVisible();
     // Optional note textarea
     await expect(modal.locator('input, textarea')).toBeVisible();
   });
 
   test('approve pending entry — without note succeeds', async ({ page }) => {
-    await page.locator('select').first().selectOption({ label: 'pending' });
+    await page.getByLabel('Approval status').selectOption({ label: 'pending' });
     await page.waitForLoadState('networkidle');
 
     const pendingRow = page.locator('table.ac-table tbody tr').filter({ hasText: /pending/i }).first();
     if (await pendingRow.count() === 0) { test.skip(true, 'No pending approvals'); return; }
 
     await pendingRow.getByRole('button', { name: /approve/i }).click();
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await expect(modal).toBeVisible();
     // Note is optional — submit empty
     await modal.getByRole('button', { name: /confirm|approve/i }).click();
@@ -126,14 +129,14 @@ test.describe('Approvals', () => {
   });
 
   test('approve pending entry — with note succeeds', async ({ page }) => {
-    await page.locator('select').first().selectOption({ label: 'pending' });
+    await page.getByLabel('Approval status').selectOption({ label: 'pending' });
     await page.waitForLoadState('networkidle');
 
     const pendingRow = page.locator('table.ac-table tbody tr').filter({ hasText: /pending/i }).first();
     if (await pendingRow.count() === 0) { test.skip(true, 'No pending approvals'); return; }
 
     await pendingRow.getByRole('button', { name: /approve/i }).click();
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await modal.locator('input, textarea').fill('Approved during E2E testing');
     await modal.getByRole('button', { name: /confirm|approve/i }).click();
 
@@ -144,14 +147,14 @@ test.describe('Approvals', () => {
   // ── Reject ───────────────────────────────────────────────────────────────
 
   test('reject entry — modal requires note', async ({ page }) => {
-    await page.locator('select').first().selectOption({ label: 'pending' });
+    await page.getByLabel('Approval status').selectOption({ label: 'pending' });
     await page.waitForLoadState('networkidle');
 
     const pendingRow = page.locator('table.ac-table tbody tr').filter({ hasText: /pending/i }).first();
     if (await pendingRow.count() === 0) { test.skip(true, 'No pending approvals'); return; }
 
     await pendingRow.getByRole('button', { name: /reject/i }).click();
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await expect(modal).toBeVisible();
 
     // Submit without note
@@ -163,14 +166,14 @@ test.describe('Approvals', () => {
   });
 
   test('reject entry — with note → rejected status', async ({ page }) => {
-    await page.locator('select').first().selectOption({ label: 'pending' });
+    await page.getByLabel('Approval status').selectOption({ label: 'pending' });
     await page.waitForLoadState('networkidle');
 
     const pendingRow = page.locator('table.ac-table tbody tr').filter({ hasText: /pending/i }).first();
     if (await pendingRow.count() === 0) { test.skip(true, 'No pending approvals'); return; }
 
     await pendingRow.getByRole('button', { name: /reject/i }).click();
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await modal.locator('input, textarea').fill('Rejected during E2E testing round 2');
     await modal.getByRole('button', { name: /confirm|reject/i }).click();
 
@@ -182,7 +185,7 @@ test.describe('Approvals', () => {
 
   test('L1 approval of large amount routes to L2', async ({ page }) => {
     // Filter to large-amount L1 pending approvals
-    await page.locator('select').first().selectOption({ label: 'pending' });
+    await page.getByLabel('Approval status').selectOption({ label: 'pending' });
     await page.waitForLoadState('networkidle');
 
     const rows = page.locator('table.ac-table tbody tr').filter({ hasText: /pending/i });
@@ -198,7 +201,7 @@ test.describe('Approvals', () => {
       if (!rowText?.includes('1')) continue;
 
       await rows.nth(i).getByRole('button', { name: /approve/i }).click();
-      const modal = page.locator('[class*="ac-modal"]');
+      const modal = page.locator('.ac-modal');
       await modal.locator('input, textarea').fill('L1 approving large amount');
       await modal.getByRole('button', { name: /confirm|approve/i }).click();
       await page.waitForLoadState('networkidle');

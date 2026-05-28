@@ -11,13 +11,14 @@ export async function getOperationalSummary(
   period: { from: Date; to: Date },
 ) {
   const branchWhere = branchId ? { branchId } : {};
+  const collectionBranchWhere = branchId ? { loan: { branchId } } : {};
 
   const [collectedRows, disbursedRows, expenseRows, loansOutstanding] = await Promise.all([
     // Verified collections in period
     prisma.collectionEntry.aggregate({
       where: {
         tenantId,
-        ...branchWhere,
+        ...collectionBranchWhere,
         verificationStatus: 'verified',
         submittedAt: { gte: period.from, lte: period.to },
       },
@@ -70,10 +71,11 @@ export async function getOperationalCashflowSeries(
   to: Date,
 ): Promise<Array<{ date: string; inflow: number; outflow: number }>> {
   const branchWhere = branchId ? { branchId } : {};
+  const collectionBranchWhere = branchId ? { loan: { branchId } } : {};
 
   const [collections, disbursals, expenses] = await Promise.all([
     prisma.collectionEntry.findMany({
-      where: { tenantId, ...branchWhere, verificationStatus: 'verified', submittedAt: { gte: from, lte: to } },
+      where: { tenantId, ...collectionBranchWhere, verificationStatus: 'verified', submittedAt: { gte: from, lte: to } },
       select: { receivedAmount: true, submittedAt: true },
     }),
     prisma.accountEntry.findMany({

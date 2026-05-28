@@ -41,7 +41,12 @@ test.describe('Accounting Settings', () => {
     const generalTab = page.getByRole('tab', { name: /general/i });
     if (await generalTab.count() > 0) await generalTab.click();
 
-    await expect(page.getByLabel(/base currency/i).or(page.getByText(/base currency/i))).toBeVisible();
+    const currencyInput = page.getByLabel(/base currency/i);
+    if (await currencyInput.count() > 0) {
+      await expect(currencyInput.first()).toBeVisible();
+    } else {
+      await expect(page.locator('body')).toContainText(/base currency/i);
+    }
   });
 
   test('general tab has fiscal year start month selector', async ({ page }) => {
@@ -58,7 +63,7 @@ test.describe('Accounting Settings', () => {
     if (await approvalTab.count() === 0) { test.skip(true, 'No approval tab'); return; }
     await approvalTab.click();
 
-    await expect(page.getByText(/je cap|journal entry cap|admin.*cap/i)).toBeVisible();
+    await expect(page.getByText(/je cap|journal entry cap|admin.*cap/i).first()).toBeVisible();
   });
 
   test('approval tab has bill cap field', async ({ page }) => {
@@ -127,7 +132,8 @@ test.describe('Accounting Settings', () => {
     if (await migTab.count() === 0) { test.skip(true, 'No migration tab'); return; }
     await migTab.click();
 
-    await expect(page.locator('[class*="ac-alert"]').or(page.getByText(/legend|mapping/i))).toBeVisible();
+    const infoAlert = page.locator('.ac-alert').or(page.getByText(/legend|mapping/i));
+    await expect(infoAlert.first()).toBeVisible();
   });
 
   // ── Save ─────────────────────────────────────────────────────────────────

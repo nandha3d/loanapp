@@ -68,7 +68,7 @@ test.describe('Period Lock', () => {
     await page.waitForLoadState('networkidle');
 
     // Status badge changes to soft_locked
-    await expect(openRow.getByText(/soft.?locked/i)).toBeVisible({ timeout: 8_000 });
+    await expect(page.locator('table.ac-table tbody tr').filter({ hasText: /soft.?locked/i }).first()).toBeVisible({ timeout: 8_000 });
   });
 
   // ── Hard lock ────────────────────────────────────────────────────────────
@@ -95,7 +95,7 @@ test.describe('Period Lock', () => {
     if (await unlockBtn.count() === 0) { test.skip(true, 'No unlock button'); return; }
 
     await unlockBtn.click();
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await expect(modal).toBeVisible();
 
     // Enter short reason
@@ -103,7 +103,7 @@ test.describe('Period Lock', () => {
     await modal.getByRole('button', { name: /confirm|unlock/i }).click();
 
     // Should show error about reason length
-    await expect(page.getByText(/reason|at least 10/i)).toBeVisible({ timeout: 6_000 });
+    await expect(page.getByText(/Reason must be at least 10/i)).toBeVisible({ timeout: 6_000 });
     // Modal stays open
     await expect(modal).toBeVisible();
   });
@@ -116,7 +116,7 @@ test.describe('Period Lock', () => {
     if (await unlockBtn.count() === 0) { test.skip(true, 'No unlock button'); return; }
 
     await unlockBtn.click();
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await expect(modal).toBeVisible();
 
     await modal.locator('input, textarea').fill('E2E automated unlock reason for testing');
@@ -124,7 +124,7 @@ test.describe('Period Lock', () => {
     await page.waitForLoadState('networkidle');
 
     await expect(modal).not.toBeVisible({ timeout: 8_000 });
-    await expect(lockedRow.getByText(/open/i)).toBeVisible({ timeout: 8_000 });
+    await expect(page.locator('table.ac-table tbody tr').filter({ hasText: /open/i }).first()).toBeVisible({ timeout: 8_000 });
   });
 
   // ── Close period ─────────────────────────────────────────────────────────
@@ -137,7 +137,7 @@ test.describe('Period Lock', () => {
     if (await closeBtn.count() === 0) { test.skip(true, 'No close button'); return; }
 
     await closeBtn.click();
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await expect(modal).toBeVisible();
     await expect(modal.getByText(/close|closing/i)).toBeVisible();
     // Cancel
@@ -153,7 +153,7 @@ test.describe('Period Lock', () => {
     if (await closeBtn.count() === 0) { test.skip(true, 'No close button'); return; }
 
     await closeBtn.click();
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await expect(modal).toBeVisible();
 
     await modal.getByRole('button', { name: /confirm|close/i }).last().click();
@@ -173,7 +173,7 @@ test.describe('Period Lock', () => {
     if (await reopenBtn.count() === 0) { test.skip(true, 'No reopen button'); return; }
 
     await reopenBtn.click();
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await expect(modal).toBeVisible();
 
     await modal.locator('input, textarea').fill('too short');
@@ -190,7 +190,7 @@ test.describe('Period Lock', () => {
     if (await reopenBtn.count() === 0) { test.skip(true, 'No reopen button'); return; }
 
     await reopenBtn.click();
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await expect(modal).toBeVisible();
 
     await modal.locator('input, textarea').fill('Reopening during E2E automated testing');

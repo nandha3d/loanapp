@@ -135,7 +135,7 @@ test.describe('Admin Role Restrictions', () => {
 
     // If button is visible, clicking should produce unauthorized error
     await addBtn.click();
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     if (await modal.isVisible()) {
       await modal.getByLabel(/^code/i).fill('TEST');
       await modal.getByLabel(/^name/i).fill('Admin Test Acct');

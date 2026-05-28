@@ -10,7 +10,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ modul
   const session = await auth();
   if (!session) redirect('/login');
   const role = (session.user as any)?.role;
-  if (!['superadmin','developer'].includes(role)) redirect(`/${module}`);
+  if (!['admin','superadmin','developer'].includes(role)) redirect(`/${module}`);
 
   const tenantId = await getDefaultTenantId();
   const enabled = await isPremiumAccountingEnabled(tenantId);
