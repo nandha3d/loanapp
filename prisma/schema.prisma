@@ -565,14 +565,19 @@ model CollectionEntry {
   // Additional verification metadata (from collection-tracking module)
   gpsAltitude    Float?          @map("gps_altitude")
   locationStatus String          @default("not_captured") @map("location_status")
-  borrowerLat    Float?          @map("borrower_lat")
-  borrowerLng    Float?          @map("borrower_lng")
+  borrowerLat              Float?          @map("borrower_lat")
+  borrowerLng              Float?          @map("borrower_lng")
+  // Fraud-01: customer PIN confirmation at time of cash collection
+  customerPinConfirmed     Boolean         @default(false) @map("customer_pin_confirmed")
+  customerPinConfirmedAt   DateTime?       @map("customer_pin_confirmed_at")
   agent          User            @relation(fields: [agentId], references: [id])
   collection     DailyCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
   customer       Customer        @relation(fields: [customerId], references: [id])
   loan           Loan            @relation(fields: [loanId], references: [id])
   tenant         Tenant?         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   instalment     Instalment?
+  photos         CollectionPhoto[]
+  receiptToken   ReceiptToken?
 
   @@index([agentId], map: "collection_entries_agent_id_fkey")
   @@index([collectionId], map: "collection_entries_collection_id_fkey")
