@@ -74,7 +74,7 @@ export default function ApprovalsClient({ approvals: initialApprovals, userRole 
 
   const cols = [
     {
-      key: 'entity', label: 'Entity', render: (a: Approval) => (
+      key: 'entity', label: 'Type', render: (a: Approval) => (
         <div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{a.entityType.replace(/_/g,' ')}</div>
           <div style={{ fontSize: '0.83rem', fontFamily: 'monospace', fontWeight: 600 }}>{a.entityId.slice(0, 8)}…</div>
@@ -93,7 +93,7 @@ export default function ApprovalsClient({ approvals: initialApprovals, userRole 
       ),
     },
     {
-      key: 'by', label: 'Requested By', render: (a: Approval) => (
+      key: 'by', label: 'Requested', render: (a: Approval) => (
         <div>
           <div style={{ fontSize: '0.83rem', fontWeight: 600 }}>{a.requestedBy.name}</div>
           <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{a.requestedBy.email}</div>
@@ -147,13 +147,13 @@ export default function ApprovalsClient({ approvals: initialApprovals, userRole 
 
       {/* Filters */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        <AcSelect value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ maxWidth: 160 }}>
+        <AcSelect aria-label="Approval status" value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ maxWidth: 160 }}>
           <option value="">All statuses</option>
           {['pending','approved','rejected','cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
         </AcSelect>
-        <AcSelect value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ maxWidth: 200 }}>
+        <AcSelect aria-label="Approval type" value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ maxWidth: 200 }}>
           <option value="">All types</option>
-          {['journal_entry','bill','budget'].map(t => <option key={t} value={t}>{t.replace(/_/g,' ')}</option>)}
+          {['journal_entry','bill','budget'].map(t => <option key={t} value={t}>{t}</option>)}
         </AcSelect>
       </div>
 
@@ -199,7 +199,7 @@ export default function ApprovalsClient({ approvals: initialApprovals, userRole 
         }
       >
         <AcField label="Reason" required>
-          <AcTextarea rows={3} value={rejectNote} onChange={e => setRejectNote(e.target.value)} placeholder="Enter rejection reason…" />
+          <AcTextarea rows={3} required value={rejectNote} onChange={e => setRejectNote(e.target.value)} placeholder="Enter rejection reason…" />
         </AcField>
       </AcModal>
     </>

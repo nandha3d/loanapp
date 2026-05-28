@@ -195,12 +195,13 @@ export async function createBill(input: {
   const role = (session.user as any)?.role;
   if (!['admin', 'superadmin', 'developer'].includes(role)) return { ok: false, error: 'Insufficient role' };
 
-  if (!input.lines || input.lines.length === 0) return { ok: false, error: 'bill_no_lines' };
+  const validLines = (input.lines ?? []).filter((line) => line.accountId && Number(line.amount) > 0);
+  if (validLines.length === 0) return { ok: false, error: 'bill_no_lines' };
 
   const existing = await prisma.bill.findFirst({ where: { tenantId, billNo: input.billNo } });
   if (existing) return { ok: false, error: 'bill_no_duplicate' };
 
-  const processedLines = input.lines.map((l, i) => {
+  const processedLines = validLines.map((l, i) => {
     const gstRate = l.gstRate ?? 0;
     const gstAmount = l.amount * gstRate / 100;
     return { accountId: l.accountId, description: l.description, amount: l.amount, gstRate, gstAmount, lineNo: i };

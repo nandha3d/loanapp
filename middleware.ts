@@ -80,6 +80,9 @@ export function getRoleRedirectTarget(
   }
 
   if (role === 'agent') {
+    if (module && (page === '/reports' || page.startsWith('/reports/'))) {
+      return `/${module}/collection`;
+    }
     if (module && AGENT_BLOCKED.some((prefix) => page === prefix || page.startsWith(`${prefix}/`))) {
       return `/${module}/agent-dashboard`;
     }

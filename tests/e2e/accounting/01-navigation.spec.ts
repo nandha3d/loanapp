@@ -70,7 +70,7 @@ test.describe('Navigation & Auth Guards', () => {
 
   test('unauthenticated access redirects to login', async ({ browser }) => {
     // Use a clean context (no saved storage state)
-    const context = await browser.newContext();
+    const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
     const page = await context.newPage();
     await page.goto(`${AC}`);
     await expect(page).toHaveURL(/\/login/, { timeout: 10_000 });

@@ -28,6 +28,7 @@ export default async function PeriodLockPage({ params, searchParams }: { params:
   ]);
 
   const allFys = fiscalYears.includes(currentFy) ? fiscalYears : [currentFy, ...fiscalYears];
+  const canManagePeriods = ['superadmin','developer'].includes(role);
 
-  return <PeriodLockClient module={module} periods={periods as any} auditRows={auditResult.rows as any} fiscalYears={allFys} currentFy={selectedFy} />;
+  return <PeriodLockClient module={module} periods={periods as any} auditRows={auditResult.rows as any} fiscalYears={allFys} currentFy={selectedFy} canManagePeriods={canManagePeriods} />;
 }

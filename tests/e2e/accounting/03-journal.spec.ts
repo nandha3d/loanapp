@@ -65,8 +65,8 @@ test.describe('Journal Entries', () => {
     await gotoAC(page, '/journal');
 
     // Date range filters
-    await expect(page.getByLabel(/from/i)).toBeVisible();
-    await expect(page.getByLabel(/to/i)).toBeVisible();
+    await expect(page.getByLabel('From date')).toBeVisible();
+    await expect(page.getByLabel('To date')).toBeVisible();
 
     // Status filter select
     await expect(page.locator('select').filter({ hasText: /all|status/i }).first()).toBeVisible();
@@ -172,7 +172,7 @@ test.describe('Journal Entries', () => {
     // Redirects to detail page
     await expect(page).toHaveURL(new RegExp(`/${MODULE}/accounting/premium/journal/`));
     // Status shows draft
-    await expect(page.getByText(/draft/i)).toBeVisible();
+    await expect(page.locator('.ac-badge').filter({ hasText: /^draft$/i })).toBeVisible();
   });
 
   test('new entry — post balanced entry → detail page with entryNo', async ({ page }) => {
@@ -335,7 +335,7 @@ test.describe('Journal Entries', () => {
     // Success message + page reloads
     await page.waitForLoadState('networkidle');
     // Status should now be "reversed"
-    await expect(page.getByText(/reversed/i)).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('.ac-badge').filter({ hasText: /^reversed$/i })).toBeVisible({ timeout: 10_000 });
     // Reversed by link shown
     await expect(page.getByText(/reversed by/i)).toBeVisible();
   });
@@ -346,7 +346,7 @@ test.describe('Journal Entries', () => {
     const reversedRow = page.locator('table.ac-table tbody tr').filter({ hasText: /reversed/i }).first();
     if (await reversedRow.count() === 0) { test.skip(true, 'No reversed entries'); return; }
 
-    await reversedRow.locator('a').click();
+    await reversedRow.locator('a').first().click();
     await page.waitForLoadState('networkidle');
 
     // Reverse button not shown on already-reversed entry
@@ -364,7 +364,8 @@ test.describe('Journal Entries', () => {
 
   test('filter by status "posted" shows only posted entries', async ({ page }) => {
     await gotoAC(page, '/journal');
-    await page.locator('select').filter({ hasText: /all|status/i }).first().selectOption({ label: 'posted' });
+    await page.getByLabel('Status').selectOption({ label: 'posted' });
+    await expect(page).toHaveURL(/status=posted/);
     await page.waitForLoadState('networkidle');
 
     const rows = page.locator('table.ac-table tbody tr');
@@ -379,7 +380,8 @@ test.describe('Journal Entries', () => {
 
   test('filter by status "draft" shows only draft entries', async ({ page }) => {
     await gotoAC(page, '/journal');
-    await page.locator('select').filter({ hasText: /all|status/i }).first().selectOption({ label: 'draft' });
+    await page.getByLabel('Status').selectOption({ label: 'draft' });
+    await expect(page).toHaveURL(/status=draft/);
     await page.waitForLoadState('networkidle');
 
     const rows = page.locator('table.ac-table tbody tr');
@@ -393,10 +395,9 @@ test.describe('Journal Entries', () => {
   });
 
   test('date range filter excludes out-of-range entries', async ({ page }) => {
-    await gotoAC(page, '/journal');
     // Set to far future — no entries should match
-    await page.getByLabel(/from/i).fill('2099-01-01');
-    await page.getByLabel(/to/i).fill('2099-01-31');
+    await gotoAC(page, '/journal?from=2099-01-01&to=2099-01-31');
+    await expect(page).toHaveURL(/from=2099-01-01/);
     await page.waitForLoadState('networkidle');
 
     const rows = page.locator('table.ac-table tbody tr');
@@ -404,7 +405,7 @@ test.describe('Journal Entries', () => {
     // Either 0 rows or "no entries" placeholder
     if (count > 0) {
       const emptyText = await rows.first().textContent();
-      expect(emptyText?.toLowerCase()).toMatch(/no entries|empty/i);
+      expect(emptyText?.toLowerCase()).toMatch(/no .*entries|empty/i);
     }
   });
 
@@ -443,7 +444,8 @@ test.describe('Journal Entries', () => {
 
   test('approve pending entry from journal list', async ({ page }) => {
     await gotoAC(page, '/journal');
-    await page.locator('select').filter({ hasText: /all|status/i }).first().selectOption({ label: 'pending_approval' });
+    await page.getByLabel('Status').selectOption({ label: 'pending_approval' });
+    await expect(page).toHaveURL(/status=pending_approval/);
     await page.waitForLoadState('networkidle');
 
     const pendingRow = page.locator('table.ac-table tbody tr').filter({ hasText: /pending/i }).first();
@@ -451,13 +453,14 @@ test.describe('Journal Entries', () => {
 
     await pendingRow.getByRole('button', { name: /approve/i }).click();
     await page.waitForLoadState('networkidle');
-    await expect(page.getByText(/approved|posted/i)).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByText(/approved successfully/i)).toBeVisible({ timeout: 8_000 });
   });
 
   test('reject pending entry from journal list (requires note)', async ({ page }) => {
     // First create a pending entry by saving draft (simulate)
     await gotoAC(page, '/journal');
-    await page.locator('select').filter({ hasText: /all|status/i }).first().selectOption({ label: 'pending_approval' });
+    await page.getByLabel('Status').selectOption({ label: 'pending_approval' });
+    await expect(page).toHaveURL(/status=pending_approval/);
     await page.waitForLoadState('networkidle');
 
     const pendingRow = page.locator('table.ac-table tbody tr').filter({ hasText: /pending/i }).first();
@@ -466,13 +469,13 @@ test.describe('Journal Entries', () => {
     await pendingRow.getByRole('button', { name: /reject/i }).click();
 
     // Modal for reject note
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     if (await modal.isVisible()) {
       await modal.locator('input, textarea').fill('Rejected during E2E testing');
       await modal.getByRole('button', { name: /confirm|reject/i }).click();
     }
     await page.waitForLoadState('networkidle');
-    await expect(page.getByText(/rejected/i)).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByText(/entry rejected/i)).toBeVisible({ timeout: 8_000 });
   });
 
 });

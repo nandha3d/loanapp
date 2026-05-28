@@ -4,7 +4,7 @@
  * All reusable components for premium accounting pages.
  * Import from '@/app/(dashboard)/[module]/accounting/premium/ui'
  */
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 export const AC = {
@@ -186,10 +186,14 @@ export function AcTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaEleme
 // ─── Field wrapper ────────────────────────────────────────────────────────────
 interface FieldProps { label: string; required?: boolean; hint?: string; children: React.ReactNode; }
 export function AcField({ label, required, hint, children }: FieldProps) {
+  const generatedId = useId();
+  const fieldId = React.isValidElement(children) && typeof children.props === 'object' && children.props && 'id' in children.props && children.props.id ? String(children.props.id) : generatedId;
+  const field = React.isValidElement(children) ? React.cloneElement(children as React.ReactElement<any>, { id: fieldId }) : children;
+
   return (
     <div className="ac-field">
-      <label className={`ac-label${required?' ac-label-req':''}`}>{label}</label>
-      {children}
+      <label htmlFor={fieldId} className={`ac-label${required?' ac-label-req':''}`}>{label}</label>
+      {field}
       {hint && <div style={{fontSize:'0.73rem',color:'var(--text-secondary)',marginTop:4}}>{hint}</div>}
     </div>
   );
@@ -305,9 +309,9 @@ interface TabDef { key: string; label: string; icon?: string; count?: number; }
 interface TabsProps { tabs: TabDef[]; active: string; onChange: (k:string)=>void; }
 export function AcTabs({ tabs, active, onChange }: TabsProps) {
   return (
-    <div className="ac-tabs" style={{marginBottom:20}}>
+    <div className="ac-tabs" role="tablist" style={{marginBottom:20}}>
       {tabs.map(t=>(
-        <button key={t.key} className={`ac-tab${active===t.key?' active':''}`} onClick={()=>onChange(t.key)}>
+        <button key={t.key} role="tab" aria-selected={active===t.key} className={`ac-tab${active===t.key?' active':''}`} onClick={()=>onChange(t.key)}>
           {t.icon && <span className="material-icons-outlined" style={{fontSize:15,verticalAlign:'middle',marginRight:4}}>{t.icon}</span>}
           {t.label}
           {t.count !== undefined && (
@@ -407,7 +411,7 @@ const ALERT_MAP: Record<AlertType, {bg:string;border:string;color:string;icon:st
 export function AcAlert({ type='info', children }: { type?: AlertType; children: React.ReactNode }) {
   const s = ALERT_MAP[type];
   return (
-    <div style={{background:s.bg,border:`1px solid ${s.border}`,borderRadius:10,padding:'10px 14px',display:'flex',gap:10,alignItems:'flex-start',fontSize:'0.84rem',color:s.color}}>
+    <div className="ac-alert" style={{background:s.bg,border:`1px solid ${s.border}`,borderRadius:10,padding:'10px 14px',display:'flex',gap:10,alignItems:'flex-start',fontSize:'0.84rem',color:s.color}}>
       <span className="material-icons-outlined" style={{fontSize:17,flexShrink:0,marginTop:1}}>{s.icon}</span>
       <span>{children}</span>
     </div>

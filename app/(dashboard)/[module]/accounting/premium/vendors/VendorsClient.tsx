@@ -27,7 +27,7 @@ interface Props { vendors: Vendor[]; bills: Bill[]; }
 export default function VendorsClient({ vendors: initialVendors, bills: initialBills }: Props) {
   const [tab, setTab] = useState<Tab>('vendors');
   const [vendors] = useState(initialVendors);
-  const [bills]   = useState(initialBills);
+  const [bills, setBills] = useState(initialBills);
   const [isPending, startTransition] = useTransition();
   const [err, setErr] = useState('');
 
@@ -88,8 +88,8 @@ export default function VendorsClient({ vendors: initialVendors, bills: initialB
 
   const saveVendor = () => {
     startTransition(async () => {
-      if (editingVendor) await updateVendor(editingVendor.id, vendorForm);
-      else await createVendor(vendorForm);
+      const res = editingVendor ? await updateVendor(editingVendor.id, vendorForm) : await createVendor(vendorForm);
+      if (!res.ok) { setErr(res.error ?? 'Error saving vendor'); return; }
       setShowVendorModal(false);
       window.location.reload();
     });
@@ -104,7 +104,15 @@ export default function VendorsClient({ vendors: initialVendors, bills: initialB
   const createBillHandler = () => {
     startTransition(async () => {
       const res = await createBill({ ...billForm, lines: billLines });
-      if (res.ok) { setShowBillModal(false); window.location.reload(); }
+      if (res.ok) {
+        const vendor = vendors.find(v => v.id === billForm.vendorId);
+        setBills(p => [{
+          ...(res.data as any),
+          vendor: vendor ? { id: vendor.id, name: vendor.name } : { id: billForm.vendorId, name: 'Vendor' },
+          paidAmount: (res.data as any).paidAmount ?? 0,
+        }, ...p]);
+        setShowBillModal(false);
+      }
       else setErr(res.error ?? 'Error creating bill');
     });
   };
@@ -112,7 +120,7 @@ export default function VendorsClient({ vendors: initialVendors, bills: initialB
   const handlePostBill = (billId: string) => {
     startTransition(async () => {
       const res = await postBill(billId);
-      if (res.ok) window.location.reload();
+      if (res.ok) setBills(p => p.map(b => b.id === billId ? { ...b, status: (res.data as any)?.pending ? 'pending_approval' : 'unpaid' } : b));
       else setErr(res.error ?? 'Error');
     });
   };
@@ -136,7 +144,16 @@ export default function VendorsClient({ vendors: initialVendors, bills: initialB
         reference: payForm.reference,
         narration: payForm.narration,
       });
-      if (res.ok) { setShowPayModal(false); window.location.reload(); }
+      if (res.ok) {
+        const amount = parseFloat(payForm.amount) || 0;
+        setBills(p => p.map(b => {
+          if (b.id !== payingBill.id) return b;
+          const paidAmount = Number(b.paidAmount) + amount;
+          const status = paidAmount + 0.01 >= Number(b.totalAmount) ? 'paid' : 'partial';
+          return { ...b, paidAmount, status };
+        }));
+        setShowPayModal(false);
+      }
       else setErr((res as any).error ?? 'Payment error');
     });
   };
@@ -150,10 +167,21 @@ export default function VendorsClient({ vendors: initialVendors, bills: initialB
     { key: 'ap',    label: 'Open AP', align: 'right' as const, render: (v: Vendor) => <AcAmt value={v.openAP} color={v.openAP > 0 ? '#ef4444' : undefined} /> },
     { key: 'bills', label: 'Bills',       render: (v: Vendor) => v.billCount },
     { key: 'status', label: 'Status',     render: (v: Vendor) => <AcBadge status={v.isActive ? 'active' : 'closed'}>{v.isActive ? 'Active' : 'Inactive'}</AcBadge> },
+    {
+      key: 'actions', label: '', render: (v: Vendor) => (
+        <div style={{ display: 'flex', gap: 4 }}>
+          {v.isActive && <AcButton size="sm" variant="danger" onClick={() => startTransition(async () => {
+            const res = await deactivateVendor(v.id);
+            if (!res.ok) { setErr(res.error ?? 'Error deactivating vendor'); return; }
+            window.location.reload();
+          })}>✕</AcButton>}
+        </div>
+      ),
+    },
   ];
 
   const billCols = [
-    { key: 'billNo',  label: 'Bill #',   render: (b: Bill) => <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>{b.billNo}</span> },
+    { key: 'billNo',  label: 'Bill No',  render: (b: Bill) => <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>{b.billNo}</span> },
     { key: 'vendor',  label: 'Vendor',   render: (b: Bill) => b.vendor.name },
     { key: 'date',    label: 'Date',     render: (b: Bill) => <span style={{ fontSize: '0.8rem' }}>{new Date(b.billDate).toLocaleDateString('en-IN')}</span> },
     {
@@ -164,7 +192,7 @@ export default function VendorsClient({ vendors: initialVendors, bills: initialB
         </span>;
       },
     },
-    { key: 'total',  label: 'Total',  align: 'right' as const, render: (b: Bill) => <AcAmt value={Number(b.totalAmount)} /> },
+    { key: 'total',  label: 'Amount', align: 'right' as const, render: (b: Bill) => <AcAmt value={Number(b.totalAmount)} /> },
     { key: 'paid',   label: 'Paid',   align: 'right' as const, render: (b: Bill) => <AcAmt value={Number(b.paidAmount)} /> },
     { key: 'status', label: 'Status', render: (b: Bill) => <AcBadge status={b.status}>{b.status.replace(/_/g,' ')}</AcBadge> },
     {
@@ -179,10 +207,10 @@ export default function VendorsClient({ vendors: initialVendors, bills: initialB
 
   const ageingCols = [
     { key: 'name', label: 'Vendor', render: (r: any) => r.name },
-    { key: 'b0',   label: '0–30d',  align: 'right' as const, render: (r: any) => <AcAmt value={r.b0} /> },
-    { key: 'b30',  label: '31–60d', align: 'right' as const, render: (r: any) => <AcAmt value={r.b30} /> },
-    { key: 'b60',  label: '61–90d', align: 'right' as const, render: (r: any) => <AcAmt value={r.b60} /> },
-    { key: 'b90',  label: '>90d',   align: 'right' as const, render: (r: any) => <AcAmt value={r.b90} /> },
+    { key: 'b0',   label: '0-30 days',  align: 'right' as const, render: (r: any) => <AcAmt value={r.b0} /> },
+    { key: 'b30',  label: '30-60 days', align: 'right' as const, render: (r: any) => <AcAmt value={r.b30} /> },
+    { key: 'b60',  label: '60-90 days', align: 'right' as const, render: (r: any) => <AcAmt value={r.b60} /> },
+    { key: 'b90',  label: '90+ days',   align: 'right' as const, render: (r: any) => <AcAmt value={r.b90} /> },
     { key: 'total',label: 'Total',  align: 'right' as const, render: (r: any) => <AcAmt value={r.total} color={r.total > 0 ? '#ef4444' : undefined} /> },
   ];
 
@@ -195,7 +223,7 @@ export default function VendorsClient({ vendors: initialVendors, bills: initialB
         actions={
           <div style={{ display: 'flex', gap: 8 }}>
             <AcButton variant="ghost" icon="bar_chart" onClick={async () => { setAgeingRows(await getAgeingReport()); setShowAgeing(true); }}>Ageing</AcButton>
-            {tab === 'vendors' && <AcButton variant="primary" icon="add" onClick={() => openVendorModal()}>New Vendor</AcButton>}
+            {tab === 'vendors' && <AcButton variant="primary" icon="add" onClick={() => openVendorModal()}>Add Vendor</AcButton>}
             {tab === 'bills'   && <AcButton variant="primary" icon="receipt" onClick={openBillModal}>New Bill</AcButton>}
           </div>
         }
@@ -272,7 +300,7 @@ export default function VendorsClient({ vendors: initialVendors, bills: initialB
           ].map(({ label, key, full, required }) => (
             <div key={key} style={full ? { gridColumn: '1/-1' } : {}}>
               <AcField label={label} required={required}>
-                <AcInput value={(vendorForm as any)[key]} onChange={e => setVendorForm(p => ({ ...p, [key]: e.target.value }))} />
+                <AcInput required={required} value={(vendorForm as any)[key]} onChange={e => setVendorForm(p => ({ ...p, [key]: e.target.value }))} />
               </AcField>
             </div>
           ))}
@@ -301,7 +329,7 @@ export default function VendorsClient({ vendors: initialVendors, bills: initialB
               </AcSelect>
             </AcField>
           </div>
-          <AcField label="Bill #" required>
+          <AcField label="Bill No" required>
             <AcInput value={billForm.billNo} onChange={e => setBillForm(p => ({ ...p, billNo: e.target.value }))} />
           </AcField>
           <AcField label="Bill Date">

@@ -19,6 +19,16 @@ function buildTree(accounts: Account[]) {
   return map;
 }
 
+function sortAccounts(accounts: Account[]) {
+  return [...accounts].sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+}
+
+function upsertAccount(accounts: Account[], account: Account) {
+  const exists = accounts.some((a) => a.id === account.id);
+  const next = exists ? accounts.map((a) => (a.id === account.id ? { ...a, ...account } : a)) : [...accounts, account];
+  return sortAccounts(next);
+}
+
 function Row({ account, depth, childrenOf, onEdit, onDeactivate, onAddChild }: { account: Account; depth: number; childrenOf: Map<string | null, Account[]>; onEdit: (a: Account) => void; onDeactivate: (id: string) => void; onAddChild: (pid: string) => void }) {
   const [exp, setExp] = useState(true);
   const kids = childrenOf.get(account.id) ?? [];
@@ -52,14 +62,15 @@ export default function CoAClient({ initialAccounts }: { initialAccounts: Accoun
 
   function openAdd(pid?: string) { setEditAcc(null); setPreParent(pid); setForm({ code: '', name: '', classType: 'asset', subType: '', isCash: false, description: '' }); setModal(true); }
   function openEdit(a: Account) { setEditAcc(a); setPreParent(undefined); setForm({ code: a.code, name: a.name, classType: a.classType, subType: a.subType ?? '', isCash: a.isCash, description: '' }); setModal(true); }
-  function handleDeactivate(id: string) { start(async () => { const r = await deactivateAccount(id); if (r.error) setMsg(r.error); else { setAccounts(p => p.map(a => a.id === id ? {...a, isActive: !a.isActive} : a)); setMsg('Done.'); } }); }
-  function handleReseed() { start(async () => { const r = await reseedDefaultCoA(); setMsg(`Reseeded: ${(r as any).created} created, ${(r as any).skipped} skipped.`); window.location.reload(); }); }
+  function handleDeactivate(id: string) { start(async () => { const r: any = await deactivateAccount(id); if (r.error) setMsg(r.error); else { if (r.account) setAccounts(p => upsertAccount(p, r.account)); else setAccounts(p => p.map(a => a.id === id ? {...a, isActive: !a.isActive} : a)); setMsg('Done.'); } }); }
+  function handleReseed() { start(async () => { const r: any = await reseedDefaultCoA(); if (r.error) { setMsg(r.error); return; } if (Array.isArray(r.accounts)) setAccounts(sortAccounts(r.accounts)); setMsg(`Reseeded: ${r.created} created, ${r.skipped} skipped.`); }); }
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     start(async () => {
       const r: any = editAcc ? await updateAccount(editAcc.id, { name: form.name, subType: form.subType || undefined, isCash: form.isCash }) : await createAccount({ code: form.code, name: form.name, classType: form.classType, subType: form.subType || undefined, parentId: preParent, isCash: form.isCash });
       if (r?.error) { setMsg(r.error); return; }
-      setModal(false); setMsg('Saved.'); window.location.reload();
+      if (r?.account) setAccounts(p => upsertAccount(p, r.account));
+      setModal(false); setMsg('Saved.');
     });
   }
 
@@ -69,7 +80,7 @@ export default function CoAClient({ initialAccounts }: { initialAccounts: Accoun
       <div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
           <AcInput placeholder="Search…" value={search} onChange={e => setSearch(e.target.value)} style={{ flex: 1, minWidth: 140 }} />
-          <AcSelect value={cls} onChange={e => setCls(e.target.value)} style={{ width: 'auto' }}>
+          <AcSelect aria-label="Account class filter" value={cls} onChange={e => setCls(e.target.value)} style={{ width: 'auto' }}>
             <option value="">All classes</option>
             {['asset','liability','equity','income','expense'].map(c => <option key={c} value={c}>{c}</option>)}
           </AcSelect>

@@ -19,8 +19,17 @@ async function assignNextEntryNo(tenantId: string, entryDate: Date): Promise<str
   const fyStart = entryDate.getMonth() >= startMonth
     ? new Date(entryDate.getFullYear(), startMonth, 1)
     : new Date(entryDate.getFullYear() - 1, startMonth, 1);
-  const count = await prisma.journalEntry.count({ where: { tenantId, entryNo: { not: null }, entryDate: { gte: fyStart } } });
-  return `JE-${fyKey}-${String(count + 1).padStart(4, '0')}`;
+  const existing = await prisma.journalEntry.findMany({
+    where: { tenantId, entryNo: { startsWith: `JE-${fyKey}-` }, entryDate: { gte: fyStart } },
+    select: { entryNo: true },
+    orderBy: { entryNo: 'desc' },
+    take: 50,
+  });
+  const max = existing.reduce((highest, entry) => {
+    const next = Number(entry.entryNo?.match(/^JE-\d{6,8}-(\d+)$/)?.[1] ?? 0);
+    return Number.isFinite(next) && next > highest ? next : highest;
+  }, 0);
+  return `JE-${fyKey}-${String(max + 1).padStart(4, '0')}`;
 }
 
 export async function listJournalEntries(filter?: { from?: string; to?: string; status?: string; search?: string; page?: number }) {
@@ -31,11 +40,13 @@ export async function listJournalEntries(filter?: { from?: string; to?: string; 
   const now = new Date();
   const from = filter?.from ? new Date(filter.from) : new Date(now.getFullYear(), now.getMonth(), 1);
   const to = filter?.to ? new Date(filter.to) : new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const and: any[] = [];
+  if (branchId) and.push({ OR: [{ branchId }, { branchId: null }] });
+  if (filter?.search) and.push({ OR: [{ narration: { contains: filter.search } }, { entryNo: { contains: filter.search } }] });
   const where: any = {
     tenantId, entryDate: { gte: from, lte: to },
-    ...(branchId ? { branchId } : {}),
     ...(filter?.status ? { status: filter.status } : {}),
-    ...(filter?.search ? { OR: [{ narration: { contains: filter.search } }, { entryNo: { contains: filter.search } }] } : {}),
+    ...(and.length ? { AND: and } : {}),
   };
   const [rows, total] = await Promise.all([
     prisma.journalEntry.findMany({ where, orderBy: [{ entryDate: 'desc' }, { createdAt: 'desc' }], skip: (page-1)*take, take, include: { createdBy: { select: { name: true } } } }),

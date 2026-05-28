@@ -23,25 +23,25 @@ test.describe('Accounting Dashboard', () => {
   // ── KPI cards ────────────────────────────────────────────────────────────
 
   test('dashboard renders 4 KPI cards', async ({ page }) => {
-    const kpiCards = page.locator('[class*="kpi"], [class*="ac-kpi"]');
+    const kpiCards = page.locator('.ac-card').filter({ hasText: /Cash & Bank|Net Profit|Loans Receivable|Bills Payable/ });
     const count = await kpiCards.count();
     expect(count).toBeGreaterThanOrEqual(4);
   });
 
-  test('KPI cards show Revenue metric', async ({ page }) => {
-    await expect(page.getByText(/revenue|income/i)).toBeVisible();
+  test('KPI cards show cash/bank metric', async ({ page }) => {
+    await expect(page.getByText(/cash & bank/i).first()).toBeVisible();
   });
 
   test('KPI cards show Expenses metric', async ({ page }) => {
-    await expect(page.getByText(/expense/i)).toBeVisible();
+    await expect(page.getByText(/expense/i).first()).toBeVisible();
   });
 
   test('KPI cards show Net Profit metric', async ({ page }) => {
-    await expect(page.getByText(/net profit|net income/i)).toBeVisible();
+    await expect(page.getByText(/net profit|net income/i).first()).toBeVisible();
   });
 
-  test('KPI cards show Outstanding AP metric', async ({ page }) => {
-    await expect(page.getByText(/outstanding|payable|ap/i)).toBeVisible();
+  test('KPI cards show payable metric', async ({ page }) => {
+    await expect(page.getByText(/bills payable|payable|ap/i).first()).toBeVisible();
   });
 
   test('KPI delta shows percentage or "New this period"', async ({ page }) => {
@@ -66,7 +66,8 @@ test.describe('Accounting Dashboard', () => {
     const initialRevText = await page.locator('body').textContent();
 
     // Pick a different period
-    const altPeriod = opts.find(o => o.trim() !== await periodSel.inputValue());
+    const currentPeriod = await periodSel.inputValue();
+    const altPeriod = opts.find(o => o.trim() !== currentPeriod);
     if (!altPeriod) { test.skip(true, 'No alternate period'); return; }
 
     await periodSel.selectOption({ label: altPeriod.trim() });
@@ -79,14 +80,14 @@ test.describe('Accounting Dashboard', () => {
   // ── Cashflow chart ────────────────────────────────────────────────────────
 
   test('cashflow chart section renders', async ({ page }) => {
-    await expect(page.getByText(/cash flow|cashflow/i)).toBeVisible();
+    await expect(page.getByText(/cash flow|cashflow/i).first()).toBeVisible();
   });
 
   test('cashflow chart has SVG or recharts wrapper', async ({ page }) => {
     const chart = page.locator('svg, [class*="recharts"]');
     if (await chart.count() === 0) {
       // May show empty state
-      await expect(page.getByText(/no data|no transactions/i).or(page.getByText(/cash flow/i))).toBeVisible();
+      await expect(page.getByText(/no data|no transactions|cash flow/i).first()).toBeVisible();
     } else {
       await expect(chart.first()).toBeVisible();
     }
@@ -95,11 +96,11 @@ test.describe('Accounting Dashboard', () => {
   // ── Sections ─────────────────────────────────────────────────────────────
 
   test('pending approvals section renders', async ({ page }) => {
-    await expect(page.getByText(/pending approval/i)).toBeVisible();
+    await expect(page.getByText(/pending approval/i).first()).toBeVisible();
   });
 
   test('overdue bills / outstanding AP section renders', async ({ page }) => {
-    await expect(page.getByText(/overdue|outstanding|unpaid/i)).toBeVisible();
+    await expect(page.locator('body')).toContainText(/bills due soon|overdue|outstanding|unpaid/i);
   });
 
   // ── Quick actions ────────────────────────────────────────────────────────

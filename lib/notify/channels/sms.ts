@@ -26,13 +26,14 @@ export async function sendSms(
   let result: SmsResult = { success: false };
 
   try {
-    const res = await fetch('https://api.msg91.com/api/v5/flow/', {
+    const res = await fetch('https://api.msg91.com/api/v5/sms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', authkey: authKey },
       body: JSON.stringify({
         sender: senderId,
-        short_url: '0',
-        recipients: [{ mobiles: normalised, message }],
+        route: '4',
+        country: '91',
+        sms: [{ message, to: [normalised] }],
       }),
     });
     const data = await res.json();

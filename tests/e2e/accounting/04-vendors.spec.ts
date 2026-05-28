@@ -57,7 +57,7 @@ test.describe('Vendors & Bills', () => {
 
   test('add vendor modal opens and closes', async ({ page }) => {
     await page.getByRole('button', { name: /add vendor/i }).click();
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await expect(modal).toBeVisible();
     await expect(modal.getByText(/add vendor|new vendor/i)).toBeVisible();
     await modal.getByRole('button', { name: /cancel/i }).click();
@@ -66,7 +66,7 @@ test.describe('Vendors & Bills', () => {
 
   test('add vendor — name required', async ({ page }) => {
     await page.getByRole('button', { name: /add vendor/i }).click();
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     // Submit without name
     await modal.getByRole('button', { name: /save/i }).click();
     // Should show validation error or HTML5 required constraint
@@ -77,7 +77,7 @@ test.describe('Vendors & Bills', () => {
 
   test('add vendor — invalid GSTIN rejected', async ({ page }) => {
     await page.getByRole('button', { name: /add vendor/i }).click();
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await modal.getByLabel(/^name/i).fill(`Invalid GSTIN Vendor ${TS}`);
     await modal.getByLabel(/gstin/i).fill(INVALID_GSTIN);
     await modal.getByRole('button', { name: /save/i }).click();
@@ -86,7 +86,7 @@ test.describe('Vendors & Bills', () => {
 
   test('add vendor — invalid PAN rejected', async ({ page }) => {
     await page.getByRole('button', { name: /add vendor/i }).click();
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await modal.getByLabel(/^name/i).fill(`Invalid PAN Vendor ${TS}`);
     await modal.getByLabel(/pan/i).fill(INVALID_PAN);
     await modal.getByRole('button', { name: /save/i }).click();
@@ -95,7 +95,7 @@ test.describe('Vendors & Bills', () => {
 
   test('add vendor — valid GSTIN and PAN creates vendor', async ({ page }) => {
     await page.getByRole('button', { name: /add vendor/i }).click();
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await modal.getByLabel(/^name/i).fill(VENDOR_NAME);
     await modal.getByLabel(/gstin/i).fill(VALID_GSTIN);
     await modal.getByLabel(/pan/i).fill(VALID_PAN);
@@ -111,7 +111,7 @@ test.describe('Vendors & Bills', () => {
   test('add vendor — minimal (name only) succeeds', async ({ page }) => {
     const minName = `Min Vendor ${TS + 1}`;
     await page.getByRole('button', { name: /add vendor/i }).click();
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await modal.getByLabel(/^name/i).fill(minName);
     await modal.getByRole('button', { name: /save/i }).click();
     await expect(modal).not.toBeVisible({ timeout: 8_000 });
@@ -140,7 +140,7 @@ test.describe('Vendors & Bills', () => {
     await deactivateBtn.click();
 
     // Might need confirm modal
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     if (await modal.isVisible()) {
       await modal.getByRole('button', { name: /confirm|deactivate/i }).click();
     }
@@ -173,7 +173,7 @@ test.describe('Vendors & Bills', () => {
     await page.getByRole('tab', { name: /bills/i }).click();
     await page.getByRole('button', { name: /add bill|new bill/i }).click();
 
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await expect(modal).toBeVisible();
 
     // Fill required header fields but no lines
@@ -193,7 +193,7 @@ test.describe('Vendors & Bills', () => {
   test('create bill — valid → draft status', async ({ page }) => {
     await page.getByRole('tab', { name: /bills/i }).click();
     await page.getByRole('button', { name: /add bill|new bill/i }).click();
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await expect(modal).toBeVisible();
 
     const vendorSel = modal.locator('select').first();
@@ -225,7 +225,7 @@ test.describe('Vendors & Bills', () => {
   test('create bill — duplicate billNo → error', async ({ page }) => {
     await page.getByRole('tab', { name: /bills/i }).click();
     await page.getByRole('button', { name: /add bill|new bill/i }).click();
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await expect(modal).toBeVisible();
 
     const vendorSel = modal.locator('select').first();
@@ -246,7 +246,7 @@ test.describe('Vendors & Bills', () => {
     }
 
     await modal.getByRole('button', { name: /save/i }).click();
-    await expect(page.getByText(/bill_no_duplicate|duplicate/i)).toBeVisible({ timeout: 6_000 });
+    await expect(page.getByText('bill_no_duplicate')).toBeVisible({ timeout: 6_000 });
   });
 
   // ── Post Bill ────────────────────────────────────────────────────────────
@@ -271,7 +271,7 @@ test.describe('Vendors & Bills', () => {
 
     await billRow.getByRole('button', { name: /pay/i }).click();
 
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await expect(modal).toBeVisible();
 
     // Amount (full outstanding = 5000)
@@ -299,7 +299,7 @@ test.describe('Vendors & Bills', () => {
     if (await unpaidRow.count() === 0) { test.skip(true, 'No unpaid bills'); return; }
 
     await unpaidRow.getByRole('button', { name: /pay/i }).click();
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await expect(modal).toBeVisible();
 
     // Try to overpay by 999999
@@ -322,9 +322,9 @@ test.describe('Vendors & Bills', () => {
     if (await ageingBtn.count() === 0) { test.skip(true, 'No ageing button'); return; }
 
     await ageingBtn.click();
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await expect(modal).toBeVisible();
-    await expect(modal.getByText(/0.30 days|30.60 days|60.90 days|90\+/i)).toBeVisible();
+    await expect(modal.getByRole('columnheader', { name: /0-30 days/i })).toBeVisible();
     await modal.getByRole('button', { name: /cancel|close/i }).click();
     await expect(modal).not.toBeVisible();
   });

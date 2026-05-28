@@ -19,7 +19,7 @@ import { test, expect } from '@playwright/test';
 import { gotoAC, AC } from './helpers';
 
 const UNIQUE_SUFFIX = Date.now();
-const TEST_CODE = `9${String(UNIQUE_SUFFIX).slice(-3)}`; // e.g. 9456 — avoid collision
+const TEST_CODE = `9${String(UNIQUE_SUFFIX).slice(-6)}`; // avoid collision across repeated local runs
 const TEST_NAME = `E2E Test Account ${UNIQUE_SUFFIX}`;
 
 test.describe('Chart of Accounts', () => {
@@ -85,7 +85,7 @@ test.describe('Chart of Accounts', () => {
     const rowCount = await page.locator('table.ac-table tbody tr').count();
     test.skip(rowCount === 0, 'No accounts');
 
-    await page.getByRole('combobox').selectOption({ label: 'expense' });
+    await page.getByLabel('Account class filter').selectOption({ label: 'expense' });
     await page.waitForTimeout(300);
 
     const badges = page.locator('table.ac-table tbody tr .ac-badge, table.ac-table tbody tr [class*="badge"]');
@@ -101,11 +101,11 @@ test.describe('Chart of Accounts', () => {
     const rowCount = await page.locator('table.ac-table tbody tr').count();
     test.skip(rowCount === 0, 'No accounts');
 
-    await page.getByRole('combobox').selectOption({ label: 'expense' });
+    await page.getByLabel('Account class filter').selectOption({ label: 'expense' });
     await page.waitForTimeout(200);
     const filtered = await page.locator('table.ac-table tbody tr').count();
 
-    await page.getByRole('combobox').selectOption({ label: 'All classes' });
+    await page.getByLabel('Account class filter').selectOption({ label: 'All classes' });
     await page.waitForTimeout(200);
     const unfiltered = await page.locator('table.ac-table tbody tr').count();
 
@@ -125,7 +125,7 @@ test.describe('Chart of Accounts', () => {
 
   test('add account modal opens with empty form', async ({ page }) => {
     await page.getByRole('button', { name: /add account/i }).click();
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await expect(modal).toBeVisible();
     await expect(modal.getByText(/add account/i)).toBeVisible();
     await expect(modal.getByLabel(/^code/i)).toBeVisible();
@@ -135,7 +135,7 @@ test.describe('Chart of Accounts', () => {
 
   test('add account modal closes on Cancel', async ({ page }) => {
     await page.getByRole('button', { name: /add account/i }).click();
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await expect(modal).toBeVisible();
     await modal.getByRole('button', { name: /cancel/i }).click();
     await expect(modal).not.toBeVisible();
@@ -143,7 +143,7 @@ test.describe('Chart of Accounts', () => {
 
   test('create new account succeeds', async ({ page }) => {
     await page.getByRole('button', { name: /add account/i }).click();
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
 
     await modal.getByLabel(/^code/i).fill(TEST_CODE);
     await modal.getByLabel(/^name/i).fill(TEST_NAME);
@@ -165,7 +165,7 @@ test.describe('Chart of Accounts', () => {
   test('duplicate account code shows error', async ({ page }) => {
     // Try adding the same code again
     await page.getByRole('button', { name: /add account/i }).click();
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
 
     await modal.getByLabel(/^code/i).fill(TEST_CODE);
     await modal.getByLabel(/^name/i).fill('Duplicate Account');
@@ -184,13 +184,9 @@ test.describe('Chart of Accounts', () => {
     const row = page.locator('table.ac-table tbody tr').filter({ hasText: TEST_NAME });
     await expect(row).toBeVisible();
 
-    await row.getByTitle(/edit|✎/).click();
-    // Alt: find edit button by icon
-    if (!(await page.locator('[class*="ac-modal"]').isVisible())) {
-      await row.locator('button').first().click();
-    }
+    await row.locator('button').first().click();
 
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await expect(modal).toBeVisible();
 
     // Name should be pre-filled
@@ -203,7 +199,7 @@ test.describe('Chart of Accounts', () => {
     const row = page.locator('table.ac-table tbody tr').filter({ hasText: TEST_NAME });
     await row.locator('button').first().click();
 
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await expect(modal).toBeVisible();
 
     const newName = `${TEST_NAME} (renamed)`;
@@ -265,12 +261,12 @@ test.describe('Chart of Accounts', () => {
     await expect(addChildBtn).toBeVisible();
     await addChildBtn.click();
 
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await expect(modal).toBeVisible();
     await expect(modal.getByText(/add account/i)).toBeVisible();
 
-    const childCode = `${String(UNIQUE_SUFFIX).slice(-4)}C`;
-    const childName = `Child of ${parentCode?.trim() ?? 'parent'}`;
+    const childCode = `${String(UNIQUE_SUFFIX).slice(-7)}C`;
+    const childName = `Child ${childCode} of ${parentCode?.trim() ?? 'parent'}`;
     await modal.getByLabel(/^code/i).fill(childCode);
     await modal.getByLabel(/^name/i).fill(childName);
     await modal.getByRole('button', { name: /save/i }).click();

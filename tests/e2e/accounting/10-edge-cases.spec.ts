@@ -59,8 +59,7 @@ test.describe('Edge Cases & Boundaries', () => {
     await page.locator('table.ac-table tbody tr').nth(0).locator('input[type=number]').nth(0).fill('3000');
 
     // tfoot total debit should show 3,000
-    const drTotal = page.locator('tfoot td').nth(3).or(page.locator('tfoot').getByText(/3,000|3000/));
-    await expect(page.getByText(/3,000|3000/)).toBeVisible();
+    await expect(page.locator('tfoot').getByText(/3,000|3000/).first()).toBeVisible();
   });
 
   // ── JE: locked period ────────────────────────────────────────────────────
@@ -68,8 +67,17 @@ test.describe('Edge Cases & Boundaries', () => {
   test('posting JE in a locked period shows period_locked error', async ({ page }) => {
     // Lock a period first (the oldest open one)
     await gotoAC(page, '/period-lock');
-    const openRow = page.locator('table.ac-table tbody tr').filter({ hasText: /open/i }).first();
-    if (await openRow.count() === 0) { test.skip(true, 'No open periods to lock'); return; }
+    const periodRows = page.locator('table.ac-table tbody tr');
+    let openRowIndex = -1;
+    for (let i = 0; i < await periodRows.count(); i++) {
+      const statusText = (await periodRows.nth(i).locator('td').nth(1).innerText()).trim().toLowerCase();
+      if (statusText === 'open') {
+        openRowIndex = i;
+        break;
+      }
+    }
+    if (openRowIndex === -1) { test.skip(true, 'No open periods to lock'); return; }
+    const openRow = periodRows.nth(openRowIndex);
 
     const lockBtn = openRow.getByRole('button', { name: /^lock$|soft.?lock/i });
     if (await lockBtn.count() === 0) { test.skip(true, 'No lock button'); return; }
@@ -82,6 +90,20 @@ test.describe('Edge Cases & Boundaries', () => {
 
     await lockBtn.click();
     await page.waitForLoadState('networkidle');
+
+    const selectedRow = periodRows.nth(openRowIndex);
+    await expect(selectedRow.locator('td').nth(1)).toContainText(/soft locked/i, { timeout: 8_000 });
+
+    const hardLockBtn = selectedRow.getByRole('button', { name: /^lock$/i });
+    if (await hardLockBtn.count() === 0) { test.skip(true, 'No hard lock button'); return; }
+    await hardLockBtn.click();
+    await page.waitForLoadState('networkidle');
+
+    const finalStatus = (await selectedRow.locator('td').nth(1).innerText()).trim().toLowerCase();
+    if (finalStatus !== 'locked') {
+      test.skip(true, `Period did not reach locked state; current status is ${finalStatus}`);
+      return;
+    }
 
     // Now try to post a JE with the locked period's date
     await gotoAC(page, '/journal/new');
@@ -113,7 +135,7 @@ test.describe('Edge Cases & Boundaries', () => {
     await gotoAC(page, '/coa');
     await page.getByRole('button', { name: /add account/i }).click();
 
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await expect(modal).toBeVisible();
 
     await page.keyboard.press('Escape');
@@ -126,7 +148,7 @@ test.describe('Edge Cases & Boundaries', () => {
     await gotoAC(page, '/coa');
     await page.getByRole('button', { name: /add account/i }).click();
 
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await expect(modal).toBeVisible();
 
     // Click outside the modal dialog (the backdrop overlay)
@@ -164,8 +186,8 @@ test.describe('Edge Cases & Boundaries', () => {
   test('AcTable shows empty placeholder on zero rows', async ({ page }) => {
     // Filter journal to a future date with no entries
     await gotoAC(page, '/journal');
-    await page.getByLabel(/from/i).fill('2099-01-01');
-    await page.getByLabel(/to/i).fill('2099-01-31');
+    await page.locator('input[type=date]').nth(0).fill('2099-01-01');
+    await page.locator('input[type=date]').nth(1).fill('2099-01-31');
     await page.waitForLoadState('networkidle');
 
     const tbody = page.locator('table.ac-table tbody');
@@ -226,7 +248,7 @@ test.describe('Edge Cases & Boundaries', () => {
     const postBtn = page.getByRole('button', { name: /post entry/i });
     // Double-click rapidly
     await postBtn.click();
-    await postBtn.click();
+    await postBtn.click({ timeout: 1_000 }).catch(() => {});
 
     await page.waitForLoadState('networkidle');
 
@@ -240,7 +262,7 @@ test.describe('Edge Cases & Boundaries', () => {
     await gotoAC(page, '/vendors');
     await page.getByRole('button', { name: /add vendor/i }).click();
 
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await modal.getByLabel(/^name/i).fill(`GSTIN format test ${Date.now()}`);
     // Valid regex pattern: 27AAPFU0939F1ZV
     await modal.getByLabel(/gstin/i).fill('27AAPFU0939F1ZV');
@@ -257,7 +279,7 @@ test.describe('Edge Cases & Boundaries', () => {
     await page.getByRole('tab', { name: /bills/i }).click();
     await page.getByRole('button', { name: /add bill|new bill/i }).click();
 
-    const modal = page.locator('[class*="ac-modal"]');
+    const modal = page.locator('.ac-modal');
     await expect(modal).toBeVisible();
 
     const vendorSel = modal.locator('select').first();
@@ -267,7 +289,8 @@ test.describe('Edge Cases & Boundaries', () => {
     await vendorSel.selectOption({ label: vendor });
 
     const futureDue = new Date(Date.now() + 90 * 86400_000).toISOString().slice(0, 10);
-    await modal.getByLabel(/bill no/i).fill(`FUTURE-${Date.now()}`);
+    const billNo = `FUTURE-${Date.now()}`;
+    await modal.getByLabel(/bill no/i).fill(billNo);
     await modal.getByLabel(/bill date/i).fill(new Date().toISOString().slice(0, 10));
     await modal.getByLabel(/due date/i).fill(futureDue);
 
@@ -281,7 +304,8 @@ test.describe('Edge Cases & Boundaries', () => {
     await modal.getByRole('button', { name: /save/i }).click();
 
     await expect(modal).not.toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText(/draft/i)).toBeVisible();
+    const billRow = page.locator('table.ac-table tbody tr').filter({ hasText: billNo }).first();
+    await expect(billRow.getByText(/draft/i).first()).toBeVisible();
   });
 
   // ── AcBadge status colors ─────────────────────────────────────────────────

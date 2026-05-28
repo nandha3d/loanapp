@@ -10,8 +10,8 @@ const authFile = path.join(__dirname, '../../playwright/.auth/superadmin.json');
 setup('authenticate as superadmin', async ({ page }) => {
   await page.goto('/login');
 
-  await page.getByLabel(/email/i).fill(process.env.SUPERADMIN_EMAIL ?? 'superadmin@example.com');
-  await page.getByLabel(/password/i).fill(process.env.SUPERADMIN_PASS ?? 'Secret123!');
+  await page.getByLabel(/username|phone/i).fill(process.env.SUPERADMIN_EMAIL ?? 'superadmin');
+  await page.getByLabel(/password/i).fill(process.env.SUPERADMIN_PASS ?? 'super123');
   await page.getByRole('button', { name: /sign in|login/i }).click();
 
   // Wait until redirected away from /login
