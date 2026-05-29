@@ -7,6 +7,7 @@
     "build": "npx prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
+    "postinstall": "prisma generate",
     "test:repayments": "tsx tests/repaymentAllocation.test.ts",
     "test:e2e-features": "tsx tests/endToEndFeatures.test.ts",
     "test:security": "tsx tests/security.test.ts",
