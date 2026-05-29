@@ -2,6 +2,7 @@ import { getToken } from 'next-auth/jwt';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { parseModulePath } from '@/types/modules';
+import { corsHeadersFor } from '@/lib/cors';
 
 const AGENT_BLOCKED = [
   '/dashboard',
@@ -173,6 +174,23 @@ function nextWithTenantHeaders(
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const tenantSlug = extractTenantSlugFromHost(request.headers.get('host'));
+
+  // 0. CORS for the mobile API (/api/v1/*). Cross-origin browsers (e.g.
+  //    `flutter run -d chrome`) need these headers + a preflight responder;
+  //    native HTTP clients (Windows/Android Dio) bypass CORS entirely, which is
+  //    why those builds work without this. Origin is reflected from a strict
+  //    allowlist — never '*'.
+  if (pathname.startsWith('/api/v1')) {
+    const cors = corsHeadersFor(request.headers.get('origin'));
+    if (request.method === 'OPTIONS') {
+      return new NextResponse(null, { status: 204, headers: cors });
+    }
+    const apiResponse = nextWithTenantHeaders(request, tenantSlug);
+    for (const [key, value] of Object.entries(cors)) {
+      apiResponse.headers.set(key, value);
+    }
+    return apiResponse;
+  }
 
   // 1. Handle Public Paths
   if (isPublicPath(pathname)) {

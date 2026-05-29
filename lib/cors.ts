@@ -24,6 +24,7 @@ const ALLOW_HEADERS = [
   'Authorization',
   'X-Tenant-Slug',
   'X-Tenant-Id',
+  'X-Branch-Id',
   'X-App-Version',
   'X-Requested-With',
   'X-Idempotency-Key',
@@ -49,6 +50,17 @@ function envAllowed(): string[] {
 export function isAllowedOrigin(origin: string | null): boolean {
   if (!origin) return false;
   if (STATIC_ALLOWED.has(origin)) return true;
+  // Dev convenience: `flutter run -d chrome` (and Vite/other dev servers) bind to
+  // a RANDOM localhost port, so a static allowlist can't cover them. Outside
+  // production, allow any localhost / 127.0.0.1 origin regardless of port.
+  if (process.env.NODE_ENV !== 'production') {
+    try {
+      const { hostname } = new URL(origin);
+      if (hostname === 'localhost' || hostname === '127.0.0.1') return true;
+    } catch {
+      /* not a URL — fall through */
+    }
+  }
   for (const o of envAllowed()) {
     if (o === origin) return true;
   }

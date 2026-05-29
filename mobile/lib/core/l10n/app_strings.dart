@@ -186,6 +186,34 @@ const Map<String, Map<String, String>> kStrings = {
     'en': 'Overdue Loans', 'ta': 'நிலுவை கடன்', 'hi': 'अतिदेय ऋण',
     'te': 'మించిన రుణాలు', 'kn': 'ಬಾಕಿ ಸಾಲ', 'ml': 'കാലാവധി കഴിഞ്ഞ വായ്പകൾ',
   },
+  'dash.overdue_collection': {
+    'en': 'Overdue Collection', 'ta': 'நிலுவை வசூல்', 'hi': 'अतिदेय वसूली',
+    'te': 'మించిన వసూలు', 'kn': 'ಬಾಕಿ ವಸೂಲಿ', 'ml': 'കുടിശ്ശിക പിരിവ്',
+  },
+  'dash.total_overdue': {
+    'en': 'Total Overdue', 'ta': 'மொத்த நிலுவை', 'hi': 'कुल अतिदेय',
+    'te': 'మొత్తం బకాయి', 'kn': 'ಒಟ್ಟು ಬಾಕಿ', 'ml': 'ആകെ കുടിശ്ശിക',
+  },
+  'dash.overdue_hint': {
+    'en': 'Past dues only · re-bases each day',
+    'ta': 'கடந்த நிலுவை மட்டும் · தினமும் புதுப்பிக்கும்',
+    'hi': 'केवल पुराना बकाया · रोज़ नया हिसाब',
+    'te': 'గత బకాయిలు మాత్రమే · ప్రతిరోజూ రీసెట్',
+    'kn': 'ಹಿಂದಿನ ಬಾಕಿ ಮಾತ್ರ · ಪ್ರತಿದಿನ ಮರುಹೊಂದಿಸುತ್ತದೆ',
+    'ml': 'പഴയ കുടിശ്ശിക മാത്രം · ദിവസവും പുതുക്കും',
+  },
+  'dash.collected_today': {
+    'en': 'Collected Today', 'ta': 'இன்று வசூல்', 'hi': 'आज वसूल',
+    'te': 'నేడు వసూలు', 'kn': 'ಇಂದು ವಸೂಲಿ', 'ml': 'ഇന്ന് പിരിച്ചത്',
+  },
+  'dash.collected_today_suffix': {
+    'en': 'today', 'ta': 'இன்று', 'hi': 'आज',
+    'te': 'నేడు', 'kn': 'ಇಂದು', 'ml': 'ഇന്ന്',
+  },
+  'dash.remaining': {
+    'en': 'Remaining', 'ta': 'மீதம்', 'hi': 'शेष',
+    'te': 'మిగిలినది', 'kn': 'ಉಳಿದದ್ದು', 'ml': 'ബാക്കി',
+  },
   'dash.today_schedule': {
     'en': "Today's Schedule", 'ta': 'இன்றைய அட்டவணை', 'hi': 'आज का शेड्यूल',
     'te': 'నేటి షెడ్యూల్', 'kn': 'ಇಂದಿನ ವೇಳಾಪಟ್ಟಿ', 'ml': 'ഇന്നത്തെ ഷെഡ്യൂൾ',
@@ -401,6 +429,23 @@ const Map<String, Map<String, String>> kStrings = {
   'title.new_loan': {
     'en': 'New Loan', 'ta': 'புதிய கடன்', 'hi': 'नया ऋण',
     'te': 'కొత్త రుణం', 'kn': 'ಹೊಸ ಸಾಲ', 'ml': 'പുതിയ വായ്പ',
+  },
+  'loans.show_closed': {
+    'en': 'Show closed loans', 'ta': 'மூடிய கடன்களைக் காட்டு',
+    'hi': 'बंद ऋण दिखाएं', 'te': 'మూసిన రుణాలను చూపించు',
+    'kn': 'ಮುಚ್ಚಿದ ಸಾಲಗಳನ್ನು ತೋರಿಸಿ', 'ml': 'ക്ലോസ് ചെയ്ത വായ്പകൾ കാണിക്കുക',
+  },
+  'loans.active_suffix': {
+    'en': 'active', 'ta': 'செயலில்', 'hi': 'सक्रिय',
+    'te': 'క్రియాశీల', 'kn': 'ಸಕ್ರಿಯ', 'ml': 'സജീവം',
+  },
+  'loans.closed_suffix': {
+    'en': 'closed', 'ta': 'மூடியது', 'hi': 'बंद',
+    'te': 'మూసిన', 'kn': 'ಮುಚ್ಚಿದ', 'ml': 'ക്ലോസ്ഡ്',
+  },
+  'loans.total_suffix': {
+    'en': 'total', 'ta': 'மொத்தம்', 'hi': 'कुल',
+    'te': 'మొత్తం', 'kn': 'ಒಟ್ಟು', 'ml': 'ആകെ',
   },
   'title.loan_details': {
     'en': 'Loan Details', 'ta': 'கடன் விவரம்', 'hi': 'ऋण विवरण',
@@ -2432,6 +2477,11 @@ const Map<String, Map<String, String>> kStrings = {
   'msg.customer_created_code': {
     'en': 'Customer', 'ta': 'வாடிக்கையாளர்', 'hi': 'ग्राहक',
     'te': 'కస్టమర్', 'kn': 'ಗ್ರಾಹಕ', 'ml': 'ഉപഭോക്താവ്',
+  },
+  'msg.customer_updated': {
+    'en': 'Customer updated', 'ta': 'வாடிக்கையாளர் புதுப்பிக்கப்பட்டது',
+    'hi': 'ग्राहक अपडेट किया गया', 'te': 'కస్టమర్ నవీకరించబడింది',
+    'kn': 'ಗ್ರಾಹಕ ನವೀಕರಿಸಲಾಗಿದೆ', 'ml': 'ഉപഭോക്താവ് അപ്ഡേറ്റ് ചെയ്തു',
   },
   'err.name_required': {
     'en': 'Full name is required', 'ta': 'முழுப் பெயர் தேவை', 'hi': 'पूरा नाम आवश्यक है',

@@ -10,6 +10,7 @@ import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/data/models/analytics.dart';
+import 'package:loantrack/data/models/customer.dart';
 import 'package:loantrack/data/models/route_model.dart';
 import 'package:loantrack/data/repositories/customer_repository.dart';
 import 'package:loantrack/data/services/analytics_service.dart';
@@ -56,8 +57,11 @@ class _GuarantorEntry {
 // ── Screen ─────────────────────────────────────────────────────────────────
 
 class NewCustomerScreen extends ConsumerStatefulWidget {
-  const NewCustomerScreen({super.key, this.returnTo});
+  const NewCustomerScreen({super.key, this.returnTo, this.editCustomer});
   final String? returnTo;
+  /// When non-null the screen runs in EDIT mode: basic fields are prefilled and
+  /// the form PATCHes the existing customer instead of creating a new one.
+  final Customer? editCustomer;
 
   @override
   ConsumerState<NewCustomerScreen> createState() => _NewCustomerScreenState();
@@ -70,6 +74,21 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
   final _aadharCtrl = TextEditingController();
   final _addressCtrl = TextEditingController();
   final _picker = ImagePicker();
+
+  bool get _isEdit => widget.editCustomer != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final c = widget.editCustomer;
+    if (c != null) {
+      _nameCtrl.text = c.name;
+      _phoneCtrl.text = c.phone;
+      _addressCtrl.text = c.address ?? '';
+      _routeId = c.routeId;
+      _agentId = c.agentId;
+    }
+  }
 
   File? _photo;
   final List<_DocEntry> _docs = [];
@@ -276,7 +295,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
     if (aadhar.isNotEmpty && !RegExp(r'^\d{12}$').hasMatch(aadhar)) {
       errs['aadhar'] = t.x('err.aadhar_invalid');
     }
-    if (_routeId == null) errs['route'] = t.x('err.route_required');
+    if (!_isEdit && _routeId == null) errs['route'] = t.x('err.route_required');
     setState(() => _fieldErrors
       ..clear()
       ..addAll(errs));
@@ -292,6 +311,39 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
       _error = null;
     });
     try {
+      // ── EDIT mode: PATCH the supported basic fields ──────────────────────
+      if (_isEdit) {
+        final patch = <String, dynamic>{
+          'name': _nameCtrl.text.trim(),
+          'phone': _phoneCtrl.text.trim(),
+          'address': _addressCtrl.text.trim().isEmpty
+              ? null
+              : _addressCtrl.text.trim(),
+        };
+        if (_aadharCtrl.text.trim().isNotEmpty) {
+          patch['aadharNumber'] = _aadharCtrl.text.trim();
+        }
+        final updated = await ref
+            .read(customerRepositoryProvider)
+            .update(widget.editCustomer!.id, patch);
+        if (!mounted) return;
+        ref.invalidate(customerListProvider);
+        ref.invalidate(customerDetailProvider(updated.id));
+        final t = T.of(ref);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(t.x('msg.customer_updated')),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        if (context.canPop()) {
+          context.pop(updated);
+        } else {
+          context.go('/customers/${updated.id}');
+        }
+        return;
+      }
+
       final uploader = ref.read(uploadServiceProvider);
       String? photoUrl;
       if (_photo != null) {
@@ -520,11 +572,12 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(t.x('cust.register_title')),
+        title: Text(_isEdit ? t.x('cust.edit_profile') : t.x('cust.register_title')),
         centerTitle: false,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/customers'),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go('/customers'),
         ),
       ),
       body: Form(
@@ -547,12 +600,14 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _PhotoAvatar(
-                        photo: _photo,
-                        label: t.x('btn.add_photo'),
-                        onTap: _showPhotoSourcePicker,
-                      ),
-                      const SizedBox(width: 16),
+                      if (!_isEdit) ...[
+                        _PhotoAvatar(
+                          photo: _photo,
+                          label: t.x('btn.add_photo'),
+                          onTap: _showPhotoSourcePicker,
+                        ),
+                        const SizedBox(width: 16),
+                      ],
                       Expanded(
                         child: Column(
                           children: [
@@ -627,9 +682,10 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: 20),
+                  if (!_isEdit) const SizedBox(height: 20),
 
-                  // ── Route + Agent ─────────────────────────────────
+                  // ── Route + Agent (assignment isn't editable from mobile) ──
+                  if (!_isEdit)
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -722,9 +778,10 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
               ),
             ),
 
-            const SizedBox(height: 16),
+            if (!_isEdit) const SizedBox(height: 16),
 
             // ── Documents section ──────────────────────────────────────
+            if (!_isEdit)
             _SectionCard(
               icon: Icons.attachment_rounded,
               title: t.x('sec.documents_label'),
@@ -747,9 +804,10 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
               ),
             ),
 
-            const SizedBox(height: 16),
+            if (!_isEdit) const SizedBox(height: 16),
 
             // ── Guarantors section ─────────────────────────────────────
+            if (!_isEdit)
             _SectionCard(
               icon: Icons.people_alt_outlined,
               iconColor: AppColors.warning,

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:loantrack/core/auth/auth_controller.dart';
+import 'package:loantrack/data/models/customer.dart';
 import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/features/accounting/accounting_screen.dart';
 import 'package:loantrack/features/analytics/analytics_screen.dart';
@@ -102,6 +103,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: ':id',
             builder: (_, state) =>
                 CustomerDetailScreen(id: state.pathParameters['id']!),
+            routes: [
+              GoRoute(
+                path: 'edit',
+                builder: (_, state) => NewCustomerScreen(
+                  editCustomer: state.extra as Customer?,
+                ),
+              ),
+            ],
           ),
         ],
       ),

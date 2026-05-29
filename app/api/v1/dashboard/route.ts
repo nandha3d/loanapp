@@ -31,6 +31,10 @@ export async function GET(req: NextRequest) {
         totalCustomers: 0,
         todayExpected: 0,
         todayCollected: 0,
+        todayGap: 0,
+        overdueOutstanding: 0,
+        overdueCollectedToday: 0,
+        overdueTotalTillToday: 0,
         pendingPenalties: 0,
         activeAgents: 0,
         recentLoans: [],
@@ -50,6 +54,8 @@ export async function GET(req: NextRequest) {
       pendingPenalties,
       activeAgents,
       recentLoans,
+      overdueForTotalsRaw,
+      overduePaidTodayAllocations,
     ] = await Promise.all([
       prisma.loan.count({ where: { ...baseLoan, status: 'active' } }),
       prisma.loan.count({ where: { ...baseLoan, status: 'overdue' } }),
@@ -75,15 +81,45 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: 'desc' },
         take: 5,
       }),
+      // Overdue (past-due, still-open) instalments — for the overdue card totals.
+      prisma.instalment.findMany({
+        where: { loan: baseLoan, dueDate: { lt: today }, status: { in: ['upcoming', 'missed', 'partial'] } },
+        select: { dueAmount: true, receivedAmount: true },
+      }),
+      // Today's payments that landed on PAST-DUE instalments = overdue recovered today.
+      prisma.paymentAllocation.findMany({
+        where: {
+          payment: { tenantId: ctx.tenantId, paymentDate: { gte: today, lt: tomorrow }, loan: baseLoan },
+          instalment: { dueDate: { lt: today } },
+        },
+        select: { amount: true },
+      }),
     ]);
 
     const todayExpected = todayInstalments.reduce(
       (sum, item) => sum + Number(item.dueAmount),
       0,
     );
-    const todayCollected = todayInstalments
-      .filter((item) => item.status === 'paid' || item.status === 'partial')
-      .reduce((sum, item) => sum + Number(item.receivedAmount), 0);
+    // Today's Collected = money applied to TODAY's instalments only (matches the
+    // web dashboard). Overdue recovery is reported separately below — never merged.
+    const todayCollected = todayInstalments.reduce(
+      (sum, item) => sum + Math.min(Number(item.receivedAmount || 0), Number(item.dueAmount)),
+      0,
+    );
+    const todayGap = Math.max(0, todayExpected - todayCollected);
+
+    // Overdue collection — daily snapshot that re-bases each day:
+    //   Remaining = overdue still outstanding now; Collected today = today's
+    //   payments on past-due instalments; Total = what was overdue at start of today.
+    const overdueOutstanding = overdueForTotalsRaw.reduce(
+      (sum, i) => sum + Math.max(0, Number(i.dueAmount) - Number(i.receivedAmount || 0)),
+      0,
+    );
+    const overdueCollectedToday = overduePaidTodayAllocations.reduce(
+      (sum, a) => sum + Number(a.amount),
+      0,
+    );
+    const overdueTotalTillToday = overdueOutstanding + overdueCollectedToday;
 
     return ok({
       activeLoans,
@@ -91,6 +127,10 @@ export async function GET(req: NextRequest) {
       totalCustomers,
       todayExpected,
       todayCollected,
+      todayGap,
+      overdueOutstanding,
+      overdueCollectedToday,
+      overdueTotalTillToday,
       pendingPenalties,
       activeAgents,
       recentLoans,

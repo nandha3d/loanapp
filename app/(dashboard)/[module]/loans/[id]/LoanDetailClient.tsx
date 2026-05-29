@@ -148,9 +148,33 @@ export default function LoanDetailClient({
     return unpaidCount || 1;
   }, [displayInstalments]);
 
+  // Restructure: spread the OUTSTANDING balance across the installments that are
+  // still collectable from today onward (due today or later AND not fully paid).
+  // Missed past dues are part of `outstanding` but are excluded from this count,
+  // so their amount gets redistributed onto the remaining days — letting the
+  // borrower still finish within the original end date.
+  //   • Paid on schedule  → outstanding == perInstalment × remaining
+  //                         → adjusted == original due (no change).
+  //   • Missed some days   → outstanding > perInstalment × remaining
+  //                         → adjusted > original due (catch-up spread evenly).
+  const restructureRemainingCount = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const futureUnpaid = loan.instalments.filter((inst: any) => {
+      const d = new Date(inst.dueDate);
+      d.setHours(0, 0, 0, 0);
+      return d >= today && Number(inst.receivedAmount) < Number(inst.dueAmount);
+    }).length;
+    // Fallback: if the term has fully elapsed (no future days left), there is
+    // nothing to spread into — degrade to instalment-sized chunks so the figure
+    // stays sane instead of dividing by zero.
+    return futureUnpaid || Math.max(1, Math.ceil(outstanding / Number(loan.perInstalment)));
+  }, [loan.instalments, outstanding, loan.perInstalment]);
+
   const adjustedInstallment = useMemo(() => {
-    return Math.round((outstanding / (dynamicRemainingCount || 1)) * 100) / 100;
-  }, [outstanding, dynamicRemainingCount]);
+    if (outstanding <= 0) return 0;
+    return Math.round((outstanding / (restructureRemainingCount || 1)) * 100) / 100;
+  }, [outstanding, restructureRemainingCount]);
 
   const missedInstalments = displayInstalments.filter((i: any) => i.status === 'missed');
   const missedCount = missedInstalments.length;
@@ -538,7 +562,7 @@ export default function LoanDetailClient({
                   <div>
                     <span style={{ fontSize: '.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>💡 Finishing Rate Option (Even Distribution)</span>
                     <p style={{ fontSize: '.68rem', color: 'var(--text-light)', margin: '2px 0 0' }}>
-                      To settle outstanding {formatCurrency(outstanding, currencySymbol)} on-time across the remaining {dynamicRemainingCount} scheduled {loan.frequency === 'daily' ? 'days' : loan.frequency === 'weekly' ? 'weeks' : 'months'}:
+                      To settle outstanding {formatCurrency(outstanding, currencySymbol)} on-time across the remaining {restructureRemainingCount} {loan.frequency === 'daily' ? 'days' : loan.frequency === 'weekly' ? 'weeks' : 'months'} left in the term:
                     </p>
                   </div>
                   <div style={{ textAlign: 'right' }}>
@@ -658,9 +682,13 @@ export default function LoanDetailClient({
                             <span style={{ color: 'var(--primary)', fontWeight: 800 }}>
                               {formatCurrency(adjustedInstallment, currencySymbol)}
                             </span>
-                            <span style={{ fontSize: '.58rem', color: 'var(--text-light)', textDecoration: 'line-through' }}>
-                              {formatCurrency(inst.dueAmount, currencySymbol)}
-                            </span>
+                            {/* Only strike through the original when restructuring actually
+                                changed the figure (i.e. there were missed dues to catch up). */}
+                            {Math.abs(adjustedInstallment - Number(inst.dueAmount)) >= 0.01 && (
+                              <span style={{ fontSize: '.58rem', color: 'var(--text-light)', textDecoration: 'line-through' }}>
+                                {formatCurrency(inst.dueAmount, currencySymbol)}
+                              </span>
+                            )}
                           </div>
                         ) : (
                           formatCurrency(inst.dueAmount, currencySymbol)

@@ -1,7 +1,8 @@
 'use client';
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
-import { reverseEntry } from '../actions';
+import { useRouter } from 'next/navigation';
+import { reverseEntry, postDraftEntry, deleteDraftEntry } from '../actions';
 import { AcStyles, AcButton, AcBadge, AcCard, AcAlert, AcAmt, AcTable } from '../../ui';
 
 type Line = { id: string; lineNo: number; debit: any; credit: any; description?: string | null; account: { code: string; name: string } };
@@ -19,10 +20,13 @@ const STATUS_MAP: Record<string, string> = { posted: 'posted', draft: 'draft', p
 const fmtAmt = (v: any) => { const n = Number(v); return n === 0 ? '—' : n.toLocaleString('en-IN', { maximumFractionDigits: 2 }); };
 
 export default function JournalDetailClient({ module, entry, role }: { module: string; entry: JE; role: string }) {
+  const router = useRouter();
   const [isPending, start] = useTransition();
   const [msg, setMsg] = useState('');
   const [msgType, setMsgType] = useState<'success'|'error'>('success');
   const canReverse = entry.status === 'posted' && ['superadmin', 'developer'].includes(role);
+  const canPostDraft = entry.status === 'draft' && ['admin', 'superadmin', 'developer'].includes(role);
+  const canDeleteDraft = entry.status === 'draft' && ['admin', 'superadmin', 'developer'].includes(role);
 
   function handleReverse() {
     const reason = window.prompt('Reason for reversal:') ?? '';
@@ -31,6 +35,41 @@ export default function JournalDetailClient({ module, entry, role }: { module: s
       const r = await reverseEntry(entry.id, reason);
       if (r.error) { setMsg(r.error); setMsgType('error'); }
       else { setMsg(`Reversal created: ${r.reversalId}`); setMsgType('success'); window.location.reload(); }
+    });
+  }
+
+  function handlePostDraft() {
+    if (!window.confirm('Post this draft entry? This will update account balances.')) return;
+    start(async () => {
+      const r = await postDraftEntry(entry.id);
+      if (r.error) {
+        const errorMessages: Record<string, string> = {
+          not_found: 'Draft entry not found.',
+          not_balanced: 'Entry is not balanced — total debits must equal total credits.',
+          empty_entry: 'Entry has no amounts.',
+          min_lines: 'Entry must have at least 2 lines.',
+          period_locked: 'The accounting period is locked.',
+        };
+        setMsg(errorMessages[r.error] || r.error);
+        setMsgType('error');
+      } else if ((r as any).status === 'pending_approval') {
+        setMsg('Entry sent for approval (amount exceeds your posting cap).');
+        setMsgType('success');
+        window.location.reload();
+      } else {
+        setMsg(`Entry posted: ${(r as any).entryNo}`);
+        setMsgType('success');
+        window.location.reload();
+      }
+    });
+  }
+
+  function handleDeleteDraft() {
+    if (!window.confirm('Delete this draft entry? This action cannot be undone.')) return;
+    start(async () => {
+      const r = await deleteDraftEntry(entry.id);
+      if (r.error) { setMsg(r.error); setMsgType('error'); }
+      else { router.push(`/${module}/accounting/premium/journal`); }
     });
   }
 
@@ -82,11 +121,17 @@ export default function JournalDetailClient({ module, entry, role }: { module: s
               </Link>
             </div>
           )}
-          {canReverse && (
-            <div style={{ marginLeft: 'auto' }}>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            {canPostDraft && (
+              <AcButton variant="primary" icon="check_circle" onClick={handlePostDraft} loading={isPending}>Post Entry</AcButton>
+            )}
+            {canDeleteDraft && (
+              <AcButton variant="danger" icon="delete" onClick={handleDeleteDraft} loading={isPending}>Delete Draft</AcButton>
+            )}
+            {canReverse && (
               <AcButton variant="danger" icon="undo" onClick={handleReverse} loading={isPending}>Reverse</AcButton>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </AcCard>
 
@@ -110,3 +155,4 @@ export default function JournalDetailClient({ module, entry, role }: { module: s
     </>
   );
 }
+

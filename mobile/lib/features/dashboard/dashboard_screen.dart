@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -98,7 +96,7 @@ class _DashboardBody extends ConsumerWidget {
       children: [
         _GreetingRow(name: userName, t: t),
         const SizedBox(height: 14),
-        _HeroBalance(summary: summary, fmt: fmt, t: t),
+        _CollectionPager(summary: summary, fmt: fmt, t: t),
         const SizedBox(height: 14),
         _MoneyFlowRow(summary: summary, t: t),
         const SizedBox(height: 14),
@@ -161,6 +159,74 @@ class _GreetingRow extends StatelessWidget {
   }
 }
 
+/// Swipeable pager holding the two collection cards: Today's Collection and
+/// Overdue Collection (mirrors the web dashboard). Swipe horizontally; dots
+/// below indicate the active card.
+class _CollectionPager extends StatefulWidget {
+  const _CollectionPager({
+    required this.summary,
+    required this.fmt,
+    required this.t,
+  });
+  final DashboardSummary summary;
+  final NumberFormat fmt;
+  final T t;
+
+  @override
+  State<_CollectionPager> createState() => _CollectionPagerState();
+}
+
+class _CollectionPagerState extends State<_CollectionPager> {
+  final _ctrl = PageController();
+  int _idx = 0;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cards = [
+      _HeroBalance(summary: widget.summary, fmt: widget.fmt, t: widget.t),
+      _OverdueBalance(summary: widget.summary, fmt: widget.fmt, t: widget.t),
+    ];
+    return Column(
+      children: [
+        SizedBox(
+          height: 304,
+          child: PageView(
+            controller: _ctrl,
+            onPageChanged: (i) => setState(() => _idx = i),
+            children: [
+              for (final card in cards)
+                Align(alignment: Alignment.topCenter, child: card),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            for (var i = 0; i < cards.length; i++)
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                width: _idx == i ? 20 : 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: _idx == i ? AppColors.primary : AppColors.border,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 class _HeroBalance extends ConsumerWidget {
   const _HeroBalance({
     required this.summary,
@@ -183,13 +249,21 @@ class _HeroBalance extends ConsumerWidget {
     final overdue = summary.todayInstalments
         .where((i) => i.status == 'missed' || i.status == 'overdue')
         .length;
+    final pctInt = (pct * 100).round();
+
+    // Color shifts: red → orange → green as collection improves
+    final barColor = pct >= 0.75
+        ? const Color(0xFF34D399)
+        : pct >= 0.4
+            ? const Color(0xFFFBBF24)
+            : const Color(0xFFFF8674);
 
     return GestureDetector(
       onTap: () => ref.speak(
         '${t.x('dash.today_collected')} ${_speakAmount(collected)}',
       ),
       child: Container(
-        padding: const EdgeInsets.fromLTRB(20, 22, 20, 22),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           gradient: const LinearGradient(
@@ -202,13 +276,11 @@ class _HeroBalance extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Header row
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
                     color: AppColors.primary.withAlpha(48),
                     borderRadius: BorderRadius.circular(20),
@@ -216,91 +288,76 @@ class _HeroBalance extends ConsumerWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
-                        Icons.bolt_rounded,
-                        color: AppColors.primary,
-                        size: 14,
-                      ),
+                      const Icon(Icons.bolt_rounded, color: AppColors.primary, size: 14),
                       const SizedBox(width: 4),
-                      Text(
-                        t.x('dash.live'),
-                        style: AppTypography.tiny.copyWith(
-                          color: AppColors.primary,
-                        ),
-                      ),
+                      Text(t.x('dash.live'),
+                          style: AppTypography.tiny.copyWith(color: AppColors.primary),),
                     ],
                   ),
                 ),
                 const Spacer(),
-                Text(
-                  t.x('dash.today_collected'),
-                  style: AppTypography.heroLabel.copyWith(
-                    color: Colors.white70,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        fmt.format(collected),
-                        style: AppTypography.heroNumber.copyWith(
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.flag_outlined,
-                            size: 14,
-                            color: Colors.white54,
-                          ),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              '${t.x('dash.today_expected')} ${fmt.format(expected)}',
-                              style: AppTypography.heroMeta.copyWith(
-                                color: Colors.white54,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                _ProgressArc(pct: pct),
+                Text(t.x('dash.today_collected'),
+                    style: AppTypography.heroLabel.copyWith(color: Colors.white70),),
               ],
             ),
             const SizedBox(height: 16),
-            Container(
-              height: 1,
-              color: Colors.white.withAlpha(20),
+            // Amount + percentage badge
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  fmt.format(collected),
+                  style: AppTypography.heroNumber.copyWith(color: Colors.white),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: barColor.withAlpha(36),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: barColor.withAlpha(80), width: 1),
+                  ),
+                  child: Text(
+                    '$pctInt%',
+                    style: AppTypography.tiny.copyWith(
+                      color: barColor,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+              ],
             ),
+            const SizedBox(height: 12),
+            // Progress bar
+            _CollectionBar(pct: pct, color: barColor),
+            const SizedBox(height: 8),
+            // Collected / Expected labels
+            Row(
+              children: [
+                const Icon(Icons.check_circle_outline, size: 12, color: Colors.white38),
+                const SizedBox(width: 4),
+                Text(
+                  fmt.format(collected),
+                  style: AppTypography.tiny.copyWith(color: Colors.white54),
+                ),
+                const Spacer(),
+                const Icon(Icons.flag_outlined, size: 12, color: Colors.white38),
+                const SizedBox(width: 4),
+                Text(
+                  fmt.format(expected),
+                  style: AppTypography.tiny.copyWith(color: Colors.white54),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Container(height: 1, color: Colors.white.withAlpha(20)),
             const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(
-                  child: _HeroStat(
-                    n: paid,
-                    label: t.x('coll.filter_paid'),
-                  ),
-                ),
+                Expanded(child: _HeroStat(n: paid, label: t.x('coll.filter_paid'))),
                 Container(width: 1, height: 28, color: Colors.white.withAlpha(20)),
-                Expanded(
-                  child: _HeroStat(
-                    n: pending,
-                    label: t.x('coll.filter_pending'),
-                  ),
-                ),
+                Expanded(child: _HeroStat(n: pending, label: t.x('coll.filter_pending'))),
                 Container(width: 1, height: 28, color: Colors.white.withAlpha(20)),
                 Expanded(
                   child: _HeroStat(
@@ -314,6 +371,243 @@ class _HeroBalance extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _CollectionBar extends StatelessWidget {
+  const _CollectionBar({required this.pct, required this.color});
+  final double pct;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: pct),
+      duration: const Duration(milliseconds: 900),
+      curve: Curves.easeOutCubic,
+      builder: (_, value, __) {
+        return Stack(
+          children: [
+            // Track
+            Container(
+              height: 10,
+              decoration: BoxDecoration(
+                color: Colors.white.withAlpha(18),
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+            // Fill
+            FractionallySizedBox(
+              widthFactor: value.clamp(0.0, 1.0),
+              child: Container(
+                height: 10,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(99),
+                  gradient: LinearGradient(
+                    colors: [color.withAlpha(180), color],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withAlpha(100),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Milestone ticks at 25%, 50%, 75%
+            for (final tick in [0.25, 0.5, 0.75])
+              FractionallySizedBox(
+                widthFactor: tick,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Container(
+                    width: 1.5,
+                    height: 10,
+                    color: Colors.white.withAlpha(40),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Second pager card — Overdue Collection. Daily snapshot: Total overdue (start
+/// of today), Collected today (past-due recovery), Remaining. Re-bases each day.
+class _OverdueBalance extends ConsumerWidget {
+  const _OverdueBalance({
+    required this.summary,
+    required this.fmt,
+    required this.t,
+  });
+  final DashboardSummary summary;
+  final NumberFormat fmt;
+  final T t;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final total = summary.overdueTotalTillToday;
+    final collected = summary.overdueCollectedToday;
+    final remaining = summary.overdueOutstanding;
+    final pct = total <= 0 ? 0.0 : (collected / total).clamp(0.0, 1.0);
+    final pctInt = (pct * 100).round();
+
+    final barColor = pct >= 0.75
+        ? const Color(0xFF34D399)
+        : pct >= 0.4
+            ? const Color(0xFFFBBF24)
+            : const Color(0xFFFF8674);
+
+    return GestureDetector(
+      onTap: () => ref.speak(
+        '${t.x('dash.overdue_collection')} ${_speakAmount(collected)}',
+      ),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFB91C1C), Color(0xFF7F1D1D)],
+          ),
+          boxShadow: AppTokens.shadowLg,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withAlpha(36),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.history_rounded, color: Colors.white, size: 14),
+                      const SizedBox(width: 4),
+                      Text(
+                        t.x('dash.overdue_collection'),
+                        style: AppTypography.tiny.copyWith(color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  t.x('dash.total_overdue'),
+                  style: AppTypography.heroLabel.copyWith(color: Colors.white70),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              t.x('dash.overdue_hint'),
+              style: AppTypography.extraTiny.copyWith(color: Colors.white54),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  fmt.format(total),
+                  style: AppTypography.heroNumber.copyWith(color: Colors.white),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: barColor.withAlpha(36),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: barColor.withAlpha(80), width: 1),
+                  ),
+                  child: Text(
+                    '$pctInt%',
+                    style: AppTypography.tiny.copyWith(
+                      color: barColor,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _CollectionBar(pct: pct, color: barColor),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.check_circle_outline, size: 12, color: Colors.white38),
+                const SizedBox(width: 4),
+                Text(
+                  '${fmt.format(collected)} ${t.x('dash.collected_today_suffix')}',
+                  style: AppTypography.tiny.copyWith(color: Colors.white54),
+                ),
+                const Spacer(),
+                const Icon(Icons.flag_outlined, size: 12, color: Colors.white38),
+                const SizedBox(width: 4),
+                Text(
+                  fmt.format(total),
+                  style: AppTypography.tiny.copyWith(color: Colors.white54),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Container(height: 1, color: Colors.white.withAlpha(20)),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(child: _MoneyStat(label: t.x('dash.collected_today'), value: fmt.format(collected), tone: const Color(0xFF34D399))),
+                Container(width: 1, height: 28, color: Colors.white.withAlpha(20)),
+                Expanded(child: _MoneyStat(label: t.x('dash.remaining'), value: fmt.format(remaining), tone: const Color(0xFFFF8674))),
+                Container(width: 1, height: 28, color: Colors.white.withAlpha(20)),
+                Expanded(child: _MoneyStat(label: t.x('dash.overdue_loans'), value: '${summary.overdueLoans}')),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact money/value stat used in the overdue card footer (white-on-dark).
+class _MoneyStat extends StatelessWidget {
+  const _MoneyStat({required this.label, required this.value, this.tone});
+  final String label;
+  final String value;
+  final Color? tone;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: AppTypography.bodyLarge.copyWith(
+            color: tone ?? Colors.white,
+            fontWeight: FontWeight.w800,
+            fontSize: 15,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: AppTypography.tiny.copyWith(color: Colors.white54),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
     );
   }
 }
@@ -345,59 +639,6 @@ class _HeroStat extends StatelessWidget {
       ],
     );
   }
-}
-
-class _ProgressArc extends StatelessWidget {
-  const _ProgressArc({required this.pct});
-  final double pct;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 78,
-      height: 78,
-      child: CustomPaint(
-        painter: _ArcPainter(pct: pct),
-        child: Center(
-          child: Text(
-            '${(pct * 100).round()}%',
-            style: AppTypography.bodyLarge.copyWith(
-              color: Colors.white,
-              fontSize: 16,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ArcPainter extends CustomPainter {
-  _ArcPainter({required this.pct});
-  final double pct;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Rect.fromLTWH(4, 4, size.width - 8, size.height - 8);
-    final track = Paint()
-      ..color = Colors.white12
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 6
-      ..strokeCap = StrokeCap.round;
-    final fill = Paint()
-      ..shader = const LinearGradient(
-        colors: [AppColors.primary, Color(0xFFFFD37A)],
-      ).createShader(rect)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 6
-      ..strokeCap = StrokeCap.round;
-
-    canvas.drawArc(rect, -math.pi / 2, math.pi * 2, false, track);
-    canvas.drawArc(rect, -math.pi / 2, math.pi * 2 * pct, false, fill);
-  }
-
-  @override
-  bool shouldRepaint(covariant _ArcPainter old) => old.pct != pct;
 }
 
 class _MoneyFlowRow extends StatelessWidget {

@@ -26,6 +26,10 @@ class CollectionService {
     required String idempotencyKey,
     String? remarks,
     DateTime? collectionDate,
+    // Device location captured at collection time. The server reads body.gps
+    // (lat/lng/accuracy/altitude/timestamp/status) to geo-stamp + verify the
+    // entry — identical handling to the web's GPS capture.
+    Map<String, dynamic>? gps,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.collectionEntry,
@@ -37,6 +41,7 @@ class CollectionService {
         if (remarks != null) 'remarks': remarks,
         if (collectionDate != null)
           'collectionDate': collectionDate.toIso8601String(),
+        if (gps != null) 'gps': gps,
       },
     );
     return unwrapEnvelope(

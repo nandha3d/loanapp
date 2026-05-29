@@ -132,7 +132,14 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                   child: AppButton(
                     label: t.x('cust.edit_profile'),
                     expand: true,
-                    onPressed: () {},
+                    onPressed: () async {
+                      await context.push<Object?>(
+                        '/customers/${c.id}/edit',
+                        extra: c,
+                      );
+                      // Refresh the detail (and its score) after returning.
+                      ref.invalidate(customerDetailProvider(c.id));
+                    },
                   ),
                 ),
               ],
@@ -405,40 +412,45 @@ class _RiskCard extends StatelessWidget {
   final Customer customer;
   final T t;
 
-  ({String label, Color color, Color bg}) _band(int? score) {
-    if (score == null) {
+  // Colors mirror the web gauge (lib/creditScoreGauge.ts) on the 300–850 scale,
+  // and the label is the server-provided grade — no client-side recomputation.
+  ({String label, Color color, Color bg}) _band(CreditScore? cs) {
+    if (cs == null || !cs.rated) {
       return (
         label: t.x('cust.risk_unrated'),
         color: AppColors.textLight,
         bg: AppColors.background
       );
     }
-    if (score >= 80) {
-      return (
-        label: t.x('cust.risk_low'),
-        color: AppColors.success,
-        bg: AppColors.successBg
-      );
+    final s = cs.score;
+    if (s < 500) {
+      return (label: cs.grade, color: AppColors.danger, bg: AppColors.dangerBg);
     }
-    if (score >= 60) {
+    if (s < 650) {
       return (
-        label: t.x('cust.risk_medium'),
+        label: cs.grade,
         color: AppColors.warning,
         bg: AppColors.warningBg
       );
     }
-    return (
-      label: t.x('cust.risk_high'),
-      color: AppColors.danger,
-      bg: AppColors.dangerBg
-    );
+    if (s < 750) {
+      return (
+        label: cs.grade,
+        color: const Color(0xFFEAB308),
+        bg: AppColors.warningBg
+      );
+    }
+    return (label: cs.grade, color: AppColors.success, bg: AppColors.successBg);
   }
 
   @override
   Widget build(BuildContext context) {
-    final score = customer.creditScore;
-    final band = _band(score);
-    final pct = score == null ? 0.0 : (score / 100).clamp(0.0, 1.0);
+    final cs = customer.creditScore;
+    final band = _band(cs);
+    // 300–850 mapped to a 0–1 ring, identical span to the web gauge.
+    final pct = (cs == null || !cs.rated)
+        ? 0.0
+        : ((cs.score - 300) / (850 - 300)).clamp(0.0, 1.0);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -465,14 +477,14 @@ class _RiskCard extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      score == null ? '—' : '$score',
+                      (cs == null || !cs.rated) ? '—' : '${cs.score}',
                       style: AppTypography.heroLabel.copyWith(
-                        fontSize: 22,
+                        fontSize: 20,
                         color: band.color,
                       ),
                     ),
                     Text(
-                      '/100',
+                      '/850',
                       style: AppTypography.extraTiny.copyWith(
                         color: AppColors.textLight,
                       ),
@@ -511,7 +523,7 @@ class _RiskCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  _explainer(score),
+                  _explainer(cs),
                   style: AppTypography.caption,
                 ),
               ],
@@ -522,10 +534,10 @@ class _RiskCard extends StatelessWidget {
     );
   }
 
-  String _explainer(int? score) {
-    if (score == null) return t.x('cust.risk_explainer_none');
-    if (score >= 80) return t.x('cust.risk_explainer_low');
-    if (score >= 60) return t.x('cust.risk_explainer_medium');
+  String _explainer(CreditScore? cs) {
+    if (cs == null || !cs.rated) return t.x('cust.risk_explainer_none');
+    if (cs.score >= 680) return t.x('cust.risk_explainer_low');
+    if (cs.score >= 560) return t.x('cust.risk_explainer_medium');
     return t.x('cust.risk_explainer_high');
   }
 }

@@ -5,6 +5,10 @@ class DashboardSummary {
     required this.totalCustomers,
     required this.todayExpected,
     required this.todayCollected,
+    required this.todayGap,
+    required this.overdueOutstanding,
+    required this.overdueCollectedToday,
+    required this.overdueTotalTillToday,
     required this.pendingPenalties,
     required this.activeAgents,
     required this.recentLoans,
@@ -16,6 +20,11 @@ class DashboardSummary {
   final int totalCustomers;
   final double todayExpected;
   final double todayCollected;
+  final double todayGap;
+  // Overdue collection (daily snapshot — see API /v1/dashboard).
+  final double overdueOutstanding;
+  final double overdueCollectedToday;
+  final double overdueTotalTillToday;
   final int pendingPenalties;
   final int activeAgents;
   final List<RecentLoan> recentLoans;
@@ -31,6 +40,10 @@ class DashboardSummary {
       totalCustomers: (json['totalCustomers'] as num?)?.toInt() ?? 0,
       todayExpected: toNum(json['todayExpected']),
       todayCollected: toNum(json['todayCollected']),
+      todayGap: toNum(json['todayGap']),
+      overdueOutstanding: toNum(json['overdueOutstanding']),
+      overdueCollectedToday: toNum(json['overdueCollectedToday']),
+      overdueTotalTillToday: toNum(json['overdueTotalTillToday']),
       pendingPenalties: (json['pendingPenalties'] as num?)?.toInt() ?? 0,
       activeAgents: (json['activeAgents'] as num?)?.toInt() ?? 0,
       recentLoans: (json['recentLoans'] as List<dynamic>? ?? const [])

@@ -41,6 +41,24 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
     }
   };
 
+  // Company logo / photo — same pattern as customer photo
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setLogoFile(file);
+      setLogoPreview(URL.createObjectURL(file));
+    } else {
+      setLogoFile(null);
+      setLogoPreview(null);
+    }
+  };
+  // Show the company section expanded when editing a customer that already has company data
+  const [showCompany, setShowCompany] = useState<boolean>(
+    !!(customer?.companyName || customer?.gstNumber || customer?.companyLogo || customer?.businessType),
+  );
+
 
   // --- Guarantor handlers ---
   const [guarantors, setGuarantors] = useState<any[]>(customer?.guarantors?.map((g: any) => ({ id: g.id, name: g.name, phone: g.phone, address: g.address, relation: g.relation, photoName: g.photo })) || []);
@@ -160,9 +178,20 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
                 <input type="tel" name="phone" className="form-control" placeholder="Enter 10-digit phone" defaultValue={customer?.phone} required style={{ fontSize: '1rem', padding: '12px' }} />
               </div>
             </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Aadhar Number</label>
+                <input type="text" name="aadharNumber" className="form-control" placeholder="12-digit Aadhar number" defaultValue={customer?.aadharNumber} style={{ fontSize: '1rem', padding: '12px' }} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">PAN Number</label>
+                <input type="text" name="pan" className="form-control" placeholder="ABCDE1234F" defaultValue={customer?.pan} maxLength={10}
+                  style={{ fontSize: '1rem', padding: '12px', textTransform: 'uppercase' }} />
+              </div>
+            </div>
             <div className="form-group">
-              <label className="form-label">Aadhar Number</label>
-              <input type="text" name="aadharNumber" className="form-control" placeholder="12-digit Aadhar number" defaultValue={customer?.aadharNumber} style={{ fontSize: '1rem', padding: '12px' }} />
+              <label className="form-label">Email</label>
+              <input type="email" name="email" className="form-control" placeholder="name@example.com" defaultValue={customer?.email} style={{ fontSize: '1rem', padding: '12px' }} />
             </div>
             <div className="form-group">
               <label className="form-label">{dict.customers.address}</label>
@@ -197,6 +226,131 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
             </select>
           </div>
         </div>
+
+        {/* --- Company / Business Details --- */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '24px 0 12px' }}>
+          <h4 style={{ margin: 0, fontSize: '.9rem', fontWeight: 600 }}>🏢 Company / Business Details</h4>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowCompany(v => !v)} style={{ padding: '4px 10px', fontSize: '.78rem' }}>
+            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>{showCompany ? 'expand_less' : 'expand_more'}</span>
+            {showCompany ? 'Hide' : 'Add company details'}
+          </button>
+        </div>
+
+        {showCompany && (
+          <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '16px', marginBottom: '12px', background: 'var(--bg)' }}>
+            <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
+              {/* Company logo */}
+              <div style={{ textAlign: 'center' }}>
+                <label style={{ cursor: 'pointer', display: 'block' }}>
+                  <div style={{
+                    width: '100px', height: '100px', borderRadius: 'var(--radius-sm)',
+                    background: '#fff', border: '2px dashed var(--border)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+                  }}>
+                    {logoPreview ? (
+                      <img src={logoPreview} alt="Logo preview" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                    ) : customer?.companyLogo ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={customer.companyLogo} alt="Company logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                    ) : (
+                      <span className="material-icons-outlined" style={{ fontSize: '32px', color: 'var(--text-light)' }}>add_business</span>
+                    )}
+                  </div>
+                  {customer?.companyLogo && !logoFile && (
+                    <input type="hidden" name="existingCompanyLogo" value={customer.companyLogo} />
+                  )}
+                  <input type="file" name="companyLogo" accept="image/*" style={{ display: 'none' }} onChange={handleLogoChange} />
+                  <span style={{ fontSize: '.72rem', color: 'var(--text-secondary)', display: 'block', marginTop: '6px' }}>
+                    {logoFile?.name || (customer?.companyLogo ? 'Change logo' : 'Logo / Photo')}
+                  </span>
+                </label>
+              </div>
+
+              <div style={{ flex: 1 }}>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Company / Business Name</label>
+                    <input type="text" name="companyName" className="form-control" placeholder="Registered business name" defaultValue={customer?.companyName} style={{ fontSize: '1rem', padding: '10px' }} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Business Type</label>
+                    <select name="businessType" className="form-control" defaultValue={customer?.businessType || ''} style={{ fontSize: '1rem', padding: '10px' }}>
+                      <option value="">Select type</option>
+                      <option value="proprietorship">Proprietorship</option>
+                      <option value="partnership">Partnership</option>
+                      <option value="pvt_ltd">Private Limited</option>
+                      <option value="public_ltd">Public Limited</option>
+                      <option value="llp">LLP</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Designation / Role</label>
+                    <input type="text" name="designation" className="form-control" placeholder="Owner, Director, Partner..." defaultValue={customer?.designation} style={{ fontSize: '1rem', padding: '10px' }} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Employment Type</label>
+                    <select name="companyType" className="form-control" defaultValue={customer?.companyType || ''} style={{ fontSize: '1rem', padding: '10px' }}>
+                      <option value="">Select</option>
+                      <option value="business">Business</option>
+                      <option value="self_employed">Self Employed</option>
+                      <option value="salaried">Salaried</option>
+                      <option value="unemployed">Unemployed</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="form-row" style={{ marginTop: '4px' }}>
+              <div className="form-group">
+                <label className="form-label">GST Number</label>
+                <input type="text" name="gstNumber" className="form-control" placeholder="22ABCDE1234F1Z5" defaultValue={customer?.gstNumber} maxLength={15}
+                  style={{ fontSize: '1rem', padding: '10px', textTransform: 'uppercase' }} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Company PAN</label>
+                <input type="text" name="companyPan" className="form-control" placeholder="ABCDE1234F" defaultValue={customer?.companyPan} maxLength={10}
+                  style={{ fontSize: '1rem', padding: '10px', textTransform: 'uppercase' }} />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Registration / CIN Number</label>
+                <input type="text" name="companyRegNo" className="form-control" placeholder="Company registration / CIN" defaultValue={customer?.companyRegNo} style={{ fontSize: '1rem', padding: '10px' }} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Occupation / Nature of Business</label>
+                <input type="text" name="occupation" className="form-control" placeholder="e.g. Textile trading" defaultValue={customer?.occupation} style={{ fontSize: '1rem', padding: '10px' }} />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Company Phone</label>
+                <input type="tel" name="companyPhone" className="form-control" placeholder="Office contact number" defaultValue={customer?.companyPhone} style={{ fontSize: '1rem', padding: '10px' }} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Company Email</label>
+                <input type="email" name="companyEmail" className="form-control" placeholder="office@company.com" defaultValue={customer?.companyEmail} style={{ fontSize: '1rem', padding: '10px' }} />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Monthly Income / Turnover</label>
+                <input type="number" name="monthlyIncome" className="form-control" placeholder="0" defaultValue={customer?.monthlyIncome ?? ''} min={0} step="0.01" style={{ fontSize: '1rem', padding: '10px' }} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Company Address</label>
+                <input type="text" name="companyAddress" className="form-control" placeholder="Business address" defaultValue={customer?.companyAddress} style={{ fontSize: '1rem', padding: '10px' }} />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* --- KYC Documents --- */}
         <h4 style={{ margin: '24px 0 12px', fontSize: '.9rem', fontWeight: 600 }}>📄 {dict.customers.documents}</h4>

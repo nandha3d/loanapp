@@ -57,6 +57,7 @@ export function getBadgeClass(status: string): string {
     missed: 'badge-missed',
     closed: 'badge-closed',
     upcoming: 'badge-upcoming',
+    'due today': 'badge-due-today',
     pending: 'badge-pending',
     waived: 'badge-waived',
     settled: 'badge-active',

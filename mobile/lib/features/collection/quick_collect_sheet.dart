@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import 'package:loantrack/core/a11y/voice_assist.dart';
+import 'package:loantrack/core/gps/gps_service.dart';
 import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/network/api_exception.dart';
 import 'package:loantrack/core/network/dio_client.dart';
@@ -111,11 +112,33 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
         return;
       }
 
+      // Best-effort device location so the entry is geo-stamped + verified
+      // server-side (same as web). Never blocks the collection if unavailable.
+      Map<String, dynamic>? gps;
+      try {
+        final pos = await ref.read(gpsServiceProvider).currentPosition();
+        if (pos != null) {
+          gps = {
+            'status': 'captured',
+            'lat': pos.latitude,
+            'lng': pos.longitude,
+            'accuracy': pos.accuracy,
+            'altitude': pos.altitude,
+            'timestamp': pos.timestamp.toIso8601String(),
+          };
+        } else {
+          gps = {'status': 'not_captured'};
+        }
+      } catch (_) {
+        gps = {'status': 'not_captured'};
+      }
+
       await svc.submit(
         instalmentId: widget.row.instalmentId,
         receivedAmount: amt,
         paymentMode: _mode,
         idempotencyKey: key,
+        gps: gps,
       );
 
       ref.speak('Collected ${_speakAmount(amt)}');

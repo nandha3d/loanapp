@@ -117,6 +117,55 @@ export async function saveDraftEntry(input: { entryDate: string; narration?: str
   return { success: true, entryId: entry.id };
 }
 
+export async function postDraftEntry(id: string) {
+  const session = await auth();
+  const role = (session?.user as any)?.role;
+  const userId = session?.user?.id!;
+  requireRole(role, ['admin', 'superadmin', 'developer']);
+  const tenantId = await getDefaultTenantId();
+  const draft = await prisma.journalEntry.findFirst({ where: { id, tenantId, status: 'draft' }, include: { lines: true } });
+  if (!draft) return { error: 'not_found' };
+  const totalDr = draft.lines.reduce((s, l) => s + Number(l.debit), 0);
+  const totalCr = draft.lines.reduce((s, l) => s + Number(l.credit), 0);
+  if (Math.abs(totalDr - totalCr) > 0.01) return { error: 'not_balanced' };
+  if (totalDr === 0) return { error: 'empty_entry' };
+  if (draft.lines.length < 2) return { error: 'min_lines' };
+  const periodKey = getPeriodKey(draft.entryDate);
+  const period = await prisma.accountingPeriod.findUnique({ where: { tenantId_periodKey: { tenantId, periodKey } } });
+  if (period && ['locked', 'closed'].includes(period.status) && role !== 'developer') return { error: 'period_locked' };
+  const settings = await prisma.accountingSettings.findUnique({ where: { tenantId } });
+  const cap = role === 'admin' ? Number(settings?.adminJeCap ?? 50000) : Infinity;
+  if (totalDr > cap) {
+    await prisma.journalEntry.update({ where: { id }, data: { status: 'pending_approval' } });
+    await prisma.accountingApproval.create({ data: { tenantId, entityType: 'journal_entry', entityId: id, amount: totalDr, level: 1, approverRole: 'superadmin', requestedById: userId } });
+    revalidatePath('/accounting/premium/journal');
+    return { success: true, status: 'pending_approval', entryId: id };
+  }
+  const entryNo = await assignNextEntryNo(tenantId, draft.entryDate);
+  await prisma.$transaction(async (tx) => {
+    await tx.journalEntry.update({ where: { id }, data: { status: 'posted', entryNo, approvedById: userId, approvedAt: new Date() } });
+    for (const line of draft.lines) await bumpAccountBalance(tx as any, line.accountId, draft.entryDate, Number(line.debit), Number(line.credit));
+    await tx.accountingAuditLog.create({ data: { tenantId, userId, action: 'post', entityType: 'journal_entry', entityId: id, after: JSON.stringify({ entryNo, totalDebit: totalDr }) } });
+  });
+  revalidatePath('/accounting/premium/journal');
+  return { success: true, entryId: id, entryNo };
+}
+
+export async function deleteDraftEntry(id: string) {
+  const session = await auth();
+  const role = (session?.user as any)?.role;
+  const userId = session?.user?.id!;
+  requireRole(role, ['admin', 'superadmin', 'developer']);
+  const tenantId = await getDefaultTenantId();
+  const draft = await prisma.journalEntry.findFirst({ where: { id, tenantId, status: 'draft' } });
+  if (!draft) return { error: 'not_found' };
+  await prisma.journalLine.deleteMany({ where: { entryId: id } });
+  await prisma.journalEntry.delete({ where: { id } });
+  await writeAuditLog({ tenantId, userId, action: 'delete', entityType: 'journal_entry', entityId: id, reason: 'Deleted draft entry' });
+  revalidatePath('/accounting/premium/journal');
+  return { success: true };
+}
+
 export async function reverseEntry(id: string, reason: string) {
   const session = await auth();
   const role = (session?.user as any)?.role;

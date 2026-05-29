@@ -24,7 +24,36 @@ export default async function LoansPage({
   const q = resolvedParams.q || '';
   const status = resolvedParams.status || '';
   const frequency = resolvedParams.frequency || '';
+  const sort = resolvedParams.sort || 'createdAt';
+  const dir: 'asc' | 'desc' = resolvedParams.dir === 'asc' ? 'asc' : 'desc';
   const { page, limit, skip } = parsePagination(resolvedParams);
+
+  // Whitelist of sortable columns → Prisma orderBy. Keeps the URL param safe
+  // (no arbitrary field injection) and centralises the column→field mapping.
+  const orderByMap: Record<string, any> = {
+    loanCode: { loanCode: dir },
+    customer: { customer: { name: dir } },
+    principal: { principal: dir },
+    frequency: { frequency: dir },
+    startDate: { startDate: dir },
+    paid: { totalCollected: dir },
+    progress: { paidCount: dir },
+    status: { status: dir },
+    createdAt: { createdAt: dir },
+  };
+  const orderBy = orderByMap[sort] || { createdAt: 'desc' };
+
+  // Preserve all active filters/sort when building header + pagination links.
+  const buildQuery = (overrides: Record<string, string>) => {
+    const p = new URLSearchParams();
+    if (q) p.set('q', q);
+    if (status) p.set('status', status);
+    if (frequency) p.set('frequency', frequency);
+    if (sort) p.set('sort', sort);
+    p.set('dir', dir);
+    for (const [k, v] of Object.entries(overrides)) p.set(k, v);
+    return p.toString();
+  };
 
   const where: any = { tenantId, appType, AND: [] };
   if (branchId) {
@@ -61,14 +90,32 @@ export default async function LoansPage({
       where,
       skip,
       take: limit,
-      orderBy: { createdAt: 'desc' },
+      orderBy,
       include: {
-        customer: { select: { id: true, name: true, customerCode: true } },
+        customer: { select: { id: true, name: true, customerCode: true, profilePhoto: true } },
       }
     })
   ]);
 
   const { pagination } = paginatedResponse(loans, total, page, limit);
+
+  // Reusable sortable column header. Clicking toggles asc/desc; resets to page 1.
+  const SortableTh = ({ label, field }: { label: string; field: string }) => {
+    const active = sort === field;
+    const nextDir = active && dir === 'asc' ? 'desc' : 'asc';
+    const arrow = active ? (dir === 'asc' ? '▲' : '▼') : '⇅';
+    return (
+      <th>
+        <Link
+          href={`/loans?${buildQuery({ sort: field, dir: nextDir, page: '1' })}`}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'inherit', textDecoration: 'none', cursor: 'pointer', userSelect: 'none' }}
+        >
+          {label}
+          <span style={{ fontSize: '.7rem', color: active ? 'var(--primary)' : 'var(--text-light)', opacity: active ? 1 : 0.5 }}>{arrow}</span>
+        </Link>
+      </th>
+    );
+  };
 
   return (
     <div className="card">
@@ -114,28 +161,52 @@ export default async function LoansPage({
         <table>
           <thead>
             <tr>
-              <th>{dict.loansList.loanId}</th>
-              <th>{dict.loansList.customer}</th>
-              <th>{dict.loansList.principal}</th>
-              <th>{dict.loansList.frequency}</th>
-              <th>{dict.loansList.startDate}</th>
-              <th>{dict.loansList.progress}</th>
-              <th>{dict.loansList.status}</th>
+              <SortableTh label={dict.loansList.loanId} field="loanCode" />
+              <SortableTh label={dict.loansList.customer} field="customer" />
+              <SortableTh label={dict.loansList.principal} field="principal" />
+              <SortableTh label="Paid" field="paid" />
+              <SortableTh label={dict.loansList.frequency} field="frequency" />
+              <SortableTh label={dict.loansList.startDate} field="startDate" />
+              <SortableTh label={dict.loansList.progress} field="progress" />
+              <SortableTh label={dict.loansList.status} field="status" />
               <th>{dict.loansList.action}</th>
             </tr>
           </thead>
           <tbody>
             {loans.map(l => {
               const pct = calcPercentage(l.paidCount, l.totalInstalments);
+              const totalRepayable = Number(l.perInstalment) * l.totalInstalments;
+              const paid = Number(l.totalCollected || 0);
+              const initials = (l.customer.name || '?').trim().charAt(0).toUpperCase();
               return (
                 <tr key={l.id}>
                   <td><strong>{l.loanCode}</strong></td>
                   <td>
-                    <Link href={`/customers/${l.customer.customerCode}`}>{l.customer.name}</Link>
-                    <br />
-                    <span style={{fontSize:'.75rem', color:'var(--text-light)'}}>{l.customer.customerCode}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{
+                        width: '36px', height: '36px', borderRadius: '50%', flexShrink: 0,
+                        background: l.customer.profilePhoto ? 'transparent' : 'var(--primary)',
+                        color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '.85rem', fontWeight: 700, overflow: 'hidden',
+                      }}>
+                        {l.customer.profilePhoto ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={l.customer.profilePhoto} alt={l.customer.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : initials}
+                      </div>
+                      <div>
+                        <Link href={`/customers/${l.customer.customerCode}`} style={{ fontWeight: 600 }}>{l.customer.name}</Link>
+                        <br />
+                        <span style={{fontSize:'.75rem', color:'var(--text-light)'}}>{l.customer.customerCode}</span>
+                      </div>
+                    </div>
                   </td>
                   <td>{formatCurrency(l.principal, currencySymbol)}</td>
+                  <td>
+                    <span style={{ fontWeight: 700, color: 'var(--success)' }}>{formatCurrency(paid, currencySymbol)}</span>
+                    <br />
+                    <span style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>of {formatCurrency(totalRepayable, currencySymbol)}</span>
+                  </td>
                   <td style={{textTransform:'capitalize'}}>{l.frequency}</td>
                   <td>{formatDate(l.startDate)}</td>
                   <td>
@@ -160,7 +231,7 @@ export default async function LoansPage({
             })}
             {loans.length === 0 && (
               <tr>
-                <td colSpan={8} style={{textAlign:'center', padding:'32px', color:'var(--text-light)'}}>
+                <td colSpan={9} style={{textAlign:'center', padding:'32px', color:'var(--text-light)'}}>
                   No loans found.
                 </td>
               </tr>
@@ -173,8 +244,8 @@ export default async function LoansPage({
         <div className="pagination">
           <span>Showing {skip + 1}–{Math.min(skip + limit, total)} of {total} {dict.loansList.title.toLowerCase()}</span>
           <div className="pages">
-            <Link 
-              href={`/loans?page=${page > 1 ? page - 1 : 1}&q=${q}&status=${status}&frequency=${frequency}`} 
+            <Link
+              href={`/loans?${buildQuery({ page: String(page > 1 ? page - 1 : 1) })}`}
               className={`page-btn ${!pagination.hasPrev ? 'disabled' : ''}`}
             >
               &lsaquo;
@@ -187,15 +258,15 @@ export default async function LoansPage({
               ) : (
                 <Link
                   key={pageItem}
-                  href={`/loans?page=${pageItem}&q=${q}&status=${status}&frequency=${frequency}`}
+                  href={`/loans?${buildQuery({ page: String(pageItem) })}`}
                   className="page-btn"
                 >
                   {pageItem}
                 </Link>
               )
             ))}
-            <Link 
-              href={`/loans?page=${pagination.hasNext ? page + 1 : page}&q=${q}&status=${status}&frequency=${frequency}`} 
+            <Link
+              href={`/loans?${buildQuery({ page: String(pagination.hasNext ? page + 1 : page) })}`}
               className={`page-btn ${!pagination.hasNext ? 'disabled' : ''}`}
             >
               &rsaquo;

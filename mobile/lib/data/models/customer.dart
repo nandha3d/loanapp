@@ -29,7 +29,7 @@ class Customer {
   final String status;
   final String? routeId;
   final String? agentId;
-  final int? creditScore;
+  final CreditScore? creditScore;
   final String? aadharNumberMasked;
   final String? kycStatus;
   final String? routeName;
@@ -56,7 +56,9 @@ class Customer {
       status: (json['status'] as String?) ?? 'pending_review',
       routeId: json['routeId'] as String?,
       agentId: json['agentId'] as String?,
-      creditScore: json['creditScore'] as int?,
+      creditScore: json['creditScore'] is Map<String, dynamic>
+          ? CreditScore.fromJson(json['creditScore'] as Map<String, dynamic>)
+          : null,
       aadharNumberMasked: json['aadharNumber'] as String?,
       kycStatus: json['kycStatus'] as String?,
       routeName: route?['name'] as String?,
@@ -74,6 +76,46 @@ class Customer {
                 CustomerLoanSummary.fromJson(e as Map<String, dynamic>),
           )
           .toList(growable: false),
+    );
+  }
+}
+
+/// Canonical credit score — mirrors the server's `calculateCreditScore` output
+/// (300–850 scale + grade), so the figure is IDENTICAL to the web. The score is
+/// computed server-side only; the app never recomputes it.
+class CreditScore {
+  const CreditScore({
+    required this.score,
+    required this.grade,
+    this.totalBorrowed = 0,
+    this.totalPaid = 0,
+    this.punctuality = 0,
+    this.activeLoans = 0,
+    this.closedLoans = 0,
+  });
+
+  final int score; // 300–850 (0 / grade 'N/A' when no loan activity yet)
+  final String grade; // Excellent | Good | Fair | Poor | Very Poor | N/A
+  final double totalBorrowed;
+  final double totalPaid;
+  final int punctuality; // 0–100 (% on-time)
+  final int activeLoans;
+  final int closedLoans;
+
+  bool get rated => grade != 'N/A' && score >= 300;
+
+  factory CreditScore.fromJson(Map<String, dynamic> json) {
+    double toNum(dynamic v) =>
+        v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '') ?? 0;
+    final stats = (json['stats'] as Map<String, dynamic>?) ?? const {};
+    return CreditScore(
+      score: (json['score'] as num?)?.toInt() ?? 0,
+      grade: (json['grade'] as String?) ?? 'N/A',
+      totalBorrowed: toNum(stats['totalBorrowed']),
+      totalPaid: toNum(stats['totalPaid']),
+      punctuality: (stats['punctuality'] as num?)?.toInt() ?? 0,
+      activeLoans: (stats['activeLoans'] as num?)?.toInt() ?? 0,
+      closedLoans: (stats['closedLoans'] as num?)?.toInt() ?? 0,
     );
   }
 }

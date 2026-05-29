@@ -52,12 +52,22 @@ export async function saveCustomer(formData: FormData) {
     : undefined;
   const routeId = formData.get('routeId') as string;
   const agentId = formData.get('agentId') as string;
+  const email = (formData.get('email') as string) || null;
+  const pan = (formData.get('pan') as string) || null;
   const companyName = (formData.get('companyName') as string) || null;
   const companyType = (formData.get('companyType') as string) || null;
   const occupation = (formData.get('occupation') as string) || null;
   const monthlyIncomeRaw = formData.get('monthlyIncome') as string | null;
   const monthlyIncome = monthlyIncomeRaw ? parseFloat(monthlyIncomeRaw) : null;
   const gstNumber = (formData.get('gstNumber') as string) || null;
+  // Extended company / business profile
+  const businessType = (formData.get('businessType') as string) || null;
+  const companyPan = (formData.get('companyPan') as string) || null;
+  const companyRegNo = (formData.get('companyRegNo') as string) || null;
+  const companyAddress = (formData.get('companyAddress') as string) || null;
+  const companyPhone = (formData.get('companyPhone') as string) || null;
+  const companyEmail = (formData.get('companyEmail') as string) || null;
+  const designation = (formData.get('designation') as string) || null;
 
   const isPopup = formData.get('isPopup') === 'true';
 
@@ -82,6 +92,16 @@ export async function saveCustomer(formData: FormData) {
     profilePhoto = await saveUploadedFile(profilePhotoFile, tenantId, 'profiles');
   } else if (existingProfilePhoto) {
     profilePhoto = existingProfilePhoto;
+  }
+
+  // Company logo / photo
+  const companyLogoFile = formData.get('companyLogo') as File | null;
+  const existingCompanyLogo = formData.get('existingCompanyLogo') as string | null;
+  let companyLogo: string | null = null;
+  if (companyLogoFile && companyLogoFile.size > 0) {
+    companyLogo = await saveUploadedFile(companyLogoFile, tenantId, 'companies');
+  } else if (existingCompanyLogo) {
+    companyLogo = existingCompanyLogo;
   }
 
   // Process documents
@@ -165,11 +185,21 @@ export async function saveCustomer(formData: FormData) {
         name, phone, address, routeId, agentId,
         ...(encryptedAadharNumber !== undefined ? { aadharNumber: encryptedAadharNumber } : {}),
         profilePhoto: profilePhoto ?? undefined,
+        email,
+        pan,
         companyName,
         companyType,
         occupation,
         monthlyIncome,
         gstNumber,
+        businessType,
+        companyLogo: companyLogo ?? undefined,
+        companyPan,
+        companyRegNo,
+        companyAddress,
+        companyPhone,
+        companyEmail,
+        designation,
       },
       include: { route: true }
     });
@@ -235,13 +265,23 @@ export async function saveCustomer(formData: FormData) {
         agentId,
         appType,
         branchId: activeBranchId,
+        email,
+        pan,
         companyName,
         companyType,
         occupation,
         monthlyIncome,
         gstNumber,
+        businessType,
+        companyPan,
+        companyRegNo,
+        companyAddress,
+        companyPhone,
+        companyEmail,
+        designation,
         status: userRole === 'agent' ? 'pending_review' : 'active',
         ...(profilePhoto ? { profilePhoto } : {}),
+        ...(companyLogo ? { companyLogo } : {}),
         securityCheques: {
           create: cheques
         },

@@ -75,6 +75,22 @@ type BrowserGpsCapture = {
   timestamp?: string;
 };
 
+// Single source of truth for an instalment's *displayed* status. The DB `status`
+// column lags reality — an instalment stays 'upcoming' until a nightly batch job
+// flips it to 'missed' — so we derive from money + due date instead. Crucially, an
+// instalment due TODAY is "Due Today" (today isn't over yet) and is NEVER counted
+// as overdue/missed.
+function deriveInstalmentStatus(
+  inst: { dueDate: string; receivedAmount: number; outstandingAmount: number; daysOverdue: number },
+  todayISO: string,
+): { key: string; label: string } {
+  if (inst.outstandingAmount <= 0 && inst.receivedAmount > 0) return { key: 'paid', label: 'Paid' };
+  if (inst.receivedAmount > 0) return { key: 'partial', label: 'Partial' };
+  if (inst.daysOverdue > 0) return { key: 'missed', label: 'Missed' };
+  if (inst.dueDate.slice(0, 10) > todayISO) return { key: 'upcoming', label: 'Upcoming' };
+  return { key: 'due today', label: 'Due Today' };
+}
+
 export default function CollectionClient({
   todayInstalments,
   overdueInstalments,
@@ -134,6 +150,7 @@ export default function CollectionClient({
 
   const isAdmin = agentRole === 'admin' || agentRole === 'superadmin';
   const modalRef = useRef<HTMLDivElement>(null);
+  const todayISO = new Date().toISOString().slice(0, 10);
 
   // DEF-031 / DEF-032: Trap focus within modal and close on Escape
   useEffect(() => {
@@ -212,7 +229,7 @@ export default function CollectionClient({
         || row.loan.customer.customerCode.toLowerCase().includes(search)
         || row.loan.loanCode.toLowerCase().includes(search);
       const matchesRoute = !routeFilter || row.loan.customer.route?.id === routeFilter;
-      const matchesStatus = !statusFilter || row.status === statusFilter;
+      const matchesStatus = !statusFilter || deriveInstalmentStatus(row, todayISO).key === statusFilter;
       const matchesFrequency = !frequencyFilter || row.loan.frequency === frequencyFilter;
 
       // Overdue days range filter
@@ -222,7 +239,7 @@ export default function CollectionClient({
 
       return matchesDate && matchesCustomer && matchesRoute && matchesStatus && matchesFrequency && matchesOverdueDays;
     });
-  }, [allInstalments, typeFilter, customerFilter, dateFilter, routeFilter, statusFilter, frequencyFilter, overdueMinDays, overdueMaxDays]);
+  }, [allInstalments, typeFilter, customerFilter, dateFilter, routeFilter, statusFilter, frequencyFilter, overdueMinDays, overdueMaxDays, todayISO]);
 
   const todayTotals = useMemo(() => {
     return {
@@ -272,11 +289,19 @@ export default function CollectionClient({
     month: 'long',
     year: 'numeric',
   });
-  const todayISO = new Date().toISOString().slice(0, 10);
 
   const openModal = (instalment: CollectionRow) => {
     const isPaid = instalment.receivedAmount > 0;
-    setAmount(isPaid ? instalment.receivedAmount : (instalment.outstandingAmount > 0 ? instalment.outstandingAmount : instalment.dueAmount));
+    // Default the collected amount to the WHOLE loan's outstanding (overdue + today),
+    // since the payment is now distributed oldest-first across instalments. One tap
+    // clears everything; the agent can still type a smaller amount for a partial pay.
+    const loanRows = new Map<string, CollectionRow>();
+    [...todayInstalments, ...overdueInstalments]
+      .filter(r => r.loan.id === instalment.loan.id)
+      .forEach(r => loanRows.set(r.id, r));
+    const loanOutstanding = Array.from(loanRows.values()).reduce((sum, r) => sum + r.outstandingAmount, 0);
+    const defaultDue = loanOutstanding > 0 ? loanOutstanding : instalment.dueAmount;
+    setAmount(isPaid ? instalment.receivedAmount : defaultDue);
     setMode('cash');
     setRemarks('');
     setReason('');
@@ -442,12 +467,15 @@ export default function CollectionClient({
             const maxDaysOverdue = overdueInstalments.length > 0 ? Math.max(...overdueInstalments.map(i => i.daysOverdue)) : 0;
             const totalOverdueAmount = overdueInstalments.reduce((sum, i) => sum + i.overdueAmount, 0);
 
-            const statuses = Array.from(new Set(visibleInstalments.map(i => {
-               if (i.status === 'upcoming' && i.dueDate.slice(0,10) === todayISO) return 'Due Today';
-               if (i.status === 'upcoming' && i.dueDate.slice(0,10) < todayISO) return 'Missed';
-               return i.status;
-            })));
-            const displayStatus = statuses.length === 1 ? statuses[0] : 'Overdue';
+            // Roll the customer's (possibly multi-loan) instalments into one badge.
+            // Priority: all paid → Paid; any overdue → Overdue; any partial → Partial;
+            // any due today → Due Today; otherwise Upcoming.
+            const keys = visibleInstalments.map(i => deriveInstalmentStatus(i, todayISO).key);
+            const displayStatus = keys.every(k => k === 'paid') ? 'Paid'
+              : keys.some(k => k === 'missed') ? 'Overdue'
+              : keys.some(k => k === 'partial') ? 'Partial'
+              : keys.some(k => k === 'due today') ? 'Due Today'
+              : 'Upcoming';
 
             const isSettled = visibleInstalments.every(i => i.outstandingAmount <= 0);
             const unpaidInstalments = visibleInstalments.filter(i => i.outstandingAmount > 0);
@@ -677,10 +705,11 @@ export default function CollectionClient({
             <label className="form-label">Status</label>
             <select className="form-control" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
               <option value="">All</option>
-              <option value="upcoming">Upcoming</option>
+              <option value="due today">Due Today</option>
+              <option value="missed">Overdue / Missed</option>
               <option value="partial">Partial</option>
-              <option value="missed">Missed</option>
               <option value="paid">Paid</option>
+              <option value="upcoming">Upcoming</option>
             </select>
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
@@ -779,7 +808,10 @@ export default function CollectionClient({
                 background: 'var(--bg)',
               }}>
                 {[
-                  { label: 'Missed Instalments', value: String(overdueCustomerGroup.instalments.length) },
+                  // Count only instalments that are genuinely overdue (past their due
+                  // date AND still unpaid). Today's instalment is excluded — today
+                  // isn't finished, so it isn't overdue yet.
+                  { label: 'Overdue Instalments', value: String(overdueCustomerGroup.instalments.filter(i => i.daysOverdue > 0 && i.outstandingAmount > 0).length) },
                   { label: 'Oldest Due', value: `${overdueCustomerGroup.maxDaysOverdue}d` },
                   { label: 'Total Outstanding', value: formatCurrency(overdueCustomerGroup.totalOutstanding, currencySymbol), danger: true },
                 ].map(({ label, value, danger }) => (
@@ -830,9 +862,14 @@ export default function CollectionClient({
                             {inst.loan.loanCode}
                           </Link>
                           {' · '}
-                          <span className={getBadgeClass(inst.status)} style={{ textTransform: 'capitalize', fontSize: '.68rem', padding: '1px 6px' }}>
-                            {inst.status}
-                          </span>
+                          {(() => {
+                            const s = deriveInstalmentStatus(inst, todayISO);
+                            return (
+                              <span className={getBadgeClass(s.key)} style={{ textTransform: 'capitalize', fontSize: '.68rem', padding: '1px 6px' }}>
+                                {s.label}
+                              </span>
+                            );
+                          })()}
                         </div>
                       </div>
 

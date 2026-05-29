@@ -26,7 +26,7 @@ class GpsPinger {
         'lng': p.longitude,
         'accuracyM': p.accuracy,
         'speedMps': p.speed,
-        'capturedAt': (p.timestamp ?? DateTime.now()).toIso8601String(),
+        'capturedAt': p.timestamp.toIso8601String(),
         if (_routeId != null) 'routeId': _routeId,
       });
     });
@@ -48,7 +48,10 @@ class GpsPinger {
     _buffer.clear();
     try {
       final dio = _ref.read(dioProvider);
-      await dio.post('/api/v1/gps/ping', data: {'pings': pings});
+      // dio baseUrl already ends in /api/v1 — use a RELATIVE path. The old
+      // '/api/v1/gps/ping' doubled the prefix (→ /api/v1/api/v1/gps/ping, 404),
+      // so live pings were silently dropped and agents never appeared on the map.
+      await dio.post<void>('/gps/ping', data: {'pings': pings});
     } catch (_) {
       // re-buffer on failure (cap at 200 to avoid OOM)
       if (_buffer.length < 200) _buffer.addAll(pings.take(200 - _buffer.length));

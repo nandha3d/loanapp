@@ -80,6 +80,7 @@ export default function Sidebar({
   // Close sidebar on route change (mobile)
   useEffect(() => {
     setIsOpen(false);
+    document.getElementById('sidebar')?.classList.remove('open');
   }, [pathname]);
 
   const filteredNav = navItems.filter(item => {
@@ -139,18 +140,6 @@ export default function Sidebar({
 
   return (
     <>
-      {/* Mobile overlay */}
-      {isOpen && (
-        <div
-          className="sidebar-overlay"
-          style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)',
-            zIndex: 45, display: 'block',
-          }}
-          onClick={() => setIsOpen(false)}
-        />
-      )}
-
       <aside className={`sidebar ${isOpen ? 'open' : ''}`} id="sidebar"
         style={{ '--primary': appConfig.primaryColor, '--primary-dark': appConfig.primaryDark } as React.CSSProperties}
       >
@@ -176,6 +165,7 @@ export default function Sidebar({
                 key={item.id}
                 href={href}
                 className={activeId === item.id ? 'active' : ''}
+                onClick={() => document.getElementById('sidebar')?.classList.remove('open')}
               >
                 <span className="material-icons-outlined">{item.icon}</span>
                 {item.label}
@@ -193,19 +183,38 @@ export default function Sidebar({
             </div>
           </div>
           {(role === 'superadmin' || role === 'developer' || (role === 'admin' && enabledModules.length > 1)) && (
-            <Link href="/portal" style={{
-              display: 'flex', alignItems: 'center', gap: '6px',
-              padding: '8px 12px', margin: '8px 12px 0',
-              borderRadius: 'var(--radius-sm)', fontSize: '.78rem',
-              color: 'rgba(255,255,255,.7)', background: 'rgba(255,255,255,.08)',
-              textDecoration: 'none',
-            }}>
+            <Link 
+              href="/portal" 
+              onClick={() => document.getElementById('sidebar')?.classList.remove('open')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '6px',
+                padding: '8px 12px', margin: '8px 12px 0',
+                borderRadius: 'var(--radius-sm)', fontSize: '.78rem',
+                color: 'rgba(255,255,255,.7)', background: 'rgba(255,255,255,.08)',
+                textDecoration: 'none',
+              }}
+            >
               <span className="material-icons-outlined" style={{ fontSize: '16px' }}>apps</span>
               Back to Portal
             </Link>
           )}
         </div>
       </aside>
+
+      {/* Mobile overlay */}
+      <div
+        className="sidebar-overlay"
+        style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)',
+          zIndex: 45, display: 'none',
+        }}
+        onClick={() => document.getElementById('sidebar')?.classList.remove('open')}
+      />
+      <style>{`
+        #sidebar.open ~ .sidebar-overlay {
+          display: block !important;
+        }
+      `}</style>
     </>
   );
 }

@@ -13,6 +13,7 @@ import {
   maskAadharNumber,
 } from '@/lib/pii';
 import { writeAudit } from '@/lib/audit';
+import { calculateCreditScore } from '@/lib/creditScore';
 
 const CUSTOMER_UPDATE_FIELDS = [
   'name',
@@ -63,8 +64,14 @@ export async function GET(
   const customer = await findScopedCustomer(id, ctx);
   if (!customer) return fail('Customer not found', 404);
 
+  // Canonical credit score — the SAME figure the web shows (300–850 + grade),
+  // from the shared lib so platforms never diverge. Returned as a structured
+  // object; the mobile renders it directly (no client-side recomputation).
+  const creditScore = calculateCreditScore(customer.loans);
+
   return ok({
     ...customer,
+    creditScore,
     aadharNumber: maskAadharNumber(decryptAadharNumber(customer.aadharNumber)),
     guarantors: customer.guarantors.map((g) => ({
       ...g,

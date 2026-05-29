@@ -287,6 +287,15 @@ model Customer {
   occupation        String?           @map("occupation")
   monthlyIncome     Float?            @map("monthly_income")
   gstNumber         String?           @map("gst_number")
+  // Extended company / business profile (loans taken for company purpose)
+  businessType      String?           @map("business_type")    // 'proprietorship' | 'partnership' | 'pvt_ltd' | 'public_ltd' | 'llp' | 'other'
+  companyLogo       String?           @map("company_logo")     // path/URL to company logo or photo
+  companyPan        String?           @map("company_pan")
+  companyRegNo      String?           @map("company_reg_no")   // CIN / registration number
+  companyAddress    String?           @map("company_address") @db.Text
+  companyPhone      String?           @map("company_phone")
+  companyEmail      String?           @map("company_email")
+  designation       String?           @map("designation")      // role in company (Director, Partner, Owner...)
   // GPS-01 / GPS-07: geocoded home location for geofence + route planning.
   lat               Float?            @map("lat")
   lng               Float?            @map("lng")
@@ -576,8 +585,11 @@ model CollectionEntry {
   loan           Loan            @relation(fields: [loanId], references: [id])
   tenant         Tenant?         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   instalment     Instalment?
-  photos         CollectionPhoto[]
-  receiptToken   ReceiptToken?
+  // NOTE: relations below were committed in 896c7d1 without their model
+  // definitions, which broke `prisma generate`/`validate`. Commented out
+  // until the CollectionPhoto / ReceiptToken models are actually defined.
+  // photos         CollectionPhoto[]
+  // receiptToken   ReceiptToken?
 
   @@index([agentId], map: "collection_entries_agent_id_fkey")
   @@index([collectionId], map: "collection_entries_collection_id_fkey")

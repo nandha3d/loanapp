@@ -5,12 +5,15 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:loantrack/core/a11y/voice_assist.dart';
+import 'package:loantrack/core/auth/auth_controller.dart';
+import 'package:loantrack/core/gps/gps_pinger.dart';
 import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/data/local/collection_queue.dart';
 import 'package:loantrack/data/models/collection_entry.dart';
+import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/data/services/collection_service.dart';
 import 'package:loantrack/features/collection/quick_collect_sheet.dart';
 import 'package:loantrack/shared/widgets/bottom_nav.dart';
@@ -25,11 +28,34 @@ final collectionTodayProvider =
 final _filterProvider =
     StateProvider.autoDispose<String>((_) => 'pending');
 
-class CollectionScreen extends ConsumerWidget {
+class CollectionScreen extends ConsumerStatefulWidget {
   const CollectionScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CollectionScreen> createState() => _CollectionScreenState();
+}
+
+class _CollectionScreenState extends ConsumerState<CollectionScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // GPS-05: live-track the agent while the collection screen is open (the
+    // stream stops on dispose — battery-friendly). These pings feed the admin
+    // tracking map (/gps/live). Permission is requested inside the pinger.
+    final user = ref.read(authControllerProvider).user;
+    if (user?.role == UserRole.agent) {
+      ref.read(gpsPingerProvider).start();
+    }
+  }
+
+  @override
+  void dispose() {
+    ref.read(gpsPingerProvider).stop();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final async = ref.watch(collectionTodayProvider);
     final sync = ref.watch(collectionSyncProvider);
     final filter = ref.watch(_filterProvider);

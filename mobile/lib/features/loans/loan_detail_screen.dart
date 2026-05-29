@@ -209,19 +209,26 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
                   },
                 ),
               ),
-              ...displayInstalments.map(
-                (inst) => _InstalmentRow(
-                  key: _rowKeys.putIfAbsent(
-                    inst.instalmentNo,
-                    GlobalKey.new,
+              ...(() {
+                // Compute the restructured rate ONCE (the schedule renders every
+                // row, so per-row recompute would be O(n²)).
+                final restructuredAmount =
+                    _showRestructuredRates ? computeRestructuredRate(loan) : 0.0;
+                return displayInstalments.map(
+                  (inst) => _InstalmentRow(
+                    key: _rowKeys.putIfAbsent(
+                      inst.instalmentNo,
+                      GlobalKey.new,
+                    ),
+                    inst: inst,
+                    loan: loan,
+                    fmt: fmt,
+                    highlighted: _highlight == inst.instalmentNo,
+                    isRestructured: _showRestructuredRates,
+                    restructuredAmount: restructuredAmount,
                   ),
-                  inst: inst,
-                  loan: loan,
-                  fmt: fmt,
-                  highlighted: _highlight == inst.instalmentNo,
-                  isRestructured: _showRestructuredRates,
-                ),
-              ),
+                );
+              })(),
             ],
           ),
         ),
@@ -591,6 +598,31 @@ class _StatBlock extends StatelessWidget {
   }
 }
 
+/// Restructured instalment amount: the loan's OUTSTANDING balance spread evenly
+/// across the instalments still collectable from today onward (due today or
+/// later AND not fully paid). Missed past dues stay in the outstanding total but
+/// are excluded from the denominator, so they get redistributed onto the
+/// remaining days — letting the borrower still finish by the original end date.
+///   • Paid on schedule → equals the original per-instalment (no change).
+///   • Missed some days  → higher than the original (catch-up spread evenly).
+/// Returns 0 when nothing is outstanding.
+double computeRestructuredRate(Loan loan) {
+  final now = DateTime.now();
+  final todayStart = DateTime(now.year, now.month, now.day);
+  double outstanding = 0;
+  int remaining = 0;
+  for (final i in loan.instalments) {
+    final out = i.dueAmount - i.receivedAmount;
+    if (out > 0) outstanding += out;
+    final due = DateTime(i.dueDate.year, i.dueDate.month, i.dueDate.day);
+    if (!due.isBefore(todayStart) && i.receivedAmount < i.dueAmount) {
+      remaining++;
+    }
+  }
+  if (outstanding <= 0) return 0;
+  return outstanding / (remaining > 0 ? remaining : 1);
+}
+
 class _InstalmentRow extends ConsumerWidget {
   const _InstalmentRow({
     super.key,
@@ -599,12 +631,14 @@ class _InstalmentRow extends ConsumerWidget {
     required this.fmt,
     required this.highlighted,
     this.isRestructured = false,
+    this.restructuredAmount = 0,
   });
   final Instalment inst;
   final Loan loan;
   final NumberFormat fmt;
   final bool highlighted;
   final bool isRestructured;
+  final double restructuredAmount;
 
   BadgeKind _badgeKind(String dynStatus) => switch (dynStatus) {
         'paid' => BadgeKind.active,
@@ -682,13 +716,58 @@ class _InstalmentRow extends ConsumerWidget {
               ],
             ),
           ),
-          // Due column
+          // Due column — shows the restructured rate (with the original struck
+          // through) for still-collectable future/today instalments when the
+          // toggle is on and the figure actually changed.
           Expanded(
             flex: 2,
-            child: Text(
-              fmt.format(inst.dueAmount),
-              style: AppTypography.body.copyWith(fontSize: 12),
-              textAlign: TextAlign.right,
+            child: Builder(
+              builder: (_) {
+                final todayStart = DateTime(
+                  DateTime.now().year,
+                  DateTime.now().month,
+                  DateTime.now().day,
+                );
+                final dueDay = DateTime(
+                  inst.dueDate.year,
+                  inst.dueDate.month,
+                  inst.dueDate.day,
+                );
+                final showAdj = isRestructured &&
+                    restructuredAmount > 0 &&
+                    inst.receivedAmount == 0 &&
+                    !dueDay.isBefore(todayStart) &&
+                    (restructuredAmount - inst.dueAmount).abs() >= 0.01;
+                if (!showAdj) {
+                  return Text(
+                    fmt.format(inst.dueAmount),
+                    style: AppTypography.body.copyWith(fontSize: 12),
+                    textAlign: TextAlign.right,
+                  );
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      fmt.format(restructuredAmount),
+                      style: AppTypography.body.copyWith(
+                        fontSize: 12,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w800,
+                      ),
+                      textAlign: TextAlign.right,
+                    ),
+                    Text(
+                      fmt.format(inst.dueAmount),
+                      style: AppTypography.extraTiny.copyWith(
+                        color: AppColors.textLight,
+                        decoration: TextDecoration.lineThrough,
+                      ),
+                      textAlign: TextAlign.right,
+                    ),
+                  ],
+                );
+              },
             ),
           ),
           // Received column
@@ -723,6 +802,7 @@ class _InstalmentRow extends ConsumerWidget {
                     inst: inst,
                     loan: loan,
                     isRestructured: isRestructured,
+                    restructuredAmount: restructuredAmount,
                     onCompleted: () {
                       // Force rebuild by invalidating the provider
                       // This is handled by the parent refreshing
@@ -745,11 +825,13 @@ class _PayButton extends ConsumerWidget {
     required this.inst,
     required this.loan,
     this.isRestructured = false,
+    this.restructuredAmount = 0,
     this.onCompleted,
   });
   final Instalment inst;
   final Loan loan;
   final bool isRestructured;
+  final double restructuredAmount;
   final VoidCallback? onCompleted;
 
   @override
@@ -774,11 +856,23 @@ class _PayButton extends ConsumerWidget {
 
   void _openPaySheet(BuildContext context, WidgetRef ref) {
     var defaultAmount = inst.dueAmount;
-    if (isRestructured && inst.dynamicStatus != 'paid' && inst.dynamicStatus != 'partial') {
-      final totalCollected = loan.instalments.fold(0.0, (sum, i) => sum + i.receivedAmount);
-      final outstanding = (inst.dueAmount * loan.instalmentCount) - totalCollected;
-      final dynamicRemainingCount = inst.dueAmount > 0 ? (outstanding / inst.dueAmount).ceil() : 1;
-      defaultAmount = dynamicRemainingCount > 0 ? outstanding / dynamicRemainingCount : inst.dueAmount;
+    // Use the (correctly computed) restructured rate for unpaid, today-or-future
+    // instalments so the pay sheet pre-fills the catch-up amount.
+    final todayStart = DateTime(
+      DateTime.now().year,
+      DateTime.now().month,
+      DateTime.now().day,
+    );
+    final dueDay = DateTime(
+      inst.dueDate.year,
+      inst.dueDate.month,
+      inst.dueDate.day,
+    );
+    if (isRestructured &&
+        restructuredAmount > 0 &&
+        inst.receivedAmount == 0 &&
+        !dueDay.isBefore(todayStart)) {
+      defaultAmount = restructuredAmount;
     }
 
     // Build a CollectionRow from the instalment data to reuse QuickCollectSheet

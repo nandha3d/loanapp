@@ -19,11 +19,20 @@ final _loansProvider =
   return ref.watch(loanServiceProvider).list();
 });
 
-class LoansScreen extends ConsumerWidget {
+class LoansScreen extends ConsumerStatefulWidget {
   const LoansScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LoansScreen> createState() => _LoansScreenState();
+}
+
+class _LoansScreenState extends ConsumerState<LoansScreen> {
+  // Default: hide closed loans — only active/ongoing loans are shown until the
+  // user opts in via the toggle.
+  bool _showClosed = false;
+
+  @override
+  Widget build(BuildContext context) {
     final async = ref.watch(_loansProvider);
     final t = T.of(ref);
     final fmt =
@@ -43,33 +52,68 @@ class LoansScreen extends ConsumerWidget {
           padding: const EdgeInsets.all(16),
           itemCount: 5,
           separatorBuilder: (_, __) => const SizedBox(height: 8),
-          itemBuilder: (_, __) => const Skeleton(height: 80, borderRadius: 12),
+          itemBuilder: (_, __) => const Skeleton(height: 84, borderRadius: 12),
         ),
         error: (e, _) => EmptyState(
           icon: Icons.cloud_off,
           title: t.x('err.failed_to_load'),
           subtitle: e.toString(),
         ),
-        data: (loans) => loans.isEmpty
-            ? EmptyState(
-                icon: Icons.account_balance_wallet_outlined,
-                title: t.x('title.loans'),
-                subtitle: t.x('empty.tap_new'),
-              )
-            : RefreshIndicator(
-                color: AppColors.primary,
-                onRefresh: () async => ref.refresh(_loansProvider.future),
-                child: ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-                  itemCount: loans.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (_, i) => _LoanTile(
-                    loan: loans[i],
-                    fmt: fmt,
-                    onTap: () => context.push('/loans/${loans[i]['id']}'),
-                  ),
+        data: (loans) {
+          final closedCount =
+              loans.where((l) => (l['status'] as String?) == 'closed').length;
+          final visible = _showClosed
+              ? loans
+              : loans
+                  .where((l) => (l['status'] as String?) != 'closed')
+                  .toList(growable: false);
+
+          return Column(
+            children: [
+              _ClosedToggle(
+                value: _showClosed,
+                closedCount: closedCount,
+                activeCount: loans.length - closedCount,
+                onChanged: (v) => setState(() => _showClosed = v),
+                t: t,
+              ),
+              Expanded(
+                child: RefreshIndicator(
+                  color: AppColors.primary,
+                  onRefresh: () async => ref.refresh(_loansProvider.future),
+                  child: visible.isEmpty
+                      ? ListView(
+                          // Keep it scrollable so pull-to-refresh still works.
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            const SizedBox(height: 80),
+                            EmptyState(
+                              icon: Icons.account_balance_wallet_outlined,
+                              title: t.x('title.loans'),
+                              subtitle: _showClosed
+                                  ? t.x('empty.tap_new')
+                                  : t.x('empty.tap_new'),
+                            ),
+                          ],
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          itemCount: visible.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 10),
+                          itemBuilder: (_, i) => _LoanTile(
+                            loan: visible[i],
+                            fmt: fmt,
+                            onTap: () =>
+                                context.push('/loans/${visible[i]['id']}'),
+                          ),
+                        ),
                 ),
               ),
+            ],
+          );
+        },
       ),
       floatingActionButton: FabExtended(
         icon: Icons.add,
@@ -81,20 +125,91 @@ class LoansScreen extends ConsumerWidget {
   }
 }
 
+/// Header strip with the "show closed loans" toggle + live counts.
+class _ClosedToggle extends StatelessWidget {
+  const _ClosedToggle({
+    required this.value,
+    required this.closedCount,
+    required this.activeCount,
+    required this.onChanged,
+    required this.t,
+  });
+  final bool value;
+  final int closedCount;
+  final int activeCount;
+  final ValueChanged<bool> onChanged;
+  final T t;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppTokens.radius),
+        boxShadow: AppTokens.shadow,
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.check_circle_outline,
+            size: 18,
+            color: AppColors.textSecondary,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  t.x('loans.show_closed'),
+                  style: AppTypography.bodyLarge.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                Text(
+                  value
+                      ? '${activeCount + closedCount} ${t.x('loans.total_suffix')}'
+                      : '$activeCount ${t.x('loans.active_suffix')} · $closedCount ${t.x('loans.closed_suffix')}',
+                  style: AppTypography.caption,
+                ),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: value,
+            activeThumbColor: AppColors.primary,
+            onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _LoanTile extends StatelessWidget {
   const _LoanTile({required this.loan, required this.fmt, required this.onTap});
   final Map<String, dynamic> loan;
   final NumberFormat fmt;
   final VoidCallback onTap;
 
+  double _toDouble(dynamic v) => v is num
+      ? v.toDouble()
+      : double.tryParse(v?.toString() ?? '') ?? 0;
+
   @override
   Widget build(BuildContext context) {
     final customer = (loan['customer'] as Map<String, dynamic>?) ?? const {};
-    final principalRaw = loan['principal'];
-    final principal = principalRaw is num
-        ? principalRaw.toDouble()
-        : double.tryParse(principalRaw?.toString() ?? '0') ?? 0;
+    final customerName = customer['name']?.toString() ?? '—';
+    final principal = _toDouble(loan['principal']);
     final status = (loan['status'] as String?) ?? 'pending_review';
+
+    final paid = (loan['paidCount'] as num?)?.toInt() ?? 0;
+    final total = (loan['totalInstalments'] as num?)?.toInt() ?? 0;
+    final pct = total > 0 ? (paid / total).clamp(0.0, 1.0) : 0.0;
+
     final BadgeKind kind = switch (status) {
       'active' => BadgeKind.active,
       'overdue' => BadgeKind.overdue,
@@ -102,54 +217,146 @@ class _LoanTile extends StatelessWidget {
       'pending_review' || 'pending' => BadgeKind.pending,
       _ => BadgeKind.info,
     };
+    final Color progressColor = status == 'overdue'
+        ? AppColors.danger
+        : pct >= 1.0
+            ? AppColors.success
+            : AppColors.primary;
 
-    return Material(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(AppTokens.radius),
-      child: InkWell(
+    return Container(
+      decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(AppTokens.radius),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppTokens.radius),
-            boxShadow: AppTokens.shadow,
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      loan['loanCode']?.toString() ?? '—',
-                      style: AppTypography.bodyLarge.copyWith(
-                        fontFamily: 'monospace',
+        boxShadow: AppTokens.shadow,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppTokens.radius),
+        child: Material(
+          color: AppColors.surface,
+          child: InkWell(
+            onTap: onTap,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                  child: Row(
+                    children: [
+                      _Avatar(name: customerName, size: 44),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              loan['loanCode']?.toString() ?? '—',
+                              style: AppTypography.bodyLarge.copyWith(
+                                fontFamily: 'monospace',
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              customerName,
+                              style: AppTypography.caption,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (total > 0) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                '$paid / $total · ${(pct * 100).round()}%',
+                                style: AppTypography.extraTiny.copyWith(
+                                  color: AppColors.textLight,
+                                  fontFeatures: const [
+                                    FontFeature.tabularFigures(),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      customer['name']?.toString() ?? '—',
-                      style: AppTypography.caption,
-                    ),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    fmt.format(principal),
-                    style: AppTypography.bodyLarge.copyWith(
-                      color: AppColors.primaryDark,
-                    ),
+                      const SizedBox(width: 8),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            fmt.format(principal),
+                            style: AppTypography.bodyLarge.copyWith(
+                              color: AppColors.primaryDark,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          AppBadge(label: status, kind: kind),
+                        ],
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  AppBadge(label: status, kind: kind),
-                ],
-              ),
-            ],
+                ),
+                // Progress bar hugging the bottom edge of the card.
+                LinearProgressIndicator(
+                  value: pct,
+                  minHeight: 4,
+                  backgroundColor: AppColors.border.withAlpha(90),
+                  valueColor: AlwaysStoppedAnimation<Color>(progressColor),
+                ),
+              ],
+            ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Colored initials avatar (consistent with the dashboard). Server-side profile
+/// photos aren't loaded here: the file endpoint is cookie-authenticated and the
+/// web build can't attach the Bearer token to image requests.
+class _Avatar extends StatelessWidget {
+  const _Avatar({required this.name, this.size = 40});
+  final String name;
+  final double size;
+
+  Color _color() {
+    const palette = [
+      AppColors.primary,
+      AppColors.info,
+      AppColors.purple,
+      AppColors.success,
+      AppColors.warning,
+    ];
+    if (name.isEmpty) return AppColors.textLight;
+    final h = name.codeUnits.fold<int>(0, (a, b) => (a + b) & 0xFF);
+    return palette[h % palette.length];
+  }
+
+  String _initials() {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || parts.first.isEmpty) return '—';
+    return parts
+        .take(2)
+        .map((p) => p.isEmpty ? '' : p[0].toUpperCase())
+        .join();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = _color();
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: c.withAlpha(40),
+        borderRadius: BorderRadius.circular(size / 2),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        _initials(),
+        style: TextStyle(
+          color: c,
+          fontWeight: FontWeight.w800,
+          fontSize: size * 0.34,
         ),
       ),
     );

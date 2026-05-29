@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:loantrack/core/network/api_exception.dart';
 import 'package:loantrack/core/network/dio_client.dart';
 import 'package:loantrack/data/models/loan.dart';
 import 'package:loantrack/data/models/loan_calc.dart';
@@ -11,18 +12,45 @@ class LoanService {
   final Dio _dio;
 
   Future<List<Map<String, dynamic>>> list({String? customerId, String? status}) async {
-    final res = await _dio.get<Map<String, dynamic>>(
-      Endpoints.loans,
-      queryParameters: {
-        if (customerId != null) 'customerId': customerId,
-        if (status != null) 'status': status,
-      },
-    );
-    return unwrapEnvelope(res, (dynamic d) {
-      return (d as List<dynamic>)
+    // The API is cursor-paginated (default 20, max 100 per page). Follow the
+    // cursor and accumulate every page so the list shows ALL loans — previously
+    // only the first 20 ever loaded, which is why the mobile list looked short
+    // compared to the web. Page size is maxed out to minimise round-trips and a
+    // hard page cap guards against an unbounded loop.
+    final all = <Map<String, dynamic>>[];
+    String? cursor;
+    for (var page = 0; page < 50; page++) {
+      final res = await _dio.get<Map<String, dynamic>>(
+        Endpoints.loans,
+        queryParameters: {
+          if (customerId != null) 'customerId': customerId,
+          if (status != null) 'status': status,
+          'limit': 100,
+          if (cursor != null) 'cursor': cursor,
+        },
+      );
+      final body = res.data;
+      if (body is! Map<String, dynamic>) {
+        throw ApiException('Malformed response', statusCode: res.statusCode);
+      }
+      final err = body['error'];
+      if (err != null) {
+        throw ApiException(
+          err is String ? err : err.toString(),
+          statusCode: res.statusCode,
+        );
+      }
+      final pageRows = (body['data'] as List<dynamic>? ?? const <dynamic>[])
           .map((dynamic e) => e as Map<String, dynamic>)
           .toList(growable: false);
-    });
+      all.addAll(pageRows);
+
+      final pagination = body['pagination'] as Map<String, dynamic>?;
+      final next = pagination?['nextCursor'] as String?;
+      if (next == null || pageRows.isEmpty) break;
+      cursor = next;
+    }
+    return all;
   }
 
   Future<Loan> getById(String id) async {

@@ -9,7 +9,7 @@ import { randomUUID } from 'crypto';
 import { reallocateLoanRepayments } from '@/lib/repayments';
 import { notify } from '@/lib/notify/events';
 import { recordPaymentLedger } from '@/lib/paymentService';
-import { buildCollectionIdempotencyKey, getCollectionSubmissionBlockReason } from '@/lib/collectionPolicy';
+import { buildCollectionIdempotencyKey, canCollectForLoanStatus } from '@/lib/collectionPolicy';
 import { autoPostCollection } from '@/lib/accounting/autoPost';
 import {
   isGpsTrackingEnabled,
@@ -129,6 +129,7 @@ export async function submitCollectionEntry(formData: FormData) {
   });
   let appliedDelta = delta;
   let createdEntryId: string | null = null;
+  let allocationRemark = '';
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -137,62 +138,102 @@ export async function submitCollectionEntry(formData: FormData) {
         select: { dueAmount: true, receivedAmount: true },
       });
       if (!latestInstalment) throw new Error('Instalment not found');
-      if (!isEdit) {
-        const blockReason = getCollectionSubmissionBlockReason({
-          loanStatus: instalment.loan.status,
-          dueAmount: Number(latestInstalment.dueAmount),
-          receivedAmount: Number(latestInstalment.receivedAmount || 0),
+
+      if (isEdit) {
+        // Admin correcting a single instalment's recorded amount — operates on the
+        // clicked instalment only (unchanged behaviour).
+        allocationRemark = `Payment adjustment for instalment #${instalment.instalmentNo} (${currentReceived} → ${receivedAmount})`;
+        const mergedRemarks = [remarks, allocationRemark].filter(Boolean).join(' | ');
+
+        const entry = await tx.collectionEntry.create({
+          data: {
+            tenantId, idempotencyKey, collectionId: dailyCollectionRow.id,
+            customerId: instalment.loan.customerId, loanId: instalment.loanId,
+            dueAmount: Number(instalment.dueAmount), receivedAmount: appliedDelta,
+            paymentMode, remarks: mergedRemarks, agentId: userId,
+            lat: gpsCapture.latitude, lng: gpsCapture.longitude,
+            gpsAccuracyM: gpsCapture.gpsAccuracy, gpsCapturedAt: gpsCapture.gpsTimestamp,
+            gpsAltitude: gpsCapture.gpsAltitude, locationStatus: gpsCapture.locationStatus,
+          },
         });
-        if (blockReason) throw new Error(`Already recorded: ${blockReason}`);
-        appliedDelta = Math.min(delta, Number(latestInstalment.dueAmount) - Number(latestInstalment.receivedAmount || 0));
+        createdEntryId = entry.id;
+
+        await recordPaymentLedger(tx, {
+          tenantId, loanId: instalment.loanId, instalmentId: instalment.id,
+          amount: appliedDelta, paymentMode,
+        });
+
+        await tx.instalment.update({
+          where: { id: instalment.id },
+          data: { receivedAmount, receivedAt: new Date(), remarks: `Edited by Admin: ${remarks || ''}` },
+        });
+      } else {
+        // Fresh collection: spread the collected amount across the loan's unpaid
+        // instalments oldest-first (clears overdue before today's due) instead of
+        // capping it to the clicked instalment and discarding the surplus. This is
+        // why paying the full "Total Outstanding Balance" now clears today too.
+        if (!canCollectForLoanStatus(instalment.loan.status)) {
+          throw new Error('Already recorded: Loan is closed for collection');
+        }
+        const unpaid = await tx.instalment.findMany({
+          where: { loanId: instalment.loanId },
+          orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
+          select: { id: true, instalmentNo: true, dueAmount: true, receivedAmount: true },
+        });
+        const totalOutstanding = unpaid.reduce(
+          (sum, i) => sum + Math.max(0, Number(i.dueAmount) - Number(i.receivedAmount)), 0,
+        );
+        if (totalOutstanding <= 0) {
+          throw new Error('Already recorded: Instalment is already fully collected');
+        }
+
+        // Build the allocation plan. Cap the total at the loan's outstanding so a
+        // mistaken over-amount can never credit more than is actually owed.
+        let remaining = delta;
+        const plan: { id: string; instalmentNo: number; add: number }[] = [];
+        for (const inst of unpaid) {
+          if (remaining <= 0) break;
+          const room = Math.max(0, Number(inst.dueAmount) - Number(inst.receivedAmount));
+          if (room <= 0) continue;
+          const add = Math.min(remaining, room);
+          plan.push({ id: inst.id, instalmentNo: inst.instalmentNo, add });
+          remaining -= add;
+        }
+        appliedDelta = plan.reduce((sum, p) => sum + p.add, 0);
+
+        allocationRemark = `Payment distributed: ${plan.map(p => `#${p.instalmentNo} +₹${p.add}`).join(', ')}`;
+        const mergedRemarks = [remarks, allocationRemark].filter(Boolean).join(' | ');
+
+        const entry = await tx.collectionEntry.create({
+          data: {
+            tenantId, idempotencyKey, collectionId: dailyCollectionRow.id,
+            customerId: instalment.loan.customerId, loanId: instalment.loanId,
+            dueAmount: Number(instalment.dueAmount), receivedAmount: appliedDelta,
+            paymentMode, remarks: mergedRemarks, agentId: userId,
+            lat: gpsCapture.latitude, lng: gpsCapture.longitude,
+            gpsAccuracyM: gpsCapture.gpsAccuracy, gpsCapturedAt: gpsCapture.gpsTimestamp,
+            gpsAltitude: gpsCapture.gpsAltitude, locationStatus: gpsCapture.locationStatus,
+          },
+        });
+        createdEntryId = entry.id;
+
+        // One Payment with an allocation per instalment it covers.
+        const payment = await tx.payment.create({
+          data: {
+            tenantId, loanId: instalment.loanId, amount: appliedDelta,
+            paymentMode, paymentDate: new Date(), status: 'completed',
+          },
+        });
+        for (const p of plan) {
+          await tx.paymentAllocation.create({
+            data: { paymentId: payment.id, instalmentId: p.id, amount: p.add },
+          });
+          await tx.instalment.update({
+            where: { id: p.id },
+            data: { receivedAmount: { increment: p.add }, receivedAt: new Date() },
+          });
+        }
       }
-
-    const allocationRemark = isEdit 
-      ? `Payment adjustment for instalment #${instalment.instalmentNo} (${currentReceived} → ${receivedAmount})`
-      : `Direct payment for instalment #${instalment.instalmentNo} (+₹${delta})`;
-      
-    const mergedRemarks = [remarks, allocationRemark].filter(Boolean).join(' | ');
-
-    const entry = await tx.collectionEntry.create({
-      data: {
-        tenantId,
-        idempotencyKey,
-        collectionId: dailyCollectionRow.id,
-        customerId: instalment.loan.customerId,
-        loanId: instalment.loanId,
-        dueAmount: Number(instalment.dueAmount),
-        receivedAmount: appliedDelta,
-        paymentMode,
-        remarks: mergedRemarks,
-        agentId: userId,
-        lat: gpsCapture.latitude,
-        lng: gpsCapture.longitude,
-        gpsAccuracyM: gpsCapture.gpsAccuracy,
-        gpsCapturedAt: gpsCapture.gpsTimestamp,
-        gpsAltitude: gpsCapture.gpsAltitude,
-        locationStatus: gpsCapture.locationStatus,
-      },
-    });
-    createdEntryId = entry.id;
-
-    // Create Payment + PaymentAllocation via shared service
-    await recordPaymentLedger(tx, {
-      tenantId,
-      loanId: instalment.loanId,
-      instalmentId: instalment.id,
-      amount: appliedDelta,
-      paymentMode,
-    });
-
-    // Directly update the instalment receivedAmount
-    await tx.instalment.update({
-      where: { id: instalment.id },
-      data: { 
-        receivedAmount: isEdit ? receivedAmount : { increment: appliedDelta },
-        receivedAt: new Date(),
-        remarks: isEdit ? `Edited by Admin: ${remarks || ''}` : instalment.remarks
-      }
-    });
 
     await reallocateLoanRepayments(tx, instalment.loanId);
 
@@ -215,7 +256,7 @@ export async function submitCollectionEntry(formData: FormData) {
         userId,
         action: isEdit ? 'update' : 'create',
         entityType: 'collection',
-        entityId: entry.id,
+        entityId: createdEntryId!,
         newValue: JSON.stringify({
           customer: instalment.loan.customer.name,
           loanCode: instalment.loan.loanCode,

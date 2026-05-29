@@ -126,6 +126,7 @@ tbody tr.locked { opacity: .5; pointer-events: none; background: #F9FAFB; }
 .badge-overdue, .badge-missed { background: var(--danger-bg); color: #991B1B; }
 .badge-closed { background: #E0F2FE; color: #075985; }
 .badge-upcoming, .badge-info { background: var(--info-bg); color: #075985; }
+.badge-due-today { background: rgba(249,115,22,.14); color: #C2410C; }
 .badge-pending { background: var(--primary-light); color: var(--primary-dark); }
 .badge-waived { background: #F3E8FF; color: #7C3AED; }
 .badge-partial { background: var(--warning-bg); color: #92400E; }
