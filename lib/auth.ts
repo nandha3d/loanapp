@@ -1,5 +1,6 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
+import Google from 'next-auth/providers/google';
 import { compare } from 'bcryptjs';
 // Prisma is imported dynamically inside functions to prevent Edge Runtime errors in middleware
 import { verifySync } from 'otplib';
@@ -150,6 +151,11 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
             return null; 
           }
 
+          if (!user.passwordHash) {
+            console.warn(`[AUTH_WARN] Password login not set for user: ${username}`);
+            return null;
+          }
+
           const isValid = await compare(credentials.password as string, user.passwordHash);
           if (!isValid) {
             console.warn(`[AUTH_WARN] Invalid password for user: ${username}`);
@@ -216,8 +222,43 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
         }
       },
     }),
+    Google({
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    }),
   ],
   callbacks: {
+    async signIn({ user, account }: any) {
+      if (account?.provider === 'google') {
+        try {
+          const prisma = (await import('./db')).default;
+          const dbUser = await prisma.user.findFirst({
+            where: {
+              OR: [
+                { googleId: user.id },
+                { email: user.email }
+              ]
+            },
+            select: { id: true, googleId: true }
+          });
+          if (!dbUser) {
+            return `/register?google_email=${encodeURIComponent(user.email || '')}&google_name=${encodeURIComponent(user.name || '')}&google_id=${encodeURIComponent(user.id || '')}`;
+          }
+          if (!dbUser.googleId) {
+            await prisma.user.update({
+              where: { id: dbUser.id },
+              data: { googleId: user.id }
+            });
+          }
+          user.id = dbUser.id;
+          return true;
+        } catch (e) {
+          console.error('[GOOGLE_SIGNIN_CALLBACK_ERROR]', e);
+          return false;
+        }
+      }
+      return true;
+    },
     async jwt({ token, user }: any) {
       if (user) {
         // Only store minimal essential data in JWT for authorization
@@ -254,7 +295,12 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
               branchId: true,
               tenantId: true,
               phone: true,
-              username: true
+              username: true,
+              tenant: {
+                select: {
+                  slug: true
+                }
+              }
             },
           });
           if (dbUser) {
@@ -264,6 +310,7 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
             (session.user as any).tenantId = dbUser.tenantId;
             (session.user as any).phone = dbUser.phone;
             (session.user as any).username = dbUser.username;
+            (session.user as any).tenantSlug = dbUser.tenant?.slug || null;
           } else {
             console.error('[AUTH_SESSION_ERROR] User not found in database');
             return null;
@@ -283,5 +330,19 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
   session: {
     strategy: 'jwt',
     maxAge: 30 * 24 * 60 * 60, // 30 days globally, overridden in jwt callback
+  },
+  cookies: {
+    sessionToken: {
+      name: `next-auth.session-token`,
+      options: {
+        domain: process.env.NODE_ENV === 'production'
+          ? (process.env.NEXT_PUBLIC_ROOT_DOMAIN ? `.${process.env.NEXT_PUBLIC_ROOT_DOMAIN.split(':')[0]}` : undefined)
+          : (process.env.NEXT_PUBLIC_ROOT_DOMAIN && process.env.NEXT_PUBLIC_ROOT_DOMAIN.includes('lvh.me') ? '.lvh.me' : undefined),
+        path: '/',
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+      },
+    },
   },
 });

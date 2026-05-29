@@ -119,7 +119,7 @@ model User {
   phone                    String
   email                    String?
   username                 String
-  passwordHash             String             @map("password_hash")
+  passwordHash             String?            @map("password_hash")
   role                     String             @default("agent")
   appType                  String             @default("microlending") @map("app_type")
   status                   String             @default("active")
@@ -130,6 +130,7 @@ model User {
   updatedAt                DateTime           @updatedAt @map("updated_at")
   deletedAt                DateTime?          @map("deleted_at")
   totpSecret               String?            @map("totp_secret")
+  googleId                 String?            @unique @map("google_id")
   approvalRequestsMade       ApprovalRequest[]  @relation("Requester")
   approvalRequestsReviewed   ApprovalRequest[]  @relation("Reviewer")
   auditLogs                  AuditLog[]
@@ -964,7 +965,61 @@ model TenantSubscription {
   gracePeriodEnd   DateTime? @map("grace_period_end")
   tenant           Tenant    @relation(fields: [tenantId], references: [id])
 
+  // Pricing & Addon Snapshot fields
+  selectedAddons   String    @default("[]") @map("selected_addons") @db.LongText
+  basePlanPrice    Int       @default(0) @map("base_plan_price")
+  modulesPrice     Int       @default(0) @map("modules_price")
+  addonsPrice      Int       @default(0) @map("addons_price")
+  totalMonthlyPrice Int      @default(0) @map("total_monthly_price")
+
   @@map("tenant_subscriptions")
+}
+
+model SubscriptionPlanCatalog {
+  id                String   @id @default(cuid())
+  plan              String   @unique
+  displayName       String   @map("display_name")
+  description       String?  @db.Text
+  monthlyPrice      Int      @map("monthly_price") // in paise/cents/INR
+  maxBranches       Int      @map("max_branches")
+  maxAgents         Int      @map("max_agents")
+  maxActiveLoans    Int      @map("max_active_loans")
+  features          String   @map("features") @db.LongText // JSON array of features
+  razorpayPlanId    String?  @map("razorpay_plan_id")
+  isActive          Boolean  @default(true) @map("is_active")
+  sortOrder         Int      @default(0) @map("sort_order")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("subscription_plan_catalogs")
+}
+
+model ModulePriceCatalog {
+  id                String   @id @default(cuid())
+  module            String   @unique
+  displayName       String   @map("display_name")
+  description       String?  @db.Text
+  monthlyPrice      Int      @map("monthly_price")
+  isActive          Boolean  @default(true) @map("is_active")
+  sortOrder         Int      @default(0) @map("sort_order")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("module_price_catalogs")
+}
+
+model AddonCatalog {
+  id                String   @id @default(cuid())
+  addon             String   @unique
+  displayName       String   @map("display_name")
+  description       String?  @db.Text
+  monthlyPrice      Int      @map("monthly_price")
+  isActive          Boolean  @default(true) @map("is_active")
+  sortOrder         Int      @default(0) @map("sort_order")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("addon_catalogs")
 }
 
 /// Distributed rate-limit tracking backed by MySQL.

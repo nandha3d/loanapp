@@ -42,6 +42,9 @@ export async function POST(req: NextRequest) {
     if (!user || user.tenant.status !== 'active') {
       return fail('Invalid credentials', 401);
     }
+    if (!user.passwordHash) {
+      return fail('Password login not set. Please use Google Sign-In.', 401);
+    }
     const valid = await compare(body.password, user.passwordHash);
     if (!valid) return fail('Invalid credentials', 401);
 

@@ -123,6 +123,12 @@ export default async function AdminLayout({
                 Billing
               </Link>
             )}
+            {userRole === 'developer' && (
+              <Link href="/admin/billing/pricing">
+                <span className="material-icons-outlined">payments</span>
+                Pricing Settings
+              </Link>
+            )}
           </nav>
 
           <div className="sidebar-footer">

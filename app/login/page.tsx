@@ -34,10 +34,29 @@ function LoginForm() {
         return;
       }
 
-      router.push(callbackUrl);
-      router.refresh();
-    } catch {
-      setError('An unexpected error occurred');
+      // Fetch the active session to retrieve the user's tenantSlug
+      const sessionRes = await fetch('/api/auth/session');
+      const session = await sessionRes.json();
+      const tenantSlug = session?.user?.tenantSlug;
+
+       const hostname = window.location.hostname;
+       const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localhost';
+       const rootHost = rootDomain.split(':')[0];
+       const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+       const supportsSubdomains = rootDomain && !rootDomain.includes('localhost');
+
+       // If we are currently on the root domain and the tenant has a slug, redirect to their subdomain (if supported)
+       if (tenantSlug && tenantSlug !== 'default' && (hostname === rootHost) && !isLocalhost && supportsSubdomains) {
+         const protocol = window.location.protocol;
+         const port = window.location.port ? `:${window.location.port}` : '';
+         const targetUrl = `${protocol}//${tenantSlug}.${hostname}${port}${callbackUrl === '/' ? '/portal' : callbackUrl}`;
+         window.location.href = targetUrl;
+       } else {
+         router.push(callbackUrl);
+         router.refresh();
+       }
+    } catch (err: any) {
+      setError(err?.message || 'An unexpected error occurred');
       setLoading(false);
     }
   };
@@ -113,7 +132,9 @@ function LoginForm() {
           </button>
         </form>
 
-
+        <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '.85rem', color: 'var(--text-secondary)' }}>
+          New to LoanTrack? <a href="/register" style={{ color: 'var(--primary)', fontWeight: 600 }}>Register Business</a>
+        </p>
       </div>
     </div>
   );

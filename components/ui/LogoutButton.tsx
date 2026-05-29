@@ -7,7 +7,7 @@ export default function LogoutButton({ className = "btn btn-ghost btn-sm" }: { c
     <button
       className={className}
       title="Logout"
-      onClick={() => signOut({ callbackUrl: '/login' })}
+      onClick={() => signOut({ callbackUrl: window.location.origin + '/login' })}
       style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
     >
       <span className="material-icons-outlined" style={{ fontSize: '20px' }}>logout</span>

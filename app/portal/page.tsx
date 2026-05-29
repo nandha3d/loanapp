@@ -7,6 +7,8 @@ import { modulePath, normalizeModuleList } from '@/types/modules';
 import { getSubscription, isTenantSubscriptionExpired } from '@/lib/subscription';
 import SubscriptionExpiredModal from '@/components/layout/SubscriptionExpiredModal';
 
+import { headers } from 'next/headers';
+
 export default async function SuperAdminPortal() {
   const session = await auth();
 
@@ -15,6 +17,26 @@ export default async function SuperAdminPortal() {
   }
 
   const role = (session.user as any)?.role;
+  const tenantSlug = (session.user as any)?.tenantSlug;
+
+  // Enforce subdomain scoping for non-developers landing on root domain
+  if (tenantSlug && tenantSlug !== 'default' && role !== 'developer') {
+    const headerStore = await headers();
+    const host = headerStore.get('host') || '';
+    const hostname = host.split(':')[0];
+    const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localhost';
+    const rootHost = rootDomain.split(':')[0];
+
+    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+    const supportsSubdomains = rootDomain && !rootDomain.includes('localhost');
+
+    if (hostname === rootHost && !isLocalhost && supportsSubdomains) {
+      const protocol = host.includes('localhost') || host.includes('lvh.me') ? 'http' : 'https';
+      const port = host.split(':')[1] ? `:${host.split(':')[1]}` : '';
+      const redirectUrl = `${protocol}://${tenantSlug}.${hostname}${port}/portal`;
+      redirect(redirectUrl);
+    }
+  }
   
   let tenantId: string | null = null;
   try {
