@@ -30,6 +30,7 @@ export default function Sidebar({
   role,
   userName,
   modulePrefix,
+  subscription,
 }: {
   appType?: string;
   enabledModules?: string[];
@@ -37,6 +38,11 @@ export default function Sidebar({
   role: string;
   userName: string;
   modulePrefix?: string;
+  subscription?: {
+    gpsTrackingEnabled?: boolean;
+    kycEnabled?: boolean;
+    premiumAccountingEnabled?: boolean;
+  } | null;
 }) {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
@@ -92,6 +98,10 @@ export default function Sidebar({
     
     // Filter strictly by the current user's active app context
     if (item.appTypes && !item.appTypes.includes(userAppType)) return false;
+
+    // Subscription-gated modules check
+    if (item.id === 'route-tracker' && !subscription?.gpsTrackingEnabled) return false;
+    if (item.id === 'kyc-review' && !subscription?.kycEnabled) return false;
 
     // Check if the route is enabled for the active app module
     if (item.href) {

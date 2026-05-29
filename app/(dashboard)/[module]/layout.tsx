@@ -107,6 +107,7 @@ export default async function DashboardLayout({
         role={role}
         userName={user.name || 'User'}
         modulePrefix={`/${requestedModule}`}
+        subscription={sub}
       />
       <main className="main-content">
         <Topbar
