@@ -11,6 +11,7 @@ class Instalment {
     this.paidAt,
     this.receivedAt,
     this.paymentMode,
+    this.restructuredAmount,
   });
 
   final String id;
@@ -23,6 +24,9 @@ class Instalment {
   final DateTime? paidAt;
   final DateTime? receivedAt;
   final String? paymentMode; // cash | upi | bank
+  /// Server-computed restructured rate for this instalment (lib/restructure.ts).
+  /// Equals dueAmount unless the row is a still-collectable future/today due.
+  final double? restructuredAmount;
 
   Instalment copyWith({
     String? id,
@@ -35,6 +39,7 @@ class Instalment {
     DateTime? paidAt,
     DateTime? receivedAt,
     String? paymentMode,
+    double? restructuredAmount,
   }) {
     return Instalment(
       id: id ?? this.id,
@@ -47,6 +52,7 @@ class Instalment {
       paidAt: paidAt ?? this.paidAt,
       receivedAt: receivedAt ?? this.receivedAt,
       paymentMode: paymentMode ?? this.paymentMode,
+      restructuredAmount: restructuredAmount ?? this.restructuredAmount,
     );
   }
 
@@ -94,6 +100,8 @@ class Instalment {
           ? null
           : DateTime.parse(receivedAtRaw as String).toLocal(),
       paymentMode: json['paymentMode'] as String?,
+      restructuredAmount:
+          json['restructuredAmount'] == null ? null : toNum(json['restructuredAmount']),
     );
   }
 }

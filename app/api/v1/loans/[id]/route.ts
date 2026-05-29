@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
+import { computeRestructure, restructuredAmountFor } from '@/lib/restructure';
 
 export async function GET(
   req: NextRequest,
@@ -27,5 +28,15 @@ export async function GET(
     },
   });
   if (!loan) return fail('Loan not found', 404);
-  return ok(loan);
+
+  // Restructured rate — computed server-side (single source of truth). Each
+  // instalment gets a `restructuredAmount`; the loan carries the loan-level
+  // figures. Clients render these directly and never recompute.
+  const restructure = computeRestructure(loan.instalments);
+  const instalments = loan.instalments.map((inst) => ({
+    ...inst,
+    restructuredAmount: restructuredAmountFor(inst, restructure.restructuredRate),
+  }));
+
+  return ok({ ...loan, instalments, restructure });
 }

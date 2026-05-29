@@ -209,26 +209,21 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
                   },
                 ),
               ),
-              ...(() {
-                // Compute the restructured rate ONCE (the schedule renders every
-                // row, so per-row recompute would be O(n²)).
-                final restructuredAmount =
-                    _showRestructuredRates ? computeRestructuredRate(loan) : 0.0;
-                return displayInstalments.map(
-                  (inst) => _InstalmentRow(
-                    key: _rowKeys.putIfAbsent(
-                      inst.instalmentNo,
-                      GlobalKey.new,
-                    ),
-                    inst: inst,
-                    loan: loan,
-                    fmt: fmt,
-                    highlighted: _highlight == inst.instalmentNo,
-                    isRestructured: _showRestructuredRates,
-                    restructuredAmount: restructuredAmount,
+              ...displayInstalments.map(
+                (inst) => _InstalmentRow(
+                  key: _rowKeys.putIfAbsent(
+                    inst.instalmentNo,
+                    GlobalKey.new,
                   ),
-                );
-              })(),
+                  inst: inst,
+                  loan: loan,
+                  fmt: fmt,
+                  highlighted: _highlight == inst.instalmentNo,
+                  isRestructured: _showRestructuredRates,
+                  // Server-computed (lib/restructure.ts) — no client math.
+                  restructuredAmount: inst.restructuredAmount ?? inst.dueAmount,
+                ),
+              ),
             ],
           ),
         ),
@@ -598,30 +593,8 @@ class _StatBlock extends StatelessWidget {
   }
 }
 
-/// Restructured instalment amount: the loan's OUTSTANDING balance spread evenly
-/// across the instalments still collectable from today onward (due today or
-/// later AND not fully paid). Missed past dues stay in the outstanding total but
-/// are excluded from the denominator, so they get redistributed onto the
-/// remaining days — letting the borrower still finish by the original end date.
-///   • Paid on schedule → equals the original per-instalment (no change).
-///   • Missed some days  → higher than the original (catch-up spread evenly).
-/// Returns 0 when nothing is outstanding.
-double computeRestructuredRate(Loan loan) {
-  final now = DateTime.now();
-  final todayStart = DateTime(now.year, now.month, now.day);
-  double outstanding = 0;
-  int remaining = 0;
-  for (final i in loan.instalments) {
-    final out = i.dueAmount - i.receivedAmount;
-    if (out > 0) outstanding += out;
-    final due = DateTime(i.dueDate.year, i.dueDate.month, i.dueDate.day);
-    if (!due.isBefore(todayStart) && i.receivedAmount < i.dueAmount) {
-      remaining++;
-    }
-  }
-  if (outstanding <= 0) return 0;
-  return outstanding / (remaining > 0 ? remaining : 1);
-}
+// Restructured rate is now computed server-side (lib/restructure.ts) and arrives
+// per-instalment as `Instalment.restructuredAmount` — no client recomputation.
 
 class _InstalmentRow extends ConsumerWidget {
   const _InstalmentRow({
