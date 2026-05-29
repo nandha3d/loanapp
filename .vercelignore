@@ -1,0 +1,32 @@
+# Ignore all zip archives, databases, and heavy documents
+*.zip
+*.sql
+*.pdf
+*.pptx
+*.patch
+
+# Ignore local build directories and dependencies
+.next/
+node_modules/
+out/
+build/
+
+# Ignore Flutter mobile app entirely (only for mobile app build, not relevant for Vercel web deploy)
+mobile/
+
+# Ignore Playwright and E2E testing files/results
+tests/
+playwright/
+test-results/
+.playwright/
+.playwright-cli/
+coverage/
+
+# Ignore docs and local backups/metadata
+.claude/
+.jules/
+.planning/
+.vscode/
+loantrack_end_to_end_markdown_docs/
+private/uploads/
+public/uploads/
