@@ -45,6 +45,7 @@ model Tenant {
   kycSessions           KycSession[]
   agentLocationPings    AgentLocationPing[]
   customerGeocodes      CustomerGeocode[]
+  goldCollaterals       GoldLoanCollateral[]
 
   // Premium accounting
   accounts              Account[]
@@ -91,6 +92,7 @@ model Branch {
   agentLocationPings AgentLocationPing[]
   journalEntries          JournalEntry[]
   bankAccounts            BankAccount[]
+  goldCollaterals         GoldLoanCollateral[]
 
   @@unique([tenantId, code])
   @@index([superadminId], map: "branches_superadmin_id_fkey")
@@ -315,6 +317,7 @@ model Customer {
   vehicles          Vehicle[]
   bureauReports     BureauReport[]
   geocode           CustomerGeocode?
+  goldCollaterals   GoldLoanCollateral[]
 
   @@unique([tenantId, customerCode])
   // ? Bolt: Added composite index on tenantId, appType, and status to optimize frequent list queries across the app
@@ -447,6 +450,7 @@ model Loan {
   bureauReport      BureauReport?     @relation("LoanBureauReport", fields: [bureauReportId], references: [id])
   npaHistory        NpaHistory[]
   loanProvisioning  LoanProvisioning[]
+  goldCollateral    GoldLoanCollateral?
 
   @@unique([tenantId, loanCode])
   // ⚡ Bolt: Added composite index on tenantId, appType, and status to optimize active loan queries and dashboard aggregations
@@ -781,6 +785,42 @@ model LoanCollateral {
 
   @@index([loanId], map: "loan_collaterals_loan_id_fkey")
   @@map("loan_collaterals")
+}
+
+model GoldLoanCollateral {
+  id                  String    @id @default(cuid())
+  tenantId            String    @map("tenant_id")
+  branchId            String?   @map("branch_id")
+  loanId              String    @unique @map("loan_id")
+  customerId          String    @map("customer_id")
+  packetNo            String?   @map("packet_no")
+  ornamentDescription String?   @map("ornament_description") @db.Text
+  grossWeightGrams    Decimal   @map("gross_weight_grams") @db.Decimal(12, 3)
+  netWeightGrams      Decimal   @map("net_weight_grams") @db.Decimal(12, 3)
+  purityKarat         String    @map("purity_karat")
+  marketRatePerGram   Decimal?  @map("market_rate_per_gram") @db.Decimal(12, 2)
+  assessedValue       Decimal?  @map("assessed_value") @db.Decimal(12, 2)
+  eligibleLtvPercent  Decimal?  @map("eligible_ltv_percent") @db.Decimal(5, 2)
+  storageLocation     String?   @map("storage_location")
+  valuerName          String?   @map("valuer_name")
+  valuationDate       DateTime? @map("valuation_date") @db.Date
+  releaseStatus       String    @default("pledged") @map("release_status")
+  releasedAt          DateTime? @map("released_at")
+  photoPath           String?   @map("photo_path")
+  documentPath        String?   @map("document_path")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  branch   Branch?   @relation(fields: [branchId], references: [id])
+  loan     Loan      @relation(fields: [loanId], references: [id])
+  customer Customer  @relation(fields: [customerId], references: [id])
+
+  @@index([tenantId, releaseStatus])
+  @@index([tenantId, packetNo])
+  @@index([branchId])
+  @@index([customerId])
+  @@map("gold_loan_collaterals")
 }
 
 model ApprovalRequest {

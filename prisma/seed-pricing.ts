@@ -110,11 +110,18 @@ async function main() {
       sortOrder: 1
     },
     {
+      module: 'goldloan',
+      displayName: 'Gold Loan',
+      description: 'Gold-backed lending, valuation, LTV, packets, pledges, and release tracking',
+      monthlyPrice: 699,
+      sortOrder: 2
+    },
+    {
       module: 'chitfunds',
       displayName: 'Chit Funds',
       description: 'Organize chit groups, auctions, dividend distribution, and member entries',
       monthlyPrice: 799,
-      sortOrder: 2
+      sortOrder: 3
     }
   ];
 
