@@ -1024,7 +1024,7 @@ model TenantSubscription {
   tenant           Tenant    @relation(fields: [tenantId], references: [id])
 
   // Pricing & Addon Snapshot fields
-  selectedAddons   String    @map("selected_addons") @db.LongText
+  selectedAddons   String?   @map("selected_addons") @db.LongText
   basePlanPrice    Int       @default(0) @map("base_plan_price")
   modulesPrice     Int       @default(0) @map("modules_price")
   addonsPrice      Int       @default(0) @map("addons_price")
