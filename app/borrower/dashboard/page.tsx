@@ -2,6 +2,7 @@ import { getBorrowerSession } from '@/lib/borrowerAuth';
 import { redirect } from 'next/navigation';
 import prisma from '@/lib/db';
 import BorrowerDashboardClient from './BorrowerDashboardClient';
+import PaymentProofPanel from './PaymentProofPanel';
 import { getDictionary } from '@/lib/i18n';
 
 export default async function BorrowerDashboard() {
@@ -63,12 +64,15 @@ export default async function BorrowerDashboard() {
   const dict = await getDictionary(session.tenantId);
 
   return (
-    <BorrowerDashboardClient
-      loans={serializedLoans}
-      initialLoanId={session.loanId}
-      paymentSettings={paymentSettings}
-      dict={dict}
-    />
+    <>
+      <PaymentProofPanel />
+      <BorrowerDashboardClient
+        loans={serializedLoans}
+        initialLoanId={session.loanId}
+        paymentSettings={paymentSettings}
+        dict={dict}
+      />
+    </>
   );
 }
 

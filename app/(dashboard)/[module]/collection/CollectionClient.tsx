@@ -292,15 +292,11 @@ export default function CollectionClient({
 
   const openModal = (instalment: CollectionRow) => {
     const isPaid = instalment.receivedAmount > 0;
-    // Default the collected amount to the WHOLE loan's outstanding (overdue + today),
-    // since the payment is now distributed oldest-first across instalments. One tap
-    // clears everything; the agent can still type a smaller amount for a partial pay.
-    const loanRows = new Map<string, CollectionRow>();
-    [...todayInstalments, ...overdueInstalments]
-      .filter(r => r.loan.id === instalment.loan.id)
-      .forEach(r => loanRows.set(r.id, r));
-    const loanOutstanding = Array.from(loanRows.values()).reduce((sum, r) => sum + r.outstandingAmount, 0);
-    const defaultDue = loanOutstanding > 0 ? loanOutstanding : instalment.dueAmount;
+    // Default to THIS instalment's own outstanding (not the whole loan) — payment
+    // is recorded against the chosen instalment as-is ("actual"); the agent pays
+    // each row individually. Capping at its due avoids silently dropping surplus.
+    const defaultDue =
+      instalment.outstandingAmount > 0 ? instalment.outstandingAmount : instalment.dueAmount;
     setAmount(isPaid ? instalment.receivedAmount : defaultDue);
     setMode('cash');
     setRemarks('');

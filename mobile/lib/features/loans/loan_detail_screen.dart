@@ -860,20 +860,11 @@ class _InstalmentRow extends ConsumerWidget {
             flex: 2,
             child: Builder(
               builder: (_) {
-                final todayStart = DateTime(
-                  DateTime.now().year,
-                  DateTime.now().month,
-                  DateTime.now().day,
-                );
-                final dueDay = DateTime(
-                  inst.dueDate.year,
-                  inst.dueDate.month,
-                  inst.dueDate.day,
-                );
+                // Show the restructured rate on EVERY unpaid instalment
+                // (missed + today + future), matching the server calc.
                 final showAdj = isRestructured &&
                     restructuredAmount > 0 &&
-                    inst.receivedAmount == 0 &&
-                    !dueDay.isBefore(todayStart) &&
+                    inst.receivedAmount < inst.dueAmount &&
                     (restructuredAmount - inst.dueAmount).abs() >= 0.01;
                 if (!showAdj) {
                   return Text(
@@ -886,7 +877,9 @@ class _InstalmentRow extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      fmt.format(restructuredAmount),
+                      // Show paisa for the restructured rate (e.g. ₹206.25);
+                      // trailing zeros trimmed. Matches the web value exactly.
+                      '₹${NumberFormat('#,##0.##', 'en_IN').format(restructuredAmount)}',
                       style: AppTypography.body.copyWith(
                         fontSize: 12,
                         color: AppColors.primary,
@@ -993,22 +986,11 @@ class _PayButton extends ConsumerWidget {
 
   void _openPaySheet(BuildContext context, WidgetRef ref) {
     var defaultAmount = inst.dueAmount;
-    // Use the (correctly computed) restructured rate for unpaid, today-or-future
-    // instalments so the pay sheet pre-fills the catch-up amount.
-    final todayStart = DateTime(
-      DateTime.now().year,
-      DateTime.now().month,
-      DateTime.now().day,
-    );
-    final dueDay = DateTime(
-      inst.dueDate.year,
-      inst.dueDate.month,
-      inst.dueDate.day,
-    );
+    // Pre-fill the restructured (even-spread) rate for any unpaid instalment
+    // when the toggle is on.
     if (isRestructured &&
         restructuredAmount > 0 &&
-        inst.receivedAmount == 0 &&
-        !dueDay.isBefore(todayStart)) {
+        inst.receivedAmount < inst.dueAmount) {
       defaultAmount = restructuredAmount;
     }
 

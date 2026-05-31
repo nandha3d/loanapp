@@ -34,6 +34,8 @@ class Endpoints {
   static const String collectionToday = '/collection/today';
   static String collectionByDate(String date) => '/collection/$date';
   static const String collectionEntry = '/collection/entry';
+  static const String collectionProofPhoto = '/collection/proof/photo';
+  static const String collectionProofQr = '/collection/proof/qr';
 
   // Penalties
   static const String penalties = '/penalties';

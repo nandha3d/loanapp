@@ -1927,3 +1927,96 @@ model AccountingExportRun {
   @@index([tenantId, createdAt])
   @@map("accounting_export_runs")
 }
+
+// ── Payment Proof (Photo / QR) ───────────────────────────────────────────────
+// Standalone tables (scalar FK ids, no Prisma relations) so adding them needs
+// no back-relation edits on existing models. See docs/payment-proof-plan.md.
+
+model PaymentApproval {
+  id                String    @id @default(cuid())
+  tenantId          String    @map("tenant_id")
+  branchId          String?   @map("branch_id")
+  loanId            String    @map("loan_id")
+  instalmentId      String    @map("instalment_id")
+  customerId        String    @map("customer_id")
+  agentId           String    @map("agent_id")
+  amount            Decimal   @db.Decimal(12, 2)
+  paymentMode       String    @default("cash") @map("payment_mode")
+  proofType         String    @default("photo") @map("proof_type") // 'photo'
+  photoPath         String?   @map("photo_path")
+  status            String    @default("pending") // pending | approved | rejected | expired
+  rejectedReason    String?   @map("rejected_reason") @db.Text
+  collectionEntryId String?   @map("collection_entry_id")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  respondedAt       DateTime? @map("responded_at")
+
+  @@index([tenantId, status])
+  @@index([customerId, status])
+  @@map("payment_approvals")
+}
+
+model ClientPaymentToken {
+  id                String    @id @default(cuid())
+  tenantId          String    @map("tenant_id")
+  customerId        String    @map("customer_id")
+  loanId            String    @map("loan_id")
+  instalmentId      String    @map("instalment_id")
+  amount            Decimal   @db.Decimal(12, 2)
+  token             String    @unique
+  status            String    @default("active") // active | used | expired
+  collectionEntryId String?   @map("collection_entry_id")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  expiresAt         DateTime  @map("expires_at")
+  usedAt            DateTime? @map("used_at")
+
+  @@index([tenantId, status])
+  @@map("client_payment_tokens")
+}
+
+// ── Affiliate marketing / tracking ───────────────────────────────────────────
+// Standalone tables (scalar FK ids, no Prisma relations). See docs/affiliate-plan.md.
+
+model Affiliate {
+  id        String   @id @default(cuid())
+  code      String   @unique // referral id embedded in the link
+  name      String
+  email     String?
+  phone     String?
+  userId    String?  @unique @map("user_id")   // superadmin User; null for outsiders
+  tenantId  String?  @map("tenant_id")         // superadmin's tenant; null for outsiders
+  status    String   @default("active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@map("affiliates")
+}
+
+model Referral {
+  id               String    @id @default(cuid())
+  affiliateId      String    @map("affiliate_id")
+  referredTenantId String?   @map("referred_tenant_id")
+  referredEmail    String?   @map("referred_email")
+  status           String    @default("signup") // signup | subscribed | churned
+  planTerm         String?   @map("plan_term")   // monthly | yearly
+  monthlyPrice     Decimal?  @map("monthly_price") @db.Decimal(12, 2)
+  subscribedAt     DateTime? @map("subscribed_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  @@index([affiliateId, status])
+  @@map("referrals")
+}
+
+model AffiliateReward {
+  id          String    @id @default(cuid())
+  affiliateId String    @map("affiliate_id")
+  type        String    // free_year | commission_5mo
+  amount      Decimal   @db.Decimal(12, 2)
+  status      String    @default("pending") // pending | granted | paid
+  periodStart DateTime? @map("period_start")
+  periodEnd   DateTime? @map("period_end")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  grantedAt   DateTime? @map("granted_at")
+
+  @@index([affiliateId, status])
+  @@map("affiliate_rewards")
+}

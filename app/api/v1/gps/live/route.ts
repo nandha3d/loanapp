@@ -43,15 +43,42 @@ export async function GET(req: NextRequest) {
       orderBy: { capturedAt: 'desc' },
     });
 
-    const latestPingsMap = new Map();
+    const latestPingsMap = new Map<string, (typeof pings)[number]>();
     for (const ping of pings) {
       if (!latestPingsMap.has(ping.agentId)) {
         latestPingsMap.set(ping.agentId, ping);
       }
     }
 
+    // Today's collection per agent (collected today, count of entries).
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const entries = await prisma.collectionEntry.findMany({
+      where: {
+        tenantId: ctx.tenantId,
+        agentId: { in: agents.map((a) => a.id) },
+        submittedAt: { gte: todayStart },
+      },
+      select: { agentId: true, receivedAmount: true },
+    });
+    const collMap = new Map<string, { total: number; count: number }>();
+    for (const e of entries) {
+      const c = collMap.get(e.agentId) ?? { total: 0, count: 0 };
+      c.total += Number(e.receivedAmount);
+      c.count += 1;
+      collMap.set(e.agentId, c);
+    }
+
+    // Online = pinged within the last 5 minutes.
+    const ONLINE_MS = 5 * 60 * 1000;
+    const now = Date.now();
+
+    // ALL agents (online + offline). Offline agents keep their last-known ping.
     const result = agents.map((agent) => {
       const ping = latestPingsMap.get(agent.id);
+      const coll = collMap.get(agent.id);
+      const online =
+        ping != null && now - new Date(ping.capturedAt).getTime() <= ONLINE_MS;
       return {
         agentId: agent.id,
         agentName: agent.name,
@@ -59,8 +86,18 @@ export async function GET(req: NextRequest) {
         lat: ping?.lat ?? null,
         lng: ping?.lng ?? null,
         capturedAt: ping?.capturedAt ?? null,
+        online,
+        todayCollected: coll?.total ?? 0,
+        todayEntries: coll?.count ?? 0,
       };
-    }).filter((a) => a.lat !== null && a.lng !== null);
+    });
+    // Online first, then most-recently-seen.
+    result.sort((a, b) => {
+      if (a.online !== b.online) return a.online ? -1 : 1;
+      const ta = a.capturedAt ? new Date(a.capturedAt).getTime() : 0;
+      const tb = b.capturedAt ? new Date(b.capturedAt).getTime() : 0;
+      return tb - ta;
+    });
 
     return ok(result);
   } catch (e: any) {

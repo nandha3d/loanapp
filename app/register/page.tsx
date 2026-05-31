@@ -32,6 +32,26 @@ function RegisterForm() {
   const [loading, setLoading] = useState(false);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [error, setError] = useState('');
+  const [referralCode, setReferralCode] = useState('');
+
+  // Extract referral code on mount
+  useEffect(() => {
+    const urlRef = searchParams.get('ref');
+    if (urlRef) {
+      setReferralCode(urlRef);
+    } else {
+      const match = document.cookie.match(/(?:^|; )ref_code=([^;]*)/);
+      const cookieRef = match ? match[1] : '';
+      if (cookieRef) {
+        setReferralCode(cookieRef);
+      } else {
+        const storageRef = localStorage.getItem('ref_code') || '';
+        if (storageRef) {
+          setReferralCode(storageRef);
+        }
+      }
+    }
+  }, [searchParams]);
 
   // Fetch public pricing catalog
   useEffect(() => {
@@ -135,7 +155,8 @@ function RegisterForm() {
             ownerPhone,
             selectedPlan,
             selectedModules,
-            selectedAddons
+            selectedAddons,
+            referralCode
           }
         : {
             businessName,
@@ -145,7 +166,8 @@ function RegisterForm() {
             ownerPassword,
             selectedPlan,
             selectedModules,
-            selectedAddons
+            selectedAddons,
+            referralCode
           };
 
       const res = await fetch(endpoint, {

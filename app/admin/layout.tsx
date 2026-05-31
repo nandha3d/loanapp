@@ -129,6 +129,12 @@ export default async function AdminLayout({
                 Pricing Settings
               </Link>
             )}
+            {userRole === 'developer' && (
+              <Link href="/admin/affiliates">
+                <span className="material-icons-outlined">handshake</span>
+                Affiliate Program
+              </Link>
+            )}
           </nav>
 
           <div className="sidebar-footer">

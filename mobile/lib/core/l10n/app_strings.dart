@@ -1350,6 +1350,13 @@ const Map<String, Map<String, String>> kStrings = {
   'admin.mins_ago': { 'en': 'mins ago', 'ta': 'நிமிடங்களுக்கு முன்' },
   'admin.last_seen': { 'en': 'Last Seen', 'ta': 'கடைசியாக பார்த்தது' },
   'admin.no_agents_active': { 'en': 'No active agents found', 'ta': 'செயலில் உள்ள ஏஜென்ட்கள் இல்லை' },
+  'admin.online': { 'en': 'Online', 'ta': 'ஆன்லைன்', 'hi': 'ऑनलाइन', 'te': 'ఆన్‌లైన్', 'kn': 'ಆನ್‌ಲೈನ್', 'ml': 'ഓൺലൈൻ' },
+  'admin.offline': { 'en': 'Offline', 'ta': 'ஆஃப்லைன்', 'hi': 'ऑफ़लाइन', 'te': 'ఆఫ్‌లైన్', 'kn': 'ಆಫ್‌ಲೈನ್', 'ml': 'ഓഫ്‌ലൈൻ' },
+  'admin.online_suffix': { 'en': 'online', 'ta': 'ஆன்லைனில்', 'hi': 'ऑनलाइन', 'te': 'ఆన్‌లైన్', 'kn': 'ಆನ್‌ಲೈನ್', 'ml': 'ഓൺലൈൻ' },
+  'admin.no_location': { 'en': 'No location yet', 'ta': 'இடம் இல்லை', 'hi': 'कोई स्थान नहीं', 'te': 'స్థానం లేదు', 'kn': 'ಸ್ಥಳವಿಲ್ಲ', 'ml': 'ലൊക്കേഷൻ ഇല്ല' },
+  'admin.ago': { 'en': 'ago', 'ta': 'முன்', 'hi': 'पहले', 'te': 'క్రితం', 'kn': 'ಹಿಂದೆ', 'ml': 'മുമ്പ്' },
+  'admin.collected_today': { 'en': 'Collected today', 'ta': 'இன்று வசூல்', 'hi': 'आज वसूल', 'te': 'నేడు వసూలు', 'kn': 'ಇಂದು ವಸೂಲಿ', 'ml': 'ഇന്ന് പിരിച്ചത്' },
+  'admin.entries_today': { 'en': 'entries', 'ta': 'பதிவுகள்', 'hi': 'प्रविष्टियाँ', 'te': 'ఎంట్రీలు', 'kn': 'ನಮೂದುಗಳು', 'ml': 'എൻട്രികൾ' },
 
 
 
@@ -1729,6 +1736,18 @@ const Map<String, Map<String, String>> kStrings = {
     'en': 'CONFIRM', 'ta': 'உறுதிசெய்', 'hi': 'पुष्टि',
     'te': 'నిర్ధారించండి', 'kn': 'ದೃಢೀಕರಿಸಿ', 'ml': 'സ്ഥിരീകരിക്കുക',
   },
+  'proof.label': { 'en': 'Payment proof', 'ta': 'கட்டண சான்று', 'hi': 'भुगतान प्रमाण', 'te': 'చెల్లింపు రుజువు', 'kn': 'ಪಾವತಿ ಪುರಾವೆ', 'ml': 'പേയ്മെന്റ് തെളിവ്' },
+  'proof.cash': { 'en': 'Cash', 'ta': 'பணம்', 'hi': 'नकद', 'te': 'నగదు', 'kn': 'ನಗದು', 'ml': 'പണം' },
+  'proof.photo': { 'en': 'Photo', 'ta': 'புகைப்படம்', 'hi': 'फ़ोटो', 'te': 'ఫోటో', 'kn': 'ಫೋಟೋ', 'ml': 'ഫോട്ടോ' },
+  'proof.qr': { 'en': 'QR', 'ta': 'QR', 'hi': 'QR', 'te': 'QR', 'kn': 'QR', 'ml': 'QR' },
+  'proof.qr_help': { 'en': 'Scan the client’s QR — it carries the amount and auto-confirms.', 'ta': 'வாடிக்கையாளரின் QR ஐ ஸ்கேன் செய்யவும்.', 'hi': 'ग्राहक का QR स्कैन करें — राशि सहित स्वतः पुष्टि।', 'te': 'క్లయింట్ QR స్కాన్ చేయండి.', 'kn': 'ಗ್ರಾಹಕರ QR ಸ್ಕ್ಯಾನ್ ಮಾಡಿ.', 'ml': 'ക്ലയന്റിന്റെ QR സ്കാൻ ചെയ്യുക.' },
+  'proof.scan_btn': { 'en': 'Scan client QR', 'ta': 'வாடிக்கையாளர் QR ஸ்கேன்', 'hi': 'ग्राहक QR स्कैन करें', 'te': 'క్లయింట్ QR స్కాన్', 'kn': 'ಗ್ರಾಹಕ QR ಸ್ಕ್ಯಾನ್', 'ml': 'ക്ലയന്റ് QR സ്കാൻ' },
+  'proof.photo_btn': { 'en': 'PHOTO →', 'ta': 'புகைப்படம் →', 'hi': 'फ़ोटो →', 'te': 'ఫోటో →', 'kn': 'ಫೋಟೋ →', 'ml': 'ഫോട്ടോ →' },
+  'proof.photo_sent': { 'en': 'Sent to client for approval', 'ta': 'ஒப்புதலுக்கு அனுப்பப்பட்டது', 'hi': 'अनुमोदन हेतु भेजा गया', 'te': 'ఆమోదం కోసం పంపబడింది', 'kn': 'ಅನುಮೋದನೆಗೆ ಕಳುಹಿಸಲಾಗಿದೆ', 'ml': 'അംഗീകാരത്തിന് അയച്ചു' },
+  'proof.qr_done': { 'en': 'Payment confirmed', 'ta': 'கட்டணம் உறுதி', 'hi': 'भुगतान पुष्ट', 'te': 'చెల్లింపు నిర్ధారించబడింది', 'kn': 'ಪಾವತಿ ದೃಢೀಕರಿಸಲಾಗಿದೆ', 'ml': 'പേയ്മെന്റ് സ്ഥിരീകരിച്ചു' },
+  'proof.qr_confirmed': { 'en': 'Confirmed', 'ta': 'உறுதி', 'hi': 'पुष्ट', 'te': 'నిర్ధారించబడింది', 'kn': 'ದೃಢೀಕರಿಸಲಾಗಿದೆ', 'ml': 'സ്ഥിരീകരിച്ചു' },
+  'proof.scan_title': { 'en': 'Scan Payment QR', 'ta': 'கட்டண QR ஸ்கேன்', 'hi': 'भुगतान QR स्कैन', 'te': 'చెల్లింపు QR స్కాన్', 'kn': 'ಪಾವತಿ QR ಸ್ಕ್ಯಾನ್', 'ml': 'പേയ്മെന്റ് QR സ്കാൻ' },
+  'proof.scan_hint': { 'en': 'Point at the client’s QR code', 'ta': 'வாடிக்கையாளர் QR ஐ நோக்கவும்', 'hi': 'ग्राहक के QR पर इंगित करें', 'te': 'క్లయింట్ QR వైపు చూపండి', 'kn': 'ಗ್ರಾಹಕ QR ಕಡೆಗೆ ತೋರಿಸಿ', 'ml': 'ക്ലയന്റിന്റെ QR-ലേക്ക് ചൂണ്ടുക' },
   'coll.payment_mode': {
     'en': 'Payment Mode', 'ta': 'கட்டண முறை',
     'hi': 'भुगतान विधि', 'te': 'చెల్లింపు విధానం',

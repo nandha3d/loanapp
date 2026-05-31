@@ -1551,6 +1551,16 @@ class _SideDrawer extends ConsumerWidget {
               label: t.x('title.approvals'),
               onTap: () => context.go('/approvals'),
             ),
+            _DrawerLink(
+              icon: Icons.verified_user_outlined,
+              label: t.x('kyc.title'),
+              onTap: () => context.go('/kyc-review'),
+            ),
+            _DrawerLink(
+              icon: Icons.savings_outlined,
+              label: t.x('title.chits'),
+              onTap: () => context.go('/chits'),
+            ),
             _DrawerSection(label: t.x('drawer.section_insights')),
             if (ref.watch(authControllerProvider).user?.role == UserRole.admin || 
                 ref.watch(authControllerProvider).user?.role == UserRole.superadmin || 

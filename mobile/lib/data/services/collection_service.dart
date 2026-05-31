@@ -49,6 +49,39 @@ class CollectionService {
       (dynamic d) => CollectionEntry.fromJson(d as Map<String, dynamic>),
     );
   }
+
+  /// Photo proof: files a pending request that the client must approve.
+  /// Returns the approval id.
+  Future<String> submitPhotoProof({
+    required String instalmentId,
+    required double amount,
+    required String paymentMode,
+    String? photoUrl,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.collectionProofPhoto,
+      data: {
+        'instalmentId': instalmentId,
+        'amount': amount,
+        'paymentMode': paymentMode,
+        if (photoUrl != null) 'photoUrl': photoUrl,
+      },
+    );
+    return unwrapEnvelope(res, (dynamic d) => (d as Map<String, dynamic>)['id'] as String);
+  }
+
+  /// QR proof: scanned token auto-confirms. Returns the applied amount.
+  Future<double> submitQrProof(String token) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.collectionProofQr,
+      data: {'token': token},
+    );
+    return unwrapEnvelope(res, (dynamic d) {
+      final m = d as Map<String, dynamic>;
+      final v = m['applied'];
+      return v is num ? v.toDouble() : double.tryParse('${v ?? 0}') ?? 0;
+    });
+  }
 }
 
 final collectionServiceProvider = Provider<CollectionService>(

@@ -14,7 +14,8 @@ export async function POST(request: Request) {
       ownerPassword,
       selectedPlan,
       selectedModules = [],
-      selectedAddons = []
+      selectedAddons = [],
+      referralCode
     } = body;
 
     // Validate fields
@@ -185,6 +186,23 @@ export async function POST(request: Request) {
           newValue: JSON.stringify({ name: businessName, slug, owner: ownerName })
         }
       });
+
+      // Attribution hook: link referral code
+      if (referralCode) {
+        const affiliate = await tx.affiliate.findUnique({
+          where: { code: referralCode }
+        });
+        if (affiliate) {
+          await tx.referral.create({
+            data: {
+              affiliateId: affiliate.id,
+              referredTenantId: tenant.id,
+              referredEmail: user.email || ownerUsername + '@' + tenant.slug + '.com',
+              status: 'signup'
+            }
+          });
+        }
+      }
 
       return {
         tenantId: tenant.id,

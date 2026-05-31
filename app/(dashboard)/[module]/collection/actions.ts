@@ -168,40 +168,24 @@ export async function submitCollectionEntry(formData: FormData) {
           data: { receivedAmount, receivedAt: new Date(), remarks: `Edited by Admin: ${remarks || ''}` },
         });
       } else {
-        // Fresh collection: spread the collected amount across the loan's unpaid
-        // instalments oldest-first (clears overdue before today's due) instead of
-        // capping it to the clicked instalment and discarding the surplus. This is
-        // why paying the full "Total Outstanding Balance" now clears today too.
+        // Fresh collection: record the payment against THIS instalment only —
+        // "actual" means the loan reflects exactly what was paid on the chosen
+        // date. NO oldest-first redistribution on write; that is a display-only
+        // concern handled by the "Distributed" view. Cap at the instalment's own
+        // remaining due so a single row is never over-credited.
         if (!canCollectForLoanStatus(instalment.loan.status)) {
           throw new Error('Already recorded: Loan is closed for collection');
         }
-        const unpaid = await tx.instalment.findMany({
-          where: { loanId: instalment.loanId },
-          orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
-          select: { id: true, instalmentNo: true, dueAmount: true, receivedAmount: true },
-        });
-        const totalOutstanding = unpaid.reduce(
-          (sum, i) => sum + Math.max(0, Number(i.dueAmount) - Number(i.receivedAmount)), 0,
+        const room = Math.max(
+          0,
+          Number(latestInstalment.dueAmount) - Number(latestInstalment.receivedAmount || 0),
         );
-        if (totalOutstanding <= 0) {
+        if (room <= 0) {
           throw new Error('Already recorded: Instalment is already fully collected');
         }
+        appliedDelta = Math.min(delta, room);
 
-        // Build the allocation plan. Cap the total at the loan's outstanding so a
-        // mistaken over-amount can never credit more than is actually owed.
-        let remaining = delta;
-        const plan: { id: string; instalmentNo: number; add: number }[] = [];
-        for (const inst of unpaid) {
-          if (remaining <= 0) break;
-          const room = Math.max(0, Number(inst.dueAmount) - Number(inst.receivedAmount));
-          if (room <= 0) continue;
-          const add = Math.min(remaining, room);
-          plan.push({ id: inst.id, instalmentNo: inst.instalmentNo, add });
-          remaining -= add;
-        }
-        appliedDelta = plan.reduce((sum, p) => sum + p.add, 0);
-
-        allocationRemark = `Payment distributed: ${plan.map(p => `#${p.instalmentNo} +₹${p.add}`).join(', ')}`;
+        allocationRemark = `Payment for instalment #${instalment.instalmentNo} (+₹${appliedDelta})`;
         const mergedRemarks = [remarks, allocationRemark].filter(Boolean).join(' | ');
 
         const entry = await tx.collectionEntry.create({
@@ -217,22 +201,15 @@ export async function submitCollectionEntry(formData: FormData) {
         });
         createdEntryId = entry.id;
 
-        // One Payment with an allocation per instalment it covers.
-        const payment = await tx.payment.create({
-          data: {
-            tenantId, loanId: instalment.loanId, amount: appliedDelta,
-            paymentMode, paymentDate: new Date(), status: 'completed',
-          },
+        await recordPaymentLedger(tx, {
+          tenantId, loanId: instalment.loanId, instalmentId: instalment.id,
+          amount: appliedDelta, paymentMode,
         });
-        for (const p of plan) {
-          await tx.paymentAllocation.create({
-            data: { paymentId: payment.id, instalmentId: p.id, amount: p.add },
-          });
-          await tx.instalment.update({
-            where: { id: p.id },
-            data: { receivedAmount: { increment: p.add }, receivedAt: new Date() },
-          });
-        }
+
+        await tx.instalment.update({
+          where: { id: instalment.id },
+          data: { receivedAmount: { increment: appliedDelta }, receivedAt: new Date() },
+        });
       }
 
     await reallocateLoanRepayments(tx, instalment.loanId);

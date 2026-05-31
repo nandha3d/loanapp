@@ -171,7 +171,7 @@ class _PenaltiesBody extends ConsumerWidget {
           const SizedBox(height: 12),
           if (filtered.isEmpty)
             SizedBox(
-              height: 200,
+              height: 260,
               child: EmptyState(
                 icon: Icons.check_circle_outline,
                 title: status == 'all'

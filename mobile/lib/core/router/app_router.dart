@@ -175,6 +175,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 });
 
 bool _moduleBlocked(String location, User user) {
+  // Privileged roles always have full access — never module-gated.
+  if (user.role == UserRole.admin ||
+      user.role == UserRole.superadmin ||
+      user.role == UserRole.developer) {
+    return false;
+  }
   String? required;
   if (location.startsWith('/approvals')) required = ModuleKey.approvals;
   if (location.startsWith('/analytics')) required = ModuleKey.analytics;

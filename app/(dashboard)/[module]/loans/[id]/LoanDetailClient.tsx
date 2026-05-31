@@ -148,33 +148,40 @@ export default function LoanDetailClient({
     return unpaidCount || 1;
   }, [displayInstalments]);
 
-  // Restructure: spread the OUTSTANDING balance across the installments that are
-  // still collectable from today onward (due today or later AND not fully paid).
-  // Missed past dues are part of `outstanding` but are excluded from this count,
-  // so their amount gets redistributed onto the remaining days — letting the
-  // borrower still finish within the original end date.
-  //   • Paid on schedule  → outstanding == perInstalment × remaining
-  //                         → adjusted == original due (no change).
-  //   • Missed some days   → outstanding > perInstalment × remaining
-  //                         → adjusted > original due (catch-up spread evenly).
-  const restructureRemainingCount = useMemo(() => {
+  // Restructure: keep paying the normal per-period due, and spread ONLY the
+  // backlog (dues pending up to today) across the remaining periods:
+  //   rate = perInstalment + (overdueTillDate / remainingPeriods)
+  //   • Paid on schedule → overdueTillDate 0 → rate = perInstalment (no change).
+  //   • Fell behind      → rate slightly above normal, clears backlog on time.
+  const { restructureRemainingCount, adjustedInstallment } = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const futureUnpaid = loan.instalments.filter((inst: any) => {
+    let overdueTillDate = 0;
+    let remaining = 0;
+    let perInst = 0;
+    for (const inst of loan.instalments as any[]) {
+      const out = Math.max(0, Number(inst.dueAmount) - Number(inst.receivedAmount));
+      if (out <= 0) continue;
       const d = new Date(inst.dueDate);
       d.setHours(0, 0, 0, 0);
-      return d >= today && Number(inst.receivedAmount) < Number(inst.dueAmount);
-    }).length;
-    // Fallback: if the term has fully elapsed (no future days left), there is
-    // nothing to spread into — degrade to instalment-sized chunks so the figure
-    // stays sane instead of dividing by zero.
-    return futureUnpaid || Math.max(1, Math.ceil(outstanding / Number(loan.perInstalment)));
-  }, [loan.instalments, outstanding, loan.perInstalment]);
-
-  const adjustedInstallment = useMemo(() => {
-    if (outstanding <= 0) return 0;
-    return Math.round((outstanding / (restructureRemainingCount || 1)) * 100) / 100;
-  }, [outstanding, restructureRemainingCount]);
+      if (d.getTime() < today.getTime()) {
+        overdueTillDate += out; // strictly past = backlog
+      } else {
+        remaining += 1; // today + future = days still paid
+        if (perInst === 0) perInst = Number(inst.dueAmount);
+      }
+    }
+    if (remaining === 0) {
+      return {
+        restructureRemainingCount: overdueTillDate > 0 ? 1 : 1,
+        adjustedInstallment: Math.round(overdueTillDate * 100) / 100,
+      };
+    }
+    return {
+      restructureRemainingCount: remaining,
+      adjustedInstallment: Math.round((perInst + overdueTillDate / remaining) * 100) / 100,
+    };
+  }, [loan.instalments]);
 
   const missedInstalments = displayInstalments.filter((i: any) => i.status === 'missed');
   const missedCount = missedInstalments.length;
@@ -560,9 +567,9 @@ export default function LoanDetailClient({
               {outstanding > 0 && (
                 <div style={{ gridColumn: 'span 4', borderTop: '1px dashed var(--border)', paddingTop: '12px', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <span style={{ fontSize: '.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>💡 Finishing Rate Option (Even Distribution)</span>
+                    <span style={{ fontSize: '.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>💡 Finishing Rate Option</span>
                     <p style={{ fontSize: '.68rem', color: 'var(--text-light)', margin: '2px 0 0' }}>
-                      To settle outstanding {formatCurrency(outstanding, currencySymbol)} on-time across the remaining {restructureRemainingCount} {loan.frequency === 'daily' ? 'days' : loan.frequency === 'weekly' ? 'weeks' : 'months'} left in the term:
+                      Normal due + backlog spread across the remaining {restructureRemainingCount} {loan.frequency === 'daily' ? 'days' : loan.frequency === 'weekly' ? 'weeks' : 'months'} to finish on time:
                     </p>
                   </div>
                   <div style={{ textAlign: 'right' }}>
@@ -677,7 +684,7 @@ export default function LoanDetailClient({
                       <td>{formatDate(inst.dueDate)}</td>
                       <td style={{ fontSize: '.78rem', color: 'var(--text-secondary)' }}>{collectedTime || '—'}</td>
                       <td>
-                        {showRestructuredRates && inst.status !== 'paid' && new Date(inst.dueDate) >= new Date(new Date().setHours(0,0,0,0)) ? (
+                        {showRestructuredRates && Number(inst.receivedAmount) < Number(inst.dueAmount) && new Date(inst.dueDate) >= new Date(new Date().setHours(0,0,0,0)) ? (
                           <div style={{ display: 'flex', flexDirection: 'column' }}>
                             <span style={{ color: 'var(--primary)', fontWeight: 800 }}>
                               {formatCurrency(adjustedInstallment, currencySymbol)}

@@ -1,8 +1,13 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import 'package:loantrack/core/a11y/voice_assist.dart';
+import 'package:loantrack/data/services/upload_service.dart';
+import 'package:loantrack/features/collection/qr_scan_screen.dart';
 import 'package:loantrack/core/gps/gps_service.dart';
 import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/network/api_exception.dart';
@@ -27,6 +32,7 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
   late String _amount =
       widget.row.outstanding.round().toString();
   String _mode = 'cash';
+  String _proofMode = 'cash'; // cash | photo | qr
   bool _submitting = false;
   String? _error;
 
@@ -180,6 +186,64 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
     }
   }
 
+  /// Photo proof: snap a photo, upload it, and file a request the client must
+  /// approve in their portal. The loan is untouched until then.
+  Future<void> _submitPhoto() async {
+    final t = T.of(ref);
+    final amt = _value;
+    if (amt <= 0) {
+      setState(() => _error = t.x('err.enter_valid_amount'));
+      return;
+    }
+    final picker = ImagePicker();
+    final shot = await picker.pickImage(
+      source: ImageSource.camera,
+      maxWidth: 1200,
+      imageQuality: 75,
+    );
+    if (shot == null) return;
+
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      final up = await ref
+          .read(uploadServiceProvider)
+          .uploadFile(File(shot.path), contentType: 'image/jpeg');
+      await ref.read(collectionServiceProvider).submitPhotoProof(
+            instalmentId: widget.row.instalmentId,
+            amount: amt,
+            paymentMode: _mode,
+            photoUrl: up.url,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.x('proof.photo_sent')), backgroundColor: AppColors.success),
+      );
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  /// QR proof: open the scanner; on a valid scan it auto-confirms and pops.
+  Future<void> _scanQr() async {
+    final t = T.of(ref);
+    final done = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const QrScanScreen()),
+    );
+    if (done == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.x('proof.qr_done')), backgroundColor: AppColors.success),
+      );
+      Navigator.of(context).pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = T.of(ref);
@@ -254,6 +318,37 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
                 const SizedBox(height: 14),
                 _UpiQrSection(amount: _value),
               ],
+              const SizedBox(height: 16),
+              Text(
+                t.x('proof.label'),
+                style: AppTypography.label.copyWith(color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  for (final m in const ['cash', 'photo', 'qr'])
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 3),
+                        child: ChoiceChip(
+                          label: Text(t.x('proof.$m')),
+                          selected: _proofMode == m,
+                          onSelected: (_) => setState(() => _proofMode = m),
+                          selectedColor: AppColors.primaryLight,
+                          labelStyle: TextStyle(
+                            color: _proofMode == m ? AppColors.primaryDark : AppColors.textSecondary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              if (_proofMode == 'qr') ...[
+                const SizedBox(height: 8),
+                Text(t.x('proof.qr_help'),
+                    style: AppTypography.caption.copyWith(color: AppColors.textLight)),
+              ],
               if (_error != null) ...[
                 const SizedBox(height: 12),
                 Container(
@@ -293,7 +388,13 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  onPressed: _submitting ? null : _submit,
+                  onPressed: _submitting
+                      ? null
+                      : (_proofMode == 'qr'
+                          ? _scanQr
+                          : _proofMode == 'photo'
+                              ? _submitPhoto
+                              : _submit),
                   icon: _submitting
                       ? const SizedBox(
                           width: 18,
@@ -303,12 +404,20 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
                             strokeWidth: 2,
                           ),
                         )
-                      : const Icon(
-                          Icons.check_circle_outline_rounded,
+                      : Icon(
+                          _proofMode == 'qr'
+                              ? Icons.qr_code_scanner_rounded
+                              : _proofMode == 'photo'
+                                  ? Icons.photo_camera_rounded
+                                  : Icons.check_circle_outline_rounded,
                           color: Colors.white,
                         ),
                   label: Text(
-                    '${t.x('coll.confirm_prefix')} ${fmt.format(_value)}',
+                    _proofMode == 'qr'
+                        ? t.x('proof.scan_btn')
+                        : _proofMode == 'photo'
+                            ? '${t.x('proof.photo_btn')} ${fmt.format(_value)}'
+                            : '${t.x('coll.confirm_prefix')} ${fmt.format(_value)}',
                     style: AppTypography.bigKey.copyWith(
                       color: Colors.white,
                       fontSize: 16,

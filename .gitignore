@@ -80,3 +80,5 @@ mobile/**/GeneratedPluginRegistrant.*
 mobile/.vscode/
 *.log
 *.yml
+*.zip
+*.sql

@@ -3,6 +3,7 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
 import { getAgentRouteIds } from '@/lib/access';
+import { recordPaymentLedger } from '@/lib/paymentService';
 import { reallocateLoanRepayments } from '@/lib/repayments';
 import { buildCollectionIdempotencyKey, getCollectionSubmissionBlockReason } from '@/lib/collectionPolicy';
 import {
@@ -110,26 +111,15 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // Distribute the collected amount across the loan's unpaid instalments
-      // OLDEST-FIRST (clears overdue before today's due) instead of capping to
-      // the clicked instalment and discarding the surplus. Parity with the web
-      // collection action.
-      const unpaid = await tx.instalment.findMany({
-        where: { loanId: instalment.loanId },
-        orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
-        select: { id: true, dueAmount: true, receivedAmount: true },
-      });
-      let remaining = receivedAmount;
-      const plan: { id: string; add: number }[] = [];
-      for (const inst of unpaid) {
-        if (remaining <= 0) break;
-        const room = Math.max(0, Number(inst.dueAmount) - Number(inst.receivedAmount || 0));
-        if (room <= 0) continue;
-        const add = Math.min(remaining, room);
-        plan.push({ id: inst.id, add });
-        remaining -= add;
-      }
-      const applied = plan.reduce((s, p) => s + p.add, 0);
+      // Record the payment against THIS instalment only — "actual" means the
+      // loan reflects exactly what was paid on the chosen date. No oldest-first
+      // redistribution on write (that is the display-only "Distributed" view).
+      // Cap at the instalment's own remaining due.
+      const room = Math.max(
+        0,
+        Number(instalment.dueAmount) - Number(instalment.receivedAmount || 0),
+      );
+      const applied = Math.min(receivedAmount, room);
       if (applied <= 0) throw new Error('already_paid: fully collected');
 
       const created = await tx.collectionEntry.create({
@@ -153,26 +143,17 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // One Payment with a PaymentAllocation per instalment it covers.
-      const payment = await tx.payment.create({
-        data: {
-          tenantId: ctx.tenantId,
-          loanId: instalment.loanId,
-          amount: applied,
-          paymentMode,
-          paymentDate: new Date(),
-          status: 'completed',
-        },
+      await recordPaymentLedger(tx, {
+        tenantId: ctx.tenantId,
+        loanId: instalment.loanId,
+        instalmentId: instalment.id,
+        amount: applied,
+        paymentMode,
       });
-      for (const p of plan) {
-        await tx.paymentAllocation.create({
-          data: { paymentId: payment.id, instalmentId: p.id, amount: p.add },
-        });
-        await tx.instalment.update({
-          where: { id: p.id },
-          data: { receivedAmount: { increment: p.add }, receivedAt: new Date() },
-        });
-      }
+      await tx.instalment.update({
+        where: { id: instalment.id },
+        data: { receivedAmount: { increment: applied }, receivedAt: new Date() },
+      });
 
       await reallocateLoanRepayments(tx, instalment.loanId);
 
