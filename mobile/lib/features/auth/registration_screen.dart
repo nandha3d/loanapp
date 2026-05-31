@@ -220,7 +220,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 const SizedBox(height: 16),
                 Text(
                   'Failed to load pricing info',
-                  style: AppTypography.title,
+                  style: AppTypography.sectionTitle,
                 ),
                 const SizedBox(height: 8),
                 Text(_catalogError!, textAlign: TextAlign.center),
@@ -349,7 +349,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Business Profile', style: AppTypography.title),
+          Text('Business Profile', style: AppTypography.sectionTitle),
           const SizedBox(height: 8),
           const Text('Enter owner credentials and lending business details.', style: TextStyle(color: AppColors.textSecondary)),
           const SizedBox(height: 24),
@@ -425,7 +425,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Select Modules', style: AppTypography.title),
+          Text('Select Modules', style: AppTypography.sectionTitle),
           const SizedBox(height: 8),
           const Text('Enable modular lending configurations inside your workspace.', style: TextStyle(color: AppColors.textSecondary)),
           const SizedBox(height: 24),
@@ -542,7 +542,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                   });
                 },
                 expand: true,
-                variant: isSelected ? ButtonVariant.primary : ButtonVariant.outline,
+                variant: isSelected ? AppButtonVariant.primary : AppButtonVariant.secondary,
               ),
             ],
           ),
@@ -562,7 +562,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Select Add-on Features', style: AppTypography.title),
+          Text('Select Add-on Features', style: AppTypography.sectionTitle),
           const SizedBox(height: 8),
           const Text('Enable additional billing integrations inside your workspace.', style: TextStyle(color: AppColors.textSecondary)),
           const SizedBox(height: 24),
@@ -624,7 +624,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Review Details', style: AppTypography.title),
+          Text('Review Details', style: AppTypography.sectionTitle),
           const SizedBox(height: 16),
           _buildReviewRow('Business Name', _businessNameCtrl.text),
           _buildReviewRow('Owner Name', _ownerNameCtrl.text),
@@ -688,13 +688,13 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             AppButton(
               label: 'Back',
               onPressed: _loading ? null : _prevStep,
-              variant: ButtonVariant.ghost,
+              variant: AppButtonVariant.ghost,
             )
           else
             AppButton(
               label: 'Cancel',
               onPressed: _loading ? null : () => context.pop(),
-              variant: ButtonVariant.ghost,
+              variant: AppButtonVariant.ghost,
             ),
           if (_step < 5)
             AppButton(
