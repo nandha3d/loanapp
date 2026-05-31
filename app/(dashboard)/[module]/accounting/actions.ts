@@ -5,6 +5,7 @@ import { getDefaultTenantId } from '@/lib/tenant';
 import { auth } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import { getActiveBranchId } from '@/lib/branch';
+import { autoPostExpense, autoPostCapitalAdd, autoPostCapitalWithdraw } from '@/lib/accounting/autoPost';
 
 export async function addAccountEntry(formData: FormData) {
   const session = await auth();
@@ -28,7 +29,7 @@ export async function addAccountEntry(formData: FormData) {
 
   const entryDate = entryDateStr ? new Date(entryDateStr) : new Date();
 
-  await prisma.accountEntry.create({
+  const entry = await prisma.accountEntry.create({
     data: {
       tenantId,
       entryDate,
@@ -40,6 +41,41 @@ export async function addAccountEntry(formData: FormData) {
       branchId: activeBranchId || null,
     },
   });
+
+  if (type === 'expense') {
+    await autoPostExpense({
+      tenantId,
+      entryId: entry.id,
+      description: description || 'Expense',
+      amount,
+      date: entryDate,
+      branchId: activeBranchId,
+      createdById: userId,
+      category,
+    });
+  } else if (type === 'capital_add') {
+    await autoPostCapitalAdd({
+      tenantId,
+      entryId: entry.id,
+      description: description || 'Capital Addition',
+      amount,
+      date: entryDate,
+      branchId: activeBranchId,
+      createdById: userId,
+      category,
+    });
+  } else if (type === 'capital_withdraw') {
+    await autoPostCapitalWithdraw({
+      tenantId,
+      entryId: entry.id,
+      description: description || 'Capital Withdrawal',
+      amount,
+      date: entryDate,
+      branchId: activeBranchId,
+      createdById: userId,
+      category,
+    });
+  }
 
   revalidatePath('/accounting');
   return { success: true };

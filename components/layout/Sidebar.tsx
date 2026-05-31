@@ -77,6 +77,7 @@ export default function Sidebar({
     { section: dict.sidebar.sections.account },
     { id: 'branch-requests', icon: 'account_tree', label: 'Branch Requests', href: '/branch-requests', superadminOnly: true },
     { id: 'subscription', icon: 'credit_card', label: dict.sidebar.subscription, href: '/subscription', superadminOnly: true },
+    { id: 'affiliate', icon: 'handshake', label: dict.sidebar.affiliate || 'Affiliate Program', href: '/affiliate', superadminOnly: true },
     { id: 'billing', icon: 'manage_accounts', label: dict.sidebar.billing, href: '/admin/billing', developerOnly: true },
   ];
 
@@ -105,7 +106,7 @@ export default function Sidebar({
 
     // Check if the route is enabled for the active app module
     if (item.href) {
-      const alwaysVisible = ['/dashboard', '/agent-dashboard', '/collection', '/approvals', '/settings', '/notifications', '/subscription', '/portal', '/admin', '/kyc-review'];
+      const alwaysVisible = ['/dashboard', '/agent-dashboard', '/collection', '/approvals', '/settings', '/notifications', '/subscription', '/affiliate', '/portal', '/admin', '/kyc-review'];
       if (!alwaysVisible.some((path) => item.href!.startsWith(path))) {
         const routeEnabled = MODULE_ROUTES[userAppType as ModuleKey]?.some((route: string) =>
           item.href!.startsWith(route)

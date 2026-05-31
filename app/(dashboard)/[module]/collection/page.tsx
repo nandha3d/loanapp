@@ -86,7 +86,7 @@ export default async function CollectionPage() {
   const includeLoan = {
     loan: {
       include: {
-        customer: { include: { route: true } },
+        customer: { include: { route: true, collectionPoints: true } },
       },
     },
     collectionEntry: {

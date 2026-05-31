@@ -17,6 +17,8 @@ export default function AccountingClient({
   summary,
   currencySymbol,
   dict,
+  premiumEnabled,
+  module,
 }: {
   summary: {
     capitalIn: number;
@@ -32,6 +34,8 @@ export default function AccountingClient({
   };
   currencySymbol: string;
   dict: any;
+  premiumEnabled?: boolean;
+  module?: string;
 }) {
   const ac = dict.accounting || {};
 
@@ -178,6 +182,14 @@ export default function AccountingClient({
 
   return (
     <div>
+      {/* Toggle if premium is enabled */}
+      {premiumEnabled && (
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', background: 'var(--bg)', padding: '6px', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+          <button className="btn btn-primary" style={{ flex: 1, pointerEvents: 'none' }}>Basic Accounting</button>
+          <a href={`/${module}/accounting/premium`} className="btn btn-ghost" style={{ flex: 1, textAlign: 'center' }}>Premium Accounting</a>
+        </div>
+      )}
+
       {/* Date Range Filter */}
       <div className="card" style={{ marginBottom: '20px', padding: '16px 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>

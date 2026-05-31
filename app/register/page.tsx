@@ -34,22 +34,25 @@ function RegisterForm() {
   const [error, setError] = useState('');
   const [referralCode, setReferralCode] = useState('');
 
-  // Extract referral code on mount
+  // Extract referral code on mount and track visit
   useEffect(() => {
-    const urlRef = searchParams.get('ref');
-    if (urlRef) {
-      setReferralCode(urlRef);
-    } else {
+    let code = searchParams.get('ref') || '';
+    if (!code) {
       const match = document.cookie.match(/(?:^|; )ref_code=([^;]*)/);
-      const cookieRef = match ? match[1] : '';
-      if (cookieRef) {
-        setReferralCode(cookieRef);
-      } else {
-        const storageRef = localStorage.getItem('ref_code') || '';
-        if (storageRef) {
-          setReferralCode(storageRef);
-        }
+      code = match ? match[1] : '';
+      if (!code) {
+        code = localStorage.getItem('ref_code') || '';
       }
+    }
+    
+    if (code) {
+      setReferralCode(code);
+      // Track visit
+      fetch('/api/affiliate/track-visit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, referrer: document.referrer })
+      }).catch(err => console.error('Error tracking visit', err));
     }
   }, [searchParams]);
 
@@ -127,6 +130,32 @@ function RegisterForm() {
       }
       setError('');
     }
+    
+    // Track step progression if we have a referral code
+    if (referralCode) {
+      let stepName = `step_${step + 1}`;
+      if (step === 1) stepName = 'step_2_modules';
+      else if (step === 2) stepName = 'step_3_plans';
+      else if (step === 3) stepName = 'step_4_addons';
+      else if (step === 4) stepName = 'step_5_review';
+      
+      fetch('/api/affiliate/track-step', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: referralCode,
+          businessName,
+          ownerName,
+          phone: ownerPhone,
+          email: googleEmail || '',
+          step: stepName,
+          plan: selectedPlan,
+          modules: selectedModules,
+          addons: selectedAddons
+        })
+      }).catch(err => console.error('Error tracking step', err));
+    }
+    
     setStep(prev => prev + 1);
   };
 
@@ -182,6 +211,26 @@ function RegisterForm() {
         setError(data.error || 'Registration failed');
         setLoading(false);
         return;
+      }
+
+      // Track completion if we have a referral code
+      if (referralCode) {
+        fetch('/api/affiliate/track-step', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: referralCode,
+            businessName,
+            ownerName,
+            phone: ownerPhone,
+            email: googleEmail || '',
+            step: 'step_5_review',
+            status: 'completed',
+            plan: selectedPlan,
+            modules: selectedModules,
+            addons: selectedAddons
+          })
+        }).catch(err => console.error('Error tracking completion', err));
       }
 
       // Successfully registered. Redirect to login.
@@ -395,7 +444,12 @@ function RegisterForm() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
                 {catalog.plans.map((p: any) => {
                   const isSelected = selectedPlan === p.plan;
-                  const featuresList = JSON.parse(p.features || '[]');
+                  let featuresList = [];
+                  try {
+                    featuresList = typeof p.features === 'string' ? JSON.parse(p.features || '[]') : (Array.isArray(p.features) ? p.features : []);
+                  } catch(e) {
+                    console.error('Failed to parse features:', p.features);
+                  }
                   return (
                     <div
                       key={p.plan}

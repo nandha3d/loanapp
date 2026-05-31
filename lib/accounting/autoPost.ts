@@ -6,6 +6,7 @@
  */
 import { prisma } from '@/lib/db';
 import { isPremiumAccountingEnabled } from './premium';
+import { bumpAccountBalance } from './balances';
 
 type Tx = typeof prisma;
 
@@ -73,6 +74,9 @@ export async function autoPostLoanDisburse(opts: {
         },
       },
     });
+    
+    await bumpAccountBalance(prisma as any, lrId, opts.date, opts.amount, 0);
+    await bumpAccountBalance(prisma as any, creditAcctId, opts.date, 0, opts.amount);
   } catch (e) {
     console.error('[autoPost] loan disburse JE failed:', e);
   }
@@ -129,6 +133,9 @@ export async function autoPostCollection(opts: {
         },
       },
     });
+    
+    await bumpAccountBalance(prisma as any, debitAcctId, opts.date, opts.amount, 0);
+    await bumpAccountBalance(prisma as any, lrId, opts.date, 0, opts.amount);
   } catch (e) {
     console.error('[autoPost] collection JE failed:', e);
   }
@@ -183,11 +190,127 @@ export async function autoPostExpense(opts: {
         },
       },
     });
+    
+    await bumpAccountBalance(prisma as any, expId, opts.date, opts.amount, 0);
+    await bumpAccountBalance(prisma as any, creditAcctId, opts.date, 0, opts.amount);
   } catch (e) {
     console.error('[autoPost] expense JE failed:', e);
   }
 }
 
+/**
+ * Post JE for a capital addition.
+ * Dr Cash/Bank (1100/1200) / Cr Owner's Capital (3100)
+ */
+export async function autoPostCapitalAdd(opts: {
+  tenantId: string;
+  entryId: string;
+  description: string;
+  amount: number;
+  date: Date;
+  branchId?: string | null;
+  createdById?: string | null;
+  category?: string;
+}) {
+  try {
+    const enabled = await isPremiumAccountingEnabled(opts.tenantId);
+    if (!enabled) return;
+
+    const tag = `[AUTO:capital_add:${opts.entryId}]`;
+    if (!(await ensureJeNotDuplicate(opts.tenantId, tag))) return;
+
+    const useBank = ['bank','upi'].includes(opts.category ?? '');
+    const [capId, cashId, bankId] = await Promise.all([
+      getAcctId(opts.tenantId, '3100'),
+      getAcctId(opts.tenantId, '1100'),
+      getAcctId(opts.tenantId, '1200'),
+    ]);
+
+    const debitAcctId = useBank ? (bankId ?? cashId) : cashId;
+    if (!capId || !debitAcctId) return;
+
+    const narration = `${opts.description || 'Capital Addition'} ${tag}`;
+    await prisma.journalEntry.create({
+      data: {
+        tenantId: opts.tenantId,
+        entryDate: opts.date,
+        narration,
+        status: 'posted',
+        sourceType: 'capital_add',
+        branchId: opts.branchId ?? null,
+        createdById: opts.createdById ?? (await getSystemUserId(opts.tenantId)),
+        lines: {
+          create: [
+            { accountId: debitAcctId, debit: opts.amount, credit: 0,           description: narration, lineNo: 1 },
+            { accountId: capId,       debit: 0,           credit: opts.amount, description: narration, lineNo: 2 },
+          ],
+        },
+      },
+    });
+    
+    await bumpAccountBalance(prisma as any, debitAcctId, opts.date, opts.amount, 0);
+    await bumpAccountBalance(prisma as any, capId, opts.date, 0, opts.amount);
+  } catch (e) {
+    console.error('[autoPost] capital add JE failed:', e);
+  }
+}
+
+/**
+ * Post JE for a capital withdrawal.
+ * Dr Owner's Capital (3100) / Cr Cash/Bank (1100/1200)
+ */
+export async function autoPostCapitalWithdraw(opts: {
+  tenantId: string;
+  entryId: string;
+  description: string;
+  amount: number;
+  date: Date;
+  branchId?: string | null;
+  createdById?: string | null;
+  category?: string;
+}) {
+  try {
+    const enabled = await isPremiumAccountingEnabled(opts.tenantId);
+    if (!enabled) return;
+
+    const tag = `[AUTO:capital_withdraw:${opts.entryId}]`;
+    if (!(await ensureJeNotDuplicate(opts.tenantId, tag))) return;
+
+    const useBank = ['bank','upi'].includes(opts.category ?? '');
+    const [capId, cashId, bankId] = await Promise.all([
+      getAcctId(opts.tenantId, '3100'),
+      getAcctId(opts.tenantId, '1100'),
+      getAcctId(opts.tenantId, '1200'),
+    ]);
+
+    const creditAcctId = useBank ? (bankId ?? cashId) : cashId;
+    if (!capId || !creditAcctId) return;
+
+    const narration = `${opts.description || 'Capital Withdrawal'} ${tag}`;
+    await prisma.journalEntry.create({
+      data: {
+        tenantId: opts.tenantId,
+        entryDate: opts.date,
+        narration,
+        status: 'posted',
+        sourceType: 'capital_withdraw',
+        branchId: opts.branchId ?? null,
+        createdById: opts.createdById ?? (await getSystemUserId(opts.tenantId)),
+        lines: {
+          create: [
+            { accountId: capId,        debit: opts.amount, credit: 0,           description: narration, lineNo: 1 },
+            { accountId: creditAcctId, debit: 0,           credit: opts.amount, description: narration, lineNo: 2 },
+          ],
+        },
+      },
+    });
+    
+    await bumpAccountBalance(prisma as any, capId, opts.date, opts.amount, 0);
+    await bumpAccountBalance(prisma as any, creditAcctId, opts.date, 0, opts.amount);
+  } catch (e) {
+    console.error('[autoPost] capital withdraw JE failed:', e);
+  }
+}
 /** Fallback: get any active admin/superadmin user for the tenant to use as createdBy */
 async function getSystemUserId(tenantId: string): Promise<string> {
   const u = await prisma.user.findFirst({

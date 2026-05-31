@@ -105,6 +105,7 @@ export const en = {
     settings: 'Settings',
     subscription: 'My Subscription',
     billing: 'Billing & Subscriptions',
+    affiliate: 'Affiliate Program',
     switchApp: 'Switch Application',
     sections: {
       main: 'Main',

@@ -156,6 +156,24 @@ export async function saveCustomer(formData: FormData) {
     i++;
   }
 
+  // Process collection points
+  const collectionPointsRaw = formData.get('collectionPoints') as string;
+  let collectionPoints: any[] = [];
+  try {
+    collectionPoints = collectionPointsRaw ? JSON.parse(collectionPointsRaw) : [];
+  } catch (e) {
+    console.error('Failed to parse collectionPoints', e);
+  }
+  const formattedCPs = collectionPoints
+    .filter(cp => cp.name && cp.address)
+    .map(cp => ({
+      name: cp.name,
+      address: cp.address,
+      latitude: cp.latitude ? parseFloat(cp.latitude) : null,
+      longitude: cp.longitude ? parseFloat(cp.longitude) : null,
+      isPrimary: !!cp.isPrimary,
+    }));
+
   let customerId = editId;
   let savedCustomer = null;
 
@@ -226,6 +244,14 @@ export async function saveCustomer(formData: FormData) {
         data: documents.map(d => ({ ...d, customerId: editId }))
       });
     }
+
+    // Update collection points
+    await prisma.customerCollectionPoint.deleteMany({ where: { customerId: editId } });
+    if (formattedCPs.length > 0) {
+      await prisma.customerCollectionPoint.createMany({
+        data: formattedCPs.map(cp => ({ ...cp, customerId: editId }))
+      });
+    }
   } else {
     // Create new
     // Generate Customer Code — format: <ROUTE_ABBR>-<GLOBAL_PREFIX><SEQ>
@@ -290,6 +316,9 @@ export async function saveCustomer(formData: FormData) {
         },
         kycDocuments: {
           create: documents
+        },
+        collectionPoints: {
+          create: formattedCPs
         }
       },
       include: { route: true }

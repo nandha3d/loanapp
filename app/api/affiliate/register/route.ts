@@ -23,12 +23,22 @@ export async function POST(request: Request) {
       });
     }
 
-    // Generate a short, unique code
+    // Generate a custom, unique code: APPNAME + BusinessName + Number
     let code = '';
     let isUnique = false;
     let attempts = 0;
+    const appPrefix = process.env.APP_NAME || 'LOANTRACK';
+    
+    // Clean up the name for the code
+    const cleanName = name
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .substring(0, 10)
+      .toUpperCase();
+
     while (!isUnique && attempts < 10) {
-      code = 'aff-' + Math.random().toString(36).substring(2, 10).toLowerCase();
+      const randomNum = Math.floor(Math.random() * 9000) + 1000;
+      code = `${appPrefix}${cleanName}${randomNum}`;
+      
       const existingCode = await prisma.affiliate.findUnique({ where: { code } });
       if (!existingCode) isUnique = true;
       attempts++;
@@ -49,7 +59,7 @@ export async function POST(request: Request) {
     return apiSuccess({
       message: 'Successfully registered as an affiliate.',
       affiliate,
-    }, 201);
+    });
   } catch (error: any) {
     console.error('[API_AFFILIATE_REGISTER]', error);
     return apiError(error.message, 500);

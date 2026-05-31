@@ -78,6 +78,39 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
     }
   };
 
+  // --- Collection Points handlers ---
+  const [collectionPoints, setCollectionPoints] = useState<any[]>(customer?.collectionPoints?.map((cp: any) => ({
+    id: cp.id || Date.now() + Math.random(),
+    name: cp.name,
+    address: cp.address,
+    latitude: cp.latitude,
+    longitude: cp.longitude,
+    isPrimary: cp.isPrimary
+  })) || []);
+  const addCollectionPoint = () => {
+    setCollectionPoints([...collectionPoints, { id: Date.now(), name: '', address: '', latitude: null, longitude: null, isPrimary: collectionPoints.length === 0 }]);
+  };
+  const removeCollectionPoint = (id: number | string) => setCollectionPoints(collectionPoints.filter(cp => cp.id !== id));
+  const updateCollectionPoint = (id: number | string, field: string, value: any) => {
+    setCollectionPoints(collectionPoints.map(cp => cp.id === id ? { ...cp, [field]: value } : cp));
+  };
+  const captureGpsForPoint = (id: number | string) => {
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          updateCollectionPoint(id, 'latitude', pos.coords.latitude);
+          updateCollectionPoint(id, 'longitude', pos.coords.longitude);
+          alert('GPS coordinates captured successfully!');
+        },
+        err => alert('Failed to get GPS location. Please ensure location permissions are granted.')
+      );
+    } else {
+      alert('Geolocation is not supported by your browser.');
+    }
+  };
+
+  const [mainAddress, setMainAddress] = useState(customer?.address || '');
+
   // --- Route create handler ---
   const handleCreateRoute = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -116,6 +149,7 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
       setLoading(true);
       const formData = new FormData(e.currentTarget);
       formData.append('isPopup', 'true');
+      formData.append('collectionPoints', JSON.stringify(collectionPoints));
       const res = await saveCustomer(formData);
       if (res.success && res.customer) {
         onSuccess(res.customer);
@@ -135,6 +169,7 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
       </div>
       <form action={onSuccess ? undefined : (saveCustomer as unknown as (formData: FormData) => Promise<void>)} onSubmit={handleSubmit}>
         {customer && <input type="hidden" name="id" value={customer.id} />}
+        <input type="hidden" name="collectionPoints" value={JSON.stringify(collectionPoints)} />
         
         {/* --- Customer Photo --- */}
         <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', marginBottom: '20px' }}>
@@ -195,7 +230,7 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
             </div>
             <div className="form-group">
               <label className="form-label">{dict.customers.address}</label>
-              <textarea name="address" className="form-control" rows={2} placeholder="Complete postal address" defaultValue={customer?.address} style={{ fontSize: '1rem', padding: '12px' }} />
+              <textarea name="address" className="form-control" rows={2} placeholder="Complete postal address" value={mainAddress} onChange={e => setMainAddress(e.target.value)} style={{ fontSize: '1rem', padding: '12px' }} />
             </div>
           </div>
         </div>
@@ -351,6 +386,65 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
             </div>
           </div>
         )}
+
+        {/* --- Collection Points --- */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '24px 0 12px' }}>
+          <h4 style={{ margin: 0, fontSize: '.9rem', fontWeight: 600 }}>📍 Collection Points</h4>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={addCollectionPoint} style={{ padding: '4px 10px', fontSize: '.78rem' }}>
+            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>add_location</span>
+            Add Point
+          </button>
+        </div>
+        {collectionPoints.map((cp, index) => (
+          <div key={cp.id} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '16px', marginBottom: '12px', background: 'var(--bg)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <strong style={{ fontSize: '.85rem' }}>Collection Point #{index + 1} {cp.isPrimary && <span className="badge badge-primary" style={{ marginLeft: 8 }}>Primary</span>}</strong>
+              <button type="button" onClick={() => removeCollectionPoint(cp.id)} style={{ color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                <span className="material-icons-outlined" style={{ fontSize: '18px' }}>delete</span>
+              </button>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Point Name / Label *</label>
+                <input type="text" className="form-control" placeholder="e.g. Home, Shop, Office" value={cp.name} onChange={e => updateCollectionPoint(cp.id, 'name', e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} required />
+              </div>
+              <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '.85rem', cursor: 'pointer', marginTop: '24px' }}>
+                  <input type="checkbox" checked={cp.isPrimary} onChange={e => {
+                    if (e.target.checked) {
+                      setCollectionPoints(collectionPoints.map(p => ({ ...p, isPrimary: p.id === cp.id })));
+                    }
+                  }} />
+                  Set as Primary
+                </label>
+              </div>
+            </div>
+            <div className="form-group">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label className="form-label" style={{ margin: 0 }}>Address *</label>
+                <button type="button" className="btn btn-ghost btn-sm" style={{ padding: '2px 6px', fontSize: '.75rem' }} onClick={() => updateCollectionPoint(cp.id, 'address', mainAddress)}>
+                  <span className="material-icons-outlined" style={{ fontSize: '14px' }}>content_copy</span> Same as primary address
+                </button>
+              </div>
+              <textarea className="form-control" rows={2} placeholder="Collection address" value={cp.address} onChange={e => updateCollectionPoint(cp.id, 'address', e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} required />
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Latitude</label>
+                <input type="number" step="any" className="form-control" placeholder="Optional" value={cp.latitude || ''} onChange={e => updateCollectionPoint(cp.id, 'latitude', e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Longitude</label>
+                <input type="number" step="any" className="form-control" placeholder="Optional" value={cp.longitude || ''} onChange={e => updateCollectionPoint(cp.id, 'longitude', e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} />
+              </div>
+              <div className="form-group" style={{ flex: '0 0 auto', display: 'flex', alignItems: 'flex-end' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => captureGpsForPoint(cp.id)} style={{ height: '42px', padding: '0 16px' }} title="Capture Current GPS">
+                  <span className="material-icons-outlined">my_location</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
 
         {/* --- KYC Documents --- */}
         <h4 style={{ margin: '24px 0 12px', fontSize: '.9rem', fontWeight: 600 }}>📄 {dict.customers.documents}</h4>

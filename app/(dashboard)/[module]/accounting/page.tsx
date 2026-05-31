@@ -8,7 +8,12 @@ import { modulePath } from '@/types/modules';
 import { getDictionary } from '@/lib/i18n';
 import { isPremiumAccountingEnabled } from '@/lib/accounting/premium';
 
-export default async function AccountingPage() {
+export default async function AccountingPage({
+  params,
+}: {
+  params: Promise<{ module: string }>;
+}) {
+  const { module } = await params;
   const session = await auth();
   const role = (session?.user as any)?.role;
   const appType = await getUserAppType();
@@ -16,9 +21,6 @@ export default async function AccountingPage() {
 
   const tenantId = await getDefaultTenantId();
   const premiumEnabled = await isPremiumAccountingEnabled(tenantId);
-
-  // Premium takes over: keep module path generation consistent with the dashboard router.
-  if (premiumEnabled) redirect(modulePath(appType, '/accounting/premium'));
 
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
   const activeBranchId = await getActiveBranchId();
@@ -36,7 +38,7 @@ export default async function AccountingPage() {
           Track capital flow, loan disbursements, collections, and expenses.
         </p>
       </div>
-      <AccountingClient summary={serializedSummary} currencySymbol={currencySymbol} dict={dict} />
+      <AccountingClient summary={serializedSummary} currencySymbol={currencySymbol} dict={dict} premiumEnabled={premiumEnabled} module={module} />
     </div>
   );
 }

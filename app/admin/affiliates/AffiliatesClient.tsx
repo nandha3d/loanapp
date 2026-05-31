@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 
 type Affiliate = {
   id: string;
@@ -43,11 +43,35 @@ type Config = {
   yearlyRewardFreeMonths: number;
 };
 
+type Visit = {
+  id: string;
+  affiliateId: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  referrerUrl: string | null;
+  createdAt: string;
+};
+
+type Lead = {
+  id: string;
+  affiliateId: string;
+  businessName: string;
+  ownerName: string;
+  phone: string;
+  email: string;
+  lastStepReached: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type AffiliatesClientProps = {
   initialAffiliates: Affiliate[];
   initialReferrals: Referral[];
   initialRewards: Reward[];
   initialConfig: Config;
+  initialVisits?: Visit[];
+  initialLeads?: Lead[];
 };
 
 export default function AffiliatesClient({
@@ -55,11 +79,15 @@ export default function AffiliatesClient({
   initialReferrals,
   initialRewards,
   initialConfig,
+  initialVisits = [],
+  initialLeads = [],
 }: AffiliatesClientProps) {
   const [affiliates, setAffiliates] = useState<Affiliate[]>(initialAffiliates);
   const [referrals, setReferrals] = useState<Referral[]>(initialReferrals);
   const [rewards, setRewards] = useState<Reward[]>(initialRewards);
   const [config, setConfig] = useState<Config>(initialConfig);
+  const [visits] = useState<Visit[]>(initialVisits);
+  const [leads] = useState<Lead[]>(initialLeads);
 
   // Form State
   const [threshold, setThreshold] = useState(config.threshold);
@@ -76,6 +104,7 @@ export default function AffiliatesClient({
 
   // Action State
   const [updatingRewardId, setUpdatingRewardId] = useState<string | null>(null);
+  const [expandedLeadId, setExpandedLeadId] = useState<string | null>(null);
 
   const getPartnerReferrals = (partnerId: string) => {
     return referrals.filter((r) => r.affiliateId === partnerId);
@@ -87,6 +116,14 @@ export default function AffiliatesClient({
 
   const getPartnerRewards = (partnerId: string) => {
     return rewards.filter((rw) => rw.affiliateId === partnerId);
+  };
+
+  const getPartnerVisitsCount = (partnerId: string) => {
+    return visits.filter((v) => v.affiliateId === partnerId).length;
+  };
+
+  const getPartnerLeads = (partnerId: string) => {
+    return leads.filter((l) => l.affiliateId === partnerId);
   };
 
   const handleSyncStatus = async () => {
@@ -376,7 +413,10 @@ export default function AffiliatesClient({
                           {aff.userId ? 'Tenant' : 'Outsider'}
                         </span>
                       </td>
-                      <td>{total} signups</td>
+                      <td>
+                        <div>{total} signups</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{getPartnerVisitsCount(aff.id)} clicks</div>
+                      </td>
                       <td style={{ fontWeight: 700 }}>{paid} paid</td>
                       <td>
                         <button
@@ -422,8 +462,9 @@ export default function AffiliatesClient({
             alignItems: 'start'
           }}>
             {/* Cohort Referrals Table */}
-            <div>
-              <h4 style={{ fontSize: '0.98rem', fontWeight: 700, marginBottom: '14px' }}>referred signups cohort</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+              <div>
+                <h4 style={{ fontSize: '0.98rem', fontWeight: 700, marginBottom: '14px' }}>Converted Signups</h4>
               
               {selectedPartnerReferrals.length === 0 ? (
                 <p style={{ padding: '20px 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>No referred lenders yet.</p>
@@ -463,6 +504,100 @@ export default function AffiliatesClient({
                   </table>
                 </div>
               )}
+              </div>
+
+              {/* Incomplete Leads Table */}
+              <div>
+                <h4 style={{ fontSize: '0.98rem', fontWeight: 700, marginBottom: '14px' }}>Registration Drop-offs (Leads)</h4>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-light)', marginBottom: '12px' }}>
+                  <span className="material-icons-outlined" style={{ fontSize: '14px', verticalAlign: 'middle', marginRight: '4px' }}>privacy_tip</span>
+                  Contact details are partially masked per privacy policy for incomplete registrations.
+                </p>
+                {getPartnerLeads(selectedAffiliateId).length === 0 ? (
+                  <p style={{ padding: '20px 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>No incomplete registrations tracked.</p>
+                ) : (
+                  <div className="table-responsive">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>Business/Owner</th>
+                          <th>Contact</th>
+                          <th>Status</th>
+                          <th>Started At</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {getPartnerLeads(selectedAffiliateId).map((l) => (
+                          <React.Fragment key={l.id}>
+                            <tr 
+                              style={{ cursor: 'pointer', background: expandedLeadId === l.id ? 'var(--bg-light)' : 'transparent', transition: 'background 0.2s' }}
+                              onClick={() => setExpandedLeadId(expandedLeadId === l.id ? null : l.id)}
+                            >
+                              <td style={{ fontWeight: 600 }}>
+                                <div>{l.businessName || 'N/A'}</div>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 400 }}>{l.ownerName || 'N/A'}</div>
+                              </td>
+                              <td style={{ fontSize: '0.8rem' }}>
+                                <div>{l.email && l.email !== 'N/A' ? l.email.replace(/(.{2})(.*)(?=@)/, '$1***') : 'N/A'}</div>
+                                <div style={{ color: 'var(--text-secondary)' }}>
+                                  {l.phone && l.phone !== 'N/A' ? l.phone.slice(0, 3) + '****' + l.phone.slice(-3) : 'N/A'}
+                                </div>
+                              </td>
+                              <td>
+                                {l.status === 'completed' ? (
+                                  <span className="badge badge-success">Completed</span>
+                                ) : (
+                                  <span className="badge badge-warning" style={{ textTransform: 'capitalize' }}>
+                                    Incomplete at {l.lastStepReached.replace(/_/g, ' ')}
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                                {new Date(l.createdAt).toLocaleDateString()}
+                              </td>
+                            </tr>
+                            {expandedLeadId === l.id && (
+                              <tr style={{ background: 'var(--bg-light)' }}>
+                                <td colSpan={4} style={{ padding: '16px 24px' }}>
+                                  <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <strong style={{ fontSize: '0.9rem' }}>Wizard Summary</strong>
+                                    {!l.metadata ? (
+                                      <span style={{ color: 'var(--text-secondary)' }}>No configuration details captured yet.</span>
+                                    ) : (
+                                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+                                        <div>
+                                          <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', textTransform: 'uppercase' }}>Plan Chosen</div>
+                                          <div style={{ fontWeight: 600, textTransform: 'capitalize' }}>{(l.metadata as any)?.plan || 'None selected'}</div>
+                                        </div>
+                                        <div>
+                                          <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', textTransform: 'uppercase' }}>Modules</div>
+                                          <div>
+                                            {(l.metadata as any)?.modules?.length > 0 
+                                              ? ((l.metadata as any).modules as string[]).map(m => <div key={m} style={{ textTransform: 'capitalize' }}>• {m}</div>)
+                                              : 'None'}
+                                          </div>
+                                        </div>
+                                        <div>
+                                          <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', textTransform: 'uppercase' }}>Add-ons</div>
+                                          <div>
+                                            {(l.metadata as any)?.addons?.length > 0 
+                                              ? ((l.metadata as any).addons as string[]).map(a => <div key={a} style={{ textTransform: 'capitalize' }}>• {a.replace('_', ' ')}</div>)
+                                              : 'None'}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* cohort rewards panel */}

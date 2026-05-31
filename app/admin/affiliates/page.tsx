@@ -27,6 +27,15 @@ export default async function AdminAffiliatesPage() {
     orderBy: { createdAt: 'desc' },
   });
 
+  // Fetch all visits and leads
+  const visits = await prisma.affiliateVisit.findMany({
+    orderBy: { createdAt: 'desc' },
+  });
+
+  const leads = await prisma.referralLead.findMany({
+    orderBy: { createdAt: 'desc' },
+  });
+
   // Load current global config settings
   const config = await getAffiliateConfig();
 
@@ -65,12 +74,37 @@ export default async function AdminAffiliatesPage() {
     grantedAt: rw.grantedAt ? rw.grantedAt.toISOString() : null,
   }));
 
+  const visitsFormatted = visits.map((v) => ({
+    id: v.id,
+    affiliateId: v.affiliateId,
+    ipAddress: v.ipAddress,
+    userAgent: v.userAgent,
+    referrerUrl: v.referrerUrl,
+    createdAt: v.createdAt.toISOString(),
+  }));
+
+  const leadsFormatted = leads.map((l) => ({
+    id: l.id,
+    affiliateId: l.affiliateId,
+    businessName: l.businessName || 'N/A',
+    ownerName: l.ownerName || 'N/A',
+    phone: l.phone || 'N/A',
+    email: l.email || 'N/A',
+    lastStepReached: l.lastStepReached,
+    status: l.status,
+    metadata: l.metadata ? JSON.parse(JSON.stringify(l.metadata)) : null,
+    createdAt: l.createdAt.toISOString(),
+    updatedAt: l.updatedAt.toISOString(),
+  }));
+
   return (
     <AffiliatesClient
       initialAffiliates={affiliatesFormatted}
       initialReferrals={referralsFormatted}
       initialRewards={rewardsFormatted}
       initialConfig={config}
+      initialVisits={visitsFormatted}
+      initialLeads={leadsFormatted}
     />
   );
 }

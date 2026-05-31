@@ -31,6 +31,7 @@ type CollectionRow = {
       name: string;
       customerCode: string;
       route?: { id: string; name: string } | null;
+      collectionPoints?: { id: string; name: string; address: string; latitude: number | null; longitude: number | null; isPrimary: boolean }[];
     };
   };
   collectionEntry?: { id: string } | null;
@@ -48,6 +49,9 @@ type UnifiedGroup = {
   routeName: string;
   instalments: CollectionRow[];
   loanCodes: string[];
+  collectionPoints: { id: string; name: string; address: string; latitude: number | null; longitude: number | null; isPrimary: boolean }[];
+  distanceToAgent?: number;
+  nearestPointName?: string;
 };
 
 type CustomerOverdueGroup = {
@@ -89,6 +93,17 @@ function deriveInstalmentStatus(
   if (inst.daysOverdue > 0) return { key: 'missed', label: 'Missed' };
   if (inst.dueDate.slice(0, 10) > todayISO) return { key: 'upcoming', label: 'Upcoming' };
   return { key: 'due today', label: 'Due Today' };
+}
+
+function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // Radius of Earth in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
 }
 
 export default function CollectionClient({
@@ -143,6 +158,8 @@ export default function CollectionClient({
   const [overdueMaxDays, setOverdueMaxDays] = useState('');
   const [selectedLoanForCustomer, setSelectedLoanForCustomer] = useState<Record<string, string>>({});
   const [gpsStatusText, setGpsStatusText] = useState('');
+  const [agentLocation, setAgentLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [isSortedByNearest, setIsSortedByNearest] = useState(false);
 
   const handleLoanChange = (customerId: string, loanCode: string) => {
     setSelectedLoanForCustomer(prev => ({ ...prev, [customerId]: loanCode }));
@@ -269,6 +286,7 @@ export default function CollectionClient({
           routeName: row.loan.customer.route?.name || '-',
           instalments: [],
           loanCodes: [],
+          collectionPoints: row.loan.customer.collectionPoints || [],
         });
       }
       const g = map.get(cid)!;
@@ -280,8 +298,34 @@ export default function CollectionClient({
     for (const g of map.values()) {
       g.instalments.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
     }
-    return Array.from(map.values()).sort((a, b) => a.customerName.localeCompare(b.customerName));
-  }, [filteredRows]);
+    
+    let groups = Array.from(map.values()).sort((a, b) => a.customerName.localeCompare(b.customerName));
+
+    if (isSortedByNearest && agentLocation) {
+      groups.forEach(g => {
+        let minDistance = Infinity;
+        let nearestName = '';
+        g.collectionPoints.forEach(cp => {
+          if (cp.latitude && cp.longitude) {
+            const dist = calculateHaversineDistance(agentLocation.latitude, agentLocation.longitude, cp.latitude, cp.longitude);
+            if (dist < minDistance) {
+              minDistance = dist;
+              nearestName = cp.name;
+            }
+          }
+        });
+        if (minDistance !== Infinity) {
+          g.distanceToAgent = minDistance;
+          g.nearestPointName = nearestName;
+        } else {
+          // Send to bottom if no GPS
+          g.distanceToAgent = Infinity;
+        }
+      });
+      groups.sort((a, b) => (a.distanceToAgent ?? Infinity) - (b.distanceToAgent ?? Infinity));
+    }
+    return groups;
+  }, [filteredRows, isSortedByNearest, agentLocation]);
 
   const todayStr = new Date().toLocaleDateString('en-IN', {
     weekday: 'long',
@@ -336,6 +380,21 @@ export default function CollectionClient({
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
       );
     });
+  };
+
+  const handleSortByNearest = async () => {
+    if (isSortedByNearest) {
+      setIsSortedByNearest(false);
+      setAgentLocation(null);
+      return;
+    }
+    const gps = await captureCurrentLocation();
+    if (gps.latitude && gps.longitude) {
+      setAgentLocation({ latitude: gps.latitude, longitude: gps.longitude });
+      setIsSortedByNearest(true);
+    } else {
+      alert('Could not capture location to sort.');
+    }
   };
 
   const handleSubmit = async () => {
@@ -486,6 +545,15 @@ export default function CollectionClient({
                     <Link href={`/customers/${group.customerCode}`}>
                       <strong>{group.customerName}</strong>
                     </Link>
+                    {group.distanceToAgent !== undefined && group.distanceToAgent !== Infinity && (
+                      <div style={{ fontSize: '.75rem', color: 'var(--text-light)', marginTop: '2px' }}>
+                        <span className="material-icons-outlined" style={{ fontSize: '12px', verticalAlign: 'middle', marginRight: '2px' }}>location_on</span>
+                        {group.distanceToAgent < 1 
+                          ? `${Math.round(group.distanceToAgent * 1000)}m away` 
+                          : `${group.distanceToAgent.toFixed(1)}km away`} 
+                        {group.nearestPointName && ` (${group.nearestPointName})`}
+                      </div>
+                    )}
                   </div>
                 </td>
                 <td>
@@ -665,12 +733,20 @@ export default function CollectionClient({
               {filteredRows.length} of {allInstalments.length} instalments
             </span>
           </h3>
-          {hasActiveFilters && (
-            <button type="button" className="btn btn-ghost btn-sm" onClick={clearFilters} style={{ color: 'var(--danger)' }}>
-              <span className="material-icons-outlined" style={{ fontSize: '14px' }}>filter_list_off</span>
-              Clear All Filters
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {gpsTrackingEnabled && (
+              <button type="button" className={`btn btn-sm ${isSortedByNearest ? 'btn-primary' : 'btn-ghost'}`} onClick={handleSortByNearest}>
+                <span className="material-icons-outlined" style={{ fontSize: '14px' }}>my_location</span>
+                {isSortedByNearest ? 'Sorted by Nearest' : 'Sort by Nearest'}
+              </button>
+            )}
+            {hasActiveFilters && (
+              <button type="button" className="btn btn-ghost btn-sm" onClick={clearFilters} style={{ color: 'var(--danger)' }}>
+                <span className="material-icons-outlined" style={{ fontSize: '14px' }}>filter_list_off</span>
+                Clear All Filters
+              </button>
+            )}
+          </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px', alignItems: 'end', marginBottom: '16px' }}>

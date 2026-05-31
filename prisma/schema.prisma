@@ -318,6 +318,7 @@ model Customer {
   bureauReports     BureauReport[]
   geocode           CustomerGeocode?
   goldCollaterals   GoldLoanCollateral[]
+  collectionPoints  CustomerCollectionPoint[]
 
   @@unique([tenantId, customerCode])
   // ? Bolt: Added composite index on tenantId, appType, and status to optimize frequent list queries across the app
@@ -327,6 +328,23 @@ model Customer {
   @@index([routeId], map: "customers_route_id_fkey")
   @@index([phone])
   @@map("customers")
+}
+
+model CustomerCollectionPoint {
+  id         String   @id @default(cuid())
+  customerId String   @map("customer_id")
+  name       String
+  address    String   @db.Text
+  latitude   Float?
+  longitude  Float?
+  isPrimary  Boolean  @default(false) @map("is_primary")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId], map: "customer_collection_points_customer_id_fkey")
+  @@map("customer_collection_points")
 }
 
 model KycDocument {
@@ -1006,7 +1024,7 @@ model TenantSubscription {
   tenant           Tenant    @relation(fields: [tenantId], references: [id])
 
   // Pricing & Addon Snapshot fields
-  selectedAddons   String    @default("[]") @map("selected_addons") @db.LongText
+  selectedAddons   String    @map("selected_addons") @db.LongText
   basePlanPrice    Int       @default(0) @map("base_plan_price")
   modulesPrice     Int       @default(0) @map("modules_price")
   addonsPrice      Int       @default(0) @map("addons_price")
@@ -1859,7 +1877,7 @@ model AccountingSettings {
   gstin                     String?
   state                     String?
   gstScheme                 String    @default("regular") @map("gst_scheme")
-  postingOverrides          String    @default("{}") @map("posting_overrides") @db.LongText
+  postingOverrides          String    @map("posting_overrides") @db.LongText
   costCentresEnabled        Boolean   @default(false) @map("cost_centres_enabled")
   baseAccountingMode        String    @default("derive_only") @map("base_accounting_mode")
   showPremiumBannerInBase   Boolean   @default(true) @map("show_premium_banner_in_base")
@@ -2019,4 +2037,33 @@ model AffiliateReward {
 
   @@index([affiliateId, status])
   @@map("affiliate_rewards")
+}
+
+model AffiliateVisit {
+  id          String   @id @default(cuid())
+  affiliateId String   @map("affiliate_id")
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  referrerUrl String?  @map("referrer_url")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([affiliateId])
+  @@map("affiliate_visits")
+}
+
+model ReferralLead {
+  id              String   @id @default(cuid())
+  affiliateId     String   @map("affiliate_id")
+  businessName    String?  @map("business_name")
+  ownerName       String?  @map("owner_name")
+  phone           String?
+  email           String?
+  lastStepReached String   @default("step_1_details") @map("last_step_reached")
+  status          String   @default("abandoned") // abandoned | converted
+  metadata        Json?    // To store selectedPlan, modules, addons
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([affiliateId])
+  @@map("referral_leads")
 }

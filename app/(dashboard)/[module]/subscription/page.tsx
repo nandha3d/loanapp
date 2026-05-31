@@ -119,6 +119,131 @@ export default async function MySubscriptionPage() {
           Branch modules are granted by the developer. Subscription limits still control tenant plan capacity.
         </p>
       </div>
+
+      {/* Premium Add-ons & Integrations */}
+      <div className="card" style={{ padding: '24px', marginTop: '24px' }}>
+        <h3 style={{ marginBottom: '6px', fontSize: '1rem' }}>Premium Add-ons & Integrations</h3>
+        <p style={{ marginBottom: '20px', fontSize: '0.85rem', color: 'var(--text-light)' }}>
+          Unlock premium business capabilities and automated integrations for your lending enterprise.
+        </p>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: '16px'
+        }}>
+          {[
+            {
+              key: 'premiumAccountingEnabled',
+              name: 'Premium double-entry Accounting',
+              icon: 'account_balance_wallet',
+              desc: 'Full double-entry general ledger, fiscal years, tax codes, vendor accounts, and budget tracking.',
+              active: Boolean(sub?.premiumAccountingEnabled),
+            },
+            {
+              key: 'whatsappSmsEnabled',
+              name: 'WhatsApp & SMS Notifications',
+              icon: 'sms',
+              desc: 'Automated SMS/WhatsApp transaction alerts, daily receipts, and overdue payment notifications.',
+              active: Boolean(sub?.whatsappSmsEnabled),
+            },
+            {
+              key: 'receiptPdfAllowed',
+              name: 'Receipt PDF Downloads',
+              icon: 'picture_as_pdf',
+              desc: 'Export and print professional collection receipts, loan statements, and summaries.',
+              active: Boolean(sub?.receiptPdfAllowed),
+            },
+            {
+              key: 'bureauEnabled',
+              name: 'Credit Bureau Integration',
+              icon: 'credit_score',
+              desc: 'Perform direct consumer credit bureau queries and retrieve credit ratings dynamically.',
+              active: Boolean(sub?.bureauEnabled),
+            },
+            {
+              key: 'npaEnabled',
+              name: 'NPA Classification Engine',
+              icon: 'gavel',
+              desc: 'Automated NPA classification, provisioning tracking, and compliance according to regulatory norms.',
+              active: Boolean(sub?.npaEnabled),
+            },
+            {
+              key: 'kycEnabled',
+              name: 'Aadhaar eKYC & Video KYC',
+              icon: 'assignment_ind',
+              desc: 'Verify borrower identities instantly using Aadhaar OTP eKYC and live Video UAT verification.',
+              active: Boolean(sub?.kycEnabled),
+            },
+            {
+              key: 'gpsTrackingEnabled',
+              name: 'GPS Collection & Route Tracking',
+              icon: 'map',
+              desc: 'Real-time geographic tracking of field agents, route check-ins, and GPS location proofs.',
+              active: Boolean(sub?.gpsTrackingEnabled),
+            },
+            {
+              key: 'foreclosureEnabled',
+              name: 'Foreclosure & Early Settlement',
+              icon: 'lock_open',
+              desc: 'Calculate precise early closing amounts, apply discretionary waivers, and generate settlement PDFs.',
+              active: Boolean(sub?.foreclosureEnabled),
+            },
+          ].map((addon) => (
+            <div
+              key={addon.key}
+              style={{
+                border: `1px solid ${addon.active ? 'var(--success)' : 'var(--border)'}`,
+                background: addon.active ? 'rgba(74, 222, 128, 0.04)' : 'var(--bg-light, rgba(255,255,255,0.01))',
+                borderRadius: '12px',
+                padding: '16px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  color: addon.active ? 'var(--success)' : 'var(--text)',
+                }}>
+                  <span className="material-icons-outlined" style={{ fontSize: '20px' }}>
+                    {addon.icon}
+                  </span>
+                  <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>
+                    {addon.name}
+                  </span>
+                </div>
+                <span
+                  className={`badge ${addon.active ? 'badge-success' : 'badge-closed'}`}
+                  style={{
+                    fontSize: '0.62rem',
+                    textTransform: 'uppercase',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    background: addon.active ? 'var(--success-bg)' : 'rgba(255,255,255,0.08)',
+                    color: addon.active ? 'var(--success)' : 'var(--text-light)',
+                    fontWeight: 700,
+                  }}
+                >
+                  {addon.active ? 'Active' : 'Locked'}
+                </span>
+              </div>
+              <p style={{
+                fontSize: '0.78rem',
+                color: 'var(--text-light)',
+                lineHeight: 1.4,
+                margin: 0
+              }}>
+                {addon.desc}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

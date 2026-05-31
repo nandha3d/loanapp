@@ -71,6 +71,12 @@ export default function DashboardClient({
       <AcStyles />
       <div style={{ maxWidth: 1200, margin: '0 auto' }}>
 
+        {/* Toggle if premium is enabled */}
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', background: 'var(--bg)', padding: '6px', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+          <a href={`/${module}/accounting`} className="btn btn-ghost" style={{ flex: 1, textAlign: 'center' }}>Basic Accounting</a>
+          <button className="btn btn-primary" style={{ flex: 1, pointerEvents: 'none' }}>Premium Accounting</button>
+        </div>
+
         {/* Page header */}
         <AcPageHeader
           title="Accounting Overview"
