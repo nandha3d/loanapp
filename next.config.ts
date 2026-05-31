@@ -27,6 +27,7 @@ const noStoreHeaders = [
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  allowedDevOrigins: ['lvh.me', '*.lvh.me', 'localhost:3000'],
   typescript: {
     ignoreBuildErrors: true,
   },

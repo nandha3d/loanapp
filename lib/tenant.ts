@@ -11,7 +11,7 @@ type SessionUserContext = {
   tenantId?: string | null;
 };
 
-const TENANT_BYPASS_ROLES = new Set(['superadmin', 'developer']);
+const TENANT_BYPASS_ROLES = new Set(['developer']);
 
 export const RESERVED_SLUGS = [
   'www', 'api', 'admin', 'app', 'portal',

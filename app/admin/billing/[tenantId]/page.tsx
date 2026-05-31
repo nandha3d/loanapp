@@ -4,7 +4,7 @@ import { redirect, notFound } from 'next/navigation';
 import { normalizeEnabledModules } from '@/lib/subscription';
 import SubscriptionForm from './SubscriptionForm';
 
-export default async function TenantBillingPage({ params }: { params: { tenantId: string } }) {
+export default async function TenantBillingPage({ params }: { params: Promise<{ tenantId: string }> }) {
   const { tenantId } = await params;
   const session = await auth();
   const role = (session?.user as any)?.role;

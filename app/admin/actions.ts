@@ -225,9 +225,69 @@ export async function manageMasterUser(formData: FormData) {
           plan: 'trial',
           status: 'active',
           maxActiveLoans: 100,
-          maxAgents: 5
+          maxAgents: 5,
+          trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
         }
       });
+
+      // If it is a new superadmin user creation (not updating an existing one)
+      if (!id) {
+        // Create default HQ Branch
+        const branch = await prisma.branch.create({
+          data: {
+            tenantId,
+            superadminId: savedUserId,
+            name: 'Head Office',
+            code: 'HQ',
+            status: 'active',
+            enabledModules: JSON.stringify(subModules),
+          }
+        });
+
+        // Link user to this branch
+        await prisma.user.update({
+          where: { id: savedUserId },
+          data: { branchId: branch.id }
+        });
+
+        // Link in SuperadminBranch table
+        await prisma.superadminBranch.create({
+          data: {
+            superadminId: savedUserId,
+            branchId: branch.id,
+            assignedById: actorId,
+          }
+        });
+
+        // Initialize default settings for branding & system
+        const defaultSettings = [
+          { key: 'app_name', value: name || 'LoanTrack', group: 'branding' },
+          { key: 'app_tagline', value: 'Micro-Lending Management System', group: 'branding' },
+          { key: 'logo_url', value: '/assets/logo.svg', group: 'branding' },
+          { key: 'primary_color', value: '#F5A623', group: 'branding' },
+          { key: 'primary_dark', value: '#E8930C', group: 'branding' },
+          { key: 'timezone', value: 'Asia/Kolkata', group: 'system' },
+          { key: 'currency', value: 'INR', group: 'system' },
+          { key: 'currency_symbol', value: '₹', group: 'system' },
+          { key: 'date_format', value: 'dd MMM yyyy', group: 'system' },
+          { key: 'midnight_cutoff', value: 'true', group: 'system' },
+          { key: 'allow_weekend_collection', value: 'false', group: 'system' },
+          { key: 'default_penalty_per_day', value: '50', group: 'penalty' },
+          { key: 'penalty_grace_period', value: '0', group: 'penalty' },
+          { key: 'penalty_max_cap', value: '0', group: 'penalty' },
+          { key: 'customer_code_prefix', value: 'CUS', group: 'general' },
+          { key: 'loan_code_prefix', value: 'LN', group: 'general' },
+          { key: 'customer_code_counter', value: '0', group: 'general' },
+          { key: 'loan_code_counter', value: '0', group: 'general' }
+        ];
+
+        await prisma.appSetting.createMany({
+          data: defaultSettings.map(s => ({
+            tenantId,
+            ...s
+          }))
+        });
+      }
 
       // Developer can assign multiple branches to the superadmin via SuperadminBranch join table
       if (userRole === 'developer' && superadminBranchIds.length > 0) {

@@ -62,10 +62,10 @@ export async function createLoan(formData: FormData) {
     return { error: 'No active branch selected.' };
   }
 
-  // Enforce module gate — block loan creation if microlending is removed from branch
+  // Enforce module gate — block loan creation if module is removed from branch
   if (role !== 'developer') {
     try {
-      await assertModuleEnabled('microlending');
+      await assertModuleEnabled(appType as any);
     } catch (err: any) {
       return { error: err.message as string };
     }
@@ -296,7 +296,7 @@ export async function createLoan(formData: FormData) {
       loanCode,
       customerId,
       packageId: finalPackageId,
-      loanType,
+      loanType: appType === 'goldloan' ? 'gold' : loanType,
       appType,
       collateralDetails,
       guarantorId,
@@ -324,6 +324,86 @@ export async function createLoan(formData: FormData) {
       }
     }
   });
+
+  // For gold loan module, write the GoldLoanCollateral row transactionally
+  if (appType === 'goldloan') {
+    const packetNo = formData.get('packetNo') as string || null;
+    const ornamentDescription = formData.get('ornamentDescription') as string || null;
+    const grossWeightGrams = Number(formData.get('grossWeightGrams')) || 0;
+    const netWeightGrams = Number(formData.get('netWeightGrams')) || 0;
+    const purityKarat = formData.get('purityKarat') as string || '22K';
+    const marketRatePerGram = formData.get('marketRatePerGram') ? Number(formData.get('marketRatePerGram')) : null;
+    const assessedValue = formData.get('assessedValue') ? Number(formData.get('assessedValue')) : null;
+    const eligibleLtvPercent = formData.get('eligibleLtvPercent') ? Number(formData.get('eligibleLtvPercent')) : null;
+    const storageLocation = formData.get('storageLocation') as string || null;
+    const valuerName = formData.get('valuerName') as string || null;
+    const valuationDateStr = formData.get('valuationDate') as string || null;
+    const valuationDate = valuationDateStr ? new Date(valuationDateStr) : null;
+    const photoFile = formData.get('goldPhoto') as File | null;
+    const docFile = formData.get('goldValuationDoc') as File | null;
+
+    let photoPath = null;
+    let documentPath = null;
+    if (photoFile && photoFile.size > 0) {
+      try {
+        photoPath = await saveUploadedFile(photoFile, tenantId, 'gold_photos');
+      } catch (e) {
+        console.error('Failed to upload gold photo:', e);
+      }
+    }
+    if (docFile && docFile.size > 0) {
+      try {
+        documentPath = await saveUploadedFile(docFile, tenantId, 'gold_docs');
+      } catch (e) {
+        console.error('Failed to upload gold document:', e);
+      }
+    }
+
+    await prisma.goldLoanCollateral.create({
+      data: {
+        tenantId,
+        branchId: activeBranchId,
+        loanId: loan.id,
+        customerId,
+        packetNo,
+        ornamentDescription,
+        grossWeightGrams,
+        netWeightGrams,
+        purityKarat,
+        marketRatePerGram,
+        assessedValue,
+        eligibleLtvPercent,
+        storageLocation,
+        valuerName,
+        valuationDate,
+        photoPath,
+        documentPath,
+        releaseStatus: 'pledged'
+      }
+    });
+
+    // Write audit details to loan.collateralDetails as JSON snapshot
+    await prisma.loan.update({
+      where: { id: loan.id },
+      data: {
+        collateralDetails: JSON.stringify({
+          packetNo,
+          ornamentDescription,
+          grossWeightGrams,
+          netWeightGrams,
+          purityKarat,
+          marketRatePerGram,
+          assessedValue,
+          eligibleLtvPercent,
+          storageLocation,
+          valuerName,
+          valuationDateStr,
+          photoPath,
+          documentPath
+        })
+      }
+    });
+  }
 
   // Log activity - only if userId is valid
   if (createdById) {
@@ -469,7 +549,7 @@ export async function updateLoan(formData: FormData) {
   const appType = await getUserAppType();
   const loan = await prisma.loan.findFirst({
     where: { id: loanId, tenantId, appType },
-    include: { guarantor: true, customer: { select: { phone: true } } }
+    include: { guarantor: true, customer: { select: { phone: true } }, goldCollateral: true }
   });
 
   if (!loan) return { error: 'Loan not found' };
@@ -559,13 +639,109 @@ export async function updateLoan(formData: FormData) {
         perInstalment,
         penaltyRate,
         voucherRef,
-        loanType,
+        loanType: appType === 'goldloan' ? 'gold' : loanType,
         collateralDetails,
         totalPayable,
         guarantorId: currentGuarantorId,
         totalInstalments: tenure
       }
     });
+
+    // Update GoldLoanCollateral if appType === 'goldloan'
+    if (appType === 'goldloan') {
+      const packetNo = formData.get('packetNo') as string || null;
+      const ornamentDescription = formData.get('ornamentDescription') as string || null;
+      const grossWeightGrams = Number(formData.get('grossWeightGrams')) || 0;
+      const netWeightGrams = Number(formData.get('netWeightGrams')) || 0;
+      const purityKarat = formData.get('purityKarat') as string || '22K';
+      const marketRatePerGram = formData.get('marketRatePerGram') ? Number(formData.get('marketRatePerGram')) : null;
+      const assessedValue = formData.get('assessedValue') ? Number(formData.get('assessedValue')) : null;
+      const eligibleLtvPercent = formData.get('eligibleLtvPercent') ? Number(formData.get('eligibleLtvPercent')) : null;
+      const storageLocation = formData.get('storageLocation') as string || null;
+      const valuerName = formData.get('valuerName') as string || null;
+      const valuationDateStr = formData.get('valuationDate') as string || null;
+      const valuationDate = valuationDateStr ? new Date(valuationDateStr) : null;
+      const photoFile = formData.get('goldPhoto') as File | null;
+      const docFile = formData.get('goldValuationDoc') as File | null;
+
+      let photoPath = (loan as any).goldCollateral?.photoPath || null;
+      let documentPath = (loan as any).goldCollateral?.documentPath || null;
+
+      if (photoFile && photoFile.size > 0) {
+        try {
+          photoPath = await saveUploadedFile(photoFile, tenantId, 'gold_photos');
+        } catch (e) {
+          console.error('Failed to upload gold photo:', e);
+        }
+      }
+      if (docFile && docFile.size > 0) {
+        try {
+          documentPath = await saveUploadedFile(docFile, tenantId, 'gold_docs');
+        } catch (e) {
+          console.error('Failed to upload gold document:', e);
+        }
+      }
+
+      await tx.goldLoanCollateral.upsert({
+        where: { loanId },
+        update: {
+          packetNo,
+          ornamentDescription,
+          grossWeightGrams,
+          netWeightGrams,
+          purityKarat,
+          marketRatePerGram,
+          assessedValue,
+          eligibleLtvPercent,
+          storageLocation,
+          valuerName,
+          valuationDate,
+          photoPath,
+          documentPath
+        },
+        create: {
+          tenantId,
+          branchId: loan.branchId,
+          loanId,
+          customerId: loan.customerId,
+          packetNo,
+          ornamentDescription,
+          grossWeightGrams,
+          netWeightGrams,
+          purityKarat,
+          marketRatePerGram,
+          assessedValue,
+          eligibleLtvPercent,
+          storageLocation,
+          valuerName,
+          valuationDate,
+          photoPath,
+          documentPath,
+          releaseStatus: 'pledged'
+        }
+      });
+
+      await tx.loan.update({
+        where: { id: loanId },
+        data: {
+          collateralDetails: JSON.stringify({
+            packetNo,
+            ornamentDescription,
+            grossWeightGrams,
+            netWeightGrams,
+            purityKarat,
+            marketRatePerGram,
+            assessedValue,
+            eligibleLtvPercent,
+            storageLocation,
+            valuerName,
+            valuationDateStr,
+            photoPath,
+            documentPath
+          })
+        }
+      });
+    }
 
     // Regenerate schedule if core fields changed
     if (coreChanged) {

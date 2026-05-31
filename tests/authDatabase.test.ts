@@ -30,12 +30,12 @@ async function main() {
   assert.ok(admin, 'admin user should be seeded');
   assert.equal(admin.status, 'active');
   assert.equal(admin.tenant.status, 'active');
-  assert.equal(await compare('admin123', admin.passwordHash), true);
+  assert.equal(await compare('admin123', admin.passwordHash as string), true);
 
   assert.ok(superadmin, 'superadmin user should be seeded');
   assert.equal(superadmin.status, 'active');
   assert.equal(superadmin.tenant.status, 'active');
-  assert.equal(await compare('super123', superadmin.passwordHash), true);
+  assert.equal(await compare('super123', superadmin.passwordHash as string), true);
 
   console.log('auth database prerequisites passed');
 }

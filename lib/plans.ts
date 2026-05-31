@@ -39,4 +39,5 @@ export const MODULE_LABELS: Record<string, string> = {
   microlending: 'Micro Lending',
   autofinance: 'Auto Finance',
   chitfunds: 'Chit Funds',
+  goldloan: 'Gold Loan',
 };

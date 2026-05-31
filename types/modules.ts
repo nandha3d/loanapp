@@ -2,6 +2,7 @@ export const ALL_MODULES = [
   'microlending',
   'autofinance',
   'chitfunds',
+  'goldloan',
 ] as const;
 
 export type ModuleKey = (typeof ALL_MODULES)[number];
@@ -10,18 +11,21 @@ export const MODULE_SLUGS: Record<ModuleKey, string> = {
   microlending: 'microlending',
   autofinance: 'autofinance',
   chitfunds: 'chitfunds',
+  goldloan: 'goldloan',
 };
 
 export const MODULE_LABELS: Record<ModuleKey, string> = {
   microlending: 'Micro Lending',
   autofinance: 'Auto Finance',
   chitfunds: 'Chit Funds',
+  goldloan: 'Gold Loan',
 };
 
 export const MODULE_ROUTES: Record<ModuleKey, string[]> = {
   microlending: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard'],
   autofinance: ['/vehicles', '/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard'],
   chitfunds: ['/chits', '/customers', '/notifications'],
+  goldloan: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard'],
 };
 
 const MODULE_SHARED_ROUTES = ['/dashboard', '/settings', '/subscription', '/branch-requests'];

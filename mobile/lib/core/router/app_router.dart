@@ -11,6 +11,7 @@ import 'package:loantrack/features/approvals/approvals_screen.dart';
 import 'package:loantrack/features/auth/biometric_lock_screen.dart';
 import 'package:loantrack/features/admin/tracking/agent_tracking_screen.dart';
 import 'package:loantrack/features/auth/login_screen.dart';
+import 'package:loantrack/features/auth/registration_screen.dart';
 import 'package:loantrack/features/auth/totp_screen.dart';
 import 'package:loantrack/features/chits/chits_screen.dart';
 import 'package:loantrack/features/collection/collection_screen.dart';
@@ -62,10 +63,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (stage == AuthStage.unknown) return null;
 
       final atLogin = loc == '/login';
+      final atRegister = loc == '/register';
       final atTotp = loc == '/2fa';
       final atLock = loc == '/lock';
 
       if (stage == AuthStage.unauthenticated) {
+        if (atRegister) return null;
         return atLogin ? null : '/login';
       }
       if (stage == AuthStage.pendingTotp) {
@@ -75,7 +78,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return atLock ? null : '/lock';
       }
       // Authenticated
-      if (atLogin || atTotp || atLock) return '/dashboard';
+      if (atLogin || atRegister || atTotp || atLock) return '/dashboard';
 
       // Module-level guard.
       final user = auth.user;
@@ -87,6 +90,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
+      GoRoute(
+        path: '/register',
+        builder: (_, state) {
+          final googleEmail = state.uri.queryParameters['googleEmail'];
+          final googleName = state.uri.queryParameters['googleName'];
+          final googleId = state.uri.queryParameters['googleId'];
+          return RegistrationScreen(
+            googleEmail: googleEmail,
+            googleName: googleName,
+            googleId: googleId,
+          );
+        },
+      ),
       GoRoute(path: '/2fa', builder: (_, __) => const TotpScreen()),
       GoRoute(path: '/lock', builder: (_, __) => const BiometricLockScreen()),
       GoRoute(path: '/dashboard', builder: (_, __) => const DashboardScreen()),

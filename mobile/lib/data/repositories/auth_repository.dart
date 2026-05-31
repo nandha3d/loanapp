@@ -54,6 +54,52 @@ class AuthRepository {
     await _storage.clear();
   }
 
+  Future<User> registerWithEmail({
+    required String businessName,
+    required String ownerName,
+    required String ownerPhone,
+    required String ownerUsername,
+    required String ownerPassword,
+    required String selectedPlan,
+    required List<String> selectedModules,
+    required List<String> selectedAddons,
+  }) async {
+    final result = await _service.registerWithEmail(
+      businessName: businessName,
+      ownerName: ownerName,
+      ownerPhone: ownerPhone,
+      ownerUsername: ownerUsername,
+      ownerPassword: ownerPassword,
+      selectedPlan: selectedPlan,
+      selectedModules: selectedModules,
+      selectedAddons: selectedAddons,
+    );
+    await _persist(result.token!, result.user!);
+    return result.user!;
+  }
+
+  Future<GoogleAuthResult> authenticateWithGoogle({
+    required String idToken,
+    String? businessName,
+    String? ownerPhone,
+    String? selectedPlan,
+    List<String>? selectedModules,
+    List<String>? selectedAddons,
+  }) async {
+    final result = await _service.authenticateWithGoogle(
+      idToken: idToken,
+      businessName: businessName,
+      ownerPhone: ownerPhone,
+      selectedPlan: selectedPlan,
+      selectedModules: selectedModules,
+      selectedAddons: selectedAddons,
+    );
+    if (!result.needsRegistration && result.token != null && result.user != null) {
+      await _persist(result.token!, result.user!);
+    }
+    return result;
+  }
+
   Future<void> _persist(String token, User user) async {
     await _storage.saveSession(
       token: token,

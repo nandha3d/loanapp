@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 import 'package:loantrack/core/auth/auth_controller.dart';
 import 'package:loantrack/core/l10n/language_controller.dart';
@@ -39,6 +41,40 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           _username.text.trim(),
           _password.text,
         );
+  }
+
+  Future<void> _handleGoogleSignIn() async {
+    try {
+      final googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
+      final account = await googleSignIn.signIn();
+      if (account == null) return; // User cancelled
+
+      final auth = await account.authentication;
+      final idToken = auth.idToken;
+      if (idToken == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to retrieve Google credentials')),
+          );
+        }
+        return;
+      }
+
+      final res = await ref.read(authControllerProvider.notifier).loginWithGoogle(idToken);
+      if (res != null && res.needsRegistration) {
+        if (mounted) {
+          context.push(
+            '/register?googleEmail=${Uri.encodeComponent(res.email ?? '')}&googleName=${Uri.encodeComponent(res.name ?? '')}&googleId=${Uri.encodeComponent(account.id)}',
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Google Sign-In failed: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -119,6 +155,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           error: auth.error,
                           loading: loading,
                           onSubmit: _submit,
+                          onGoogleSignIn: _handleGoogleSignIn,
                         ),
                       ),
                     ),
@@ -142,6 +179,7 @@ class _LoginCard extends ConsumerWidget {
     required this.error,
     required this.loading,
     required this.onSubmit,
+    required this.onGoogleSignIn,
   });
 
   final TextEditingController username;
@@ -151,6 +189,7 @@ class _LoginCard extends ConsumerWidget {
   final String? error;
   final bool loading;
   final Future<void> Function() onSubmit;
+  final VoidCallback onGoogleSignIn;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -251,6 +290,53 @@ class _LoginCard extends ConsumerWidget {
                 style:
                     AppTypography.body.copyWith(color: AppColors.primaryDark),
               ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: const [
+              Expanded(child: Divider(color: Colors.white10)),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Text('OR', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              ),
+              Expanded(child: Divider(color: Colors.white10)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 48,
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.g_mobiledata, color: Colors.white, size: 28),
+              label: const Text('Continue with Google', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.white10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: onGoogleSignIn,
+            ),
+          ),
+          const SizedBox(height: 24),
+          Center(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  'New to LoanTrack? ',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                ),
+                GestureDetector(
+                  onTap: () => context.push('/register'),
+                  child: const Text(
+                    'Register Business',
+                    style: TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],

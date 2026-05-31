@@ -15,6 +15,9 @@ class Endpoints {
   static const String logout = '/auth/logout';
   static const String me = '/auth/me';
   static const String verify2fa = '/auth/2fa';
+  static const String register = '/auth/register';
+  static const String googleAuth = '/auth/google';
+  static const String pricing = '/pricing';
 
   // Customers
   static const String customers = '/customers';

@@ -30,6 +30,7 @@ export function isPublicPath(pathname: string): boolean {
   return (
     pathname === '/favicon.ico' ||
     pathname === '/login' ||
+    pathname === '/register' ||
     pathname.startsWith('/borrower') ||
     PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))
   );
@@ -115,8 +116,8 @@ async function getSessionToken(request: NextRequest) {
   // HTTP request. Try both cookie name variants so protected routes can see
   // the same session that /api/auth/session sees.
   return (
-    (await getToken({ req: request, secret, secureCookie: true })) ??
-    (await getToken({ req: request, secret, secureCookie: false }))
+    (await getToken({ req: request, secret, secureCookie: true, cookieName: 'next-auth.session-token' })) ??
+    (await getToken({ req: request, secret, secureCookie: false, cookieName: 'next-auth.session-token' }))
   );
 }
 

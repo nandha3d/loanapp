@@ -161,7 +161,7 @@ async function main() {
       maxActiveLoans: 500,
       maxAgents: 20,
       maxBranches: 10,
-      enabledModules: JSON.stringify(['microlending', 'autofinance', 'chitfunds']),
+      enabledModules: JSON.stringify(['microlending', 'autofinance', 'chitfunds', 'goldloan']),
       whatsappSmsEnabled: true,
       receiptPdfAllowed: true,
       bureauEnabled: false,
@@ -176,14 +176,14 @@ async function main() {
   // ── Branch ───────────────────────────────────────────────────────────────────
   const branch = await prisma.branch.upsert({
     where: { tenantId_code: { tenantId: tenant.id, code: 'HQ' } },
-    update: { enabledModules: JSON.stringify(['microlending']) },
+    update: { enabledModules: JSON.stringify(['microlending', 'goldloan']) },
     create: {
       tenantId: tenant.id,
       name: 'Head Office',
       code: 'HQ',
       address: 'Main Branch',
       status: 'active',
-      enabledModules: JSON.stringify(['microlending']),
+      enabledModules: JSON.stringify(['microlending', 'goldloan']),
     },
   });
   console.log('✅ Branch:', branch.id);
@@ -258,25 +258,25 @@ async function main() {
   // ── Extra branches ────────────────────────────────────────────────────────────
   const erodeBranch = await prisma.branch.upsert({
     where: { tenantId_code: { tenantId: tenant.id, code: 'ERODE' } },
-    update: { superadminId: superadmin.id, enabledModules: JSON.stringify(['autofinance', 'chitfunds']) },
+    update: { superadminId: superadmin.id, enabledModules: JSON.stringify(['autofinance', 'chitfunds', 'goldloan']) },
     create: {
       tenantId: tenant.id,
       superadminId: superadmin.id,
       name: 'Erode',
       code: 'ERODE',
-      enabledModules: JSON.stringify(['autofinance', 'chitfunds']),
+      enabledModules: JSON.stringify(['autofinance', 'chitfunds', 'goldloan']),
       status: 'active',
     },
   });
   const namakkalBranch = await prisma.branch.upsert({
     where: { tenantId_code: { tenantId: tenant.id, code: 'NAMAKKAL' } },
-    update: { superadminId: superadmin.id, enabledModules: JSON.stringify(['microlending']) },
+    update: { superadminId: superadmin.id, enabledModules: JSON.stringify(['microlending', 'goldloan']) },
     create: {
       tenantId: tenant.id,
       superadminId: superadmin.id,
       name: 'Namakkal',
       code: 'NAMAKKAL',
-      enabledModules: JSON.stringify(['microlending']),
+      enabledModules: JSON.stringify(['microlending', 'goldloan']),
       status: 'active',
     },
   });
