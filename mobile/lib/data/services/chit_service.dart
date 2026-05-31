@@ -40,6 +40,27 @@ class ChitService {
           .toList(growable: false);
     });
   }
+
+  /// Records (or updates) an auction result for a period. Commission/dividend
+  /// are computed server-side from the group config — no client math.
+  Future<void> recordAuction(
+    String groupId, {
+    required int periodNumber,
+    String? winnerMemberId,
+    double? prizeAmount,
+    double? bidDiscount,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.chitAuctions(groupId),
+      data: {
+        'periodNumber': periodNumber,
+        if (winnerMemberId != null) 'winnerMemberId': winnerMemberId,
+        if (prizeAmount != null) 'prizeAmount': prizeAmount,
+        if (bidDiscount != null) 'bidDiscount': bidDiscount,
+      },
+    );
+    unwrapEnvelope(res, (_) => null);
+  }
 }
 
 final chitServiceProvider = Provider<ChitService>(

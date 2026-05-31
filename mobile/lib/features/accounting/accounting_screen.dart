@@ -24,6 +24,11 @@ final _overdueReportProvider =
   return ref.watch(reportsServiceProvider).fetchOverdueReport();
 });
 
+final _statementsProvider =
+    FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
+  return ref.watch(reportsServiceProvider).fetchAccountingStatements();
+});
+
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 class AccountingScreen extends ConsumerWidget {
@@ -42,6 +47,7 @@ class AccountingScreen extends ConsumerWidget {
             icon: const Icon(Icons.refresh_rounded),
             onPressed: () {
               ref.invalidate(_accountingSummaryProvider);
+              ref.invalidate(_statementsProvider);
               ref.invalidate(_overdueReportProvider);
             },
           ),
@@ -62,6 +68,8 @@ class AccountingScreen extends ConsumerWidget {
           padding: const EdgeInsets.all(16),
           children: [
             _SummarySection(summaryAsync: ref.watch(_accountingSummaryProvider)),
+            const SizedBox(height: 16),
+            _StatementsSection(stmtAsync: ref.watch(_statementsProvider)),
             const SizedBox(height: 16),
             _OverdueSection(overdueAsync: ref.watch(_overdueReportProvider)),
             const SizedBox(height: 24),
@@ -330,6 +338,73 @@ class _Divider extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       const Divider(color: AppColors.border, height: 1);
+}
+
+class _StatementsSection extends ConsumerWidget {
+  const _StatementsSection({required this.stmtAsync});
+  final AsyncValue<Map<String, dynamic>> stmtAsync;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
+    final fmt = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+    double n(dynamic v) => v is num ? v.toDouble() : double.tryParse('${v ?? 0}') ?? 0;
+
+    return _Card(
+      title: t.x('acc.statements'),
+      child: stmtAsync.when(
+        loading: () => const Skeleton(height: 160),
+        error: (e, _) => _InlineError(message: e.toString()),
+        data: (s) {
+          final topExpenses = (s['topExpenses'] as List<dynamic>? ?? const []);
+          Widget row(String label, double value, Color color) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(label, style: AppTypography.caption.copyWith(color: AppColors.textSecondary)),
+                    Text(fmt.format(value),
+                        style: AppTypography.bodyLarge.copyWith(color: color, fontWeight: FontWeight.w700)),
+                  ],
+                ),
+              );
+          final netProfit = n(s['netProfit']);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${s['from'] ?? ''} → ${s['to'] ?? ''}',
+                  style: AppTypography.tiny.copyWith(color: AppColors.textLight)),
+              const SizedBox(height: 6),
+              row(t.x('acc.net_profit'), netProfit, netProfit >= 0 ? AppColors.success : AppColors.danger),
+              row(t.x('acc.cash_bank'), n(s['cashBankBalance']), AppColors.textPrimary),
+              row(t.x('acc.inflow'), n(s['totalInflow']), AppColors.success),
+              row(t.x('acc.outflow'), n(s['totalOutflow']), AppColors.danger),
+              if (topExpenses.isNotEmpty) ...[
+                const Divider(height: 18, color: AppColors.border),
+                Text(t.x('acc.top_expenses'),
+                    style: AppTypography.caption.copyWith(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 6),
+                ...topExpenses.take(5).map((e) {
+                  final m = e as Map<String, dynamic>;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(child: Text('${m['name'] ?? '—'}',
+                            style: AppTypography.caption, overflow: TextOverflow.ellipsis)),
+                        Text(fmt.format(n(m['total'])), style: AppTypography.caption),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
 }
 
 class _Card extends StatelessWidget {

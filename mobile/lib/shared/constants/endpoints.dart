@@ -75,4 +75,9 @@ class Endpoints {
 
   // Accounting
   static const String accountingSummary = '/accounting';
+  static const String accountingStatements = '/accounting/statements';
+
+  // KYC review
+  static const String kycQueue = '/kyc/queue';
+  static String kycReview(String customerId) => '/kyc/$customerId/review';
 }

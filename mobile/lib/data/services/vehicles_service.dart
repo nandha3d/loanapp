@@ -31,6 +31,23 @@ class VehiclesService {
       (dynamic d) => Vehicle.fromJson(d as Map<String, dynamic>),
     );
   }
+
+  Future<Vehicle> create(Map<String, dynamic> data) async {
+    final res = await _dio.post<Map<String, dynamic>>(Endpoints.vehicles, data: data);
+    return unwrapEnvelope(
+      res,
+      (dynamic d) => Vehicle.fromJson(d as Map<String, dynamic>),
+    );
+  }
+
+  Future<Vehicle> update(String id, Map<String, dynamic> data) async {
+    final res =
+        await _dio.patch<Map<String, dynamic>>(Endpoints.vehicle(id), data: data);
+    return unwrapEnvelope(
+      res,
+      (dynamic d) => Vehicle.fromJson(d as Map<String, dynamic>),
+    );
+  }
 }
 
 final vehiclesServiceProvider = Provider<VehiclesService>(

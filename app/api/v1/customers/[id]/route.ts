@@ -22,7 +22,25 @@ const CUSTOMER_UPDATE_FIELDS = [
   'aadharNumber',
   'kycStatus',
   'status',
+  // Extended profile parity with the web edit form.
+  'email',
+  'pan',
+  'routeId',
+  'agentId',
+  'occupation',
+  'companyName',
+  'companyType',
+  'businessType',
+  'gstNumber',
+  'companyPan',
+  'companyRegNo',
+  'companyAddress',
+  'companyPhone',
+  'companyEmail',
+  'designation',
 ] as const;
+// Numeric fields coerced from the request body.
+const CUSTOMER_NUMERIC_FIELDS = new Set(['monthlyIncome']);
 
 async function findScopedCustomer(id: string, ctx: MobileTokenClaims) {
   const where: any = {
@@ -104,6 +122,13 @@ export async function PATCH(
     }
     if (data.aadharNumber !== undefined) {
       data.aadharNumber = encryptAadharNumber(String(data.aadharNumber || ''));
+    }
+    // Numeric coercion (Float columns).
+    for (const f of CUSTOMER_NUMERIC_FIELDS) {
+      if (body[f] !== undefined) {
+        const n = Number(body[f]);
+        data[f] = Number.isFinite(n) ? n : null;
+      }
     }
 
     const updated = await prisma.customer.update({

@@ -36,8 +36,20 @@ class LoanDetailScreen extends ConsumerWidget {
     final async = ref.watch(_loanDetailProvider(id));
     final t = T.of(ref);
 
+    final loaded = async.valueOrNull;
     return Scaffold(
-      appBar: AppBar(title: Text(t.x('title.loan_details')), centerTitle: true),
+      appBar: AppBar(
+        title: Text(t.x('title.loan_details')),
+        centerTitle: true,
+        actions: [
+          if (loaded != null && loaded.status != 'closed')
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: t.x('loan.edit_title'),
+              onPressed: () => _showLoanEditSheet(context, ref, loaded),
+            ),
+        ],
+      ),
       body: async.when(
         loading: () => const Padding(
           padding: EdgeInsets.all(16),
@@ -49,6 +61,158 @@ class LoanDetailScreen extends ConsumerWidget {
           subtitle: e.toString(),
         ),
         data: (loan) => _LoanBody(loan: loan),
+      ),
+    );
+  }
+}
+
+void _showLoanEditSheet(BuildContext context, WidgetRef ref, Loan loan) {
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _LoanEditSheet(loan: loan),
+  );
+}
+
+/// Files an approval request to edit safe (non-schedule) loan fields. Mirrors
+/// the web's approval-gated edit; the server diffs + guards. No math here.
+class _LoanEditSheet extends ConsumerStatefulWidget {
+  const _LoanEditSheet({required this.loan});
+  final Loan loan;
+
+  @override
+  ConsumerState<_LoanEditSheet> createState() => _LoanEditSheetState();
+}
+
+class _LoanEditSheetState extends ConsumerState<_LoanEditSheet> {
+  late final _penalty = TextEditingController(
+    text: widget.loan.penaltyRate == 0 ? '' : widget.loan.penaltyRate.toString(),
+  );
+  late final _voucher = TextEditingController(text: widget.loan.voucherRef ?? '');
+  late final _collateral =
+      TextEditingController(text: widget.loan.collateralDetails ?? '');
+  late final _reason = TextEditingController();
+  late String? _loanType = widget.loan.loanType;
+  bool _submitting = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _penalty.dispose();
+    _voucher.dispose();
+    _collateral.dispose();
+    _reason.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final t = T.of(ref);
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      await ref.read(loanServiceProvider).requestEdit(widget.loan.id, {
+        'penaltyRate': double.tryParse(_penalty.text.trim()) ?? 0,
+        'voucherRef': _voucher.text.trim(),
+        if (_loanType != null) 'loanType': _loanType,
+        'collateralDetails': _collateral.text.trim(),
+        'reason': _reason.text.trim(),
+      });
+      if (!mounted) return;
+      ref.invalidate(_loanDetailProvider(widget.loan.id));
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(t.x('loan.edit_submitted')),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  InputDecoration _dec(String label) => InputDecoration(
+        labelText: label,
+        isDense: true,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final t = T.of(ref);
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottom),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Text('${t.x('loan.edit_title')} · ${widget.loan.loanCode}',
+                  style: AppTypography.sectionTitle),
+              const SizedBox(height: 14),
+              TextField(controller: _penalty, keyboardType: TextInputType.number, decoration: _dec(t.x('loan.fld_penalty_rate'))),
+              const SizedBox(height: 12),
+              TextField(controller: _voucher, decoration: _dec(t.x('loan.fld_voucher'))),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _loanType,
+                decoration: _dec(t.x('loan.fld_loan_type')),
+                items: const [
+                  DropdownMenuItem(value: 'cheque', child: Text('Cheque')),
+                  DropdownMenuItem(value: 'gold', child: Text('Gold')),
+                  DropdownMenuItem(value: 'property', child: Text('Property')),
+                  DropdownMenuItem(value: 'other', child: Text('Other')),
+                ],
+                onChanged: (v) => setState(() => _loanType = v),
+              ),
+              const SizedBox(height: 12),
+              TextField(controller: _collateral, maxLines: 2, decoration: _dec(t.x('loan.fld_collateral'))),
+              const SizedBox(height: 12),
+              TextField(controller: _reason, maxLines: 2, decoration: _dec(t.x('loan.edit_reason'))),
+              if (_error != null) ...[
+                const SizedBox(height: 10),
+                Text(_error!, style: AppTypography.caption.copyWith(color: AppColors.danger)),
+              ],
+              const SizedBox(height: 18),
+              SizedBox(
+                height: 50,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+                  onPressed: _submitting ? null : _submit,
+                  child: _submitting
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : Text(t.x('loan.edit_submit')),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -61,6 +61,17 @@ class LoanService {
     );
   }
 
+  /// Files an approval request to edit a loan (mirrors the web's approval-gated
+  /// loan edit). Server computes the diff + guards schedule changes. Throws
+  /// ApiException with the server message on rejection (e.g. has repayments).
+  Future<void> requestEdit(String id, Map<String, dynamic> changes) async {
+    final res = await _dio.patch<Map<String, dynamic>>(
+      Endpoints.loan(id),
+      data: changes,
+    );
+    unwrapEnvelope(res, (_) => null);
+  }
+
   Future<LoanCalculation> calculate({
     required double principal,
     required double interestRate,

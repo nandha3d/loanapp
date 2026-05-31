@@ -412,6 +412,121 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
     _auctionsFuture = svc.auctions(widget.group.id);
   }
 
+  void _reload() {
+    final svc = ref.read(chitServiceProvider);
+    setState(() {
+      _membersFuture = svc.members(widget.group.id);
+      _auctionsFuture = svc.auctions(widget.group.id);
+    });
+  }
+
+  Future<void> _recordAuction() async {
+    final t = T.of(ref);
+    final members = await _membersFuture;
+    if (!mounted) return;
+    final periodCtrl = TextEditingController();
+    final prizeCtrl = TextEditingController();
+    String? winnerId = members.isNotEmpty ? members.first.id : null;
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        String? err;
+        bool busy = false;
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+          return AlertDialog(
+            title: Text(t.x('ch.record_auction')),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (err != null) ...[
+                    Text(err!, style: const TextStyle(color: AppColors.danger, fontSize: 13)),
+                    const SizedBox(height: 8),
+                  ],
+                  TextField(
+                    controller: periodCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(labelText: t.x('ch.period_number')),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    initialValue: winnerId,
+                    isExpanded: true,
+                    decoration: InputDecoration(labelText: t.x('ch.winner')),
+                    items: members
+                        .map((m) => DropdownMenuItem(
+                              value: m.id,
+                              child: Text('#${m.memberNumber} ${m.customerName}',
+                                  overflow: TextOverflow.ellipsis),
+                            ))
+                        .toList(),
+                    onChanged: (v) => winnerId = v,
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: prizeCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(labelText: t.x('ch.prize_amount')),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: busy ? null : () => Navigator.pop(ctx, false),
+                child: Text(t.x('common.cancel')),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+                onPressed: busy
+                    ? null
+                    : () async {
+                        final period = int.tryParse(periodCtrl.text.trim());
+                        if (period == null || period <= 0) {
+                          setLocal(() => err = t.x('ch.period_required'));
+                          return;
+                        }
+                        setLocal(() {
+                          busy = true;
+                          err = null;
+                        });
+                        try {
+                          await ref.read(chitServiceProvider).recordAuction(
+                                widget.group.id,
+                                periodNumber: period,
+                                winnerMemberId: winnerId,
+                                prizeAmount: double.tryParse(prizeCtrl.text.trim()),
+                              );
+                          if (ctx.mounted) Navigator.pop(ctx, true);
+                        } catch (e) {
+                          setLocal(() {
+                            busy = false;
+                            err = e.toString().replaceFirst('Exception: ', '');
+                          });
+                        }
+                      },
+                child: busy
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : Text(t.x('ch.save')),
+              ),
+            ],
+          );
+          },
+        );
+      },
+    );
+    periodCtrl.dispose();
+    prizeCtrl.dispose();
+    if (saved == true && mounted) {
+      _reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.x('ch.auction_saved')), backgroundColor: AppColors.success),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = T.of(ref);
@@ -658,6 +773,26 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                     ),
                   ),
                 ],
+              ),
+            ),
+          ),
+          // Record an auction result (server enforces admin + computes payouts).
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _recordAuction,
+                  icon: const Icon(Icons.gavel_rounded, size: 18),
+                  label: Text(t.x('ch.record_auction')),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: const BorderSide(color: AppColors.primary),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
               ),
             ),
           ),

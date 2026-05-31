@@ -41,6 +41,14 @@ const _modules = <_ModuleItem>[
     bgColor: AppColors.successBg,
   ),
   _ModuleItem(
+    icon: Icons.verified_user_outlined,
+    label: 'KYC Review',
+    subtitle: 'Verify pending customer KYC',
+    route: '/kyc-review',
+    color: AppColors.warning,
+    bgColor: AppColors.warningBg,
+  ),
+  _ModuleItem(
     icon: Icons.bar_chart_rounded,
     label: 'Reports & Analytics',
     subtitle: 'Collection trends & agent performance',

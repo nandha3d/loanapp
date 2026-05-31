@@ -20,6 +20,14 @@ class ReportsService {
     );
   }
 
+  /// Read-only financial statements (net profit, cashflow, top expenses).
+  /// All figures computed server-side — returned raw for display.
+  Future<Map<String, dynamic>> fetchAccountingStatements() async {
+    final res =
+        await _dio.get<Map<String, dynamic>>(Endpoints.accountingStatements);
+    return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
+  }
+
   /// Fetch overdue loans report.
   Future<List<OverdueItem>> fetchOverdueReport() async {
     final res =

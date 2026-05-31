@@ -28,6 +28,8 @@ import 'package:loantrack/features/reports/reports_screen.dart';
 import 'package:loantrack/features/settings/settings_screen.dart';
 import 'package:loantrack/features/vehicles/vehicles_screen.dart';
 import 'package:loantrack/features/vehicles/vehicle_detail_screen.dart';
+import 'package:loantrack/features/vehicles/new_vehicle_screen.dart';
+import 'package:loantrack/features/kyc/kyc_review_screen.dart';
 
 /// Module keys — server returns these in `User.enabledModules` (spec §5).
 class ModuleKey {
@@ -129,6 +131,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/collection', builder: (_, __) => const CollectionScreen()),
       GoRoute(path: '/penalties', builder: (_, __) => const PenaltiesScreen()),
       GoRoute(path: '/approvals', builder: (_, __) => const ApprovalsScreen()),
+      GoRoute(path: '/kyc-review', builder: (_, __) => const KycReviewScreen()),
       GoRoute(path: '/analytics', builder: (_, __) => const AnalyticsScreen()),
       GoRoute(path: '/chits', builder: (_, __) => const ChitsScreen()),
       GoRoute(path: '/accounting', builder: (_, __) => const AccountingScreen()),
@@ -141,6 +144,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/vehicles',
         builder: (_, __) => const VehiclesScreen(),
         routes: [
+          GoRoute(path: 'new', builder: (_, __) => const NewVehicleScreen()),
           GoRoute(
             path: ':id',
             builder: (_, state) =>

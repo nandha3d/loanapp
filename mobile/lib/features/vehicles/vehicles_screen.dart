@@ -129,6 +129,16 @@ class _VehiclesScreenState extends ConsumerState<VehiclesScreen> {
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add),
+        label: Text(t.x('veh.new_title')),
+        onPressed: () async {
+          final created = await context.push<Object?>('/vehicles/new');
+          if (created == true) ref.invalidate(_vehiclesProvider);
+        },
+      ),
     );
   }
 }

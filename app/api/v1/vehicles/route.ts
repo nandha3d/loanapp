@@ -64,3 +64,61 @@ export async function GET(req: NextRequest) {
     return fail(e?.message ?? 'Vehicles list failed', 500);
   }
 }
+
+/** POST /api/v1/vehicles — create a vehicle for a customer in scope. */
+export async function POST(req: NextRequest) {
+  const auth = await requireMobileContext(req);
+  if (auth.response) return auth.response;
+  const ctx = auth.context;
+
+  try {
+    const body = (await req.json()) as Record<string, unknown>;
+    const customerId = String(body.customerId || '');
+    const registrationNo = String(body.registrationNo || '').trim();
+    const make = String(body.make || '').trim();
+    const model = String(body.model || '').trim();
+    if (!customerId || !registrationNo || !make || !model) {
+      return fail('customerId, registrationNo, make, model are required', 400);
+    }
+
+    // Customer must belong to the caller's tenant/app/branch scope.
+    const customer = await prisma.customer.findFirst({
+      where: {
+        id: customerId,
+        tenantId: ctx.tenantId,
+        appType: ctx.appType,
+        ...scopedBranchWhere(ctx),
+      },
+      select: { id: true },
+    });
+    if (!customer) return fail('Customer not found', 404);
+
+    const dup = await prisma.vehicle.findFirst({
+      where: { tenantId: ctx.tenantId, appType: ctx.appType, registrationNo, deletedAt: null },
+      select: { id: true },
+    });
+    if (dup) return fail(`Registration "${registrationNo}" already exists`, 409);
+
+    const vehicle = await prisma.vehicle.create({
+      data: {
+        tenantId: ctx.tenantId,
+        appType: ctx.appType,
+        customerId,
+        registrationNo,
+        make,
+        model,
+        year: body.year != null ? Number(body.year) : null,
+        color: body.color ? String(body.color) : null,
+        engineNo: body.engineNo ? String(body.engineNo) : null,
+        chassisNo: body.chassisNo ? String(body.chassisNo) : null,
+        vehicleType: body.vehicleType ? String(body.vehicleType) : 'two_wheeler',
+        insuranceExpiry: body.insuranceExpiry ? new Date(String(body.insuranceExpiry)) : null,
+      },
+      include: { customer: { select: { id: true, name: true, customerCode: true } } },
+    });
+
+    return ok(vehicle);
+  } catch (e: any) {
+    return fail(e?.message ?? 'Vehicle create failed', 500);
+  }
+}

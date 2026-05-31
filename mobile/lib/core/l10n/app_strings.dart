@@ -78,6 +78,16 @@ const Map<String, Map<String, String>> kStrings = {
     'kn': 'ಉಳಿಸಿ',
     'ml': 'സേവ്',
   },
+  'kyc.title': { 'en': 'KYC Review', 'ta': 'KYC சரிபார்ப்பு', 'hi': 'KYC समीक्षा', 'te': 'KYC సమీక్ష', 'kn': 'KYC ಪರಿಶೀಲನೆ', 'ml': 'KYC അവലോകനം' },
+  'kyc.empty_title': { 'en': 'Queue clear', 'ta': 'வரிசை காலி', 'hi': 'कतार खाली', 'te': 'క్యూ ఖాళీ', 'kn': 'ಸಾಲು ಖಾಲಿ', 'ml': 'ക്യൂ ശൂന്യം' },
+  'kyc.empty_sub': { 'en': 'No customers awaiting KYC review', 'ta': 'KYC சரிபார்ப்புக்கு வாடிக்கையாளர் இல்லை', 'hi': 'KYC समीक्षा हेतु कोई ग्राहक नहीं', 'te': 'KYC సమీక్షకు కస్టమర్లు లేరు', 'kn': 'KYC ಪರಿಶೀಲನೆಗೆ ಗ್ರಾಹಕರಿಲ್ಲ', 'ml': 'KYC അവലോകനത്തിന് ഉപഭോക്താക്കൾ ഇല്ല' },
+  'kyc.docs': { 'en': 'docs', 'ta': 'ஆவணம்', 'hi': 'दस्तावेज़', 'te': 'పత్రాలు', 'kn': 'ದಾಖಲೆ', 'ml': 'രേഖകൾ' },
+  'kyc.verify_btn': { 'en': 'Verify', 'ta': 'சரிபார்', 'hi': 'सत्यापित', 'te': 'ధృవీకరించు', 'kn': 'ಪರಿಶೀಲಿಸಿ', 'ml': 'പരിശോധിക്കുക' },
+  'kyc.reject_btn': { 'en': 'Reject', 'ta': 'நிராகரி', 'hi': 'अस्वीकार', 'te': 'తిరస్కరించు', 'kn': 'ತಿರಸ್ಕರಿಸಿ', 'ml': 'നിരസിക്കുക' },
+  'kyc.reject_title': { 'en': 'Reject KYC', 'ta': 'KYC நிராகரி', 'hi': 'KYC अस्वीकार', 'te': 'KYC తిరస్కరించు', 'kn': 'KYC ತಿರಸ್ಕರಿಸಿ', 'ml': 'KYC നിരസിക്കുക' },
+  'kyc.reason_hint': { 'en': 'Reason for rejection', 'ta': 'நிராகரிப்புக்கான காரணம்', 'hi': 'अस्वीकृति का कारण', 'te': 'తిరస్కరణకు కారణం', 'kn': 'ತಿರಸ್ಕಾರದ ಕಾರಣ', 'ml': 'നിരസിക്കാനുള്ള കാരണം' },
+  'kyc.verified_msg': { 'en': 'KYC verified', 'ta': 'KYC சரிபார்க்கப்பட்டது', 'hi': 'KYC सत्यापित', 'te': 'KYC ధృవీకరించబడింది', 'kn': 'KYC ಪರಿಶೀಲಿಸಲಾಗಿದೆ', 'ml': 'KYC പരിശോധിച്ചു' },
+  'kyc.rejected_msg': { 'en': 'KYC rejected', 'ta': 'KYC நிராகரிக்கப்பட்டது', 'hi': 'KYC अस्वीकृत', 'te': 'KYC తిరస్కరించబడింది', 'kn': 'KYC ತಿರಸ್ಕರಿಸಲಾಗಿದೆ', 'ml': 'KYC നിരസിച്ചു' },
   'common.cancel': {
     'en': 'Cancel',
     'ta': 'ரத்து',
@@ -1241,6 +1251,12 @@ const Map<String, Map<String, String>> kStrings = {
   },
 
   // ── Accounting ────────────────────────────────────────────────────
+  'acc.statements': { 'en': 'Financial Statements', 'ta': 'நிதி அறிக்கைகள்', 'hi': 'वित्तीय विवरण', 'te': 'ఆర్థిక నివేదికలు', 'kn': 'ಹಣಕಾಸು ಹೇಳಿಕೆಗಳು', 'ml': 'സാമ്പത്തിക സ്റ്റേറ്റ്മെന്റുകൾ' },
+  'acc.net_profit': { 'en': 'Net Profit', 'ta': 'நிகர லாபம்', 'hi': 'शुद्ध लाभ', 'te': 'నికర లాభం', 'kn': 'ನಿವ್ವಳ ಲಾಭ', 'ml': 'അറ്റാദായം' },
+  'acc.cash_bank': { 'en': 'Cash & Bank', 'ta': 'பணம் & வங்கி', 'hi': 'नकद और बैंक', 'te': 'నగదు & బ్యాంక్', 'kn': 'ನಗದು ಮತ್ತು ಬ್ಯಾಂಕ್', 'ml': 'പണവും ബാങ്കും' },
+  'acc.inflow': { 'en': 'Inflow', 'ta': 'வரவு', 'hi': 'आवक', 'te': 'రాబడి', 'kn': 'ಒಳಹರಿವು', 'ml': 'വരവ്' },
+  'acc.outflow': { 'en': 'Outflow', 'ta': 'செலவு', 'hi': 'जावक', 'te': 'వ్యయం', 'kn': 'ಹೊರಹರಿವು', 'ml': 'ചെലവ്' },
+  'acc.top_expenses': { 'en': 'Top Expenses', 'ta': 'அதிக செலவுகள்', 'hi': 'शीर्ष व्यय', 'te': 'ప్రధాన ఖర్చులు', 'kn': 'ಪ್ರಮುಖ ವೆಚ್ಚಗಳು', 'ml': 'പ്രധാന ചെലവുകൾ' },
   'acc.today_summary': {
     'en': "Today's Summary", 'ta': 'இன்றைய சுருக்கம்',
     'hi': 'आज का सारांश', 'te': 'నేటి సారాంశం',
@@ -1320,6 +1336,14 @@ const Map<String, Map<String, String>> kStrings = {
   'loan.actual': { 'en': 'Actual', 'ta': 'உண்மையான' },
   'loan.distributed': { 'en': 'Distributed', 'ta': 'பகிரப்பட்டது' },
   'loan.show_restructured_rate': { 'en': 'Show Restructured Rate', 'ta': 'மாற்றியமைக்கப்பட்ட தவணையைக் காட்டு' },
+  'loan.edit_title': { 'en': 'Request Loan Edit', 'ta': 'கடன் திருத்தம் கோரிக்கை' },
+  'loan.edit_reason': { 'en': 'Reason for change', 'ta': 'மாற்றத்திற்கான காரணம்' },
+  'loan.edit_submit': { 'en': 'Submit for approval', 'ta': 'ஒப்புதலுக்கு சமர்ப்பி' },
+  'loan.edit_submitted': { 'en': 'Edit request submitted for approval', 'ta': 'திருத்தக் கோரிக்கை ஒப்புதலுக்கு சமர்ப்பிக்கப்பட்டது' },
+  'loan.fld_penalty_rate': { 'en': 'Penalty rate (%)', 'ta': 'அபராத விகிதம் (%)' },
+  'loan.fld_voucher': { 'en': 'Voucher reference', 'ta': 'வவுச்சர் குறிப்பு' },
+  'loan.fld_loan_type': { 'en': 'Loan type', 'ta': 'கடன் வகை' },
+  'loan.fld_collateral': { 'en': 'Collateral details', 'ta': 'பிணை விவரங்கள்' },
 
   'admin.agent_tracking': { 'en': 'Agent Tracking', 'ta': 'ஏஜென்ட் கண்காணிப்பு' },
   'admin.just_now': { 'en': 'Just now', 'ta': 'இப்போது' },
@@ -2176,6 +2200,11 @@ const Map<String, Map<String, String>> kStrings = {
   },
 
   // ── Vehicles ──────────────────────────────────────────────────────────────
+  'veh.new_title': { 'en': 'New Vehicle', 'ta': 'புதிய வாகனம்', 'hi': 'नया वाहन', 'te': 'కొత్త వాహనం', 'kn': 'ಹೊಸ ವಾಹನ', 'ml': 'പുതിയ വാഹനം' },
+  'veh.create_btn': { 'en': 'Create Vehicle', 'ta': 'வாகனத்தை உருவாக்கு', 'hi': 'वाहन बनाएं', 'te': 'వాహనం సృష్టించు', 'kn': 'ವಾಹನ ರಚಿಸಿ', 'ml': 'വാഹനം സൃഷ്ടിക്കുക' },
+  'veh.created': { 'en': 'Vehicle created', 'ta': 'வாகனம் உருவாக்கப்பட்டது', 'hi': 'वाहन बनाया गया', 'te': 'వాహనం సృష్టించబడింది', 'kn': 'ವಾಹನ ರಚಿಸಲಾಗಿದೆ', 'ml': 'വാഹനം സൃഷ്ടിച്ചു' },
+  'veh.customer_required': { 'en': 'Select a customer', 'ta': 'வாடிக்கையாளரைத் தேர்ந்தெடுக்கவும்', 'hi': 'ग्राहक चुनें', 'te': 'కస్టమర్‌ను ఎంచుకోండి', 'kn': 'ಗ್ರಾಹಕರನ್ನು ಆಯ್ಕೆಮಾಡಿ', 'ml': 'ഉപഭോക്താവിനെ തിരഞ്ഞെടുക്കുക' },
+  'veh.fields_required': { 'en': 'Registration, make and model are required', 'ta': 'பதிவு, தயாரிப்பு மற்றும் மாடல் தேவை', 'hi': 'पंजीकरण, मेक और मॉडल आवश्यक', 'te': 'రిజిస్ట్రేషన్, మేక్, మోడల్ అవసరం', 'kn': 'ನೋಂದಣಿ, ಮೇಕ್, ಮಾಡೆಲ್ ಅಗತ್ಯ', 'ml': 'രജിസ്ട്രേഷൻ, മേക്ക്, മോഡൽ ആവശ്യമാണ്' },
   'veh.title': {
     'en': 'Vehicles',
     'ta': 'வாகனங்கள்',
@@ -2334,6 +2363,37 @@ const Map<String, Map<String, String>> kStrings = {
     'en': 'No members yet', 'ta': 'உறுப்பினர்கள் இல்லை',
     'hi': 'अभी कोई सदस्य नहीं', 'te': 'ఇంకా సభ్యులు లేరు',
     'kn': 'ಇನ್ನು ಸದಸ್ಯರಿಲ್ಲ', 'ml': 'ഇതുവരെ അംഗങ്ങൾ ഇല്ല',
+  },
+  'ch.record_auction': {
+    'en': 'Record Auction', 'ta': 'ஏலத்தைப் பதிவு செய்',
+    'hi': 'नीलामी दर्ज करें', 'te': 'వేలం నమోదు చేయండి',
+    'kn': 'ಹರಾಜು ದಾಖಲಿಸಿ', 'ml': 'ലേലം രേഖപ്പെടുത്തുക',
+  },
+  'ch.period_number': {
+    'en': 'Period number', 'ta': 'காலம் எண்', 'hi': 'अवधि संख्या',
+    'te': 'వ్యవధి సంఖ్య', 'kn': 'ಅವಧಿ ಸಂಖ್ಯೆ', 'ml': 'കാലയളവ് നമ്പർ',
+  },
+  'ch.period_required': {
+    'en': 'Enter a valid period number', 'ta': 'சரியான காலம் எண்ணை உள்ளிடவும்',
+    'hi': 'मान्य अवधि संख्या दर्ज करें', 'te': 'చెల్లుబాటు అయ్యే వ్యవధి సంఖ్యను నమోదు చేయండి',
+    'kn': 'ಮಾನ್ಯ ಅವಧಿ ಸಂಖ್ಯೆ ನಮೂದಿಸಿ', 'ml': 'സാധുവായ കാലയളവ് നമ്പർ നൽകുക',
+  },
+  'ch.winner': {
+    'en': 'Winner', 'ta': 'வெற்றியாளர்', 'hi': 'विजेता',
+    'te': 'విజేత', 'kn': 'ವಿಜೇತ', 'ml': 'വിജയി',
+  },
+  'ch.prize_amount': {
+    'en': 'Prize amount', 'ta': 'பரிசுத் தொகை', 'hi': 'पुरस्कार राशि',
+    'te': 'బహుమతి మొత్తం', 'kn': 'ಬಹುಮಾನ ಮೊತ್ತ', 'ml': 'സമ്മാന തുക',
+  },
+  'ch.save': {
+    'en': 'Save', 'ta': 'சேமி', 'hi': 'सहेजें',
+    'te': 'సేవ్', 'kn': 'ಉಳಿಸಿ', 'ml': 'സംരക്ഷിക്കുക',
+  },
+  'ch.auction_saved': {
+    'en': 'Auction recorded', 'ta': 'ஏலம் பதிவு செய்யப்பட்டது',
+    'hi': 'नीलामी दर्ज की गई', 'te': 'వేలం నమోదైంది',
+    'kn': 'ಹರಾಜು ದಾಖಲಾಗಿದೆ', 'ml': 'ലേലം രേഖപ്പെടുത്തി',
   },
   'ch.no_auctions_yet': {
     'en': 'No auctions yet', 'ta': 'ஏலம் இல்லை',
