@@ -14,23 +14,25 @@ Native Android + iOS client for the LoanTrack microlending / chit fund platform.
 
 ## First-time setup
 
-This repo ships **only the `lib/` source tree**. The native platform folders (`android/`, `ios/`, `linux/`, etc.) are generated locally so you control the package name, signing config, and Flutter-version artefacts.
+This repo has the `mobile/ios` and `mobile/android` directories generated using:
+- **Bundle ID / Application ID**: `com.loantrack.app` (standardized across Android and iOS)
+- **App Display Name**: `LoanTrack`
+- **iOS Deployment Target**: `15.0`
 
-From this directory:
+If you ever need to regenerate the native folders (preserving your existing `lib/` and `pubspec.yaml`), run:
 
 ```powershell
-# 1) Generate native folders (preserves existing lib/ and pubspec.yaml)
+# 1) Generate native folders
 flutter create . --project-name loantrack --org com.loantrack --platforms=android,ios
 
 # 2) Install dependencies
 flutter pub get
 ```
 
-> If `flutter create` complains about an existing project, run it anyway — it merges new platform files without overwriting `lib/` or `pubspec.yaml`.
-
 ## Run
 
-The Android emulator reaches the host machine at `10.0.2.2`. iOS simulator uses `localhost`. Pass the API base URL at build time:
+### Android Emulator & iOS Simulator
+The Android emulator reaches the host machine at `10.0.2.2`. The iOS simulator reaches the host at `localhost`. Pass the base API URL at build time:
 
 ```powershell
 # Android emulator
@@ -40,7 +42,16 @@ flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3000/api/v1
 flutter run --dart-define=API_BASE_URL=http://localhost:3000/api/v1
 ```
 
-`API_BASE_URL` defaults to `http://10.0.2.2:3000/api/v1` (see `lib/core/network/dio_client.dart`).
+### Real iOS Devices
+Note that `localhost` is **not reachable** on a real iPhone. When testing on a real iPhone 16, you must:
+1. Make sure your server and iPhone are on the same local Wi-Fi network and use the host computer's local IP address (e.g. `http://192.168.1.100:3000/api/v1`), OR
+2. Expose the Next.js server using an HTTPS tunnel (e.g., using `ngrok http 3000` or `localtunnel`), OR
+3. Point to your production domain (e.g., `https://your-production-domain.com/api/v1`).
+
+Build/run command for real device:
+```powershell
+flutter run --dart-define=API_BASE_URL=https://your-production-domain.com/api/v1
+```
 
 ## Backend env vars
 
@@ -116,3 +127,30 @@ flutter test                         # run unit tests (none yet — Sprint 9)
 flutter build apk --release          # Android release
 flutter build ios --release          # iOS release (macOS only)
 ```
+
+## iOS Testing & Code Signing (No Paid Apple Developer Account)
+
+Since you don't have a paid developer account ($99/year), you cannot deploy to TestFlight. However, you can still test on a real physical iPhone 16 using a **Free Personal Apple ID**:
+
+### Option 1: Local Signing and Deployment (Requires a Mac)
+1. Copy the `mobile/` directory to a Mac.
+2. Open the iOS workspace in Xcode:
+   ```bash
+   open ios/Runner.xcworkspace
+   ```
+3. In the left sidebar, click on **Runner** (top project node).
+4. Go to the **Signing & Capabilities** tab.
+5. Check **Automatically manage signing**.
+6. Under **Team**, sign in with your personal Apple ID (this creates a "Personal Team").
+7. Connect your iPhone 16 to the Mac via USB.
+8. Select your iPhone as the run destination in the top toolbar (instead of a simulator).
+9. Click the **Run** button (Play icon) or press `Cmd + R` to build and install.
+10. **On your iPhone 16**: Go to **Settings > General > VPN & Device Management**, tap your Apple ID under "Developer App", and tap **Trust**.
+11. Turn on **Developer Mode** on your iPhone 16 (Settings > Privacy & Security > Developer Mode).
+
+*Note: Free personal provisioning profiles expire after 7 days, after which you will need to re-run the app from Xcode to refresh it.*
+
+### Option 2: Cloud Builds on Codemagic (Windows/No Mac required)
+We have added [codemagic.yaml](file:///v:/pers/Freelance/loanapp/mobile/codemagic.yaml) to build the iOS app in the cloud.
+- To verify compilation: Connect your Git repository to Codemagic and trigger a build. It will verify that your iOS project, CocoaPods, and all Flutter plugins compile successfully.
+- Codemagic builds are set to produce an **Unsigned iOS Simulator App** (`.app` file) that can be run on Xcode Simulators, which does not require a paid developer membership or signing keys.

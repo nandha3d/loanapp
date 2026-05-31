@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -16,6 +18,16 @@ class AppTypography {
     Color color = AppColors.textPrimary,
     double? height,
   }) {
+    // Avoid GoogleFonts fetch failures in unit/widget tests
+    if (Platform.environment.containsKey('FLUTTER_TEST')) {
+      return TextStyle(
+        fontSize: size,
+        fontWeight: weight,
+        color: color,
+        height: height,
+        fontFamily: 'Roboto', // standard fallback
+      );
+    }
     return GoogleFonts.inter(
       fontSize: size,
       fontWeight: weight,

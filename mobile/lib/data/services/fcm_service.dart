@@ -1,8 +1,8 @@
 import 'dart:async';
-import 'dart:io' show Platform;
 
 import 'package:dio/dio.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:loantrack/core/network/dio_client.dart';
@@ -22,17 +22,19 @@ class FcmService {
   /// MOB-02: registers initial token + listens for rotation.
   /// Call once after login. `dispose()` on logout.
   Future<void> startTokenSync() async {
+    // FCM is not supported on web — skip silently.
+    if (kIsWeb) return;
+
     final fm = FirebaseMessaging.instance;
     try {
       await fm.requestPermission(alert: true, badge: true, sound: true);
-      final platform = Platform.isAndroid ? 'android' : (Platform.isIOS ? 'ios' : 'other');
       final initial = await fm.getToken();
       if (initial != null) {
-        await registerToken(token: initial, platform: platform).catchError((_) {});
+        await registerToken(token: initial, platform: 'other').catchError((_) {});
       }
       _refreshSub?.cancel();
       _refreshSub = fm.onTokenRefresh.listen((t) {
-        registerToken(token: t, platform: platform).catchError((_) {});
+        registerToken(token: t, platform: 'other').catchError((_) {});
       });
     } catch (_) {
       // Permission denied / FCM unavailable — silent.

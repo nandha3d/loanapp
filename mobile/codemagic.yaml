@@ -1,0 +1,45 @@
+# Codemagic CI/CD configuration for LoanTrack mobile app
+workflows:
+  ios-simulator-build:
+    name: iOS Simulator Build (Unsigned)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      groups:
+        - base_config  # For environment variables like API_BASE_URL
+      vars:
+        API_BASE_URL: "https://your-production-domain.com/api/v1" # Override in Codemagic UI if needed
+      flutter: stable
+      xcode: latest
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - target: main
+    scripts:
+      - name: Install dependencies
+        script: |
+          cd mobile
+          flutter pub get
+      - name: Static Analysis
+        script: |
+          cd mobile
+          flutter analyze
+      - name: Run Tests
+        script: |
+          cd mobile
+          flutter test
+      - name: Build iOS Simulator App
+        script: |
+          cd mobile
+          # Build a debug simulator version which does not require Apple Developer credentials/certificates
+          flutter build ios --simulator --debug --dart-define=API_BASE_URL=$API_BASE_URL
+    artifacts:
+      - build/ios/iphonesimulator/*.app
+    publishing:
+      email:
+        recipients:
+          - your-email@domain.com # Change this to your email
+        notify:
+          success: true
+          failure: true
