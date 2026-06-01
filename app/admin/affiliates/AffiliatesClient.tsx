@@ -61,6 +61,7 @@ type Lead = {
   email: string;
   lastStepReached: string;
   status: string;
+  metadata?: any;
   createdAt: string;
   updatedAt: string;
 };

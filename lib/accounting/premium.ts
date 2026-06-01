@@ -18,7 +18,10 @@ export async function getOrCreateAccountingSettings(tenantId: string) {
   let settings = await prisma.accountingSettings.findUnique({ where: { tenantId } });
   if (!settings) {
     settings = await prisma.accountingSettings.create({
-      data: { tenantId },
+      data: {
+        tenantId,
+        postingOverrides: '{}',
+      },
     });
   }
   return settings;

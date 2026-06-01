@@ -1,0 +1,805 @@
+<!doctype html>
+<html lang="ta">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LoanTrack - இந்திய நிதி நிறுவனங்களுக்கான கடன் மேலாண்மை மென்பொருள்</title>
+  <meta name="description" content="LoanTrack மூலம் வாடிக்கையாளர்கள், கடன்கள், வசூல், முகவர்கள், கணக்கியல், KYC, borrower portal, GPS tracking, NPA workflows ஆகியவற்றை ஒரே தளத்தில் நிர்வகிக்கலாம்.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Tamil:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,500,0,0" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    :root {
+      --forest: #0f3f33;
+      --green: #168765;
+      --mint: #e6f6ef;
+      --gold: #f4b942;
+      --blue: #246bfe;
+      --rose: #d94875;
+      --ink: #12201b;
+      --soft-ink: #49635a;
+      --muted: #6f837b;
+      --line: rgba(18, 32, 27, .12);
+      --paper: #fbf8f1;
+      --white: #fff;
+      --shadow: 0 24px 70px rgba(15, 63, 51, .16);
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: "Noto Sans Tamil", Inter, Arial, sans-serif;
+      color: var(--ink);
+      background: var(--paper);
+      line-height: 1.65;
+    }
+    a { color: inherit; text-decoration: none; }
+    .material-symbols-outlined { font-size: 21px; vertical-align: middle; }
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      padding: 14px clamp(18px, 5vw, 64px);
+      background: rgba(251, 248, 241, .9);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(14px);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      font-size: 1.02rem;
+      color: var(--forest);
+      white-space: nowrap;
+    }
+    .brand img { width: 34px; height: 34px; }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      font-size: .88rem;
+      color: var(--soft-ink);
+    }
+    .nav-links a:hover { color: var(--green); }
+    .nav-action {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 38px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      background: var(--forest);
+      color: #fff;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.02fr) minmax(380px, .98fr);
+      gap: clamp(28px, 5vw, 68px);
+      align-items: center;
+      padding: clamp(46px, 7vw, 86px) clamp(18px, 5vw, 64px) clamp(34px, 5vw, 64px);
+      background:
+        linear-gradient(115deg, rgba(15, 63, 51, .95), rgba(19, 92, 70, .88)),
+        url("public/assets/logo.svg") center/220px no-repeat;
+      color: #fff;
+      overflow: hidden;
+    }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      width: fit-content;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.1);
+      border: 1px solid rgba(255,255,255,.18);
+      color: #d8fff0;
+      font-size: .8rem;
+      font-weight: 700;
+    }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 {
+      margin: 18px 0 18px;
+      max-width: 760px;
+      font-size: clamp(2.15rem, 4.9vw, 4.35rem);
+      line-height: 1.08;
+      letter-spacing: 0;
+      font-weight: 800;
+    }
+    .hero-copy {
+      max-width: 660px;
+      color: rgba(255,255,255,.82);
+      font-size: clamp(1rem, 1.4vw, 1.14rem);
+    }
+    .hero-actions, .cta-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 28px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      min-height: 48px;
+      padding: 12px 18px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .btn.primary { background: var(--gold); color: #183127; }
+    .btn.secondary { border-color: rgba(255,255,255,.28); color: #fff; }
+    .hero-points {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 28px;
+      color: rgba(255,255,255,.78);
+      font-size: .9rem;
+    }
+    .hero-points span {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.12);
+    }
+    .product-shot {
+      background: #f8fbfa;
+      border: 1px solid rgba(255,255,255,.34);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      color: var(--ink);
+      overflow: hidden;
+      transform: rotate(1.2deg);
+    }
+    .shot-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+    }
+    .traffic { display: flex; gap: 6px; }
+    .traffic span { width: 9px; height: 9px; border-radius: 999px; background: #d4ded9; }
+    .shot-body {
+      display: grid;
+      grid-template-columns: 145px 1fr;
+      min-height: 410px;
+    }
+    .shot-menu {
+      background: #11251e;
+      color: rgba(255,255,255,.72);
+      padding: 18px 12px;
+      font-size: .74rem;
+    }
+    .shot-menu div {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px;
+      border-radius: 8px;
+      margin-bottom: 4px;
+    }
+    .shot-menu .active { background: rgba(255,255,255,.12); color: #fff; }
+    .shot-main { padding: 18px; }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .metric, .mini-card, .feature, .step, .role-card, .price-card, .secure-card {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    .metric { padding: 13px; }
+    .metric strong { display: block; font-size: 1.3rem; line-height: 1.1; }
+    .metric span { color: var(--muted); font-size: .78rem; }
+    .bar-chart {
+      display: flex;
+      align-items: end;
+      gap: 8px;
+      height: 112px;
+      padding: 14px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      margin-bottom: 12px;
+    }
+    .bar-chart span { flex: 1; border-radius: 5px 5px 0 0; background: var(--green); min-height: 22px; }
+    .bar-chart span:nth-child(2n) { background: var(--gold); }
+    .mini-card { padding: 13px; color: var(--soft-ink); font-size: .82rem; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+    }
+    .stat {
+      padding: 22px clamp(14px, 4vw, 34px);
+      border-right: 1px solid var(--line);
+    }
+    .stat:last-child { border-right: 0; }
+    .stat strong { display: block; font-size: clamp(1.6rem, 3vw, 2.2rem); color: var(--forest); line-height: 1; }
+    .stat span { color: var(--muted); font-weight: 600; font-size: .88rem; }
+    section {
+      padding: clamp(48px, 7vw, 88px) clamp(18px, 5vw, 64px);
+    }
+    .section-head {
+      max-width: 790px;
+      margin-bottom: 32px;
+    }
+    .label {
+      color: var(--green);
+      font-weight: 800;
+      font-size: .78rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    h2 {
+      font-size: clamp(1.9rem, 3.6vw, 3.2rem);
+      line-height: 1.15;
+      letter-spacing: 0;
+      margin-bottom: 14px;
+    }
+    .section-head p { color: var(--soft-ink); font-size: 1.04rem; }
+    .grid-4, .grid-3, .grid-2 {
+      display: grid;
+      gap: 16px;
+    }
+    .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .feature, .step, .role-card, .secure-card { padding: 22px; }
+    .icon {
+      width: 43px;
+      height: 43px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      color: var(--forest);
+      background: var(--mint);
+      margin-bottom: 16px;
+    }
+    .icon.gold { background: #fff1cf; color: #80580d; }
+    .icon.blue { background: #e9f0ff; color: var(--blue); }
+    .icon.rose { background: #ffe8ef; color: var(--rose); }
+    .feature h3, .step h3, .role-card h3, .secure-card h3 {
+      font-size: 1.03rem;
+      margin-bottom: 8px;
+    }
+    .feature p, .step p, .role-card p, .secure-card p {
+      color: var(--soft-ink);
+      font-size: .94rem;
+      margin-bottom: 0;
+    }
+    .band { background: #fff; border-block: 1px solid var(--line); }
+    .workflow {
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 28px;
+      align-items: start;
+    }
+    .mobile-app {
+      display: grid;
+      grid-template-columns: minmax(320px, .82fr) minmax(0, 1.18fr);
+      gap: clamp(24px, 4vw, 46px);
+      align-items: center;
+    }
+    .phone-frame {
+      width: min(320px, 100%);
+      margin: 0 auto;
+      padding: 13px;
+      border-radius: 34px;
+      background: #12251f;
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(255,255,255,.18);
+    }
+    .phone-screen {
+      min-height: 560px;
+      border-radius: 24px;
+      overflow: hidden;
+      background: #f8fbfa;
+      color: var(--ink);
+      border: 1px solid rgba(255,255,255,.2);
+    }
+    .phone-top {
+      padding: 18px;
+      background: linear-gradient(145deg, var(--forest), var(--green));
+      color: #fff;
+    }
+    .phone-top small { color: rgba(255,255,255,.76); font-weight: 700; }
+    .phone-top h3 { margin: 8px 0 0; font-size: 1.25rem; line-height: 1.28; }
+    .phone-list {
+      display: grid;
+      gap: 10px;
+      padding: 14px;
+    }
+    .phone-row {
+      display: grid;
+      grid-template-columns: 38px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+    .phone-row .icon { width: 38px; height: 38px; margin: 0; }
+    .phone-row strong { display: block; font-size: .84rem; }
+    .phone-row span:not(.material-symbols-outlined) { color: var(--muted); font-size: .74rem; }
+    .phone-row .amount { font-weight: 800; color: var(--forest); }
+    .mobile-highlights {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 22px;
+    }
+    .mobile-highlights .feature { padding: 18px; }
+    .steps { display: grid; gap: 14px; }
+    .step { display: grid; grid-template-columns: 48px 1fr; gap: 14px; }
+    .step-number {
+      width: 38px;
+      height: 38px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      background: var(--forest);
+      color: #fff;
+      font-weight: 800;
+    }
+    .simple-panel {
+      background: var(--forest);
+      border-radius: 12px;
+      color: #fff;
+      padding: 26px;
+      box-shadow: var(--shadow);
+    }
+    .simple-panel h3 { font-size: 1.55rem; margin-bottom: 14px; }
+    .check-list {
+      display: grid;
+      gap: 12px;
+      padding: 0;
+      margin: 0;
+      list-style: none;
+    }
+    .check-list li {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      color: rgba(255,255,255,.82);
+    }
+    .check-list .material-symbols-outlined { color: var(--gold); flex: none; }
+    .role-card { display: flex; gap: 14px; align-items: flex-start; }
+    .role-card .icon { flex: none; margin-bottom: 0; }
+    .npa-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      display: table;
+    }
+    .npa-table th, .npa-table td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      font-size: .94rem;
+    }
+    .npa-table th { background: #f3f7f5; color: var(--soft-ink); font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; }
+    .npa-table tr:last-child td { border-bottom: 0; }
+    .tag {
+      display: inline-flex;
+      padding: 4px 9px;
+      border-radius: 999px;
+      font-size: .78rem;
+      font-weight: 800;
+      background: var(--mint);
+      color: var(--forest);
+    }
+    .tag.warn { background: #fff1cf; color: #7a560d; }
+    .tag.bad { background: #ffe4e9; color: #98344b; }
+    .integrations {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 9px 13px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      color: var(--soft-ink);
+      font-weight: 700;
+      font-size: .9rem;
+    }
+    .price-card {
+      padding: 26px;
+      position: relative;
+    }
+    .price-card.featured {
+      border: 2px solid var(--green);
+      box-shadow: var(--shadow);
+    }
+    .price-card h3 { font-size: 1.4rem; margin-bottom: 4px; }
+    .price-card p { color: var(--muted); margin-bottom: 18px; }
+    .price-card ul {
+      padding: 0;
+      margin: 0;
+      list-style: none;
+      display: grid;
+      gap: 10px;
+      color: var(--soft-ink);
+      font-size: .94rem;
+    }
+    .price-card li { display: flex; gap: 9px; }
+    .price-card li::before { content: "check"; font-family: "Material Symbols Outlined"; color: var(--green); }
+    .ribbon {
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: var(--mint);
+      color: var(--forest);
+      font-size: .72rem;
+      font-weight: 800;
+    }
+    .cta {
+      background: linear-gradient(120deg, #10251f, #0f5944);
+      color: #fff;
+      padding: clamp(48px, 7vw, 76px) clamp(18px, 5vw, 64px);
+    }
+    .cta-inner {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 24px;
+      align-items: center;
+    }
+    .cta h2 { max-width: 780px; margin-bottom: 10px; }
+    .cta p { max-width: 680px; color: rgba(255,255,255,.78); margin-bottom: 0; }
+    .contact-card {
+      display: grid;
+      gap: 10px;
+      min-width: min(360px, 100%);
+      padding: 18px;
+      border-radius: 8px;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.16);
+      color: rgba(255,255,255,.82);
+      font-size: .92rem;
+    }
+    .contact-card strong { color: #fff; font-size: 1.05rem; }
+    .contact-card a { color: #fff; font-weight: 800; }
+    .contact-line { display: flex; gap: 10px; align-items: flex-start; }
+    .contact-line .material-symbols-outlined { color: var(--gold); flex: none; }
+    footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      flex-wrap: wrap;
+      padding: 24px clamp(18px, 5vw, 64px);
+      background: #0c1915;
+      color: rgba(255,255,255,.68);
+      font-size: .9rem;
+    }
+    footer strong { color: #fff; }
+    @media (max-width: 980px) {
+      .hero, .workflow, .mobile-app, .cta-inner { grid-template-columns: 1fr; }
+      .product-shot { transform: none; }
+      .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .grid-3 { grid-template-columns: 1fr; }
+      .nav-links a:not(.nav-action) { display: none; }
+    }
+    @media (max-width: 640px) {
+      .grid-4, .grid-2, .stats { grid-template-columns: 1fr; }
+      .mobile-highlights { grid-template-columns: 1fr; }
+      .phone-screen { min-height: auto; }
+      .shot-body { grid-template-columns: 1fr; }
+      .shot-menu { display: none; }
+      .stats .stat { border-right: 0; border-bottom: 1px solid var(--line); }
+      .npa-table, .npa-table thead, .npa-table tbody, .npa-table tr, .npa-table td { display: block; }
+      .npa-table thead { display: none; }
+      .npa-table tr { padding: 10px 0; border-bottom: 1px solid var(--line); }
+      .npa-table tr:last-child { border-bottom: 0; }
+      .npa-table td { display: grid; grid-template-columns: 126px 1fr; gap: 12px; border-bottom: 0; padding: 7px 16px; white-space: normal; }
+      .npa-table td::before { content: attr(data-label); color: var(--muted); font-weight: 800; font-size: .78rem; }
+      .hero-actions .btn, .cta-actions .btn { width: 100%; }
+      h1 { font-size: 2.15rem; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav" aria-label="முதன்மை வழிசெலுத்தல்">
+    <a class="brand" href="#top"><img src="public/assets/logo.svg" alt="">LoanTrack</a>
+    <div class="nav-links">
+      <a href="#products">பயன்பாடுகள்</a>
+      <a href="#workflow">செயல்முறை</a>
+      <a href="#security">பாதுகாப்பு</a>
+      <a href="#plans">திட்டங்கள்</a>
+      <a class="nav-action" href="#demo"><span class="material-symbols-outlined">calendar_month</span>டெமோ பதிவு</a>
+    </div>
+  </nav>
+
+  <header class="hero" id="top">
+    <div>
+      <div class="eyebrow"><span class="material-symbols-outlined">verified_user</span>இந்திய கடன் நிறுவனங்களுக்காக உருவாக்கப்பட்டது</div>
+      <h1>உங்கள் கடன் வணிகத்தை ஒரே தெளிவான டாஷ்போர்டில் நடத்துங்கள்.</h1>
+      <p class="hero-copy">LoanTrack மூலம் வாடிக்கையாளர் பதிவு, கடன் கோப்புகள், கள வசூல், GPS ஆதாரம், அங்கீகாரம், கடனாளர் portal, கணக்கியல், NPA கண்காணிப்பு ஆகிய அனைத்தையும் ஒரே எளிய தளத்தில் நிர்வகிக்கலாம்.</p>
+      <div class="hero-actions">
+        <a class="btn primary" href="#demo"><span class="material-symbols-outlined">rocket_launch</span>Trial தொடங்கு</a>
+        <a class="btn secondary" href="#workflow"><span class="material-symbols-outlined">play_circle</span>எப்படி வேலை செய்கிறது</a>
+      </div>
+      <div class="hero-points" aria-label="தள சிறப்பம்சங்கள்">
+        <span><span class="material-symbols-outlined">language</span>6 மொழிகள்</span>
+        <span><span class="material-symbols-outlined">phone_iphone</span>Web + Mobile</span>
+        <span><span class="material-symbols-outlined">location_on</span>GPS ஆதாரம்</span>
+        <span><span class="material-symbols-outlined">account_balance</span>RBI-ready NPA</span>
+      </div>
+    </div>
+
+    <div class="product-shot" aria-label="LoanTrack டாஷ்போர்டு முன்னோட்டம்">
+      <div class="shot-top">
+        <strong>LoanTrack Command Center</strong>
+        <div class="traffic" aria-hidden="true"><span></span><span></span><span></span></div>
+      </div>
+      <div class="shot-body">
+        <div class="shot-menu">
+          <div class="active"><span class="material-symbols-outlined">dashboard</span>டாஷ்போர்டு</div>
+          <div><span class="material-symbols-outlined">groups</span>வாடிக்கையாளர்கள்</div>
+          <div><span class="material-symbols-outlined">receipt_long</span>கடன்கள்</div>
+          <div><span class="material-symbols-outlined">point_of_sale</span>வசூல்</div>
+          <div><span class="material-symbols-outlined">map</span>Route Tracker</div>
+          <div><span class="material-symbols-outlined">analytics</span>Reports</div>
+        </div>
+        <div class="shot-main">
+          <div class="metrics">
+            <div class="metric"><strong>₹18.4L</strong><span>இன்றைய எதிர்பார்ப்பு</span></div>
+            <div class="metric"><strong>92%</strong><span>வசூல் வெற்றி விகிதம்</span></div>
+            <div class="metric"><strong>318</strong><span>செயலில் உள்ள கடன்கள்</span></div>
+            <div class="metric"><strong>27</strong><span>நிலுவை அங்கீகாரங்கள்</span></div>
+          </div>
+          <div class="bar-chart" aria-label="வசூல் போக்கு முன்னோட்டம்">
+            <span style="height:48%"></span><span style="height:78%"></span><span style="height:58%"></span><span style="height:86%"></span><span style="height:64%"></span><span style="height:95%"></span>
+          </div>
+          <div class="mini-card"><strong>அடுத்த செயல்:</strong> 8 புதிய வாடிக்கையாளர்கள், 5 cash handover, 2 route exception ஆகியவற்றை பரிசீலிக்கவும்.</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><strong>20+</strong><span>வணிக modules</span></div>
+    <div class="stat"><strong>4</strong><span>கடன் product lines</span></div>
+    <div class="stat"><strong>5</strong><span>role-based portals</span></div>
+    <div class="stat"><strong>1</strong><span>ஒரே உண்மை தரவு மையம்</span></div>
+  </div>
+
+  <section id="products">
+    <div class="section-head">
+      <div class="label">யாருக்கு பயன்படும்</div>
+      <h2>நீங்கள் நடத்தும் கடன் சேவைகளுக்கேற்ற ஒரே system.</h2>
+      <p>Microfinance, auto finance, gold loan, chit fund ஆகியவற்றை தனித்தனி software அல்லது spreadsheet இல்லாமல் LoanTrack-ல் நிர்வகிக்கலாம்.</p>
+    </div>
+    <div class="grid-4">
+      <article class="feature">
+        <div class="icon"><span class="material-symbols-outlined">groups</span></div>
+        <h3>Microfinance</h3>
+        <p>தினசரி, வாராந்திர, இரு வாரம், மாதாந்திர வசூல் மற்றும் route-wise கள முகவர் செயல்பாடுகள்.</p>
+      </article>
+      <article class="feature">
+        <div class="icon gold"><span class="material-symbols-outlined">directions_car</span></div>
+        <h3>Auto Finance</h3>
+        <p>வாகன விவரம், RC ஆவணம், insurance தேதி, engine விவரம், loan link அனைத்தும் ஒரே இடத்தில்.</p>
+      </article>
+      <article class="feature">
+        <div class="icon blue"><span class="material-symbols-outlined">savings</span></div>
+        <h3>Chit Funds</h3>
+        <p>சீட்டு குழு உருவாக்கம், auction பதிவு, dividend கணக்கு, உறுப்பினர் கட்டணம் tracking.</p>
+      </article>
+      <article class="feature">
+        <div class="icon rose"><span class="material-symbols-outlined">diamond</span></div>
+        <h3>Gold Loans</h3>
+        <p>எடை, purity, valuation, storage, collateral photos, LTV check ஆகியவை தெளிவாக பதிவு.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="section-head">
+      <div class="label">முக்கிய modules</div>
+      <h2>வாடிக்கையாளர் பதிவு முதல் கடன் முடிவு வரை.</h2>
+      <p>LoanTrack ஒரு கடன் அலுவலகத்தின் உண்மையான வேலைகளை மையமாக வைத்து கட்டப்பட்டுள்ளது: records, approvals, collections, reports, customer communication.</p>
+    </div>
+    <div class="grid-3">
+      <article class="feature"><div class="icon"><span class="material-symbols-outlined">person_add</span></div><h3>Customer + KYC</h3><p>Profiles, PAN, Aadhaar, guarantors, security cheques, document uploads, Aadhaar OTP, video KYC queues.</p></article>
+      <article class="feature"><div class="icon gold"><span class="material-symbols-outlined">calculate</span></div><h3>Flexible Loan Setup</h3><p>Flat, percentage, EMI, reducing balance, restructuring, renewal, pre-closure, foreclosure, statements, receipts.</p></article>
+      <article class="feature"><div class="icon blue"><span class="material-symbols-outlined">payments</span></div><h3>Smart Collections</h3><p>பழைய நிலுவைக்கு முன்னுரிமை, partial payments, cash handover, GPS stamp, duplicate prevention, UPI QR.</p></article>
+      <article class="feature"><div class="icon rose"><span class="material-symbols-outlined">rule</span></div><h3>Approval Control</h3><p>Customer change, loan edit, payment correction, branch request, module access அனைத்திற்கும் admin approval.</p></article>
+      <article class="feature"><div class="icon"><span class="material-symbols-outlined">analytics</span></div><h3>Reports + Analytics</h3><p>Daily collection, overdue list, agent performance, route comparison, CSV export, PDF report, portfolio insights.</p></article>
+      <article class="feature"><div class="icon gold"><span class="material-symbols-outlined">account_balance_wallet</span></div><h3>Accounting</h3><p>Standard ledger உடன் premium P&amp;L, balance sheet, cash flow, trial balance, tax, budget, bank reconciliation, period lock.</p></article>
+    </div>
+  </section>
+
+  <section>
+    <div class="mobile-app">
+      <div class="phone-frame" aria-label="LoanTrack mobile app முன்னோட்டம்">
+        <div class="phone-screen">
+          <div class="phone-top">
+            <small>LoanTrack Mobile</small>
+            <h3>இன்றைய route மற்றும் வசூல்</h3>
+          </div>
+          <div class="phone-list">
+            <div class="phone-row"><div class="icon"><span class="material-symbols-outlined">route</span></div><div><strong>Town Center Route</strong><span>12 visits planned</span></div><div class="amount">₹42K</div></div>
+            <div class="phone-row"><div class="icon gold"><span class="material-symbols-outlined">qr_code_scanner</span></div><div><strong>Payment QR scan</strong><span>Borrower proof உடனடி</span></div><span class="material-symbols-outlined">chevron_right</span></div>
+            <div class="phone-row"><div class="icon blue"><span class="material-symbols-outlined">photo_camera</span></div><div><strong>KYC photo capture</strong><span>Field camera upload</span></div><span class="material-symbols-outlined">chevron_right</span></div>
+            <div class="phone-row"><div class="icon rose"><span class="material-symbols-outlined">my_location</span></div><div><strong>Live GPS ping</strong><span>Location verified collection</span></div><span class="material-symbols-outlined">chevron_right</span></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="label">Mobile application</div>
+        <h2>Field agents-க்கு எளிய Android மற்றும் iOS app.</h2>
+        <p class="section-head" style="margin-bottom:0;color:var(--soft-ink)">LoanTrack web dashboard மட்டும் அல்ல. Mobile app மூலம் agents field-ல் வேகமாக வேலை செய்யலாம்; admins office-ல் இருந்து activity monitor செய்யலாம்.</p>
+        <div class="mobile-highlights">
+          <article class="feature"><div class="icon"><span class="material-symbols-outlined">map</span></div><h3>Daily route view</h3><p>Agents assigned customers, overdue stops, route progress, today&apos;s collection target பார்க்கலாம்.</p></article>
+          <article class="feature"><div class="icon gold"><span class="material-symbols-outlined">wifi_off</span></div><h3>Offline-ready work</h3><p>Network இல்லாத இடங்களில் data queue ஆகி, connectivity வந்ததும் sync செய்ய உதவும்.</p></article>
+          <article class="feature"><div class="icon blue"><span class="material-symbols-outlined">qr_code_2</span></div><h3>QR மற்றும் proof flow</h3><p>Borrower QR scan, payment photo capture, two-party verification மூலம் disputes குறையும்.</p></article>
+          <article class="feature"><div class="icon rose"><span class="material-symbols-outlined">fingerprint</span></div><h3>Mobile security</h3><p>Biometric lock, push notifications, GPS stamps, role-based access மூலம் mobile work கட்டுப்பாட்டில் இருக்கும்.</p></article>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="workflow">
+    <div class="workflow">
+      <div>
+        <div class="section-head">
+          <div class="label">எளிய தினசரி workflow</div>
+          <h2>உங்கள் குழுவுக்கு அடுத்த செயல் தெளிவாக தெரியும்.</h2>
+          <p>Owners, admins, agents, borrowers அனைவருக்கும் தனித்தனி portal மற்றும் தெளிவான approval trail கிடைக்கும்.</p>
+        </div>
+        <div class="steps">
+          <article class="step"><span class="step-number">1</span><div><h3>வாடிக்கையாளரை பதிவு செய்யுங்கள்</h3><p>ஆவணங்கள், புகைப்படம், guarantor, income details, bureau checks, KYC நிலை ஆகியவற்றை capture செய்யுங்கள்.</p></div></article>
+          <article class="step"><span class="step-number">2</span><div><h3>கடனை உருவாக்குங்கள்</h3><p>Product, interest model, tenure, schedule, collateral, penalty rules, collection frequency தேர்வு செய்யுங்கள்.</p></div></article>
+          <article class="step"><span class="step-number">3</span><div><h3>ஆதாரத்துடன் வசூல் செய்யுங்கள்</h3><p>Agents route பார்க்கலாம், payment collect செய்யலாம், GPS proof சேர்க்கலாம், QR scan செய்யலாம், cash handover submit செய்யலாம்.</p></div></article>
+          <article class="step"><span class="step-number">4</span><div><h3>Review செய்து report எடுக்குங்கள்</h3><p>Admins exceptions approve செய்யலாம், overdue accounts track செய்யலாம், reports export செய்யலாம், NPA movement monitor செய்யலாம்.</p></div></article>
+        </div>
+      </div>
+      <aside class="simple-panel">
+        <h3>Field team வேகமாக இயங்க, business control குறையாது.</h3>
+        <ul class="check-list">
+          <li><span class="material-symbols-outlined">check_circle</span><span>Agents வேகமாக collection செய்யலாம்; முக்கிய edits approval-க்கு செல்லும்.</span></li>
+          <li><span class="material-symbols-outlined">check_circle</span><span>Borrowers schedule பார்க்கலாம், payment proof approve செய்யலாம், QR code உருவாக்கலாம்.</span></li>
+          <li><span class="material-symbols-outlined">check_circle</span><span>Owners branch, agent, collection, portfolio, subscription status அனைத்தையும் ஒரே view-ல் பார்க்கலாம்.</span></li>
+        </ul>
+      </aside>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="section-head">
+      <div class="label">பாத்திரங்கள்</div>
+      <h2>ஒவ்வொருவருக்கும் அவர்களுக்கு தேவையான screen மட்டும்.</h2>
+      <p>Role, tenant, module, branch அடிப்படையில் permission பிரிக்கப்பட்டதால் தரவு தேவையற்றவர்களுக்கு தெரியாது.</p>
+    </div>
+    <div class="grid-3">
+      <article class="role-card"><div class="icon"><span class="material-symbols-outlined">admin_panel_settings</span></div><div><h3>Owner / Super Admin</h3><p>Modules, branches, billing, users, overall business visibility அனைத்தையும் control செய்யலாம்.</p></div></article>
+      <article class="role-card"><div class="icon gold"><span class="material-symbols-outlined">manage_accounts</span></div><div><h3>Branch Admin</h3><p>Loans, approvals, reports, settings, collections, daily operations நிர்வகிக்கலாம்.</p></div></article>
+      <article class="role-card"><div class="icon blue"><span class="material-symbols-outlined">hail</span></div><div><h3>Field Agent</h3><p>Mobile-first routes, customer creation, collection entry, GPS proof, notifications.</p></div></article>
+      <article class="role-card"><div class="icon rose"><span class="material-symbols-outlined">person</span></div><div><h3>Borrower</h3><p>Schedule, payment history, proof approval, QR verification-க்கு தனிப்பட்ட portal.</p></div></article>
+      <article class="role-card"><div class="icon"><span class="material-symbols-outlined">handshake</span></div><div><h3>Affiliate</h3><p>Leads, conversions, rewards track செய்ய referral dashboard.</p></div></article>
+      <article class="role-card"><div class="icon gold"><span class="material-symbols-outlined">developer_mode</span></div><div><h3>Developer Admin</h3><p>Billing, pricing catalog, subscription limits, tenant support workflows.</p></div></article>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div class="label">Compliance</div>
+      <h2>RBI-ready overdue மற்றும் NPA visibility.</h2>
+      <p>LoanTrack loans-ஐ nightly classify செய்யவும், upgrade / downgrade history track செய்யவும், provisioning calculate செய்யவும் உதவும்.</p>
+    </div>
+    <table class="npa-table">
+      <thead><tr><th>கடன் நிலை</th><th>Overdue நாட்கள்</th><th>வணிக அர்த்தம்</th></tr></thead>
+      <tbody>
+        <tr><td data-label="கடன் நிலை">Standard</td><td data-label="Overdue நாட்கள்">0 days</td><td data-label="வணிக அர்த்தம்"><span class="tag">சரியாக செலுத்துகிறது</span></td></tr>
+        <tr><td data-label="கடன் நிலை">SMA-0</td><td data-label="Overdue நாட்கள்">1-30 days</td><td data-label="வணிக அர்த்தம்"><span class="tag warn">ஆரம்ப கவனம்</span></td></tr>
+        <tr><td data-label="கடன் நிலை">SMA-1</td><td data-label="Overdue நாட்கள்">31-60 days</td><td data-label="வணிக அர்த்தம்"><span class="tag warn">Follow up</span></td></tr>
+        <tr><td data-label="கடன் நிலை">SMA-2</td><td data-label="Overdue நாட்கள்">61-90 days</td><td data-label="வணிக அர்த்தம்"><span class="tag warn">High risk</span></td></tr>
+        <tr><td data-label="கடன் நிலை">Sub-standard / Doubtful / Loss</td><td data-label="Overdue நாட்கள்">91+ days</td><td data-label="வணிக அர்த்தம்"><span class="tag bad">NPA action</span></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="band" id="security">
+    <div class="section-head">
+      <div class="label">Security மற்றும் integrations</div>
+      <h2>Borrower data பாதுகாப்பாகவும், உங்கள் tools இணைந்தும் இருக்கும்.</h2>
+      <p>Multi-tenant finance operations-க்கு tenant isolation, audit logs, encrypted sensitive fields, route-scoped access, இந்திய payment மற்றும் messaging integrations.</p>
+    </div>
+    <div class="grid-3">
+      <article class="secure-card"><h3>Data isolation</h3><p>Tenant, app, branch, route filters மூலம் company மற்றும் customer data பிரிக்கப்பட்டிருக்கும்.</p></article>
+      <article class="secure-card"><h3>Audit trail</h3><p>Create, edit, approval, rejection, collection, login அனைத்தும் user மற்றும் timestamp உடன் record ஆகும்.</p></article>
+      <article class="secure-card"><h3>Payment safety</h3><p>Duplicate prevention, Razorpay signature checks, QR proof, photo proof, borrower confirmation flows.</p></article>
+    </div>
+    <div class="integrations" style="margin-top:24px">
+      <span class="pill"><span class="material-symbols-outlined">credit_score</span>CRIF</span>
+      <span class="pill"><span class="material-symbols-outlined">credit_score</span>CIBIL</span>
+      <span class="pill"><span class="material-symbols-outlined">payments</span>Razorpay</span>
+      <span class="pill"><span class="material-symbols-outlined">sms</span>MSG91 SMS</span>
+      <span class="pill"><span class="material-symbols-outlined">chat</span>WhatsApp</span>
+      <span class="pill"><span class="material-symbols-outlined">notifications</span>Firebase Push</span>
+      <span class="pill"><span class="material-symbols-outlined">badge</span>Aadhaar OTP</span>
+      <span class="pill"><span class="material-symbols-outlined">videocam</span>Video KYC</span>
+    </div>
+  </section>
+
+  <section id="plans">
+    <div class="section-head">
+      <div class="label">Plans</div>
+      <h2>சிறியதாக தொடங்கி, வளரும்போது modules சேர்க்கலாம்.</h2>
+      <p>முதலில் core lending பயன்படுத்துங்கள். பின்னர் GPS tracking, KYC, credit bureau, WhatsApp, premium accounting போன்ற modules-ஐ தேவைப்படும் போது enable செய்யுங்கள்.</p>
+    </div>
+    <div class="grid-3">
+      <article class="price-card">
+        <h3>Basic</h3>
+        <p>சிறிய finance office-க்கு records சரியாக அமைக்க.</p>
+        <ul><li>Customer மற்றும் loan records</li><li>Collection entry</li><li>Standard ledger</li><li>Basic reports</li><li>SMS notifications</li></ul>
+      </article>
+      <article class="price-card featured">
+        <span class="ribbon">Popular</span>
+        <h3>Pro</h3>
+        <p>Field agents மற்றும் branches உள்ள வளர்ந்து வரும் team-க்கு.</p>
+        <ul><li>Multi-branch operations</li><li>GPS route tracking</li><li>Approval workflows</li><li>Credit bureau checks</li><li>WhatsApp மற்றும் push alerts</li></ul>
+      </article>
+      <article class="price-card">
+        <h3>Enterprise</h3>
+        <p>அதிக control தேவைப்படும் பெரிய lenders-க்கு.</p>
+        <ul><li>Premium accounting</li><li>NPA provisioning</li><li>Advanced exports</li><li>Subscription மற்றும் module limits</li><li>Affiliate program support</li></ul>
+      </article>
+    </div>
+  </section>
+
+  <section class="cta" id="demo">
+    <div class="cta-inner">
+      <div>
+        <h2>உங்கள் lending operations-ஐ ஒரே நம்பகமான system-க்கு கொண்டு வாருங்கள்.</h2>
+        <p>Admins-க்கு தெளிவான command center, agents-க்கு எளிய mobile workflow, borrowers-க்கு professional self-service portal கொடுங்கள்.</p>
+      </div>
+      <div class="contact-card" aria-label="எங்களை தொடர்பு கொள்ள">
+        <strong>எங்களை தொடர்பு கொள்ள</strong>
+        <div class="contact-line"><span class="material-symbols-outlined">location_on</span><span>155, Above Bake Mart, Nasiyanur Road, Narayana Valasu, Erode, Tamilnadu, India - 638011</span></div>
+        <div class="contact-line"><span class="material-symbols-outlined">mail</span><a href="mailto:info@animazon.in">info@animazon.in</a></div>
+        <div class="contact-line"><span class="material-symbols-outlined">call</span><a href="tel:+918089405950">+91 80894 05950</a></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div><strong>LoanTrack</strong> - இந்திய finance teams-க்கான lending management.</div>
+    <div>Web | Android | iOS | 6 languages | RBI-ready workflows</div>
+  </footer>
+</body>
+</html>
