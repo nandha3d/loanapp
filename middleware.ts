@@ -46,9 +46,12 @@ export function getRoleRedirectTarget(
   const { module, page } = parseModulePath(pathname);
 
   if (role === 'developer') {
+    // Developer never uses the portal — redirect to admin panel
+    if (pathname.startsWith('/portal')) {
+      return '/admin';
+    }
     if (
       !DEVELOPER_ONLY.some((prefix) => pathname.startsWith(prefix)) &&
-      !pathname.startsWith('/portal') &&
       module === null &&
       !isPublicPath(pathname)
     ) {

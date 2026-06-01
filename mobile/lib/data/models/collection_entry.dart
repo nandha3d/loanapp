@@ -41,6 +41,9 @@ class CollectionRow {
     required this.receivedAmount,
     required this.dueDate,
     required this.status,
+    this.lat,
+    this.lng,
+    this.collectionEntryId,
   });
 
   final String instalmentId;
@@ -54,6 +57,9 @@ class CollectionRow {
   final double receivedAmount;
   final DateTime dueDate;
   final String status;
+  final double? lat;
+  final double? lng;
+  final String? collectionEntryId;
 
   double get outstanding => dueAmount - receivedAmount;
   int get daysOverdue {
@@ -82,6 +88,9 @@ class CollectionRow {
       receivedAmount: n(json['receivedAmount']),
       dueDate: DateTime.parse(json['dueDate'] as String).toLocal(),
       status: (json['status'] as String?) ?? 'upcoming',
+      lat: customer['lat'] == null ? null : n(customer['lat']),
+      lng: customer['lng'] == null ? null : n(customer['lng']),
+      collectionEntryId: json['collectionEntryId'] as String?,
     );
   }
 }

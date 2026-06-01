@@ -96,11 +96,33 @@ export async function POST(req: NextRequest) {
         agentId?: string;
         photoUrl?: string;
         kycDocs?: Array<{ type: string; url: string }>;
+        // Extended profile parity with the web register form.
+        email?: string;
+        pan?: string;
+        occupation?: string;
+        monthlyIncome?: number | string;
+        companyName?: string;
+        companyType?: string;
+        businessType?: string;
+        gstNumber?: string;
+        companyPan?: string;
+        companyRegNo?: string;
+        companyAddress?: string;
+        companyPhone?: string;
+        companyEmail?: string;
+        companyLogo?: string;
+        designation?: string;
       }
     | null;
   if (!body?.name || !body?.phone) {
     return fail('name and phone are required', 400);
   }
+
+  // Coerce optional monthly income; treat blank/invalid as null.
+  const monthlyIncome =
+    body.monthlyIncome === undefined || body.monthlyIncome === null || body.monthlyIncome === ''
+      ? null
+      : Number(body.monthlyIncome);
 
   try {
     const branding = await getBranding(ctx.tenantId);
@@ -127,6 +149,22 @@ export async function POST(req: NextRequest) {
         agentId: body.agentId ?? null,
         status: 'pending_review',
         profilePhoto: body.photoUrl ?? null,
+        // Extended profile fields (web parity)
+        email: body.email ?? null,
+        pan: body.pan ?? null,
+        occupation: body.occupation ?? null,
+        monthlyIncome: monthlyIncome != null && !Number.isNaN(monthlyIncome) ? monthlyIncome : null,
+        companyName: body.companyName ?? null,
+        companyType: body.companyType ?? null,
+        businessType: body.businessType ?? null,
+        gstNumber: body.gstNumber ?? null,
+        companyPan: body.companyPan ?? null,
+        companyRegNo: body.companyRegNo ?? null,
+        companyAddress: body.companyAddress ?? null,
+        companyPhone: body.companyPhone ?? null,
+        companyEmail: body.companyEmail ?? null,
+        companyLogo: body.companyLogo ?? null,
+        designation: body.designation ?? null,
         kycDocuments: body.kycDocs && body.kycDocs.length > 0
           ? {
               create: body.kycDocs.map((d) => ({

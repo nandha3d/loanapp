@@ -1,4 +1,8 @@
+import 'dart:math' as math;
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:printing/printing.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -7,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:loantrack/core/a11y/voice_assist.dart';
 import 'package:loantrack/core/auth/auth_controller.dart';
 import 'package:loantrack/core/gps/gps_pinger.dart';
+import 'package:loantrack/core/gps/gps_service.dart';
 import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
@@ -36,6 +41,71 @@ class CollectionScreen extends ConsumerStatefulWidget {
 }
 
 class _CollectionScreenState extends ConsumerState<CollectionScreen> {
+  bool _nearest = false;
+  double? _agentLat;
+  double? _agentLng;
+  bool _locating = false;
+
+  // GPS-aware sort: km between two coords (haversine), same as web.
+  double _distanceKm(double lat1, double lon1, double lat2, double lon2) {
+    const r = 6371.0;
+    final dLat = (lat2 - lat1) * 3.141592653589793 / 180;
+    final dLon = (lon2 - lon1) * 3.141592653589793 / 180;
+    final a = (math.sin(dLat / 2) * math.sin(dLat / 2)) +
+        math.cos(lat1 * 3.141592653589793 / 180) *
+            math.cos(lat2 * 3.141592653589793 / 180) *
+            (math.sin(dLon / 2) * math.sin(dLon / 2));
+    return r * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+  }
+
+  double? _distTo(CollectionRow r) {
+    if (_agentLat == null || r.lat == null || r.lng == null) return null;
+    return _distanceKm(_agentLat!, _agentLng!, r.lat!, r.lng!);
+  }
+
+  // Sort by distance to agent; rows without a geocode sink to the bottom.
+  List<CollectionRow> _sortedByDistance(List<CollectionRow> rows) {
+    final list = [...rows];
+    list.sort((a, b) {
+      final da = _distTo(a);
+      final db = _distTo(b);
+      if (da == null && db == null) return 0;
+      if (da == null) return 1;
+      if (db == null) return -1;
+      return da.compareTo(db);
+    });
+    return list;
+  }
+
+  String? _distanceLabel(double? km) {
+    if (km == null) return null;
+    if (km < 1) return '${(km * 1000).round()}m away';
+    return '${km.toStringAsFixed(1)}km away';
+  }
+
+  Future<void> _toggleNearest() async {
+    if (_nearest) {
+      setState(() => _nearest = false);
+      return;
+    }
+    setState(() => _locating = true);
+    final pos = await ref.read(gpsServiceProvider).currentPosition();
+    if (!mounted) return;
+    setState(() {
+      _locating = false;
+      if (pos != null) {
+        _agentLat = pos.latitude;
+        _agentLng = pos.longitude;
+        _nearest = true;
+      }
+    });
+    if (pos == null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(T.of(ref).x('coll.location_off'))),
+      );
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -76,6 +146,20 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
           onPressed: () => context.go('/dashboard'),
         ),
         actions: [
+          IconButton(
+            tooltip: t.x('coll.sort_nearest'),
+            onPressed: _locating ? null : _toggleNearest,
+            icon: _locating
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Icon(
+                    Icons.near_me,
+                    color: _nearest ? AppColors.primary : null,
+                  ),
+          ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: Row(
@@ -149,17 +233,29 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
                   t: t,
                 ),
                 const SizedBox(height: 12),
-                ..._groupByRoute(filtered, t.x('coll.unassigned')).entries.expand(
-                  (e) => [
-                    _RouteHeader(routeName: e.key, count: e.value.length),
-                    const SizedBox(height: 8),
-                    for (final r in e.value) ...[
-                      _CollectionCard(row: r, fmt: fmt),
+                if (_nearest && _agentLat != null)
+                  ..._sortedByDistance(filtered).expand(
+                    (r) => [
+                      _CollectionCard(
+                        row: r,
+                        fmt: fmt,
+                        distanceLabel: _distanceLabel(_distTo(r)),
+                      ),
                       const SizedBox(height: 10),
                     ],
-                    const SizedBox(height: 6),
-                  ],
-                ),
+                  )
+                else
+                  ..._groupByRoute(filtered, t.x('coll.unassigned')).entries.expand(
+                    (e) => [
+                      _RouteHeader(routeName: e.key, count: e.value.length),
+                      const SizedBox(height: 8),
+                      for (final r in e.value) ...[
+                        _CollectionCard(row: r, fmt: fmt),
+                        const SizedBox(height: 10),
+                      ],
+                      const SizedBox(height: 6),
+                    ],
+                  ),
                 if (filtered.isEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 40),
@@ -194,7 +290,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
   }
 
   Map<String, List<CollectionRow>> _groupByRoute(
-      List<CollectionRow> rows, String unassigned) {
+      List<CollectionRow> rows, String unassigned,) {
     final m = <String, List<CollectionRow>>{};
     for (final r in rows) {
       m.putIfAbsent(r.routeName ?? unassigned, () => []).add(r);
@@ -479,9 +575,14 @@ class _RouteHeader extends StatelessWidget {
 // ───────────────────────────── Collection card ──────────────────────
 
 class _CollectionCard extends ConsumerWidget {
-  const _CollectionCard({required this.row, required this.fmt});
+  const _CollectionCard({
+    required this.row,
+    required this.fmt,
+    this.distanceLabel,
+  });
   final CollectionRow row;
   final NumberFormat fmt;
+  final String? distanceLabel;
 
   Color _statusColor() {
     if (row.status == 'paid') return AppColors.success;
@@ -544,11 +645,31 @@ class _CollectionCard extends ConsumerWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 2),
-                        Text(
-                          row.loanCode,
-                          style: AppTypography.caption.copyWith(
-                            fontFamily: 'monospace',
-                          ),
+                        Row(
+                          children: [
+                            Text(
+                              row.loanCode,
+                              style: AppTypography.caption.copyWith(
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                            if (distanceLabel != null) ...[
+                              const SizedBox(width: 8),
+                              const Icon(
+                                Icons.near_me,
+                                size: 12,
+                                color: AppColors.primary,
+                              ),
+                              const SizedBox(width: 2),
+                              Text(
+                                distanceLabel!,
+                                style: AppTypography.caption.copyWith(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ],
                     ),
@@ -630,11 +751,44 @@ class _CollectionCard extends ConsumerWidget {
                   ),
                 ),
               ),
+              if (isPaid && row.collectionEntryId != null) ...[
+                const SizedBox(height: 6),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _downloadReceipt(context, ref),
+                    icon: const Icon(Icons.receipt_long, size: 18),
+                    label: Text(t.x('coll.receipt')),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _downloadReceipt(BuildContext context, WidgetRef ref) async {
+    final t = T.of(ref);
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      SnackBar(content: Text(t.x('coll.receipt_loading'))),
+    );
+    try {
+      final bytes = await ref
+          .read(collectionServiceProvider)
+          .receiptPdf(row.collectionEntryId!);
+      if (bytes.isEmpty) throw Exception('empty');
+      await Printing.layoutPdf(
+        onLayout: (_) async => Uint8List.fromList(bytes),
+        name: 'receipt-${row.loanCode}.pdf',
+      );
+    } catch (_) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(t.x('coll.receipt_failed'))),
+      );
+    }
   }
 }
 

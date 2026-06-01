@@ -193,7 +193,7 @@ export default function Sidebar({
               <div className="user-role">{getRoleName(role)}</div>
             </div>
           </div>
-          {(role === 'superadmin' || role === 'developer' || (role === 'admin' && enabledModules.length > 1)) && (
+          {role !== 'developer' && (role === 'superadmin' || (role === 'admin' && enabledModules.length > 1)) && (
             <Link 
               href="/portal" 
               onClick={() => document.getElementById('sidebar')?.classList.remove('open')}

@@ -8,7 +8,9 @@ export type PlanFeature = {
 
 export const PLAN_FEATURES: Record<string, PlanFeature> = {
   trial: { loans: 50, agents: 3, branches: 1, modules: ['microlending'], gracePeriodDays: 3 },
+  free: { loans: 25, agents: 1, branches: 1, modules: ['microlending'], gracePeriodDays: 3 },
   basic: { loans: 200, agents: 10, branches: 2, modules: ['microlending', 'autofinance'], gracePeriodDays: 7 },
+  business: { loans: 1000, agents: 50, branches: 5, modules: ['microlending', 'autofinance', 'chitfunds'], gracePeriodDays: 14 },
   pro: { loans: 1000, agents: 50, branches: 5, modules: ['microlending', 'autofinance', 'chitfunds'], gracePeriodDays: 14 },
   enterprise: { loans: 999999, agents: 999, branches: 999, modules: ['microlending', 'autofinance', 'chitfunds'], gracePeriodDays: 30 },
 };
@@ -16,21 +18,27 @@ export const PLAN_FEATURES: Record<string, PlanFeature> = {
 /** Monthly pricing in INR (excl. tax). Tax is 18% GST. */
 export const PLAN_PRICING: Record<string, { amount: number; tax: number; total: number }> = {
   trial: { amount: 0, tax: 0, total: 0 },
+  free: { amount: 0, tax: 0, total: 0 },
   basic: { amount: 999, tax: 180, total: 1179 },
+  business: { amount: 1999, tax: 360, total: 2359 },
   pro: { amount: 2999, tax: 540, total: 3539 },
   enterprise: { amount: 7999, tax: 1440, total: 9439 },
 };
 
 export const PLAN_LABELS: Record<string, string> = {
   trial: 'Trial',
+  free: 'Free',
   basic: 'Basic',
+  business: 'Business',
   pro: 'Pro',
   enterprise: 'Enterprise',
 };
 
 export const PLAN_COLORS: Record<string, string> = {
   trial: 'var(--warning)',
+  free: 'var(--warning)',
   basic: 'var(--info)',
+  business: 'var(--success)',
   pro: 'var(--success)',
   enterprise: 'var(--primary-dark)',
 };

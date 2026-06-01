@@ -105,6 +105,7 @@ export const ta = {
     subscription: 'எனது சந்தா',
     team: 'முகவர்கள்',
     billing: 'பில்லிங் மற்றும் சந்தாக்கள்',
+    affiliate: 'இணை நிரல்',
     switchApp: 'விண்ணப்பத்தை மாற்றவும்',
     sections: {
       main: 'முக்கிய',

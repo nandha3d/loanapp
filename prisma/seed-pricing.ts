@@ -14,19 +14,18 @@ async function main() {
   // ── 2. Seed Subscription Plans ──────────────────────────────────────────────
   const plans = [
     {
-      plan: 'trial',
-      displayName: 'Trial',
+      plan: 'free',
+      displayName: 'Free',
       description: 'Test out LoanTrack features for free',
       monthlyPrice: 0,
       maxBranches: 1,
-      maxAgents: 3,
-      maxActiveLoans: 50,
+      maxAgents: 1,
+      maxActiveLoans: 25,
       features: JSON.stringify([
         'Single branch',
-        'Up to 3 agents',
-        '50 active loans',
-        'Basic reporting',
-        'Email support'
+        '1 agent',
+        '25 active loans',
+        'Basic reporting'
       ]),
       sortOrder: 0
     },
@@ -49,10 +48,10 @@ async function main() {
       sortOrder: 1
     },
     {
-      plan: 'pro',
-      displayName: 'Pro',
+      plan: 'business',
+      displayName: 'Business',
       description: 'Advanced capabilities for growing operations',
-      monthlyPrice: 2999,
+      monthlyPrice: 1999,
       maxBranches: 5,
       maxAgents: 50,
       maxActiveLoans: 1000,
@@ -71,7 +70,7 @@ async function main() {
       plan: 'enterprise',
       displayName: 'Enterprise',
       description: 'Unlimited access for large-scale financial institutions',
-      monthlyPrice: 7999,
+      monthlyPrice: 2999,
       maxBranches: 999,
       maxAgents: 999,
       maxActiveLoans: 999999,
@@ -106,21 +105,21 @@ async function main() {
       module: 'autofinance',
       displayName: 'Auto Finance',
       description: 'Vehicle financing, hire purchase, collateral tracking, and hypothecation',
-      monthlyPrice: 499,
+      monthlyPrice: 699, // Medium complexity
       sortOrder: 1
     },
     {
       module: 'goldloan',
       displayName: 'Gold Loan',
       description: 'Gold-backed lending, valuation, LTV, packets, pledges, and release tracking',
-      monthlyPrice: 699,
+      monthlyPrice: 899, // High complexity/demand
       sortOrder: 2
     },
     {
       module: 'chitfunds',
       displayName: 'Chit Funds',
       description: 'Organize chit groups, auctions, dividend distribution, and member entries',
-      monthlyPrice: 799,
+      monthlyPrice: 999, // Highest complexity
       sortOrder: 3
     }
   ];
@@ -136,35 +135,35 @@ async function main() {
       addon: 'whatsapp_sms',
       displayName: 'WhatsApp & SMS Alerts',
       description: 'Send automated payment reminders, OTPs, and customer alerts',
-      monthlyPrice: 199,
+      monthlyPrice: 299, // High demand
       sortOrder: 0
     },
     {
       addon: 'kyc',
       displayName: 'Digital Aadhaar & Video KYC',
       description: 'Instant verification of customer identity with photo matching',
-      monthlyPrice: 299,
+      monthlyPrice: 399, // High complexity
       sortOrder: 1
     },
     {
       addon: 'gps_tracking',
       displayName: 'Agent Route GPS Tracking',
       description: 'Real-time GPS coordinates verification for collection entries',
-      monthlyPrice: 299,
+      monthlyPrice: 199, // Medium demand
       sortOrder: 2
     },
     {
       addon: 'premium_accounting',
       displayName: 'Premium Accounting & GST',
       description: 'Double-entry ledger book, P&L, Balance Sheet, GST summaries, and budget mapping',
-      monthlyPrice: 499,
+      monthlyPrice: 599, // Very high complexity
       sortOrder: 3
     },
     {
       addon: 'bureau',
       displayName: 'Credit Bureau Integration',
       description: 'Query CRIF/CIBIL credit history directly for applicants',
-      monthlyPrice: 199,
+      monthlyPrice: 199, // Medium complexity
       sortOrder: 4
     }
   ];

@@ -17,7 +17,8 @@ export async function POST(req: NextRequest) {
       ownerPhone,
       selectedPlan,
       selectedModules = [],
-      selectedAddons = []
+      selectedAddons = [],
+      referralCode,
     } = body;
 
     // ── 1. Verify Google ID token using Google API ───────────────────────────
@@ -235,6 +236,23 @@ export async function POST(req: NextRequest) {
           newValue: JSON.stringify({ name: businessName, slug, owner: name, type: 'google', source: 'mobile' })
         }
       });
+
+      // Attribution hook: link referral code (mirrors web /api/register/google)
+      if (referralCode) {
+        const affiliate = await tx.affiliate.findUnique({
+          where: { code: referralCode },
+        });
+        if (affiliate) {
+          await tx.referral.create({
+            data: {
+              affiliateId: affiliate.id,
+              referredTenantId: tenant.id,
+              referredEmail: email,
+              status: 'signup',
+            },
+          });
+        }
+      }
 
       return user;
     });

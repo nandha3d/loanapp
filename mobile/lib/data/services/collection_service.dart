@@ -70,6 +70,16 @@ class CollectionService {
     return unwrapEnvelope(res, (dynamic d) => (d as Map<String, dynamic>)['id'] as String);
   }
 
+  /// Receipt PDF: returns raw PDF bytes for a collection entry.
+  /// Server gates on subscription + admin setting; throws on 403/404.
+  Future<List<int>> receiptPdf(String entryId) async {
+    final res = await _dio.get<List<int>>(
+      Endpoints.receipt(entryId),
+      options: Options(responseType: ResponseType.bytes),
+    );
+    return res.data ?? const <int>[];
+  }
+
   /// QR proof: scanned token auto-confirms. Returns the applied amount.
   Future<double> submitQrProof(String token) async {
     final res = await _dio.post<Map<String, dynamic>>(

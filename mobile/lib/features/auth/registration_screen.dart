@@ -17,11 +17,13 @@ class RegistrationScreen extends ConsumerStatefulWidget {
     this.googleEmail,
     this.googleName,
     this.googleId,
+    this.referralCode,
   });
 
   final String? googleEmail;
   final String? googleName;
   final String? googleId;
+  final String? referralCode;
 
   @override
   ConsumerState<RegistrationScreen> createState() => _RegistrationScreenState();
@@ -44,6 +46,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   final _ownerPhoneCtrl = TextEditingController();
   final _ownerUsernameCtrl = TextEditingController();
   final _ownerPasswordCtrl = TextEditingController();
+  final _referralCtrl = TextEditingController();
 
   String _selectedPlan = 'basic';
   final List<String> _selectedModules = ['microlending'];
@@ -54,6 +57,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   void initState() {
     super.initState();
     _ownerNameCtrl.text = widget.googleName ?? '';
+    _referralCtrl.text = widget.referralCode ?? '';
     if (widget.googleEmail != null) {
       final emailPrefix = widget.googleEmail!.split('@')[0];
       _ownerUsernameCtrl.text = emailPrefix.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toLowerCase();
@@ -68,6 +72,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     _ownerPhoneCtrl.dispose();
     _ownerUsernameCtrl.dispose();
     _ownerPasswordCtrl.dispose();
+    _referralCtrl.dispose();
     super.dispose();
   }
 
@@ -156,6 +161,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               selectedPlan: _selectedPlan,
               selectedModules: _selectedModules,
               selectedAddons: _selectedAddons,
+              referralCode: _referralCtrl.text.trim(),
             );
       } else {
         await ref.read(authControllerProvider.notifier).registerWithEmail(
@@ -167,6 +173,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               selectedPlan: _selectedPlan,
               selectedModules: _selectedModules,
               selectedAddons: _selectedAddons,
+              referralCode: _referralCtrl.text.trim(),
             );
       }
 
@@ -409,6 +416,12 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               obscureText: true,
             ),
           ],
+          const SizedBox(height: 16),
+          AppTextField(
+            label: 'Referral Code (optional)',
+            controller: _referralCtrl,
+            prefixIcon: Icons.card_giftcard,
+          ),
         ],
       ),
     );

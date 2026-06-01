@@ -50,6 +50,8 @@ export async function GET(req: NextRequest) {
                 name: true,
                 phone: true,
                 routeId: true,
+                lat: true,
+                lng: true,
                 route: { select: { id: true, name: true } },
               },
             },

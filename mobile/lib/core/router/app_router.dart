@@ -96,10 +96,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final googleEmail = state.uri.queryParameters['googleEmail'];
           final googleName = state.uri.queryParameters['googleName'];
           final googleId = state.uri.queryParameters['googleId'];
+          final referralCode = state.uri.queryParameters['ref'] ??
+              state.uri.queryParameters['referralCode'];
           return RegistrationScreen(
             googleEmail: googleEmail,
             googleName: googleName,
             googleId: googleId,
+            referralCode: referralCode,
           );
         },
       ),

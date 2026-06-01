@@ -135,6 +135,12 @@ export default async function AdminLayout({
                 Affiliate Program
               </Link>
             )}
+            {userRole === 'developer' && (
+              <Link href="/admin/settings">
+                <span className="material-icons-outlined">settings</span>
+                Settings
+              </Link>
+            )}
           </nav>
 
           <div className="sidebar-footer">
@@ -145,16 +151,18 @@ export default async function AdminLayout({
                 <div className="user-role" style={{color:'rgba(255,255,255,0.6)', textTransform: 'capitalize'}}>{userRole === 'admin' ? 'Branch Admin' : userRole}</div>
               </div>
             </div>
-            <Link href="/portal" style={{
-              display: 'flex', alignItems: 'center', gap: '6px',
-              padding: '8px 12px', margin: '8px 12px 0',
-              borderRadius: 'var(--radius-sm)', fontSize: '.78rem',
-              color: 'rgba(255,255,255,.7)', background: 'rgba(255,255,255,.08)',
-              textDecoration: 'none',
-            }}>
-              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>arrow_back</span>
-              Back to Portal
-            </Link>
+            {userRole !== 'developer' && (
+              <Link href="/portal" style={{
+                display: 'flex', alignItems: 'center', gap: '6px',
+                padding: '8px 12px', margin: '8px 12px 0',
+                borderRadius: 'var(--radius-sm)', fontSize: '.78rem',
+                color: 'rgba(255,255,255,.7)', background: 'rgba(255,255,255,.08)',
+                textDecoration: 'none',
+              }}>
+                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>arrow_back</span>
+                Back to Portal
+              </Link>
+            )}
           </div>
         </aside>
 

@@ -18,6 +18,7 @@ class CustomerRepository {
     String? agentId,
     String? photoUrl,
     List<KycDocInput> kycDocs = const [],
+    Map<String, dynamic> extra = const {},
   }) =>
       _service.create(
         name: name,
@@ -28,6 +29,7 @@ class CustomerRepository {
         agentId: agentId,
         photoUrl: photoUrl,
         kycDocs: kycDocs,
+        extra: extra,
       );
   Future<Customer> update(String id, Map<String, dynamic> patch) =>
       _service.update(id, patch);

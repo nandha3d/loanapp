@@ -36,6 +36,7 @@ class Endpoints {
   static const String collectionEntry = '/collection/entry';
   static const String collectionProofPhoto = '/collection/proof/photo';
   static const String collectionProofQr = '/collection/proof/qr';
+  static String receipt(String entryId) => '/receipts/$entryId';
 
   // Penalties
   static const String penalties = '/penalties';

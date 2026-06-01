@@ -73,6 +73,23 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
   final _phoneCtrl = TextEditingController();
   final _aadharCtrl = TextEditingController();
   final _addressCtrl = TextEditingController();
+  final _panCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  // Company / business section (web parity)
+  final _companyNameCtrl = TextEditingController();
+  final _designationCtrl = TextEditingController();
+  final _gstCtrl = TextEditingController();
+  final _companyPanCtrl = TextEditingController();
+  final _companyRegNoCtrl = TextEditingController();
+  final _occupationCtrl = TextEditingController();
+  final _companyPhoneCtrl = TextEditingController();
+  final _companyEmailCtrl = TextEditingController();
+  final _monthlyIncomeCtrl = TextEditingController();
+  final _companyAddressCtrl = TextEditingController();
+  String? _businessType;
+  String? _companyType;
+  File? _companyLogo;
+  bool _showCompany = false;
   final _picker = ImagePicker();
 
   bool get _isEdit => widget.editCustomer != null;
@@ -87,6 +104,27 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
       _addressCtrl.text = c.address ?? '';
       _routeId = c.routeId;
       _agentId = c.agentId;
+      _panCtrl.text = c.pan ?? '';
+      _emailCtrl.text = c.email ?? '';
+      _companyNameCtrl.text = c.companyName ?? '';
+      _designationCtrl.text = c.designation ?? '';
+      _gstCtrl.text = c.gstNumber ?? '';
+      _companyPanCtrl.text = c.companyPan ?? '';
+      _companyRegNoCtrl.text = c.companyRegNo ?? '';
+      _occupationCtrl.text = c.occupation ?? '';
+      _companyPhoneCtrl.text = c.companyPhone ?? '';
+      _companyEmailCtrl.text = c.companyEmail ?? '';
+      _monthlyIncomeCtrl.text =
+          c.monthlyIncome == null ? '' : c.monthlyIncome!.toStringAsFixed(0);
+      _companyAddressCtrl.text = c.companyAddress ?? '';
+      _businessType = c.businessType;
+      _companyType = c.companyType;
+      // Auto-expand the company section if any company data exists.
+      _showCompany = (c.companyName ?? '').isNotEmpty ||
+          (c.gstNumber ?? '').isNotEmpty ||
+          (c.companyPan ?? '').isNotEmpty ||
+          c.businessType != null ||
+          c.companyType != null;
     }
   }
 
@@ -105,6 +143,18 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
     _phoneCtrl.dispose();
     _aadharCtrl.dispose();
     _addressCtrl.dispose();
+    _panCtrl.dispose();
+    _emailCtrl.dispose();
+    _companyNameCtrl.dispose();
+    _designationCtrl.dispose();
+    _gstCtrl.dispose();
+    _companyPanCtrl.dispose();
+    _companyRegNoCtrl.dispose();
+    _occupationCtrl.dispose();
+    _companyPhoneCtrl.dispose();
+    _companyEmailCtrl.dispose();
+    _monthlyIncomeCtrl.dispose();
+    _companyAddressCtrl.dispose();
     for (final g in _guarantors) g.dispose();
     super.dispose();
   }
@@ -302,6 +352,38 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
     return errs.isEmpty;
   }
 
+  // Assembles the extended PAN/email/company fields. Only non-empty values
+  // are sent so the API doesn't overwrite with blanks. `logoUrl` is the
+  // already-uploaded company logo URL (null when unchanged/unset).
+  Map<String, dynamic> _extendedFields(String? logoUrl) {
+    final m = <String, dynamic>{};
+    void put(String key, String value) {
+      final v = value.trim();
+      if (v.isNotEmpty) m[key] = v;
+    }
+
+    put('pan', _panCtrl.text);
+    put('email', _emailCtrl.text);
+    put('companyName', _companyNameCtrl.text);
+    put('designation', _designationCtrl.text);
+    put('gstNumber', _gstCtrl.text);
+    put('companyPan', _companyPanCtrl.text);
+    put('companyRegNo', _companyRegNoCtrl.text);
+    put('occupation', _occupationCtrl.text);
+    put('companyPhone', _companyPhoneCtrl.text);
+    put('companyEmail', _companyEmailCtrl.text);
+    put('companyAddress', _companyAddressCtrl.text);
+    if (_businessType != null) m['businessType'] = _businessType;
+    if (_companyType != null) m['companyType'] = _companyType;
+    final income = _monthlyIncomeCtrl.text.trim();
+    if (income.isNotEmpty) {
+      final n = double.tryParse(income);
+      if (n != null) m['monthlyIncome'] = n;
+    }
+    if (logoUrl != null) m['companyLogo'] = logoUrl;
+    return m;
+  }
+
   // ── Submit ────────────────────────────────────────────────────────────
 
   Future<void> _submit() async {
@@ -313,12 +395,20 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
     try {
       // ── EDIT mode: PATCH the supported basic fields ──────────────────────
       if (_isEdit) {
+        String? logoUrl;
+        if (_companyLogo != null) {
+          final r = await ref
+              .read(uploadServiceProvider)
+              .uploadFile(_companyLogo!, contentType: 'image/jpeg');
+          logoUrl = r.url;
+        }
         final patch = <String, dynamic>{
           'name': _nameCtrl.text.trim(),
           'phone': _phoneCtrl.text.trim(),
           'address': _addressCtrl.text.trim().isEmpty
               ? null
               : _addressCtrl.text.trim(),
+          ..._extendedFields(logoUrl),
         };
         if (_aadharCtrl.text.trim().isNotEmpty) {
           patch['aadharNumber'] = _aadharCtrl.text.trim();
@@ -355,6 +445,12 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
         final r = await uploader.uploadFile(d.file, contentType: 'image/jpeg');
         kycInputs.add(KycDocInput(type: d.type, url: r.url));
       }
+      String? logoUrl;
+      if (_companyLogo != null) {
+        final r =
+            await uploader.uploadFile(_companyLogo!, contentType: 'image/jpeg');
+        logoUrl = r.url;
+      }
       final created = await ref.read(customerRepositoryProvider).create(
             name: _nameCtrl.text.trim(),
             phone: _phoneCtrl.text.trim(),
@@ -368,6 +464,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
             agentId: _agentId,
             photoUrl: photoUrl,
             kycDocs: kycInputs,
+            extra: _extendedFields(logoUrl),
           );
       if (!mounted) return;
       ref.invalidate(customerListProvider);
@@ -671,6 +768,39 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
 
                   const SizedBox(height: 16),
 
+                  // ── PAN + Email ──────────────────────────────────
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _LabeledField(
+                          label: t.x('fld.pan'),
+                          child: TextField(
+                            controller: _panCtrl,
+                            textCapitalization: TextCapitalization.characters,
+                            maxLength: 10,
+                            style: AppTypography.body,
+                            decoration: _inputDec('ABCDE1234F', counter: false),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _LabeledField(
+                          label: t.x('fld.email'),
+                          child: TextField(
+                            controller: _emailCtrl,
+                            keyboardType: TextInputType.emailAddress,
+                            style: AppTypography.body,
+                            decoration: _inputDec('name@example.com'),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+
                   // ── Address ──────────────────────────────────────
                   _LabeledField(
                     label: t.x('fld.address'),
@@ -777,6 +907,11 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                 ],
               ),
             ),
+
+            const SizedBox(height: 16),
+
+            // ── Company / Business section (collapsible) ───────────────
+            _buildCompanySection(t),
 
             if (!_isEdit) const SizedBox(height: 16),
 
@@ -909,6 +1044,186 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Future<void> _pickCompanyLogo() async {
+    final x = await _picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 800,
+      maxHeight: 800,
+      imageQuality: 80,
+    );
+    if (x == null) return;
+    setState(() => _companyLogo = File(x.path));
+  }
+
+  Widget _companyField(
+    String label,
+    TextEditingController ctrl, {
+    String? hint,
+    TextInputType? keyboardType,
+    int? maxLength,
+    TextCapitalization capitalization = TextCapitalization.none,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: _LabeledField(
+        label: label,
+        child: TextField(
+          controller: ctrl,
+          keyboardType: keyboardType,
+          maxLength: maxLength,
+          textCapitalization: capitalization,
+          style: AppTypography.body,
+          decoration: _inputDec(hint ?? '', counter: false),
+        ),
+      ),
+    );
+  }
+
+  Widget _companyDropdown(
+    String label,
+    String? value,
+    List<(String, String)> options,
+    ValueChanged<String?> onChanged,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: _LabeledField(
+        label: label,
+        child: _AppDropdown<String>(
+          value: value,
+          hint: '—',
+          items: options
+              .map((o) => DropdownMenuItem(value: o.$1, child: Text(o.$2)))
+              .toList(),
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompanySection(T t) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppTokens.radius),
+        boxShadow: AppTokens.shadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header with toggle
+          InkWell(
+            onTap: () => setState(() => _showCompany = !_showCompany),
+            child: Row(
+              children: [
+                const Icon(Icons.business_center_outlined,
+                    size: 18, color: AppColors.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(t.x('sec.company_details'),
+                      style: AppTypography.sectionTitle),
+                ),
+                Icon(
+                  _showCompany ? Icons.expand_less : Icons.expand_more,
+                  color: AppColors.textSecondary,
+                ),
+              ],
+            ),
+          ),
+          if (_showCompany) ...[
+            const SizedBox(height: 14),
+            // Logo + company name
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                GestureDetector(
+                  onTap: _pickCompanyLogo,
+                  child: Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                      border: Border.all(color: AppColors.border),
+                      color: AppColors.background,
+                      image: _companyLogo != null
+                          ? DecorationImage(
+                              image: FileImage(_companyLogo!),
+                              fit: BoxFit.cover)
+                          : null,
+                    ),
+                    child: _companyLogo == null
+                        ? const Icon(Icons.add_photo_alternate_outlined,
+                            color: AppColors.textSecondary)
+                        : null,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _companyField(
+                    t.x('fld.company_name'),
+                    _companyNameCtrl,
+                    hint: t.x('fld.company_name_hint'),
+                    capitalization: TextCapitalization.words,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _companyDropdown(
+              t.x('fld.business_type'),
+              _businessType,
+              [
+                ('proprietorship', t.x('biz.proprietorship')),
+                ('partnership', t.x('biz.partnership')),
+                ('pvt_ltd', t.x('biz.pvt_ltd')),
+                ('public_ltd', t.x('biz.public_ltd')),
+                ('llp', t.x('biz.llp')),
+                ('other', t.x('biz.other')),
+              ],
+              (v) => setState(() => _businessType = v),
+            ),
+            _companyDropdown(
+              t.x('fld.employment_type'),
+              _companyType,
+              [
+                ('salaried', t.x('emp.salaried')),
+                ('self_employed', t.x('emp.self_employed')),
+                ('business', t.x('emp.business')),
+                ('unemployed', t.x('emp.unemployed')),
+              ],
+              (v) => setState(() => _companyType = v),
+            ),
+            _companyField(t.x('fld.designation'), _designationCtrl,
+                hint: t.x('fld.designation_hint'),
+                capitalization: TextCapitalization.words),
+            _companyField(t.x('fld.gst'), _gstCtrl,
+                hint: '22ABCDE1234F1Z5',
+                maxLength: 15,
+                capitalization: TextCapitalization.characters),
+            _companyField(t.x('fld.company_pan'), _companyPanCtrl,
+                hint: 'ABCDE1234F',
+                maxLength: 10,
+                capitalization: TextCapitalization.characters),
+            _companyField(t.x('fld.company_reg_no'), _companyRegNoCtrl,
+                hint: t.x('fld.company_reg_hint')),
+            _companyField(t.x('fld.occupation'), _occupationCtrl,
+                hint: t.x('fld.occupation_hint')),
+            _companyField(t.x('fld.company_phone'), _companyPhoneCtrl,
+                keyboardType: TextInputType.phone),
+            _companyField(t.x('fld.company_email'), _companyEmailCtrl,
+                hint: 'office@company.com',
+                keyboardType: TextInputType.emailAddress),
+            _companyField(t.x('fld.monthly_income'), _monthlyIncomeCtrl,
+                hint: '0', keyboardType: TextInputType.number),
+            _companyField(t.x('fld.company_address'), _companyAddressCtrl,
+                hint: t.x('fld.company_address_hint')),
+          ],
+        ],
       ),
     );
   }

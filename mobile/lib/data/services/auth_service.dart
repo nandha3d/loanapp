@@ -65,6 +65,7 @@ class AuthService {
     required String selectedPlan,
     required List<String> selectedModules,
     required List<String> selectedAddons,
+    String? referralCode,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.register,
@@ -77,6 +78,8 @@ class AuthService {
         'selectedPlan': selectedPlan,
         'selectedModules': selectedModules,
         'selectedAddons': selectedAddons,
+        if (referralCode != null && referralCode.isNotEmpty)
+          'referralCode': referralCode,
       },
     );
     return unwrapEnvelope(res, (dynamic d) {
@@ -95,6 +98,7 @@ class AuthService {
     String? selectedPlan,
     List<String>? selectedModules,
     List<String>? selectedAddons,
+    String? referralCode,
   }) async {
     final data = <String, dynamic>{
       'idToken': idToken,
@@ -104,6 +108,9 @@ class AuthService {
     if (selectedPlan != null) data['selectedPlan'] = selectedPlan;
     if (selectedModules != null) data['selectedModules'] = selectedModules;
     if (selectedAddons != null) data['selectedAddons'] = selectedAddons;
+    if (referralCode != null && referralCode.isNotEmpty) {
+      data['referralCode'] = referralCode;
+    }
 
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.googleAuth,

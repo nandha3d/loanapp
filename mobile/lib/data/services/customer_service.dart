@@ -46,6 +46,8 @@ class CustomerService {
     String? agentId,
     String? photoUrl,
     List<KycDocInput> kycDocs = const [],
+    // Extended profile fields (PAN, email, company/business) — web parity.
+    Map<String, dynamic> extra = const {},
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.customers,
@@ -59,6 +61,7 @@ class CustomerService {
         if (photoUrl != null) 'photoUrl': photoUrl,
         if (kycDocs.isNotEmpty)
           'kycDocs': kycDocs.map((d) => d.toJson()).toList(growable: false),
+        ...extra,
       },
     );
     return unwrapEnvelope(

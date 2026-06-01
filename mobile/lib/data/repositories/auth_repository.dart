@@ -63,6 +63,7 @@ class AuthRepository {
     required String selectedPlan,
     required List<String> selectedModules,
     required List<String> selectedAddons,
+    String? referralCode,
   }) async {
     final result = await _service.registerWithEmail(
       businessName: businessName,
@@ -73,6 +74,7 @@ class AuthRepository {
       selectedPlan: selectedPlan,
       selectedModules: selectedModules,
       selectedAddons: selectedAddons,
+      referralCode: referralCode,
     );
     await _persist(result.token!, result.user!);
     return result.user!;
@@ -85,6 +87,7 @@ class AuthRepository {
     String? selectedPlan,
     List<String>? selectedModules,
     List<String>? selectedAddons,
+    String? referralCode,
   }) async {
     final result = await _service.authenticateWithGoogle(
       idToken: idToken,
@@ -93,6 +96,7 @@ class AuthRepository {
       selectedPlan: selectedPlan,
       selectedModules: selectedModules,
       selectedAddons: selectedAddons,
+      referralCode: referralCode,
     );
     if (!result.needsRegistration && result.token != null && result.user != null) {
       await _persist(result.token!, result.user!);

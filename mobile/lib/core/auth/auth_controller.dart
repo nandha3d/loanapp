@@ -102,6 +102,7 @@ class AuthController extends StateNotifier<AuthState> {
     required String selectedPlan,
     required List<String> selectedModules,
     required List<String> selectedAddons,
+    String? referralCode,
   }) async {
     state = state.copyWith(clearError: true);
     try {
@@ -112,6 +113,7 @@ class AuthController extends StateNotifier<AuthState> {
         selectedPlan: selectedPlan,
         selectedModules: selectedModules,
         selectedAddons: selectedAddons,
+        referralCode: referralCode,
       );
       if (res.user != null) {
         state = AuthState(stage: AuthStage.authenticated, user: res.user);
@@ -133,6 +135,7 @@ class AuthController extends StateNotifier<AuthState> {
     required String selectedPlan,
     required List<String> selectedModules,
     required List<String> selectedAddons,
+    String? referralCode,
   }) async {
     state = state.copyWith(clearError: true);
     try {
@@ -145,6 +148,7 @@ class AuthController extends StateNotifier<AuthState> {
         selectedPlan: selectedPlan,
         selectedModules: selectedModules,
         selectedAddons: selectedAddons,
+        referralCode: referralCode,
       );
       state = AuthState(stage: AuthStage.authenticated, user: user);
       _fcm.startTokenSync();

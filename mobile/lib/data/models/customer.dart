@@ -19,6 +19,22 @@ class Customer {
     this.routeName,
     this.agentName,
     this.photoUrl,
+    // Extended profile (web parity)
+    this.email,
+    this.pan,
+    this.occupation,
+    this.monthlyIncome,
+    this.companyName,
+    this.companyType,
+    this.businessType,
+    this.gstNumber,
+    this.companyPan,
+    this.companyRegNo,
+    this.companyAddress,
+    this.companyPhone,
+    this.companyEmail,
+    this.companyLogo,
+    this.designation,
   });
 
   final String id;
@@ -35,6 +51,21 @@ class Customer {
   final String? routeName;
   final String? agentName;
   final String? photoUrl;
+  final String? email;
+  final String? pan;
+  final String? occupation;
+  final double? monthlyIncome;
+  final String? companyName;
+  final String? companyType;
+  final String? businessType;
+  final String? gstNumber;
+  final String? companyPan;
+  final String? companyRegNo;
+  final String? companyAddress;
+  final String? companyPhone;
+  final String? companyEmail;
+  final String? companyLogo;
+  final String? designation;
   final List<KycDocument> kycDocuments;
   final List<Guarantor> guarantors;
   final List<CustomerLoanSummary> loans;
@@ -64,6 +95,23 @@ class Customer {
       routeName: route?['name'] as String?,
       agentName: agent?['name'] as String?,
       photoUrl: json['profilePhoto'] as String? ?? json['photoUrl'] as String?,
+      email: json['email'] as String?,
+      pan: json['pan'] as String?,
+      occupation: json['occupation'] as String?,
+      monthlyIncome: json['monthlyIncome'] == null
+          ? null
+          : (json['monthlyIncome'] as num).toDouble(),
+      companyName: json['companyName'] as String?,
+      companyType: json['companyType'] as String?,
+      businessType: json['businessType'] as String?,
+      gstNumber: json['gstNumber'] as String?,
+      companyPan: json['companyPan'] as String?,
+      companyRegNo: json['companyRegNo'] as String?,
+      companyAddress: json['companyAddress'] as String?,
+      companyPhone: json['companyPhone'] as String?,
+      companyEmail: json['companyEmail'] as String?,
+      companyLogo: json['companyLogo'] as String?,
+      designation: json['designation'] as String?,
       kycDocuments: (json['kycDocuments'] as List<dynamic>? ?? const [])
           .map((dynamic e) => KycDocument.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),

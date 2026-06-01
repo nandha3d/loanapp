@@ -105,6 +105,7 @@ export const hi = {
     subscription: 'मेरी सदस्यता',
     team: 'एजेंट्स',
     billing: 'बिलिंग और सदस्यता',
+    affiliate: 'संबद्ध कार्यक्रम',
     switchApp: 'एप्लिकेशन बदलें',
     sections: {
       main: 'मुख्य',

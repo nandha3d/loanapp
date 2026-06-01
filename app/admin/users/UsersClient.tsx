@@ -88,6 +88,7 @@ export default function UsersClient({
   const [isSubModalOpen, setIsSubModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [impersonating, setImpersonating] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState('agent');
   const [selectedBranchId, setSelectedBranchId] = useState('');
   // Multi-branch selection for superadmin (developer assigns)
@@ -96,6 +97,11 @@ export default function UsersClient({
   const [viewingSuperadminId, setViewingSuperadminId] = useState<string | null>(
     viewerRole === 'superadmin' && superadmins.length > 0 ? superadmins[0].id : null
   );
+
+  // Filter & Sort State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterPlan, setFilterPlan] = useState('');
+  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
 
   const activeSuperadmin = superadmins.find(s => s.id === viewingSuperadminId);
   const activeSub = activeSuperadmin?.subscription || subscription;
@@ -193,6 +199,84 @@ export default function UsersClient({
     });
   }
 
+  async function handleImpersonate(superadminId: string, name: string) {
+    if (!confirm(`Login as "${name}"? Your developer session will be replaced.`)) return;
+    setImpersonating(superadminId);
+    try {
+      const res = await fetch('/api/developer/impersonate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ superadminId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        window.location.href = data.redirectUrl || '/portal';
+      } else {
+        alert(data.error || 'Impersonation failed');
+        setImpersonating(null);
+      }
+    } catch (err) {
+      alert('Network error during impersonation');
+      setImpersonating(null);
+    }
+  }
+
+  const filteredAndSortedSuperadmins = useMemo(() => {
+    let filtered = [...superadmins];
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(sa => 
+        sa.name.toLowerCase().includes(q) || 
+        sa.username.toLowerCase().includes(q) || 
+        sa.phone.includes(q)
+      );
+    }
+
+    if (filterPlan) {
+      filtered = filtered.filter(sa => (sa.subscription?.plan?.toLowerCase() || 'trial') === filterPlan.toLowerCase());
+    }
+
+    if (sortConfig) {
+      filtered.sort((a, b) => {
+        let valA: any = a[sortConfig.key as keyof typeof a];
+        let valB: any = b[sortConfig.key as keyof typeof b];
+
+        if (sortConfig.key === 'plan') {
+          valA = PLAN_LABELS[a.subscription?.plan?.toLowerCase() || 'trial'] || '';
+          valB = PLAN_LABELS[b.subscription?.plan?.toLowerCase() || 'trial'] || '';
+        } else if (sortConfig.key === 'amount') {
+          valA = a.subscription?.totalMonthlyPrice || 0;
+          valB = b.subscription?.totalMonthlyPrice || 0;
+        } else if (sortConfig.key === 'team') {
+          valA = a.branches.length;
+          valB = b.branches.length;
+        }
+
+        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return filtered;
+  }, [superadmins, searchQuery, filterPlan, sortConfig]);
+
+  const handleSort = (key: string) => {
+    setSortConfig(prev => {
+      if (prev?.key === key) {
+        if (prev.direction === 'asc') return { key, direction: 'desc' };
+        return null;
+      }
+      return { key, direction: 'asc' };
+    });
+  };
+
+  const getSortIcon = (key: string) => {
+    if (sortConfig?.key !== key) return 'unfold_more';
+    return sortConfig.direction === 'asc' ? 'expand_less' : 'expand_more';
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -218,50 +302,172 @@ export default function UsersClient({
       </div>
 
       {!viewingSuperadminId && (
-        <div className="grid-2" style={{ marginBottom: '20px' }}>
-          {superadmins.map((superadmin) => (
-            <div className="card" key={superadmin.id}>
-              <div className="card-header">
-                <div>
-                  <h3>{superadmin.name}</h3>
-                  <p className="text-muted" style={{ margin: 0 }}>{superadmin.username} · {superadmin.phone}</p>
-                </div>
-                <span className={`badge ${superadmin.status === 'active' ? 'badge-active' : 'badge-closed'}`}>{superadmin.status}</span>
-              </div>
-
-              <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: '16px' }}>
-                <div className="summary-item"><strong>{superadmin.branches.length}</strong><span className="text-muted">Branches</span></div>
-                <div className="summary-item"><strong>{superadmin.adminCount}</strong><span className="text-muted">Admins</span></div>
-                <div className="summary-item"><strong>{superadmin.agentCount}</strong><span className="text-muted">Agents</span></div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
-                {superadmin.modules.length > 0
-                  ? superadmin.modules.map((module) => modulePill(module))
-                  : <span className="text-muted">No modules assigned</span>}
-              </div>
-
-              <div style={{ borderTop: '1px solid var(--border)', paddingTop: '16px', display: 'flex', gap: '10px' }}>
-                <button className="btn btn-primary btn-sm" style={{flex: 1}} onClick={() => setViewingSuperadminId(superadmin.id)}>
-                  View Details
-                </button>
-                {viewerRole === 'developer' && (
-                  <button className="btn btn-ghost btn-sm" onClick={() => {
-                    const sa = superadmins.find(s => s.id === superadmin.id);
-                    setViewingSuperadminId(superadmin.id);
-                    setSubPlan(sa?.subscription?.plan || 'trial');
-                    setSubModules(normalizeModuleList(sa?.subscription?.enabledModules));
-                    setIsSubModalOpen(true);
-                  }}>
-                    Subscription
-                  </button>
-                )}
-                <button className="btn btn-ghost btn-sm" onClick={() => handleEdit(users.find(u => u.id === superadmin.id))}>
-                  Edit User
-                </button>
-              </div>
+        <div className="card fade-up" style={{ padding: 0, overflow: 'hidden', marginBottom: '24px' }}>
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border)', display: 'flex', gap: '16px', alignItems: 'center', background: 'var(--bg-lighter)' }}>
+            <div className="input-group" style={{ flex: 1, maxWidth: '300px', margin: 0 }}>
+              <span className="material-icons-outlined">search</span>
+              <input 
+                type="text" 
+                placeholder="Search name, phone..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
-          ))}
+            <select 
+              value={filterPlan} 
+              onChange={(e) => setFilterPlan(e.target.value)}
+              className="input-field"
+              style={{ width: 'auto' }}
+            >
+              <option value="">All Plans</option>
+              {Object.entries(PLAN_LABELS).map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="table-responsive">
+            <table className="table" style={{ margin: 0 }}>
+              <thead>
+                <tr>
+                  <th style={{ padding: '16px 24px', cursor: 'pointer' }} onClick={() => handleSort('name')}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>Super Admin <span className="material-icons-outlined" style={{ fontSize: '16px', color: sortConfig?.key === 'name' ? 'var(--primary)' : 'inherit' }}>{getSortIcon('name')}</span></div>
+                  </th>
+                  <th>Status</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => handleSort('team')}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>Team <span className="material-icons-outlined" style={{ fontSize: '16px', color: sortConfig?.key === 'team' ? 'var(--primary)' : 'inherit' }}>{getSortIcon('team')}</span></div>
+                  </th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => handleSort('amount')}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>Subscription <span className="material-icons-outlined" style={{ fontSize: '16px', color: sortConfig?.key === 'amount' ? 'var(--primary)' : 'inherit' }}>{getSortIcon('amount')}</span></div>
+                  </th>
+                  <th>Modules</th>
+                  <th style={{ textAlign: 'right', paddingRight: '24px' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredAndSortedSuperadmins.map((superadmin) => (
+                  <tr 
+                    key={superadmin.id} 
+                    style={{ cursor: 'pointer' }} 
+                    onClick={() => setViewingSuperadminId(superadmin.id)}
+                  >
+                    <td style={{ padding: '16px 24px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem', flexShrink: 0 }}>
+                          {superadmin.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text)', marginBottom: '2px' }}>{superadmin.name}</div>
+                          <div className="text-muted" style={{ fontSize: '0.8rem' }}>{superadmin.username} &middot; {superadmin.phone}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <span className={`badge ${superadmin.status === 'active' ? 'badge-active' : 'badge-closed'}`}>
+                        {superadmin.status}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: '20px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                          <span style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text)', lineHeight: 1 }}>{superadmin.branches.length}</span>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '4px' }}>Branches</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                          <span style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text)', lineHeight: 1 }}>{superadmin.adminCount}</span>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '4px' }}>Admins</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                          <span style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text)', lineHeight: 1 }}>{superadmin.agentCount}</span>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '4px' }}>Agents</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <span style={{ fontWeight: 600, color: 'var(--primary)' }}>
+                          {PLAN_LABELS[superadmin.subscription?.plan?.toLowerCase() || 'trial'] || superadmin.subscription?.plan || 'Trial'}
+                        </span>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                          ₹{(superadmin.subscription?.totalMonthlyPrice || 0).toLocaleString('en-IN')} / mo
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        {superadmin.modules.length > 0 ? (
+                          superadmin.modules.map((module) => modulePill(module))
+                        ) : (
+                          <span className="text-muted" style={{ fontSize: '0.8rem' }}>No modules</span>
+                        )}
+                      </div>
+                    </td>
+                    <td style={{ textAlign: 'right', paddingRight: '24px' }}>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        {viewerRole === 'developer' && (
+                          <button
+                            className="btn btn-sm"
+                            style={{
+                              background: impersonating === superadmin.id ? 'var(--warning-bg)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                              color: '#fff',
+                              border: 'none',
+                              gap: '4px',
+                              opacity: impersonating ? 0.7 : 1,
+                            }}
+                            disabled={!!impersonating}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleImpersonate(superadmin.id, superadmin.name);
+                            }}
+                            title="Login as this Super Admin"
+                          >
+                            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>
+                              {impersonating === superadmin.id ? 'hourglass_top' : 'login'}
+                            </span>
+                            {impersonating === superadmin.id ? 'Logging in...' : 'Login'}
+                          </button>
+                        )}
+                        {viewerRole === 'developer' && (
+                          <button className="btn btn-ghost btn-sm" onClick={(e) => {
+                            e.stopPropagation();
+                            const sa = superadmins.find(s => s.id === superadmin.id);
+                            setViewingSuperadminId(superadmin.id);
+                            setSubPlan(sa?.subscription?.plan || 'trial');
+                            setSubModules(normalizeModuleList(sa?.subscription?.enabledModules));
+                            setIsSubModalOpen(true);
+                          }} title="Subscription">
+                            <span className="material-icons-outlined" style={{ fontSize: '18px' }}>credit_card</span>
+                          </button>
+                        )}
+                        <button className="btn btn-ghost btn-sm" onClick={(e) => {
+                          e.stopPropagation();
+                          handleEdit(users.find(u => u.id === superadmin.id));
+                        }} title="Edit User">
+                          <span className="material-icons-outlined" style={{ fontSize: '18px' }}>edit</span>
+                        </button>
+                        <button className="btn btn-primary btn-sm" onClick={(e) => {
+                          e.stopPropagation();
+                          setViewingSuperadminId(superadmin.id);
+                        }}>
+                          View Details
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {filteredAndSortedSuperadmins.length === 0 && (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '40px' }}>
+                      <div className="empty-state">
+                        <span className="material-icons-outlined">group_off</span>
+                        <h3>No Super Admins Found</h3>
+                        <p>There are currently no active super admins in the system.</p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

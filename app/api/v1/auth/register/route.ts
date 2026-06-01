@@ -20,7 +20,8 @@ export async function POST(req: NextRequest) {
       ownerPassword,
       selectedPlan,
       selectedModules = [],
-      selectedAddons = []
+      selectedAddons = [],
+      referralCode,
     } = body;
 
     // Validate fields
@@ -182,6 +183,23 @@ export async function POST(req: NextRequest) {
           newValue: JSON.stringify({ name: businessName, slug, owner: ownerName, source: 'mobile' })
         }
       });
+
+      // Attribution hook: link referral code (mirrors web /api/register/email)
+      if (referralCode) {
+        const affiliate = await tx.affiliate.findUnique({
+          where: { code: referralCode },
+        });
+        if (affiliate) {
+          await tx.referral.create({
+            data: {
+              affiliateId: affiliate.id,
+              referredTenantId: tenant.id,
+              referredEmail: user.email || `${ownerUsername}@${tenant.slug}.com`,
+              status: 'signup',
+            },
+          });
+        }
+      }
 
       return user;
     });
