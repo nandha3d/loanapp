@@ -364,7 +364,7 @@ class _StatementsSection extends ConsumerWidget {
                   children: [
                     Text(label, style: AppTypography.caption.copyWith(color: AppColors.textSecondary)),
                     Text(fmt.format(value),
-                        style: AppTypography.bodyLarge.copyWith(color: color, fontWeight: FontWeight.w700)),
+                        style: AppTypography.bodyLarge.copyWith(color: color, fontWeight: FontWeight.w700),),
                   ],
                 ),
               );
@@ -373,7 +373,7 @@ class _StatementsSection extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('${s['from'] ?? ''} → ${s['to'] ?? ''}',
-                  style: AppTypography.tiny.copyWith(color: AppColors.textLight)),
+                  style: AppTypography.tiny.copyWith(color: AppColors.textLight),),
               const SizedBox(height: 6),
               row(t.x('acc.net_profit'), netProfit, netProfit >= 0 ? AppColors.success : AppColors.danger),
               row(t.x('acc.cash_bank'), n(s['cashBankBalance']), AppColors.textPrimary),
@@ -382,7 +382,7 @@ class _StatementsSection extends ConsumerWidget {
               if (topExpenses.isNotEmpty) ...[
                 const Divider(height: 18, color: AppColors.border),
                 Text(t.x('acc.top_expenses'),
-                    style: AppTypography.caption.copyWith(fontWeight: FontWeight.w700)),
+                    style: AppTypography.caption.copyWith(fontWeight: FontWeight.w700),),
                 const SizedBox(height: 6),
                 ...topExpenses.take(5).map((e) {
                   final m = e as Map<String, dynamic>;
@@ -392,7 +392,7 @@ class _StatementsSection extends ConsumerWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Expanded(child: Text('${m['name'] ?? '—'}',
-                            style: AppTypography.caption, overflow: TextOverflow.ellipsis)),
+                            style: AppTypography.caption, overflow: TextOverflow.ellipsis,),),
                         Text(fmt.format(n(m['total'])), style: AppTypography.caption),
                       ],
                     ),

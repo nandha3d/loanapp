@@ -5,7 +5,6 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
-import 'package:loantrack/data/models/collection_entry.dart';
 import 'package:loantrack/data/services/collection_service.dart';
 
 /// Local offline queue for collection submissions.
@@ -85,7 +84,7 @@ class CollectionQueue {
     return box.values
         .map(
           (raw) => QueuedCollection.fromJson(
-              jsonDecode(raw) as Map<String, dynamic>),
+              jsonDecode(raw) as Map<String, dynamic>,),
         )
         .toList(growable: false);
   }

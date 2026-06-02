@@ -66,8 +66,10 @@ export default function AffiliateClient({
   stats,
   rewards,
   referrals,
-}: AffiliateClientProps) {
+  dict,
+}: AffiliateClientProps & { dict: any }) {
   const [copied, setCopied] = useState(false);
+  const d = dict.affiliatePage;
 
   const getReferralUrl = () => {
     if (typeof window !== 'undefined') {
@@ -90,10 +92,10 @@ export default function AffiliateClient({
       {/* Header and Subheader */}
       <div style={{ marginBottom: '32px' }}>
         <h1 style={{ fontSize: '1.75rem', fontWeight: 800, margin: '0 0 6px', color: 'var(--text)' }}>
-          🤝 Affiliate Partner Network
+          🤝 {d.title}
         </h1>
         <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', margin: 0 }}>
-          Promote LoanTrack to other lending professionals, grow the community, and unlock premium lifetime rewards.
+          {d.subtitle}
         </p>
       </div>
 
@@ -108,9 +110,9 @@ export default function AffiliateClient({
         {/* Card 1: Your Link */}
         <div className="card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: '0 0 4px' }}>📢 Your Shareable Partner Link</h3>
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: '0 0 4px' }}>📢 {d.partnerLinkTitle}</h3>
             <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0 }}>
-              Share this link in emails, WhatsApp groups, or direct messages.
+              {d.partnerLinkDesc}
             </p>
           </div>
 
@@ -144,7 +146,7 @@ export default function AffiliateClient({
                 flexShrink: 0
               }}
             >
-              {copied ? 'Copied' : 'Copy'}
+              {copied ? d.copied : d.copy}
             </button>
           </div>
 
@@ -156,23 +158,23 @@ export default function AffiliateClient({
             gap: '6px'
           }}>
             <span className="material-icons-outlined" style={{ fontSize: '16px', color: 'var(--success)' }}>verified_user</span>
-            <span>Cookie stays active for 30 days. Signups track automatically.</span>
+            <span>{d.cookieNotice}</span>
           </div>
         </div>
 
         {/* Card 2: Progress Tracker */}
         <div className="card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: '0 0 4px' }}>🎯 Reward Unlock Progress</h3>
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: '0 0 4px' }}>🎯 {d.progressTitle}</h3>
             <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0 }}>
-              Rewards unlock at {config.threshold} active paid referrals.
+              {d.progressDesc.replace('{n}', String(config.threshold))}
             </p>
           </div>
 
           {/* Progress Gauge */}
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '8px', fontWeight: 600 }}>
-              <span>{stats.referredPaidCount} / {config.threshold} Paid Subscribers</span>
+              <span>{stats.referredPaidCount} / {config.threshold} {d.paidSubscribers}</span>
               <span style={{ color: 'var(--accent)' }}>{Math.round(progressPercent)}%</span>
             </div>
             
@@ -203,8 +205,8 @@ export default function AffiliateClient({
             </span>
             <span>
               {stats.unlocked
-                ? 'Congratulations! Payout Cohort Unlocked. Active rewards are listed below.'
-                : `Need ${stats.remainingToUnlock} more paid subscriber referrals to unlock your cohort rewards.`}
+                ? d.cohortUnlocked
+                : d.needMore.replace('{n}', String(stats.remainingToUnlock))}
             </span>
           </div>
         </div>
@@ -213,9 +215,9 @@ export default function AffiliateClient({
       {/* Cost-Benefit Path Comparison (Interactive Visual Block) */}
       <div className="card" style={{ padding: '28px', marginBottom: '32px' }}>
         <div style={{ marginBottom: '24px' }}>
-          <h3 style={{ fontSize: '1.2rem', fontWeight: 700, margin: '0 0 6px' }}>📊 Intelligent Reward Cohort Comparison</h3>
+          <h3 style={{ fontSize: '1.2rem', fontWeight: 700, margin: '0 0 6px' }}>📊 {d.comparisonTitle}</h3>
           <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
-            Compare your reward path outputs based on your active referred client base.
+            {d.comparisonSubtitle}
           </p>
         </div>
 
@@ -235,19 +237,19 @@ export default function AffiliateClient({
             gap: '12px'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span className="badge badge-success" style={{ textTransform: 'uppercase', fontSize: '0.68rem' }}>Yearly Affiliate Path</span>
-              {rewards.comparison.costlier === 'yearly' && <span style={{ fontSize: '0.7rem', color: 'var(--accent)', fontWeight: 700 }}>⚡ COSTLIER PAYOUT</span>}
+              <span className="badge badge-success" style={{ textTransform: 'uppercase', fontSize: '0.68rem' }}>{d.yearlyPath}</span>
+              {rewards.comparison.costlier === 'yearly' && <span style={{ fontSize: '0.7rem', color: 'var(--accent)', fontWeight: 700 }}>⚡ {d.costlierPayout}</span>}
             </div>
             <div>
               <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text)' }}>
                 ₹{rewards.comparison.yearlyReward.affiliateValue.toLocaleString()}
               </div>
               <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '4px 0 0' }}>
-                Value of {config.yearlyRewardFreeMonths} Months Free Credit on your active workspace subscription.
+                {d.yearlyDesc.replace('{n}', String(config.yearlyRewardFreeMonths))}
               </p>
             </div>
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: '10px', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-              Details: {rewards.comparison.yearlyReward.detail}
+              {d.details}: {rewards.comparison.yearlyReward.detail}
             </div>
           </div>
 
@@ -262,19 +264,19 @@ export default function AffiliateClient({
             gap: '12px'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span className="badge badge-primary" style={{ textTransform: 'uppercase', fontSize: '0.68rem' }}>Monthly Affiliate Path</span>
-              {rewards.comparison.costlier === 'monthly' && <span style={{ fontSize: '0.7rem', color: 'var(--accent)', fontWeight: 700 }}>⚡ COSTLIER PAYOUT</span>}
+              <span className="badge badge-primary" style={{ textTransform: 'uppercase', fontSize: '0.68rem' }}>{d.monthlyPath}</span>
+              {rewards.comparison.costlier === 'monthly' && <span style={{ fontSize: '0.7rem', color: 'var(--accent)', fontWeight: 700 }}>⚡ {d.costlierPayout}</span>}
             </div>
             <div>
               <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text)' }}>
                 ₹{rewards.comparison.monthlyReward.affiliateValue.toLocaleString()}
               </div>
               <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '4px 0 0' }}>
-                Cash payout from {config.monthlyCommissionRate * 100}% recurring revenue of referred paid lenders over {config.monthlyCommissionMonths} months.
+                {d.monthlyDesc.replace('{rate}', String(config.monthlyCommissionRate * 100)).replace('{months}', String(config.monthlyCommissionMonths))}
               </p>
             </div>
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: '10px', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-              Details: {rewards.comparison.monthlyReward.detail}
+              {d.details}: {rewards.comparison.monthlyReward.detail}
             </div>
           </div>
         </div>
@@ -293,9 +295,7 @@ export default function AffiliateClient({
         }}>
           <span className="material-icons-outlined" style={{ color: 'var(--accent)', fontSize: '18px' }}>info</span>
           <span>
-            {rewards.comparison.costlier === 'monthly'
-              ? 'Our mathematics verify that the Monthly path yields more reward value. We strongly encourage Monthly workspace affiliates!'
-              : 'Our mathematics verify that the Yearly path yields more reward value. We strongly encourage Yearly workspace affiliates!'}
+            {rewards.comparison.costlier === 'monthly' ? d.mathMonthly : d.mathYearly}
           </span>
         </div>
       </div>
@@ -310,23 +310,23 @@ export default function AffiliateClient({
         
         {/* Referred Lenders Cohort */}
         <div className="card" style={{ padding: '24px' }}>
-          <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '16px' }}>👥 Referred Lenders Cohort</h3>
-          
+          <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '16px' }}>👥 {d.cohortTitle}</h3>
+
           {referrals.length === 0 ? (
             <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
               <span className="material-icons-outlined" style={{ fontSize: '48px', color: 'var(--border)', marginBottom: '12px' }}>group_off</span>
-              <p style={{ margin: 0, fontSize: '0.88rem' }}>No referrals tracked yet. Share your partner link to start earning!</p>
+              <p style={{ margin: 0, fontSize: '0.88rem' }}>{d.noReferrals}</p>
             </div>
           ) : (
             <div className="table-responsive">
               <table className="table">
                 <thead>
                   <tr>
-                    <th>Email</th>
-                    <th>Status</th>
-                    <th>Term</th>
-                    <th>Monthly Fee</th>
-                    <th>Subscribed At</th>
+                    <th>{d.emailHeader}</th>
+                    <th>{d.statusHeader}</th>
+                    <th>{d.termHeader}</th>
+                    <th>{d.monthlyFeeHeader}</th>
+                    <th>{d.subscribedAtHeader}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -359,12 +359,12 @@ export default function AffiliateClient({
 
         {/* Granted Rewards List */}
         <div className="card" style={{ padding: '24px' }}>
-          <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '16px' }}>🏆 Granted Rewards</h3>
-          
+          <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '16px' }}>🏆 {d.rewardsTitle}</h3>
+
           {rewards.granted.length === 0 ? (
             <div style={{ padding: '30px 10px', textAlign: 'center', color: 'var(--text-secondary)' }}>
               <span className="material-icons-outlined" style={{ fontSize: '32px', color: 'var(--border)', marginBottom: '8px' }}>workspace_premium</span>
-              <p style={{ margin: 0, fontSize: '0.8rem' }}>No rewards generated yet.</p>
+              <p style={{ margin: 0, fontSize: '0.8rem' }}>{d.noRewards}</p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -383,7 +383,7 @@ export default function AffiliateClient({
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'capitalize' }}>
-                      {reward.type === 'free_year' ? 'Free Year' : 'Commission schedule'}
+                      {reward.type === 'free_year' ? d.freeYear : d.commissionSchedule}
                     </span>
                     <span className={`badge ${
                       reward.status === 'paid'
@@ -399,7 +399,7 @@ export default function AffiliateClient({
                     ₹{reward.amount.toLocaleString()}
                   </div>
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                    Generated on {new Date(reward.createdAt).toLocaleDateString()}
+                    {d.generatedOn} {new Date(reward.createdAt).toLocaleDateString()}
                   </div>
                 </div>
               ))}

@@ -484,7 +484,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
                                       CrossAxisAlignment.start,
                                   children: [
                                     Text(c.name,
-                                        style: AppTypography.bodyLarge),
+                                        style: AppTypography.bodyLarge,),
                                     Text(
                                       '${c.customerCode} • ${c.phone}',
                                       style: AppTypography.caption.copyWith(
@@ -991,7 +991,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
                 _kv(tr.x('rev.cheques'), '${_cheques.length} ${tr.x('rev.cheques_attached_suffix')}'),
               if (_gName.text.trim().isNotEmpty)
                 _kv(tr.x('rev.guarantor'),
-                    '${_gName.text.trim()} • ${_gPhone.text.trim()}'),
+                    '${_gName.text.trim()} • ${_gPhone.text.trim()}',),
               if (_voucherRef.text.trim().isNotEmpty)
                 _kv(tr.x('rev.voucher'), _voucherRef.text.trim()),
             ],

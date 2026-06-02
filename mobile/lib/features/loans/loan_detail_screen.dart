@@ -4,11 +4,13 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import 'package:loantrack/core/l10n/language_controller.dart';
+import 'package:loantrack/core/auth/auth_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/data/models/instalment.dart';
 import 'package:loantrack/data/models/loan.dart';
+import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/data/models/collection_entry.dart';
 import 'package:loantrack/data/services/loan_service.dart';
 import 'package:loantrack/features/collection/quick_collect_sheet.dart';
@@ -17,7 +19,7 @@ import 'package:loantrack/shared/widgets/app_badge.dart';
 import 'package:loantrack/shared/widgets/empty_state.dart';
 import 'package:loantrack/shared/widgets/skeleton.dart';
 
-final _loanDetailProvider =
+final loanDetailProvider =
     FutureProvider.autoDispose.family<Loan, String>((ref, id) {
   return ref.watch(loanServiceProvider).getById(id);
 });
@@ -33,7 +35,7 @@ class LoanDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final async = ref.watch(_loanDetailProvider(id));
+    final async = ref.watch(loanDetailProvider(id));
     final t = T.of(ref);
 
     final loaded = async.valueOrNull;
@@ -42,11 +44,13 @@ class LoanDetailScreen extends ConsumerWidget {
         title: Text(t.x('title.loan_details')),
         centerTitle: true,
         actions: [
-          if (loaded != null && loaded.status != 'closed')
+          if (loaded != null &&
+              loaded.status != 'closed' &&
+              ref.read(authControllerProvider).user?.role != UserRole.agent)
             IconButton(
               icon: const Icon(Icons.edit_outlined),
               tooltip: t.x('loan.edit_title'),
-              onPressed: () => _showLoanEditSheet(context, ref, loaded),
+              onPressed: () => context.push('/loans/${loaded.id}/edit', extra: loaded),
             ),
         ],
       ),
@@ -66,157 +70,6 @@ class LoanDetailScreen extends ConsumerWidget {
   }
 }
 
-void _showLoanEditSheet(BuildContext context, WidgetRef ref, Loan loan) {
-  showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (_) => _LoanEditSheet(loan: loan),
-  );
-}
-
-/// Files an approval request to edit safe (non-schedule) loan fields. Mirrors
-/// the web's approval-gated edit; the server diffs + guards. No math here.
-class _LoanEditSheet extends ConsumerStatefulWidget {
-  const _LoanEditSheet({required this.loan});
-  final Loan loan;
-
-  @override
-  ConsumerState<_LoanEditSheet> createState() => _LoanEditSheetState();
-}
-
-class _LoanEditSheetState extends ConsumerState<_LoanEditSheet> {
-  late final _penalty = TextEditingController(
-    text: widget.loan.penaltyRate == 0 ? '' : widget.loan.penaltyRate.toString(),
-  );
-  late final _voucher = TextEditingController(text: widget.loan.voucherRef ?? '');
-  late final _collateral =
-      TextEditingController(text: widget.loan.collateralDetails ?? '');
-  late final _reason = TextEditingController();
-  late String? _loanType = widget.loan.loanType;
-  bool _submitting = false;
-  String? _error;
-
-  @override
-  void dispose() {
-    _penalty.dispose();
-    _voucher.dispose();
-    _collateral.dispose();
-    _reason.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit() async {
-    final t = T.of(ref);
-    setState(() {
-      _submitting = true;
-      _error = null;
-    });
-    try {
-      await ref.read(loanServiceProvider).requestEdit(widget.loan.id, {
-        'penaltyRate': double.tryParse(_penalty.text.trim()) ?? 0,
-        'voucherRef': _voucher.text.trim(),
-        if (_loanType != null) 'loanType': _loanType,
-        'collateralDetails': _collateral.text.trim(),
-        'reason': _reason.text.trim(),
-      });
-      if (!mounted) return;
-      ref.invalidate(_loanDetailProvider(widget.loan.id));
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(t.x('loan.edit_submitted')),
-          backgroundColor: AppColors.success,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
-    } finally {
-      if (mounted) setState(() => _submitting = false);
-    }
-  }
-
-  InputDecoration _dec(String label) => InputDecoration(
-        labelText: label,
-        isDense: true,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-        ),
-      );
-
-  @override
-  Widget build(BuildContext context) {
-    final t = T.of(ref);
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottom),
-      child: Container(
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 14),
-                  decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              Text('${t.x('loan.edit_title')} · ${widget.loan.loanCode}',
-                  style: AppTypography.sectionTitle),
-              const SizedBox(height: 14),
-              TextField(controller: _penalty, keyboardType: TextInputType.number, decoration: _dec(t.x('loan.fld_penalty_rate'))),
-              const SizedBox(height: 12),
-              TextField(controller: _voucher, decoration: _dec(t.x('loan.fld_voucher'))),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: _loanType,
-                decoration: _dec(t.x('loan.fld_loan_type')),
-                items: const [
-                  DropdownMenuItem(value: 'cheque', child: Text('Cheque')),
-                  DropdownMenuItem(value: 'gold', child: Text('Gold')),
-                  DropdownMenuItem(value: 'property', child: Text('Property')),
-                  DropdownMenuItem(value: 'other', child: Text('Other')),
-                ],
-                onChanged: (v) => setState(() => _loanType = v),
-              ),
-              const SizedBox(height: 12),
-              TextField(controller: _collateral, maxLines: 2, decoration: _dec(t.x('loan.fld_collateral'))),
-              const SizedBox(height: 12),
-              TextField(controller: _reason, maxLines: 2, decoration: _dec(t.x('loan.edit_reason'))),
-              if (_error != null) ...[
-                const SizedBox(height: 10),
-                Text(_error!, style: AppTypography.caption.copyWith(color: AppColors.danger)),
-              ],
-              const SizedBox(height: 18),
-              SizedBox(
-                height: 50,
-                child: FilledButton(
-                  style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
-                  onPressed: _submitting ? null : _submit,
-                  child: _submitting
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : Text(t.x('loan.edit_submit')),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _LoanBody extends ConsumerStatefulWidget {
   const _LoanBody({required this.loan});
@@ -329,27 +182,27 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
                           width: 30,
                           child: Text('#',
                               style: AppTypography.tiny
-                                  .copyWith(fontWeight: FontWeight.w700)),
+                                  .copyWith(fontWeight: FontWeight.w700),),
                         ),
                         Expanded(
                           flex: 3,
                           child: Text(t.x('loan.col_date'),
                               style: AppTypography.tiny
-                                  .copyWith(fontWeight: FontWeight.w700)),
+                                  .copyWith(fontWeight: FontWeight.w700),),
                         ),
                         Expanded(
                           flex: 2,
                           child: Text(t.x('loan.col_due'),
                               style: AppTypography.tiny.copyWith(
-                                  fontWeight: FontWeight.w700),
-                              textAlign: TextAlign.right),
+                                  fontWeight: FontWeight.w700,),
+                              textAlign: TextAlign.right,),
                         ),
                         Expanded(
                           flex: 2,
                           child: Text(t.x('loan.col_received'),
                               style: AppTypography.tiny.copyWith(
-                                  fontWeight: FontWeight.w700),
-                              textAlign: TextAlign.right),
+                                  fontWeight: FontWeight.w700,),
+                              textAlign: TextAlign.right,),
                         ),
                         const SizedBox(width: 8),
                         SizedBox(
@@ -357,7 +210,7 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
                           child: Text(t.x('loan.col_status'),
                               style: AppTypography.tiny
                                   .copyWith(fontWeight: FontWeight.w700),
-                              textAlign: TextAlign.center),
+                              textAlign: TextAlign.center,),
                         ),
                         const SizedBox(width: 4),
                         SizedBox(
@@ -365,7 +218,7 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
                           child: Text(t.x('loan.col_action'),
                               style: AppTypography.tiny
                                   .copyWith(fontWeight: FontWeight.w700),
-                              textAlign: TextAlign.center),
+                              textAlign: TextAlign.center,),
                         ),
                         const Spacer(),
                       ],
@@ -842,7 +695,7 @@ class _InstalmentRow extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(dateFmt.format(inst.dueDate),
-                    style: AppTypography.body.copyWith(fontSize: 12.5)),
+                    style: AppTypography.body.copyWith(fontSize: 12.5),),
                 if (collectedTime != null)
                   Text(
                     collectedTime,
@@ -940,7 +793,7 @@ class _InstalmentRow extends ConsumerWidget {
                   )
                 : (isPaid
                     ? Icon(Icons.check_circle,
-                        size: 20, color: AppColors.success.withAlpha(150))
+                        size: 20, color: AppColors.success.withAlpha(150),)
                     : const SizedBox.shrink()),
           ),
         ],
@@ -1016,7 +869,7 @@ class _PayButton extends ConsumerWidget {
       builder: (_) => QuickCollectSheet(row: row),
     ).then((_) {
       // Invalidate the loan detail to refetch after payment
-      ref.invalidate(_loanDetailProvider(loan.id));
+      ref.invalidate(loanDetailProvider(loan.id));
       onCompleted?.call();
     });
   }

@@ -108,7 +108,7 @@ class _NewVehicleScreenState extends ConsumerState<NewVehicleScreen> {
           customers.when(
             loading: () => const LinearProgressIndicator(),
             error: (e, _) => Text(t.x('err.failed_to_load'),
-                style: AppTypography.caption.copyWith(color: AppColors.danger)),
+                style: AppTypography.caption.copyWith(color: AppColors.danger),),
             data: (list) => DropdownButtonFormField<String>(
               initialValue: _customerId,
               isExpanded: true,
@@ -117,8 +117,8 @@ class _NewVehicleScreenState extends ConsumerState<NewVehicleScreen> {
                   .map((c) => DropdownMenuItem(
                         value: c.id,
                         child: Text('${c.name} (${c.customerCode})',
-                            overflow: TextOverflow.ellipsis),
-                      ))
+                            overflow: TextOverflow.ellipsis,),
+                      ),)
                   .toList(),
               onChanged: (v) => setState(() => _customerId = v),
             ),
@@ -130,13 +130,13 @@ class _NewVehicleScreenState extends ConsumerState<NewVehicleScreen> {
             Expanded(child: TextField(controller: _make, decoration: _dec(t.x('veh.make'), required: true))),
             const SizedBox(width: 12),
             Expanded(child: TextField(controller: _model, decoration: _dec(t.x('veh.model'), required: true))),
-          ]),
+          ],),
           const SizedBox(height: 12),
           Row(children: [
             Expanded(child: TextField(controller: _year, keyboardType: TextInputType.number, decoration: _dec(t.x('veh.year')))),
             const SizedBox(width: 12),
             Expanded(child: TextField(controller: _color, decoration: _dec(t.x('veh.color')))),
-          ]),
+          ],),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
             initialValue: _vehicleType,

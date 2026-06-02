@@ -1,6 +1,9 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -42,6 +45,7 @@ class CollectionScreen extends ConsumerStatefulWidget {
 
 class _CollectionScreenState extends ConsumerState<CollectionScreen> {
   bool _nearest = false;
+  bool _showMap = false;
   double? _agentLat;
   double? _agentLng;
   bool _locating = false;
@@ -147,19 +151,28 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
         ),
         actions: [
           IconButton(
-            tooltip: t.x('coll.sort_nearest'),
-            onPressed: _locating ? null : _toggleNearest,
-            icon: _locating
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Icon(
-                    Icons.near_me,
-                    color: _nearest ? AppColors.primary : null,
-                  ),
+            tooltip: _showMap ? t.x('coll.view_list') : t.x('coll.view_map'),
+            onPressed: () => setState(() => _showMap = !_showMap),
+            icon: Icon(
+              _showMap ? Icons.list_rounded : Icons.map_outlined,
+              color: _showMap ? AppColors.primary : null,
+            ),
           ),
+          if (!_showMap)
+            IconButton(
+              tooltip: t.x('coll.sort_nearest'),
+              onPressed: _locating ? null : _toggleNearest,
+              icon: _locating
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(
+                      Icons.near_me,
+                      color: _nearest ? AppColors.primary : null,
+                    ),
+            ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: Row(
@@ -208,9 +221,21 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
           final totalDue = rows.fold<double>(0, (s, r) => s + r.dueAmount);
           final totalCollected =
               rows.fold<double>(0, (s, r) => s + r.receivedAmount);
-          final pendingCount =
-              rows.where((r) => r.status != 'paid').length;
+          final pendingCount = rows.where((r) => r.status != 'paid').length;
 
+          // ── Map view ──────────────────────────────────────────────
+          if (_showMap) {
+            return _CollectionMap(
+              rows: filtered,
+              agentLat: _agentLat,
+              agentLng: _agentLng,
+              fmt: fmt,
+              t: t,
+              onCollect: (CollectionRow row) => _openQuickCollect(context, row, rows),
+            );
+          }
+
+          // ── List view ─────────────────────────────────────────────
           return RefreshIndicator(
             color: AppColors.primary,
             onRefresh: () async =>
@@ -245,7 +270,9 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
                     ],
                   )
                 else
-                  ..._groupByRoute(filtered, t.x('coll.unassigned')).entries.expand(
+                  ..._groupByRoute(filtered, t.x('coll.unassigned'))
+                      .entries
+                      .expand(
                     (e) => [
                       _RouteHeader(routeName: e.key, count: e.value.length),
                       const SizedBox(height: 8),
@@ -296,6 +323,263 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
       m.putIfAbsent(r.routeName ?? unassigned, () => []).add(r);
     }
     return m;
+  }
+
+  void _openQuickCollect(
+      BuildContext context, CollectionRow row, List<CollectionRow> all,) {
+    if (row.status == 'paid') return;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => QuickCollectSheet(row: row),
+    ).then((_) => ref.invalidate(collectionTodayProvider));
+  }
+}
+
+// ───────────────────────────── Collection Map ────────────────────────
+
+class _CollectionMap extends StatelessWidget {
+  const _CollectionMap({
+    required this.rows,
+    required this.fmt,
+    required this.t,
+    required this.onCollect,
+    this.agentLat,
+    this.agentLng,
+  });
+
+  final List<CollectionRow> rows;
+  final NumberFormat fmt;
+  final T t;
+  final ValueChanged<CollectionRow> onCollect;
+  final double? agentLat;
+  final double? agentLng;
+
+  Color _pinColor(CollectionRow r) {
+    if (r.status == 'paid') return AppColors.success;
+    if (r.daysOverdue > 0) return AppColors.danger;
+    return AppColors.warning;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pinned = rows.where((r) => r.lat != null && r.lng != null).toList();
+    final hasAgent = agentLat != null && agentLng != null;
+
+    // Centre on agent or centroid of pins, fallback India.
+    LatLng center;
+    double zoom;
+    if (hasAgent) {
+      center = LatLng(agentLat!, agentLng!);
+      zoom = 13.0;
+    } else if (pinned.isNotEmpty) {
+      final avgLat =
+          pinned.map((r) => r.lat!).reduce((a, b) => a + b) / pinned.length;
+      final avgLng =
+          pinned.map((r) => r.lng!).reduce((a, b) => a + b) / pinned.length;
+      center = LatLng(avgLat, avgLng);
+      zoom = 13.0;
+    } else {
+      center = const LatLng(20.5937, 78.9629);
+      zoom = 4.5;
+    }
+
+    return Stack(
+      children: [
+        FlutterMap(
+          options: MapOptions(initialCenter: center, initialZoom: zoom),
+          children: [
+            TileLayer(
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.loantrack.app',
+            ),
+            MarkerLayer(
+              markers: [
+                // Agent's own position
+                if (hasAgent)
+                  Marker(
+                    point: LatLng(agentLat!, agentLng!),
+                    width: 40,
+                    height: 40,
+                    child: const Icon(
+                      Icons.my_location_rounded,
+                      size: 36,
+                      color: AppColors.info,
+                    ),
+                  ),
+                // Customer collection pins
+                for (final r in pinned)
+                  Marker(
+                    point: LatLng(r.lat!, r.lng!),
+                    width: 44,
+                    height: 44,
+                    child: GestureDetector(
+                      onTap: () => _showPinSheet(context, r),
+                      child: Icon(
+                        Icons.location_on_rounded,
+                        size: 40,
+                        color: _pinColor(r),
+                        shadows: const [
+                          Shadow(
+                            color: Colors.black38,
+                            blurRadius: 4,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+        // Legend
+        Positioned(
+          top: 10,
+          left: 10,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(230),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _dot(AppColors.success),
+                const SizedBox(width: 4),
+                const Text('Paid', style: TextStyle(fontSize: 11)),
+                const SizedBox(width: 8),
+                _dot(AppColors.warning),
+                const SizedBox(width: 4),
+                const Text('Due', style: TextStyle(fontSize: 11)),
+                const SizedBox(width: 8),
+                _dot(AppColors.danger),
+                const SizedBox(width: 4),
+                const Text('Overdue', style: TextStyle(fontSize: 11)),
+              ],
+            ),
+          ),
+        ),
+        if (pinned.isEmpty)
+          Positioned.fill(
+            child: Container(
+              color: Colors.black12,
+              alignment: Alignment.center,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.location_off_outlined,
+                      size: 40, color: Colors.white70),
+                  const SizedBox(height: 8),
+                  Text(
+                    t.x('coll.no_locations'),
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    t.x('coll.no_locations_hint'),
+                    style: const TextStyle(
+                        color: Colors.white70, fontSize: 12),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _dot(Color color) => Container(
+        width: 10,
+        height: 10,
+        decoration:
+            BoxDecoration(color: color, shape: BoxShape.circle),
+      );
+
+  void _showPinSheet(BuildContext context, CollectionRow row) {
+    final isPaid = row.status == 'paid';
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Icon(Icons.location_on_rounded,
+                      color: _pinColor(row), size: 28),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(row.customerName,
+                            style: AppTypography.sectionTitle),
+                        Text(
+                          fmt.format(row.outstanding),
+                          style: AppTypography.body.copyWith(
+                            color: isPaid
+                                ? AppColors.success
+                                : AppColors.danger,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (!isPaid)
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      onCollect(row);
+                    },
+                    child: const Text('Collect Payment',
+                        style: TextStyle(color: Colors.white)),
+                  ),
+                ),
+              if (isPaid)
+                Center(
+                  child: Text(t.x('coll.status_paid'),
+                      style: AppTypography.body
+                          .copyWith(color: AppColors.success)),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

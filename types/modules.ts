@@ -28,7 +28,7 @@ export const MODULE_ROUTES: Record<ModuleKey, string[]> = {
   goldloan: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard'],
 };
 
-const MODULE_SHARED_ROUTES = ['/dashboard', '/settings', '/subscription', '/branch-requests'];
+const MODULE_SHARED_ROUTES = ['/dashboard', '/settings', '/subscription', '/branch-requests', '/affiliate', '/kyc-review', '/module-requests'];
 const DASHBOARD_EXTERNAL_PREFIXES = [
   '/admin',
   '/api',

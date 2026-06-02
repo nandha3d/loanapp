@@ -364,7 +364,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.1),
+                color: Colors.green.withValues(alpha: 0.1),
                 border: Border.all(color: Colors.green),
                 borderRadius: BorderRadius.circular(8),
               ),
@@ -453,7 +453,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                   width: 2,
                 ),
                 borderRadius: BorderRadius.circular(12),
-                color: isSelected ? Colors.amber.withOpacity(0.05) : null,
+                color: isSelected ? Colors.amber.withValues(alpha: 0.05) : null,
               ),
               child: CheckboxListTile(
                 value: isSelected,
@@ -589,7 +589,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                   width: 2,
                 ),
                 borderRadius: BorderRadius.circular(12),
-                color: isSelected ? Colors.amber.withOpacity(0.05) : null,
+                color: isSelected ? Colors.amber.withValues(alpha: 0.05) : null,
               ),
               child: SwitchListTile(
                 value: isSelected,
@@ -616,7 +616,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                     }
                   });
                 },
-                activeColor: AppColors.primary,
+                activeThumbColor: AppColors.primary,
               ),
             );
           }),

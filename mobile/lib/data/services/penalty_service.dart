@@ -32,10 +32,18 @@ class PenaltyService {
     );
   }
 
-  Future<void> waive(String id) async {
+  Future<void> waive({
+    required String id,
+    double? amount,
+    String? reason,
+  }) async {
+    final payload = <String, dynamic>{'action': 'waive'};
+    if (amount != null) payload['amount'] = amount;
+    if (reason != null && reason.isNotEmpty) payload['reason'] = reason;
+
     await _dio.patch<Map<String, dynamic>>(
       Endpoints.penaltySettle(id),
-      data: {'action': 'waive'},
+      data: payload,
     );
   }
 }

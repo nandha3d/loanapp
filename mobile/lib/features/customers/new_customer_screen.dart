@@ -16,6 +16,7 @@ import 'package:loantrack/data/repositories/customer_repository.dart';
 import 'package:loantrack/data/services/analytics_service.dart';
 import 'package:loantrack/data/services/customer_service.dart';
 import 'package:loantrack/data/services/settings_service.dart';
+import 'package:loantrack/core/gps/gps_service.dart';
 import 'package:loantrack/data/services/upload_service.dart';
 
 // ── Providers ──────────────────────────────────────────────────────────────
@@ -35,6 +36,21 @@ class _DocEntry {
   _DocEntry({required this.file});
   final File file;
   String type = 'aadhar';
+}
+
+class _CollectionPointEntry {
+  _CollectionPointEntry()
+      : name = TextEditingController(),
+        address = TextEditingController();
+  final TextEditingController name;
+  final TextEditingController address;
+  double? lat;
+  double? lng;
+  bool isPrimary = false;
+  void dispose() {
+    name.dispose();
+    address.dispose();
+  }
 }
 
 class _GuarantorEntry {
@@ -125,12 +141,23 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
           (c.companyPan ?? '').isNotEmpty ||
           c.businessType != null ||
           c.companyType != null;
+      // Prefill collection points from existing customer.
+      for (final cp in c.collectionPoints) {
+        final entry = _CollectionPointEntry()
+          ..name.text = cp.name
+          ..address.text = cp.address
+          ..lat = cp.latitude
+          ..lng = cp.longitude
+          ..isPrimary = cp.isPrimary;
+        _collectionPoints.add(entry);
+      }
     }
   }
 
   File? _photo;
   final List<_DocEntry> _docs = [];
   final List<_GuarantorEntry> _guarantors = [];
+  final List<_CollectionPointEntry> _collectionPoints = [];
   String? _routeId;
   String? _agentId;
   bool _submitting = false;
@@ -155,7 +182,12 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
     _companyEmailCtrl.dispose();
     _monthlyIncomeCtrl.dispose();
     _companyAddressCtrl.dispose();
-    for (final g in _guarantors) g.dispose();
+    for (final g in _guarantors) {
+      g.dispose();
+    }
+    for (final cp in _collectionPoints) {
+      cp.dispose();
+    }
     super.dispose();
   }
 
@@ -185,7 +217,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
               ),
               ListTile(
                 leading: const Icon(Icons.camera_alt_outlined,
-                    color: AppColors.primary),
+                    color: AppColors.primary,),
                 title: Text(t.x('btn.take_photo')),
                 onTap: () {
                   Navigator.pop(context);
@@ -194,7 +226,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
               ),
               ListTile(
                 leading: const Icon(Icons.photo_library_outlined,
-                    color: AppColors.primary),
+                    color: AppColors.primary,),
                 title: Text(t.x('btn.choose_gallery')),
                 onTap: () {
                   Navigator.pop(context);
@@ -232,7 +264,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
               ),
               ListTile(
                 leading: const Icon(Icons.camera_alt_outlined,
-                    color: AppColors.primary),
+                    color: AppColors.primary,),
                 title: Text(t.x('btn.scan_doc')),
                 onTap: () {
                   Navigator.pop(context);
@@ -241,7 +273,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
               ),
               ListTile(
                 leading: const Icon(Icons.photo_library_outlined,
-                    color: AppColors.primary),
+                    color: AppColors.primary,),
                 title: Text(t.x('btn.choose_gallery')),
                 onTap: () {
                   Navigator.pop(context);
@@ -280,7 +312,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
               ),
               ListTile(
                 leading: const Icon(Icons.camera_alt_outlined,
-                    color: AppColors.primary),
+                    color: AppColors.primary,),
                 title: Text(t.x('btn.take_photo')),
                 onTap: () {
                   source = ImageSource.camera;
@@ -289,7 +321,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
               ),
               ListTile(
                 leading: const Icon(Icons.photo_library_outlined,
-                    color: AppColors.primary),
+                    color: AppColors.primary,),
                 title: Text(t.x('btn.choose_gallery')),
                 onTap: () {
                   source = ImageSource.gallery;
@@ -348,7 +380,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
     if (!_isEdit && _routeId == null) errs['route'] = t.x('err.route_required');
     setState(() => _fieldErrors
       ..clear()
-      ..addAll(errs));
+      ..addAll(errs),);
     return errs.isEmpty;
   }
 
@@ -381,6 +413,18 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
       if (n != null) m['monthlyIncome'] = n;
     }
     if (logoUrl != null) m['companyLogo'] = logoUrl;
+    final cps = _collectionPoints
+        .where((cp) =>
+            cp.name.text.trim().isNotEmpty && cp.address.text.trim().isNotEmpty,)
+        .map((cp) => <String, dynamic>{
+              'name': cp.name.text.trim(),
+              'address': cp.address.text.trim(),
+              if (cp.lat != null) 'latitude': cp.lat,
+              if (cp.lng != null) 'longitude': cp.lng,
+              'isPrimary': cp.isPrimary,
+            },)
+        .toList();
+    if (cps.isNotEmpty) m['collectionPoints'] = cps;
     return m;
   }
 
@@ -518,7 +562,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                       ),
                       child: Text(err!,
                           style: const TextStyle(
-                              color: AppColors.danger, fontSize: 13)),
+                              color: AppColors.danger, fontSize: 13,),),
                     ),
                     const SizedBox(height: 10),
                   ],
@@ -555,7 +599,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
               ),
               FilledButton(
                 style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primary),
+                    backgroundColor: AppColors.primary,),
                 onPressed: creating
                     ? null
                     : () async {
@@ -594,7 +638,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2),
+                            color: Colors.white, strokeWidth: 2,),
                       )
                     : Text(t.x('btn.create_agent')),
               ),
@@ -716,7 +760,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                                 textCapitalization:
                                     TextCapitalization.words,
                                 onChanged: (_) => setState(
-                                    () => _fieldErrors.remove('name')),
+                                    () => _fieldErrors.remove('name'),),
                                 style: AppTypography.body,
                                 decoration: _inputDec(
                                   t.x('fld.enter_full_name'),
@@ -732,7 +776,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                                 controller: _phoneCtrl,
                                 keyboardType: TextInputType.phone,
                                 onChanged: (_) => setState(
-                                    () => _fieldErrors.remove('phone')),
+                                    () => _fieldErrors.remove('phone'),),
                                 style: AppTypography.body,
                                 decoration: _inputDec(
                                   t.x('fld.enter_phone'),
@@ -913,6 +957,11 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
             // ── Company / Business section (collapsible) ───────────────
             _buildCompanySection(t),
 
+            const SizedBox(height: 16),
+
+            // ── Collection Points section ──────────────────────────────
+            _buildCollectionPointsSection(t),
+
             if (!_isEdit) const SizedBox(height: 16),
 
             // ── Documents section ──────────────────────────────────────
@@ -989,7 +1038,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                 child: Row(
                   children: [
                     const Icon(Icons.error_outline,
-                        color: AppColors.danger, size: 18),
+                        color: AppColors.danger, size: 18,),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -1044,6 +1093,75 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Future<void> _fillGpsForPoint(_CollectionPointEntry cp) async {
+    final pos = await ref.read(gpsServiceProvider).currentPosition();
+    if (pos == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(T.of(ref).x('coll.location_off'))),
+        );
+      }
+      return;
+    }
+    setState(() {
+      cp.lat = pos.latitude;
+      cp.lng = pos.longitude;
+    });
+  }
+
+  Widget _buildCollectionPointsSection(T t) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppTokens.radius),
+        boxShadow: AppTokens.shadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.place_outlined, size: 18, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Text(t.x('sec.collection_points'), style: AppTypography.sectionTitle),
+            ],
+          ),
+          const SizedBox(height: 14),
+          for (int i = 0; i < _collectionPoints.length; i++) ...[
+            _CollectionPointTile(
+              entry: _collectionPoints[i],
+              index: i + 1,
+              onRemove: () {
+                final cp = _collectionPoints.removeAt(i);
+                cp.dispose();
+                setState(() {});
+              },
+              onChanged: () => setState(() {}),
+              onMarkPrimary: () => setState(() {
+                for (int j = 0; j < _collectionPoints.length; j++) {
+                  _collectionPoints[j].isPrimary = (j == i);
+                }
+              }),
+              onUseGps: () => _fillGpsForPoint(_collectionPoints[i]),
+            ),
+            const SizedBox(height: 10),
+          ],
+          OutlinedButton.icon(
+            onPressed: () =>
+                setState(() => _collectionPoints.add(_CollectionPointEntry())),
+            icon: const Icon(Icons.add_location_alt_outlined, size: 18),
+            label: Text(t.x('btn.add_collection_point')),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.primary,
+              side: const BorderSide(color: AppColors.primary),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1122,11 +1240,11 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
             child: Row(
               children: [
                 const Icon(Icons.business_center_outlined,
-                    size: 18, color: AppColors.primary),
+                    size: 18, color: AppColors.primary,),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(t.x('sec.company_details'),
-                      style: AppTypography.sectionTitle),
+                      style: AppTypography.sectionTitle,),
                 ),
                 Icon(
                   _showCompany ? Icons.expand_less : Icons.expand_more,
@@ -1153,12 +1271,12 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                       image: _companyLogo != null
                           ? DecorationImage(
                               image: FileImage(_companyLogo!),
-                              fit: BoxFit.cover)
+                              fit: BoxFit.cover,)
                           : null,
                     ),
                     child: _companyLogo == null
                         ? const Icon(Icons.add_photo_alternate_outlined,
-                            color: AppColors.textSecondary)
+                            color: AppColors.textSecondary,)
                         : null,
                   ),
                 ),
@@ -1200,28 +1318,28 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
             ),
             _companyField(t.x('fld.designation'), _designationCtrl,
                 hint: t.x('fld.designation_hint'),
-                capitalization: TextCapitalization.words),
+                capitalization: TextCapitalization.words,),
             _companyField(t.x('fld.gst'), _gstCtrl,
                 hint: '22ABCDE1234F1Z5',
                 maxLength: 15,
-                capitalization: TextCapitalization.characters),
+                capitalization: TextCapitalization.characters,),
             _companyField(t.x('fld.company_pan'), _companyPanCtrl,
                 hint: 'ABCDE1234F',
                 maxLength: 10,
-                capitalization: TextCapitalization.characters),
+                capitalization: TextCapitalization.characters,),
             _companyField(t.x('fld.company_reg_no'), _companyRegNoCtrl,
-                hint: t.x('fld.company_reg_hint')),
+                hint: t.x('fld.company_reg_hint'),),
             _companyField(t.x('fld.occupation'), _occupationCtrl,
-                hint: t.x('fld.occupation_hint')),
+                hint: t.x('fld.occupation_hint'),),
             _companyField(t.x('fld.company_phone'), _companyPhoneCtrl,
-                keyboardType: TextInputType.phone),
+                keyboardType: TextInputType.phone,),
             _companyField(t.x('fld.company_email'), _companyEmailCtrl,
                 hint: 'office@company.com',
-                keyboardType: TextInputType.emailAddress),
+                keyboardType: TextInputType.emailAddress,),
             _companyField(t.x('fld.monthly_income'), _monthlyIncomeCtrl,
-                hint: '0', keyboardType: TextInputType.number),
+                hint: '0', keyboardType: TextInputType.number,),
             _companyField(t.x('fld.company_address'), _companyAddressCtrl,
-                hint: t.x('fld.company_address_hint')),
+                hint: t.x('fld.company_address_hint'),),
           ],
         ],
       ),
@@ -1229,7 +1347,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
   }
 
   InputDecoration _inputDec(String hint,
-      {String? error, bool counter = true}) {
+      {String? error, bool counter = true,}) {
     return InputDecoration(
       hintText: hint,
       hintStyle: AppTypography.body.copyWith(color: AppColors.textLight),
@@ -1286,7 +1404,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
       alignment: Alignment.centerLeft,
       child: Text(msg,
           style:
-              AppTypography.caption.copyWith(color: AppColors.textSecondary)),
+              AppTypography.caption.copyWith(color: AppColors.textSecondary),),
     );
   }
 }
@@ -1320,11 +1438,11 @@ class _PhotoAvatar extends StatelessWidget {
                   : null,
             ),
             child: photo == null
-                ? Column(
+                ? const Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(Icons.add_a_photo_outlined,
-                          size: 26, color: AppColors.textSecondary),
+                          size: 26, color: AppColors.textSecondary,),
                     ],
                   )
                 : null,
@@ -1508,8 +1626,8 @@ class _UploadButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.cloud_upload_outlined,
-                color: AppColors.primary, size: 20),
+            const Icon(Icons.cloud_upload_outlined,
+                color: AppColors.primary, size: 20,),
             const SizedBox(width: 8),
             Text(
               label,
@@ -1565,7 +1683,7 @@ class _DocTile extends ConsumerWidget {
                 height: 64,
                 color: AppColors.background,
                 child: const Icon(Icons.description_outlined,
-                    color: AppColors.textSecondary),
+                    color: AppColors.textSecondary,),
               ),
             ),
           ),
@@ -1602,6 +1720,166 @@ class _DocTile extends ConsumerWidget {
 }
 
 // ── Guarantor tile ────────────────────────────────────────────────────────────
+
+class _CollectionPointTile extends ConsumerWidget {
+  const _CollectionPointTile({
+    required this.entry,
+    required this.index,
+    required this.onRemove,
+    required this.onChanged,
+    required this.onMarkPrimary,
+    required this.onUseGps,
+  });
+
+  final _CollectionPointEntry entry;
+  final int index;
+  final VoidCallback onRemove;
+  final VoidCallback onChanged;
+  final VoidCallback onMarkPrimary;
+  final VoidCallback onUseGps;
+
+  static InputDecoration _dec(String hint) => InputDecoration(
+        hintText: hint,
+        hintStyle: AppTypography.body.copyWith(color: AppColors.textLight),
+        isDense: true,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
+    final latLngLabel = entry.lat != null
+        ? '${entry.lat!.toStringAsFixed(5)}, ${entry.lng!.toStringAsFixed(5)}'
+        : '—';
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        border: Border.all(
+          color: entry.isPrimary ? AppColors.primary : AppColors.border,
+        ),
+        color: entry.isPrimary
+            ? AppColors.primary.withAlpha(12)
+            : AppColors.background,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              Text(
+                '${t.x('sec.collection_points')} $index',
+                style: AppTypography.label
+                    .copyWith(color: AppColors.textSecondary),
+              ),
+              const Spacer(),
+              if (entry.isPrimary)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withAlpha(24),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    t.x('fld.point_primary'),
+                    style: AppTypography.tiny
+                        .copyWith(color: AppColors.primary),
+                  ),
+                )
+              else
+                TextButton(
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  onPressed: onMarkPrimary,
+                  child: Text(
+                    t.x('fld.point_primary'),
+                    style: AppTypography.caption
+                        .copyWith(color: AppColors.textSecondary),
+                  ),
+                ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: onRemove,
+                child: const Icon(Icons.delete_outline,
+                    size: 18, color: AppColors.danger,),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Name
+          Text(t.x('fld.point_label'), style: AppTypography.label),
+          const SizedBox(height: 6),
+          TextField(
+            controller: entry.name,
+            textCapitalization: TextCapitalization.words,
+            style: AppTypography.body,
+            onChanged: (_) => onChanged(),
+            decoration: _dec(t.x('fld.point_label_hint')),
+          ),
+          const SizedBox(height: 10),
+          // Address
+          Text(t.x('fld.address'), style: AppTypography.label),
+          const SizedBox(height: 6),
+          TextField(
+            controller: entry.address,
+            maxLines: 2,
+            style: AppTypography.body,
+            onChanged: (_) => onChanged(),
+            decoration: _dec(t.x('fld.address_postal')),
+          ),
+          const SizedBox(height: 10),
+          // GPS row
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(t.x('fld.latitude'), style: AppTypography.label),
+                    const SizedBox(height: 4),
+                    Text(latLngLabel,
+                        style: AppTypography.caption
+                            .copyWith(color: AppColors.textSecondary),),
+                  ],
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: onUseGps,
+                icon: const Icon(Icons.my_location, size: 16),
+                label: Text(t.x('btn.use_my_gps')),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.primary),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _GuarantorTile extends ConsumerWidget {
   const _GuarantorTile({
@@ -1670,7 +1948,7 @@ class _GuarantorTile extends ConsumerWidget {
               GestureDetector(
                 onTap: onRemove,
                 child: const Icon(Icons.delete_outline,
-                    size: 18, color: AppColors.danger),
+                    size: 18, color: AppColors.danger,),
               ),
             ],
           ),
@@ -1690,7 +1968,7 @@ class _GuarantorTile extends ConsumerWidget {
                           TextSpan(text: t.x('fld.full_name')),
                           const TextSpan(
                               text: ' *',
-                              style: TextStyle(color: AppColors.danger)),
+                              style: TextStyle(color: AppColors.danger),),
                         ],
                       ),
                     ),
@@ -1716,7 +1994,7 @@ class _GuarantorTile extends ConsumerWidget {
                           TextSpan(text: t.x('fld.phone')),
                           const TextSpan(
                               text: ' *',
-                              style: TextStyle(color: AppColors.danger)),
+                              style: TextStyle(color: AppColors.danger),),
                         ],
                       ),
                     ),
@@ -1760,7 +2038,7 @@ class _GuarantorTile extends ConsumerWidget {
                           isExpanded: true,
                           isDense: true,
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 4),
+                              horizontal: 12, vertical: 4,),
                           borderRadius:
                               BorderRadius.circular(AppTokens.radiusSm),
                           style: AppTypography.body,
@@ -1768,7 +2046,7 @@ class _GuarantorTile extends ConsumerWidget {
                               .map((r) => DropdownMenuItem(
                                     value: r.$1,
                                     child: Text(r.$2),
-                                  ))
+                                  ),)
                               .toList(),
                           onChanged: (v) {
                             entry.relation = v;
@@ -1801,12 +2079,12 @@ class _GuarantorTile extends ConsumerWidget {
                         child: entry.photo != null
                             ? Image.file(entry.photo!,
                                 fit: BoxFit.cover,
-                                width: double.infinity)
+                                width: double.infinity,)
                             : Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   const Icon(Icons.add_a_photo_outlined,
-                                      size: 16, color: AppColors.primary),
+                                      size: 16, color: AppColors.primary,),
                                   const SizedBox(width: 6),
                                   Text(
                                     t.x('btn.upload_photo'),

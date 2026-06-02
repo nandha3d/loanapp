@@ -111,13 +111,13 @@ class _KpiRow extends ConsumerWidget {
             child: _KpiChip(
                 value: '$total',
                 label: t.x('ch.total_groups'),
-                color: AppColors.info)),
+                color: AppColors.info,),),
         const SizedBox(width: 10),
         Expanded(
             child: _KpiChip(
                 value: '$active',
                 label: t.x('status.active'),
-                color: AppColors.success)),
+                color: AppColors.success,),),
         const SizedBox(width: 10),
         Expanded(
           child: _KpiChip(
@@ -133,7 +133,7 @@ class _KpiRow extends ConsumerWidget {
 
 class _KpiChip extends StatelessWidget {
   const _KpiChip(
-      {required this.value, required this.label, required this.color});
+      {required this.value, required this.label, required this.color,});
   final String value, label;
   final Color color;
 
@@ -290,7 +290,7 @@ class _GroupCard extends ConsumerWidget {
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
+                          horizontal: 8, vertical: 4,),
                       decoration: BoxDecoration(
                         color: _statusBg,
                         borderRadius:
@@ -459,8 +459,8 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                         .map((m) => DropdownMenuItem(
                               value: m.id,
                               child: Text('#${m.memberNumber} ${m.customerName}',
-                                  overflow: TextOverflow.ellipsis),
-                            ))
+                                  overflow: TextOverflow.ellipsis,),
+                            ),)
                         .toList(),
                     onChanged: (v) => winnerId = v,
                   ),
@@ -610,7 +610,7 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                               padding: const EdgeInsets.all(16),
                               itemCount: members.length,
                               separatorBuilder: (_, __) => const Divider(
-                                  color: AppColors.border, height: 16),
+                                  color: AppColors.border, height: 16,),
                               itemBuilder: (_, i) {
                                 final m = members[i];
                                 return Row(
@@ -656,7 +656,7 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                                         child: Text(
                                           t.x('ch.won_badge'),
                                           style: AppTypography.tiny.copyWith(
-                                              color: AppColors.success),
+                                              color: AppColors.success,),
                                         ),
                                       ),
                                   ],
@@ -694,7 +694,7 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                               padding: const EdgeInsets.all(16),
                               itemCount: auctions.length,
                               separatorBuilder: (_, __) => const Divider(
-                                  color: AppColors.border, height: 16),
+                                  color: AppColors.border, height: 16,),
                               itemBuilder: (_, i) {
                                 final a = auctions[i];
                                 final dateFmt = DateFormat('d MMM yyyy');
@@ -754,7 +754,7 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                                             fmt.format(a.prizeAmount!),
                                             style: AppTypography.bodyLarge
                                                 .copyWith(
-                                                    color: AppColors.success),
+                                                    color: AppColors.success,),
                                           ),
                                         if (a.dividend != null)
                                           Text(

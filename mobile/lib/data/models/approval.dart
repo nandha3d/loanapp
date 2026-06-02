@@ -24,12 +24,12 @@ class Approval {
     return Approval(
       id: json['id'] as String,
       entityType: (json['entityType'] as String?) ?? 'other',
-      action: (json['action'] as String?) ?? 'create',
+      action: (json['requestType'] as String?) ?? (json['action'] as String?) ?? 'update',
       status: (json['status'] as String?) ?? 'pending',
-      payload: (json['payload'] as String?) ?? '{}',
+      payload: (json['requestedChanges'] as String?) ?? (json['payload'] as String?) ?? '{}',
       requestedByName: (req?['name'] as String?) ?? 'Unknown',
       createdAt: DateTime.parse(json['createdAt'] as String),
-      reviewNote: json['reviewNote'] as String?,
+      reviewNote: (json['reviewNotes'] as String?) ?? (json['reviewNote'] as String?),
     );
   }
 }

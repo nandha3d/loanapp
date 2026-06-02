@@ -35,6 +35,7 @@ class Customer {
     this.companyEmail,
     this.companyLogo,
     this.designation,
+    this.collectionPoints = const [],
   });
 
   final String id;
@@ -66,6 +67,7 @@ class Customer {
   final String? companyEmail;
   final String? companyLogo;
   final String? designation;
+  final List<CustomerCollectionPoint> collectionPoints;
   final List<KycDocument> kycDocuments;
   final List<Guarantor> guarantors;
   final List<CustomerLoanSummary> loans;
@@ -118,12 +120,47 @@ class Customer {
       guarantors: (json['guarantors'] as List<dynamic>? ?? const [])
           .map((dynamic e) => Guarantor.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),
+      collectionPoints: (json['collectionPoints'] as List<dynamic>? ?? const [])
+          .map((dynamic e) =>
+              CustomerCollectionPoint.fromJson(e as Map<String, dynamic>),)
+          .toList(growable: false),
       loans: (json['loans'] as List<dynamic>? ?? const [])
           .map(
             (dynamic e) =>
                 CustomerLoanSummary.fromJson(e as Map<String, dynamic>),
           )
           .toList(growable: false),
+    );
+  }
+}
+
+class CustomerCollectionPoint {
+  const CustomerCollectionPoint({
+    required this.id,
+    required this.name,
+    required this.address,
+    this.latitude,
+    this.longitude,
+    this.isPrimary = false,
+  });
+
+  final String id;
+  final String name;
+  final String address;
+  final double? latitude;
+  final double? longitude;
+  final bool isPrimary;
+
+  factory CustomerCollectionPoint.fromJson(Map<String, dynamic> json) {
+    double? toDouble(dynamic v) =>
+        v == null ? null : (v is num ? v.toDouble() : double.tryParse('$v'));
+    return CustomerCollectionPoint(
+      id: json['id'] as String,
+      name: (json['name'] as String?) ?? '',
+      address: (json['address'] as String?) ?? '',
+      latitude: toDouble(json['latitude']),
+      longitude: toDouble(json['longitude']),
+      isPrimary: (json['isPrimary'] as bool?) ?? false,
     );
   }
 }

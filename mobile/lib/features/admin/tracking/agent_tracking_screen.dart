@@ -134,7 +134,7 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen> {
               _selected = a;
               _mapFull = false;
             });
-          });
+          },);
         },
       ),
     );
@@ -168,7 +168,7 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen> {
                         height: 44,
                         child: Icon(Icons.location_on, size: 44, color: a.online ? AppColors.success : AppColors.danger),
                       ),
-                    ]),
+                    ],),
                   ],
                 )
               else
@@ -206,7 +206,7 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen> {
                         style: AppTypography.body.copyWith(
                           color: a.online ? AppColors.success : AppColors.textLight,
                           fontWeight: FontWeight.w700,
-                        )),
+                        ),),
                     const Spacer(),
                     Text(_lastSeen(t, a.capturedAt), style: AppTypography.caption),
                   ],
@@ -254,7 +254,7 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen> {
           Icon(icon, size: 16, color: AppColors.textLight),
           const SizedBox(width: 8),
           Expanded(child: Text(text, style: AppTypography.body)),
-        ]),
+        ],),
       );
 }
 
@@ -285,7 +285,7 @@ class _AgentCard extends StatelessWidget {
                     radius: 22,
                     backgroundColor: AppColors.primary.withValues(alpha: 0.12),
                     child: Text(agent.agentName.isNotEmpty ? agent.agentName[0].toUpperCase() : '?',
-                        style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800)),
+                        style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800),),
                   ),
                   Positioned(
                     right: 0,
@@ -311,10 +311,10 @@ class _AgentCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Row(children: [
                       Icon(agent.hasLocation ? Icons.location_on_outlined : Icons.location_off_outlined,
-                          size: 13, color: AppColors.textLight),
+                          size: 13, color: AppColors.textLight,),
                       const SizedBox(width: 3),
                       Expanded(child: Text(lastSeen, style: AppTypography.caption, overflow: TextOverflow.ellipsis)),
-                    ]),
+                    ],),
                   ],
                 ),
               ),
@@ -322,7 +322,7 @@ class _AgentCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(fmt.format(agent.todayCollected),
-                      style: AppTypography.bodyLarge.copyWith(color: AppColors.success, fontWeight: FontWeight.w800)),
+                      style: AppTypography.bodyLarge.copyWith(color: AppColors.success, fontWeight: FontWeight.w800),),
                   Text('${agent.todayEntries} ${t.x('admin.entries_today')}', style: AppTypography.extraTiny),
                 ],
               ),

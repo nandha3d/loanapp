@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import MonitorBanner from '@/components/MonitorBanner';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -17,6 +18,7 @@ export default function RootLayout({
         <link rel="icon" href="/assets/logo.svg" />
       </head>
       <body suppressHydrationWarning>
+        <MonitorBanner />
         {children}
         <div id="toast-container" className="toast-container"></div>
       </body>

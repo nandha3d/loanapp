@@ -492,13 +492,13 @@ export default function CollectionClient({
           <tr>
             <th>{dict.customers.title}</th>
             <th>{dict.sidebar.loans}</th>
-            <th>Due Date</th>
-            <th>Due Today</th>
-            <th>Received</th>
-            <th>Outstanding</th>
-            <th>Overdue</th>
-            <th>Status</th>
-            <th>Action</th>
+            <th>{dict.collection.dueDate}</th>
+            <th>{dict.collection.dueTodayLabel}</th>
+            <th>{dict.collection.receivedLabel}</th>
+            <th>{dict.collection.outstandingLabel}</th>
+            <th>{dict.collection.overdueLabel}</th>
+            <th>{dict.collection.statusLabel}</th>
+            <th>{dict.collection.actionLabel}</th>
           </tr>
         </thead>
         <tbody>
@@ -566,7 +566,7 @@ export default function CollectionClient({
                       value={currentLoanCode} 
                       onChange={(e) => handleLoanChange(group.customerId, e.target.value)}
                     >
-                      <option value="all">All Loans ({group.loanCodes.length})</option>
+                      <option value="all">{dict.collection.allLoans} ({group.loanCodes.length})</option>
                       {group.loanCodes.map(code => (
                         <option key={code} value={code}>{code}</option>
                       ))}
@@ -601,7 +601,7 @@ export default function CollectionClient({
                     {unpaidInstalments.length === 0 ? (
                       <>
                         <button className="btn btn-ghost btn-sm" onClick={() => openModal(visibleInstalments[0])}>
-                          <span className="material-icons-outlined" style={{ fontSize: '14px' }}>{isAdmin ? 'edit' : 'history_edu'}</span> {isAdmin ? 'Edit' : 'Request'}
+                          <span className="material-icons-outlined" style={{ fontSize: '14px' }}>{isAdmin ? 'edit' : 'history_edu'}</span> {isAdmin ? dict.collection.editLabel : dict.collection.requestLabel}
                         </button>
                         {receiptPdfEnabled && visibleInstalments[0]?.collectionEntry?.id && (
                           <a
@@ -613,13 +613,13 @@ export default function CollectionClient({
                             style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}
                           >
                             <span className="material-icons-outlined" style={{ fontSize: '16px' }}>receipt_long</span>
-                            Receipt
+                            {dict.collection.receiptLabel}
                           </a>
                         )}
                       </>
                     ) : (
                       <button className="btn btn-primary btn-sm" onClick={() => unpaidInstalments.length === 1 ? openModal(unpaidInstalments[0]) : setOverdueCustomerGroup(buildOverdueGroup(group))}>
-                        <span className="material-icons-outlined" style={{ fontSize: '14px' }}>payments</span> Pay
+                        <span className="material-icons-outlined" style={{ fontSize: '14px' }}>payments</span> {dict.collection.payLabel}
                       </button>
                     )}
                   </div>
@@ -630,7 +630,7 @@ export default function CollectionClient({
           {groups.length === 0 && (
             <tr>
               <td colSpan={9} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-light)' }}>
-                No instalments match the current filters.
+                {dict.collection.noInstalmentsMatch}
               </td>
             </tr>
           )}
@@ -652,7 +652,7 @@ export default function CollectionClient({
           </div>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <span className="badge badge-active" style={{ fontSize: '.8rem', padding: '6px 14px' }}>Online</span>
+          <span className="badge badge-active" style={{ fontSize: '.8rem', padding: '6px 14px' }}>{dict.collection.online}</span>
           {agentRole === 'agent' && dailyCollection && dailyCollection.totalCollected > 0 && dailyCollection.status === 'open' && (
             <button 
               className="btn btn-primary btn-sm" 
@@ -671,17 +671,17 @@ export default function CollectionClient({
               disabled={loading}
             >
               <span className="material-icons-outlined" style={{ fontSize: '16px' }}>payments</span>
-              Submit Handover
+              {dict.collection.submitHandover}
             </button>
           )}
           {dailyCollection?.status === 'pending_handover' && (
             <span className="badge" style={{ fontSize: '.8rem', padding: '6px 14px', background: 'rgba(245,158,11,.1)', color: '#D97706' }}>
-              Handover Pending
+              {dict.collection.handoverPending}
             </span>
           )}
           {dailyCollection?.status === 'settled' && (
             <span className="badge" style={{ fontSize: '.8rem', padding: '6px 14px', background: 'rgba(16,185,129,.1)', color: 'var(--success)' }}>
-              Handover Settled
+              {dict.collection.handoverSettled}
             </span>
           )}
         </div>
@@ -692,35 +692,35 @@ export default function CollectionClient({
           <div className="summary-item-icon" style={{ background: 'rgba(249,115,22,.12)' }}>
             <span className="material-icons-outlined" style={{ color: 'var(--primary)', fontSize: '18px' }}>today</span>
           </div>
-          <div className="summary-label">Today Due</div>
+          <div className="summary-label">{dict.collection.todayDue}</div>
           <div className="summary-value">{formatCurrency(todayTotals.due, currencySymbol)}</div>
         </div>
         <div className="summary-item">
           <div className="summary-item-icon" style={{ background: 'rgba(16,185,129,.12)' }}>
             <span className="material-icons-outlined" style={{ color: 'var(--success)', fontSize: '18px' }}>check_circle</span>
           </div>
-          <div className="summary-label">Collected Today</div>
+          <div className="summary-label">{dict.collection.collectedToday}</div>
           <div className="summary-value" style={{ color: 'var(--success)' }}>{formatCurrency(todayTotals.collected, currencySymbol)}</div>
         </div>
         <div className="summary-item">
           <div className="summary-item-icon" style={{ background: 'rgba(245,158,11,.12)' }}>
             <span className="material-icons-outlined" style={{ color: '#D97706', fontSize: '18px' }}>account_balance_wallet</span>
           </div>
-          <div className="summary-label">Today Balance</div>
+          <div className="summary-label">{dict.collection.todayBalance}</div>
           <div className="summary-value" style={{ color: '#D97706' }}>{formatCurrency(todayTotals.outstanding, currencySymbol)}</div>
         </div>
         <div className="summary-item">
           <div className="summary-item-icon" style={{ background: 'rgba(239,68,68,.12)' }}>
             <span className="material-icons-outlined" style={{ color: 'var(--danger)', fontSize: '18px' }}>warning_amber</span>
           </div>
-          <div className="summary-label">Overdue ({overdueTotals.count})</div>
+          <div className="summary-label">{dict.collection.overdueLabel} ({overdueTotals.count})</div>
           <div className="summary-value" style={{ color: 'var(--danger)' }}>{formatCurrency(overdueTotals.amount, currencySymbol)}</div>
         </div>
         <div className="summary-item">
           <div className="summary-item-icon" style={{ background: 'rgba(99,102,241,.12)' }}>
             <span className="material-icons-outlined" style={{ color: '#6366F1', fontSize: '18px' }}>schedule</span>
           </div>
-          <div className="summary-label">Oldest Due</div>
+          <div className="summary-label">{dict.collection.oldestDue}</div>
           <div className="summary-value" style={{ color: '#6366F1' }}>{overdueTotals.maxDays}d</div>
         </div>
       </div>
@@ -728,22 +728,22 @@ export default function CollectionClient({
       <div className="card" style={{ marginBottom: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
           <h3 style={{ fontSize: '1rem', margin: 0 }}>
-            Collections
+            {dict.collection.collections}
             <span style={{ fontSize: '.8rem', fontWeight: 400, color: 'var(--text-light)', marginLeft: '8px' }}>
-              {filteredRows.length} of {allInstalments.length} instalments
+              {filteredRows.length} {dict.accounting.of} {allInstalments.length} {dict.collection.instalments}
             </span>
           </h3>
           <div style={{ display: 'flex', gap: '8px' }}>
             {gpsTrackingEnabled && (
               <button type="button" className={`btn btn-sm ${isSortedByNearest ? 'btn-primary' : 'btn-ghost'}`} onClick={handleSortByNearest}>
                 <span className="material-icons-outlined" style={{ fontSize: '14px' }}>my_location</span>
-                {isSortedByNearest ? 'Sorted by Nearest' : 'Sort by Nearest'}
+                {isSortedByNearest ? dict.collection.sortedByNearest : dict.collection.sortByNearest}
               </button>
             )}
             {hasActiveFilters && (
               <button type="button" className="btn btn-ghost btn-sm" onClick={clearFilters} style={{ color: 'var(--danger)' }}>
                 <span className="material-icons-outlined" style={{ fontSize: '14px' }}>filter_list_off</span>
-                Clear All Filters
+                {dict.collection.clearAllFilters}
               </button>
             )}
           </div>
@@ -751,55 +751,55 @@ export default function CollectionClient({
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px', alignItems: 'end', marginBottom: '16px' }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Type</label>
+            <label className="form-label">{dict.collection.typeLabel}</label>
             <select className="form-control" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as 'all' | 'today' | 'overdue')}>
-              <option value="all">All ({allInstalments.length})</option>
-              <option value="today">Today ({todayInstalments.length})</option>
-              <option value="overdue">Overdue ({overdueInstalments.length})</option>
+              <option value="all">{dict.collection.all} ({allInstalments.length})</option>
+              <option value="today">{dict.collection.today} ({todayInstalments.length})</option>
+              <option value="overdue">{dict.collection.overdueLabel} ({overdueInstalments.length})</option>
             </select>
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Due Date</label>
+            <label className="form-label">{dict.collection.dueDate}</label>
             <input type="date" className="form-control" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} />
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Customer / Loan</label>
-            <input className="form-control" value={customerFilter} onChange={(event) => setCustomerFilter(event.target.value)} placeholder="Search name, code, loan" />
+            <label className="form-label">{dict.collection.customerLoan}</label>
+            <input className="form-control" value={customerFilter} onChange={(event) => setCustomerFilter(event.target.value)} placeholder={dict.collection.searchPlaceholder} />
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Route / Line</label>
+            <label className="form-label">{dict.collection.routeLine}</label>
             <select className="form-control" value={routeFilter} onChange={(event) => setRouteFilter(event.target.value)}>
-              <option value="">All routes</option>
+              <option value="">{dict.collection.allRoutes}</option>
               {routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}
             </select>
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Status</label>
+            <label className="form-label">{dict.collection.statusLabel}</label>
             <select className="form-control" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-              <option value="">All</option>
-              <option value="due today">Due Today</option>
-              <option value="missed">Overdue / Missed</option>
-              <option value="partial">Partial</option>
-              <option value="paid">Paid</option>
-              <option value="upcoming">Upcoming</option>
+              <option value="">{dict.collection.all}</option>
+              <option value="due today">{dict.collection.dueTodayLabel}</option>
+              <option value="missed">{dict.collection.overdueLabel} / {dict.collection.missed}</option>
+              <option value="partial">{dict.collection.partial}</option>
+              <option value="paid">{dict.collection.paid}</option>
+              <option value="upcoming">{dict.collection.upcoming}</option>
             </select>
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Frequency</label>
+            <label className="form-label">{dict.collection.frequency}</label>
             <select className="form-control" value={frequencyFilter} onChange={(event) => setFrequencyFilter(event.target.value)}>
-              <option value="">All Types</option>
-              <option value="daily">Daily Loan</option>
-              <option value="weekly">Weekly Loan</option>
-              <option value="biweekly">Bi-weekly Loan</option>
-              <option value="monthly">Monthly Loan</option>
+              <option value="">{dict.collection.allTypes}</option>
+              <option value="daily">{dict.collection.dailyLoan}</option>
+              <option value="weekly">{dict.collection.weeklyLoan}</option>
+              <option value="biweekly">{dict.collection.biweeklyLoan}</option>
+              <option value="monthly">{dict.collection.monthlyLoan}</option>
             </select>
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Overdue Days (min)</label>
+            <label className="form-label">{dict.collection.overdueMinDays}</label>
             <input type="number" className="form-control" value={overdueMinDays} onChange={(event) => setOverdueMinDays(event.target.value)} placeholder="0" min={0} />
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Overdue Days (max)</label>
+            <label className="form-label">{dict.collection.overdueMaxDays}</label>
             <input type="number" className="form-control" value={overdueMaxDays} onChange={(event) => setOverdueMaxDays(event.target.value)} placeholder="∞" min={0} />
           </div>
         </div>
@@ -883,9 +883,9 @@ export default function CollectionClient({
                   // Count only instalments that are genuinely overdue (past their due
                   // date AND still unpaid). Today's instalment is excluded — today
                   // isn't finished, so it isn't overdue yet.
-                  { label: 'Overdue Instalments', value: String(overdueCustomerGroup.instalments.filter(i => i.daysOverdue > 0 && i.outstandingAmount > 0).length) },
-                  { label: 'Oldest Due', value: `${overdueCustomerGroup.maxDaysOverdue}d` },
-                  { label: 'Total Outstanding', value: formatCurrency(overdueCustomerGroup.totalOutstanding, currencySymbol), danger: true },
+                  { label: dict.collection.overdueInstalmentsLabel, value: String(overdueCustomerGroup.instalments.filter(i => i.daysOverdue > 0 && i.outstandingAmount > 0).length) },
+                  { label: dict.collection.oldestDueModal, value: `${overdueCustomerGroup.maxDaysOverdue}d` },
+                  { label: dict.collection.totalOutstanding, value: formatCurrency(overdueCustomerGroup.totalOutstanding, currencySymbol), danger: true },
                 ].map(({ label, value, danger }) => (
                   <div key={label} style={{ flex: 1, padding: '12px 16px', textAlign: 'center', borderRight: '1px solid var(--border)' }}>
                     <div style={{ fontSize: '.72rem', color: 'var(--text-light)', marginBottom: '2px' }}>{label}</div>
@@ -974,18 +974,18 @@ export default function CollectionClient({
                         isAdmin ? (
                           <button className="btn btn-ghost btn-sm" style={{ flexShrink: 0 }}
                             onClick={() => { setOverdueCustomerGroup(null); openModal(inst); }}>
-                            <span className="material-icons-outlined" style={{ fontSize: '13px' }}>edit</span> Edit
+                            <span className="material-icons-outlined" style={{ fontSize: '13px' }}>edit</span> {dict.collection.editLabel}
                           </button>
                         ) : (
                           <button className="btn btn-ghost btn-sm" style={{ flexShrink: 0 }}
                             onClick={() => { setOverdueCustomerGroup(null); openModal(inst); }}>
-                            <span className="material-icons-outlined" style={{ fontSize: '13px' }}>history_edu</span> Request
+                            <span className="material-icons-outlined" style={{ fontSize: '13px' }}>history_edu</span> {dict.collection.requestLabel}
                           </button>
                         )
                       ) : (
                         <button className="btn btn-primary btn-sm" style={{ flexShrink: 0 }}
                           onClick={() => { setOverdueCustomerGroup(null); openModal(inst); }}>
-                          <span className="material-icons-outlined" style={{ fontSize: '13px' }}>payments</span> Pay
+                          <span className="material-icons-outlined" style={{ fontSize: '13px' }}>payments</span> {dict.collection.payLabel}
                         </button>
                       )}
                     </div>
@@ -995,7 +995,7 @@ export default function CollectionClient({
             </div>
 
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setOverdueCustomerGroup(null)}>Close</button>
+              <button className="btn btn-secondary" onClick={() => setOverdueCustomerGroup(null)}>{dict.collection.closeLabel}</button>
             </div>
           </div>
         </div>
@@ -1014,7 +1014,7 @@ export default function CollectionClient({
         <div className="modal-overlay show" onClick={(event) => { if (event.target === event.currentTarget) setModal(null); }}>
           <div className="modal" ref={modalRef}>
             <div className="modal-header">
-              <h3>{modal.receivedAmount > 0 ? (isAdmin ? 'Edit Collection' : 'Request Edit') : dict.collection.title}</h3>
+              <h3>{modal.receivedAmount > 0 ? (isAdmin ? dict.collection.editCollection : dict.collection.requestEdit) : dict.collection.title}</h3>
               <button className="modal-close material-icons-outlined" onClick={() => setModal(null)}>close</button>
             </div>
             <div className="modal-body">
@@ -1024,8 +1024,8 @@ export default function CollectionClient({
                   <span style={{ color: 'var(--text-secondary)' }}>{modal.loan.customer.customerCode}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.82rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                  <span>Loan: {modal.loan.loanCode} · #{modal.instalmentNo}</span>
-                  <span>{modal.receivedAmount > 0 ? 'Previously Paid' : 'Outstanding'}: <strong style={{ color: 'var(--text)' }}>{formatCurrency(modal.receivedAmount > 0 ? modal.receivedAmount : modal.outstandingAmount, currencySymbol)}</strong></span>
+                  <span>{dict.collection.loanPrefix}: {modal.loan.loanCode} · #{modal.instalmentNo}</span>
+                  <span>{modal.receivedAmount > 0 ? dict.collection.previouslyPaid : dict.collection.outstanding}: <strong style={{ color: 'var(--text)' }}>{formatCurrency(modal.receivedAmount > 0 ? modal.receivedAmount : modal.outstandingAmount, currencySymbol)}</strong></span>
                 </div>
               </div>
               
@@ -1039,11 +1039,11 @@ export default function CollectionClient({
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                      <span style={{ fontSize: '.75rem', color: 'var(--danger)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Outstanding Balance</span>
+                      <span style={{ fontSize: '.75rem', color: 'var(--danger)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{dict.collection.totalOutstandingBalance}</span>
                       <div style={{ fontSize: '1.6rem', fontWeight: 900, color: 'var(--danger)', marginTop: '2px', lineHeight: 1.1 }}>
                         {formatCurrency(totalLoanOutstanding, currencySymbol)}
                       </div>
-                      <span style={{ fontSize: '.7rem', color: 'var(--text-secondary)', display: 'block', marginTop: '4px' }}>Includes previous overdue instalments</span>
+                      <span style={{ fontSize: '.7rem', color: 'var(--text-secondary)', display: 'block', marginTop: '4px' }}>{dict.collection.includesPreviousOverdue}</span>
                     </div>
                     <Link 
                       href={`/loans/${modal.loan.loanCode}`} 
@@ -1060,7 +1060,7 @@ export default function CollectionClient({
                         boxShadow: 'var(--shadow-sm)'
                       }}
                     >
-                      Outstanding Details
+                      {dict.collection.outstandingDetails}
                     </Link>
                   </div>
                 </div>
@@ -1068,30 +1068,30 @@ export default function CollectionClient({
               
               {modal.receivedAmount > 0 && !isAdmin ? (
                 <div className="form-group">
-                  <label className="form-label">Correct Amount ({currencySymbol}) *</label>
+                  <label className="form-label">{dict.collection.correctAmount} ({currencySymbol}) *</label>
                   <input type="number" className="form-control" value={amount} onChange={(event) => setAmount(Number(event.target.value))} min={0} required />
                   <div style={{ marginTop: '12px' }}>
-                    <label className="form-label">Reason for change *</label>
-                    <textarea className="form-control" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Explain why this change is needed..." required rows={3} />
+                    <label className="form-label">{dict.collection.reasonForChange} *</label>
+                    <textarea className="form-control" value={reason} onChange={(e) => setReason(e.target.value)} placeholder={dict.collection.explainChange} required rows={3} />
                   </div>
                 </div>
               ) : (
                 <>
                   <div className="form-group">
-                    <label className="form-label">{modal.receivedAmount > 0 ? 'Corrected Total' : dict.collection.collected} ({currencySymbol}) *</label>
+                    <label className="form-label">{modal.receivedAmount > 0 ? dict.collection.correctedTotal : dict.collection.collected} ({currencySymbol}) *</label>
                     <input type="number" className="form-control" value={amount} onChange={(event) => setAmount(Number(event.target.value))} min={0} required />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Payment Mode</label>
+                    <label className="form-label">{dict.collection.paymentMode}</label>
                     <select className="form-control" value={mode} onChange={(event) => setMode(event.target.value)}>
-                      <option value="cash">Cash</option>
-                      <option value="upi">UPI</option>
-                      <option value="cheque">Cheque</option>
+                      <option value="cash">{dict.collection.cashMode}</option>
+                      <option value="upi">{dict.collection.upiMode}</option>
+                      <option value="cheque">{dict.collection.chequeMode}</option>
                     </select>
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Remarks</label>
-                    <input type="text" className="form-control" value={remarks} onChange={(event) => setRemarks(event.target.value)} placeholder="Optional note" />
+                    <label className="form-label">{dict.collection.remarksLabel}</label>
+                    <input type="text" className="form-control" value={remarks} onChange={(event) => setRemarks(event.target.value)} placeholder={dict.collection.optionalNote} />
                   </div>
                   {gpsTrackingEnabled && (
                     <div style={{
@@ -1103,7 +1103,7 @@ export default function CollectionClient({
                       marginTop: '-4px',
                     }}>
                       <span className="material-icons-outlined" style={{ fontSize: '15px' }}>my_location</span>
-                      <span>{gpsStatusText || 'Location will be stamped on submit'}</span>
+                      <span>{gpsStatusText || dict.collection.locationStamped}</span>
                     </div>
                   )}
                 </>
@@ -1113,7 +1113,7 @@ export default function CollectionClient({
               <button className="btn btn-secondary" onClick={() => setModal(null)}>{dict.loans.cancel}</button>
               <button className="btn btn-primary" onClick={handleSubmit} disabled={loading || amount < 0 || (modal.receivedAmount > 0 && !isAdmin && !reason.trim())}>
                 <span className="material-icons-outlined" style={{ fontSize: '16px' }}>check</span>
-                {loading ? (modal.receivedAmount > 0 && !isAdmin ? 'Sending...' : dict.collection.receiving) : (modal.receivedAmount > 0 ? (isAdmin ? 'Update Payment' : 'Send Request') : 'Submit Payment')}
+                {loading ? (modal.receivedAmount > 0 && !isAdmin ? dict.collection.sending : dict.collection.receiving) : (modal.receivedAmount > 0 ? (isAdmin ? dict.collection.updatePayment : dict.collection.sendRequest) : dict.collection.submitPayment)}
               </button>
             </div>
           </div>

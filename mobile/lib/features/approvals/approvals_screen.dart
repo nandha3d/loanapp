@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -214,6 +216,10 @@ class _ApprovalCard extends ConsumerWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ],
+                      if (approval.payload != '{}' && approval.payload.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        _ChangesPreview(payload: approval.payload),
+                      ],
                     ],
                   ),
                 ),
@@ -345,4 +351,54 @@ class _LoadingState extends StatelessWidget {
           ),
         ),
       );
+}
+
+class _ChangesPreview extends StatelessWidget {
+  const _ChangesPreview({required this.payload});
+  final String payload;
+
+  @override
+  Widget build(BuildContext context) {
+    Map<String, dynamic> changes = {};
+    try {
+      changes = jsonDecode(payload) as Map<String, dynamic>;
+    } catch (_) {}
+
+    if (changes.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: changes.entries.map((e) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    e.key,
+                    style: AppTypography.caption.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    e.value.toString(),
+                    style: AppTypography.caption,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
 }

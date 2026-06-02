@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:loantrack/core/auth/auth_controller.dart';
 import 'package:loantrack/data/models/customer.dart';
+import 'package:loantrack/data/models/loan.dart';
 import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/features/accounting/accounting_screen.dart';
 import 'package:loantrack/features/analytics/analytics_screen.dart';
@@ -19,6 +20,7 @@ import 'package:loantrack/features/customers/customer_detail_screen.dart';
 import 'package:loantrack/features/customers/customers_screen.dart';
 import 'package:loantrack/features/customers/new_customer_screen.dart';
 import 'package:loantrack/features/dashboard/dashboard_screen.dart';
+import 'package:loantrack/features/loans/edit_loan_screen.dart';
 import 'package:loantrack/features/loans/loan_detail_screen.dart';
 import 'package:loantrack/features/loans/loans_screen.dart';
 import 'package:loantrack/features/loans/new_loan_screen.dart';
@@ -31,6 +33,10 @@ import 'package:loantrack/features/vehicles/vehicles_screen.dart';
 import 'package:loantrack/features/vehicles/vehicle_detail_screen.dart';
 import 'package:loantrack/features/vehicles/new_vehicle_screen.dart';
 import 'package:loantrack/features/kyc/kyc_review_screen.dart';
+import 'package:loantrack/features/settings/system_settings_screen.dart';
+import 'package:loantrack/features/settings/penalty_settings_screen.dart';
+import 'package:loantrack/features/settings/payment_settings_screen.dart';
+import 'package:loantrack/features/settings/notification_settings_screen.dart';
 
 /// Module keys — server returns these in `User.enabledModules` (spec §5).
 class ModuleKey {
@@ -144,6 +150,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: ':id',
             builder: (_, state) =>
                 LoanDetailScreen(id: state.pathParameters['id']!),
+            routes: [
+              GoRoute(
+                path: 'edit',
+                builder: (_, state) => EditLoanScreen(
+                  loan: state.extra as Loan,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -154,7 +168,28 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/analytics', builder: (_, __) => const AnalyticsScreen()),
       GoRoute(path: '/chits', builder: (_, __) => const ChitsScreen()),
       GoRoute(path: '/accounting', builder: (_, __) => const AccountingScreen()),
-      GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
+      GoRoute(
+        path: '/settings',
+        builder: (_, __) => const SettingsScreen(),
+        routes: [
+          GoRoute(
+            path: 'system',
+            builder: (_, __) => const SystemSettingsScreen(),
+          ),
+          GoRoute(
+            path: 'penalty',
+            builder: (_, __) => const PenaltySettingsScreen(),
+          ),
+          GoRoute(
+            path: 'payment',
+            builder: (_, __) => const PaymentSettingsScreen(),
+          ),
+          GoRoute(
+            path: 'notifications',
+            builder: (_, __) => const NotificationSettingsScreen(),
+          ),
+        ],
+      ),
       GoRoute(path: '/more', builder: (_, __) => const MoreScreen()),
       GoRoute(path: '/tracking', builder: (_, __) => const AgentTrackingScreen()),
       GoRoute(path: '/reports', builder: (_, __) => const ReportsScreen()),

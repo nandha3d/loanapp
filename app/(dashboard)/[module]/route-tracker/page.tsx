@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { getActiveBranchId } from '@/lib/branch';
 import { getDefaultTenantId } from '@/lib/tenant';
 import { getRouteProgressForBranch } from '@/lib/gps/routeProgress';
+import { getDictionary } from '@/lib/i18n';
 
 function statusColor(status: string) {
   if (status === 'verified') return 'var(--success)';
@@ -16,6 +17,8 @@ export default async function RouteTrackerPage() {
   const user = session?.user as any;
   const tenantId = await getDefaultTenantId();
   const branchId = await getActiveBranchId();
+  const dict = await getDictionary(tenantId);
+  const d = dict.routeTracker;
 
   const subscription = await prisma.tenantSubscription.findUnique({
     where: { tenantId },
@@ -26,10 +29,10 @@ export default async function RouteTrackerPage() {
     return (
       <div className="card">
         <div className="card-header">
-          <h3>Route Tracker</h3>
+          <h3>{d.title}</h3>
         </div>
         <div style={{ padding: '20px', color: 'var(--text-secondary)' }}>
-          GPS Collection Tracking is not enabled for this tenant.
+          {d.notEnabled}
         </div>
       </div>
     );
@@ -38,7 +41,7 @@ export default async function RouteTrackerPage() {
   if (!['admin', 'superadmin', 'developer'].includes(user?.role)) {
     return (
       <div className="card">
-        <div style={{ padding: '20px', color: 'var(--danger)' }}>Unauthorized</div>
+        <div style={{ padding: '20px', color: 'var(--danger)' }}>{d.unauthorized}</div>
       </div>
     );
   }
@@ -49,8 +52,8 @@ export default async function RouteTrackerPage() {
     <div style={{ display: 'grid', gap: '16px' }}>
       <div className="page-header">
         <div>
-          <h1>Route Tracker</h1>
-          <p>Live collection movement and GPS exception review</p>
+          <h1>{d.title}</h1>
+          <p>{d.subtitle}</p>
         </div>
       </div>
 
@@ -60,7 +63,7 @@ export default async function RouteTrackerPage() {
             <span className="material-icons-outlined">groups</span>
           </div>
           <div>
-            <p>Agents</p>
+            <p>{d.agents}</p>
             <h3>{agents.length}</h3>
           </div>
         </div>
@@ -69,7 +72,7 @@ export default async function RouteTrackerPage() {
             <span className="material-icons-outlined">payments</span>
           </div>
           <div>
-            <p>Collections Today</p>
+            <p>{d.collectionsToday}</p>
             <h3>{agents.reduce((sum, agent) => sum + agent.collectionsDoneToday, 0)}</h3>
           </div>
         </div>
@@ -78,7 +81,7 @@ export default async function RouteTrackerPage() {
             <span className="material-icons-outlined">warning</span>
           </div>
           <div>
-            <p>GPS Alerts</p>
+            <p>{d.gpsAlerts}</p>
             <h3>{agents.reduce((sum, agent) => sum + agent.alerts.length, 0)}</h3>
           </div>
         </div>
@@ -86,17 +89,17 @@ export default async function RouteTrackerPage() {
 
       <div className="card">
         <div className="card-header">
-          <h3>Agent Movement</h3>
+          <h3>{d.agentMovement}</h3>
         </div>
         <div className="table-wrapper">
           <table>
             <thead>
               <tr>
-                <th>Agent</th>
-                <th>Last Seen</th>
-                <th>Collections</th>
-                <th>Route Points</th>
-                <th>Alerts</th>
+                <th>{d.agent}</th>
+                <th>{d.lastSeen}</th>
+                <th>{d.collections}</th>
+                <th>{d.routePoints}</th>
+                <th>{d.alerts}</th>
               </tr>
             </thead>
             <tbody>
@@ -105,8 +108,8 @@ export default async function RouteTrackerPage() {
                   <td><strong>{agent.agentName}</strong></td>
                   <td>
                     {agent.minutesSinceLastPing === null
-                      ? 'No GPS today'
-                      : `${agent.minutesSinceLastPing} min ago`}
+                      ? d.noGpsToday
+                      : `${agent.minutesSinceLastPing} ${d.minAgo}`}
                   </td>
                   <td>{agent.collectionsDoneToday}</td>
                   <td>{agent.path.length}</td>
@@ -118,7 +121,7 @@ export default async function RouteTrackerPage() {
               {agents.length === 0 && (
                 <tr>
                   <td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: 'var(--text-light)' }}>
-                    No active agents found for this branch.
+                    {d.noActiveAgents}
                   </td>
                 </tr>
               )}
@@ -129,7 +132,7 @@ export default async function RouteTrackerPage() {
 
       <div className="card">
         <div className="card-header">
-          <h3>Collection GPS Points</h3>
+          <h3>{d.collectionGpsPoints}</h3>
         </div>
         <div style={{ display: 'grid', gap: '8px', padding: '14px' }}>
           {agents.flatMap((agent) =>
@@ -159,7 +162,7 @@ export default async function RouteTrackerPage() {
           )}
           {agents.every((agent) => agent.collectionPoints.length === 0) && (
             <div style={{ padding: '18px', color: 'var(--text-light)', textAlign: 'center' }}>
-              No GPS-stamped collections recorded today.
+              {d.noGpsStamped}
             </div>
           )}
         </div>

@@ -14,12 +14,24 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const now = new Date();
-  const defaultFrom = new Date(now);
-  defaultFrom.setDate(now.getDate() - 13);
-  const from = new Date(searchParams.get('from') || defaultFrom);
+  
+  const rangeStr = searchParams.get('range');
+  let duration = 14;
+  if (rangeStr === '7') duration = 7;
+  else if (rangeStr === '30') duration = 30;
+  else if (rangeStr === '90') duration = 90;
+
   const to = new Date(searchParams.get('to') || now);
+  
+  const defaultFrom = new Date(to);
+  defaultFrom.setDate(to.getDate() - duration + 1);
+  const from = new Date(searchParams.get('from') || defaultFrom);
+  
   from.setHours(0, 0, 0, 0);
   to.setHours(23, 59, 59, 999);
+  
+  // Re-calculate actual duration based on from/to
+  const diffDays = Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
 
   try {
     const dailies = await prisma.dailyCollection.findMany({
@@ -43,7 +55,7 @@ export async function GET(req: NextRequest) {
     }
 
     const series: Array<{ date: string; expected: number; collected: number }> = [];
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < diffDays; i++) {
       const d = new Date(from);
       d.setDate(from.getDate() + i);
       if (d > to) break;

@@ -60,7 +60,7 @@ export default function Sidebar({
     { id: 'agent-dashboard', icon: 'dashboard', label: dict.sidebar.dashboard, href: '/agent-dashboard', agentOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
     { id: 'dashboard', icon: 'dashboard', label: dict.sidebar.dashboard, href: '/dashboard', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
     { id: 'collection', icon: 'point_of_sale', label: dict.sidebar.collection, href: '/collection' },
-    { id: 'route-tracker', icon: 'map', label: 'Route Tracker', href: '/route-tracker', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
+    { id: 'route-tracker', icon: 'map', label: dict.sidebar.routeTracker, href: '/route-tracker', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
     { section: dict.sidebar.sections.management },
     { id: 'customers', icon: 'people', label: dict.sidebar.customers, href: '/customers' },
     { id: 'loans', icon: 'account_balance', label: dict.sidebar.loans, href: '/loans', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
@@ -68,14 +68,14 @@ export default function Sidebar({
     { id: 'chits', icon: 'savings', label: dict.sidebar.chits, href: '/chits', adminOnly: true, appTypes: ['chitfunds'] },
     { id: 'penalties', icon: 'gavel', label: dict.sidebar.penalties, href: '/penalties', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
     { id: 'approvals', icon: 'verified', label: dict.sidebar.approvals, href: '/approvals', appTypes: ['microlending', 'autofinance', 'goldloan'] },
-    { id: 'kyc-review', icon: 'rate_review', label: 'KYC Review Queue', href: '/kyc-review', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
-    { id: 'accounting', icon: 'account_balance_wallet', label: 'Accounting', href: '/accounting', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
+    { id: 'kyc-review', icon: 'rate_review', label: dict.sidebar.kycReview, href: '/kyc-review', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
+    { id: 'accounting', icon: 'account_balance_wallet', label: dict.sidebar.accounting, href: '/accounting', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
     { section: dict.sidebar.sections.insights },
-    { id: 'analytics', icon: 'insights', label: 'Reports & Analytics', href: '/analytics', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
+    { id: 'analytics', icon: 'insights', label: dict.sidebar.analytics, href: '/analytics', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
     { id: 'notifications', icon: 'notifications', label: dict.sidebar.notifications, href: '/notifications' },
     { id: 'settings', icon: 'settings', label: dict.sidebar.settings, href: '/settings', adminOnly: true },
     { section: dict.sidebar.sections.account },
-    { id: 'branch-requests', icon: 'account_tree', label: 'Branch Requests', href: '/branch-requests', superadminOnly: true },
+    { id: 'branch-requests', icon: 'account_tree', label: dict.sidebar.branchRequests, href: '/branch-requests', superadminOnly: true },
     { id: 'subscription', icon: 'credit_card', label: dict.sidebar.subscription, href: '/subscription', superadminOnly: true },
     { id: 'affiliate', icon: 'handshake', label: dict.sidebar.affiliate || 'Affiliate Program', href: '/affiliate', superadminOnly: true },
     { id: 'billing', icon: 'manage_accounts', label: dict.sidebar.billing, href: '/admin/billing', developerOnly: true },
@@ -206,7 +206,7 @@ export default function Sidebar({
               }}
             >
               <span className="material-icons-outlined" style={{ fontSize: '16px' }}>apps</span>
-              Back to Portal
+              {dict.sidebar.backToPortal}
             </Link>
           )}
         </div>

@@ -224,7 +224,13 @@ export async function middleware(request: NextRequest) {
   }
 
   // 3. Role-based Redirection
-  const role = typeof token.role === 'string' ? token.role : 'agent';
+  let role = typeof token.role === 'string' ? token.role : 'agent';
+  
+  // If the user is a developer but has a monitor-token, let them act as a superadmin for routing
+  if (role === 'developer' && request.cookies.has('monitor-token')) {
+    role = 'superadmin';
+  }
+
   const redirectTarget = getRoleRedirectTarget(
     pathname,
     role,

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:go_router/go_router.dart';
+
 import 'package:loantrack/core/a11y/voice_assist.dart';
 import 'package:loantrack/core/auth/auth_controller.dart';
 import 'package:loantrack/core/l10n/app_strings.dart';
@@ -9,6 +11,7 @@ import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/data/models/route_model.dart';
+import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/data/services/settings_service.dart';
 import 'package:loantrack/shared/widgets/bottom_nav.dart';
 import 'package:loantrack/shared/widgets/skeleton.dart';
@@ -80,7 +83,7 @@ class SettingsScreen extends ConsumerWidget {
             ),
             child: ref.watch(_routesProvider).when(
                   loading: () => const Skeleton(
-                      height: 80, borderRadius: AppTokens.radiusSm),
+                      height: 80, borderRadius: AppTokens.radiusSm,),
                   error: (e, _) => Text(
                     e.toString(),
                     style: AppTypography.body.copyWith(color: AppColors.danger),
@@ -105,6 +108,46 @@ class SettingsScreen extends ConsumerWidget {
             title: t.x('set.account'),
             child: Column(
               children: [
+                if (user?.role == UserRole.admin || user?.role == UserRole.developer) ...[
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.bolt_outlined, color: AppColors.primary),
+                    title: Text(t.x('set.penalty'), style: AppTypography.bodyLarge),
+                    subtitle: Text(t.x('set.penalty_subtitle'), style: AppTypography.caption),
+                    trailing: const Icon(Icons.chevron_right, color: AppColors.textLight),
+                    onTap: () => context.push('/settings/penalty'),
+                  ),
+                  const Divider(height: 1, color: AppColors.border),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.account_balance_wallet_outlined, color: AppColors.primary),
+                    title: Text(t.x('set.payment'), style: AppTypography.bodyLarge),
+                    subtitle: Text(t.x('set.payment_subtitle'), style: AppTypography.caption),
+                    trailing: const Icon(Icons.chevron_right, color: AppColors.textLight),
+                    onTap: () => context.push('/settings/payment'),
+                  ),
+                  const Divider(height: 1, color: AppColors.border),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.notifications_active_outlined, color: AppColors.primary),
+                    title: Text(t.x('set.notifications'), style: AppTypography.bodyLarge),
+                    subtitle: Text(t.x('set.notif_subtitle'), style: AppTypography.caption),
+                    trailing: const Icon(Icons.chevron_right, color: AppColors.textLight),
+                    onTap: () => context.push('/settings/notifications'),
+                  ),
+                  const Divider(height: 1, color: AppColors.border),
+                ],
+                if (user?.role == UserRole.developer) ...[
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.tune, color: AppColors.primary),
+                    title: Text(t.x('sys.title'), style: AppTypography.bodyLarge),
+                    subtitle: Text(t.x('sys.subtitle'), style: AppTypography.caption),
+                    trailing: const Icon(Icons.chevron_right, color: AppColors.textLight),
+                    onTap: () => context.push('/settings/system'),
+                  ),
+                  const Divider(height: 1, color: AppColors.border),
+                ],
                 _ActionRow(
                   icon: Icons.logout_rounded,
                   label: t.x('set.logout'),
@@ -255,7 +298,7 @@ class SettingsScreen extends ConsumerWidget {
 
 class _ProfileCard extends StatelessWidget {
   const _ProfileCard(
-      {required this.name, required this.email, required this.role});
+      {required this.name, required this.email, required this.role,});
   final String name, email, role;
 
   @override
@@ -343,7 +386,7 @@ class _RouteRow extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppTokens.radiusSm),
             ),
             child: const Icon(Icons.route_outlined,
-                color: AppColors.info, size: 18),
+                color: AppColors.info, size: 18,),
           ),
           const SizedBox(width: 12),
           Expanded(

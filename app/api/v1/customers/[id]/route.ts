@@ -66,6 +66,7 @@ async function findScopedCustomer(id: string, ctx: MobileTokenClaims) {
       kycDocuments: true,
       securityCheques: true,
       guarantors: true,
+      collectionPoints: true,
     },
   });
 }
@@ -106,7 +107,8 @@ export async function PATCH(
   if (auth.response) return auth.response;
   const ctx = auth.context;
 
-  if (!['admin', 'superadmin', 'developer'].includes(ctx.role)) {
+  // Agents may update customers on their own routes (findScopedCustomer enforces scope).
+  if (!['admin', 'superadmin', 'developer', 'agent'].includes(ctx.role)) {
     return fail('Forbidden', 403);
   }
 
@@ -131,9 +133,28 @@ export async function PATCH(
       }
     }
 
+    if (Array.isArray(body.collectionPoints)) {
+      const num = (v: unknown) =>
+        v === undefined || v === null || v === '' ? null : Number(v);
+      const cps = body.collectionPoints
+        .filter((cp: any) => cp?.name && cp?.address)
+        .map((cp: any) => ({
+          name: String(cp.name),
+          address: String(cp.address),
+          latitude: num(cp.latitude),
+          longitude: num(cp.longitude),
+          isPrimary: !!cp.isPrimary,
+        }));
+      data.collectionPoints = {
+        deleteMany: {},
+        create: cps,
+      };
+    }
+
     const updated = await prisma.customer.update({
       where: { id: existing.id },
       data,
+      include: { collectionPoints: true },
     });
 
     await writeAudit({

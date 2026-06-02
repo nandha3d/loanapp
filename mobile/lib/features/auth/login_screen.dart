@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -293,8 +294,8 @@ class _LoginCard extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            children: const [
+          const Row(
+            children: [
               Expanded(child: Divider(color: Colors.white10)),
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16),

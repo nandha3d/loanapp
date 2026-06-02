@@ -16,7 +16,7 @@ const _items = <NavItem>[
   NavItem(icon: Icons.people_outline, label: 'Customers', route: '/customers'),
   NavItem(icon: Icons.account_balance_wallet_outlined, label: 'Loans', route: '/loans'),
   NavItem(icon: Icons.payments_outlined, label: 'Collection', route: '/collection'),
-  NavItem(icon: Icons.location_on_outlined, label: 'Agents', route: '/tracking'),
+  NavItem(icon: Icons.grid_view_rounded, label: 'More', route: '/more'),
 ];
 
 class AppBottomNav extends StatelessWidget {

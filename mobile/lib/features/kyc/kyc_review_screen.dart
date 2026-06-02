@@ -169,7 +169,7 @@ class _KycCardState extends ConsumerState<_KycCard> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text('${item.docCount} ${t.x('kyc.docs')}',
-                    style: AppTypography.tiny.copyWith(color: AppColors.warning)),
+                    style: AppTypography.tiny.copyWith(color: AppColors.warning),),
               ),
             ],
           ),

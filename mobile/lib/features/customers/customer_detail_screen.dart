@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
-
-import 'package:loantrack/core/l10n/language_controller.dart';
+import 'dart:math' as math;
+import 'dart:ui' as ui;
+import 'package:url_launcher/url_launcher.dart';import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
@@ -412,8 +412,6 @@ class _RiskCard extends StatelessWidget {
   final Customer customer;
   final T t;
 
-  // Colors mirror the web gauge (lib/creditScoreGauge.ts) on the 300–850 scale,
-  // and the label is the server-provided grade — no client-side recomputation.
   ({String label, Color color, Color bg}) _band(CreditScore? cs) {
     if (cs == null || !cs.rated) {
       return (
@@ -447,87 +445,36 @@ class _RiskCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = customer.creditScore;
     final band = _band(cs);
-    // 300–850 mapped to a 0–1 ring, identical span to the web gauge.
-    final pct = (cs == null || !cs.rated)
-        ? 0.0
-        : ((cs.score - 300) / (850 - 300)).clamp(0.0, 1.0);
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppTokens.radius),
         boxShadow: AppTokens.shadow,
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          SizedBox(
-            width: 74,
-            height: 74,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                CircularProgressIndicator(
-                  value: pct,
-                  strokeWidth: 7,
-                  backgroundColor: band.bg,
-                  valueColor: AlwaysStoppedAnimation<Color>(band.color),
-                ),
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      (cs == null || !cs.rated) ? '—' : '${cs.score}',
-                      style: AppTypography.heroLabel.copyWith(
-                        fontSize: 20,
-                        color: band.color,
-                      ),
-                    ),
-                    Text(
-                      '/850',
-                      style: AppTypography.extraTiny.copyWith(
-                        color: AppColors.textLight,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(t.x('cust.risk_score'), style: AppTypography.sectionTitle),
+              const Icon(Icons.info_outline, color: AppColors.textLight, size: 18),
+            ],
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  t.x('cust.risk_score'),
-                  style: AppTypography.caption.copyWith(
-                    color: AppColors.textSecondary,
-                    letterSpacing: 0.4,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: band.bg,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    band.label,
-                    style: AppTypography.tiny.copyWith(color: band.color),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _explainer(cs),
-                  style: AppTypography.caption,
-                ),
-              ],
-            ),
+          const SizedBox(height: 32),
+          _ScoreMeter(
+            score: cs?.score ?? 0,
+            grade: band.label,
+            color: band.color,
+            isRated: cs?.rated ?? false,
+          ),
+          const SizedBox(height: 24),
+          Text(
+            _explainer(cs),
+            style: AppTypography.caption,
+            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -540,6 +487,117 @@ class _RiskCard extends StatelessWidget {
     if (cs.score >= 560) return t.x('cust.risk_explainer_medium');
     return t.x('cust.risk_explainer_high');
   }
+}
+
+class _ScoreMeter extends StatelessWidget {
+  const _ScoreMeter({
+    required this.score,
+    required this.grade,
+    required this.color,
+    required this.isRated,
+  });
+
+  final int score;
+  final String grade;
+  final Color color;
+  final bool isRated;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isRated) {
+      return Column(
+        children: [
+          const Icon(Icons.speed_rounded, size: 48, color: AppColors.textLight),
+          const SizedBox(height: 12),
+          Text(
+            grade.toUpperCase(),
+            style: AppTypography.caption.copyWith(color: AppColors.textLight, fontWeight: FontWeight.w800),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        SizedBox(
+          width: 180,
+          height: 90,
+          child: CustomPaint(
+            painter: _ScoreMeterPainter(score: score),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          grade.toUpperCase(),
+          style: AppTypography.caption.copyWith(color: color, fontWeight: FontWeight.w800),
+        ),
+      ],
+    );
+  }
+}
+
+class _ScoreMeterPainter extends CustomPainter {
+  _ScoreMeterPainter({required this.score});
+  final int score;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Rect.fromLTWH(0, 0, size.width, size.height * 2);
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 14
+      ..strokeCap = StrokeCap.butt;
+
+    // Draw arcs
+    paint.color = AppColors.danger;
+    canvas.drawArc(rect, math.pi, math.pi * 0.36, false, paint);
+    
+    paint.color = AppColors.warning;
+    canvas.drawArc(rect, math.pi + (math.pi * 0.36), math.pi * 0.27, false, paint);
+    
+    paint.color = AppColors.success;
+    canvas.drawArc(rect, math.pi + (math.pi * 0.63), math.pi * 0.37, false, paint);
+
+    // Calc pct for indicator
+    final double pct = ((score - 300) / (850 - 300)).clamp(0.0, 1.0);
+    final angle = math.pi + (math.pi * pct);
+    final radius = size.width / 2;
+    final center = Offset(size.width / 2, size.height);
+    
+    final indicatorX = center.dx + radius * math.cos(angle);
+    final indicatorY = center.dy + radius * math.sin(angle);
+
+    // Draw the white circle with colored border
+    final indicatorPaint = Paint()..color = Colors.white..style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(indicatorX, indicatorY), 10, indicatorPaint);
+    
+    final Color currentColor = pct < 0.36 ? AppColors.danger : (pct < 0.63 ? AppColors.warning : AppColors.success);
+    final borderPaint = Paint()..color = currentColor..style = PaintingStyle.stroke..strokeWidth = 4;
+    canvas.drawCircle(Offset(indicatorX, indicatorY), 10, borderPaint);
+
+    // Texts
+    final textPainter300 = TextPainter(
+      text: const TextSpan(text: '300', style: TextStyle(color: AppColors.textLight, fontSize: 11, fontWeight: FontWeight.bold)),
+      textDirection: ui.TextDirection.ltr,
+    )..layout();
+    textPainter300.paint(canvas, Offset(0, size.height + 8));
+
+    final textPainter850 = TextPainter(
+      text: const TextSpan(text: '850', style: TextStyle(color: AppColors.textLight, fontSize: 11, fontWeight: FontWeight.bold)),
+      textDirection: ui.TextDirection.ltr,
+    )..layout();
+    textPainter850.paint(canvas, Offset(size.width - textPainter850.width, size.height + 8));
+
+    // Main Score
+    final scorePainter = TextPainter(
+      text: TextSpan(text: '$score', style: const TextStyle(color: Color(0xFF111827), fontSize: 36, fontWeight: FontWeight.w900)),
+      textDirection: ui.TextDirection.ltr,
+    )..layout();
+    scorePainter.paint(canvas, Offset(center.dx - scorePainter.width / 2, size.height - scorePainter.height + 6));
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
 // ───────────────────────────── KPI strip ────────────────────────────

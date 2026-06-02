@@ -15,6 +15,7 @@ import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/data/repositories/dashboard_repository.dart';
 import 'package:loantrack/data/services/collection_service.dart';
 import 'package:loantrack/features/collection/quick_collect_sheet.dart';
+import 'package:loantrack/features/dashboard/widgets/collection_trend_card.dart';
 import 'package:loantrack/shared/widgets/bottom_nav.dart';
 import 'package:loantrack/shared/widgets/empty_state.dart';
 import 'package:loantrack/shared/widgets/skeleton.dart';
@@ -91,6 +92,8 @@ class _DashboardBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isAgent = ref.read(authControllerProvider).user?.role == UserRole.agent;
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       children: [
@@ -98,12 +101,25 @@ class _DashboardBody extends ConsumerWidget {
         const SizedBox(height: 14),
         _CollectionPager(summary: summary, fmt: fmt, t: t),
         const SizedBox(height: 14),
-        _MoneyFlowRow(summary: summary, t: t),
+        if (isAgent)
+          _AgentMetricsRow(summary: summary, fmt: fmt, t: t)
+        else
+          _MoneyFlowRow(summary: summary, t: t),
         const SizedBox(height: 14),
         _AlertsRow(summary: summary, t: t),
         const SizedBox(height: 18),
+        if (!isAgent) ...[
+          const CollectionTrendCard(),
+          const SizedBox(height: 18),
+        ],
         _QuickActions(t: t),
         const SizedBox(height: 18),
+        if (!isAgent) ...[
+          _DefaulterAlerts(summary: summary, fmt: fmt, t: t),
+          const SizedBox(height: 18),
+          _RoutePerformanceList(summary: summary, fmt: fmt, t: t),
+          const SizedBox(height: 18),
+        ],
         _UpNextPager(fmt: fmt, t: t),
         const SizedBox(height: 18),
         _ActivitySection(summary: summary, t: t),
@@ -1027,10 +1043,10 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(t.x('dash.all_done_title'),
-                              style: AppTypography.bodyLarge),
+                              style: AppTypography.bodyLarge,),
                           const SizedBox(height: 2),
                           Text(t.x('dash.all_done_sub'),
-                              style: AppTypography.caption),
+                              style: AppTypography.caption,),
                         ],
                       ),
                     ),
@@ -1262,7 +1278,7 @@ class _ActivitySection extends StatelessWidget {
   Widget build(BuildContext context) {
     return _Section(
       title: t.x('dash.recent_activity'),
-      child: summary.recentLoans.isEmpty
+      child: summary.recentActivity.isEmpty
           ? SizedBox(
               height: 100,
               child: EmptyState(
@@ -1272,25 +1288,25 @@ class _ActivitySection extends StatelessWidget {
             )
           : Column(
               children: [
-                for (final l in summary.recentLoans)
+                for (final a in summary.recentActivity)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 10),
                     child: Row(
                       children: [
-                        _Avatar(name: l.customerName, size: 36),
+                        _Avatar(name: a.userName, size: 36),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                l.customerName,
+                                a.userName,
                                 style: AppTypography.bodyLarge,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
                               Text(
-                                '${t.x('dash.new_loan_for')} ${l.loanCode}',
+                                '${a.action} ${a.resource}',
                                 style: AppTypography.caption,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -1299,7 +1315,7 @@ class _ActivitySection extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          _relTime(l.createdAt, t),
+                          _relTime(a.createdAt, t),
                           style: AppTypography.extraTiny,
                         ),
                       ],
@@ -1324,8 +1340,7 @@ class _Section extends StatelessWidget {
   const _Section({
     required this.title,
     required this.child,
-    this.trailing,
-  });
+  }) : trailing = null;
   final String title;
   final Widget child;
   final Widget? trailing;
@@ -1426,6 +1441,174 @@ String _speakAmount(double amount) {
   return '$rounded rupees';
 }
 
+class _AgentMetricsRow extends StatelessWidget {
+  const _AgentMetricsRow({required this.summary, required this.fmt, required this.t});
+  final DashboardSummary summary;
+  final NumberFormat fmt;
+  final T t;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _StatTile(
+            icon: Icons.account_circle,
+            iconColor: AppColors.info,
+            iconBg: AppColors.infoBg,
+            label: t.x('dash.customers'),
+            value: '${summary.totalCustomers}',
+            sub: t.x('dash.my_customers'),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _StatTile(
+            icon: Icons.check_circle,
+            iconColor: AppColors.success,
+            iconBg: AppColors.successBg,
+            label: t.x('an.hit_rate'),
+            value: '${summary.hitRate}%',
+            sub: '${fmt.format(summary.todayPending)} ${t.x('dash.remaining')}',
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DefaulterAlerts extends StatelessWidget {
+  const _DefaulterAlerts({required this.summary, required this.fmt, required this.t});
+  final DashboardSummary summary;
+  final NumberFormat fmt;
+  final T t;
+
+  @override
+  Widget build(BuildContext context) {
+    if (summary.defaulterAlerts.isEmpty) return const SizedBox.shrink();
+
+    return _Section(
+      title: t.x('dash.at_risk_loans'),
+      child: Column(
+        children: [
+          for (final alert in summary.defaulterAlerts)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Row(
+                children: [
+                  _Avatar(name: alert.customerName, size: 36),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          alert.customerName,
+                          style: AppTypography.bodyLarge,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          alert.customerCode,
+                          style: AppTypography.caption,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        fmt.format(alert.overdueAmount),
+                        style: AppTypography.label.copyWith(color: AppColors.danger),
+                      ),
+                      Text(
+                        t.x('dash.overdue_loans'),
+                        style: AppTypography.extraTiny,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RoutePerformanceList extends StatelessWidget {
+  const _RoutePerformanceList({required this.summary, required this.fmt, required this.t});
+  final DashboardSummary summary;
+  final NumberFormat fmt;
+  final T t;
+
+  @override
+  Widget build(BuildContext context) {
+    if (summary.routePerformance.isEmpty) return const SizedBox.shrink();
+
+    return _Section(
+      title: t.x('dash.route_performance'),
+      child: Column(
+        children: [
+          for (final rp in summary.routePerformance)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryLight,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.route, color: AppColors.primaryDark, size: 20),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          rp.name,
+                          style: AppTypography.bodyLarge,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          '${rp.customers} ${t.x('dash.customers_suffix')}',
+                          style: AppTypography.caption,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        fmt.format(rp.overdue),
+                        style: AppTypography.label.copyWith(color: AppColors.danger),
+                      ),
+                      Text(
+                        t.x('status.overdue'),
+                        style: AppTypography.extraTiny,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _LoadingSkeleton extends StatelessWidget {
   const _LoadingSkeleton();
 
@@ -1488,6 +1671,29 @@ class _SideDrawer extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
+    final user = ref.watch(authControllerProvider).user;
+
+    final privileged = user?.role == UserRole.admin ||
+        user?.role == UserRole.superadmin ||
+        user?.role == UserRole.developer;
+
+    bool can(String? moduleKey, {bool adminOnly = false}) {
+      if (adminOnly && !privileged) return false;
+      if (moduleKey == null) return true;
+      if (privileged) return true;
+      if (user == null) return false;
+      if (user.enabledModules.isNotEmpty) return user.hasModule(moduleKey);
+      // RBAC fallback
+      switch (moduleKey) {
+        case 'approvals':
+        case 'analytics':
+        case 'settings':
+          return user.role != UserRole.agent;
+        default:
+          return true;
+      }
+    }
+
     return Drawer(
       backgroundColor: AppColors.sidebarBg,
       child: SafeArea(
@@ -1546,46 +1752,53 @@ class _SideDrawer extends ConsumerWidget {
               label: t.x('title.penalties'),
               onTap: () => context.go('/penalties'),
             ),
-            _DrawerLink(
-              icon: Icons.fact_check_outlined,
-              label: t.x('title.approvals'),
-              onTap: () => context.go('/approvals'),
-            ),
-            _DrawerLink(
-              icon: Icons.verified_user_outlined,
-              label: t.x('kyc.title'),
-              onTap: () => context.go('/kyc-review'),
-            ),
-            _DrawerLink(
-              icon: Icons.savings_outlined,
-              label: t.x('title.chits'),
-              onTap: () => context.go('/chits'),
-            ),
-            _DrawerSection(label: t.x('drawer.section_insights')),
-            if (ref.watch(authControllerProvider).user?.role == UserRole.admin || 
-                ref.watch(authControllerProvider).user?.role == UserRole.superadmin || 
-                ref.watch(authControllerProvider).user?.role == UserRole.developer)
+            if (can('approvals'))
               _DrawerLink(
-                icon: Icons.map_outlined,
-                label: t.x('admin.agent_tracking'),
-                onTap: () => context.go('/tracking'),
+                icon: Icons.fact_check_outlined,
+                label: t.x('title.approvals'),
+                onTap: () => context.go('/approvals'),
               ),
-            _DrawerLink(
-              icon: Icons.bar_chart_rounded,
-              label: t.x('title.analytics'),
-              onTap: () => context.go('/analytics'),
-            ),
-            _DrawerLink(
-              icon: Icons.account_balance_outlined,
-              label: t.x('title.accounting'),
-              onTap: () => context.go('/accounting'),
-            ),
-            _DrawerSection(label: t.x('drawer.section_account')),
-            _DrawerLink(
-              icon: Icons.settings_outlined,
-              label: t.x('set.title'),
-              onTap: () => context.go('/settings'),
-            ),
+            if (can(null, adminOnly: true))
+              _DrawerLink(
+                icon: Icons.verified_user_outlined,
+                label: t.x('kyc.title'),
+                onTap: () => context.go('/kyc-review'),
+              ),
+            if (can('chits'))
+              _DrawerLink(
+                icon: Icons.savings_outlined,
+                label: t.x('title.chits'),
+                onTap: () => context.go('/chits'),
+              ),
+            if (privileged || can('analytics') || can('accounting')) ...[
+              _DrawerSection(label: t.x('drawer.section_insights')),
+              if (privileged)
+                _DrawerLink(
+                  icon: Icons.map_outlined,
+                  label: t.x('admin.agent_tracking'),
+                  onTap: () => context.go('/tracking'),
+                ),
+              if (can('analytics'))
+                _DrawerLink(
+                  icon: Icons.bar_chart_rounded,
+                  label: t.x('title.analytics'),
+                  onTap: () => context.go('/analytics'),
+                ),
+              if (can('accounting'))
+                _DrawerLink(
+                  icon: Icons.account_balance_outlined,
+                  label: t.x('title.accounting'),
+                  onTap: () => context.go('/accounting'),
+                ),
+            ],
+            if (can('settings')) ...[
+              _DrawerSection(label: t.x('drawer.section_account')),
+              _DrawerLink(
+                icon: Icons.settings_outlined,
+                label: t.x('set.title'),
+                onTap: () => context.go('/settings'),
+              ),
+            ],
             const Spacer(),
             const Divider(color: Colors.white12, height: 1),
             ListTile(

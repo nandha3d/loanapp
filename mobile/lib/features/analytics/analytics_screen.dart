@@ -59,14 +59,14 @@ class AnalyticsScreen extends ConsumerWidget {
             const SizedBox(height: 16),
             ref.watch(_collectionsProvider).when(
                   loading: () => const Skeleton(
-                      height: 220, borderRadius: AppTokens.radius),
+                      height: 220, borderRadius: AppTokens.radius,),
                   error: (e, _) => _ErrorCard(message: e.toString()),
                   data: (pts) => _CollectionChart(points: pts),
                 ),
             const SizedBox(height: 16),
             ref.watch(_agentsProvider).when(
                   loading: () => const Skeleton(
-                      height: 180, borderRadius: AppTokens.radius),
+                      height: 180, borderRadius: AppTokens.radius,),
                   error: (e, _) => _ErrorCard(message: e.toString()),
                   data: (agents) => _AgentLeaderboard(agents: agents, fmt: fmt),
                 ),
@@ -154,7 +154,7 @@ class _CollectionChart extends ConsumerWidget {
           boxShadow: AppTokens.shadow,
         ),
         child: EmptyState(
-            icon: Icons.bar_chart_outlined, title: t.x('an.no_data_yet')),
+            icon: Icons.bar_chart_outlined, title: t.x('an.no_data_yet'),),
       );
     }
 
@@ -189,7 +189,7 @@ class _CollectionChart extends ConsumerWidget {
           Row(
             children: [
               Text(t.x('an.collection_trend'),
-                  style: AppTypography.sectionTitle),
+                  style: AppTypography.sectionTitle,),
               const Spacer(),
               _Legend(color: const Color(0xFFCBD5E1), label: t.x('an.expected')),
               const SizedBox(width: 12),
@@ -212,11 +212,11 @@ class _CollectionChart extends ConsumerWidget {
                 borderData: FlBorderData(show: false),
                 titlesData: FlTitlesData(
                   leftTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false)),
+                      sideTitles: SideTitles(showTitles: false),),
                   rightTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false)),
+                      sideTitles: SideTitles(showTitles: false),),
                   topTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false)),
+                      sideTitles: SideTitles(showTitles: false),),
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
@@ -224,8 +224,9 @@ class _CollectionChart extends ConsumerWidget {
                       reservedSize: 22,
                       getTitlesWidget: (value, _) {
                         final idx = value.toInt();
-                        if (idx < 0 || idx >= labels.length)
+                        if (idx < 0 || idx >= labels.length) {
                           return const SizedBox.shrink();
+                        }
                         return Padding(
                           padding: const EdgeInsets.only(top: 6),
                           child:
@@ -297,7 +298,7 @@ class _AgentLeaderboard extends ConsumerWidget {
           boxShadow: AppTokens.shadow,
         ),
         child: EmptyState(
-            icon: Icons.leaderboard_outlined, title: t.x('an.no_agent_data')),
+            icon: Icons.leaderboard_outlined, title: t.x('an.no_agent_data'),),
       );
     }
 
@@ -312,7 +313,7 @@ class _AgentLeaderboard extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(t.x('an.agent_leaderboard'),
-              style: AppTypography.sectionTitle),
+              style: AppTypography.sectionTitle,),
           const SizedBox(height: 16),
           ...agents.asMap().entries.map(
                 (e) => _AgentRow(rank: e.key + 1, agent: e.value, fmt: fmt),
@@ -400,7 +401,7 @@ class _AgentRow extends ConsumerWidget {
                 ),
                 const SizedBox(height: 3),
                 Text('${agent.hitRate}% ${t.x('an.hit_rate')}',
-                    style: AppTypography.caption),
+                    style: AppTypography.caption,),
               ],
             ),
           ),
@@ -419,20 +420,20 @@ class _KpiSkeleton extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                  child: Skeleton(height: 80, borderRadius: AppTokens.radius)),
+                  child: Skeleton(height: 80, borderRadius: AppTokens.radius),),
               SizedBox(width: 12),
               Expanded(
-                  child: Skeleton(height: 80, borderRadius: AppTokens.radius)),
+                  child: Skeleton(height: 80, borderRadius: AppTokens.radius),),
             ],
           ),
           SizedBox(height: 12),
           Row(
             children: [
               Expanded(
-                  child: Skeleton(height: 80, borderRadius: AppTokens.radius)),
+                  child: Skeleton(height: 80, borderRadius: AppTokens.radius),),
               SizedBox(width: 12),
               Expanded(
-                  child: Skeleton(height: 80, borderRadius: AppTokens.radius)),
+                  child: Skeleton(height: 80, borderRadius: AppTokens.radius),),
             ],
           ),
         ],

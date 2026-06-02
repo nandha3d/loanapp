@@ -8,6 +8,7 @@ import { getActiveBranchId } from '@/lib/branch';
 import { CollectCashButton, VerifyUpiButton, BulkVerifyUpiButton } from './DashboardActions';
 import CollectionTrendChart from './CollectionTrendChart';
 import { ensurePendingPenaltiesForMissedLoans } from '@/lib/penalties';
+import { getDictionary } from '@/lib/i18n';
 
 type DashboardInstalment = {
   id: string;
@@ -760,6 +761,8 @@ export default async function DashboardPage() {
   if (appType === 'chitfunds') redirect('/chits');
 
   const branding = await getBranding(tenantId);
+  const dict = await getDictionary(tenantId);
+  const d = dict.dashboard;
 
   const activeBranchId = await getActiveBranchId();
 
@@ -775,7 +778,7 @@ export default async function DashboardPage() {
             </div>
             <div>
               <div className="kpi-value" style={{ color: '#fff' }}>{chitData.totalChitGroups}</div>
-              <div className="kpi-label" style={{ color: 'rgba(255,255,255,0.8)' }}>Active Chit Groups</div>
+              <div className="kpi-label" style={{ color: 'rgba(255,255,255,0.8)' }}>{dict.chits.activeGroups}</div>
             </div>
           </div>
 
@@ -785,7 +788,7 @@ export default async function DashboardPage() {
             </div>
             <div>
               <div className="kpi-value" style={{ color: '#fff' }}>{chitData.totalMembers}</div>
-              <div className="kpi-label" style={{ color: 'rgba(255,255,255,0.8)' }}>Total Subscribers</div>
+              <div className="kpi-label" style={{ color: 'rgba(255,255,255,0.8)' }}>{dict.chits.totalMembers}</div>
             </div>
           </div>
 
@@ -795,7 +798,7 @@ export default async function DashboardPage() {
             </div>
             <div>
               <div className="kpi-value" style={{ color: '#fff' }}>{chitData.auctionsThisMonth}</div>
-              <div className="kpi-label" style={{ color: 'rgba(255,255,255,0.8)' }}>Auctions This Month</div>
+              <div className="kpi-label" style={{ color: 'rgba(255,255,255,0.8)' }}>{dict.chits.auctionsDone}</div>
             </div>
           </div>
 
@@ -805,7 +808,7 @@ export default async function DashboardPage() {
             </div>
             <div>
               <div className="kpi-value" style={{ color: '#fff' }}>{chitData.pendingApprovals}</div>
-              <div className="kpi-label" style={{ color: 'rgba(255,255,255,0.8)' }}>Pending Approvals</div>
+              <div className="kpi-label" style={{ color: 'rgba(255,255,255,0.8)' }}>{d.pendingApprovals}</div>
             </div>
           </div>
         </div>
@@ -816,7 +819,7 @@ export default async function DashboardPage() {
             <div className="kpi-icon green"><span className="material-icons-outlined">trending_up</span></div>
             <div>
               <div className="kpi-value">{formatCurrency(chitData.todayExpected, branding.currencySymbol)}</div>
-              <div className="kpi-label">Today's Expected Subscriptions</div>
+              <div className="kpi-label">{d.expectedCollection}</div>
             </div>
           </div>
 
@@ -824,7 +827,7 @@ export default async function DashboardPage() {
             <div className="kpi-icon orange"><span className="material-icons-outlined">account_balance_wallet</span></div>
             <div>
               <div className="kpi-value">{formatCurrency(chitData.todayCollected, branding.currencySymbol)}</div>
-              <div className="kpi-label">Subscriptions Collected Today</div>
+              <div className="kpi-label">{d.actualCollected}</div>
             </div>
           </div>
 
@@ -832,7 +835,7 @@ export default async function DashboardPage() {
             <div className="kpi-icon red"><span className="material-icons-outlined">trending_down</span></div>
             <div>
               <div className="kpi-value">{formatCurrency(chitData.todayGap, branding.currencySymbol)}</div>
-              <div className="kpi-label">Today's Balance Due</div>
+              <div className="kpi-label">{d.collectionGap}</div>
             </div>
           </div>
 
@@ -840,7 +843,7 @@ export default async function DashboardPage() {
             <div className="kpi-icon red"><span className="material-icons-outlined">warning</span></div>
             <div>
               <div className="kpi-value">{formatCurrency(chitData.totalOverdueAmount, branding.currencySymbol)}</div>
-              <div className="kpi-label">Total Overdue Contributions</div>
+              <div className="kpi-label">{d.totalOverdueAmount}</div>
             </div>
           </div>
         </div>
@@ -849,18 +852,18 @@ export default async function DashboardPage() {
         <div className="grid-60-40" style={{ marginTop: '20px' }}>
           <div className="card">
             <div className="card-header">
-              <h3>Overdue Chit Subscriptions</h3>
-              <Link href="/chits" className="btn btn-ghost btn-sm">View All Groups</Link>
+              <h3>{d.defaulterAlerts}</h3>
+              <Link href="/chits" className="btn btn-ghost btn-sm">{d.viewAll}</Link>
             </div>
             {chitData.overdueSubscriptions.length > 0 ? (
               <div className="table-wrapper">
                 <table>
                   <thead>
                     <tr>
-                      <th>Subscriber</th>
-                      <th>Chit Group</th>
-                      <th>Due Date</th>
-                      <th>Overdue</th>
+                      <th>{dict.chits.member}</th>
+                      <th>{dict.chits.chitFundGroups}</th>
+                      <th>{dict.collection.dueDate}</th>
+                      <th>{dict.loansList.overdue}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -882,22 +885,22 @@ export default async function DashboardPage() {
             ) : (
               <div className="empty-state" style={{ padding: '24px' }}>
                 <span className="material-icons-outlined" style={{ fontSize: '36px', color: 'var(--success)' }}>check_circle</span>
-                <p style={{ marginTop: '8px', fontSize: '.85rem', color: 'var(--text-secondary)' }}>All chit subscriptions up to date!</p>
+                <p style={{ marginTop: '8px', fontSize: '.85rem', color: 'var(--text-secondary)' }}>{d.noDefaulters}</p>
               </div>
             )}
           </div>
 
           <div className="card">
             <div className="card-header">
-              <h3>Active Chit Groups</h3>
+              <h3>{dict.chits.activeGroups}</h3>
             </div>
             <div className="table-wrapper">
               <table>
                 <thead>
                   <tr>
-                    <th>Group Name</th>
-                    <th style={{ textAlign: 'center' }}>Members</th>
-                    <th style={{ textAlign: 'right' }}>Chit Value</th>
+                    <th>{dict.chits.name}</th>
+                    <th style={{ textAlign: 'center' }}>{dict.chits.members}</th>
+                    <th style={{ textAlign: 'right' }}>{dict.chits.chitValue}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -925,7 +928,7 @@ export default async function DashboardPage() {
 
         {/* Activity Feed */}
         <div style={{ marginTop: '20px' }} className="card">
-          <div className="card-header"><h3>Recent System Activity</h3></div>
+          <div className="card-header"><h3>{d.recentActivity}</h3></div>
           {chitData.recentActivity.length > 0 ? (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '15px', padding: '10px 0' }}>
               {chitData.recentActivity.slice(0, 4).map((log) => (
@@ -966,7 +969,7 @@ export default async function DashboardPage() {
             </div>
             <div>
               <div className="kpi-value" style={{ color: '#fff' }}>{formatCurrency(agentData.todayExpected, branding.currencySymbol)}</div>
-              <div className="kpi-label" style={{ color: 'rgba(255,255,255,0.8)' }}>My Expected Collection</div>
+              <div className="kpi-label" style={{ color: 'rgba(255,255,255,0.8)' }}>{d.myExpected}</div>
             </div>
           </div>
 
@@ -976,7 +979,7 @@ export default async function DashboardPage() {
             </div>
             <div>
               <div className="kpi-value" style={{ color: '#fff' }}>{formatCurrency(agentData.todayCollected, branding.currencySymbol)}</div>
-              <div className="kpi-label" style={{ color: 'rgba(255,255,255,0.8)' }}>My Collected Today</div>
+              <div className="kpi-label" style={{ color: 'rgba(255,255,255,0.8)' }}>{d.myCollected}</div>
             </div>
           </div>
 
@@ -986,7 +989,7 @@ export default async function DashboardPage() {
             </div>
             <div>
               <div className="kpi-value" style={{ color: '#fff' }}>{formatCurrency(agentData.todayGap, branding.currencySymbol)}</div>
-              <div className="kpi-label" style={{ color: 'rgba(255,255,255,0.8)' }}>My Remaining Balance</div>
+              <div className="kpi-label" style={{ color: 'rgba(255,255,255,0.8)' }}>{d.myRemaining}</div>
             </div>
           </div>
 
@@ -996,7 +999,7 @@ export default async function DashboardPage() {
             </div>
             <div>
               <div className="kpi-value" style={{ color: '#fff' }}>{agentData.totalCustomers}</div>
-              <div className="kpi-label" style={{ color: 'rgba(255,255,255,0.8)' }}>My Active Customers</div>
+              <div className="kpi-label" style={{ color: 'rgba(255,255,255,0.8)' }}>{d.myActiveCustomers}</div>
             </div>
           </div>
         </div>
@@ -1013,7 +1016,7 @@ export default async function DashboardPage() {
             <div style={{ padding: '20px' }}>
               <div style={{ marginBottom: '24px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span style={{ fontWeight: 600, color: '#475569', fontSize: '0.9rem' }}>Today's Progress</span>
+                  <span style={{ fontWeight: 600, color: '#475569', fontSize: '0.9rem' }}>{d.todayCollection}</span>
                   <span style={{ fontWeight: 700, color: '#1D4ED8', fontSize: '1rem' }}>{progressPct}% Completed</span>
                 </div>
                 <div style={{ width: '100%', height: '12px', background: '#e2e8f0', borderRadius: '6px', overflow: 'hidden' }}>
@@ -1034,16 +1037,16 @@ export default async function DashboardPage() {
             <div className="card-header" style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '15px' }}>
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#1e293b' }}>
                 <span className="material-icons-outlined" style={{ color: '#BE185D' }}>map</span>
-                Assigned Routes
+                {d.routePerformance}
               </h3>
             </div>
             <div className="table-wrapper" style={{ padding: '10px 0' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Route Name</th>
-                    <th style={{ textAlign: 'center', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Customers</th>
-                    <th style={{ textAlign: 'right', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Total Overdue</th>
+                    <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>{dict.reports.route}</th>
+                    <th style={{ textAlign: 'center', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>{dict.sidebar.customers}</th>
+                    <th style={{ textAlign: 'right', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>{d.totalOverdue}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1080,18 +1083,18 @@ export default async function DashboardPage() {
             <div className="card-header" style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '15px' }}>
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#1e293b' }}>
                 <span className="material-icons-outlined" style={{ color: '#F59E0B' }}>verified</span>
-                My Recent Edit/Creation Requests
+                {dict.approvals.generalRequests}
               </h3>
-              <Link href="/approvals" className="btn btn-ghost btn-sm" style={{ color: '#3B82F6' }}>View All</Link>
+              <Link href="/approvals" className="btn btn-ghost btn-sm" style={{ color: '#3B82F6' }}>{d.viewAll}</Link>
             </div>
             <div className="table-wrapper">
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b' }}>Request Type</th>
-                    <th style={{ textAlign: 'center', padding: '12px 16px', color: '#64748b' }}>Submitted At</th>
-                    <th style={{ textAlign: 'center', padding: '12px 16px', color: '#64748b' }}>Status</th>
-                    <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b' }}>Reviewer Note</th>
+                    <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b' }}>{dict.approvals.entityType}</th>
+                    <th style={{ textAlign: 'center', padding: '12px 16px', color: '#64748b' }}>{dict.approvals.date}</th>
+                    <th style={{ textAlign: 'center', padding: '12px 16px', color: '#64748b' }}>{dict.approvals.status}</th>
+                    <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b' }}>{dict.approvals.reviewNotes}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1139,7 +1142,7 @@ export default async function DashboardPage() {
             <div className="card-header" style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '15px' }}>
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--danger)' }}>
                 <span className="material-icons-outlined">warning</span>
-                My Overdue Alerts
+                {d.overdueAlerts}
               </h3>
             </div>
             <div style={{ padding: '16px 0' }}>
@@ -1160,7 +1163,7 @@ export default async function DashboardPage() {
               {agentData.overdueInstalments.length === 0 && (
                 <div style={{ padding: '32px', textAlign: 'center', color: 'var(--success)' }}>
                   <span className="material-icons-outlined" style={{ fontSize: '36px' }}>check_circle</span>
-                  <p style={{ marginTop: '8px', fontSize: '0.85rem', fontWeight: 600 }}>All collections up to date!</p>
+                  <p style={{ marginTop: '8px', fontSize: '0.85rem', fontWeight: 600 }}>{d.noDefaulters}</p>
                 </div>
               )}
             </div>
@@ -1195,7 +1198,7 @@ export default async function DashboardPage() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span className="material-icons-outlined" style={{ color: 'var(--primary)', fontSize: '20px' }}>today</span>
-              <span style={{ fontWeight: 700, fontSize: '1rem', color: '#1e293b' }}>Today's Collection</span>
+              <span style={{ fontWeight: 700, fontSize: '1rem', color: '#1e293b' }}>{d.todayCollection}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: collectedPct >= 100 ? '#dcfce7' : collectedPct > 50 ? '#fef3c7' : '#fee2e2', padding: '4px 12px', borderRadius: '20px' }}>
               <span className="material-icons-outlined" style={{ fontSize: '14px', color: collectedPct >= 100 ? '#16a34a' : collectedPct > 50 ? '#d97706' : '#dc2626' }}>
@@ -1211,14 +1214,14 @@ export default async function DashboardPage() {
             <div style={{ background: '#fff', borderRadius: '12px', padding: '14px 16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
                 <span className="material-icons-outlined" style={{ fontSize: '16px', color: '#64748b' }}>trending_up</span>
-                <span style={{ fontSize: '.72rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Expected</span>
+                <span style={{ fontSize: '.72rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>{dict.reports.expected}</span>
               </div>
               <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#1e293b' }}>{formatCurrency(data.todayExpected, branding.currencySymbol)}</div>
             </div>
             <div style={{ background: '#f0fdf4', borderRadius: '12px', padding: '14px 16px', border: '1px solid #bbf7d0', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
                 <span className="material-icons-outlined" style={{ fontSize: '16px', color: '#16a34a' }}>check_circle</span>
-                <span style={{ fontSize: '.72rem', color: '#16a34a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Collected</span>
+                <span style={{ fontSize: '.72rem', color: '#16a34a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>{dict.reports.collected}</span>
               </div>
               <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#15803d' }}>{formatCurrency(data.todayCollected, branding.currencySymbol)}</div>
             </div>
@@ -1227,7 +1230,7 @@ export default async function DashboardPage() {
                 <span className="material-icons-outlined" style={{ fontSize: '16px', color: data.todayGap > 0 ? '#dc2626' : '#16a34a' }}>
                   {data.todayGap > 0 ? 'pending' : 'check_circle'}
                 </span>
-                <span style={{ fontSize: '.72rem', color: data.todayGap > 0 ? '#dc2626' : '#16a34a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Remaining</span>
+                <span style={{ fontSize: '.72rem', color: data.todayGap > 0 ? '#dc2626' : '#16a34a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>{dict.loanDetail.remaining}</span>
               </div>
               <div style={{ fontSize: '1.35rem', fontWeight: 700, color: data.todayGap > 0 ? '#b91c1c' : '#15803d' }}>{formatCurrency(data.todayGap, branding.currencySymbol)}</div>
             </div>
@@ -1257,7 +1260,7 @@ export default async function DashboardPage() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span className="material-icons-outlined" style={{ color: '#dc2626', fontSize: '20px' }}>warning_amber</span>
-              <span style={{ fontWeight: 700, fontSize: '1rem', color: '#1e293b' }}>Overdue Collection</span>
+              <span style={{ fontWeight: 700, fontSize: '1rem', color: '#1e293b' }}>{d.overdueCollection}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: overduePct >= 100 ? '#dcfce7' : '#fee2e2', padding: '4px 12px', borderRadius: '20px' }}>
               <span className="material-icons-outlined" style={{ fontSize: '14px', color: overduePct >= 100 ? '#16a34a' : '#dc2626' }}>
@@ -1277,14 +1280,14 @@ export default async function DashboardPage() {
             <div style={{ background: '#fff', borderRadius: '12px', padding: '14px 16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
                 <span className="material-icons-outlined" style={{ fontSize: '16px', color: '#64748b' }}>receipt_long</span>
-                <span style={{ fontSize: '.72rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Total Overdue</span>
+                <span style={{ fontSize: '.72rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>{d.totalOverdue}</span>
               </div>
               <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#1e293b' }}>{formatCurrency(data.overdueTotalTillToday, branding.currencySymbol)}</div>
             </div>
             <div style={{ background: '#f0fdf4', borderRadius: '12px', padding: '14px 16px', border: '1px solid #bbf7d0', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
                 <span className="material-icons-outlined" style={{ fontSize: '16px', color: '#16a34a' }}>check_circle</span>
-                <span style={{ fontSize: '.72rem', color: '#16a34a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Collected Today</span>
+                <span style={{ fontSize: '.72rem', color: '#16a34a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>{d.collectedToday}</span>
               </div>
               <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#15803d' }}>{formatCurrency(data.overdueCollectedToday, branding.currencySymbol)}</div>
             </div>
@@ -1293,7 +1296,7 @@ export default async function DashboardPage() {
                 <span className="material-icons-outlined" style={{ fontSize: '16px', color: data.overdueAmount > 0 ? '#dc2626' : '#16a34a' }}>
                   {data.overdueAmount > 0 ? 'pending' : 'check_circle'}
                 </span>
-                <span style={{ fontSize: '.72rem', color: data.overdueAmount > 0 ? '#dc2626' : '#16a34a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Remaining</span>
+                <span style={{ fontSize: '.72rem', color: data.overdueAmount > 0 ? '#dc2626' : '#16a34a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>{dict.loanDetail.remaining}</span>
               </div>
               <div style={{ fontSize: '1.35rem', fontWeight: 700, color: data.overdueAmount > 0 ? '#b91c1c' : '#15803d' }}>{formatCurrency(data.overdueAmount, branding.currencySymbol)}</div>
             </div>
@@ -1323,28 +1326,28 @@ export default async function DashboardPage() {
           <div className="kpi-icon blue"><span className="material-icons-outlined">groups</span></div>
           <div>
             <div className="kpi-value">{data.totalCustomers}</div>
-            <div className="kpi-label">Active Customers</div>
+            <div className="kpi-label">{d.activeCustomers}</div>
           </div>
         </Link>
         <Link href="/collection?tab=overdue" className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>
           <div className="kpi-icon red"><span className="material-icons-outlined">warning</span></div>
           <div>
             <div className="kpi-value">{data.overdueCustomerCount}</div>
-            <div className="kpi-label">Overdue Customers</div>
+            <div className="kpi-label">{d.overdueCustomers}</div>
           </div>
         </Link>
         <Link href="/collection?tab=overdue" className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>
           <div className="kpi-icon red"><span className="material-icons-outlined">currency_rupee</span></div>
           <div>
             <div className="kpi-value">{formatCurrency(data.overdueAmount, branding.currencySymbol)}</div>
-            <div className="kpi-label">Total Overdue Amount</div>
+            <div className="kpi-label">{d.totalOverdueAmount}</div>
           </div>
         </Link>
         <Link href="/penalties?status=pending" className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>
           <div className="kpi-icon purple"><span className="material-icons-outlined">gavel</span></div>
           <div>
             <div className="kpi-value">{formatCurrency(data.pendingPenaltyTotal, branding.currencySymbol)}</div>
-            <div className="kpi-label">Penalty Accumulated</div>
+            <div className="kpi-label">{d.penaltyAccumulated}</div>
           </div>
         </Link>
       </div>
@@ -1354,14 +1357,14 @@ export default async function DashboardPage() {
           <div className="kpi-icon blue"><span className="material-icons-outlined">approval</span></div>
           <div>
             <div className="kpi-value">{data.pendingApprovals}</div>
-            <div className="kpi-label">Pending Approvals</div>
+            <div className="kpi-label">{d.pendingApprovals}</div>
           </div>
         </Link>
         <Link href="/accounting" className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>
           <div className={`kpi-icon ${data.currentCapital >= 0 ? 'green' : 'red'}`}><span className="material-icons-outlined">savings</span></div>
           <div>
             <div className="kpi-value">{formatCurrency(data.currentCapital, branding.currencySymbol)}</div>
-            <div className="kpi-label">Capital Balance</div>
+            <div className="kpi-label">{dict.analytics.capitalBalance}</div>
             {data.pendingFieldFloat > 0 && (
               <div style={{ fontSize: '.7rem', color: 'var(--warning)', marginTop: '2px', fontWeight: 600 }}>
                 + {formatCurrency(data.pendingFieldFloat, branding.currencySymbol)} pending field float
@@ -1375,7 +1378,7 @@ export default async function DashboardPage() {
           </div>
           <div>
             <div className="kpi-value">{formatCurrency(data.totalDisbursed, branding.currencySymbol)}</div>
-            <div className="kpi-label">Total Disbursed</div>
+            <div className="kpi-label">{dict.analytics.totalDisbursed}</div>
           </div>
         </Link>
         <Link href="/accounting" className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>
@@ -1384,7 +1387,7 @@ export default async function DashboardPage() {
           </div>
           <div>
             <div className="kpi-value">{formatCurrency(data.totalCollectedAllTime, branding.currencySymbol)}</div>
-            <div className="kpi-label">Total Collected (All Time)</div>
+            <div className="kpi-label">{d.totalCollectedAllTime}</div>
           </div>
         </Link>
       </div>
@@ -1394,7 +1397,7 @@ export default async function DashboardPage() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span className="material-icons-outlined" style={{ color: 'var(--primary)', fontSize: '20px' }}>donut_small</span>
-            <span style={{ fontWeight: 700, fontSize: '1rem', color: '#1e293b' }}>Today's Collection Split</span>
+            <span style={{ fontWeight: 700, fontSize: '1rem', color: '#1e293b' }}>{d.collectionSplit}</span>
           </div>
           <div style={{ background: '#f1f5f9', padding: '4px 12px', borderRadius: '20px', fontSize: '.82rem', fontWeight: 700, color: '#475569' }}>
             Total: {formatCurrency(totalSplit, branding.currencySymbol)}
@@ -1454,7 +1457,7 @@ export default async function DashboardPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <span className="material-icons-outlined" style={{ fontSize: '32px', opacity: 0.9 }}>star</span>
               <div>
-                <h4 style={{ margin: 0, fontSize: '.85rem', opacity: 0.9, fontWeight: 500 }}>Best Payer (Zero Overdue)</h4>
+                <h4 style={{ margin: 0, fontSize: '.85rem', opacity: 0.9, fontWeight: 500 }}>{d.bestPayer}</h4>
                 <div style={{ fontSize: '1.2rem', fontWeight: 700, marginTop: '4px' }}>{data.bestPayer.name}</div>
                 <div style={{ fontSize: '.75rem', opacity: 0.8 }}>{data.bestPayer.customerCode} • {data.bestPayer.loans?.length || 0} Loans</div>
               </div>
@@ -1467,7 +1470,7 @@ export default async function DashboardPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <span className="material-icons-outlined" style={{ fontSize: '32px', opacity: 0.9 }}>account_balance</span>
               <div>
-                <h4 style={{ margin: 0, fontSize: '.85rem', opacity: 0.9, fontWeight: 500 }}>Highest Active Borrower</h4>
+                <h4 style={{ margin: 0, fontSize: '.85rem', opacity: 0.9, fontWeight: 500 }}>{d.highestBorrower}</h4>
                 <div style={{ fontSize: '1.2rem', fontWeight: 700, marginTop: '4px' }}>{data.highestBorrower.name}</div>
                 <div style={{ fontSize: '.75rem', opacity: 0.8 }}>{data.highestBorrower.customerCode} • {data.highestBorrower.loans?.length || 0} Loans</div>
               </div>
@@ -1481,7 +1484,7 @@ export default async function DashboardPage() {
           <div className="card-header">
             <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span className="material-icons-outlined" style={{ color: 'var(--primary)', fontSize: '20px' }}>insights</span>
-              Collection Trend
+              {d.recentCollections}
             </h3>
           </div>
           <div style={{ padding: '8px 4px 0' }}>
@@ -1490,18 +1493,18 @@ export default async function DashboardPage() {
         </div>
 
         <div className="card">
-          <div className="card-header"><h3>Collection Details</h3></div>
+          <div className="card-header"><h3>{d.collectionDetails}</h3></div>
           {data.routePerformance.length > 0 ? (
             <div className="table-wrapper">
               <table>
                 <thead>
                   <tr>
-                    <th>Route</th>
-                    <th>Agent</th>
-                    <th>Customers</th>
-                    <th>Collected Today</th>
-                    <th>Overdue</th>
-                    <th>Action</th>
+                    <th>{dict.reports.route}</th>
+                    <th>{dict.reports.agent}</th>
+                    <th>{dict.sidebar.customers}</th>
+                    <th>{d.collectedToday}</th>
+                    <th>{dict.loansList.overdue}</th>
+                    <th>{dict.customersList.action}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1558,19 +1561,19 @@ export default async function DashboardPage() {
       <div className="grid-60-40" style={{ marginTop: '20px' }}>
         <div className="card">
           <div className="card-header">
-            <h3>Overdue Alerts</h3>
-            <Link href="/collection" className="btn btn-ghost btn-sm">View All</Link>
+            <h3>{d.overdueAlerts}</h3>
+            <Link href="/collection" className="btn btn-ghost btn-sm">{d.viewAll}</Link>
           </div>
           {data.overdueInstalments.length > 0 ? (
             <div className="table-wrapper">
               <table>
                 <thead>
                   <tr>
-                    <th>Customer</th>
-                    <th>Route</th>
-                    <th>Due Date</th>
-                    <th>Overdue</th>
-                    <th>Action</th>
+                    <th>{dict.loansList.customer}</th>
+                    <th>{dict.reports.route}</th>
+                    <th>{dict.collection.dueDate}</th>
+                    <th>{dict.loansList.overdue}</th>
+                    <th>{dict.customersList.action}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1584,7 +1587,7 @@ export default async function DashboardPage() {
                       <td>{item.loan.customer.route?.name || '-'}</td>
                       <td>{formatDate(item.dueDate)} ({item.daysOverdue}d)</td>
                       <td style={{ color: 'var(--danger)', fontWeight: 700 }}>{formatCurrency(item.overdueAmount, branding.currencySymbol)}</td>
-                      <td><Link href={`/customers/${item.loan.customer.customerCode}`} className="btn btn-ghost btn-sm">View</Link></td>
+                      <td><Link href={`/customers/${item.loan.customer.customerCode}`} className="btn btn-ghost btn-sm">{dict.loansList.view}</Link></td>
                     </tr>
                   ))}
                 </tbody>
@@ -1593,14 +1596,14 @@ export default async function DashboardPage() {
           ) : (
             <div className="empty-state" style={{ padding: '24px' }}>
               <span className="material-icons-outlined" style={{ fontSize: '36px', color: 'var(--success)' }}>check_circle</span>
-              <p style={{ marginTop: '8px', fontSize: '.85rem', color: 'var(--text-secondary)' }}>No overdue balances after allocation.</p>
+              <p style={{ marginTop: '8px', fontSize: '.85rem', color: 'var(--text-secondary)' }}>{d.noOverdue}</p>
             </div>
           )}
         </div>
 
         <div className="card">
           <div className="card-header">
-            <h3>Pending UPI Verifications</h3>
+            <h3>{d.pendingUpiVerifications}</h3>
             {data.pendingUpiCollections && data.pendingUpiCollections.length > 0 && (
               <BulkVerifyUpiButton
                 entryIds={data.pendingUpiCollections.map((upi: any) => upi.id)}
@@ -1614,10 +1617,10 @@ export default async function DashboardPage() {
               <table>
                 <thead>
                   <tr>
-                    <th>Customer</th>
-                    <th>Agent</th>
-                    <th>Amount</th>
-                    <th>Action</th>
+                    <th>{dict.loansList.customer}</th>
+                    <th>{dict.reports.agent}</th>
+                    <th>{dict.accounting.amount}</th>
+                    <th>{dict.customersList.action}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1641,14 +1644,14 @@ export default async function DashboardPage() {
           ) : (
             <div className="empty-state" style={{ padding: '24px' }}>
               <span className="material-icons-outlined" style={{ fontSize: '36px', color: 'var(--success)' }}>verified</span>
-              <p style={{ marginTop: '8px', fontSize: '.85rem', color: 'var(--text-secondary)' }}>No pending UPI payments to verify.</p>
+              <p style={{ marginTop: '8px', fontSize: '.85rem', color: 'var(--text-secondary)' }}>{d.noPendingUpi}</p>
             </div>
           )}
         </div>
       </div>
 
       <div className="card" style={{ marginTop: '20px' }}>
-        <div className="card-header"><h3>Recent Activity</h3></div>
+        <div className="card-header"><h3>{d.recentActivity}</h3></div>
         {data.recentActivity.length > 0 ? (
           <div>
             {data.recentActivity.map((log) => (

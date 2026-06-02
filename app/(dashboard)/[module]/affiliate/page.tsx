@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import prisma from '@/lib/db';
 import { getAffiliateConfig, computeAffiliateReward, compareAffiliatePaths } from '@/lib/affiliate';
 import AffiliateClient from './AffiliateClient';
+import { getDictionary } from '@/lib/i18n';
+import { getDefaultTenantId } from '@/lib/tenant';
 
 export default async function AffiliateDashboardPage({
   params,
@@ -17,7 +19,8 @@ export default async function AffiliateDashboardPage({
   const user = session.user as any;
   const role = user.role as string;
   const userId = user.id as string;
-  const tenantId = user.tenantId as string;
+  const tenantId = (await getDefaultTenantId()) || (user.tenantId as string);
+  const dict = await getDictionary(tenantId);
 
   const { module } = await params;
 
@@ -125,6 +128,7 @@ export default async function AffiliateDashboardPage({
   return (
     <AffiliateClient
       module={module}
+      dict={dict}
       affiliate={{
         id: affiliate.id,
         code: affiliate.code,

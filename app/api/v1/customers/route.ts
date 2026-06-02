@@ -47,6 +47,7 @@ export async function GET(req: NextRequest) {
       include: {
         route: { select: { id: true, name: true } },
         _count: { select: { loans: { where: { status: 'active' } } } },
+        collectionPoints: { select: { id: true, name: true, address: true, latitude: true, longitude: true, isPrimary: true } },
       },
       orderBy: { id: 'desc' },
       take: limit + 1,
@@ -112,11 +113,31 @@ export async function POST(req: NextRequest) {
         companyEmail?: string;
         companyLogo?: string;
         designation?: string;
+        collectionPoints?: Array<{
+          name?: string;
+          address?: string;
+          latitude?: number | string | null;
+          longitude?: number | string | null;
+          isPrimary?: boolean;
+        }>;
       }
     | null;
   if (!body?.name || !body?.phone) {
     return fail('name and phone are required', 400);
   }
+
+  // Normalise collection points (mirror web: drop entries missing name/address).
+  const num = (v: unknown) =>
+    v === undefined || v === null || v === '' ? null : Number(v);
+  const collectionPoints = (body.collectionPoints ?? [])
+    .filter((cp) => cp?.name && cp?.address)
+    .map((cp) => ({
+      name: String(cp.name),
+      address: String(cp.address),
+      latitude: num(cp.latitude),
+      longitude: num(cp.longitude),
+      isPrimary: !!cp.isPrimary,
+    }));
 
   // Coerce optional monthly income; treat blank/invalid as null.
   const monthlyIncome =
@@ -174,8 +195,15 @@ export async function POST(req: NextRequest) {
               })),
             }
           : undefined,
+        collectionPoints: collectionPoints.length > 0
+          ? { create: collectionPoints }
+          : undefined,
       },
-      include: { route: { select: { id: true, name: true } }, kycDocuments: true },
+      include: {
+        route: { select: { id: true, name: true } },
+        kycDocuments: true,
+        collectionPoints: true,
+      },
     });
 
     await writeAudit({

@@ -12,10 +12,13 @@ import 'package:loantrack/data/services/penalty_service.dart';
 import 'package:loantrack/shared/constants/endpoints.dart';
 import 'package:loantrack/shared/widgets/app_badge.dart';
 import 'package:loantrack/shared/widgets/bottom_nav.dart';
+import 'package:loantrack/core/auth/auth_controller.dart';
+import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/shared/widgets/empty_state.dart';
 import 'package:loantrack/shared/widgets/skeleton.dart';
 
 final _statusFilter = StateProvider.autoDispose<String>((ref) => 'all');
+final _routeFilter = StateProvider.autoDispose<String?>((ref) => null);
 
 // Fetch all penalties (no status filter) and filter client-side.
 final _penaltiesProvider =
@@ -36,6 +39,7 @@ class PenaltiesScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final status = ref.watch(_statusFilter);
+    final routeFilter = ref.watch(_routeFilter);
     final async = ref.watch(_penaltiesProvider);
 
     return Scaffold(
@@ -45,9 +49,11 @@ class PenaltiesScreen extends ConsumerWidget {
         loading: () => _buildLoading(),
         error: (e, _) => _ErrorState(message: e.toString()),
         data: (all) {
-          final list = status == 'all'
-              ? all
-              : all.where((p) => p.status == status).toList();
+          final list = all.where((p) {
+            final matchStatus = status == 'all' || p.status == status;
+            final matchRoute = routeFilter == null || p.routeId == routeFilter;
+            return matchStatus && matchRoute;
+          }).toList();
           return _PenaltiesBody(all: all, filtered: list);
         },
       ),
@@ -77,6 +83,13 @@ class _PenaltiesBody extends ConsumerWidget {
     final status = ref.watch(_statusFilter);
     final fmt =
         NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+
+    final routeMap = <String, String>{};
+    for (final p in all) {
+      if (p.routeId != null && p.routeId!.isNotEmpty && p.routeName != null) {
+        routeMap[p.routeId!] = p.routeName!;
+      }
+    }
 
     final totalGross = all.fold<double>(0, (s, p) => s + p.grossPenalty);
     final totalSettled = all.fold<double>(0, (s, p) => s + p.settledAmount);
@@ -145,7 +158,7 @@ class _PenaltiesBody extends ConsumerWidget {
                     child: AnimatedContainer(
                       duration: AppTokens.transition,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
+                          horizontal: 16, vertical: 8,),
                       decoration: BoxDecoration(
                         color: active ? AppColors.primary : AppColors.surface,
                         borderRadius:
@@ -168,6 +181,33 @@ class _PenaltiesBody extends ConsumerWidget {
               }).toList(),
             ),
           ),
+          if (routeMap.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String?>(
+                  value: ref.watch(_routeFilter),
+                  hint: Text(T.of(ref).x('pen.filter_route')),
+                  isExpanded: true,
+                  icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.textLight),
+                  items: [
+                    DropdownMenuItem(value: null, child: Text('All Routes', style: AppTypography.body)),
+                    ...routeMap.entries.map((e) => DropdownMenuItem(
+                      value: e.key,
+                      child: Text(e.value, style: AppTypography.body),
+                    )),
+                  ],
+                  onChanged: (v) => ref.read(_routeFilter.notifier).state = v,
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           if (filtered.isEmpty)
             SizedBox(
@@ -246,6 +286,9 @@ class _PenaltyCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authControllerProvider).user;
+    final isAdmin = user?.role == UserRole.admin || user?.role == UserRole.developer;
+
     final net =
         penalty.grossPenalty - penalty.settledAmount - penalty.waivedAmount;
     final BadgeKind badgeKind = penalty.status == 'settled'
@@ -273,7 +316,7 @@ class _PenaltyCard extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(penalty.customerName,
-                          style: AppTypography.bodyLarge),
+                          style: AppTypography.bodyLarge,),
                       const SizedBox(height: 2),
                       Text(
                         penalty.loanCode,
@@ -336,18 +379,20 @@ class _PenaltyCard extends ConsumerWidget {
                           child: const Text('Settle'),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => _confirmWaive(context, ref, penalty),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.purple,
-                            side: const BorderSide(color: AppColors.purple),
-                            padding: const EdgeInsets.symmetric(vertical: 8),
+                      if (isAdmin) ...[
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => _confirmWaive(context, ref, penalty),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.purple,
+                              side: const BorderSide(color: AppColors.purple),
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                            ),
+                            child: const Text('Waive'),
                           ),
-                          child: const Text('Waive'),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ],
@@ -447,7 +492,7 @@ class _PenaltyCard extends ConsumerWidget {
                 child: Text(
                   t.x('pen.confirm_settle'),
                   style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.w600),
+                      color: Colors.white, fontWeight: FontWeight.w600,),
                 ),
               ),
             ),
@@ -462,35 +507,11 @@ class _PenaltyCard extends ConsumerWidget {
     WidgetRef ref,
     Penalty p,
   ) async {
-    final ok = await showDialog<bool>(
+    final result = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppTokens.radius),
-        ),
-        title: const Text('Waive Penalty'),
-        content:
-            Text('Waive the full outstanding penalty for ${p.customerName}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.purple,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-              ),
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Waive', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
+      builder: (_) => _WaiveDialog(penalty: p),
     );
-    if (ok == true && context.mounted) {
-      await ref.read(penaltyServiceProvider).waive(p.id);
+    if (result == true && context.mounted) {
       ref.invalidate(_penaltiesProvider);
     }
   }
@@ -549,4 +570,136 @@ class _ErrorState extends StatelessWidget {
           ),
         ),
       );
+}
+
+class _WaiveDialog extends ConsumerStatefulWidget {
+  const _WaiveDialog({required this.penalty});
+  final Penalty penalty;
+
+  @override
+  ConsumerState<_WaiveDialog> createState() => _WaiveDialogState();
+}
+
+class _WaiveDialogState extends ConsumerState<_WaiveDialog> {
+  late final TextEditingController _amountController;
+  final _reasonController = TextEditingController();
+  bool _fullWaive = true;
+  bool _submitting = false;
+
+  double get _outstanding => widget.penalty.grossPenalty - widget.penalty.settledAmount - widget.penalty.waivedAmount;
+
+  @override
+  void initState() {
+    super.initState();
+    _amountController = TextEditingController(text: _outstanding.toStringAsFixed(0));
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _reasonController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final t = T.of(ref);
+    final reason = _reasonController.text.trim();
+    if (reason.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.x('pen.reason_required')), backgroundColor: AppColors.warning),
+      );
+      return;
+    }
+
+    final amt = double.tryParse(_amountController.text) ?? 0;
+    if (amt <= 0 || amt > _outstanding) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid amount'), backgroundColor: AppColors.warning),
+      );
+      return;
+    }
+
+    setState(() => _submitting = true);
+    try {
+      await ref.read(penaltyServiceProvider).waive(
+        id: widget.penalty.id,
+        amount: amt,
+        reason: reason,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(t.x('pen.waived')), backgroundColor: AppColors.success),
+        );
+        Navigator.pop(context, true);
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = T.of(ref);
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radius)),
+      title: Text('Waive Penalty - ${widget.penalty.customerName}'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(t.x('pen.waive_full'), style: AppTypography.body),
+              value: _fullWaive,
+              onChanged: (v) {
+                setState(() {
+                  _fullWaive = v ?? true;
+                  if (_fullWaive) {
+                    _amountController.text = _outstanding.toStringAsFixed(0);
+                  }
+                });
+              },
+            ),
+            if (!_fullWaive) ...[
+              const SizedBox(height: 8),
+              TextField(
+                controller: _amountController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: t.x('pen.waive_amount'),
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            TextField(
+              controller: _reasonController,
+              decoration: InputDecoration(
+                labelText: t.x('pen.waive_reason'),
+                border: const OutlineInputBorder(),
+              ),
+              maxLines: 2,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _submitting ? null : () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.purple,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radiusSm)),
+          ),
+          onPressed: _submitting ? null : _submit,
+          child: _submitting
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Text('Waive', style: TextStyle(color: Colors.white)),
+        ),
+      ],
+    );
+  }
 }

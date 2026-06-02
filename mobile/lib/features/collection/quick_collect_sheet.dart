@@ -347,7 +347,7 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
               if (_proofMode == 'qr') ...[
                 const SizedBox(height: 8),
                 Text(t.x('proof.qr_help'),
-                    style: AppTypography.caption.copyWith(color: AppColors.textLight)),
+                    style: AppTypography.caption.copyWith(color: AppColors.textLight),),
               ],
               if (_error != null) ...[
                 const SizedBox(height: 12),

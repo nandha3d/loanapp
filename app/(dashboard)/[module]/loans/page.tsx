@@ -140,7 +140,7 @@ export default async function LoansPage({
         <select name="status" className="form-control" style={{width:'auto'}} defaultValue={status}>
           <option value="">{dict.loansList.allStatus}</option>
           <option value="active">{dict.loansList.active}</option>
-          <option value="pending_review">Pending Review</option>
+          <option value="pending_review">{dict.approvals.pendingReview}</option>
           <option value="overdue">{dict.loansList.overdue}</option>
           <option value="settled">{dict.loansList.settled}</option>
           <option value="closed">{dict.loansList.closed}</option>
@@ -164,7 +164,7 @@ export default async function LoansPage({
               <SortableTh label={dict.loansList.loanId} field="loanCode" />
               <SortableTh label={dict.loansList.customer} field="customer" />
               <SortableTh label={dict.loansList.principal} field="principal" />
-              <SortableTh label="Paid" field="paid" />
+              <SortableTh label={dict.loanDetail.paid} field="paid" />
               <SortableTh label={dict.loansList.frequency} field="frequency" />
               <SortableTh label={dict.loansList.startDate} field="startDate" />
               <SortableTh label={dict.loansList.progress} field="progress" />
@@ -217,7 +217,7 @@ export default async function LoansPage({
                   </td>
                   <td>
                     <span className={getBadgeClass(l.status)} style={{textTransform:'capitalize'}}>
-                      {l.status === 'pending_review' ? 'Pending Review' : l.status}
+                      {l.status === 'pending_review' ? dict.approvals.pendingReview : l.status}
                     </span>
                   </td>
                   <td>
@@ -232,7 +232,7 @@ export default async function LoansPage({
             {loans.length === 0 && (
               <tr>
                 <td colSpan={9} style={{textAlign:'center', padding:'32px', color:'var(--text-light)'}}>
-                  No loans found.
+                  {dict.loansList.noLoans}
                 </td>
               </tr>
             )}
@@ -242,7 +242,7 @@ export default async function LoansPage({
 
       {total > 0 && (
         <div className="pagination">
-          <span>Showing {skip + 1}–{Math.min(skip + limit, total)} of {total} {dict.loansList.title.toLowerCase()}</span>
+          <span>{dict.accounting.showing} {skip + 1}–{Math.min(skip + limit, total)} {dict.accounting.of} {total} {dict.loansList.title.toLowerCase()}</span>
           <div className="pages">
             <Link
               href={`/loans?${buildQuery({ page: String(page > 1 ? page - 1 : 1) })}`}

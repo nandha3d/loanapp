@@ -99,7 +99,7 @@ export default function ApprovalsClient({
           }}
         >
           <span className="material-icons-outlined" style={{ fontSize: '20px' }}>person_add</span>
-          New Registrations
+          {d.newRegistrations}
           {pendingCustomers.length > 0 && (
             <span style={{
               background: 'var(--primary-bg)',
@@ -133,7 +133,7 @@ export default function ApprovalsClient({
           }}
         >
           <span className="material-icons-outlined" style={{ fontSize: '20px' }}>account_balance</span>
-          Loan Applications
+          {d.loanApplications}
           {pendingLoans.length > 0 && (
             <span style={{
               background: 'var(--primary-bg)',
@@ -167,7 +167,7 @@ export default function ApprovalsClient({
           }}
         >
           <span className="material-icons-outlined" style={{ fontSize: '20px' }}>edit</span>
-          General Requests
+          {d.generalRequests}
           {requests.filter(r => r.status === 'pending').length > 0 && (
             <span style={{
               background: 'var(--primary-bg)',
@@ -190,13 +190,13 @@ export default function ApprovalsClient({
             <table className="table" style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>Date Registered</th>
-                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>Customer Name</th>
-                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>Phone</th>
-                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>Address</th>
-                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>Submitting Agent</th>
-                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>Status</th>
-                  <th style={{ textAlign: 'right', padding: '16px 20px' }}>Actions</th>
+                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>{d.dateRegistered}</th>
+                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>{d.customerName}</th>
+                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>{dict.customers.phone}</th>
+                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>{dict.customers.address}</th>
+                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>{d.submittingAgent}</th>
+                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>{d.status}</th>
+                  <th style={{ textAlign: 'right', padding: '16px 20px' }}>{d.actionLabel}</th>
                 </tr>
               </thead>
               <tbody>
@@ -204,8 +204,8 @@ export default function ApprovalsClient({
                   <tr>
                     <td colSpan={7} style={{ textAlign: 'center', padding: '48px', color: 'var(--text-light)' }}>
                       <span className="material-icons-outlined" style={{ fontSize: '48px', marginBottom: '12px', display: 'block' }}>face</span>
-                      <h3 style={{ margin: 0 }}>No Customer Registrations Pending</h3>
-                      <p style={{ margin: '4px 0 0 0', fontSize: '0.9rem' }}>All new agent registrations are fully processed.</p>
+                      <h3 style={{ margin: 0 }}>{d.noCustomersPending}</h3>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '0.9rem' }}>{d.allRegistrationsProcessed}</p>
                     </td>
                   </tr>
                 ) : (
@@ -221,7 +221,7 @@ export default function ApprovalsClient({
                       <td style={{ padding: '16px 20px' }}>{cust.agent?.name || '—'}</td>
                       <td style={{ padding: '16px 20px' }}>
                         <span className="badge badge-pending" style={{ background: 'var(--warning-bg)', color: 'var(--warning)', padding: '4px 8px', borderRadius: '12px', fontSize: '0.75rem' }}>
-                          Pending Review
+                          {d.pendingReview}
                         </span>
                       </td>
                       <td style={{ padding: '16px 20px', textAlign: 'right' }}>
@@ -232,7 +232,7 @@ export default function ApprovalsClient({
                             disabled={customerLoading === cust.id}
                             onClick={() => handleCustomerReview(cust.id, 'approve')}
                           >
-                            {customerLoading === cust.id ? '...' : 'Approve'}
+                            {customerLoading === cust.id ? '...' : d.approve}
                           </button>
                           <button
                             className="btn btn-sm"
@@ -240,7 +240,7 @@ export default function ApprovalsClient({
                             disabled={customerLoading === cust.id}
                             onClick={() => handleCustomerReview(cust.id, 'reject')}
                           >
-                            Reject
+                            {d.reject}
                           </button>
                         </div>
                       </td>
@@ -260,13 +260,13 @@ export default function ApprovalsClient({
             <table className="table" style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>Date</th>
-                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>Loan Code</th>
-                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>Customer</th>
-                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>Principal</th>
-                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>Submitted By</th>
-                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>Status</th>
-                  <th style={{ textAlign: 'right', padding: '16px 20px' }}>Actions</th>
+                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>{d.date}</th>
+                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>{d.loanCode}</th>
+                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>{dict.loansList.customer}</th>
+                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>{dict.loansList.principal}</th>
+                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>{d.submittedBy}</th>
+                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>{d.status}</th>
+                  <th style={{ textAlign: 'right', padding: '16px 20px' }}>{d.actionLabel}</th>
                 </tr>
               </thead>
               <tbody>
@@ -274,8 +274,8 @@ export default function ApprovalsClient({
                   <tr>
                     <td colSpan={7} style={{ textAlign: 'center', padding: '48px', color: 'var(--text-light)' }}>
                       <span className="material-icons-outlined" style={{ fontSize: '48px', marginBottom: '12px', display: 'block' }}>receipt_long</span>
-                      <h3 style={{ margin: 0 }}>No Loan Applications Pending</h3>
-                      <p style={{ margin: '4px 0 0 0', fontSize: '0.9rem' }}>All loan requests are fully processed.</p>
+                      <h3 style={{ margin: 0 }}>{d.noLoansPending}</h3>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '0.9rem' }}>{d.allLoanRequestsProcessed}</p>
                     </td>
                   </tr>
                 ) : (
@@ -288,7 +288,7 @@ export default function ApprovalsClient({
                       <td style={{ padding: '16px 20px' }}>{loan.createdBy?.name || '—'}</td>
                       <td style={{ padding: '16px 20px' }}>
                         <span className="badge badge-pending" style={{ background: 'var(--warning-bg)', color: 'var(--warning)', padding: '4px 8px', borderRadius: '12px', fontSize: '0.75rem' }}>
-                          Pending Review
+                          {d.pendingReview}
                         </span>
                       </td>
                       <td style={{ padding: '16px 20px', textAlign: 'right' }}>
@@ -299,7 +299,7 @@ export default function ApprovalsClient({
                             disabled={loanLoading === loan.id}
                             onClick={() => handleLoanReview(loan.id, 'approve')}
                           >
-                            {loanLoading === loan.id ? '...' : 'Approve'}
+                            {loanLoading === loan.id ? '...' : d.approve}
                           </button>
                           <button
                             className="btn btn-sm"
@@ -307,7 +307,7 @@ export default function ApprovalsClient({
                             disabled={loanLoading === loan.id}
                             onClick={() => handleLoanReview(loan.id, 'reject')}
                           >
-                            Reject
+                            {d.reject}
                           </button>
                         </div>
                       </td>
@@ -352,7 +352,7 @@ export default function ApprovalsClient({
                         <td style={{ padding: '16px 20px' }}>{new Date(req.createdAt).toLocaleDateString()}</td>
                         <td style={{ padding: '16px 20px' }}>{req.requestedBy?.name}</td>
                         <td style={{ padding: '16px 20px', textTransform: 'capitalize' }}>
-                          {req.requestType === 'cash_handover' ? 'Cash Handover' : req.entityType}
+                          {req.requestType === 'cash_handover' ? d.cashHandover : req.entityType}
                         </td>
                         <td style={{ padding: '16px 20px' }}>
                           <div style={{ fontSize: '0.85rem' }}>

@@ -287,7 +287,7 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
         // Fetch all necessary user data from DB to prevent stale/exposed data in JWT
         try {
           const prisma = (await import('./db')).default;
-          const dbUser = await prisma.user.findUnique({
+          let dbUser = await prisma.user.findUnique({
             where: { id: token.userId },
             select: { 
               role: true, 
@@ -303,18 +303,60 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
               }
             },
           });
-          if (dbUser) {
-            (session.user as any).role = dbUser.role;
-            (session.user as any).appType = dbUser.appType;
-            (session.user as any).branchId = dbUser.branchId;
-            (session.user as any).tenantId = dbUser.tenantId;
-            (session.user as any).phone = dbUser.phone;
-            (session.user as any).username = dbUser.username;
-            (session.user as any).tenantSlug = dbUser.tenant?.slug || null;
-          } else {
+          
+          if (!dbUser) {
             console.error('[AUTH_SESSION_ERROR] User not found in database');
             return null;
           }
+
+          let isMonitoring = false;
+          let monitorTargetName = null;
+
+          if (dbUser.role === 'developer') {
+            try {
+              const nextCookies = await import('next/headers').then(m => m.cookies());
+              const monitorToken = nextCookies.get('monitor-token')?.value;
+              
+              if (monitorToken) {
+                const secret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || '';
+                const encodedSecret = new TextEncoder().encode(secret);
+                const { payload } = await import('jose').then(m => m.jwtVerify(monitorToken, encodedSecret));
+                
+                if (payload && payload.targetUserId) {
+                  const targetUser = await prisma.user.findUnique({
+                    where: { id: payload.targetUserId as string },
+                    select: { 
+                      role: true, 
+                      appType: true, 
+                      branchId: true,
+                      tenantId: true,
+                      phone: true,
+                      username: true,
+                      name: true,
+                      tenant: { select: { slug: true } }
+                    },
+                  });
+                  if (targetUser) {
+                    monitorTargetName = targetUser.name || targetUser.username;
+                    dbUser = targetUser as any; // Override dbUser with targetUser data
+                    isMonitoring = true;
+                  }
+                }
+              }
+            } catch (e) {
+              console.error('[MONITOR_ERROR] Failed to verify monitor token:', e);
+            }
+          }
+
+          (session.user as any).role = dbUser.role;
+          (session.user as any).appType = dbUser.appType;
+          (session.user as any).branchId = dbUser.branchId;
+          (session.user as any).tenantId = dbUser.tenantId;
+          (session.user as any).phone = dbUser.phone;
+          (session.user as any).username = dbUser.username;
+          (session.user as any).tenantSlug = dbUser.tenant?.slug || null;
+          (session.user as any).isMonitoring = isMonitoring;
+          (session.user as any).monitorTargetName = monitorTargetName;
         } catch (e) {
           console.error('[AUTH_SESSION_DB_ERROR]', e);
           return null;

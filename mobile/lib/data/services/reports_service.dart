@@ -41,7 +41,7 @@ class ReportsService {
 
   /// Fetch agent performance report for a date range.
   Future<List<AgentPerf>> fetchAgentPerformance(
-      DateTime from, DateTime to) async {
+      DateTime from, DateTime to,) async {
     final res = await _dio.get<Map<String, dynamic>>(
       Endpoints.reportsAgent,
       queryParameters: <String, String>{

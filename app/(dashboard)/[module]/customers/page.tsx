@@ -116,7 +116,7 @@ export default async function CustomersPage({
         <select name="status" className="form-control" style={{width:'auto'}} defaultValue={status}>
           <option value="">{dict.customersList.allStatus}</option>
           <option value="active">{dict.customersList.active}</option>
-          <option value="pending_review">Pending Review</option>
+          <option value="pending_review">{dict.approvals.pendingReview}</option>
           <option value="overdue">{dict.customersList.overdue}</option>
           <option value="closed">{dict.customersList.closed}</option>
           <option value="blacklisted">{dict.customersList.blacklisted}</option>
@@ -191,7 +191,7 @@ export default async function CustomersPage({
                   </td>
                   <td>
                     <span className={getBadgeClass(c.status)} style={{textTransform:'capitalize'}}>
-                      {c.status === 'pending_review' ? 'Pending Review' : c.status}
+                      {c.status === 'pending_review' ? dict.approvals.pendingReview : c.status}
                     </span>
                   </td>
                   <td>
@@ -206,7 +206,7 @@ export default async function CustomersPage({
             {customers.length === 0 && (
               <tr>
                 <td colSpan={8} style={{textAlign:'center', padding:'32px', color:'var(--text-light)'}}>
-                  No customers found.
+                  {dict.customersList.noCustomers}
                 </td>
               </tr>
             )}
@@ -216,7 +216,7 @@ export default async function CustomersPage({
 
       {total > 0 && (
         <div className="pagination">
-          <span>Showing {skip + 1}–{Math.min(skip + limit, total)} of {total} {dict.customersList.title.toLowerCase()}</span>
+          <span>{dict.accounting.showing} {skip + 1}–{Math.min(skip + limit, total)} {dict.accounting.of} {total} {dict.customersList.title.toLowerCase()}</span>
           <div className="pages">
             <Link 
               href={`/customers?page=${page > 1 ? page - 1 : 1}&q=${q}&routeId=${routeId}&status=${status}`} 

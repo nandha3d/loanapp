@@ -10,6 +10,8 @@ class Penalty {
     required this.waivedAmount,
     required this.status,
     required this.createdAt,
+    this.routeId,
+    this.routeName,
   });
 
   final String id;
@@ -22,12 +24,15 @@ class Penalty {
   final double waivedAmount;
   final String status; // pending | settled | waived
   final DateTime createdAt;
+  final String? routeId;
+  final String? routeName;
 
   factory Penalty.fromJson(Map<String, dynamic> json) {
     double toDouble(dynamic v) =>
         v == null ? 0 : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
     final loan = (json['loan'] as Map<String, dynamic>?) ?? const {};
     final customer = (loan['customer'] as Map<String, dynamic>?) ?? const {};
+    final route = (customer['route'] as Map<String, dynamic>?) ?? const {};
     return Penalty(
       id: json['id'] as String,
       loanId: (loan['id'] as String?) ?? (json['loanId'] as String? ?? ''),
@@ -39,6 +44,8 @@ class Penalty {
       waivedAmount: toDouble(json['waivedAmount']),
       status: (json['status'] as String?) ?? 'pending',
       createdAt: DateTime.parse(json['createdAt'] as String),
+      routeId: (customer['routeId'] as String?) ?? (route['id'] as String?),
+      routeName: (route['name'] as String?),
     );
   }
 }

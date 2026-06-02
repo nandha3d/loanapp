@@ -200,10 +200,9 @@ export default function UsersClient({
   }
 
   async function handleImpersonate(superadminId: string, name: string) {
-    if (!confirm(`Login as "${name}"? Your developer session will be replaced.`)) return;
     setImpersonating(superadminId);
     try {
-      const res = await fetch('/api/developer/impersonate', {
+      const res = await fetch('/api/developer/monitor', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ superadminId }),
@@ -212,7 +211,7 @@ export default function UsersClient({
       if (data.success) {
         window.location.href = data.redirectUrl || '/portal';
       } else {
-        alert(data.error || 'Impersonation failed');
+        alert(data.error || 'Monitor mode failed to start');
         setImpersonating(null);
       }
     } catch (err) {
@@ -421,9 +420,9 @@ export default function UsersClient({
                             title="Login as this Super Admin"
                           >
                             <span className="material-icons-outlined" style={{ fontSize: '16px' }}>
-                              {impersonating === superadmin.id ? 'hourglass_top' : 'login'}
+                              {impersonating === superadmin.id ? 'hourglass_top' : 'visibility'}
                             </span>
-                            {impersonating === superadmin.id ? 'Logging in...' : 'Login'}
+                            {impersonating === superadmin.id ? 'Starting...' : 'Monitor'}
                           </button>
                         )}
                         {viewerRole === 'developer' && (

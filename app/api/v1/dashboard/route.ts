@@ -56,6 +56,8 @@ export async function GET(req: NextRequest) {
       recentLoans,
       overdueForTotalsRaw,
       overduePaidTodayAllocations,
+      routes,
+      recentActivity,
     ] = await Promise.all([
       prisma.loan.count({ where: { ...baseLoan, status: 'active' } }),
       prisma.loan.count({ where: { ...baseLoan, status: 'overdue' } }),
@@ -84,7 +86,8 @@ export async function GET(req: NextRequest) {
       // Overdue (past-due, still-open) instalments — for the overdue card totals.
       prisma.instalment.findMany({
         where: { loan: baseLoan, dueDate: { lt: today }, status: { in: ['upcoming', 'missed', 'partial'] } },
-        select: { dueAmount: true, receivedAmount: true },
+        include: { loan: { include: { customer: { select: { id: true, name: true, customerCode: true } } } } },
+        orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
       }),
       // Today's payments that landed on PAST-DUE instalments = overdue recovered today.
       prisma.paymentAllocation.findMany({
@@ -93,6 +96,33 @@ export async function GET(req: NextRequest) {
           instalment: { dueDate: { lt: today } },
         },
         select: { amount: true },
+      }),
+      prisma.route.findMany({
+        where: { tenantId: ctx.tenantId, appType: ctx.appType, status: 'active', ...scopedBranchWhere(ctx) },
+        include: {
+          routeAgents: { include: { agent: true } },
+          customers: {
+            select: {
+              id: true,
+              loans: {
+                where: { status: { in: ['active', 'overdue'] } },
+                select: {
+                  instalments: {
+                    where: { dueDate: { lt: today }, status: { in: ['upcoming', 'missed', 'partial'] } },
+                    select: { dueAmount: true, receivedAmount: true },
+                  },
+                },
+              },
+            },
+          },
+          _count: { select: { customers: true } },
+        },
+      }),
+      prisma.auditLog.findMany({
+        where: { tenantId: ctx.tenantId, user: { role: { not: 'developer' }, ...scopedBranchWhere(ctx) } },
+        orderBy: { createdAt: 'desc' },
+        take: 8,
+        include: { user: true },
       }),
     ]);
 
@@ -107,12 +137,16 @@ export async function GET(req: NextRequest) {
       0,
     );
     const todayGap = Math.max(0, todayExpected - todayCollected);
+    const hitRate = todayExpected > 0 ? Math.round((todayCollected / todayExpected) * 100) : 0;
+    const todayPending = todayGap;
+
+    const outstanding = (item: any) => Math.max(0, Number(item.dueAmount) - Number(item.receivedAmount || 0));
 
     // Overdue collection — daily snapshot that re-bases each day:
     //   Remaining = overdue still outstanding now; Collected today = today's
     //   payments on past-due instalments; Total = what was overdue at start of today.
     const overdueOutstanding = overdueForTotalsRaw.reduce(
-      (sum, i) => sum + Math.max(0, Number(i.dueAmount) - Number(i.receivedAmount || 0)),
+      (sum, i) => sum + outstanding(i),
       0,
     );
     const overdueCollectedToday = overduePaidTodayAllocations.reduce(
@@ -121,6 +155,26 @@ export async function GET(req: NextRequest) {
     );
     const overdueTotalTillToday = overdueOutstanding + overdueCollectedToday;
 
+    const defaulterAlerts = overdueForTotalsRaw
+      .map((item) => ({ ...item, overdueAmount: outstanding(item) }))
+      .filter((item) => item.overdueAmount > 0)
+      .slice(0, 10);
+
+    const routePerformance = routes.map((route) => {
+      const routeOverdue = route.customers.reduce((sum, customer) => {
+        return sum + customer.loans.reduce((loanSum, loan) => {
+          return loanSum + loan.instalments.reduce((instSum, item) => instSum + outstanding(item), 0);
+        }, 0);
+      }, 0);
+      return {
+        id: route.id,
+        name: route.name,
+        agent: route.routeAgents?.map((ra: any) => ra.agent?.name).join(', ') || '-',
+        customers: route._count.customers,
+        overdue: routeOverdue,
+      };
+    });
+
     return ok({
       activeLoans,
       overdueLoans,
@@ -128,6 +182,8 @@ export async function GET(req: NextRequest) {
       todayExpected,
       todayCollected,
       todayGap,
+      hitRate,
+      todayPending,
       overdueOutstanding,
       overdueCollectedToday,
       overdueTotalTillToday,
@@ -135,6 +191,9 @@ export async function GET(req: NextRequest) {
       activeAgents,
       recentLoans,
       todayInstalments,
+      defaulterAlerts,
+      routePerformance,
+      recentActivity,
     });
   } catch (e: any) {
     return fail(e?.message ?? 'Dashboard failed', 500);

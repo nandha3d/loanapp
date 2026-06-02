@@ -18,13 +18,15 @@ class AnalyticsService {
     );
   }
 
-  Future<List<CollectionPoint>> collections() async {
-    final res =
-        await _dio.get<Map<String, dynamic>>(Endpoints.analyticsCollections);
+  Future<List<CollectionPoint>> collections({int? range}) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.analyticsCollections,
+      queryParameters: range != null ? {'range': range.toString()} : null,
+    );
     return unwrapEnvelope(res, (dynamic d) {
       return (d as List<dynamic>)
           .map((dynamic e) =>
-              CollectionPoint.fromJson(e as Map<String, dynamic>))
+              CollectionPoint.fromJson(e as Map<String, dynamic>),)
           .toList(growable: false);
     });
   }
