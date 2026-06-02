@@ -504,30 +504,70 @@ export async function reviewPendingLoan(formData: FormData) {
 
   const loan = await prisma.loan.findFirst({
     where: { id: loanId, tenantId, status: 'pending_review' },
-    select: { id: true, loanCode: true, branchId: true, createdById: true },
+    select: { id: true, loanCode: true, branchId: true, createdById: true, disbursed: true },
   });
 
   if (!loan) {
     return { success: false, error: 'Loan not found or already processed' };
   }
 
-  const newStatus = action === 'approve' ? 'active' : 'rejected';
+  try {
+    const newStatus = action === 'approve' ? 'active' : 'rejected';
+    await prisma.$transaction(async (tx) => {
+      await tx.loan.update({
+        where: { id: loanId },
+        data: { status: newStatus },
+      });
 
-  await prisma.loan.update({
-    where: { id: loanId },
-    data: { status: newStatus },
-  });
+      if (action === 'approve') {
+        const { disburseFromAgent, disburseFromBranch } = await import('@/lib/wallet');
+        let isAgent = false;
+        
+        if (loan.createdById) {
+          const creator = await tx.user.findUnique({
+            where: { id: loan.createdById },
+            select: { role: true },
+          });
+          isAgent = creator?.role === 'agent';
+        }
 
-  await prisma.auditLog.create({
-    data: {
-      tenantId,
-      userId,
-      action: action === 'approve' ? 'approve' : 'reject',
-      entityType: 'loan',
-      entityId: loanId,
-      newValue: JSON.stringify({ action, reviewNotes, newStatus }),
-    },
-  });
+        const disburseAmt = Number(loan.disbursed);
+        if (isAgent && loan.createdById) {
+          await disburseFromAgent(tx, {
+            tenantId,
+            agentId: loan.createdById,
+            amount: disburseAmt,
+            loanId: loan.id,
+            byUserId: userId,
+          });
+        } else if (loan.branchId) {
+          await disburseFromBranch(tx, {
+            tenantId,
+            branchId: loan.branchId,
+            amount: disburseAmt,
+            loanId: loan.id,
+            byUserId: userId,
+          });
+        }
+      }
+
+      await tx.auditLog.create({
+        data: {
+          tenantId,
+          userId,
+          action: action === 'approve' ? 'approve' : 'reject',
+          entityType: 'loan',
+          entityId: loanId,
+          newValue: JSON.stringify({ action, reviewNotes, newStatus }),
+        },
+      });
+    });
+  } catch (err: any) {
+    if (err.name === 'InsufficientFloatError') {
+      return { success: false, error: `Agent has insufficient float to disburse ₹${err.required}. Please release funds first.` };
+    }
+    return { success: false, error: err.message || 'Approval transaction failed' };
+  }
 
   revalidatePath('/approvals');
   revalidatePath('/loans');

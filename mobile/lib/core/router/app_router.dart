@@ -11,6 +11,7 @@ import 'package:loantrack/features/analytics/analytics_screen.dart';
 import 'package:loantrack/features/approvals/approvals_screen.dart';
 import 'package:loantrack/features/auth/biometric_lock_screen.dart';
 import 'package:loantrack/features/admin/tracking/agent_tracking_screen.dart';
+import 'package:loantrack/features/auth/forgot_password_screen.dart';
 import 'package:loantrack/features/auth/login_screen.dart';
 import 'package:loantrack/features/auth/registration_screen.dart';
 import 'package:loantrack/features/auth/totp_screen.dart';
@@ -28,6 +29,7 @@ import 'package:loantrack/features/more/more_screen.dart';
 import 'package:loantrack/features/notifications/notifications_screen.dart';
 import 'package:loantrack/features/penalties/penalties_screen.dart';
 import 'package:loantrack/features/reports/reports_screen.dart';
+import 'package:loantrack/features/wallet/wallet_screen.dart';
 import 'package:loantrack/features/settings/settings_screen.dart';
 import 'package:loantrack/features/vehicles/vehicles_screen.dart';
 import 'package:loantrack/features/vehicles/vehicle_detail_screen.dart';
@@ -96,6 +98,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
+      GoRoute(path: '/forgot-password', builder: (_, __) => const ForgotPasswordScreen()),
       GoRoute(
         path: '/register',
         builder: (_, state) {
@@ -163,6 +166,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/collection', builder: (_, __) => const CollectionScreen()),
       GoRoute(path: '/penalties', builder: (_, __) => const PenaltiesScreen()),
+      GoRoute(path: '/wallet', builder: (_, __) => const WalletScreen()),
       GoRoute(path: '/approvals', builder: (_, __) => const ApprovalsScreen()),
       GoRoute(path: '/kyc-review', builder: (_, __) => const KycReviewScreen()),
       GoRoute(path: '/analytics', builder: (_, __) => const AnalyticsScreen()),

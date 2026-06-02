@@ -8,7 +8,6 @@
 
 const REQUIRED = [
   'DATABASE_URL',
-  'AUTH_SECRET',
   'PII_ENCRYPTION_KEY',
 ] as const;
 
@@ -28,6 +27,18 @@ export function validateEnv(): void {
   for (const key of REQUIRED) {
     const v = process.env[key];
     if (!v || v.trim() === '') missing.push(key);
+  }
+
+  // The session secret may be supplied as AUTH_SECRET (NextAuth v5 canonical)
+  // or NEXTAUTH_SECRET (legacy). Every module that signs/verifies tokens —
+  // web (lib/auth.ts), middleware, borrower portal, and mobile
+  // (lib/api/v1-auth.ts) — falls back across this same set, so accept either
+  // here. Requiring one specific name caused a boot-time crash when the other
+  // was set (e.g. shipped .env uses NEXTAUTH_SECRET, deploy README uses
+  // AUTH_SECRET).
+  const sessionSecret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
+  if (!sessionSecret || sessionSecret.trim() === '') {
+    missing.push('AUTH_SECRET (or NEXTAUTH_SECRET)');
   }
 
   if (missing.length > 0) {
@@ -54,10 +65,10 @@ export function validateEnv(): void {
     }
   }
 
-  // Auth secret length sanity check.
-  const authSecret = process.env.AUTH_SECRET || '';
+  // Auth secret length sanity check (whichever name was supplied).
+  const authSecret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || '';
   if (authSecret && authSecret.length < 32) {
-    const msg = `FATAL: AUTH_SECRET too short (need >= 32 chars).`;
+    const msg = `FATAL: AUTH_SECRET/NEXTAUTH_SECRET too short (need >= 32 chars).`;
     if (process.env.NODE_ENV === 'production') throw new Error(msg);
     console.error(`[ENV_VALIDATE] ${msg}`);
   }

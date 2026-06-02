@@ -348,6 +348,9 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
             }
           }
 
+          // Re-assert non-null: the monitor block above performs awaits and may
+          // reassign dbUser, which loses the earlier narrowing.
+          if (!dbUser) return null;
           (session.user as any).role = dbUser.role;
           (session.user as any).appType = dbUser.appType;
           (session.user as any).branchId = dbUser.branchId;

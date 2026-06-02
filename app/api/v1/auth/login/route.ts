@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { compare } from 'bcryptjs';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { issueMobileToken } from '@/lib/api/v1-auth';
+import { issueMobileToken, issueRefreshToken } from '@/lib/api/v1-auth';
 import { extractTenantSlugFromHost } from '@/lib/tenant';
 
 /**
@@ -53,16 +53,12 @@ export async function POST(req: NextRequest) {
       return ok({ requiresTotp: true });
     }
 
-    const token = await issueMobileToken({
-      userId: user.id,
-      tenantId: user.tenantId,
-      branchId: user.branchId,
-      role: user.role,
-      appType: user.appType,
-    });
+    const token = await issueMobileToken({ userId: user.id, tenantId: user.tenantId, branchId: user.branchId, role: user.role, appType: user.appType });
+    const refreshToken = await issueRefreshToken(user.id, user.tenantId).catch(() => null);
 
     return ok({
       token,
+      refreshToken,
       user: serializeUser(user),
     });
   } catch (e: any) {

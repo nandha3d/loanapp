@@ -52,4 +52,21 @@ class AppColors {
 
   // Hover surface
   static const Color rowHover = Color(0xFFFAFBFC);
+
+  // ── Modern dark "ink" surfaces ──────────────────────────────────────
+  // Used to give heavy-touch screens (collection cards) a modern dark look
+  // paired with the amber `primary` accent. These are app-local (NOT mirrored
+  // from the web globals.css) and are reusable anywhere a dark surface is
+  // wanted. Do not hardcode these hex values in widgets — reference the token.
+  static const Color ink = Color(0xFF15171E);          // near-black card base
+  static const Color inkElevated = Color(0xFF20242E);  // raised block on ink
+  static const Color inkBorder = Color(0x1FFFFFFF);    // hairline divider on ink (white 12%)
+  static const Color onInk = Color(0xFFF8FAFC);        // primary text/icon on ink
+  static const Color onInkMuted = Color(0xFF9AA4B2);   // secondary text on ink
+  static const Color onPrimary = Color(0xFF1A1206);    // text/icon on amber primary
+
+  // Dark hero-card gradient — matches the home/dashboard hero so other hero
+  // cards (e.g. collection's today summary) can share the exact same look.
+  static const Color heroDarkFrom = Color(0xFF1F2937);
+  static const Color heroDarkTo = Color(0xFF111827);
 }

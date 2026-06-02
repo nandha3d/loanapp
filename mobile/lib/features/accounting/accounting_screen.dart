@@ -1,3 +1,4 @@
+import 'package:loantrack/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -108,9 +109,7 @@ class _SummaryBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
-    final fmt = NumberFormat.currency(
-      locale: 'en_IN', symbol: '₹', decimalDigits: 0,
-    );
+    final fmt = ref.watch(currencyFmtProvider);
     final isProfitable = summary.netProfit >= 0;
 
     return Column(
@@ -226,9 +225,7 @@ class _OverdueList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
-    final fmt = NumberFormat.currency(
-      locale: 'en_IN', symbol: '₹', decimalDigits: 0,
-    );
+    final fmt = ref.watch(currencyFmtProvider);
     final shown = items.length > 10 ? items.sublist(0, 10) : items;
 
     return Column(
@@ -347,7 +344,7 @@ class _StatementsSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
-    final fmt = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+    final fmt = ref.watch(currencyFmtProvider);
     double n(dynamic v) => v is num ? v.toDouble() : double.tryParse('${v ?? 0}') ?? 0;
 
     return _Card(

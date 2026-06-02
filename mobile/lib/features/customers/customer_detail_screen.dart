@@ -1,3 +1,4 @@
+import 'package:loantrack/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -602,15 +603,14 @@ class _ScoreMeterPainter extends CustomPainter {
 
 // ───────────────────────────── KPI strip ────────────────────────────
 
-class _KpiStrip extends StatelessWidget {
+class _KpiStrip extends ConsumerWidget {
   const _KpiStrip({required this.customer, required this.t});
   final Customer customer;
   final T t;
 
   @override
-  Widget build(BuildContext context) {
-    final fmt =
-        NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final fmt = ref.watch(currencyFmtProvider);
     final all = customer.loans;
     final active = all.where((l) => l.status == 'active').toList();
     final totalBorrowed = all.fold<double>(0, (s, l) => s + l.principal);
@@ -702,13 +702,13 @@ class _Kpi extends StatelessWidget {
 
 // ───────────────────────────── Loans ────────────────────────────────
 
-class _LoansSection extends StatelessWidget {
+class _LoansSection extends ConsumerWidget {
   const _LoansSection({required this.customer, required this.t});
   final Customer customer;
   final T t;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (customer.loans.isEmpty) {
       return _Card(
         title: t.x('cust.loans_tab'),
@@ -728,8 +728,7 @@ class _LoansSection extends StatelessWidget {
       );
     }
 
-    final fmt =
-        NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+    final fmt = ref.watch(currencyFmtProvider);
     return _Card(
       title: t.x('cust.loans_tab'),
       trailing: Text(

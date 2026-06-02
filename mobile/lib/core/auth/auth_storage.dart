@@ -6,6 +6,7 @@ class AuthStorage {
   AuthStorage(this._storage);
 
   static const _kToken = 'jwt_token';
+  static const _kRefreshToken = 'refresh_token';
   static const _kTenantSlug = 'tenant_slug';
   static const _kBranchId = 'branch_id';
   static const _kPendingTotpUser = 'pending_totp_user';
@@ -16,15 +17,30 @@ class AuthStorage {
     required String token,
     required String tenantSlug,
     String? branchId,
+    String? refreshToken,
   }) async {
     await _storage.write(key: _kToken, value: token);
     await _storage.write(key: _kTenantSlug, value: tenantSlug);
     if (branchId != null) {
       await _storage.write(key: _kBranchId, value: branchId);
     }
+    if (refreshToken != null) {
+      await _storage.write(key: _kRefreshToken, value: refreshToken);
+    }
+  }
+
+  Future<void> updateTokens({
+    required String token,
+    required String refreshToken,
+  }) async {
+    await Future.wait([
+      _storage.write(key: _kToken, value: token),
+      _storage.write(key: _kRefreshToken, value: refreshToken),
+    ]);
   }
 
   Future<String?> readToken() => _storage.read(key: _kToken);
+  Future<String?> readRefreshToken() => _storage.read(key: _kRefreshToken);
   Future<String?> readTenantSlug() => _storage.read(key: _kTenantSlug);
   Future<String?> readBranchId() => _storage.read(key: _kBranchId);
 

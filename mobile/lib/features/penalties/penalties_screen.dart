@@ -1,3 +1,4 @@
+import 'package:loantrack/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -7,8 +8,11 @@ import 'package:loantrack/core/network/dio_client.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
+import 'package:loantrack/data/models/loan.dart';
 import 'package:loantrack/data/models/penalty.dart';
+import 'package:loantrack/data/services/loan_service.dart';
 import 'package:loantrack/data/services/penalty_service.dart';
+import 'package:loantrack/features/loans/widgets/loan_heatmap.dart';
 import 'package:loantrack/shared/constants/endpoints.dart';
 import 'package:loantrack/shared/widgets/app_badge.dart';
 import 'package:loantrack/shared/widgets/bottom_nav.dart';
@@ -81,8 +85,7 @@ class _PenaltiesBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final status = ref.watch(_statusFilter);
-    final fmt =
-        NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+    final fmt = ref.watch(currencyFmtProvider);
 
     final routeMap = <String, String>{};
     for (final p in all) {
@@ -95,6 +98,21 @@ class _PenaltiesBody extends ConsumerWidget {
     final totalSettled = all.fold<double>(0, (s, p) => s + p.settledAmount);
     final totalWaived = all.fold<double>(0, (s, p) => s + p.waivedAmount);
     final netOutstanding = totalGross - totalSettled - totalWaived;
+
+    // Group by customer, then by loan — combine same-loan penalties into one
+    // page; a customer with multiple loans becomes a swipeable card.
+    final byCustomer = <String, Map<String, List<Penalty>>>{};
+    for (final p in filtered) {
+      final ck = p.customerCode.isNotEmpty ? p.customerCode : p.customerName;
+      final lk = p.loanId.isNotEmpty ? p.loanId : p.loanCode;
+      byCustomer
+          .putIfAbsent(ck, () => <String, List<Penalty>>{})
+          .putIfAbsent(lk, () => <Penalty>[])
+          .add(p);
+    }
+    final customerGroups = byCustomer.values
+        .map((m) => m.values.map((ps) => _LoanPenaltyGroup(ps)).toList())
+        .toList();
 
     return RefreshIndicator(
       color: AppColors.primary,
@@ -221,7 +239,8 @@ class _PenaltiesBody extends ConsumerWidget {
               ),
             )
           else
-            ...filtered.map((p) => _PenaltyCard(penalty: p, fmt: fmt)),
+            ...customerGroups
+                .map((loans) => _CustomerPenaltyCard(loans: loans, fmt: fmt)),
         ],
       ),
     );
@@ -279,23 +298,69 @@ class _SummaryCard extends StatelessWidget {
   }
 }
 
-class _PenaltyCard extends ConsumerWidget {
-  const _PenaltyCard({required this.penalty, required this.fmt});
-  final Penalty penalty;
+/// All penalties for one loan, combined into a single set of figures.
+class _LoanPenaltyGroup {
+  _LoanPenaltyGroup(this.penalties);
+  final List<Penalty> penalties;
+
+  Penalty get primary => penalties.first;
+  String get loanCode => primary.loanCode;
+  String get customerName => primary.customerName;
+
+  double get gross => penalties.fold(0, (s, p) => s + p.grossPenalty);
+  double get settled => penalties.fold(0, (s, p) => s + p.settledAmount);
+  double get waived => penalties.fold(0, (s, p) => s + p.waivedAmount);
+  double get net => gross - settled - waived;
+
+  /// Days the customer skipped on this loan (max across its penalty rows).
+  int get skippedDays =>
+      penalties.fold(0, (m, p) => p.missedDays > m ? p.missedDays : m);
+
+  String get loanId => primary.loanId;
+
+  List<Penalty> get pending =>
+      penalties.where((p) => p.status == 'pending').toList();
+  bool get hasPending => pending.isNotEmpty;
+
+  String get status {
+    if (hasPending) return 'pending';
+    if (penalties.any((p) => p.status == 'waived')) return 'waived';
+    return 'settled';
+  }
+}
+
+/// One card per customer. Penalties of the same loan are combined; a customer
+/// with multiple loans becomes a swipeable PageView (single static card if
+/// there's only one loan).
+class _CustomerPenaltyCard extends ConsumerStatefulWidget {
+  const _CustomerPenaltyCard({required this.loans, required this.fmt});
+  final List<_LoanPenaltyGroup> loans;
   final NumberFormat fmt;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(authControllerProvider).user;
-    final isAdmin = user?.role == UserRole.admin || user?.role == UserRole.developer;
+  ConsumerState<_CustomerPenaltyCard> createState() =>
+      _CustomerPenaltyCardState();
+}
 
-    final net =
-        penalty.grossPenalty - penalty.settledAmount - penalty.waivedAmount;
-    final BadgeKind badgeKind = penalty.status == 'settled'
-        ? BadgeKind.active
-        : penalty.status == 'waived'
-            ? BadgeKind.waived
-            : BadgeKind.pending;
+class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
+  final _controller = PageController();
+  int _page = 0;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = T.of(ref);
+    final loans = widget.loans;
+    final multi = loans.length > 1;
+    final user = ref.watch(authControllerProvider).user;
+    final isAdmin = user?.role == UserRole.admin ||
+        user?.role == UserRole.superadmin ||
+        user?.role == UserRole.developer;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -307,110 +372,239 @@ class _PenaltyCard extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Shared customer header.
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
             child: Row(
               children: [
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(penalty.customerName,
-                          style: AppTypography.bodyLarge,),
-                      const SizedBox(height: 2),
-                      Text(
-                        penalty.loanCode,
-                        style: AppTypography.caption
-                            .copyWith(color: AppColors.primary),
-                      ),
-                    ],
-                  ),
+                  child: Text(loans.first.customerName,
+                      style: AppTypography.bodyLarge,),
                 ),
-                AppBadge(
-                  label: penalty.status.toUpperCase(),
-                  kind: badgeKind,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          const Divider(height: 1, color: AppColors.border),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    _AmountCol(
-                      label: 'Gross',
-                      value: fmt.format(penalty.grossPenalty),
-                      color: AppColors.danger,
-                    ),
-                    _AmountCol(
-                      label: 'Settled',
-                      value: fmt.format(penalty.settledAmount),
-                      color: AppColors.success,
-                    ),
-                    _AmountCol(
-                      label: 'Waived',
-                      value: fmt.format(penalty.waivedAmount),
-                      color: AppColors.purple,
-                    ),
-                    _AmountCol(
-                      label: 'Net Due',
-                      value: fmt.format(net),
-                      color: AppColors.warning,
-                    ),
-                  ],
-                ),
-                if (penalty.status == 'pending') ...[
-                  const SizedBox(height: 12),
+                if (multi)
                   Row(
                     children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () =>
-                              _showSettleSheet(context, ref, penalty, net),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.primary,
-                            side: const BorderSide(color: AppColors.primary),
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                          ),
-                          child: const Text('Settle'),
-                        ),
+                      const Icon(Icons.swipe, size: 14, color: AppColors.textLight),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${_page + 1}/${loans.length} ${t.x('pen.loans')}',
+                        style: AppTypography.caption,
                       ),
-                      if (isAdmin) ...[
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () => _confirmWaive(context, ref, penalty),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.purple,
-                              side: const BorderSide(color: AppColors.purple),
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                            ),
-                            child: const Text('Waive'),
-                          ),
-                        ),
-                      ],
                     ],
                   ),
-                ],
               ],
             ),
           ),
+          const Divider(height: 1, color: AppColors.border),
+          SizedBox(
+            height: 150,
+            child: PageView.builder(
+              controller: _controller,
+              itemCount: loans.length,
+              physics: multi
+                  ? const BouncingScrollPhysics()
+                  : const NeverScrollableScrollPhysics(),
+              onPageChanged: (i) => setState(() => _page = i),
+              itemBuilder: (_, i) => _loanPage(t, loans[i], isAdmin),
+            ),
+          ),
+          if (multi)
+            Padding(
+              padding: const EdgeInsets.only(top: 2, bottom: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(loans.length, (i) {
+                  final active = i == _page;
+                  return AnimatedContainer(
+                    duration: AppTokens.transition,
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    width: active ? 18 : 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: active ? AppColors.primary : AppColors.border,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  );
+                }),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  void _showSettleSheet(
-    BuildContext context,
-    WidgetRef ref,
-    Penalty p,
-    double net,
-  ) {
+  Widget _loanPage(T t, _LoanPenaltyGroup g, bool isAdmin) {
+    final fmt = widget.fmt;
+    final BadgeKind badgeKind = g.status == 'settled'
+        ? BadgeKind.active
+        : g.status == 'waived'
+            ? BadgeKind.waived
+            : BadgeKind.pending;
+
+    return InkWell(
+      onTap: () => _showSkippedDays(g),
+      child: Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                g.loanCode,
+                style: AppTypography.caption.copyWith(color: AppColors.primary),
+              ),
+              if (g.skippedDays > 0) ...[
+                const SizedBox(width: 8),
+                _SkippedChip(days: g.skippedDays),
+              ],
+              const Spacer(),
+              AppBadge(label: g.status.toUpperCase(), kind: badgeKind),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              _AmountCol(label: 'Gross', value: fmt.format(g.gross), color: AppColors.danger),
+              _AmountCol(label: 'Settled', value: fmt.format(g.settled), color: AppColors.success),
+              _AmountCol(label: 'Waived', value: fmt.format(g.waived), color: AppColors.purple),
+              _AmountCol(label: 'Net Due', value: fmt.format(g.net), color: AppColors.warning),
+            ],
+          ),
+          const Spacer(),
+          if (g.hasPending)
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () => _showSettleSheet(g),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: AppColors.onPrimary,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    icon: const Icon(Icons.payments_outlined, size: 18),
+                    label: const Text('Settle'),
+                  ),
+                ),
+                if (isAdmin) ...[
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () => _confirmWaive(g),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.ink,
+                        foregroundColor: AppColors.onInk,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      icon: const Icon(Icons.block_outlined, size: 18),
+                      label: const Text('Waive'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+        ],
+      ),
+      ),
+    );
+  }
+
+  /// Loan payment calendar (heatmap) — shows which instalments were skipped.
+  void _showSkippedDays(_LoanPenaltyGroup g) {
     final t = T.of(ref);
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(AppTokens.radius)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.62,
+        minChildSize: 0.4,
+        maxChildSize: 0.92,
+        builder: (_, scrollCtrl) => SingleChildScrollView(
+          controller: scrollCtrl,
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 38,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text('${g.customerName} · ${g.loanCode}',
+                  style: AppTypography.sectionTitle,),
+              const SizedBox(height: 4),
+              Text(
+                '${g.skippedDays} ${t.x('pen.days_skipped')}',
+                style: AppTypography.caption
+                    .copyWith(color: AppColors.danger, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 16),
+              FutureBuilder<Loan>(
+                future: ref.read(loanServiceProvider).getById(g.loanId),
+                builder: (c, snap) {
+                  if (snap.connectionState != ConnectionState.done) {
+                    return const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  if (snap.hasError || snap.data == null) {
+                    return Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(t.x('pen.heatmap_failed'),
+                          style: AppTypography.caption,),
+                    );
+                  }
+                  return LoanHeatmap(
+                    instalments: snap.data!.instalments,
+                    title: t.x('pen.skipped_calendar'),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Settles [amount] across the loan's pending penalties, oldest first.
+  Future<void> _settleGroup(_LoanPenaltyGroup g, double amount) async {
+    final svc = ref.read(penaltyServiceProvider);
+    final pend = [...g.pending]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    var remaining = amount;
+    for (final p in pend) {
+      if (remaining <= 0) break;
+      final pNet = p.grossPenalty - p.settledAmount - p.waivedAmount;
+      if (pNet <= 0) continue;
+      final pay = remaining < pNet ? remaining : pNet;
+      await svc.settle(id: p.id, amount: pay);
+      remaining -= pay;
+    }
+  }
+
+  void _showSettleSheet(_LoanPenaltyGroup g) {
+    final t = T.of(ref);
+    final net = g.net;
     final ctrl = TextEditingController(text: net.toStringAsFixed(0));
     showModalBottomSheet<void>(
       context: context,
@@ -443,7 +637,7 @@ class _PenaltyCard extends ConsumerWidget {
             Text(t.x('pen.settle_title'), style: AppTypography.sectionTitle),
             const SizedBox(height: 4),
             Text(
-              '${p.customerName} · ${p.loanCode}',
+              '${g.customerName} · ${g.loanCode}',
               style: AppTypography.caption,
             ),
             const SizedBox(height: 20),
@@ -484,9 +678,7 @@ class _PenaltyCard extends ConsumerWidget {
                     return;
                   }
                   Navigator.pop(ctx);
-                  await ref
-                      .read(penaltyServiceProvider)
-                      .settle(id: p.id, amount: amount);
+                  await _settleGroup(g, amount);
                   ref.invalidate(_penaltiesProvider);
                 },
                 child: Text(
@@ -502,18 +694,43 @@ class _PenaltyCard extends ConsumerWidget {
     );
   }
 
-  Future<void> _confirmWaive(
-    BuildContext context,
-    WidgetRef ref,
-    Penalty p,
-  ) async {
+  Future<void> _confirmWaive(_LoanPenaltyGroup g) async {
     final result = await showDialog<bool>(
       context: context,
-      builder: (_) => _WaiveDialog(penalty: p),
+      builder: (_) => _WaiveDialog(
+        pending: g.pending,
+        customerName: g.customerName,
+        net: g.net,
+      ),
     );
-    if (result == true && context.mounted) {
+    if (result == true && mounted) {
       ref.invalidate(_penaltiesProvider);
     }
+  }
+}
+
+class _SkippedChip extends StatelessWidget {
+  const _SkippedChip({required this.days});
+  final int days;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.danger.withAlpha(28),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.event_busy, size: 12, color: AppColors.danger),
+          const SizedBox(width: 4),
+          Text('${days}d',
+              style: AppTypography.tiny.copyWith(color: AppColors.danger),),
+        ],
+      ),
+    );
   }
 }
 
@@ -572,31 +789,28 @@ class _ErrorState extends StatelessWidget {
       );
 }
 
+/// Waives every pending penalty for a loan. The backend waives the full gross
+/// of each penalty, so this collects a single reason and applies it to all.
 class _WaiveDialog extends ConsumerStatefulWidget {
-  const _WaiveDialog({required this.penalty});
-  final Penalty penalty;
+  const _WaiveDialog({
+    required this.pending,
+    required this.customerName,
+    required this.net,
+  });
+  final List<Penalty> pending;
+  final String customerName;
+  final double net;
 
   @override
   ConsumerState<_WaiveDialog> createState() => _WaiveDialogState();
 }
 
 class _WaiveDialogState extends ConsumerState<_WaiveDialog> {
-  late final TextEditingController _amountController;
   final _reasonController = TextEditingController();
-  bool _fullWaive = true;
   bool _submitting = false;
-
-  double get _outstanding => widget.penalty.grossPenalty - widget.penalty.settledAmount - widget.penalty.waivedAmount;
-
-  @override
-  void initState() {
-    super.initState();
-    _amountController = TextEditingController(text: _outstanding.toStringAsFixed(0));
-  }
 
   @override
   void dispose() {
-    _amountController.dispose();
     _reasonController.dispose();
     super.dispose();
   }
@@ -611,21 +825,12 @@ class _WaiveDialogState extends ConsumerState<_WaiveDialog> {
       return;
     }
 
-    final amt = double.tryParse(_amountController.text) ?? 0;
-    if (amt <= 0 || amt > _outstanding) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid amount'), backgroundColor: AppColors.warning),
-      );
-      return;
-    }
-
     setState(() => _submitting = true);
     try {
-      await ref.read(penaltyServiceProvider).waive(
-        id: widget.penalty.id,
-        amount: amt,
-        reason: reason,
-      );
+      final svc = ref.read(penaltyServiceProvider);
+      for (final p in widget.pending) {
+        await svc.waive(id: p.id, reason: reason);
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(t.x('pen.waived')), backgroundColor: AppColors.success),
@@ -640,38 +845,19 @@ class _WaiveDialogState extends ConsumerState<_WaiveDialog> {
   @override
   Widget build(BuildContext context) {
     final t = T.of(ref);
+    final fmt = ref.watch(currencyFmtProvider);
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radius)),
-      title: Text('Waive Penalty - ${widget.penalty.customerName}'),
+      title: Text('Waive Penalty - ${widget.customerName}'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(t.x('pen.waive_full'), style: AppTypography.body),
-              value: _fullWaive,
-              onChanged: (v) {
-                setState(() {
-                  _fullWaive = v ?? true;
-                  if (_fullWaive) {
-                    _amountController.text = _outstanding.toStringAsFixed(0);
-                  }
-                });
-              },
+            Text(
+              '${t.x('pen.waive_full')}: ${fmt.format(widget.net)}',
+              style: AppTypography.body,
             ),
-            if (!_fullWaive) ...[
-              const SizedBox(height: 8),
-              TextField(
-                controller: _amountController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: t.x('pen.waive_amount'),
-                  border: const OutlineInputBorder(),
-                ),
-              ),
-            ],
             const SizedBox(height: 16),
             TextField(
               controller: _reasonController,
@@ -691,13 +877,14 @@ class _WaiveDialogState extends ConsumerState<_WaiveDialog> {
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.purple,
+            backgroundColor: AppColors.ink,
+            foregroundColor: AppColors.onInk,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radiusSm)),
           ),
           onPressed: _submitting ? null : _submit,
           child: _submitting
               ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Text('Waive', style: TextStyle(color: Colors.white)),
+              : const Text('Waive', style: TextStyle(color: AppColors.onInk)),
         ),
       ],
     );

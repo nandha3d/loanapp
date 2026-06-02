@@ -10,7 +10,7 @@ export async function PATCH(
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
   const ctx = auth.context;
-  if (!['admin', 'superadmin', 'developer'].includes(ctx.role)) {
+  if (!['admin', 'superadmin', 'developer', 'agent'].includes(ctx.role)) {
     return fail('Forbidden', 403);
   }
   const { id } = await params;
@@ -20,6 +20,10 @@ export async function PATCH(
     const action = String(body.action || 'settle'); // settle | waive
     const amount = Number(body.amount ?? 0);
     const paymentMode = String(body.paymentMode || 'cash');
+
+    if (action === 'waive' && ctx.role === 'agent') {
+      return fail('Forbidden: Agents cannot waive penalties', 403);
+    }
 
     const penalty = await prisma.penalty.findUnique({
       where: { id },

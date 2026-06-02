@@ -1,3 +1,4 @@
+import 'package:loantrack/core/currency/currency_controller.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -924,8 +925,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
   // ─────────────────────── Step 4: Review ──────────────────────────────
   Widget _stepReview() {
     final tr = T.of(ref);
-    final fmt =
-        NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+    final fmt = ref.watch(currencyFmtProvider);
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [

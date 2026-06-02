@@ -1,3 +1,4 @@
+import 'package:loantrack/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -115,8 +116,7 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
   @override
   Widget build(BuildContext context) {
     final loan = widget.loan;
-    final fmt =
-        NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+    final fmt = ref.watch(currencyFmtProvider);
     final paid = loan.instalments.where((i) => i.dynamicStatus == 'paid').length;
     final progress =
         loan.instalmentCount == 0 ? 0.0 : paid / loan.instalmentCount;

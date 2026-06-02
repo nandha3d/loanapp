@@ -803,7 +803,7 @@ export default function LoanDetailClient({
                 let col: any = {};
                 try {
                   if (loan.collateralDetails) col = JSON.parse(loan.collateralDetails);
-                } catch(e) {}
+                } catch(e) { console.error('collateralDetails parse error', e); }
 
                 if (loan.loanType === 'gold') {
                   return (

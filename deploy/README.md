@@ -29,7 +29,11 @@ sudo -u loantrack rsync -av --delete ./ /home/loantrack/app/
 # 4. Env file
 sudo tee /home/loantrack/app/.env >/dev/null <<'EOF'
 DATABASE_URL=mysql://loantrack:STRONG_PASS@localhost:3306/loantrack?connection_limit=20&pool_timeout=30
+# Session secret — signs web, middleware, borrower, AND mobile tokens.
+# AUTH_SECRET alone is sufficient for everything (mobile falls back to it).
 AUTH_SECRET=<64-hex random>
+# Optional: dedicated mobile API token secret (recommended, not required).
+MOBILE_JWT_SECRET=<64-hex random>
 PII_ENCRYPTION_KEY=<64-hex random>
 CRON_SECRET=<32-hex random>
 NEXT_PUBLIC_APP_URL=https://YOUR_DOMAIN

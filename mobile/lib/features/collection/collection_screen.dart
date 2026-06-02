@@ -1,3 +1,4 @@
+import 'package:loantrack/core/currency/currency_controller.dart';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -67,19 +68,6 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     return _distanceKm(_agentLat!, _agentLng!, r.lat!, r.lng!);
   }
 
-  // Sort by distance to agent; rows without a geocode sink to the bottom.
-  List<CollectionRow> _sortedByDistance(List<CollectionRow> rows) {
-    final list = [...rows];
-    list.sort((a, b) {
-      final da = _distTo(a);
-      final db = _distTo(b);
-      if (da == null && db == null) return 0;
-      if (da == null) return 1;
-      if (db == null) return -1;
-      return da.compareTo(db);
-    });
-    return list;
-  }
 
   String? _distanceLabel(double? km) {
     if (km == null) return null;
@@ -134,11 +122,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     final sync = ref.watch(collectionSyncProvider);
     final filter = ref.watch(_filterProvider);
     final t = T.of(ref);
-    final fmt = NumberFormat.currency(
-      locale: 'en_IN',
-      symbol: '₹',
-      decimalDigits: 0,
-    );
+    final fmt = ref.watch(currencyFmtProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -259,25 +243,28 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
                 ),
                 const SizedBox(height: 12),
                 if (_nearest && _agentLat != null)
-                  ..._sortedByDistance(filtered).expand(
-                    (r) => [
+                  ..._sortGroupsByDistance(_groupByCustomer(filtered)).expand(
+                    (g) => [
                       _CollectionCard(
-                        row: r,
+                        group: g,
                         fmt: fmt,
-                        distanceLabel: _distanceLabel(_distTo(r)),
+                        distanceLabel: _distanceLabel(_distTo(g.primary)),
                       ),
                       const SizedBox(height: 10),
                     ],
                   )
                 else
-                  ..._groupByRoute(filtered, t.x('coll.unassigned'))
+                  ..._groupGroupsByRoute(
+                    _groupByCustomer(filtered),
+                    t.x('coll.unassigned'),
+                  )
                       .entries
                       .expand(
                     (e) => [
                       _RouteHeader(routeName: e.key, count: e.value.length),
                       const SizedBox(height: 8),
-                      for (final r in e.value) ...[
-                        _CollectionCard(row: r, fmt: fmt),
+                      for (final g in e.value) ...[
+                        _CollectionCard(group: g, fmt: fmt),
                         const SizedBox(height: 10),
                       ],
                       const SizedBox(height: 6),
@@ -316,11 +303,35 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     }
   }
 
-  Map<String, List<CollectionRow>> _groupByRoute(
-      List<CollectionRow> rows, String unassigned,) {
+  // One card per customer: collapse a customer's instalments (today's due +
+  // any overdue) into a single group. Preserves API order (dueDate asc).
+  List<_CustomerGroup> _groupByCustomer(List<CollectionRow> rows) {
     final m = <String, List<CollectionRow>>{};
     for (final r in rows) {
-      m.putIfAbsent(r.routeName ?? unassigned, () => []).add(r);
+      m.putIfAbsent(r.customerId, () => <CollectionRow>[]).add(r);
+    }
+    return m.values.map((rs) => _CustomerGroup(rs)).toList();
+  }
+
+  List<_CustomerGroup> _sortGroupsByDistance(List<_CustomerGroup> groups) {
+    final list = [...groups];
+    list.sort((a, b) {
+      final da = _distTo(a.primary);
+      final db = _distTo(b.primary);
+      if (da == null && db == null) return 0;
+      if (da == null) return 1;
+      if (db == null) return -1;
+      return da.compareTo(db);
+    });
+    return list;
+  }
+
+  Map<String, List<_CustomerGroup>> _groupGroupsByRoute(
+      List<_CustomerGroup> groups, String unassigned,) {
+    final m = <String, List<_CustomerGroup>>{};
+    for (final g in groups) {
+      m.putIfAbsent(g.primary.routeName ?? unassigned, () => <_CustomerGroup>[])
+          .add(g);
     }
     return m;
   }
@@ -608,7 +619,7 @@ class _ProgressHero extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [AppColors.primary, AppColors.primaryDark],
+          colors: [AppColors.heroDarkFrom, AppColors.heroDarkTo],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -622,7 +633,7 @@ class _ProgressHero extends StatelessWidget {
             children: [
               const Icon(
                 Icons.savings_outlined,
-                color: Colors.white,
+                color: AppColors.primary,
                 size: 18,
               ),
               const SizedBox(width: 6),
@@ -637,7 +648,7 @@ class _ProgressHero extends StatelessWidget {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.white.withAlpha(40),
+                  color: AppColors.primary.withAlpha(48),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -671,7 +682,7 @@ class _ProgressHero extends StatelessWidget {
                 child: Container(
                   height: 8,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AppColors.primary,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -856,33 +867,74 @@ class _RouteHeader extends StatelessWidget {
   }
 }
 
+// ──────────────────────── Customer collection group ─────────────────
+//
+// One customer's instalments collapsed into a single card. Splits them into
+// two buckets so the field agent has one clear card per customer with two
+// explicit actions: collect today's due, or settle overdue.
+class _CustomerGroup {
+  _CustomerGroup(this.rows);
+
+  /// All of a customer's instalments for today's run, in API order (dueDate asc).
+  final List<CollectionRow> rows;
+
+  /// Representative row for header/identity/location (oldest due first).
+  CollectionRow get primary => rows.first;
+
+  List<CollectionRow> get _collectible =>
+      rows.where((r) => r.status != 'paid' && r.outstanding > 0).toList();
+
+  /// Due today or earlier-but-not-yet-overdue (daysOverdue <= 0).
+  List<CollectionRow> get _todayCollectible =>
+      _collectible.where((r) => r.daysOverdue <= 0).toList();
+
+  /// Past due and unpaid (daysOverdue > 0).
+  List<CollectionRow> get _overdueCollectible =>
+      _collectible.where((r) => r.daysOverdue > 0).toList();
+
+  double get todayDue =>
+      _todayCollectible.fold(0.0, (s, r) => s + r.outstanding);
+  double get overdueDue =>
+      _overdueCollectible.fold(0.0, (s, r) => s + r.outstanding);
+  double get totalDue => todayDue + overdueDue;
+  double get collectedTotal =>
+      rows.fold(0.0, (s, r) => s + r.receivedAmount);
+
+  int get maxDaysOverdue => _overdueCollectible.fold(
+      0, (m, r) => r.daysOverdue > m ? r.daysOverdue : m);
+
+  /// Oldest unpaid instalment in each bucket (rows are already dueDate-asc),
+  /// so collecting always settles the oldest dues first.
+  CollectionRow? get nextToday =>
+      _todayCollectible.isEmpty ? null : _todayCollectible.first;
+  CollectionRow? get nextOverdue =>
+      _overdueCollectible.isEmpty ? null : _overdueCollectible.first;
+
+  bool get allCollected => _collectible.isEmpty;
+
+  /// Most recently collected instalment that has a receipt (for receipt/share).
+  CollectionRow? get receiptRow {
+    CollectionRow? found;
+    for (final r in rows) {
+      if (r.collectionEntryId != null) found = r;
+    }
+    return found;
+  }
+}
+
 // ───────────────────────────── Collection card ──────────────────────
 
 class _CollectionCard extends ConsumerWidget {
   const _CollectionCard({
-    required this.row,
+    required this.group,
     required this.fmt,
     this.distanceLabel,
   });
-  final CollectionRow row;
+  final _CustomerGroup group;
   final NumberFormat fmt;
   final String? distanceLabel;
 
-  Color _statusColor() {
-    if (row.status == 'paid') return AppColors.success;
-    if (row.status == 'partial') return AppColors.warning;
-    if (row.daysOverdue > 0) return AppColors.danger;
-    return AppColors.info;
-  }
-
-  String _statusLabel(T t) {
-    if (row.status == 'paid') return t.x('coll.status_paid');
-    if (row.status == 'partial') return t.x('coll.status_partial');
-    if (row.daysOverdue > 0) return '${row.daysOverdue}d ${t.x('coll.status_overdue_days')}';
-    return t.x('coll.status_due_today');
-  }
-
-  void _open(BuildContext context, WidgetRef ref) {
+  void _collect(BuildContext context, WidgetRef ref, CollectionRow row) {
     ref.speak('${row.customerName}, ${fmt.format(row.outstanding)}');
     showModalBottomSheet<void>(
       context: context,
@@ -895,167 +947,199 @@ class _CollectionCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
-    final isPaid = row.status == 'paid';
-    final statusColor = _statusColor();
+    final p = group.primary;
+    final today = group.nextToday;
+    final overdue = group.nextOverdue;
+    final allCollected = group.allCollected;
+    final rrow = group.receiptRow;
+
+    final Color chipColor = allCollected
+        ? AppColors.success
+        : overdue != null
+            ? AppColors.danger
+            : AppColors.primary;
+    final String chipLabel = allCollected
+        ? t.x('coll.collected_label')
+        : overdue != null
+            ? '${group.maxDaysOverdue}d ${t.x('coll.status_overdue_days')}'
+            : t.x('coll.status_due_today');
 
     return Material(
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: isPaid ? null : () => _open(context, ref),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: AppTokens.shadow,
-            border: Border.all(color: statusColor.withAlpha(36)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  _Avatar(name: row.customerName),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          row.customerName,
-                          style: AppTypography.nameLg,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Row(
-                          children: [
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: AppTokens.shadow,
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header: avatar, name + loan code, call.
+            Row(
+              children: [
+                _Avatar(name: p.customerName),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        p.customerName,
+                        style: AppTypography.nameLg,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Text(
+                            p.loanCode,
+                            style: AppTypography.caption.copyWith(
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                          if (distanceLabel != null) ...[
+                            const SizedBox(width: 8),
+                            const Icon(Icons.near_me,
+                                size: 12, color: AppColors.primary,),
+                            const SizedBox(width: 2),
                             Text(
-                              row.loanCode,
+                              distanceLabel!,
                               style: AppTypography.caption.copyWith(
-                                fontFamily: 'monospace',
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                            if (distanceLabel != null) ...[
-                              const SizedBox(width: 8),
-                              const Icon(
-                                Icons.near_me,
-                                size: 12,
-                                color: AppColors.primary,
-                              ),
-                              const SizedBox(width: 2),
-                              Text(
-                                distanceLabel!,
-                                style: AppTypography.caption.copyWith(
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
                           ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.call_rounded,
-                      color: AppColors.success,
-                    ),
-                    onPressed: () async {
-                      final uri = Uri(scheme: 'tel', path: row.customerCode);
-                      if (await canLaunchUrl(uri)) {
-                        await launchUrl(uri);
-                      }
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          fmt.format(row.outstanding),
-                          style: AppTypography.moneyLg.copyWith(
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        Text(
-                          '${t.x('coll.of_due')} ${fmt.format(row.dueAmount)} ${t.x('coll.due_suffix')}',
-                          style: AppTypography.caption,
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: statusColor.withAlpha(36),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      _statusLabel(t),
-                      style: AppTypography.tiny.copyWith(color: statusColor),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor:
-                        isPaid ? AppColors.success : AppColors.primary,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: isPaid ? null : () => _open(context, ref),
-                  icon: Icon(
-                    isPaid
-                        ? Icons.check_circle_rounded
-                        : Icons.touch_app_rounded,
-                    color: Colors.white,
-                  ),
-                  label: Text(
-                    isPaid ? t.x('coll.collected_label') : t.x('coll.tap_to_collect'),
-                    style: AppTypography.actionLabel
-                        .copyWith(color: Colors.white, letterSpacing: 1),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-              ),
-              if (isPaid && row.collectionEntryId != null) ...[
-                const SizedBox(height: 6),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () => _downloadReceipt(context, ref),
-                    icon: const Icon(Icons.receipt_long, size: 18),
-                    label: Text(t.x('coll.receipt')),
+                IconButton(
+                  icon: const Icon(Icons.call_rounded,
+                      color: AppColors.success,),
+                  onPressed: () async {
+                    final uri = Uri(scheme: 'tel', path: p.customerCode);
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri);
+                    }
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Amount summary + status chip.
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        fmt.format(allCollected
+                            ? group.collectedTotal
+                            : group.totalDue,),
+                        style: AppTypography.moneyLg
+                            .copyWith(color: AppColors.textPrimary),
+                      ),
+                      Text(
+                        allCollected
+                            ? t.x('coll.collected_label')
+                            : t.x('coll.amount_due'),
+                        style: AppTypography.caption,
+                      ),
+                    ],
+                  ),
+                ),
+                _StatusChip(color: chipColor, label: chipLabel),
+              ],
+            ),
+            const SizedBox(height: 14),
+            // Two explicit actions: today's due | overdue (grayed when none).
+            Row(
+              children: [
+                Expanded(
+                  child: _ActionButton(
+                    primary: true,
+                    enabled: today != null,
+                    icon: Icons.today_rounded,
+                    label: t.x('coll.btn_today'),
+                    amount: today != null ? fmt.format(group.todayDue) : null,
+                    onTap: today != null
+                        ? () => _collect(context, ref, today)
+                        : null,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _ActionButton(
+                    primary: false,
+                    enabled: overdue != null,
+                    icon: Icons.history_rounded,
+                    label: overdue != null
+                        ? t.x('coll.btn_overdue')
+                        : t.x('coll.no_overdue'),
+                    amount:
+                        overdue != null ? fmt.format(group.overdueDue) : null,
+                    onTap: overdue != null
+                        ? () => _collect(context, ref, overdue)
+                        : null,
                   ),
                 ),
               ],
+            ),
+            // Receipt / share — shown once any instalment has been collected.
+            if (rrow != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.textPrimary,
+                        side: const BorderSide(color: AppColors.border),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onPressed: () => _downloadReceipt(context, ref, rrow),
+                      icon: const Icon(Icons.receipt_long, size: 18),
+                      label: Text(t.x('coll.receipt')),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.textPrimary,
+                        side: const BorderSide(color: AppColors.border),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onPressed: () => _shareReceipt(context, ref, rrow),
+                      icon: const Icon(Icons.share, size: 18),
+                      label: Text(t.x('coll.receipt_share')),
+                    ),
+                  ),
+                ],
+              ),
             ],
-          ),
+          ],
         ),
       ),
     );
   }
 
-  Future<void> _downloadReceipt(BuildContext context, WidgetRef ref) async {
-    final t = T.of(ref);
-    final messenger = ScaffoldMessenger.of(context);
+  /// Fetches the receipt PDF bytes, showing a loading/failure snackbar.
+  /// Returns null on failure (snackbar already shown).
+  Future<Uint8List?> _fetchReceiptBytes(
+    ScaffoldMessengerState messenger,
+    T t,
+    WidgetRef ref,
+    CollectionRow row,
+  ) async {
     messenger.showSnackBar(
       SnackBar(content: Text(t.x('coll.receipt_loading'))),
     );
@@ -1064,15 +1148,147 @@ class _CollectionCard extends ConsumerWidget {
           .read(collectionServiceProvider)
           .receiptPdf(row.collectionEntryId!);
       if (bytes.isEmpty) throw Exception('empty');
-      await Printing.layoutPdf(
-        onLayout: (_) async => Uint8List.fromList(bytes),
-        name: 'receipt-${row.loanCode}.pdf',
-      );
+      return Uint8List.fromList(bytes);
     } catch (_) {
       messenger.showSnackBar(
         SnackBar(content: Text(t.x('coll.receipt_failed'))),
       );
+      return null;
     }
+  }
+
+  Future<void> _downloadReceipt(
+      BuildContext context, WidgetRef ref, CollectionRow row,) async {
+    final t = T.of(ref);
+    final messenger = ScaffoldMessenger.of(context);
+    final bytes = await _fetchReceiptBytes(messenger, t, ref, row);
+    if (bytes == null) return;
+    await Printing.layoutPdf(
+      onLayout: (_) async => bytes,
+      name: 'receipt-${row.loanCode}.pdf',
+    );
+  }
+
+  /// Shares the receipt PDF via the native share sheet. Lets the agent send it
+  /// through their own WhatsApp/SMS/etc. — no DLT or business registration
+  /// needed, which suits unregistered field lenders.
+  Future<void> _shareReceipt(
+      BuildContext context, WidgetRef ref, CollectionRow row,) async {
+    final t = T.of(ref);
+    final messenger = ScaffoldMessenger.of(context);
+    final bytes = await _fetchReceiptBytes(messenger, t, ref, row);
+    if (bytes == null) return;
+    await Printing.sharePdf(
+      bytes: bytes,
+      filename: 'receipt-${row.loanCode}.pdf',
+    );
+  }
+}
+
+// ─────────────────────── Collection card sub-widgets ────────────────
+
+/// Small rounded status pill (overdue days / due today / collected).
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({required this.color, required this.label});
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withAlpha(38),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(label, style: AppTypography.tiny.copyWith(color: color)),
+    );
+  }
+}
+
+/// Dual-line action button used for "Today's due" and "Overdue".
+/// `primary` paints the amber CTA; otherwise it's a danger-tonal button.
+/// When `enabled` is false it greys out (used when there is no overdue).
+class _ActionButton extends StatelessWidget {
+  const _ActionButton({
+    required this.primary,
+    required this.enabled,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.amount,
+  });
+  final bool primary;
+  final bool enabled;
+  final IconData icon;
+  final String label;
+  final String? amount;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color bg;
+    final Color fg;
+    Border? border;
+    if (!enabled) {
+      // Greyed-out (e.g. no overdue) on the light card.
+      bg = AppColors.background;
+      fg = AppColors.textLight;
+      border = Border.all(color: AppColors.border);
+    } else if (primary) {
+      // Today's due — amber CTA.
+      bg = AppColors.primary;
+      fg = AppColors.onPrimary;
+    } else {
+      // Overdue — black action button.
+      bg = AppColors.ink;
+      fg = AppColors.onInk;
+    }
+
+    return Material(
+      color: bg,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Container(
+          height: 60,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: border,
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, size: 16, color: fg),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.label.copyWith(color: fg),
+                    ),
+                  ),
+                ],
+              ),
+              if (amount != null)
+                Text(
+                  amount!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.bodyLarge
+                      .copyWith(color: fg, fontWeight: FontWeight.w800),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

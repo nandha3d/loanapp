@@ -5,6 +5,7 @@ import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { getAgentRouteIds } from '@/lib/access';
 import { writeAudit } from '@/lib/audit';
 import { canCreateLoanForRole, validateLoanNumericInputs } from '@/lib/loanPolicy';
+import { getAgentBalance, disburseFromAgent, disburseFromBranch } from '@/lib/wallet';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -148,6 +149,12 @@ export async function POST(req: NextRequest) {
       dueDay,
     });
 
+    // Note: Agents now disburse on-approval. We don't block them from creating the
+    // loan request if they have insufficient float, because the admin can release
+    // funds before approving the loan.
+    // (If the creator is an admin/superadmin, the loan is active immediately and
+    // disburses from the branch pool, which doesn't have a strict balance block here).
+
     const { calculateEndDate, generateCode } = await import('@/lib/utils');
     const { getBranding } = await import('@/lib/tenant');
     const branding = await getBranding(ctx.tenantId);
@@ -189,7 +196,10 @@ export async function POST(req: NextRequest) {
     const loan = await prisma.loan.create({
       data: {
         tenantId: ctx.tenantId,
-        branchId: ctx.branchId,
+        // Inherit the customer's branch when the creator has none (e.g. a
+        // superadmin with no branch) so loans are never branchless and stay
+        // visible in branch-scoped views.
+        branchId: ctx.branchId ?? customer.branchId ?? null,
         appType: ctx.appType,
         loanCode,
         customerId,
@@ -235,6 +245,28 @@ export async function POST(req: NextRequest) {
       entityId: loan.id,
       newValue: { loanCode, principal, customerId },
     });
+
+    // Disburse cash from the float ledger. For agents, this now happens 
+    // ON APPROVAL in the review action. For admin/superadmin (loan goes straight
+    // to active), we draw from the branch cash pool here.
+    if (loan.status === 'active') {
+      try {
+        const disburseAmt = Number(preview.disbursedAmount);
+        if (loan.branchId) {
+          await prisma.$transaction((tx) =>
+            disburseFromBranch(tx, {
+              tenantId: ctx.tenantId,
+              branchId: loan.branchId!,
+              amount: disburseAmt,
+              loanId: loan.id,
+              byUserId: ctx.userId,
+            }),
+          );
+        }
+      } catch (err) {
+        console.error('[wallet] branch disbursement debit failed:', err);
+      }
+    }
 
     if (loan.status === 'active') {
       await prisma.accountEntry.create({

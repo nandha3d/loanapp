@@ -69,7 +69,7 @@ export default function LoanEditForm({
           setPropertyAddress(col.address || '');
         }
       }
-    } catch(e) {}
+    } catch(e) { console.error('collateralDetails parse error', e); }
   }, [loan.collateralDetails, loan.loanType]);
   const [existingGuarantorId, setExistingGuarantorId] = useState<string | null>(loan.guarantor?.id || null);
   const [guarantorName, setGuarantorName] = useState(loan.guarantor?.name || '');

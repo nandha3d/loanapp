@@ -40,3 +40,41 @@ class AgentLocation {
     );
   }
 }
+
+/// One of an agent's collection entries for today (customer, due, collected).
+class AgentCollection {
+  const AgentCollection({
+    required this.id,
+    required this.customerName,
+    required this.customerCode,
+    required this.dueAmount,
+    required this.receivedAmount,
+    this.paymentMode,
+    this.submittedAt,
+  });
+
+  final String id;
+  final String customerName;
+  final String customerCode;
+  final double dueAmount;
+  final double receivedAmount;
+  final String? paymentMode;
+  final DateTime? submittedAt;
+
+  factory AgentCollection.fromJson(Map<String, dynamic> json) {
+    double n(dynamic v) => v == null
+        ? 0
+        : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
+    return AgentCollection(
+      id: json['id'] as String,
+      customerName: (json['customerName'] as String?) ?? '—',
+      customerCode: (json['customerCode'] as String?) ?? '',
+      dueAmount: n(json['dueAmount']),
+      receivedAmount: n(json['receivedAmount']),
+      paymentMode: json['paymentMode'] as String?,
+      submittedAt: json['submittedAt'] == null
+          ? null
+          : DateTime.parse(json['submittedAt'] as String).toLocal(),
+    );
+  }
+}

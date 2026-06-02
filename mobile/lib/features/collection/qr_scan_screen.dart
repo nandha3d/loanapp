@@ -1,3 +1,4 @@
+import 'package:loantrack/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -46,7 +47,7 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> {
     try {
       final applied = await ref.read(collectionServiceProvider).submitQrProof(token);
       if (!mounted) return;
-      final fmt = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+      final fmt = ref.watch(currencyFmtProvider);
       setState(() => _status = '${t.x('proof.qr_confirmed')} ${fmt.format(applied)}');
       await Future<void>.delayed(const Duration(milliseconds: 900));
       if (mounted) Navigator.of(context).pop(true);

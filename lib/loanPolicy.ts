@@ -46,7 +46,8 @@ export function buildLoanDetailWhere(input: LoanDetailWhereInput) {
     appType: input.appType,
   };
 
-  if (input.branchId) {
+  const seesAllBranches = input.role === 'superadmin' || input.role === 'developer';
+  if (input.branchId && !seesAllBranches) {
     where.branchId = input.branchId;
   }
 

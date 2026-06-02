@@ -1,3 +1,4 @@
+import 'package:loantrack/core/currency/currency_controller.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -247,11 +248,7 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
   @override
   Widget build(BuildContext context) {
     final t = T.of(ref);
-    final fmt = NumberFormat.currency(
-      locale: 'en_IN',
-      symbol: '₹',
-      decimalDigits: 0,
-    );
+    final fmt = ref.watch(currencyFmtProvider);
 
     final due = widget.row.dueAmount;
     final outstanding = widget.row.outstanding;
@@ -511,8 +508,7 @@ class _AmountDisplay extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
-    final fmt =
-        NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+    final fmt = ref.watch(currencyFmtProvider);
     final Color color;
     final String hint;
     if (isOver) {
@@ -570,8 +566,7 @@ class _QuickAmountRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
     final half = (outstanding / 2).roundToDouble();
-    final fmt =
-        NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+    final fmt = ref.watch(currencyFmtProvider);
 
     return Row(
       children: [

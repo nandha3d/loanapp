@@ -6,8 +6,9 @@ import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/shared/constants/endpoints.dart';
 
 class LoginResult {
-  const LoginResult({this.token, this.user, this.requiresTotp = false});
+  const LoginResult({this.token, this.refreshToken, this.user, this.requiresTotp = false});
   final String? token;
+  final String? refreshToken;
   final User? user;
   final bool requiresTotp;
 }
@@ -34,6 +35,7 @@ class AuthService {
       }
       return LoginResult(
         token: map['token'] as String,
+        refreshToken: map['refreshToken'] as String?,
         user: User.fromJson(map['user'] as Map<String, dynamic>),
       );
     });
@@ -51,6 +53,7 @@ class AuthService {
       final map = d as Map<String, dynamic>;
       return LoginResult(
         token: map['token'] as String,
+        refreshToken: map['refreshToken'] as String?,
         user: User.fromJson(map['user'] as Map<String, dynamic>),
       );
     });
@@ -145,6 +148,26 @@ class AuthService {
 
   Future<void> logout() async {
     await _dio.post<Map<String, dynamic>>(Endpoints.logout);
+  }
+
+  Future<void> forgotPassword(String email) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.forgotPassword,
+      data: {'email': email},
+    );
+    unwrapEnvelope(res, (_) => null);
+  }
+
+  Future<void> resetPassword({
+    required String email,
+    required String otp,
+    required String newPassword,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.resetPassword,
+      data: {'email': email, 'otp': otp, 'newPassword': newPassword},
+    );
+    unwrapEnvelope(res, (_) => null);
   }
 }
 

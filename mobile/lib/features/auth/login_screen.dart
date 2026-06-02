@@ -285,7 +285,7 @@ class _LoginCard extends ConsumerWidget {
           const SizedBox(height: 12),
           Center(
             child: TextButton(
-              onPressed: () {}, // TODO Sprint 2: forgot password flow
+              onPressed: () => context.push('/forgot-password'),
               child: Text(
                 t.x('login.forgot'),
                 style:

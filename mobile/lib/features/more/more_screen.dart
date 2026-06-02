@@ -148,6 +148,14 @@ const _allModules = <_ModuleItem>[
     bgColor: AppColors.infoBg,
   ),
   _ModuleItem(
+    icon: Icons.account_balance_wallet_outlined,
+    label: 'Cash Float',
+    subtitle: 'Agent float & fund release',
+    route: '/wallet',
+    color: AppColors.primary,
+    bgColor: AppColors.primaryLight,
+  ),
+  _ModuleItem(
     icon: Icons.settings_outlined,
     label: 'Settings',
     subtitle: 'Routes, account & app preferences',

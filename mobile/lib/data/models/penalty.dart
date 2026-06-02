@@ -10,6 +10,7 @@ class Penalty {
     required this.waivedAmount,
     required this.status,
     required this.createdAt,
+    this.missedDays = 0,
     this.routeId,
     this.routeName,
   });
@@ -24,6 +25,7 @@ class Penalty {
   final double waivedAmount;
   final String status; // pending | settled | waived
   final DateTime createdAt;
+  final int missedDays;
   final String? routeId;
   final String? routeName;
 
@@ -44,6 +46,7 @@ class Penalty {
       waivedAmount: toDouble(json['waivedAmount']),
       status: (json['status'] as String?) ?? 'pending',
       createdAt: DateTime.parse(json['createdAt'] as String),
+      missedDays: (json['missedDays'] as num?)?.toInt() ?? 0,
       routeId: (customer['routeId'] as String?) ?? (route['id'] as String?),
       routeName: (route['name'] as String?),
     );

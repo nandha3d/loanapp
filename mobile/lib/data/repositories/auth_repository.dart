@@ -20,7 +20,7 @@ class AuthRepository {
       await _storage.savePendingTotpUser(username);
       return null;
     }
-    await _persist(result.token!, result.user!);
+    await _persist(result.token!, result.user!, refreshToken: result.refreshToken);
     return result.user;
   }
 
@@ -30,7 +30,7 @@ class AuthRepository {
       throw StateError('No pending TOTP user');
     }
     final result = await _service.verify2fa(username: username, code: code);
-    await _persist(result.token!, result.user!);
+    await _persist(result.token!, result.user!, refreshToken: result.refreshToken);
     await _storage.clearPendingTotpUser();
     return result.user!;
   }
@@ -104,11 +104,12 @@ class AuthRepository {
     return result;
   }
 
-  Future<void> _persist(String token, User user) async {
+  Future<void> _persist(String token, User user, {String? refreshToken}) async {
     await _storage.saveSession(
       token: token,
       tenantSlug: user.tenantSlug ?? '',
       branchId: user.branchId,
+      refreshToken: refreshToken,
     );
   }
 }

@@ -9,10 +9,16 @@ export async function GET(req: NextRequest) {
   if (auth.response) return auth.response;
   const ctx = auth.context;
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  // Anchor "today" to IST (UTC+5:30) so the business day boundary is correct
+  // regardless of the server's timezone (VPS often runs UTC). Without this, a
+  // collection made in the evening IST could fall on the wrong calendar day.
+  const IST_OFFSET_MS = 330 * 60 * 1000;
+  const istNow = new Date(Date.now() + IST_OFFSET_MS);
+  const istMidnightUtcMs =
+    Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()) -
+    IST_OFFSET_MS;
+  const today = new Date(istMidnightUtcMs);
+  const tomorrow = new Date(istMidnightUtcMs + 24 * 60 * 60 * 1000);
 
   const baseLoan: any = {
     tenantId: ctx.tenantId,
@@ -31,6 +37,7 @@ export async function GET(req: NextRequest) {
         totalCustomers: 0,
         todayExpected: 0,
         todayCollected: 0,
+        cashCollectedToday: 0,
         todayGap: 0,
         overdueOutstanding: 0,
         overdueCollectedToday: 0,
@@ -58,6 +65,7 @@ export async function GET(req: NextRequest) {
       overduePaidTodayAllocations,
       routes,
       recentActivity,
+      cashCollectedAgg,
     ] = await Promise.all([
       prisma.loan.count({ where: { ...baseLoan, status: 'active' } }),
       prisma.loan.count({ where: { ...baseLoan, status: 'overdue' } }),
@@ -124,6 +132,17 @@ export async function GET(req: NextRequest) {
         take: 8,
         include: { user: true },
       }),
+      // Actual cash collected today — ALL collection entries submitted today,
+      // regardless of which instalment (today's, overdue, or future) they hit.
+      // This is the real "money taken today" figure for the hero card.
+      prisma.collectionEntry.aggregate({
+        where: {
+          tenantId: ctx.tenantId,
+          submittedAt: { gte: today, lt: tomorrow },
+          loan: baseLoan,
+        },
+        _sum: { receivedAmount: true },
+      }),
     ]);
 
     const todayExpected = todayInstalments.reduce(
@@ -136,6 +155,8 @@ export async function GET(req: NextRequest) {
       (sum, item) => sum + Math.min(Number(item.receivedAmount || 0), Number(item.dueAmount)),
       0,
     );
+    // Actual cash taken today across all instalments (see query note above).
+    const cashCollectedToday = Number(cashCollectedAgg._sum.receivedAmount ?? 0);
     const todayGap = Math.max(0, todayExpected - todayCollected);
     const hitRate = todayExpected > 0 ? Math.round((todayCollected / todayExpected) * 100) : 0;
     const todayPending = todayGap;
@@ -181,6 +202,7 @@ export async function GET(req: NextRequest) {
       totalCustomers,
       todayExpected,
       todayCollected,
+      cashCollectedToday,
       todayGap,
       hitRate,
       todayPending,

@@ -16,6 +16,9 @@ class Endpoints {
   static const String me = '/auth/me';
   static const String verify2fa = '/auth/2fa';
   static const String register = '/auth/register';
+  static const String forgotPassword = '/auth/forgot-password';
+  static const String resetPassword = '/auth/reset-password';
+  static const String refreshToken = '/auth/refresh';
   static const String googleAuth = '/auth/google';
   static const String pricing = '/pricing';
 
@@ -37,6 +40,13 @@ class Endpoints {
   static const String collectionProofPhoto = '/collection/proof/photo';
   static const String collectionProofQr = '/collection/proof/qr';
   static String receipt(String entryId) => '/receipts/$entryId';
+  static String agentCollections(String agentId) =>
+      '/gps/agent/$agentId/collections';
+
+  // Wallet (agent cash float)
+  static const String walletMe = '/wallet/me';
+  static const String walletAgents = '/wallet/agents';
+  static const String walletRelease = '/wallet/release';
 
   // Penalties
   static const String penalties = '/penalties';

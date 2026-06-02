@@ -5,6 +5,7 @@ class DashboardSummary {
     required this.totalCustomers,
     required this.todayExpected,
     required this.todayCollected,
+    required this.cashCollectedToday,
     required this.todayGap,
     required this.overdueOutstanding,
     required this.overdueCollectedToday,
@@ -25,6 +26,8 @@ class DashboardSummary {
   final int totalCustomers;
   final double todayExpected;
   final double todayCollected;
+  /// Actual cash collected today across all instalments (today/overdue/future).
+  final double cashCollectedToday;
   final double todayGap;
   final double hitRate;
   final double todayPending;
@@ -50,6 +53,7 @@ class DashboardSummary {
       totalCustomers: (json['totalCustomers'] as num?)?.toInt() ?? 0,
       todayExpected: toNum(json['todayExpected']),
       todayCollected: toNum(json['todayCollected']),
+      cashCollectedToday: toNum(json['cashCollectedToday']),
       todayGap: toNum(json['todayGap']),
       hitRate: toNum(json['hitRate']),
       todayPending: toNum(json['todayPending']),

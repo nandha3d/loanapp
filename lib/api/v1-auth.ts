@@ -7,8 +7,15 @@ const ISSUER = 'loantrack';
 const AUDIENCE = 'mobile';
 
 function getSecret(): Uint8Array {
-  const raw = process.env.MOBILE_JWT_SECRET || process.env.NEXTAUTH_SECRET;
-  if (!raw) throw new Error('Missing MOBILE_JWT_SECRET / NEXTAUTH_SECRET');
+  // Prefer a dedicated mobile secret (best practice: don't share the web
+  // session secret), but fall back to the session secret under either name so
+  // a deployment that sets only AUTH_SECRET (deploy/README.md) or only
+  // NEXTAUTH_SECRET (shipped .env) still issues/verifies mobile tokens.
+  const raw =
+    process.env.MOBILE_JWT_SECRET ||
+    process.env.NEXTAUTH_SECRET ||
+    process.env.AUTH_SECRET;
+  if (!raw) throw new Error('Missing MOBILE_JWT_SECRET / NEXTAUTH_SECRET / AUTH_SECRET');
   return new TextEncoder().encode(raw);
 }
 
@@ -20,7 +27,8 @@ export type MobileTokenClaims = {
   appType: string;
 };
 
-const ACCESS_TOKEN_TTL = '30d'; // matches web NextAuth maxAge
+const ACCESS_TOKEN_TTL = '1h';
+const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 export async function issueMobileToken(claims: MobileTokenClaims): Promise<string> {
   return await new SignJWT({ ...claims })
@@ -31,6 +39,50 @@ export async function issueMobileToken(claims: MobileTokenClaims): Promise<strin
     .setSubject(claims.userId)
     .setExpirationTime(ACCESS_TOKEN_TTL)
     .sign(getSecret());
+}
+
+export async function issueRefreshToken(userId: string, tenantId: string): Promise<string> {
+  const { randomBytes } = await import('crypto');
+  const token = randomBytes(40).toString('hex');
+  const expiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS);
+  const prisma = (await import('../db')).default;
+  await prisma.mobileRefreshToken.create({ data: { token, userId, tenantId, expiresAt } });
+  return token;
+}
+
+export async function rotateRefreshToken(
+  oldToken: string,
+): Promise<{ claims: MobileTokenClaims; newRefreshToken: string } | null> {
+  const prisma = (await import('../db')).default;
+  let record: any = null;
+  try {
+    record = await prisma.mobileRefreshToken.findUnique({ where: { token: oldToken } });
+  } catch {
+    return null; // table doesn't exist yet — migration pending
+  }
+  if (!record || record.revokedAt || record.expiresAt < new Date()) return null;
+
+  // Revoke old token
+  await prisma.mobileRefreshToken.update({
+    where: { id: record.id },
+    data: { revokedAt: new Date() },
+  });
+
+  const user = await prisma.user.findUnique({
+    where: { id: record.userId },
+    select: { id: true, tenantId: true, branchId: true, role: true, appType: true, status: true },
+  });
+  if (!user || user.status !== 'active') return null;
+
+  const claims: MobileTokenClaims = {
+    userId: user.id,
+    tenantId: user.tenantId,
+    branchId: user.branchId,
+    role: user.role,
+    appType: user.appType,
+  };
+  const newRefreshToken = await issueRefreshToken(user.id, user.tenantId);
+  return { claims, newRefreshToken };
 }
 
 export async function verifyMobileToken(token: string): Promise<MobileTokenClaims> {

@@ -55,8 +55,11 @@ export default async function LoansPage({
     return p.toString();
   };
 
+  // Superadmin/developer see every branch (matches the mobile app, where a
+  // superadmin has no branch filter). Branch admins/agents stay branch-scoped.
+  const seesAllBranches = userRole === 'superadmin' || userRole === 'developer';
   const where: any = { tenantId, appType, AND: [] };
-  if (branchId) {
+  if (branchId && !seesAllBranches) {
     where.AND.push({ branchId });
   }
   if (userRole === 'agent') {

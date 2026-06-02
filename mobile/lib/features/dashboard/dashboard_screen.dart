@@ -1,3 +1,4 @@
+import 'package:loantrack/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -33,11 +34,7 @@ class DashboardScreen extends ConsumerWidget {
     final user = ref.watch(authControllerProvider).user;
     final summary = ref.watch(dashboardSummaryProvider);
     final t = T.of(ref);
-    final fmt = NumberFormat.currency(
-      locale: 'en_IN',
-      symbol: '₹',
-      decimalDigits: 0,
-    );
+    final fmt = ref.watch(currencyFmtProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -255,7 +252,9 @@ class _HeroBalance extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final collected = summary.todayCollected;
+    // Headline the actual cash taken today (all instalments), not just the
+    // portion that landed on today's scheduled dues.
+    final collected = summary.cashCollectedToday;
     final expected = summary.todayExpected;
     final pct = expected <= 0 ? 0.0 : (collected / expected).clamp(0.0, 1.0);
     final paid = summary.todayInstalments.where((i) => i.status == 'paid').length;

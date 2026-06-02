@@ -1,3 +1,4 @@
+import 'package:loantrack/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -35,8 +36,7 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
   Widget build(BuildContext context) {
     final async = ref.watch(_loansProvider);
     final t = T.of(ref);
-    final fmt =
-        NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+    final fmt = ref.watch(currencyFmtProvider);
 
     return Scaffold(
       appBar: AppBar(

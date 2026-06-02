@@ -181,6 +181,20 @@ model User {
   @@map("users")
 }
 
+model MobileRefreshToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  userId    String    @map("user_id")
+  tenantId  String    @map("tenant_id")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId], map: "mobile_refresh_tokens_user_id_fkey")
+  @@index([expiresAt], map: "mobile_refresh_tokens_expires_at_idx")
+  @@map("mobile_refresh_tokens")
+}
+
 model BranchRequest {
   id               String    @id @default(cuid())
   tenantId         String    @map("tenant_id")
@@ -2066,4 +2080,53 @@ model ReferralLead {
 
   @@index([affiliateId])
   @@map("referral_leads")
+}
+
+// ── Agent / branch cash float (wallet) ───────────────────────────────
+// Cash-in-hand ledger: admin/superadmin RELEASE company cash to an agent's
+// account; disbursing a loan DEBITS it; collecting a repayment CREDITS it.
+// Branch cash account funds direct disbursements by admin/superadmin.
+model AgentAccount {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id")
+  agentId   String   @map("agent_id")
+  balance   Decimal  @default(0) @db.Decimal(18, 2)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, agentId], map: "agent_accounts_tenant_agent_key")
+  @@map("agent_accounts")
+}
+
+model BranchCashAccount {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id")
+  branchId  String   @map("branch_id")
+  balance   Decimal  @default(0) @db.Decimal(18, 2)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, branchId], map: "branch_cash_accounts_tenant_branch_key")
+  @@map("branch_cash_accounts")
+}
+
+model WalletTransaction {
+  id           String   @id @default(cuid())
+  tenantId     String   @map("tenant_id")
+  accountKind  String   @map("account_kind") // agent | branch
+  agentId      String?  @map("agent_id")
+  branchId     String?  @map("branch_id")
+  type         String // release | disburse | collection | inject | adjustment
+  amount       Decimal  @db.Decimal(18, 2) // signed: + credit, - debit
+  balanceAfter Decimal  @map("balance_after") @db.Decimal(18, 2)
+  refType      String?  @map("ref_type") // loan | collection_entry | manual
+  refId        String?  @map("ref_id")
+  note         String?  @db.Text
+  createdById  String?  @map("created_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, agentId], map: "wallet_tx_tenant_agent_idx")
+  @@index([tenantId, branchId], map: "wallet_tx_tenant_branch_idx")
+  @@index([createdAt], map: "wallet_tx_created_at_idx")
+  @@map("wallet_transactions")
 }

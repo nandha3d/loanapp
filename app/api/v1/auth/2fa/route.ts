@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import { verifySync } from 'otplib';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { issueMobileToken } from '@/lib/api/v1-auth';
+import { issueMobileToken, issueRefreshToken } from '@/lib/api/v1-auth';
+import { checkRateLimit, getClientIp, routeKey, loginUserKey } from '@/lib/rateLimit';
 
 /**
  * Step 2 of mobile login when the user has TOTP enabled.
@@ -17,6 +18,15 @@ export async function POST(req: NextRequest) {
       return fail('username and code are required', 400);
     }
     const username = body.username.trim().toLowerCase();
+    const ip = getClientIp(req);
+
+    const [ipLimit, userLimit] = await Promise.all([
+      checkRateLimit(routeKey('2fa', ip), { limit: 10, windowMs: 15 * 60 * 1000 }),
+      checkRateLimit(loginUserKey(username),  { limit: 5,  windowMs: 15 * 60 * 1000 }),
+    ]);
+    if (!ipLimit.allowed || !userLimit.allowed) {
+      return fail('Too many attempts. Try again later.', 429);
+    }
     const user = await prisma.user.findFirst({
       where: {
         OR: [{ username }, { phone: username }],
@@ -30,16 +40,12 @@ export async function POST(req: NextRequest) {
     const { valid } = verifySync({ token: body.code, secret: user.totpSecret });
     if (!valid) return fail('Invalid code', 401);
 
-    const token = await issueMobileToken({
-      userId: user.id,
-      tenantId: user.tenantId,
-      branchId: user.branchId,
-      role: user.role,
-      appType: user.appType,
-    });
+    const token = await issueMobileToken({ userId: user.id, tenantId: user.tenantId, branchId: user.branchId, role: user.role, appType: user.appType });
+    const refreshToken = await issueRefreshToken(user.id, user.tenantId).catch(() => null);
 
     return ok({
       token,
+      refreshToken,
       user: {
         id: user.id,
         name: user.name,

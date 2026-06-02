@@ -12,6 +12,7 @@ import {
   recordCollectionLocationPing,
   verifyAndPersistCollectionLocation,
 } from '@/lib/gps/locationVerifier';
+import { creditCollection } from '@/lib/wallet';
 
 function parseDay(value: string | null) {
   const d = value ? new Date(value) : new Date();
@@ -168,6 +169,19 @@ export async function POST(req: NextRequest) {
           entriesCount: all.length,
         },
       });
+
+      // Cash-in-hand: collecting agent now holds this cash -> credit their
+      // float. Best-effort so a missing wallet table never breaks collection.
+      try {
+        await creditCollection(tx, {
+          tenantId: ctx.tenantId,
+          agentId: ctx.userId,
+          amount: applied,
+          entryId: created.id,
+        });
+      } catch (err) {
+        console.error('[wallet] collection credit failed:', err);
+      }
 
       return created;
     });

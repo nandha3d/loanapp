@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:loantrack/core/network/dio_client.dart';
@@ -36,8 +36,8 @@ class FcmService {
       _refreshSub = fm.onTokenRefresh.listen((t) {
         registerToken(token: t, platform: 'other').catchError((_) {});
       });
-    } catch (_) {
-      // Permission denied / FCM unavailable — silent.
+    } catch (e) {
+      debugPrint('FCM init failed (permission denied or unavailable): $e');
     }
   }
 

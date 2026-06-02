@@ -30,10 +30,12 @@ final _unauthorizedControllerProvider = Provider((ref) {
 });
 
 class _AuthInterceptor extends Interceptor {
-  _AuthInterceptor(this._storage, this._on401);
+  _AuthInterceptor(this._storage, this._dio, this._on401);
 
   final AuthStorage _storage;
+  final Dio _dio;
   final void Function() _on401;
+  bool _refreshing = false;
 
   @override
   Future<void> onRequest(
@@ -43,21 +45,45 @@ class _AuthInterceptor extends Interceptor {
     final token = await _storage.readToken();
     final tenantSlug = await _storage.readTenantSlug();
     final branchId = await _storage.readBranchId();
-    if (token != null) {
-      options.headers['Authorization'] = 'Bearer $token';
-    }
-    if (tenantSlug != null) {
-      options.headers['X-Tenant-Slug'] = tenantSlug;
-    }
-    if (branchId != null) {
-      options.headers['X-Branch-Id'] = branchId;
-    }
+    if (token != null) options.headers['Authorization'] = 'Bearer $token';
+    if (tenantSlug != null) options.headers['X-Tenant-Slug'] = tenantSlug;
+    if (branchId != null) options.headers['X-Branch-Id'] = branchId;
     handler.next(options);
   }
 
   @override
-  void onError(DioException err, ErrorInterceptorHandler handler) {
-    if (err.response?.statusCode == 401) {
+  Future<void> onError(
+    DioException err,
+    ErrorInterceptorHandler handler,
+  ) async {
+    if (err.response?.statusCode == 401 && !_refreshing) {
+      final refreshToken = await _storage.readRefreshToken();
+      if (refreshToken != null) {
+        _refreshing = true;
+        try {
+          final res = await _dio.post<Map<String, dynamic>>(
+            '/auth/refresh',
+            data: {'refreshToken': refreshToken},
+            options: Options(headers: {'Authorization': ''}),
+          );
+          final body = res.data;
+          final newToken = body?['data']?['token'] as String?;
+          final newRefresh = body?['data']?['refreshToken'] as String?;
+          if (newToken != null && newRefresh != null) {
+            await _storage.updateTokens(token: newToken, refreshToken: newRefresh);
+            // Retry original request with new token
+            final opts = err.requestOptions;
+            opts.headers['Authorization'] = 'Bearer $newToken';
+            final retried = await _dio.fetch<dynamic>(opts);
+            handler.resolve(retried);
+            return;
+          }
+        } catch (_) {
+          // Refresh failed — fall through to logout
+        } finally {
+          _refreshing = false;
+        }
+      }
       _on401();
     }
     handler.next(err);
@@ -75,12 +101,12 @@ final dioProvider = Provider<Dio>((ref) {
       receiveTimeout: const Duration(seconds: 20),
       sendTimeout: const Duration(seconds: 15),
       headers: {'Accept': 'application/json'},
-      validateStatus: (s) => s != null && s < 500,
+      validateStatus: (s) => s != null && s < 500 && s != 401,
     ),
   );
 
   dio.interceptors.add(
-    _AuthInterceptor(storage, () {
+    _AuthInterceptor(storage, dio, () {
       if (!ctrl.isClosed) ctrl.add(null);
     }),
   );
