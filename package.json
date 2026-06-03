@@ -23,6 +23,7 @@
     "typecheck": "tsc --noEmit",
     "test:proxy-public": "tsx tests/proxyPublicPaths.test.ts",
     "test:ui-assets": "tsx tests/uiAssets.test.ts",
+    "ui-map:roles": "node scripts/check-role-ui-map.mjs",
     "db:validate": "npx prisma validate",
     "db:generate": "npx prisma generate",
     "db:migrate": "npx prisma migrate dev",

@@ -183,6 +183,7 @@ bool _canAccess(_ModuleItem item, User user) {
   // Core features are role-gated, not subscription-gated.
   switch (key) {
     case 'approvals':
+      return true;
     case 'analytics':
     case 'accounting':
     case 'settings':

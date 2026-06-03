@@ -1,0 +1,148 @@
+{
+  "version": 1,
+  "date": "2026-06-03",
+  "comparisonLevel": "route/page parity",
+  "sourceOfTruth": "web",
+  "roles": {
+    "developer": {
+      "credentials": { "username": "developer", "password": "dev123", "source": "prisma/seed.ts" },
+      "web": {
+        "landing": "/admin",
+        "primaryRoutes": [
+          { "route": "/admin", "label": "Developer admin dashboard", "source": "app/admin/page.tsx" },
+          { "route": "/admin/billing", "label": "Tenant billing", "source": "app/admin/billing/page.tsx" },
+          { "route": "/admin/billing/pricing", "label": "Pricing catalog", "source": "app/admin/billing/pricing/page.tsx" },
+          { "route": "/admin/billing/[tenantId]", "label": "Tenant subscription form", "source": "app/admin/billing/[tenantId]/page.tsx" },
+          { "route": "/admin/users", "label": "User management", "source": "app/admin/users/page.tsx" },
+          { "route": "/admin/branches", "label": "Branch management", "source": "app/admin/branches/page.tsx" },
+          { "route": "/admin/branch-requests", "label": "Branch requests", "source": "app/admin/branch-requests/page.tsx" },
+          { "route": "/admin/module-requests", "label": "Module requests", "source": "app/admin/module-requests/page.tsx" },
+          { "route": "/admin/settings", "label": "Platform settings", "source": "app/admin/settings/page.tsx" },
+          { "route": "/admin/affiliates", "label": "Affiliate administration", "source": "app/admin/affiliates/page.tsx" },
+          { "route": "/microlending/settings", "label": "Tenant settings with developer system tab", "source": "app/(dashboard)/[module]/settings/page.tsx" },
+          { "route": "/microlending/accounting/premium", "label": "Premium accounting suite", "source": "app/(dashboard)/[module]/accounting/premium/page.tsx" }
+        ]
+      },
+      "mobile": {
+        "landing": "/dashboard",
+        "primaryRoutes": ["/dashboard", "/admin", "/admin/users", "/admin/branches", "/admin/billing", "/admin/billing/pricing", "/admin/affiliates", "/customers", "/loans", "/collection", "/more", "/settings", "/settings/system", "/analytics", "/reports", "/accounting", "/wallet", "/approvals", "/kyc-review", "/vehicles", "/notifications"]
+      },
+      "gaps": [
+        { "webRoute": "/microlending/settings", "mobileRoute": "/settings/system", "label": "Developer system settings", "status": "partial", "priority": "P0", "source": "app/(dashboard)/[module]/settings/page.tsx", "notes": "Mobile route exists, but existing parity docs mark developer system settings as missing/insufficient." }
+      ],
+      "mobileOnly": [
+        { "route": "/lock", "label": "Biometric lock", "notes": "Mobile security surface." }
+      ]
+    },
+    "superadmin": {
+      "credentials": { "username": "superadmin", "password": "super123", "source": "prisma/seed.ts" },
+      "web": {
+        "landing": "/portal",
+        "primaryRoutes": [
+          { "route": "/portal", "label": "App selector", "source": "app/portal/page.tsx" },
+          { "route": "/portal/billing", "label": "Portal billing", "source": "app/portal/billing/page.tsx" },
+          { "route": "/admin/users", "label": "Tenant users", "source": "app/admin/users/page.tsx" },
+          { "route": "/admin/branches", "label": "Branches", "source": "app/admin/branches/page.tsx" },
+          { "route": "/admin/branch-requests", "label": "Branch requests", "source": "app/admin/branch-requests/page.tsx" },
+          { "route": "/microlending/dashboard", "label": "Dashboard", "source": "app/(dashboard)/[module]/dashboard/page.tsx" },
+          { "route": "/microlending/collection", "label": "Collection", "source": "app/(dashboard)/[module]/collection/page.tsx" },
+          { "route": "/microlending/customers", "label": "Customers", "source": "app/(dashboard)/[module]/customers/page.tsx" },
+          { "route": "/microlending/loans", "label": "Loans", "source": "app/(dashboard)/[module]/loans/page.tsx" },
+          { "route": "/microlending/penalties", "label": "Penalties", "source": "app/(dashboard)/[module]/penalties/page.tsx" },
+          { "route": "/microlending/approvals", "label": "Approvals", "source": "app/(dashboard)/[module]/approvals/page.tsx" },
+          { "route": "/microlending/accounting/premium", "label": "Premium accounting suite", "source": "app/(dashboard)/[module]/accounting/premium/page.tsx" },
+          { "route": "/microlending/reports", "label": "Reports", "source": "app/(dashboard)/[module]/reports/page.tsx" },
+          { "route": "/microlending/reports/agents", "label": "Agent reports", "source": "app/(dashboard)/[module]/reports/agents/page.tsx" },
+          { "route": "/microlending/settings", "label": "Settings", "source": "app/(dashboard)/[module]/settings/page.tsx" },
+          { "route": "/microlending/subscription", "label": "Subscription", "source": "app/(dashboard)/[module]/subscription/page.tsx" },
+          { "route": "/microlending/branch-requests", "label": "Branch requests", "source": "app/(dashboard)/[module]/branch-requests/page.tsx" },
+          { "route": "/microlending/module-requests", "label": "Module requests", "source": "app/(dashboard)/[module]/module-requests/page.tsx" },
+          { "route": "/microlending/affiliate", "label": "Affiliate program", "source": "app/(dashboard)/[module]/affiliate/page.tsx" },
+          { "route": "/microlending/notifications/log", "label": "Notification log", "source": "app/(dashboard)/[module]/notifications/log/page.tsx" }
+        ]
+      },
+      "mobile": {
+        "landing": "/dashboard",
+        "primaryRoutes": ["/dashboard", "/portal", "/admin/users", "/admin/branches", "/portal/billing", "/microlending/subscription", "/microlending/branch-requests", "/microlending/module-requests", "/microlending/affiliate", "/customers", "/loans", "/collection", "/more", "/settings", "/analytics", "/reports", "/accounting", "/wallet", "/approvals", "/kyc-review", "/notifications"]
+      },
+      "gaps": [
+        { "webRoute": "/microlending/reports/agents", "mobileRoute": "/reports", "label": "Agent reports", "status": "partial", "priority": "P2", "source": "app/(dashboard)/[module]/reports/agents/page.tsx", "notes": "Mobile reports route exists but no dedicated agent reports route." },
+        { "webRoute": "/microlending/notifications/log", "mobileRoute": "/notifications", "label": "Notification log", "status": "partial", "priority": "P3", "source": "app/(dashboard)/[module]/notifications/log/page.tsx", "notes": "Mobile has notifications list only." },
+        { "webRoute": "/microlending/settings", "mobileRoute": "/settings", "label": "Full settings tabs", "status": "partial", "priority": "P1", "source": "app/(dashboard)/[module]/settings/page.tsx", "notes": "Mobile settings are narrower than web settings tabs." }
+      ],
+      "mobileOnly": [
+        { "route": "/lock", "label": "Biometric lock", "notes": "Mobile security surface." },
+        { "route": "/collection", "label": "Offline collection queue", "notes": "Mobile includes offline/sync collection behavior." }
+      ]
+    },
+    "admin": {
+      "credentials": { "username": "admin", "password": "admin123", "source": "prisma/seed.ts" },
+      "web": {
+        "landing": "/portal",
+        "primaryRoutes": [
+          { "route": "/portal", "label": "App selector", "source": "app/portal/page.tsx" },
+          { "route": "/admin/team", "label": "Team management", "source": "app/admin/team/page.tsx" },
+          { "route": "/microlending/dashboard", "label": "Dashboard", "source": "app/(dashboard)/[module]/dashboard/page.tsx" },
+          { "route": "/microlending/collection", "label": "Collection", "source": "app/(dashboard)/[module]/collection/page.tsx" },
+          { "route": "/microlending/route-tracker", "label": "Route tracker", "source": "app/(dashboard)/[module]/route-tracker/page.tsx" },
+          { "route": "/microlending/customers", "label": "Customers", "source": "app/(dashboard)/[module]/customers/page.tsx" },
+          { "route": "/microlending/customers/new", "label": "New customer", "source": "app/(dashboard)/[module]/customers/new/page.tsx" },
+          { "route": "/microlending/loans", "label": "Loans", "source": "app/(dashboard)/[module]/loans/page.tsx" },
+          { "route": "/microlending/loans/new", "label": "New loan", "source": "app/(dashboard)/[module]/loans/new/page.tsx" },
+          { "route": "/microlending/loans/[id]/edit", "label": "Edit loan", "source": "app/(dashboard)/[module]/loans/[id]/edit/page.tsx" },
+          { "route": "/microlending/penalties", "label": "Penalties", "source": "app/(dashboard)/[module]/penalties/page.tsx" },
+          { "route": "/microlending/approvals", "label": "Approvals", "source": "app/(dashboard)/[module]/approvals/page.tsx" },
+          { "route": "/microlending/kyc-review", "label": "KYC review", "source": "app/(dashboard)/[module]/kyc-review/page.tsx" },
+          { "route": "/microlending/accounting/premium", "label": "Premium accounting suite", "source": "app/(dashboard)/[module]/accounting/premium/page.tsx" },
+          { "route": "/microlending/wallet", "label": "Cash float", "source": "app/(dashboard)/[module]/wallet/page.tsx" },
+          { "route": "/microlending/analytics", "label": "Analytics", "source": "app/(dashboard)/[module]/analytics/page.tsx" },
+          { "route": "/microlending/reports", "label": "Reports", "source": "app/(dashboard)/[module]/reports/page.tsx" },
+          { "route": "/microlending/reports/agents", "label": "Agent reports", "source": "app/(dashboard)/[module]/reports/agents/page.tsx" },
+          { "route": "/microlending/settings", "label": "Settings", "source": "app/(dashboard)/[module]/settings/page.tsx" },
+          { "route": "/microlending/notifications/log", "label": "Notification log", "source": "app/(dashboard)/[module]/notifications/log/page.tsx" }
+        ]
+      },
+      "mobile": {
+        "landing": "/dashboard",
+        "primaryRoutes": ["/dashboard", "/portal", "/admin/team", "/customers", "/customers/new", "/loans", "/loans/new", "/loans/:id/edit", "/collection", "/tracking", "/more", "/settings", "/settings/penalty", "/settings/payment", "/settings/notifications", "/analytics", "/reports", "/accounting", "/wallet", "/approvals", "/kyc-review", "/notifications"]
+      },
+      "gaps": [
+        { "webRoute": "/microlending/reports/agents", "mobileRoute": "/reports", "label": "Agent reports", "status": "partial", "priority": "P2", "source": "app/(dashboard)/[module]/reports/agents/page.tsx", "notes": "Mobile reports route exists but no dedicated agent report route." },
+        { "webRoute": "/microlending/settings", "mobileRoute": "/settings", "label": "Full settings tabs", "status": "partial", "priority": "P1", "source": "app/(dashboard)/[module]/settings/page.tsx", "notes": "Mobile settings lack several web tabs: packages, bulk, bureau, NPA, data, security." },
+        { "webRoute": "/microlending/notifications/log", "mobileRoute": "/notifications", "label": "Notification log", "status": "partial", "priority": "P3", "source": "app/(dashboard)/[module]/notifications/log/page.tsx", "notes": "Mobile has notifications list only." },
+        { "webRoute": "/microlending/penalties", "mobileRoute": "/penalties", "label": "Penalty filters and waive", "status": "partial", "priority": "P1", "source": "app/(dashboard)/[module]/penalties/page.tsx", "notes": "Route exists, but existing parity docs mark waive/filter coverage as missing." },
+        { "webRoute": "/microlending/approvals", "mobileRoute": "/approvals", "label": "All approval request types", "status": "partial", "priority": "P1", "source": "app/(dashboard)/[module]/approvals/page.tsx", "notes": "Route exists, but mobile covers only a subset of web request types." }
+      ],
+      "mobileOnly": [
+        { "route": "/lock", "label": "Biometric lock", "notes": "Mobile security surface." },
+        { "route": "/collection", "label": "Offline collection queue", "notes": "Mobile includes offline/sync collection behavior." }
+      ]
+    },
+    "agent": {
+      "credentials": { "username": "karthik", "password": "agent123", "source": "prisma/seed.ts" },
+      "web": {
+        "landing": "/microlending/agent-dashboard",
+        "primaryRoutes": [
+          { "route": "/microlending/agent-dashboard", "label": "Agent dashboard", "source": "app/(dashboard)/[module]/agent-dashboard/page.tsx" },
+          { "route": "/microlending/collection", "label": "Collection", "source": "app/(dashboard)/[module]/collection/page.tsx" },
+          { "route": "/microlending/customers", "label": "Customers", "source": "app/(dashboard)/[module]/customers/page.tsx" },
+          { "route": "/microlending/customers/new", "label": "New customer", "source": "app/(dashboard)/[module]/customers/new/page.tsx" },
+          { "route": "/microlending/approvals", "label": "Approvals", "source": "app/(dashboard)/[module]/approvals/page.tsx" },
+          { "route": "/microlending/notifications", "label": "Notifications", "source": "app/(dashboard)/[module]/notifications/page.tsx" }
+        ]
+      },
+      "mobile": {
+        "landing": "/dashboard",
+        "primaryRoutes": ["/dashboard", "/approvals", "/customers", "/customers/new", "/loans", "/collection", "/more", "/notifications"]
+      },
+      "gaps": [
+        { "webRoute": "/microlending/agent-dashboard", "mobileRoute": "/dashboard", "label": "Agent-specific dashboard", "status": "partial", "priority": "P2", "source": "app/(dashboard)/[module]/agent-dashboard/page.tsx", "notes": "Mobile dashboard exists but is not a dedicated route for the web agent dashboard." }
+      ],
+      "mobileOnly": [
+        { "route": "/lock", "label": "Biometric lock", "notes": "Mobile security surface." },
+        { "route": "/loans", "label": "Loan browsing", "notes": "Mobile exposes a loans route; web middleware blocks agent loan pages." },
+        { "route": "/collection", "label": "Offline collection queue", "notes": "Mobile includes offline/sync collection behavior." }
+      ]
+    }
+  }
+}

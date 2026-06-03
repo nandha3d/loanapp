@@ -2,6 +2,7 @@ import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import PricingClient from './PricingClient';
+import { withStandardVerticalBases } from '@/lib/pricing';
 
 export default async function AdminPricingPage() {
   const session = await auth();
@@ -37,7 +38,7 @@ export default async function AdminPricingPage() {
   return (
     <PricingClient
       initialPlans={formattedPlans}
-      initialModules={modules}
+      initialModules={withStandardVerticalBases(modules)}
       initialAddons={addons}
     />
   );

@@ -4,6 +4,7 @@ import { hash } from 'bcryptjs';
 import { generateTenantSlug } from '@/lib/slug';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { issueMobileToken } from '@/lib/api/v1-auth';
+import { calculateVerticalSubscriptionPricing, normalizeSelectedModules } from '@/lib/pricing';
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
       return fail('Missing required fields', 400);
     }
 
-    const finalModules = selectedModules.length > 0 ? selectedModules : ['microlending'];
+    const finalModules = normalizeSelectedModules(selectedModules);
 
     // Generate unique slug
     const slug = await generateTenantSlug(businessName, finalModules);
@@ -43,18 +44,15 @@ export async function POST(req: NextRequest) {
       return fail(`Selected plan "${selectedPlan}" not found in catalog`, 400);
     }
 
-    // Fetch module/addon prices snapshots
-    const modulesCatalog = await prisma.modulePriceCatalog.findMany({
-      where: { module: { in: finalModules } }
-    });
-    const basePlanPrice = planCatalog.monthlyPrice;
-    const modulesPrice = modulesCatalog.reduce((sum, item) => sum + item.monthlyPrice, 0);
-
     const addonsCatalog = await prisma.addonCatalog.findMany({
       where: { addon: { in: selectedAddons } }
     });
     const addonsPrice = addonsCatalog.reduce((sum, item) => sum + item.monthlyPrice, 0);
-    const totalMonthlyPrice = basePlanPrice + modulesPrice + addonsPrice;
+    const { basePlanPrice, modulesPrice, totalMonthlyPrice } = calculateVerticalSubscriptionPricing(
+      planCatalog.monthlyPrice,
+      finalModules,
+      addonsPrice
+    );
 
     // Hash password
     const hashedPassword = await hash(ownerPassword, 10);

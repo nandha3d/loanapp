@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb, TargetPlatform, defaultTargetPlatform;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:loantrack/core/network/dio_client.dart';
@@ -22,8 +22,11 @@ class FcmService {
   /// MOB-02: registers initial token + listens for rotation.
   /// Call once after login. `dispose()` on logout.
   Future<void> startTokenSync() async {
-    // FCM is not supported on web — skip silently.
+    // FCM is not supported on web or desktop — skip silently.
     if (kIsWeb) return;
+    if (defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux ||
+        defaultTargetPlatform == TargetPlatform.macOS) return;
 
     final fm = FirebaseMessaging.instance;
     try {

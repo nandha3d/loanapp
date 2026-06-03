@@ -139,6 +139,22 @@ class LoanService {
       (dynamic d) => Loan.fromJson(d as Map<String, dynamic>),
     );
   }
+
+  Future<void> performAction(String id, String action, {Map<String, dynamic>? data}) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '${Endpoints.loans}/$id/$action',
+      data: data,
+    );
+    unwrapEnvelope(res, (_) => null);
+  }
+
+  Future<List<int>> statementPdf(String loanId) async {
+    final res = await _dio.get<List<int>>(
+      '${Endpoints.loans}/$loanId/statement',
+      options: Options(responseType: ResponseType.bytes),
+    );
+    return res.data ?? const <int>[];
+  }
 }
 
 final loanServiceProvider = Provider<LoanService>(

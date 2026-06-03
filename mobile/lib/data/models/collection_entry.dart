@@ -44,6 +44,7 @@ class CollectionRow {
     this.lat,
     this.lng,
     this.collectionEntryId,
+    this.frequency,
   });
 
   final String instalmentId;
@@ -60,6 +61,7 @@ class CollectionRow {
   final double? lat;
   final double? lng;
   final String? collectionEntryId;
+  final String? frequency;
 
   double get outstanding => dueAmount - receivedAmount;
   int get daysOverdue {
@@ -91,6 +93,7 @@ class CollectionRow {
       lat: customer['lat'] == null ? null : n(customer['lat']),
       lng: customer['lng'] == null ? null : n(customer['lng']),
       collectionEntryId: json['collectionEntryId'] as String?,
+      frequency: loan['frequency'] as String?,
     );
   }
 }

@@ -91,6 +91,14 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
               const SizedBox(height: 14),
               _IdentitySection(customer: c, t: t),
               const SizedBox(height: 14),
+              if (c.companyName != null && c.companyName!.isNotEmpty) ...[
+                _CompanySection(customer: c),
+                const SizedBox(height: 14),
+              ],
+              if (c.securityCheques.isNotEmpty) ...[
+                _SecurityChequesSection(cheques: c.securityCheques),
+                const SizedBox(height: 14),
+              ],
               if (c.guarantors.isNotEmpty) ...[
                 _GuarantorsSection(guarantors: c.guarantors),
                 const SizedBox(height: 14),
@@ -856,6 +864,18 @@ class _IdentitySection extends StatelessWidget {
                   ? AppColors.success
                   : AppColors.warning,
             ),
+          if (customer.email != null && customer.email!.isNotEmpty)
+            _IdRow(
+              icon: Icons.email_outlined,
+              label: t.x('fld.email') ?? 'Email',
+              value: customer.email!,
+            ),
+          if (customer.pan != null && customer.pan!.isNotEmpty)
+            _IdRow(
+              icon: Icons.badge_outlined,
+              label: t.x('fld.pan') ?? 'PAN',
+              value: customer.pan!,
+            ),
           if (customer.routeName != null)
             _IdRow(
               icon: Icons.route_outlined,
@@ -943,16 +963,24 @@ class _GuarantorsSection extends ConsumerWidget {
                   Container(
                     width: 36,
                     height: 36,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       color: AppColors.purpleBg,
                       shape: BoxShape.circle,
+                      image: g.photoUrl != null && g.photoUrl!.isNotEmpty
+                          ? DecorationImage(
+                              image: NetworkImage(g.photoUrl!),
+                              fit: BoxFit.cover,
+                            )
+                          : null,
                     ),
                     alignment: Alignment.center,
-                    child: const Icon(
-                      Icons.shield_outlined,
-                      color: AppColors.purple,
-                      size: 18,
-                    ),
+                    child: g.photoUrl != null && g.photoUrl!.isNotEmpty
+                        ? null
+                        : const Icon(
+                            Icons.shield_outlined,
+                            color: AppColors.purple,
+                            size: 18,
+                          ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -960,7 +988,11 @@ class _GuarantorsSection extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(g.name, style: AppTypography.bodyLarge),
-                        Text(g.phone, style: AppTypography.caption),
+                        Text(
+                          [g.phone, if (g.relation != null && g.relation!.isNotEmpty) g.relation]
+                              .join(' · '),
+                          style: AppTypography.caption,
+                        ),
                       ],
                     ),
                   ),
@@ -974,6 +1006,159 @@ class _GuarantorsSection extends ConsumerWidget {
                     icon: const Icon(
                       Icons.call_rounded,
                       color: AppColors.success,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CompanySection extends StatelessWidget {
+  const _CompanySection({required this.customer});
+  final Customer customer;
+
+  @override
+  Widget build(BuildContext context) {
+    return _Card(
+      title: 'Business & Employment',
+      child: Column(
+        children: [
+          if (customer.companyLogo != null && customer.companyLogo!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      customer.companyLogo!,
+                      width: 48,
+                      height: 48,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        width: 48,
+                        height: 48,
+                        color: AppColors.primaryLight,
+                        child: const Icon(Icons.business, color: AppColors.primary),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          customer.companyName ?? '',
+                          style: AppTypography.nameLg.copyWith(fontSize: 16),
+                        ),
+                        if (customer.designation != null && customer.designation!.isNotEmpty)
+                          Text(
+                            customer.designation!,
+                            style: AppTypography.caption,
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (customer.companyLogo == null || customer.companyLogo!.isEmpty)
+            _IdRow(
+              icon: Icons.business_outlined,
+              label: 'Company',
+              value: customer.companyName ?? '—',
+            ),
+          if (customer.businessType != null && customer.businessType!.isNotEmpty)
+            _IdRow(
+              icon: Icons.category_outlined,
+              label: 'Business Type',
+              value: customer.businessType!,
+            ),
+          if (customer.gstNumber != null && customer.gstNumber!.isNotEmpty)
+            _IdRow(
+              icon: Icons.text_snippet_outlined,
+              label: 'GSTIN',
+              value: customer.gstNumber!,
+            ),
+          if (customer.monthlyIncome != null)
+            _IdRow(
+              icon: Icons.currency_rupee_outlined,
+              label: 'Income',
+              value: '₹${customer.monthlyIncome!.toStringAsFixed(0)}',
+            ),
+          if (customer.companyAddress != null && customer.companyAddress!.isNotEmpty)
+            _IdRow(
+              icon: Icons.location_on_outlined,
+              label: 'Work Address',
+              value: customer.companyAddress!,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SecurityChequesSection extends ConsumerWidget {
+  const _SecurityChequesSection({required this.cheques});
+  final List<SecurityCheque> cheques;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return _Card(
+      title: 'Security Cheques',
+      trailing: Text('${cheques.length}', style: AppTypography.caption),
+      child: Column(
+        children: [
+          for (final c in cheques)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: const BoxDecoration(
+                      color: AppColors.primaryLight,
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: const Icon(
+                      Icons.account_balance_wallet_outlined,
+                      color: AppColors.primary,
+                      size: 18,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Cheque #${c.chequeNumber}', style: AppTypography.bodyLarge),
+                        Text(
+                          [c.bankName, if (c.amount != null) '₹${c.amount!.toStringAsFixed(0)}']
+                              .join(' · '),
+                          style: AppTypography.caption,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: c.status == 'active' ? AppColors.successBg : AppColors.border,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      c.status.toUpperCase(),
+                      style: AppTypography.tiny.copyWith(
+                        color: c.status == 'active' ? AppColors.success : AppColors.textSecondary,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ],

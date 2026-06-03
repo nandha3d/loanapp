@@ -1,5 +1,6 @@
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
+import { withStandardVerticalBases } from '@/lib/pricing';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +28,7 @@ export async function GET() {
 
     return ok({
       plans: formattedPlans,
-      modules,
+      modules: withStandardVerticalBases(modules),
       addons
     });
   } catch (err: any) {

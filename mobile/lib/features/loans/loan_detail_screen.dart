@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+import 'package:printing/printing.dart';
 import 'package:loantrack/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -67,6 +69,7 @@ class LoanDetailScreen extends ConsumerWidget {
         ),
         data: (loan) => _LoanBody(loan: loan),
       ),
+      bottomNavigationBar: loaded == null ? null : _LoanBottomBar(loan: loaded),
     );
   }
 }
@@ -1074,5 +1077,377 @@ class _LoanPillMore extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _LoanBottomBar extends ConsumerWidget {
+  const _LoanBottomBar({required this.loan});
+  final Loan loan;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isClosed = loan.status == 'closed';
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          border: Border(top: BorderSide(color: AppColors.border)),
+          boxShadow: AppTokens.shadowLg,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => _exportStatement(context, ref),
+                icon: const Icon(Icons.picture_as_pdf_outlined),
+                label: const Text('Statement'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                  ),
+                ),
+              ),
+            ),
+            if (!isClosed) ...[
+              const SizedBox(width: 12),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () => _showActionSheet(context, ref),
+                  icon: const Icon(Icons.tune_outlined),
+                  label: const Text('Actions'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _exportStatement(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('Downloading Loan Statement PDF...'),
+        backgroundColor: AppColors.primary,
+      ),
+    );
+    try {
+      final bytes = await ref.read(loanServiceProvider).statementPdf(loan.id);
+      if (bytes.isEmpty) throw Exception('Empty document');
+      await Printing.layoutPdf(
+        onLayout: (_) async => Uint8List.fromList(bytes),
+        name: 'statement-${loan.loanCode}.pdf',
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Failed to download statement: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
+  }
+
+  void _showActionSheet(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.check_circle_outline, color: AppColors.success),
+                title: const Text('Mark as Closed'),
+                subtitle: const Text('Settle all dues and close this loan'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _confirmAction(context, ref, 'close');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.autorenew_outlined, color: AppColors.primary),
+                title: const Text('Renew Loan'),
+                subtitle: const Text('Create a renewal package for the customer'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _confirmAction(context, ref, 'renew');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.offline_pin_outlined, color: AppColors.warning),
+                title: const Text('Pre-close / Foreclosure'),
+                subtitle: const Text('Calculate pre-closure charges and settle'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _confirmAction(context, ref, 'preclose');
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _confirmAction(BuildContext context, WidgetRef ref, String action) {
+    final fmt = ref.watch(currencyFmtProvider);
+    final totalCollected = loan.instalments.fold(0.0, (sum, i) => sum + i.receivedAmount);
+    final totalRepayable = (loan.instalments.isNotEmpty ? loan.instalments.first.dueAmount : 0.0) * loan.instalmentCount;
+    final outstanding = totalRepayable - totalCollected;
+
+    if (action == 'close') {
+      final hasActiveCheques = loan.customer?.securityCheques.any((c) => c.status == 'active') ?? false;
+
+      showDialog<void>(
+        context: context,
+        builder: (ctx) {
+          bool markChequesReturned = false;
+          return StatefulBuilder(
+            builder: (context, setState) {
+              return AlertDialog(
+                title: const Text('Close Loan'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Are you sure you want to close this loan? All pending balances must be settled.'),
+                    if (hasActiveCheques) ...[
+                      const SizedBox(height: 16),
+                      CheckboxListTile(
+                        title: const Text('Mark active security cheques as returned'),
+                        value: markChequesReturned,
+                        onChanged: (val) {
+                          setState(() {
+                            markChequesReturned = val ?? false;
+                          });
+                        },
+                        contentPadding: EdgeInsets.zero,
+                        controlAffinity: ListTileControlAffinity.leading,
+                      ),
+                    ],
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Cancel'),
+                  ),
+                  FilledButton(
+                    style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      try {
+                        await ref.read(loanServiceProvider).performAction(
+                          loan.id,
+                          'close',
+                          data: {'markChequesReturned': markChequesReturned},
+                        );
+                        ref.invalidate(loanDetailProvider(loan.id));
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Loan closed successfully'), backgroundColor: AppColors.success),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Failed: $e'), backgroundColor: AppColors.danger),
+                          );
+                        }
+                      }
+                    },
+                    child: const Text('Confirm'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+    } else if (action == 'preclose') {
+      showDialog<void>(
+        context: context,
+        builder: (ctx) {
+          String paymentMode = 'cash';
+          final amountController = TextEditingController(text: outstanding.toStringAsFixed(2));
+          final remarksController = TextEditingController(text: 'Preclosure Full Settlement');
+          final formKey = GlobalKey<FormState>();
+
+          return StatefulBuilder(
+            builder: (context, setState) {
+              return AlertDialog(
+                title: const Text('Preclose Loan'),
+                content: SingleChildScrollView(
+                  child: Form(
+                    key: formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Preclosing will collect the payoff amount and close the loan. All other unpaid instalments will be waived.',
+                          style: TextStyle(fontSize: 13),
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: amountController,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          decoration: InputDecoration(
+                            labelText: 'Payoff Amount (${fmt.currencySymbol})',
+                            border: const OutlineInputBorder(),
+                          ),
+                          validator: (val) {
+                            if (val == null || val.isEmpty) return 'Required';
+                            final parsed = double.tryParse(val);
+                            if (parsed == null || parsed <= 0) return 'Enter a valid amount';
+                            if (parsed < outstanding) {
+                              return 'Must be at least the outstanding: ${fmt.format(outstanding)}';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<String>(
+                          value: paymentMode,
+                          decoration: const InputDecoration(
+                            labelText: 'Payment Mode',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'cash', child: Text('Cash')),
+                            DropdownMenuItem(value: 'upi', child: Text('UPI')),
+                            DropdownMenuItem(value: 'bank', child: Text('Bank Transfer')),
+                          ],
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() {
+                                paymentMode = val;
+                              });
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: remarksController,
+                          decoration: const InputDecoration(
+                            labelText: 'Remarks',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Cancel'),
+                  ),
+                  FilledButton(
+                    style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+                    onPressed: () async {
+                      if (!formKey.currentState!.validate()) return;
+                      Navigator.pop(ctx);
+                      try {
+                        await ref.read(loanServiceProvider).performAction(
+                          loan.id,
+                          'preclose',
+                          data: {
+                            'amount': double.parse(amountController.text),
+                            'paymentMode': paymentMode,
+                            'remarks': remarksController.text,
+                          },
+                        );
+                        ref.invalidate(loanDetailProvider(loan.id));
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Loan preclosed successfully'), backgroundColor: AppColors.success),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Failed: $e'), backgroundColor: AppColors.danger),
+                          );
+                        }
+                      }
+                    },
+                    child: const Text('Confirm'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+    } else {
+      final title = action == 'renew' ? 'Renew Loan' : 'Confirm Action';
+      final desc = action == 'renew' 
+          ? 'This will close the current loan and create a renewal package with the same terms starting today. Continue?'
+          : 'Are you sure you want to perform this action?';
+
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(title),
+          content: Text(desc),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+              onPressed: () async {
+                Navigator.pop(ctx);
+                try {
+                  await ref.read(loanServiceProvider).performAction(loan.id, action);
+                  ref.invalidate(loanDetailProvider(loan.id));
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Action "$title" processed successfully'), backgroundColor: AppColors.success),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed: $e'), backgroundColor: AppColors.danger),
+                    );
+                  }
+                }
+              },
+              child: const Text('Confirm'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 }

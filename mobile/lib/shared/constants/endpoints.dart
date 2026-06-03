@@ -53,6 +53,7 @@ class Endpoints {
   // Penalties
   static const String penalties = '/penalties';
   static String penaltySettle(String id) => '/penalties/$id/settle';
+  static String penaltyWaive(String id) => '/penalties/$id/waive';
 
   // Approvals
   static const String approvals = '/approvals';

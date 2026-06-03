@@ -37,6 +37,10 @@ final collectionTodayProvider =
 final _filterProvider =
     StateProvider.autoDispose<String>((_) => 'pending');
 
+final _routeFilterProvider = StateProvider.autoDispose<String?>((ref) => null);
+final _frequencyFilterProvider = StateProvider.autoDispose<String?>((ref) => null);
+final _overdueRangeFilterProvider = StateProvider.autoDispose<String?>((ref) => null);
+
 class CollectionScreen extends ConsumerStatefulWidget {
   const CollectionScreen({super.key});
 
@@ -201,7 +205,42 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
               title: t.x('dash.no_schedule'),
             );
           }
-          final filtered = _applyFilter(rows, filter);
+          // Apply advanced filters
+          final routeFilter = ref.watch(_routeFilterProvider);
+          final freqFilter = ref.watch(_frequencyFilterProvider);
+          final overdueRangeFilter = ref.watch(_overdueRangeFilterProvider);
+
+          final filtered = rows.where((r) {
+            // Status/Tab filter:
+            final matchTab = filter == 'all' ||
+                (filter == 'pending' && r.status != 'paid') ||
+                (filter == 'paid' && r.status == 'paid') ||
+                (filter == 'overdue' && r.daysOverdue > 0 && r.status != 'paid');
+            
+            // Route filter:
+            final matchRoute = routeFilter == null || r.routeName == routeFilter;
+
+            // Frequency filter:
+            final matchFreq = freqFilter == null || r.frequency?.toLowerCase() == freqFilter.toLowerCase();
+
+            // Overdue range filter:
+            bool matchRange = true;
+            if (overdueRangeFilter != null) {
+              final days = r.daysOverdue;
+              if (overdueRangeFilter == '1-30') {
+                matchRange = days >= 1 && days <= 30;
+              } else if (overdueRangeFilter == '31-60') {
+                matchRange = days >= 31 && days <= 60;
+              } else if (overdueRangeFilter == '61-90') {
+                matchRange = days >= 61 && days <= 90;
+              } else if (overdueRangeFilter == '90+') {
+                matchRange = days > 90;
+              }
+            }
+
+            return matchTab && matchRoute && matchFreq && matchRange;
+          }).toList();
+
           final totalDue = rows.fold<double>(0, (s, r) => s + r.dueAmount);
           final totalCollected =
               rows.fold<double>(0, (s, r) => s + r.receivedAmount);
@@ -241,6 +280,8 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
                   onTap: (k) => ref.read(_filterProvider.notifier).state = k,
                   t: t,
                 ),
+                const SizedBox(height: 12),
+                _AdvancedFilterBar(rows: rows),
                 const SizedBox(height: 12),
                 if (_nearest && _agentLat != null)
                   ..._sortGroupsByDistance(_groupByCustomer(filtered)).expand(
@@ -953,16 +994,21 @@ class _CollectionCard extends ConsumerWidget {
     final allCollected = group.allCollected;
     final rrow = group.receiptRow;
 
+    final bool hasPartial = group.collectedTotal > 0 && !allCollected;
     final Color chipColor = allCollected
         ? AppColors.success
         : overdue != null
             ? AppColors.danger
-            : AppColors.primary;
+            : hasPartial
+                ? AppColors.warning
+                : AppColors.primary;
     final String chipLabel = allCollected
-        ? t.x('coll.collected_label')
+        ? 'Paid'
         : overdue != null
-            ? '${group.maxDaysOverdue}d ${t.x('coll.status_overdue_days')}'
-            : t.x('coll.status_due_today');
+            ? 'Overdue (${group.maxDaysOverdue}d)'
+            : hasPartial
+                ? 'Partial'
+                : 'Due Today';
 
     return Material(
       color: AppColors.surface,
@@ -1333,6 +1379,108 @@ class _Avatar extends StatelessWidget {
       child: Text(
         _initials(),
         style: AppTypography.bodyLarge.copyWith(color: c, fontSize: 16),
+      ),
+    );
+  }
+}
+
+class _AdvancedFilterBar extends ConsumerWidget {
+  const _AdvancedFilterBar({required this.rows});
+  final List<CollectionRow> rows;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final routeFilter = ref.watch(_routeFilterProvider);
+    final freqFilter = ref.watch(_frequencyFilterProvider);
+    final rangeFilter = ref.watch(_overdueRangeFilterProvider);
+
+    // Extract unique routes
+    final routes = rows.map((r) => r.routeName).whereType<String>().toSet().toList()..sort();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              // Route Dropdown
+              _FilterDropdown<String?>(
+                value: routeFilter,
+                hint: 'All Routes',
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('All Routes')),
+                  ...routes.map((r) => DropdownMenuItem(value: r, child: Text(r))),
+                ],
+                onChanged: (v) => ref.read(_routeFilterProvider.notifier).state = v,
+              ),
+              const SizedBox(width: 8),
+              // Frequency Dropdown
+              _FilterDropdown<String?>(
+                value: freqFilter,
+                hint: 'All Frequencies',
+                items: const [
+                  DropdownMenuItem(value: null, child: Text('All Freq')),
+                  DropdownMenuItem(value: 'daily', child: Text('Daily')),
+                  DropdownMenuItem(value: 'weekly', child: Text('Weekly')),
+                  DropdownMenuItem(value: 'monthly', child: Text('Monthly')),
+                ],
+                onChanged: (v) => ref.read(_frequencyFilterProvider.notifier).state = v,
+              ),
+              const SizedBox(width: 8),
+              // Overdue Days Range Dropdown
+              _FilterDropdown<String?>(
+                value: rangeFilter,
+                hint: 'All Overdue Days',
+                items: const [
+                  DropdownMenuItem(value: null, child: Text('All Overdue')),
+                  DropdownMenuItem(value: '1-30', child: Text('1-30 Days')),
+                  DropdownMenuItem(value: '31-60', child: Text('31-60 Days')),
+                  DropdownMenuItem(value: '61-90', child: Text('61-90 Days')),
+                  DropdownMenuItem(value: '90+', child: Text('90+ Days')),
+                ],
+                onChanged: (v) => ref.read(_overdueRangeFilterProvider.notifier).state = v,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FilterDropdown<T> extends StatelessWidget {
+  const _FilterDropdown({
+    required this.value,
+    required this.hint,
+    required this.items,
+    required this.onChanged,
+  });
+  final T value;
+  final String hint;
+  final List<DropdownMenuItem<T>> items;
+  final ValueChanged<T> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<T>(
+          value: value,
+          hint: Text(hint, style: AppTypography.caption),
+          style: AppTypography.caption.copyWith(color: AppColors.textPrimary),
+          icon: const Icon(Icons.arrow_drop_down, color: AppColors.textLight, size: 16),
+          items: items,
+          onChanged: (v) {
+            onChanged(v as T);
+          },
+        ),
       ),
     );
   }

@@ -4,6 +4,29 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:loantrack/core/network/dio_client.dart';
 import 'package:loantrack/shared/constants/endpoints.dart';
 
+class KycSession {
+  const KycSession({
+    required this.id,
+    required this.method,
+    required this.status,
+    this.responseData,
+  });
+
+  final String id;
+  final String method;
+  final String status;
+  final String? responseData;
+
+  factory KycSession.fromJson(Map<String, dynamic> json) {
+    return KycSession(
+      id: json['id'] as String,
+      method: json['method'] as String,
+      status: json['status'] as String,
+      responseData: json['responseData'] as String?,
+    );
+  }
+}
+
 /// One customer awaiting KYC review.
 class KycQueueItem {
   const KycQueueItem({
@@ -16,6 +39,7 @@ class KycQueueItem {
     this.kycMethod,
     this.aadhaarVerified = false,
     this.agentName,
+    this.kycSessions = const [],
   });
 
   final String id;
@@ -27,10 +51,12 @@ class KycQueueItem {
   final bool aadhaarVerified;
   final int docCount;
   final String? agentName;
+  final List<KycSession> kycSessions;
 
   factory KycQueueItem.fromJson(Map<String, dynamic> j) {
     final count = (j['_count'] as Map<String, dynamic>?) ?? const {};
     final agent = (j['agent'] as Map<String, dynamic>?) ?? const {};
+    final sessionsList = (j['kycSessions'] as List<dynamic>? ?? const []);
     return KycQueueItem(
       id: j['id'] as String,
       customerCode: (j['customerCode'] as String?) ?? '',
@@ -41,6 +67,9 @@ class KycQueueItem {
       aadhaarVerified: (j['aadhaarVerified'] as bool?) ?? false,
       docCount: (count['kycDocuments'] as num?)?.toInt() ?? 0,
       agentName: agent['name'] as String?,
+      kycSessions: sessionsList
+          .map((dynamic e) => KycSession.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
     );
   }
 }

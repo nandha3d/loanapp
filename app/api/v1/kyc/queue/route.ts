@@ -41,6 +41,17 @@ export async function GET(req: NextRequest) {
         updatedAt: true,
         agent: { select: { name: true } },
         _count: { select: { kycDocuments: true } },
+        kycSessions: {
+          select: {
+            id: true,
+            method: true,
+            status: true,
+            responseData: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+        },
       },
       orderBy: { updatedAt: 'desc' },
       take: 200,
