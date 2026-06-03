@@ -26,6 +26,17 @@ const PUBLIC_PREFIXES = [
   '/fonts',
 ];
 
+// Public marketing site (app/(marketing) route group). These pages live outside
+// the authenticated app and must be reachable by anonymous visitors.
+const MARKETING_PATHS = [
+  '/home',
+  '/products',
+  '/solutions',
+  '/pricing',
+  '/about-us',
+  '/contact',
+];
+
 export function isPublicPath(pathname: string): boolean {
   return (
     pathname === '/favicon.ico' ||
@@ -34,6 +45,13 @@ export function isPublicPath(pathname: string): boolean {
     pathname.startsWith('/r/') ||
     pathname === '/affiliate' ||
     pathname.startsWith('/borrower') ||
+    MARKETING_PATHS.includes(pathname) ||
+    // SEO + crawler endpoints and generated social images must be public.
+    pathname === '/sitemap.xml' ||
+    pathname === '/robots.txt' ||
+    pathname === '/og.png' ||
+    pathname.includes('opengraph-image') ||
+    pathname.includes('twitter-image') ||
     PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))
   );
 }
