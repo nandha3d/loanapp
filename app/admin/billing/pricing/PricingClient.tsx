@@ -15,6 +15,7 @@ type PlanCatalogItem = {
   maxActiveLoans: number;
   features: string[];
   razorpayPlanId: string | null;
+  trialDays: number;
   isActive: boolean;
   sortOrder: number;
 };
@@ -87,6 +88,7 @@ export default function PricingClient({
     const maxAgents = Number(formData.get('maxAgents'));
     const maxActiveLoans = Number(formData.get('maxActiveLoans'));
     const razorpayPlanId = formData.get('razorpayPlanId') as string;
+    const trialDays = Number(formData.get('trialDays') ?? 0);
     const isActive = formData.get('isActive') === 'true';
     const sortOrder = Number(formData.get('sortOrder'));
 
@@ -111,6 +113,7 @@ export default function PricingClient({
           maxActiveLoans,
           features,
           razorpayPlanId,
+          trialDays,
           isActive,
           sortOrder,
         }),
@@ -329,6 +332,7 @@ export default function PricingClient({
                   <th>Max Branches</th>
                   <th>Max Agents</th>
                   <th>Max Loans</th>
+                  <th>Trial</th>
                   <th>Status</th>
                   <th>Action</th>
                 </tr>
@@ -353,6 +357,11 @@ export default function PricingClient({
                     <td>{p.maxBranches === 999 ? 'Unlimited' : p.maxBranches}</td>
                     <td>{p.maxAgents === 999 ? 'Unlimited' : p.maxAgents}</td>
                     <td>{p.maxActiveLoans === 999999 ? 'Unlimited' : p.maxActiveLoans}</td>
+                    <td>
+                      {p.trialDays > 0
+                        ? <span className="badge badge-warning">{p.trialDays}d free</span>
+                        : <span className="text-muted" style={{ fontSize: '.78rem' }}>—</span>}
+                    </td>
                     <td>
                       <span className={`badge ${p.isActive ? 'badge-active' : 'badge-closed'}`}>
                         {p.isActive ? 'Active' : 'Inactive'}
@@ -500,6 +509,8 @@ export default function PricingClient({
                 required
                 disabled={!!editingPlan}
               />
+              {/* Disabled inputs don't submit — carry the value via a hidden field when editing */}
+              {editingPlan && <input type="hidden" name="plan" value={editingPlan.plan} />}
             </div>
             <div className="form-group">
               <label className="form-label">Display Name</label>
@@ -594,6 +605,19 @@ export default function PricingClient({
               />
             </div>
             <div className="form-group">
+              <label className="form-label">Free Trial (days)</label>
+              <input
+                type="number"
+                name="trialDays"
+                className="form-control"
+                min={0}
+                defaultValue={editingPlan?.trialDays ?? 0}
+              />
+              <small className="text-muted" style={{ fontSize: '.75rem' }}>
+                0 = no trial. Enterprise = 15 (full access, no payment).
+              </small>
+            </div>
+            <div className="form-group">
               <label className="form-label">Sort Order</label>
               <input
                 type="number"
@@ -643,6 +667,7 @@ export default function PricingClient({
                 required
                 disabled={!!editingModule}
               />
+              {editingModule && <input type="hidden" name="module" value={editingModule.module} />}
             </div>
             <div className="form-group">
               <label className="form-label">Display Name</label>
@@ -729,6 +754,7 @@ export default function PricingClient({
                 required
                 disabled={!!editingAddon}
               />
+              {editingAddon && <input type="hidden" name="addon" value={editingAddon.addon} />}
             </div>
             <div className="form-group">
               <label className="form-label">Display Name</label>

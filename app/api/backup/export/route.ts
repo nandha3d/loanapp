@@ -9,24 +9,50 @@ export async function GET() {
     const { context } = authResult;
     const tenantId = context.tenantId;
 
-    // Fetch All Transactional / System Data for backup
+    // Safety cap: 10k rows per section to avoid OOM on large tenants.
+    // For a full dump, use db-level mysqldump instead.
+    const CAP = 10_000;
     const [customers, loans, accountEntries, routes] = await Promise.all([
       prisma.customer.findMany({
         where: { tenantId },
-        include: { route: true, agent: true }
+        select: {
+          id: true, customerCode: true, name: true, phone: true, pan: true,
+          status: true, createdAt: true,
+          route: { select: { name: true } },
+          agent: { select: { name: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+        take: CAP,
       }),
       prisma.loan.findMany({
         where: { tenantId },
-        include: { customer: true }
+        select: {
+          id: true, loanCode: true, principal: true, totalPayable: true,
+          perInstalment: true, frequency: true, tenure: true, startDate: true,
+          endDate: true, status: true, totalCollected: true, paidCount: true, createdAt: true,
+          customer: { select: { name: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+        take: CAP,
       }),
       prisma.accountEntry.findMany({
         where: { tenantId },
-        include: { user: true }
+        select: {
+          id: true, type: true, category: true, amount: true,
+          entryDate: true, description: true, createdAt: true,
+          user: { select: { name: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+        take: CAP,
       }),
       prisma.route.findMany({
         where: { tenantId },
-        include: { routeAgents: { include: { agent: true } } }
-      })
+        select: {
+          id: true, name: true, status: true, createdAt: true,
+          routeAgents: { select: { agent: { select: { name: true } } } },
+        },
+        take: 500,
+      }),
     ]);
 
     // Helper to escape CSV values

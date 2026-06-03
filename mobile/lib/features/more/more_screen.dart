@@ -134,7 +134,7 @@ const _allModules = <_ModuleItem>[
     label: 'Chit Funds',
     subtitle: 'Group savings management',
     route: '/chits',
-    moduleKey: 'chits',
+    moduleKey: 'chitfunds',
     color: AppColors.purple,
     bgColor: AppColors.purpleBg,
   ),
@@ -178,19 +178,20 @@ bool _canAccess(_ModuleItem item, User user) {
 
   final key = item.moduleKey;
   if (key == null) return true;
-  if (privileged) return true;
+  if (user.role == UserRole.developer) return true;
 
-  if (user.enabledModules.isNotEmpty) return user.hasModule(key);
-
-  // RBAC fallback
+  // Core features are role-gated, not subscription-gated.
   switch (key) {
     case 'approvals':
     case 'analytics':
+    case 'accounting':
     case 'settings':
       return user.role != UserRole.agent;
-    default:
-      return true;
   }
+
+  // Everything else is subscription-gated.
+  if (user.enabledModules.isNotEmpty) return user.hasModule(key);
+  return privileged;
 }
 
 // ── Screen ────────────────────────────────────────────────────────────────────
@@ -429,18 +430,18 @@ class _MapSection extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const Icon(Icons.person_pin_circle_rounded,
-                          size: 13, color: AppColors.success),
+                          size: 13, color: AppColors.success,),
                       const SizedBox(width: 4),
                       Text('Agents',
                           style: AppTypography.extraTiny
-                              .copyWith(color: AppColors.textSecondary)),
+                              .copyWith(color: AppColors.textSecondary),),
                       const SizedBox(width: 8),
                       const Icon(Icons.location_on_rounded,
-                          size: 13, color: AppColors.primary),
+                          size: 13, color: AppColors.primary,),
                       const SizedBox(width: 4),
                       Text('Customers',
                           style: AppTypography.extraTiny
-                              .copyWith(color: AppColors.textSecondary)),
+                              .copyWith(color: AppColors.textSecondary),),
                     ],
                   ),
                 ),
@@ -452,7 +453,7 @@ class _MapSection extends StatelessWidget {
                   right: 48,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 5),
+                        horizontal: 8, vertical: 5,),
                     decoration: BoxDecoration(
                       color: Colors.white.withAlpha(230),
                       borderRadius: BorderRadius.circular(8),
@@ -479,7 +480,7 @@ class _MapSection extends StatelessWidget {
                       boxShadow: AppTokens.shadow,
                     ),
                     child: const Icon(Icons.open_in_full,
-                        size: 16, color: AppColors.textSecondary),
+                        size: 16, color: AppColors.textSecondary,),
                   ),
                 ),
               ),
@@ -493,7 +494,7 @@ class _MapSection extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(Icons.location_off_outlined,
-                            color: Colors.white70, size: 32),
+                            color: Colors.white70, size: 32,),
                         const SizedBox(height: 6),
                         Text(
                           'No location data yet',

@@ -27,9 +27,13 @@ const noStoreHeaders = [
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  compress: true,
   allowedDevOrigins: ['lvh.me', '*.lvh.me', 'localhost:3000'],
   typescript: {
-    ignoreBuildErrors: true,
+    // Type errors now fail the build (tsc --noEmit is clean). Keeps the type
+    // safety net on for production deploys. (This Next version runs ESLint
+    // separately via `next lint`, so no eslint config key here.)
+    ignoreBuildErrors: false,
   },
   turbopack: {
     root: process.cwd(),
@@ -39,11 +43,24 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '4mb',
     },
   },
+  images: {
+    formats: ['image/avif', 'image/webp'],
+    minimumCacheTTL: 86400,
+    deviceSizes: [640, 750, 828, 1080, 1200],
+  },
   async headers() {
     return [
       {
         source: '/login',
         headers: [...securityHeaders, ...noStoreHeaders],
+      },
+      // Authenticated API responses: private (per-user), short TTL so proxies
+      // never cache sensitive data but browsers can reuse within 30s.
+      {
+        source: '/api/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'private, max-age=30, stale-while-revalidate=60' },
+        ],
       },
       {
         source: '/(.*)',

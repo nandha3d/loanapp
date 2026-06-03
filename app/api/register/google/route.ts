@@ -136,8 +136,10 @@ export async function POST(request: Request) {
       });
 
       // 3. Create TenantSubscription
-      const trialEndsAt = new Date();
-      trialEndsAt.setDate(trialEndsAt.getDate() + 14); // 14-day trial
+      const trialDays = (planCatalog as any).trialDays ?? 0;
+      const trialEndsAt = trialDays > 0
+        ? (() => { const d = new Date(); d.setDate(d.getDate() + trialDays); d.setHours(23,59,59,999); return d; })()
+        : null;
 
       const subscription = await tx.tenantSubscription.create({
         data: {

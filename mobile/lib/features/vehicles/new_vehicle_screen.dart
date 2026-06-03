@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
@@ -28,6 +29,7 @@ class _NewVehicleScreenState extends ConsumerState<NewVehicleScreen> {
   final _chassis = TextEditingController();
   String? _customerId;
   String _vehicleType = 'two_wheeler';
+  DateTime? _insuranceExpiry;
   bool _submitting = false;
   String? _error;
 
@@ -68,6 +70,8 @@ class _NewVehicleScreenState extends ConsumerState<NewVehicleScreen> {
         if (_engine.text.trim().isNotEmpty) 'engineNo': _engine.text.trim(),
         if (_chassis.text.trim().isNotEmpty) 'chassisNo': _chassis.text.trim(),
         'vehicleType': _vehicleType,
+        if (_insuranceExpiry != null)
+          'insuranceExpiry': _insuranceExpiry!.toIso8601String(),
       });
       if (!mounted) return;
       context.pop(true);
@@ -152,6 +156,32 @@ class _NewVehicleScreenState extends ConsumerState<NewVehicleScreen> {
           TextField(controller: _engine, decoration: _dec(t.x('veh.engine'))),
           const SizedBox(height: 12),
           TextField(controller: _chassis, decoration: _dec(t.x('veh.chassis'))),
+          const SizedBox(height: 12),
+          InkWell(
+            onTap: () async {
+              final now = DateTime.now();
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _insuranceExpiry ?? now,
+                firstDate: DateTime(now.year - 5),
+                lastDate: DateTime(now.year + 15),
+              );
+              if (picked != null) setState(() => _insuranceExpiry = picked);
+            },
+            child: InputDecorator(
+              decoration: _dec(t.x('veh.insurance_expiry')),
+              child: Text(
+                _insuranceExpiry == null
+                    ? t.x('veh.not_set')
+                    : DateFormat('d MMM yyyy').format(_insuranceExpiry!),
+                style: AppTypography.body.copyWith(
+                  color: _insuranceExpiry == null
+                      ? AppColors.textLight
+                      : AppColors.textPrimary,
+                ),
+              ),
+            ),
+          ),
           if (_error != null) ...[
             const SizedBox(height: 12),
             Text(_error!, style: AppTypography.caption.copyWith(color: AppColors.danger)),

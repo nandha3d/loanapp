@@ -82,6 +82,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
   final _deduction = TextEditingController(text: '3000');
   final _tenure = TextEditingController(text: '100');
   String _frequency = 'daily';
+  int? _dueDay; // day-of-month (monthly) / day-of-week (weekly); null for daily
   DateTime _startDate = DateTime.now();
   final _penaltyRate = TextEditingController(text: '1.5');
 
@@ -165,6 +166,11 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
     }
   }
 
+  static const _weekdays = [
+    'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
+  ];
+  String _weekdayLabel(int d) => _weekdays[(d - 1).clamp(0, 6)];
+
   Future<void> _recalc() async {
     if (_principalNum <= 0 || _tenureNum <= 0) return;
     setState(() => _calculating = true);
@@ -176,6 +182,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
             tenure: _tenureNum,
             frequency: _frequency,
             startDate: _startDate,
+            dueDay: _frequency == 'daily' ? null : _dueDay,
           );
     } catch (e) {
       _error = e.toString();
@@ -242,6 +249,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
             tenure: _tenureNum,
             frequency: _frequency,
             startDate: _startDate,
+            dueDay: _frequency == 'daily' ? null : _dueDay,
             penaltyRate: double.tryParse(_penaltyRate.text) ?? 0,
             loanType: _loanType,
             collateralDetails: _buildCollateralJson(),
@@ -792,8 +800,43 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
             ButtonSegment(value: 'monthly', label: Text(tr.x('plan.monthly'))),
           ],
           selected: {_frequency},
-          onSelectionChanged: (s) => setState(() => _frequency = s.first),
+          onSelectionChanged: (s) => setState(() {
+            _frequency = s.first;
+            if (_frequency == 'daily') _dueDay = null;
+          }),
         ),
+        if (_frequency != 'daily') ...[
+          const SizedBox(height: 12),
+          Text(tr.x('fld.due_day'), style: AppTypography.label),
+          const SizedBox(height: 6),
+          DropdownButtonFormField<int>(
+            initialValue: _dueDay,
+            isExpanded: true,
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: tr.x('fld.due_day_hint'),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+              ),
+            ),
+            items: _frequency == 'weekly'
+                ? [
+                    for (var d = 1; d <= 7; d++)
+                      DropdownMenuItem(
+                        value: d,
+                        child: Text(_weekdayLabel(d)),
+                      ),
+                  ]
+                : [
+                    for (var d = 1; d <= 31; d++)
+                      DropdownMenuItem(value: d, child: Text('$d')),
+                  ],
+            onChanged: (v) {
+              setState(() => _dueDay = v);
+              _recalc();
+            },
+          ),
+        ],
         const SizedBox(height: 12),
         AppTextField(
           label: tr.x('fld.tenure'),

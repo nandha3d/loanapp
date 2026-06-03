@@ -70,6 +70,7 @@ export default function Sidebar({
     { id: 'approvals', icon: 'verified', label: dict.sidebar.approvals, href: '/approvals', appTypes: ['microlending', 'autofinance', 'goldloan'] },
     { id: 'kyc-review', icon: 'rate_review', label: dict.sidebar.kycReview, href: '/kyc-review', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
     { id: 'accounting', icon: 'account_balance_wallet', label: dict.sidebar.accounting, href: '/accounting', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
+    { id: 'wallet', icon: 'payments', label: (dict.sidebar as any).wallet || 'Cash Float', href: '/wallet', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
     { section: dict.sidebar.sections.insights },
     { id: 'analytics', icon: 'insights', label: dict.sidebar.analytics, href: '/analytics', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
     { id: 'notifications', icon: 'notifications', label: dict.sidebar.notifications, href: '/notifications' },

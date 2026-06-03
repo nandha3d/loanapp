@@ -74,13 +74,13 @@ export default async function CustomersPage({
       take: limit,
       orderBy: { createdAt: 'desc' },
       include: {
-        route: true,
+        route: { select: { id: true, name: true } },
         loans: {
-          include: {
+          select: {
+            id: true, loanCode: true, principal: true, status: true, tenure: true,
             instalments: { select: { status: true, receivedAmount: true } },
-            penalties: { select: { id: true } }
-          }
-        }
+          },
+        },
       }
     })
   ]);
@@ -152,7 +152,7 @@ export default async function CustomersPage({
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <div className="profile-avatar" style={{ width: '32px', height: '32px', fontSize: '.75rem', flexShrink: 0 }}>
                         {c.profilePhoto ? (
-                          <img src={c.profilePhoto} alt={c.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+                          <img src={c.profilePhoto} alt={c.name} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
                         ) : (
                           getInitials(c.name)
                         )}

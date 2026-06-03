@@ -62,6 +62,21 @@ class _AgentWallet extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
           children: [
             _BalanceHero(balance: w.balance, fmt: fmt, t: t),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.primary),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                onPressed:
+                    w.balance > 0 ? () => _depositCash(context, ref) : null,
+                icon: const Icon(Icons.upload_rounded, size: 18),
+                label: Text(t.x('wallet.deposit')),
+              ),
+            ),
             const SizedBox(height: 18),
             Text(t.x('wallet.history'), style: AppTypography.sectionTitle),
             const SizedBox(height: 10),
@@ -80,11 +95,29 @@ class _AgentWallet extends ConsumerWidget {
       ),
     );
   }
+
+  void _depositCash(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
+    showDialog<void>(
+      context: context,
+      builder: (_) => _AmountActionDialog(
+        title: t.x('wallet.deposit_title'),
+        actionLabel: t.x('wallet.deposit'),
+        successMsg: t.x('wallet.deposited'),
+        submit: (amount, note) async {
+          await ref
+              .read(walletServiceProvider)
+              .deposit(amount: amount, note: note);
+          ref.invalidate(walletMeProvider);
+        },
+      ),
+    );
+  }
 }
 
 class _BalanceHero extends StatelessWidget {
   const _BalanceHero(
-      {required this.balance, required this.fmt, required this.t});
+      {required this.balance, required this.fmt, required this.t,});
   final double balance;
   final NumberFormat fmt;
   final T t;
@@ -108,19 +141,19 @@ class _BalanceHero extends StatelessWidget {
           Row(
             children: [
               const Icon(Icons.account_balance_wallet_outlined,
-                  color: AppColors.primary, size: 18),
+                  color: AppColors.primary, size: 18,),
               const SizedBox(width: 6),
               Text(t.x('wallet.balance'),
                   style:
-                      AppTypography.heroLabel.copyWith(color: Colors.white70)),
+                      AppTypography.heroLabel.copyWith(color: Colors.white70),),
             ],
           ),
           const SizedBox(height: 12),
           Text(fmt.format(balance),
-              style: AppTypography.heroNumber.copyWith(color: Colors.white)),
+              style: AppTypography.heroNumber.copyWith(color: Colors.white),),
           const SizedBox(height: 4),
           Text(t.x('wallet.cash_in_hand'),
-              style: AppTypography.caption.copyWith(color: Colors.white54)),
+              style: AppTypography.caption.copyWith(color: Colors.white54),),
         ],
       ),
     );
@@ -135,30 +168,268 @@ class _AdminWallet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
-    final async = ref.watch(walletAgentsProvider);
+    final agentsAsync = ref.watch(walletAgentsProvider);
+    final branchesAsync = ref.watch(walletBranchesProvider);
 
-    return async.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) =>
-          Center(child: EmptyState(icon: Icons.cloud_off, title: e.toString())),
-      data: (agents) {
-        if (agents.isEmpty) {
-          return Center(
-            child: EmptyState(
-                icon: Icons.people_outline, title: t.x('wallet.no_agents')),
+    return RefreshIndicator(
+      color: AppColors.primary,
+      onRefresh: () async {
+        ref.invalidate(walletAgentsProvider);
+        ref.invalidate(walletBranchesProvider);
+      },
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        children: [
+          // Branch cash pools.
+          branchesAsync.maybeWhen(
+            data: (branches) => Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(t.x('wallet.branch_pools'),
+                    style: AppTypography.sectionTitle,),
+                const SizedBox(height: 10),
+                if (branches.isEmpty)
+                  Text(t.x('wallet.no_branches'),
+                      style: AppTypography.caption,)
+                else
+                  ...branches.map((b) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _BranchRow(pool: b, fmt: fmt, t: t),
+                      ),),
+                const SizedBox(height: 22),
+              ],
+            ),
+            orElse: () => const SizedBox.shrink(),
+          ),
+          Text(t.x('wallet.agents_float'), style: AppTypography.sectionTitle),
+          const SizedBox(height: 10),
+          agentsAsync.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (e, _) => Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(e.toString(), style: AppTypography.caption),
+            ),
+            data: (agents) => agents.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(t.x('wallet.no_agents'),
+                        style: AppTypography.caption,),
+                  )
+                : Column(
+                    children: [
+                      for (final a in agents)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _AgentRow(agent: a, fmt: fmt, t: t),
+                        ),
+                    ],
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Generic amount + optional note dialog used for deposit / top-up.
+class _AmountActionDialog extends ConsumerStatefulWidget {
+  const _AmountActionDialog({
+    required this.title,
+    required this.actionLabel,
+    required this.submit,
+    this.successMsg,
+  });
+  final String title;
+  final String actionLabel;
+  final String? successMsg;
+  final Future<void> Function(double amount, String note) submit;
+
+  @override
+  ConsumerState<_AmountActionDialog> createState() =>
+      _AmountActionDialogState();
+}
+
+class _AmountActionDialogState extends ConsumerState<_AmountActionDialog> {
+  final _amount = TextEditingController();
+  final _note = TextEditingController();
+  bool _submitting = false;
+
+  @override
+  void dispose() {
+    _amount.dispose();
+    _note.dispose();
+    super.dispose();
+  }
+
+  Future<void> _go() async {
+    final t = T.of(ref);
+    final amount = double.tryParse(_amount.text.trim()) ?? 0;
+    if (amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(t.x('err.enter_valid_amount')),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+    setState(() => _submitting = true);
+    try {
+      await widget.submit(amount, _note.text.trim());
+      if (mounted) {
+        if (widget.successMsg != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(widget.successMsg!),
+              backgroundColor: AppColors.success,
+            ),
           );
         }
-        return RefreshIndicator(
-          color: AppColors.primary,
-          onRefresh: () async => ref.invalidate(walletAgentsProvider),
-          child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-            itemCount: agents.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (_, i) => _AgentRow(agent: agents[i], fmt: fmt, t: t),
-          ),
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$e'), backgroundColor: AppColors.danger),
         );
-      },
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = T.of(ref);
+    return AlertDialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppTokens.radius),
+      ),
+      title: Text(widget.title),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _amount,
+            keyboardType: TextInputType.number,
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: t.x('wallet.amount'),
+              prefixIcon: const Icon(Icons.currency_rupee, size: 18),
+              border: const OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _note,
+            decoration: InputDecoration(
+              labelText: t.x('wallet.note'),
+              border: const OutlineInputBorder(),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _submitting ? null : () => Navigator.pop(context),
+          child: Text(t.x('common.cancel')),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: AppColors.onPrimary,
+          ),
+          onPressed: _submitting ? null : _go,
+          child: _submitting
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(widget.actionLabel),
+        ),
+      ],
+    );
+  }
+}
+
+/// Branch cash pool row with a top-up action.
+class _BranchRow extends ConsumerWidget {
+  const _BranchRow({required this.pool, required this.fmt, required this.t});
+  final BranchPool pool;
+  final NumberFormat fmt;
+  final T t;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final low = pool.balance < 0;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppTokens.radius),
+        boxShadow: AppTokens.shadow,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppColors.info.withAlpha(28),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.account_balance, color: AppColors.info),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(pool.branchName,
+                    style: AppTypography.bodyLarge
+                        .copyWith(fontWeight: FontWeight.w700),),
+                const SizedBox(height: 2),
+                Text(fmt.format(pool.balance),
+                    style: AppTypography.caption.copyWith(
+                      color: low ? AppColors.danger : AppColors.success,
+                      fontWeight: FontWeight.w700,
+                    ),),
+              ],
+            ),
+          ),
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.info,
+              side: const BorderSide(color: AppColors.info),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            ),
+            onPressed: () => _topUp(context, ref),
+            icon: const Icon(Icons.add, size: 16),
+            label: Text(t.x('wallet.topup')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _topUp(BuildContext context, WidgetRef ref) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => _AmountActionDialog(
+        title: '${t.x('wallet.topup')} — ${pool.branchName}',
+        actionLabel: t.x('wallet.topup'),
+        successMsg: t.x('wallet.topped_up'),
+        submit: (amount, note) async {
+          await ref
+              .read(walletServiceProvider)
+              .injectBranch(branchId: pool.branchId, amount: amount, note: note);
+          ref.invalidate(walletBranchesProvider);
+        },
+      ),
     );
   }
 }
@@ -186,7 +457,7 @@ class _AgentRow extends ConsumerWidget {
             child: Text(
               agent.name.isNotEmpty ? agent.name[0].toUpperCase() : '?',
               style: const TextStyle(
-                  color: AppColors.primary, fontWeight: FontWeight.w800),
+                  color: AppColors.primary, fontWeight: FontWeight.w800,),
             ),
           ),
           const SizedBox(width: 12),
@@ -196,7 +467,7 @@ class _AgentRow extends ConsumerWidget {
               children: [
                 Text(agent.name,
                     style: AppTypography.bodyLarge
-                        .copyWith(fontWeight: FontWeight.w700)),
+                        .copyWith(fontWeight: FontWeight.w700),),
                 const SizedBox(height: 2),
                 Text('${t.x('wallet.balance')}: ${fmt.format(agent.balance)}',
                     style: AppTypography.caption.copyWith(
@@ -204,7 +475,7 @@ class _AgentRow extends ConsumerWidget {
                           ? AppColors.success
                           : AppColors.textSecondary,
                       fontWeight: FontWeight.w700,
-                    )),
+                    ),),
               ],
             ),
           ),
@@ -258,7 +529,7 @@ class _ReleaseDialogState extends ConsumerState<_ReleaseDialog> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content: Text(t.x('err.enter_valid_amount')),
-            backgroundColor: AppColors.warning),
+            backgroundColor: AppColors.warning,),
       );
       return;
     }
@@ -274,7 +545,7 @@ class _ReleaseDialogState extends ConsumerState<_ReleaseDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text(t.x('wallet.released')),
-              backgroundColor: AppColors.success),
+              backgroundColor: AppColors.success,),
         );
         Navigator.pop(context);
       }
@@ -294,7 +565,7 @@ class _ReleaseDialogState extends ConsumerState<_ReleaseDialog> {
     final t = T.of(ref);
     return AlertDialog(
       shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppTokens.radius)),
+          borderRadius: BorderRadius.circular(AppTokens.radius),),
       title: Text('${t.x('wallet.release')} — ${widget.agent.name}'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
@@ -387,7 +658,7 @@ class _TxnTile extends StatelessWidget {
               children: [
                 Text(label == 'wallet.txn_${tx.type}' ? tx.type : label,
                     style: AppTypography.body
-                        .copyWith(fontWeight: FontWeight.w600)),
+                        .copyWith(fontWeight: FontWeight.w600),),
                 Text(
                   DateFormat('d MMM, h:mm a').format(tx.createdAt),
                   style: AppTypography.extraTiny,

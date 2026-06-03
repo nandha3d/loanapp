@@ -60,24 +60,44 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // Find all instalments that are overdue and unpaid
+    // Batch cap: process at most 5000 instalments per run to avoid OOM on large deployments.
+    // The cron will catch up on the next run if more exist.
+    const BATCH_LIMIT = 5000;
     const overdueInstalments = await prisma.instalment.findMany({
       where: {
         dueDate: { lt: today },
         status: { in: ['upcoming', 'missed'] },
         loan: { status: { in: ['active', 'overdue'] } },
       },
-      include: {
+      select: {
+        id: true, loanId: true, dueDate: true, dueAmount: true, receivedAmount: true,
+        instalmentNo: true, status: true,
         loan: {
-          include: {
-            customer: true,
-            tenant: {
-              include: { settings: { where: { key: { in: ['default_penalty_per_day', 'penalty_grace_period', 'penalty_max_cap'] } } } },
-            },
+          select: {
+            id: true, loanCode: true, status: true, customerId: true, tenantId: true,
+            customer: { select: { id: true, name: true, phone: true, email: true } },
           },
         },
       },
+      orderBy: { dueDate: 'asc' },
+      take: BATCH_LIMIT,
     });
+
+    // Pre-fetch tenant settings once per tenant (avoid N queries inside the loop).
+    const tenantIds = [...new Set(overdueInstalments.map((i) => i.loan.tenantId))];
+    const allTenantSettings = await prisma.appSetting.findMany({
+      where: {
+        tenantId: { in: tenantIds },
+        key: { in: ['default_penalty_per_day', 'penalty_grace_period', 'penalty_max_cap'] },
+      },
+      select: { tenantId: true, key: true, value: true },
+    });
+    const tenantSettingsMap = new Map<string, Record<string, string>>();
+    for (const s of allTenantSettings) {
+      const bucket = tenantSettingsMap.get(s.tenantId) ?? {};
+      bucket[s.key] = s.value;
+      tenantSettingsMap.set(s.tenantId, bucket);
+    }
 
     // Group by loanId so we create one Penalty record per loan
     const loanMap = new Map<string, typeof overdueInstalments>();
@@ -94,9 +114,7 @@ export async function GET(req: NextRequest) {
     for (const [loanId, instalments] of loanMap) {
       try {
         const loan = instalments[0].loan;
-        const settings = Object.fromEntries(
-          loan.tenant.settings.map((s) => [s.key, s.value])
-        );
+        const settings = tenantSettingsMap.get(loan.tenantId) ?? {};
         const penaltyPerDay = Number(settings['default_penalty_per_day'] ?? 0);
         const gracePeriodDays = Number(settings['penalty_grace_period'] ?? 0);
         const maxCap = Number(settings['penalty_max_cap'] ?? 0);

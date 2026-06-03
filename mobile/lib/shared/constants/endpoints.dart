@@ -47,6 +47,8 @@ class Endpoints {
   static const String walletMe = '/wallet/me';
   static const String walletAgents = '/wallet/agents';
   static const String walletRelease = '/wallet/release';
+  static const String walletBranch = '/wallet/branch';
+  static const String walletDeposit = '/wallet/deposit';
 
   // Penalties
   static const String penalties = '/penalties';

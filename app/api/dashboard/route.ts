@@ -30,8 +30,18 @@ export async function GET() {
       prisma.customer.count({ where: { ...customerWhere, status: { not: 'blacklisted' } } }),
       prisma.instalment.findMany({
         where: { loan: loanWhere, dueDate: { gte: today, lt: tomorrow } },
-        include: { loan: { include: { customer: true } } },
+        select: {
+          id: true, instalmentNo: true, dueDate: true, dueAmount: true,
+          receivedAmount: true, status: true,
+          loan: {
+            select: {
+              id: true, loanCode: true,
+              customer: { select: { id: true, customerCode: true, name: true, phone: true } },
+            },
+          },
+        },
         orderBy: { dueDate: 'asc' },
+        take: 500,
       }),
       prisma.penalty.count({ where: { loan: loanWhere, status: 'pending' } }),
       prisma.user.count({ where: { tenantId: context.tenantId, appType: context.appType, role: 'agent', status: 'active', ...scopedBranchWhere(context) } }),

@@ -11,7 +11,7 @@ export class InsufficientFloatError extends Error {
 }
 
 type LedgerMeta = {
-  type: 'release' | 'disburse' | 'collection' | 'inject' | 'adjustment';
+  type: 'release' | 'disburse' | 'collection' | 'inject' | 'deposit' | 'adjustment';
   refType?: string | null;
   refId?: string | null;
   note?: string | null;
@@ -183,6 +183,54 @@ export async function creditCollection(
     type: 'collection',
     refType: 'collection_entry',
     refId: input.entryId,
+  });
+}
+
+/**
+ * Agent hands collected cash back to the office: debits the agent's float
+ * (hard block — can't deposit more than held) and credits the branch pool.
+ */
+export async function depositToOffice(input: {
+  tenantId: string;
+  agentId: string;
+  branchId: string;
+  amount: number;
+  byUserId: string;
+  note?: string | null;
+}): Promise<{ agentBalance: number }> {
+  if (!(input.amount > 0)) throw new Error('amount must be positive');
+  return prisma.$transaction(async (tx) => {
+    const agentBalance = await applyAgent(
+      tx,
+      input.tenantId,
+      input.agentId,
+      -input.amount,
+      { type: 'deposit', refType: 'branch', refId: input.branchId, note: input.note, byUserId: input.byUserId },
+      true,
+    );
+    await applyBranch(tx, input.tenantId, input.branchId, input.amount, {
+      type: 'deposit',
+      refType: 'agent',
+      refId: input.agentId,
+      note: input.note,
+      byUserId: input.byUserId,
+    });
+    return { agentBalance };
+  });
+}
+
+export async function getBranchAccounts(tenantId: string, branchIds?: string[]) {
+  return prisma.branchCashAccount.findMany({
+    where: { tenantId, ...(branchIds ? { branchId: { in: branchIds } } : {}) },
+    orderBy: { updatedAt: 'desc' },
+  });
+}
+
+export async function getBranchStatement(tenantId: string, branchId: string, limit = 50) {
+  return prisma.walletTransaction.findMany({
+    where: { tenantId, accountKind: 'branch', branchId },
+    orderBy: { createdAt: 'desc' },
+    take: limit,
   });
 }
 

@@ -50,6 +50,24 @@ class WalletMe {
       );
 }
 
+/// A branch cash pool (admin view).
+class BranchPool {
+  const BranchPool({
+    required this.branchId,
+    required this.branchName,
+    required this.balance,
+  });
+  final String branchId;
+  final String branchName;
+  final double balance;
+
+  factory BranchPool.fromJson(Map<String, dynamic> json) => BranchPool(
+        branchId: json['branchId'] as String,
+        branchName: (json['branchName'] as String?) ?? '—',
+        balance: _d(json['balance']),
+      );
+}
+
 /// An agent + their float balance (admin view).
 class AgentWallet {
   const AgentWallet({

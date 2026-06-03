@@ -215,13 +215,17 @@ export async function POST(request: Request) {
 
       await reallocateLoanRepayments(tx, instalment.loanId);
 
-      const allEntries = await tx.collectionEntry.findMany({ where: { collectionId: dailyCollection.id } });
+      const entryAgg = await tx.collectionEntry.aggregate({
+        where: { collectionId: dailyCollection.id },
+        _sum: { receivedAmount: true, dueAmount: true },
+        _count: { _all: true },
+      });
       await tx.dailyCollection.update({
         where: { id: dailyCollection.id },
         data: {
-          totalCollected: allEntries.reduce((sum, item) => sum + Number(item.receivedAmount), 0),
-          totalExpected: allEntries.reduce((sum, item) => sum + Number(item.dueAmount), 0),
-          entriesCount: allEntries.length,
+          totalCollected: Number(entryAgg._sum.receivedAmount ?? 0),
+          totalExpected: Number(entryAgg._sum.dueAmount ?? 0),
+          entriesCount: entryAgg._count._all,
         },
       });
 

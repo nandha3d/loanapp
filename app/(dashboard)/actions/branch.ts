@@ -12,18 +12,20 @@ export async function switchActiveBranch(branchId: string) {
     return { success: false, error: 'Only superadmins can switch branches' };
   }
 
-  const branch = await prisma.branch.findFirst({
-    where: {
-      id: branchId,
-      tenantId: user.tenantId,
-      superadminId: user.id,
-      status: 'active',
-    },
-    select: { id: true, name: true },
-  });
+  if (branchId !== 'all') {
+    const branch = await prisma.branch.findFirst({
+      where: {
+        id: branchId,
+        tenantId: user.tenantId,
+        superadminId: user.id,
+        status: 'active',
+      },
+      select: { id: true, name: true },
+    });
 
-  if (!branch) {
-    return { success: false, error: 'Branch not found or access denied' };
+    if (!branch) {
+      return { success: false, error: 'Branch not found or access denied' };
+    }
   }
 
   const cookieStore = await cookies();
@@ -35,5 +37,5 @@ export async function switchActiveBranch(branchId: string) {
     maxAge: 60 * 60 * 24 * 30,
   });
 
-  return { success: true, data: { branchId, branchName: branch.name } };
+  return { success: true, data: { branchId, branchName: branchId === 'all' ? 'All Branches' : 'Branch' } };
 }

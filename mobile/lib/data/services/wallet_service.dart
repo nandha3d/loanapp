@@ -42,6 +42,43 @@ class WalletService {
     );
     unwrapEnvelope(res, (_) => null);
   }
+
+  Future<List<BranchPool>> branches() async {
+    final res = await _dio.get<Map<String, dynamic>>(Endpoints.walletBranch);
+    return unwrapEnvelope(
+      res,
+      (dynamic d) => (d as List<dynamic>)
+          .map((dynamic e) => BranchPool.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+    );
+  }
+
+  Future<void> injectBranch({
+    required String branchId,
+    required double amount,
+    String? note,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.walletBranch,
+      data: {
+        'branchId': branchId,
+        'amount': amount,
+        if (note != null && note.isNotEmpty) 'note': note,
+      },
+    );
+    unwrapEnvelope(res, (_) => null);
+  }
+
+  Future<void> deposit({required double amount, String? note}) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.walletDeposit,
+      data: {
+        'amount': amount,
+        if (note != null && note.isNotEmpty) 'note': note,
+      },
+    );
+    unwrapEnvelope(res, (_) => null);
+  }
 }
 
 final walletServiceProvider =
@@ -53,4 +90,8 @@ final walletMeProvider = FutureProvider.autoDispose<WalletMe>(
 
 final walletAgentsProvider = FutureProvider.autoDispose<List<AgentWallet>>(
   (ref) => ref.watch(walletServiceProvider).agents(),
+);
+
+final walletBranchesProvider = FutureProvider.autoDispose<List<BranchPool>>(
+  (ref) => ref.watch(walletServiceProvider).branches(),
 );

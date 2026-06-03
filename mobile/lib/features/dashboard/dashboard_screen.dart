@@ -1679,18 +1679,22 @@ class _SideDrawer extends ConsumerWidget {
     bool can(String? moduleKey, {bool adminOnly = false}) {
       if (adminOnly && !privileged) return false;
       if (moduleKey == null) return true;
-      if (privileged) return true;
+      if (user?.role == UserRole.developer) return true;
       if (user == null) return false;
-      if (user.enabledModules.isNotEmpty) return user.hasModule(moduleKey);
-      // RBAC fallback
+
+      // Core features are role-gated, not subscription-gated.
       switch (moduleKey) {
         case 'approvals':
         case 'analytics':
+        case 'accounting':
         case 'settings':
           return user.role != UserRole.agent;
-        default:
-          return true;
       }
+
+      // Everything else is subscription-gated.
+      if (user.enabledModules.isNotEmpty) return user.hasModule(moduleKey);
+      // Fallback when enabledModules not loaded yet.
+      return privileged;
     }
 
     return Drawer(
@@ -1763,7 +1767,7 @@ class _SideDrawer extends ConsumerWidget {
                 label: t.x('kyc.title'),
                 onTap: () => context.go('/kyc-review'),
               ),
-            if (can('chits'))
+            if (can('chitfunds'))
               _DrawerLink(
                 icon: Icons.savings_outlined,
                 label: t.x('title.chits'),

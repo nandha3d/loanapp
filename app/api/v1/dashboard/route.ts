@@ -61,7 +61,8 @@ export async function GET(req: NextRequest) {
       pendingPenalties,
       activeAgents,
       recentLoans,
-      overdueForTotalsRaw,
+      overdueForTotalsAgg,
+      overdueDefaulterRows,
       overduePaidTodayAllocations,
       routes,
       recentActivity,
@@ -91,11 +92,20 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: 'desc' },
         take: 5,
       }),
-      // Overdue (past-due, still-open) instalments — for the overdue card totals.
+      // Overdue totals — aggregate avoids loading every instalment row.
+      prisma.instalment.aggregate({
+        where: { loan: baseLoan, dueDate: { lt: today }, status: { in: ['upcoming', 'missed', 'partial'] } },
+        _sum: { dueAmount: true, receivedAmount: true },
+      }),
+      // Top overdue instalments for defaulter alerts (only need 10).
       prisma.instalment.findMany({
         where: { loan: baseLoan, dueDate: { lt: today }, status: { in: ['upcoming', 'missed', 'partial'] } },
-        include: { loan: { include: { customer: { select: { id: true, name: true, customerCode: true } } } } },
-        orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
+        select: {
+          id: true, dueDate: true, dueAmount: true, receivedAmount: true,
+          loan: { select: { id: true, loanCode: true, customer: { select: { id: true, name: true, customerCode: true } } } },
+        },
+        orderBy: { dueDate: 'asc' },
+        take: 10,
       }),
       // Today's payments that landed on PAST-DUE instalments = overdue recovered today.
       prisma.paymentAllocation.findMany({
@@ -163,23 +173,19 @@ export async function GET(req: NextRequest) {
 
     const outstanding = (item: any) => Math.max(0, Number(item.dueAmount) - Number(item.receivedAmount || 0));
 
-    // Overdue collection — daily snapshot that re-bases each day:
-    //   Remaining = overdue still outstanding now; Collected today = today's
-    //   payments on past-due instalments; Total = what was overdue at start of today.
-    const overdueOutstanding = overdueForTotalsRaw.reduce(
-      (sum, i) => sum + outstanding(i),
-      0,
-    );
+    // Overdue totals come from the DB aggregate — no large row set in memory.
+    const overdueDueTotal = Number(overdueForTotalsAgg._sum.dueAmount ?? 0);
+    const overdueReceivedTotal = Number(overdueForTotalsAgg._sum.receivedAmount ?? 0);
+    const overdueOutstanding = Math.max(0, overdueDueTotal - overdueReceivedTotal);
     const overdueCollectedToday = overduePaidTodayAllocations.reduce(
       (sum, a) => sum + Number(a.amount),
       0,
     );
     const overdueTotalTillToday = overdueOutstanding + overdueCollectedToday;
 
-    const defaulterAlerts = overdueForTotalsRaw
+    const defaulterAlerts = overdueDefaulterRows
       .map((item) => ({ ...item, overdueAmount: outstanding(item) }))
-      .filter((item) => item.overdueAmount > 0)
-      .slice(0, 10);
+      .filter((item) => item.overdueAmount > 0);
 
     const routePerformance = routes.map((route) => {
       const routeOverdue = route.customers.reduce((sum, customer) => {

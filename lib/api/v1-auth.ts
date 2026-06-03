@@ -104,6 +104,9 @@ export async function verifyMobileToken(token: string): Promise<MobileTokenClaim
  * so v1 handlers can reuse the same scoping behaviour.
  */
 export function scopedBranchWhere(claims: MobileTokenClaims) {
+  if (claims.role === 'superadmin' || claims.role === 'developer') {
+    return {};
+  }
   return claims.branchId ? { branchId: claims.branchId } : {};
 }
 

@@ -25,6 +25,8 @@ export const getActiveBranchId = cache(async (): Promise<string | null> => {
     const cookieStore = await cookies();
     const cookieBranchId = cookieStore.get('active_branch_id')?.value;
     const activeBranchId = forwardedBranchId || cookieBranchId;
+    if (activeBranchId === 'all') return null;
+
     if (!activeBranchId) {
       const firstBranch = await prisma.branch.findFirst({
         where: {

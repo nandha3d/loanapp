@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth';
 import { notFound, redirect } from 'next/navigation';
-import { headers } from 'next/headers';
+import { headers, cookies } from 'next/headers';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
 import { getDefaultTenantId } from '@/lib/tenant';
@@ -85,6 +85,19 @@ export default async function DashboardLayout({
       enabledModules: normalizeModuleList(branch.enabledModules),
     }));
     activeBranchId = await getActiveBranchId();
+    if (branches.length > 1) {
+      branches.unshift({
+        id: 'all',
+        name: 'All Branches',
+        enabledModules: [...ALL_MODULES],
+      });
+      if (!activeBranchId) {
+        const cookieStore = await cookies();
+        if (cookieStore.get('active_branch_id')?.value === 'all') {
+          activeBranchId = 'all';
+        }
+      }
+    }
   }
 
   const sub = await getSubscription(tenantId);
