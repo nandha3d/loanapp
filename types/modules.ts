@@ -22,13 +22,13 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
 };
 
 export const MODULE_ROUTES: Record<ModuleKey, string[]> = {
-  microlending: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard'],
+  microlending: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard', '/chits', '/vehicles'],
   autofinance: ['/vehicles', '/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard'],
   chitfunds: ['/chits', '/customers', '/notifications'],
   goldloan: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard'],
 };
 
-const MODULE_SHARED_ROUTES = ['/dashboard', '/settings', '/subscription', '/branch-requests', '/affiliate', '/kyc-review', '/module-requests'];
+const MODULE_SHARED_ROUTES = ['/dashboard', '/settings', '/subscription', '/branch-requests', '/affiliate', '/kyc-review', '/module-requests', '/wallet'];
 const DASHBOARD_EXTERNAL_PREFIXES = [
   '/admin',
   '/api',

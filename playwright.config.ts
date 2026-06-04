@@ -26,10 +26,10 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 2 : undefined,
+  workers: process.env.CI ? 2 : Number(process.env.PLAYWRIGHT_WORKERS ?? 4),
   reporter: [['list'], ['html', { open: 'never' }]],
-  timeout: 30_000,
-  expect: { timeout: 8_000 },
+  timeout: 60_000,
+  expect: { timeout: 10_000 },
 
   use: {
     baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:3000',

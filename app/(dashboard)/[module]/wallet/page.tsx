@@ -7,11 +7,16 @@ import { getBranchAccounts } from '@/lib/wallet';
 import { modulePath } from '@/types/modules';
 import WalletClient from './WalletClient';
 
-export default async function WalletPage() {
+export default async function WalletPage({
+  params,
+}: {
+  params: Promise<{ module: string }>;
+}) {
   const session = await auth();
   const role = (session?.user as any)?.role;
+  const { module } = await params;
   const appType = await getUserAppType();
-  if (role === 'agent') redirect(modulePath(appType, '/collection'));
+  if (role === 'agent') redirect(modulePath(module, '/collection'));
 
   const tenantId = await getDefaultTenantId();
   const branchId = await getActiveBranchId();

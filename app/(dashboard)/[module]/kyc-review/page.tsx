@@ -3,11 +3,17 @@ import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { getDictionary } from '@/lib/i18n';
+import { modulePath } from '@/types/modules';
 import KycReviewClient from './KycReviewClient';
 
-export default async function KycReviewPage() {
+export default async function KycReviewPage({
+  params,
+}: {
+  params: Promise<{ module: string }>;
+}) {
   const session = await auth();
   const userRole = (session?.user as any)?.role;
+  const { module } = await params;
   
   if (!userRole) {
     redirect('/login');
@@ -15,7 +21,7 @@ export default async function KycReviewPage() {
 
   // Gated for admins and higher roles
   if (userRole === 'agent') {
-    redirect('/dashboard');
+    redirect(modulePath(module, '/agent-dashboard'));
   }
 
   const tenantId = await getDefaultTenantId();
