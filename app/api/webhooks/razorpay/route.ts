@@ -29,6 +29,10 @@ type RazorpayWebhookPayload = {
   };
 };
 
+// This endpoint handles PLATFORM subscription billing only (platform's own
+// Razorpay account, keys from env). Borrower self-pay (mCollect-B) settles into
+// each *tenant's* own Razorpay account and is handled by the per-tenant endpoint
+// `/api/webhooks/razorpay/collections` with that tenant's webhook secret.
 const HANDLED_EVENTS = new Set([
   'subscription.activated',
   'subscription.charged',

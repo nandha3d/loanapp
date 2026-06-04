@@ -60,6 +60,8 @@ export default function Sidebar({
     { id: 'agent-dashboard', icon: 'dashboard', label: dict.sidebar.dashboard, href: '/agent-dashboard', agentOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
     { id: 'dashboard', icon: 'dashboard', label: dict.sidebar.dashboard, href: '/dashboard', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
     { id: 'collection', icon: 'point_of_sale', label: dict.sidebar.collection, href: '/collection' },
+    { id: 'collection-runs', icon: 'route', label: 'Collection Runs', href: '/collection/runs', appTypes: ['microlending', 'autofinance', 'goldloan'] },
+    { id: 'self-pay', icon: 'qr_code_2', label: 'Self-Pay', href: '/collection/self-pay', appTypes: ['microlending', 'autofinance', 'goldloan'] },
     { id: 'route-tracker', icon: 'map', label: dict.sidebar.routeTracker, href: '/route-tracker', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
     { section: dict.sidebar.sections.management },
     { id: 'customers', icon: 'people', label: dict.sidebar.customers, href: '/customers' },

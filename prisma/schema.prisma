@@ -616,6 +616,10 @@ model CollectionEntry {
   // Fraud-01: customer PIN confirmation at time of cash collection
   customerPinConfirmed     Boolean         @default(false) @map("customer_pin_confirmed")
   customerPinConfirmedAt   DateTime?       @map("customer_pin_confirmed_at")
+  // mCollect: stream tag (field | route_run | self_pay_upi) + batch run linkage.
+  // Additive — existing rows default to 'field', so legacy behaviour is unchanged.
+  source                   String          @default("field")
+  runId                    String?         @map("run_id")
   agent          User            @relation(fields: [agentId], references: [id])
   collection     DailyCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
   customer       Customer        @relation(fields: [customerId], references: [id])
@@ -635,6 +639,8 @@ model CollectionEntry {
   @@index([tenantId])
   @@index([submittedAt])
   @@index([tenantId, locationStatus])
+  @@index([runId])
+  @@index([tenantId, source])
   @@map("collection_entries")
 }
 
@@ -1998,13 +2004,20 @@ model ClientPaymentToken {
   instalmentId      String    @map("instalment_id")
   amount            Decimal   @db.Decimal(12, 2)
   token             String    @unique
-  status            String    @default("active") // active | used | expired
+  status            String    @default("active") // active | used | expired | paid | failed
   collectionEntryId String?   @map("collection_entry_id")
   createdAt         DateTime  @default(now()) @map("created_at")
   expiresAt         DateTime  @map("expires_at")
   usedAt            DateTime? @map("used_at")
+  // mCollect-B (digital self-pay). Additive — legacy agent-scan QR tokens leave
+  // these null and behave exactly as before.
+  channel           String    @default("upi") // upi | card | netbanking | link | qr
+  payUrl            String?   @map("pay_url") @db.Text   // hosted PSP payable link / UPI intent
+  providerRef       String?   @map("provider_ref")        // PSP order / payment id
+  paidAt            DateTime? @map("paid_at")
 
   @@index([tenantId, status])
+  @@index([providerRef])
   @@map("client_payment_tokens")
 }
 
@@ -2132,4 +2145,50 @@ model WalletTransaction {
   @@index([tenantId, branchId], map: "wallet_tx_tenant_branch_idx")
   @@index([createdAt], map: "wallet_tx_created_at_idx")
   @@map("wallet_transactions")
+}
+
+// ── mCollect-A: route batch collection run ───────────────────────────────────
+// A thin session wrapper that lets an agent open one collection RUN over a route,
+// collect from every due customer on a single (offline-capable) sheet, then
+// reconcile + deposit the day's cash as one unit. Standalone table (scalar FK
+// ids, no Prisma relations) following the Affiliate-table convention so the
+// large Tenant/Branch models stay untouched. Entries link back via
+// CollectionEntry.runId; DailyCollection remains the per-agent/day rollup.
+model CollectionRun {
+  id               String    @id @default(cuid())
+  tenantId         String    @map("tenant_id")
+  branchId         String?   @map("branch_id")
+  appType          String    @default("microlending") @map("app_type")
+  agentId          String    @map("agent_id")
+  routeId          String?   @map("route_id")
+  date             DateTime  @db.Date
+  status           String    @default("open") // open | collecting | closed | reconciled
+  // snapshot taken at open
+  expectedTotal    Decimal   @default(0) @map("expected_total") @db.Decimal(14, 2)
+  stopsExpected    Int       @default(0) @map("stops_expected")
+  // running totals
+  collectedTotal   Decimal   @default(0) @map("collected_total") @db.Decimal(14, 2)
+  stopsCollected   Int       @default(0) @map("stops_collected")
+  cashCollected    Decimal   @default(0) @map("cash_collected") @db.Decimal(14, 2)
+  digitalCollected Decimal   @default(0) @map("digital_collected") @db.Decimal(14, 2)
+  // reconciliation
+  cashDeposited    Decimal?  @map("cash_deposited") @db.Decimal(14, 2)
+  depositRef       String?   @map("deposit_ref")
+  varianceAmount   Decimal?  @map("variance_amount") @db.Decimal(14, 2)
+  // session GPS / device proof
+  openedAt         DateTime? @map("opened_at")
+  closedAt         DateTime? @map("closed_at")
+  reconciledAt     DateTime? @map("reconciled_at")
+  openLat          Float?    @map("open_lat")
+  openLng          Float?    @map("open_lng")
+  notes            String?   @db.Text
+  createdById      String?   @map("created_by_id")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@unique([tenantId, appType, agentId, routeId, date], map: "collection_runs_agent_route_day_key")
+  @@index([tenantId, status])
+  @@index([agentId, date])
+  @@index([branchId])
+  @@map("collection_runs")
 }

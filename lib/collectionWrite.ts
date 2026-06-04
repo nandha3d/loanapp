@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { recordPaymentLedger } from '@/lib/paymentService';
 import { reallocateLoanRepayments } from '@/lib/repayments';
+import { creditCollection } from '@/lib/wallet';
 
 type Tx = Prisma.TransactionClient;
 
@@ -9,6 +10,16 @@ function startOfToday(): Date {
   d.setHours(0, 0, 0, 0);
   return d;
 }
+
+/** Optional GPS capture stamped onto the collection entry (mCollect route runs). */
+export type CollectionGpsCapture = {
+  latitude?: number | null;
+  longitude?: number | null;
+  gpsAccuracy?: number | null;
+  gpsTimestamp?: Date | null;
+  gpsAltitude?: number | null;
+  locationStatus?: string | null;
+};
 
 export type RecordCollectionInput = {
   tenantId: string;
@@ -28,6 +39,22 @@ export type RecordCollectionInput = {
   /** 'verified' for QR/approved-photo, 'pending' for unverified cash. */
   verificationStatus?: string;
   remarks?: string | null;
+  /**
+   * Stream tag: 'field' (default, legacy) | 'route_run' | 'self_pay_upi'.
+   * Lets reports separate agent-cash from digital collection. Defaults preserve
+   * existing behaviour for every current caller.
+   */
+  source?: string;
+  /** Batch run this entry belongs to (mCollect-A). */
+  runId?: string | null;
+  /**
+   * Credit the collecting agent's cash float (cash now in hand). Default false
+   * to keep the existing QR/proof caller's behaviour byte-for-byte. Route runs
+   * pass true for cash lines; self-pay never credits agent float.
+   */
+  creditFloat?: boolean;
+  /** Optional GPS capture for field collection. */
+  gps?: CollectionGpsCapture | null;
 };
 
 /**
@@ -80,6 +107,7 @@ export async function recordCollection(
   const applied = Math.min(amount, room);
   if (applied <= 0) throw new Error('already_paid: instalment fully collected');
 
+  const gps = input.gps ?? null;
   const entry = await tx.collectionEntry.create({
     data: {
       tenantId,
@@ -93,6 +121,14 @@ export async function recordCollection(
       remarks: input.remarks ?? null,
       agentId,
       verificationStatus: input.verificationStatus ?? 'pending',
+      source: input.source ?? 'field',
+      runId: input.runId ?? null,
+      lat: gps?.latitude ?? null,
+      lng: gps?.longitude ?? null,
+      gpsAccuracyM: gps?.gpsAccuracy ?? null,
+      gpsCapturedAt: gps?.gpsTimestamp ?? null,
+      gpsAltitude: gps?.gpsAltitude ?? null,
+      locationStatus: gps?.locationStatus ?? 'not_captured',
     },
     select: { id: true },
   });
@@ -124,6 +160,17 @@ export async function recordCollection(
       entriesCount: all.length,
     },
   });
+
+  // Cash-in-hand: a collecting agent now holds this cash -> credit their float.
+  // Best-effort so a missing wallet table never breaks collection (mirrors the
+  // v1 collection route). Self-pay callers pass creditFloat=false.
+  if (input.creditFloat) {
+    try {
+      await creditCollection(tx, { tenantId, agentId, amount: applied, entryId: entry.id });
+    } catch (err) {
+      console.error('[wallet] collection credit failed:', err);
+    }
+  }
 
   return { entryId: entry.id, applied };
 }
