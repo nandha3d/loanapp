@@ -1,4 +1,4 @@
-import prisma from '@/lib/db';
+import { serverFetch } from '@/lib/api-client/server';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { getDictionary } from '@/lib/i18n';
 import LoanEditForm from './LoanEditForm';
@@ -19,13 +19,13 @@ export default async function EditLoanPage({
   const session = await auth();
   const role = (session?.user as any)?.role || 'agent';
 
-  const loan = await prisma.loan.findFirst({
-    where: { loanCode: resolvedParams.id, tenantId },
-    include: {
-      customer: { include: { guarantors: true } },
-      guarantor: true
-    }
-  });
+  let loan: any = null;
+  try {
+    const res = await serverFetch<any>(`/loans/${resolvedParams.id}`);
+    loan = res?.data;
+  } catch (err) {
+    // If not found
+  }
 
   if (!loan) {
     notFound();
@@ -46,3 +46,4 @@ export default async function EditLoanPage({
     </div>
   );
 }
+

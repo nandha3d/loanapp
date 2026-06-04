@@ -1,4 +1,4 @@
-import prisma from '@/lib/db';
+import { serverFetch } from '@/lib/api-client/server';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { getDictionary } from '@/lib/i18n';
 import LoanForm from './LoanForm';
@@ -13,23 +13,21 @@ export default async function NewLoanPage({
   const appType = await getUserAppType();
   const dict = await getDictionary(tenantId);
   
-  const [customers, rawPackages, defaultPenalty, currencySymbol, routes, agents] = await Promise.all([
-    prisma.customer.findMany({ 
-      where: { tenantId, appType, status: 'active' }, 
-      include: { route: true, guarantors: true },
-      orderBy: { name: 'asc' } 
-    }),
-    prisma.loanPackage.findMany({ 
-      where: { tenantId, appType, status: 'active' }, 
-      orderBy: { name: 'asc' } 
-    }),
+  const [customersRes, rawPackagesRes, defaultPenalty, currencySymbol, routesRes, agentsRes] = await Promise.all([
+    serverFetch<any>('/customers?status=active&page=1&limit=1000'),
+    serverFetch<any>('/packages'),
     getSetting(tenantId, 'default_penalty_per_day', '50'),
     getSetting(tenantId, 'currency_symbol', '₹'),
-    prisma.route.findMany({ where: { tenantId, appType, status: 'active' }, orderBy: { name: 'asc' } }),
-    prisma.user.findMany({ where: { tenantId, appType, role: 'agent', status: 'active' }, orderBy: { name: 'asc' } })
+    serverFetch<any>('/routes'),
+    serverFetch<any>('/agents')
   ]);
 
-  const packages = rawPackages.map(p => ({
+  const customers = customersRes?.data || [];
+  const rawPackages = rawPackagesRes?.data || [];
+  const routes = routesRes?.data || routesRes || [];
+  const agents = agentsRes?.data || agentsRes || [];
+
+  const packages = rawPackages.map((p: any) => ({
     ...p,
     principal: p.principal.toString(),
     deduction: p.deduction.toString(),
@@ -51,3 +49,4 @@ export default async function NewLoanPage({
     />
   );
 }
+

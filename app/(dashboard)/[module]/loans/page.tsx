@@ -1,4 +1,4 @@
-import prisma from '@/lib/db';
+import { serverFetch } from '@/lib/api-client/server';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { formatCurrency, formatDate, getBadgeClass, parsePagination, paginatedResponse, getPaginationPages, calcPercentage } from '@/lib/utils';
 import Link from '@/components/layout/DashboardLink';
@@ -55,50 +55,19 @@ export default async function LoansPage({
     return p.toString();
   };
 
-  // Superadmin/developer see every branch (matches the mobile app, where a
-  // superadmin has no branch filter). Branch admins/agents stay branch-scoped.
-  const seesAllBranches = userRole === 'superadmin' || userRole === 'developer';
-  const where: any = { tenantId, appType, AND: [] };
-  if (branchId && !seesAllBranches) {
-    where.AND.push({ branchId });
-  }
-  if (userRole === 'agent') {
-    const userId = session?.user?.id;
-    where.AND.push({
-      customer: {
-        OR: [
-          { agentId: userId },
-          { route: { assignedAgentId: userId } },
-          { route: { routeAgents: { some: { agentId: userId } } } }
-        ]
-      }
-    });
-  }
-  if (q) {
-    where.AND.push({
-      OR: [
-        { loanCode: { contains: q } },
-        { customer: { name: { contains: q } } },
-        { customer: { customerCode: { contains: q } } }
-      ]
-    });
-  }
-  if (status) where.status = status;
-  if (frequency) where.frequency = frequency;
-  if (where.AND.length === 0) delete where.AND;
-
-  const [total, loans] = await Promise.all([
-    prisma.loan.count({ where }),
-    prisma.loan.findMany({
-      where,
-      skip,
-      take: limit,
-      orderBy,
-      include: {
-        customer: { select: { id: true, name: true, customerCode: true, profilePhoto: true } },
-      }
-    })
-  ]);
+  const queryParams: Record<string, string> = {
+    q,
+    status,
+    frequency,
+    sort,
+    dir,
+    page: String(page),
+    limit: String(limit),
+  };
+  const qs = new URLSearchParams(queryParams).toString();
+  const res = await serverFetch<any>(`/loans?${qs}`);
+  const loans = res?.data || [];
+  const total = res?.pagination?.total || 0;
 
   const { pagination } = paginatedResponse(loans, total, page, limit);
 
@@ -176,7 +145,7 @@ export default async function LoansPage({
             </tr>
           </thead>
           <tbody>
-            {loans.map(l => {
+            {loans.map((l: any) => {
               const pct = calcPercentage(l.paidCount, l.totalInstalments);
               const totalRepayable = Number(l.perInstalment) * l.totalInstalments;
               const paid = Number(l.totalCollected || 0);

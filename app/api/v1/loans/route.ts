@@ -15,43 +15,114 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const customerId = searchParams.get('customerId');
   const status = searchParams.get('status');
-  // PAGE-02: cursor pagination.
-  const { cursor, limit } = parseCursorPaging(req.url, { defaultLimit: 20, maxLimit: 100 });
+  const q = searchParams.get('q') || '';
+  const frequency = searchParams.get('frequency') || '';
+  const sort = searchParams.get('sort') || 'id';
+  const dir = searchParams.get('dir') === 'asc' ? 'asc' : 'desc';
+  
+  const pageParam = searchParams.get('page');
+  const limitParam = searchParams.get('limit');
 
   const where: any = {
     tenantId: ctx.tenantId,
     appType: ctx.appType,
     ...scopedBranchWhere(ctx),
+    AND: [],
   };
+  
   if (customerId) where.customerId = customerId;
   if (status) where.status = status;
-
+  if (frequency) where.frequency = frequency;
+  
   if (ctx.role === 'agent') {
     const routeIds = await getAgentRouteIds(ctx.userId);
-    if (routeIds.length === 0) return ok([], { nextCursor: null, limit });
-    where.customer = { routeId: { in: routeIds } };
+    if (routeIds.length === 0) return ok([], { nextCursor: null, limit: 20 });
+    where.AND.push({ customer: { routeId: { in: routeIds } } });
   }
 
-  try {
-    const rows = await prisma.loan.findMany({
-      where,
-      include: {
-        customer: { select: { id: true, name: true, customerCode: true, phone: true } },
-        instalments: {
-          where: { status: { in: ['upcoming', 'partial', 'missed'] } },
-          orderBy: { dueDate: 'asc' },
-          take: 1,
-        },
-      },
-      orderBy: { id: 'desc' },
-      take: limit + 1,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+  if (q) {
+    where.AND.push({
+      OR: [
+        { loanCode: { contains: q } },
+        { customer: { name: { contains: q } } },
+        { customer: { customerCode: { contains: q } } },
+      ],
     });
-    const hasMore = rows.length > limit;
-    const data = hasMore ? rows.slice(0, limit) : rows;
-    const nextCursor = hasMore ? data[data.length - 1]!.id : null;
-    return ok(data, { nextCursor, limit });
+  }
+
+  if (where.AND.length === 0) delete where.AND;
+
+  // Sorting
+  const orderByMap: Record<string, any> = {
+    id: { id: dir },
+    loanCode: { loanCode: dir },
+    customer: { customer: { name: dir } },
+    principal: { principal: dir },
+    frequency: { frequency: dir },
+    startDate: { startDate: dir },
+    paid: { totalCollected: dir },
+    progress: { paidCount: dir },
+    status: { status: dir },
+    createdAt: { createdAt: dir },
+  };
+  const orderBy = orderByMap[sort] || { id: 'desc' };
+
+  try {
+    if (pageParam) {
+      // Offset pagination
+      const page = Math.max(1, parseInt(pageParam) || 1);
+      const limit = Math.max(1, parseInt(limitParam || '20') || 20);
+      const skip = (page - 1) * limit;
+
+      const [total, rows] = await Promise.all([
+        prisma.loan.count({ where }),
+        prisma.loan.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy,
+          include: {
+            customer: { select: { id: true, name: true, customerCode: true, phone: true, profilePhoto: true } },
+            instalments: {
+              where: { status: { in: ['upcoming', 'partial', 'missed'] } },
+              orderBy: { dueDate: 'asc' },
+              take: 1,
+            },
+          },
+        }),
+      ]);
+
+      return ok(rows, {
+        page,
+        limit,
+        total,
+        pageSize: limit,
+      });
+    } else {
+      // Cursor pagination
+      const { cursor, limit } = parseCursorPaging(req.url, { defaultLimit: 20, maxLimit: 100 });
+      const rows = await prisma.loan.findMany({
+        where,
+        include: {
+          customer: { select: { id: true, name: true, customerCode: true, phone: true, profilePhoto: true } },
+          instalments: {
+            where: { status: { in: ['upcoming', 'partial', 'missed'] } },
+            orderBy: { dueDate: 'asc' },
+            take: 1,
+          },
+        },
+        orderBy: { id: 'desc' },
+        take: limit + 1,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      });
+
+      const hasMore = rows.length > limit;
+      const data = hasMore ? rows.slice(0, limit) : rows;
+      const nextCursor = hasMore ? data[data.length - 1]!.id : null;
+      return ok(data, { nextCursor, limit });
+    }
   } catch (e: any) {
+    console.error('[/api/v1/loans GET]', e);
     return fail(e?.message ?? 'Loans list failed', 500);
   }
 }

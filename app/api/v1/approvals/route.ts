@@ -127,3 +127,56 @@ export async function GET(req: NextRequest) {
     return fail(e?.message ?? 'Approvals failed', 500);
   }
 }
+
+export async function POST(req: NextRequest) {
+  const auth = await requireMobileContext(req);
+  if (auth.response) return auth.response;
+  const ctx = auth.context;
+
+  try {
+    const body = await req.json();
+    const { requestType, entityType, entityId, requestedChanges, reason } = body;
+
+    if (!requestType || !entityType || !entityId) {
+      return fail('requestType, entityType, and entityId are required', 400);
+    }
+
+    const request = await prisma.approvalRequest.create({
+      data: {
+        tenantId: ctx.tenantId,
+        appType: ctx.appType,
+        requestType,
+        entityType,
+        entityId,
+        requestedById: ctx.userId,
+        requestedChanges: typeof requestedChanges === 'string' ? requestedChanges : JSON.stringify(requestedChanges),
+        reason: reason || '',
+        status: 'pending',
+      },
+    });
+
+    if (entityType === 'customer') {
+      const customer = await prisma.customer.findFirst({ where: { id: entityId, tenantId: ctx.tenantId } });
+      if (customer) {
+        await prisma.systemNotification.create({
+          data: {
+            tenantId: ctx.tenantId,
+            branchId: customer.branchId,
+            appType: ctx.appType,
+            type: 'customer_edit_review',
+            icon: 'verified',
+            title: 'Customer edit pending review',
+            message: `Agent requested edits for customer ${customer.name}.`,
+            link: '/approvals',
+            targetRole: 'admin',
+          },
+        }).catch(() => {});
+      }
+    }
+
+    return ok(request);
+  } catch (e: any) {
+    console.error('[/api/v1/approvals POST]', e);
+    return fail(e?.message ?? 'Approval request creation failed', 500);
+  }
+}

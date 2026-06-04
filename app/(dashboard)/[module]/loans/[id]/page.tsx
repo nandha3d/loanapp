@@ -1,11 +1,10 @@
-import prisma from '@/lib/db';
-import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
+import { serverFetch } from '@/lib/api-client/server';
+import { getDefaultTenantId, getSetting, getTenantName } from '@/lib/tenant';
 import LoanDetailClient from './LoanDetailClient';
 import { notFound } from 'next/navigation';
 import { getDictionary } from '@/lib/i18n';
 import { auth } from '@/lib/auth';
-import { getActiveBranchId } from '@/lib/branch';
-import { buildLoanDetailWhere } from '@/lib/loanPolicy';
+import { getSubscription } from '@/lib/subscription';
 
 export default async function LoanDetailPage({
   params
@@ -14,40 +13,18 @@ export default async function LoanDetailPage({
 }) {
   const resolvedParams = await params;
   const tenantId = await getDefaultTenantId();
-  const appType = await getUserAppType();
-  const activeBranchId = await getActiveBranchId();
   const session = await auth();
   const role = (session?.user as any)?.role || 'agent';
   const userId = session?.user?.id;
   const dict = await getDictionary(tenantId);
   
-  const loan = await prisma.loan.findFirst({
-    where: buildLoanDetailWhere({
-      loanId: resolvedParams.id,
-      tenantId,
-      appType,
-      branchId: activeBranchId,
-      role,
-      userId,
-    }),
-    include: {
-      customer: {
-        include: { 
-          securityCheques: true,
-          loans: {
-            include: { instalments: true, penalties: true }
-          }
-        }
-      },
-      instalments: {
-        include: {
-          collectionEntry: { select: { id: true } }
-        },
-        orderBy: { instalmentNo: 'asc' }
-      },
-      penalties: true,
-    }
-  });
+  let loan: any = null;
+  try {
+    const res = await serverFetch<any>(`/loans/${resolvedParams.id}`);
+    loan = res?.data;
+  } catch (err) {
+    // If not found or API fails
+  }
 
   if (!loan) {
     notFound();
@@ -57,16 +34,14 @@ export default async function LoanDetailPage({
   // Serialize Decimal fields for client component
   const serializedLoan = JSON.parse(JSON.stringify(loan));
 
-  const sub = await prisma.tenantSubscription.findUnique({ where: { tenantId } });
+  const sub = await getSubscription(tenantId);
   const isReceiptPdfAllowed = sub?.receiptPdfAllowed || false;
   const isReceiptPdfActive = await getSetting(tenantId, 'receipt_pdf_active', 'false') === 'true';
   const receiptPdfEnabled = isReceiptPdfAllowed && isReceiptPdfActive;
 
-  // Tenant's own UPI (for the in-modal pay QR) — no hardcoded placeholder.
-  const [upiId, tenantRow] = await Promise.all([
-    getSetting(tenantId, 'upi_id', ''),
-    prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }),
-  ]);
+  // Tenant's own UPI (for the in-modal pay QR)
+  const upiId = await getSetting(tenantId, 'upi_id', '');
+  const tenantName = await getTenantName(tenantId);
 
   return (
     <LoanDetailClient
@@ -77,7 +52,8 @@ export default async function LoanDetailPage({
       userId={userId}
       receiptPdfEnabled={receiptPdfEnabled}
       upiId={upiId}
-      payeeName={tenantRow?.name || 'LoanTrack'}
+      payeeName={tenantName}
     />
   );
 }
+

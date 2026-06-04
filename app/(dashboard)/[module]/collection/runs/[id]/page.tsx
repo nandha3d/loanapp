@@ -1,32 +1,35 @@
-import prisma from '@/lib/db';
+import { serverFetch } from '@/lib/api-client/server';
 import { auth } from '@/lib/auth';
 import { redirect, notFound } from 'next/navigation';
-import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
-import { buildRouteSheet } from '@/lib/collectionRun';
+import { getUserAppType } from '@/lib/tenant';
 import { modulePath } from '@/types/modules';
 import RunSheetClient from './RunSheetClient';
 
 export default async function RunDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session) redirect('/login');
-  const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
-  const userId = session.user!.id;
-  const role = (session.user as { role?: string })?.role || 'agent';
 
   const { id } = await params;
-  const run = await prisma.collectionRun.findFirst({ where: { id, tenantId } });
-  if (!run) notFound();
-  if (role === 'agent' && run.agentId !== userId) notFound();
+  
+  let runData: any = null;
+  try {
+    const res = await serverFetch<any>(`/collection/run/${id}/sheet`);
+    runData = res?.data;
+  } catch (err) {
+    // Handle error
+  }
 
-  const sheet = run.routeId
-    ? await buildRouteSheet({ tenantId, appType }, run.routeId, run.date)
-    : [];
+  if (!runData || !runData.run) {
+    notFound();
+  }
+
+  const { run, sheet } = runData;
 
   const runJson = {
     id: run.id,
     status: run.status,
-    date: run.date.toISOString().slice(0, 10),
+    date: new Date(run.date).toISOString().slice(0, 10),
     expectedTotal: Number(run.expectedTotal),
     collectedTotal: Number(run.collectedTotal),
     cashCollected: Number(run.cashCollected),
@@ -37,7 +40,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
     varianceAmount: run.varianceAmount != null ? Number(run.varianceAmount) : null,
   };
 
-  const sheetJson = sheet.map((s) => ({
+  const sheetJson = (sheet || []).map((s: any) => ({
     stopSeq: s.stopSeq,
     customerId: s.customerId,
     name: s.name,
@@ -58,3 +61,4 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
     />
   );
 }
+

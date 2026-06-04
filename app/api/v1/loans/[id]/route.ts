@@ -3,6 +3,13 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { computeRestructure, restructuredAmountFor } from '@/lib/restructure';
+import { calculateEndDate } from '@/lib/utils';
+import { calculateLoanPreview } from '@/lib/loanCalculator';
+import { validateGuarantorPhone } from '@/lib/guarantorPolicy';
+import { encryptAadharNumber, decryptAadharNumber } from '@/lib/pii';
+import { writeAudit } from '@/lib/audit';
+import { validateLoanNumericInputs } from '@/lib/loanPolicy';
+import { hasFinancialActivity } from '@/lib/repayments';
 
 export async function GET(
   req: NextRequest,
@@ -15,16 +22,33 @@ export async function GET(
 
   const loan = await prisma.loan.findFirst({
     where: {
-      id,
+      OR: [
+        { id },
+        { loanCode: id }
+      ],
       tenantId: ctx.tenantId,
       appType: ctx.appType,
       ...scopedBranchWhere(ctx),
     },
     include: {
-      customer: { select: { id: true, name: true, customerCode: true, phone: true } },
-      instalments: { orderBy: { instalmentNo: 'asc' } },
+      customer: {
+        include: {
+          securityCheques: true,
+          guarantors: true,
+          loans: {
+            include: { instalments: true, penalties: true }
+          }
+        }
+      },
+      instalments: {
+        include: {
+          collectionEntry: { select: { id: true } }
+        },
+        orderBy: { instalmentNo: 'asc' }
+      },
       penalties: { orderBy: { createdAt: 'desc' } },
       collaterals: true,
+      guarantor: true,
     },
   });
   if (!loan) return fail('Loan not found', 404);
@@ -151,4 +175,224 @@ export async function PATCH(
     .catch(() => {});
 
   return ok({ requested: true, changes: proposed });
+}
+
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const auth = await requireMobileContext(req);
+  if (auth.response) return auth.response;
+  const ctx = auth.context;
+
+  if (!['admin', 'superadmin', 'developer'].includes(ctx.role)) {
+    return fail('Forbidden', 403);
+  }
+
+  const { id: loanId } = await params;
+  const loan = await prisma.loan.findFirst({
+    where: { id: loanId, tenantId: ctx.tenantId, appType: ctx.appType },
+    include: { guarantor: true, customer: { select: { phone: true } }, goldCollateral: true }
+  });
+
+  if (!loan) return fail('Loan not found', 404);
+
+  try {
+    const body = await req.json();
+    const principal = Number(body.principal) || 0;
+    const interestType = String(body.deductionType || 'upfront_fixed');
+    const rate = Number(body.deduction) || 0;
+    const frequency = String(body.frequency);
+    const tenure = Number(body.tenure) || 1;
+    const startDateStr = String(body.startDate);
+    const penaltyRate = Number(body.penaltyRate) || 0;
+    const voucherRef = String(body.voucherRef || '');
+    const loanType = String(body.loanType || '');
+    const collateralDetails = body.collateralDetails ? String(body.collateralDetails) : null;
+    const guarantorName = body.guarantorName ? String(body.guarantorName) : '';
+    const guarantorPhone = body.guarantorPhone ? String(body.guarantorPhone) : '';
+    const guarantorAadhar = body.guarantorAadhar ? String(body.guarantorAadhar) : '';
+    const guarantorAddress = body.guarantorAddress ? String(body.guarantorAddress) : '';
+    const guarantorRelation = body.guarantorRelation ? String(body.guarantorRelation) : '';
+    const guarantorIdFromForm = body.guarantorId ? String(body.guarantorId) : null;
+    const guarantorPhotoUrl = body.guarantorPhotoUrl ? String(body.guarantorPhotoUrl) : null;
+    const dueDay = body.dueDay != null ? Number(body.dueDay) : null;
+
+    const startDate = new Date(startDateStr);
+    const numericValidation = validateLoanNumericInputs({ principal, rate, tenure, penaltyRate });
+    if (!numericValidation.valid) {
+      return fail(numericValidation.error, 400);
+    }
+
+    const guarantorPhoneValidation = validateGuarantorPhone({
+      customerPhone: loan.customer?.phone,
+      guarantorPhone,
+    });
+    if (!guarantorPhoneValidation.valid) {
+      return fail(guarantorPhoneValidation.error, 400);
+    }
+
+    const coreChanged = 
+      Number(loan.principal) !== principal ||
+      Number(loan.tenure) !== tenure ||
+      loan.frequency !== frequency ||
+      loan.dueDay !== dueDay ||
+      new Date(loan.startDate).toISOString().slice(0, 10) !== startDate.toISOString().slice(0, 10);
+
+    if (coreChanged) {
+      if (await hasFinancialActivity(loanId)) {
+        return fail('Cannot reschedule a loan that already has payment history. Please close and renew this loan instead.', 409);
+      }
+    }
+
+    const endDate = calculateEndDate(startDate, frequency, tenure);
+    const calculation = calculateLoanPreview({
+      principal,
+      interestType,
+      interestRate: rate,
+      tenure,
+      frequency,
+      startDate,
+      dueDay,
+    });
+
+    const disbursed = calculation.disbursedAmount;
+    const totalPayable = calculation.totalPayable;
+    const perInstalment = calculation.perInstalment;
+    const deduction = calculation.deduction;
+
+    await prisma.$transaction(async (tx) => {
+      let currentGuarantorId = guarantorIdFromForm || loan.guarantorId;
+      if (guarantorName && guarantorPhone) {
+        let gPhoto = guarantorPhotoUrl || loan.guarantor?.photo || null;
+
+        const gData = {
+          customerId: loan.customerId,
+          name: guarantorName,
+          phone: guarantorPhone,
+          aadharNumber: guarantorAadhar ? encryptAadharNumber(guarantorAadhar) : undefined,
+          address: guarantorAddress || undefined,
+          relation: guarantorRelation || undefined,
+          photo: gPhoto || undefined
+        };
+
+        if (currentGuarantorId) {
+          await tx.guarantor.update({
+            where: { id: currentGuarantorId },
+            data: gData
+          });
+        } else {
+          const g = await tx.guarantor.create({
+            data: gData
+          });
+          currentGuarantorId = g.id;
+        }
+      }
+
+      await tx.loan.update({
+        where: { id: loanId },
+        data: {
+          principal,
+          deduction,
+          deductionType: interestType,
+          disbursed,
+          frequency,
+          dueDay,
+          tenure,
+          startDate,
+          endDate,
+          perInstalment,
+          penaltyRate,
+          voucherRef,
+          loanType: ctx.appType === 'goldloan' ? 'gold' : loanType,
+          collateralDetails,
+          totalPayable,
+          guarantorId: currentGuarantorId,
+          totalInstalments: tenure
+        }
+      });
+
+      if (ctx.appType === 'goldloan') {
+        const goldBody = body.goldCollateral || {};
+        await tx.goldLoanCollateral.upsert({
+          where: { loanId },
+          update: {
+            packetNo: goldBody.packetNo || null,
+            ornamentDescription: goldBody.ornamentDescription || null,
+            grossWeightGrams: Number(goldBody.grossWeightGrams) || 0,
+            netWeightGrams: Number(goldBody.netWeightGrams) || 0,
+            purityKarat: goldBody.purityKarat || '22K',
+            marketRatePerGram: goldBody.marketRatePerGram ? Number(goldBody.marketRatePerGram) : null,
+            assessedValue: goldBody.assessedValue ? Number(goldBody.assessedValue) : null,
+            eligibleLtvPercent: goldBody.eligibleLtvPercent ? Number(goldBody.eligibleLtvPercent) : null,
+            storageLocation: goldBody.storageLocation || null,
+            valuerName: goldBody.valuerName || null,
+            valuationDate: goldBody.valuationDate ? new Date(goldBody.valuationDate) : null,
+            photoPath: goldBody.photoPath || null,
+            documentPath: goldBody.documentPath || null
+          },
+          create: {
+            tenantId: ctx.tenantId,
+            branchId: loan.branchId,
+            loanId,
+            customerId: loan.customerId,
+            packetNo: goldBody.packetNo || null,
+            ornamentDescription: goldBody.ornamentDescription || null,
+            grossWeightGrams: Number(goldBody.grossWeightGrams) || 0,
+            netWeightGrams: Number(goldBody.netWeightGrams) || 0,
+            purityKarat: goldBody.purityKarat || '22K',
+            marketRatePerGram: goldBody.marketRatePerGram ? Number(goldBody.marketRatePerGram) : null,
+            assessedValue: goldBody.assessedValue ? Number(goldBody.assessedValue) : null,
+            eligibleLtvPercent: goldBody.eligibleLtvPercent ? Number(goldBody.eligibleLtvPercent) : null,
+            storageLocation: goldBody.storageLocation || null,
+            valuerName: goldBody.valuerName || null,
+            valuationDate: goldBody.valuationDate ? new Date(goldBody.valuationDate) : null,
+            photoPath: goldBody.photoPath || null,
+            documentPath: goldBody.documentPath || null,
+            releaseStatus: 'pledged'
+          }
+        });
+
+        await tx.loan.update({
+          where: { id: loanId },
+          data: {
+            collateralDetails: JSON.stringify(goldBody)
+          }
+        });
+      }
+
+      if (coreChanged) {
+        await tx.instalment.deleteMany({ where: { loanId } });
+
+        const instalments = calculation.schedule.map((item) => ({
+          loanId,
+          instalmentNo: item.instalmentNo,
+          dueDate: new Date(item.dueDate),
+          dueAmount: item.dueAmount,
+          status: 'upcoming' as const,
+        }));
+
+        await tx.instalment.createMany({ data: instalments });
+
+        await tx.loan.update({
+          where: { id: loanId },
+          data: { paidCount: 0 },
+        });
+      }
+    });
+
+    await writeAudit({
+      tenantId: ctx.tenantId,
+      userId: ctx.userId,
+      action: 'update',
+      entityType: 'loan',
+      entityId: loanId,
+      newValue: { principal, tenure, coreChanged }
+    });
+
+    return ok({ success: true });
+  } catch (e: any) {
+    console.error('[/api/v1/loans/[id] PUT]', e);
+    return fail(e?.message ?? 'Loan update failed', 500);
+  }
 }

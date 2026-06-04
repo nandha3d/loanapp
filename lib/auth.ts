@@ -266,6 +266,9 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
         token.userId = user.id;
         const authorizedUser = user as AuthorizedUser;
         token.role = authorizedUser.role;
+        token.tenantId = authorizedUser.tenantId;
+        token.branchId = authorizedUser.branchId;
+        token.appType = authorizedUser.appType;
         
         // Handle dynamic expiration based on Remember Me
         const rememberMe = (user as any).rememberMe;
@@ -276,6 +279,36 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
           token.exp = now + (24 * 60 * 60); // 24 hours
         } else {
           token.exp = now + (30 * 24 * 60 * 60); // 30 days
+        }
+
+        // Issue a v1 API token when the user first signs in
+        const { issueMobileToken } = await import('@/lib/api/v1-auth');
+        const apiToken = await issueMobileToken({
+          userId: user.id as string,
+          tenantId: authorizedUser.tenantId as string,
+          branchId: authorizedUser.branchId ?? null,
+          role: authorizedUser.role as string,
+          appType: authorizedUser.appType || 'microlending',
+        });
+        token.apiToken = apiToken;
+        token.apiTokenExp = Date.now() + 15 * 60 * 1000; // 15 min expiry tracking
+      }
+
+      // Refresh if within 2 minutes of expiry
+      if (token.apiTokenExp && Date.now() > (token.apiTokenExp as number) - 2 * 60 * 1000) {
+        try {
+          const { issueMobileToken } = await import('@/lib/api/v1-auth');
+          const apiToken = await issueMobileToken({
+            userId: token.userId,
+            tenantId: token.tenantId,
+            branchId: token.branchId ?? null,
+            role: token.role,
+            appType: token.appType || 'microlending',
+          });
+          token.apiToken = apiToken;
+          token.apiTokenExp = Date.now() + 15 * 60 * 1000;
+        } catch (e) {
+          console.error('[AUTH_TOKEN_REFRESH_ERROR]', e);
         }
       }
       return token;
@@ -360,6 +393,9 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
           (session.user as any).tenantSlug = dbUser.tenant?.slug || null;
           (session.user as any).isMonitoring = isMonitoring;
           (session.user as any).monitorTargetName = monitorTargetName;
+
+          // Expose the API token in the session object
+          session.apiToken = token.apiToken;
         } catch (e) {
           console.error('[AUTH_SESSION_DB_ERROR]', e);
           return null;
@@ -381,7 +417,7 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
       name: `next-auth.session-token`,
       options: {
         domain: process.env.NODE_ENV === 'production'
-          ? (process.env.NEXT_PUBLIC_ROOT_DOMAIN ? `.${process.env.NEXT_PUBLIC_ROOT_DOMAIN.split(':')[0]}` : undefined)
+          ? ((process.env.NEXT_PUBLIC_ROOT_DOMAIN || process.env.APP_ROOT_DOMAIN) ? `.${(process.env.NEXT_PUBLIC_ROOT_DOMAIN || process.env.APP_ROOT_DOMAIN)!.split(':')[0]}` : undefined)
           : (process.env.NEXT_PUBLIC_ROOT_DOMAIN && process.env.NEXT_PUBLIC_ROOT_DOMAIN.includes('lvh.me') ? '.lvh.me' : undefined),
         path: '/',
         httpOnly: true,

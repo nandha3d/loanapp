@@ -239,3 +239,12 @@ export async function getBranding(tenantId: string) {
     loanCodePrefix: settings['loan_code_prefix'] || 'LN',
   };
 }
+
+export async function getTenantName(tenantId: string): Promise<string> {
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: tenantId },
+    select: { name: true }
+  });
+  return tenant?.name || 'LoanTrack';
+}
+

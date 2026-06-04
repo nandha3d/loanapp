@@ -1,4 +1,4 @@
-import prisma from '@/lib/db';
+import { serverFetch } from '@/lib/api-client/server';
 import { auth } from '@/lib/auth';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { formatCurrency, getBadgeClass, parsePagination, paginatedResponse, getPaginationPages, getInitials } from '@/lib/utils';
@@ -25,65 +25,20 @@ export default async function CustomersPage({
   const status = resolvedParams.status || '';
   const { page, limit, skip } = parsePagination(resolvedParams);
 
-  const branchId = await getActiveBranchId();
+  const routesRes = await serverFetch<any>('/routes');
+  const routes = routesRes || [];
 
-  const where: any = { tenantId, appType, AND: [] };
-  if (branchId) {
-    where.AND.push({ branchId });
-  }
-  if (userRole === 'agent') {
-    const userId = session?.user?.id;
-    where.AND.push({
-      OR: [
-        { agentId: userId },
-        { route: { routeAgents: { some: { agentId: userId } } } }
-      ]
-    });
-  }
-  if (q) {
-    where.AND.push({
-      OR: [
-        { name: { contains: q } },
-        { customerCode: { contains: q } },
-        { phone: { contains: q } }
-      ]
-    });
-  }
-  if (routeId) where.routeId = routeId;
-  if (status) where.status = status;
-  // Clean up empty AND array
-  if (where.AND.length === 0) delete where.AND;
-
-  const routeWhere: any = { tenantId, appType, status: 'active' };
-  if (branchId) {
-    routeWhere.branchId = branchId;
-  }
-  if (userRole === 'agent') {
-    routeWhere.routeAgents = { some: { agentId: session?.user?.id } };
-  }
-  const routes = await prisma.route.findMany({
-    where: routeWhere,
-    orderBy: { name: 'asc' }
-  });
-
-  const [total, customers] = await Promise.all([
-    prisma.customer.count({ where }),
-    prisma.customer.findMany({
-      where,
-      skip,
-      take: limit,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        route: { select: { id: true, name: true } },
-        loans: {
-          select: {
-            id: true, loanCode: true, principal: true, status: true, tenure: true,
-            instalments: { select: { status: true, receivedAmount: true } },
-          },
-        },
-      }
-    })
-  ]);
+  const queryParams: Record<string, string> = {
+    q,
+    routeId,
+    status,
+    page: String(page),
+    limit: String(limit),
+  };
+  const qs = new URLSearchParams(queryParams).toString();
+  const res = await serverFetch<any>(`/customers?${qs}`);
+  const customers = res?.data || [];
+  const total = res?.pagination?.total || 0;
 
   const { pagination } = paginatedResponse(customers, total, page, limit);
 
@@ -109,7 +64,7 @@ export default async function CustomersPage({
         </div>
         <select name="routeId" className="form-control" style={{width:'auto'}} defaultValue={routeId}>
           <option value="">{dict.customersList.allRoutes}</option>
-          {routes.map(r => (
+          {routes.map((r: any) => (
             <option key={r.id} value={r.id}>{r.name}</option>
           ))}
         </select>
@@ -142,8 +97,8 @@ export default async function CustomersPage({
             </tr>
           </thead>
           <tbody>
-            {customers.map(c => {
-              const activeLoan = c.loans.find(l => !['closed', 'settled'].includes(l.status));
+            {customers.map((c: any) => {
+              const activeLoan = c.loans.find((l: any) => !['closed', 'settled'].includes(l.status));
               const { score, grade } = calculateCreditScore(c.loans);
               
               return (

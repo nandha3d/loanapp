@@ -8,6 +8,8 @@
  *          the allowlist gets no ACAO header (browser blocks).
  */
 
+import { config } from './config';
+
 const STATIC_ALLOWED = new Set<string>([
   'http://localhost:3000',
   'http://localhost:3001',
@@ -34,9 +36,13 @@ const ALLOW_METHODS = 'GET, POST, PUT, PATCH, DELETE, OPTIONS';
 
 function envAllowed(): string[] {
   const list = [
+    config.webAppUrl,
+    config.apiUrl,
     process.env.NEXT_PUBLIC_APP_URL,
+    process.env.WEB_APP_URL,
     process.env.APP_ROOT_DOMAIN ? `https://${process.env.APP_ROOT_DOMAIN}` : null,
     process.env.NEXT_PUBLIC_ROOT_DOMAIN ? `https://${process.env.NEXT_PUBLIC_ROOT_DOMAIN}` : null,
+    ...config.corsExtraOrigins,
     process.env.CORS_EXTRA_ORIGINS, // comma-separated overrides
   ]
     .filter(Boolean)

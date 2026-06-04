@@ -1,4 +1,4 @@
-import prisma from '@/lib/db';
+import { serverFetch } from '@/lib/api-client/server';
 import { auth } from '@/lib/auth';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { getAgentRouteIds } from '@/lib/access';
@@ -57,97 +57,23 @@ export default async function CollectionPage() {
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
-  let customerIds: string[];
-  let agentRouteIds: string[] = [];
+  const res = await serverFetch<any>('/collection/dashboard');
+  const todayInstalments = res?.todayInstalments || [];
+  const overdueInstalments = res?.overdueInstalments || [];
+  const agentRoutes = res?.routes || [];
+  const dailyCollection = res?.dailyCollection || null;
+  const receiptPdfEnabled = res?.receiptPdfEnabled || false;
+  const gpsTrackingEnabled = res?.gpsTrackingEnabled || false;
 
-  if (userRole === 'agent' && userId) {
-    agentRouteIds = await getAgentRouteIds(userId);
-    const customers = await prisma.customer.findMany({
-      where: { tenantId, appType, routeId: { in: agentRouteIds } },
-      select: { id: true },
-    });
-    customerIds = customers.map((customer) => customer.id);
-  } else {
-    const customers = await prisma.customer.findMany({
-      where: { tenantId, appType, ...(activeBranchId ? { branchId: activeBranchId } : {}) },
-      select: { id: true },
-    });
-    customerIds = customers.map((customer) => customer.id);
-  }
+  const routeName = agentRoutes.map((route: any) => route.name).join(', ') || 'All Routes';
 
-  const baseLoanWhere = {
-    tenantId,
-    appType,
-    customerId: { in: customerIds },
-    status: { in: [...COLLECTIBLE_LOAN_STATUSES] },
-    ...(activeBranchId ? { branchId: activeBranchId } : {}),
-  };
-
-  const includeLoan = {
-    loan: {
-      include: {
-        customer: { include: { route: true, collectionPoints: true } },
-      },
-    },
-    collectionEntry: {
-      select: { id: true },
-    },
-  };
-
-  const [todayInstalments, overdueInstalments, agentRoutes] = await Promise.all([
-    prisma.instalment.findMany({
-      where: {
-        loan: baseLoanWhere,
-        dueDate: { gte: today, lt: tomorrow },
-      },
-      include: includeLoan,
-      orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
-    }),
-    prisma.instalment.findMany({
-      where: {
-        loan: baseLoanWhere,
-        dueDate: { lt: today },
-        status: { in: ['upcoming', 'missed', 'partial'] },
-      },
-      include: includeLoan,
-      orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
-    }),
-    prisma.route.findMany({
-      where: {
-        tenantId,
-        appType,
-        status: 'active',
-        ...(activeBranchId ? { branchId: activeBranchId } : {}),
-        ...(userRole === 'agent' && agentRouteIds.length > 0
-          ? { id: { in: agentRouteIds } }
-          : userRole !== 'agent' ? {} : { id: { in: [] } }),
-      },
-      orderBy: { name: 'asc' },
-    }),
-  ]);
-
-  const dailyCollectionRaw = userId ? await prisma.$queryRaw<{ id: string, status: string, totalCollected: number }[]>`
-    SELECT id, status, total_collected as totalCollected FROM daily_collections
-     WHERE tenant_id = ${tenantId} AND app_type = ${appType} AND agent_id = ${userId} AND date = CURDATE()
-     LIMIT 1
-  ` : [];
-  const dailyCollection = dailyCollectionRaw[0] || null;
-
-  const routeName = agentRoutes.map((route) => route.name).join(', ') || 'All Routes';
-
-  const todayRows = JSON.parse(JSON.stringify(todayInstalments.map((item) => enrichInstalment(item, today))));
+  const todayRows = JSON.parse(JSON.stringify(todayInstalments.map((item: any) => enrichInstalment(item, today))));
   const overdueRows = JSON.parse(JSON.stringify(
     overdueInstalments
-      .map((item) => enrichInstalment(item, today))
-      .filter((item) => item.outstandingAmount > 0),
+      .map((item: any) => enrichInstalment(item, today))
+      .filter((item: any) => item.outstandingAmount > 0),
   ));
   const routes = JSON.parse(JSON.stringify(agentRoutes));
-
-  const sub = await prisma.tenantSubscription.findUnique({ where: { tenantId } });
-  const isReceiptPdfAllowed = sub?.receiptPdfAllowed || false;
-  const isReceiptPdfActive = await getSetting(tenantId, 'receipt_pdf_active', 'false') === 'true';
-  const receiptPdfEnabled = isReceiptPdfAllowed && isReceiptPdfActive;
-  const gpsTrackingEnabled = sub?.gpsTrackingEnabled || false;
 
   return (
     <CollectionClient

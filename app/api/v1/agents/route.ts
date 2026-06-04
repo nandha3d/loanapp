@@ -4,6 +4,28 @@ import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
 import { hash } from 'bcryptjs';
 
+export async function GET(req: NextRequest) {
+  const auth = await requireMobileContext(req);
+  if (auth.response) return auth.response;
+  const ctx = auth.context;
+
+  try {
+    const agents = await prisma.user.findMany({
+      where: {
+        tenantId: ctx.tenantId,
+        appType: ctx.appType,
+        role: 'agent',
+        status: 'active',
+      },
+      select: { id: true, name: true, email: true, phone: true },
+      orderBy: { name: 'asc' },
+    });
+    return ok(agents);
+  } catch (e: any) {
+    return fail(e?.message ?? 'Agents failed', 500);
+  }
+}
+
 export async function POST(req: NextRequest) {
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;

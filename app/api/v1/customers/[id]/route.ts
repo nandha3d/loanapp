@@ -38,6 +38,8 @@ const CUSTOMER_UPDATE_FIELDS = [
   'companyPhone',
   'companyEmail',
   'designation',
+  'profilePhoto',
+  'companyLogo',
 ] as const;
 // Numeric fields coerced from the request body.
 const CUSTOMER_NUMERIC_FIELDS = new Set(['monthlyIncome']);
@@ -67,6 +69,10 @@ async function findScopedCustomer(id: string, ctx: MobileTokenClaims) {
       securityCheques: true,
       guarantors: true,
       collectionPoints: true,
+      kycSessions: {
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      },
     },
   });
 }
@@ -165,6 +171,31 @@ export async function PATCH(
       data.guarantors = {
         deleteMany: {},
         create: gs,
+      };
+    }
+    if (Array.isArray(body.kycDocs)) {
+      data.kycDocuments = {
+        deleteMany: {},
+        create: body.kycDocs.map((d: any) => ({
+          docType: d.type || 'other',
+          filePath: d.url,
+          fileName: d.url.split('/').pop() || 'document',
+        })),
+      };
+    }
+
+    if (Array.isArray(body.securityCheques)) {
+      data.securityCheques = {
+        deleteMany: {},
+        create: body.securityCheques
+          .filter((c: any) => c?.bankName && c?.chequeNumber)
+          .map((c: any) => ({
+            customerId: existing.id,
+            bankName: String(c.bankName),
+            chequeNumber: String(c.chequeNumber),
+            amount: c.amount != null ? Number(c.amount) : null,
+            imagePath: c.imageUrl || null,
+          })),
       };
     }
 

@@ -9,12 +9,17 @@
 const REQUIRED = [
   'DATABASE_URL',
   'PII_ENCRYPTION_KEY',
+  'MOBILE_JWT_SECRET',
 ] as const;
 
 const RECOMMENDED = [
   'CRON_SECRET',
+  'APP_URL',
+  'WEB_APP_URL',
+  'NEXT_PUBLIC_API_URL',
   'NEXT_PUBLIC_APP_URL',
   'NEXT_PUBLIC_ROOT_DOMAIN',
+  'APP_ROOT_DOMAIN',
 ] as const;
 
 let _validated = false;

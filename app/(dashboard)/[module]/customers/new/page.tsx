@@ -1,4 +1,4 @@
-import prisma from '@/lib/db';
+import { serverFetch } from '@/lib/api-client/server';
 import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import CustomerForm from './CustomerForm';
 import { auth } from '@/lib/auth';
@@ -16,10 +16,13 @@ export default async function NewCustomerPage({
   const appType = await getUserAppType();
   const dict = await getDictionary(tenantId);
   
-  const [routes, agents] = await Promise.all([
-    prisma.route.findMany({ where: { tenantId, appType, status: 'active' }, orderBy: { name: 'asc' } }),
-    prisma.user.findMany({ where: { tenantId, appType, role: 'agent', status: 'active' }, orderBy: { name: 'asc' } })
+  const [routesRes, agentsRes] = await Promise.all([
+    serverFetch<any>('/routes'),
+    serverFetch<any>('/agents')
   ]);
+
+  const routes = routesRes?.data || routesRes || [];
+  const agents = agentsRes?.data || agentsRes || [];
 
   let customer = null;
   if (resolvedSearchParams.edit) {
@@ -29,10 +32,13 @@ export default async function NewCustomerPage({
       redirect(modulePath(appType, `/customers/${resolvedSearchParams.edit}`));
     }
 
-    customer = await prisma.customer.findUnique({
-      where: { id: resolvedSearchParams.edit, tenantId },
-      include: { securityCheques: true, guarantors: true }
-    });
+    try {
+      const customerRes = await serverFetch<any>(`/customers/${resolvedSearchParams.edit}`);
+      customer = customerRes?.data;
+    } catch (err) {
+      // If error or not found
+    }
+
     if (!customer) {
       redirect(modulePath(appType, '/customers'));
     }
@@ -40,3 +46,4 @@ export default async function NewCustomerPage({
 
   return <CustomerForm routes={routes} agents={agents} customer={customer} dict={dict} />;
 }
+

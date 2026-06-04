@@ -41,3 +41,43 @@ export async function GET(req: NextRequest) {
     return fail(e?.message ?? 'Penalties failed', 500);
   }
 }
+
+export async function POST(req: NextRequest) {
+  const auth = await requireMobileContext(req);
+  if (auth.response) return auth.response;
+  const ctx = auth.context;
+
+  if (ctx.role === 'agent') {
+    return fail('Forbidden', 403);
+  }
+
+  try {
+    const body = await req.json();
+    const { loanId, grossPenalty, notes } = body;
+
+    if (!loanId || !grossPenalty) {
+      return fail('Missing loanId or grossPenalty', 400);
+    }
+
+    const loan = await prisma.loan.findFirst({
+      where: { id: loanId, tenantId: ctx.tenantId },
+    });
+    if (!loan) return fail('Loan not found', 404);
+
+    const penalty = await prisma.penalty.create({
+      data: {
+        loanId: loan.id,
+        customerId: loan.customerId,
+        grossPenalty: Number(grossPenalty),
+        missedDays: Math.round(Number(grossPenalty) / 10),
+        status: 'pending',
+        notes: notes || null,
+      },
+    });
+
+    return ok(penalty);
+  } catch (e: any) {
+    return fail(e?.message ?? 'Create penalty failed', 500);
+  }
+}
+

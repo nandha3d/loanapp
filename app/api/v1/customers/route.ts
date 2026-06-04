@@ -15,65 +15,120 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const q = searchParams.get('q');
-  // PAGE-01: cursor pagination (default 20, max 100).
-  const { cursor, limit } = parseCursorPaging(req.url, { defaultLimit: 20, maxLimit: 100 });
+  const routeId = searchParams.get('routeId');
+  const status = searchParams.get('status');
+
+  const pageParam = searchParams.get('page');
+  const limitParam = searchParams.get('limit');
 
   const where: any = {
     tenantId: ctx.tenantId,
     appType: ctx.appType,
     ...scopedBranchWhere(ctx),
+    AND: [],
   };
 
   if (ctx.role === 'agent') {
-    const routeIds = await getAgentRouteIds(ctx.userId);
-    if (routeIds.length === 0) return ok([], { nextCursor: null, limit });
-    where.routeId = { in: routeIds };
+    where.AND.push({
+      OR: [
+        { agentId: ctx.userId },
+        { route: { routeAgents: { some: { agentId: ctx.userId } } } }
+      ]
+    });
   }
 
   if (q) {
-    where.OR = [
-      { name: { contains: q } },
-      { phone: { contains: q } },
-      { customerCode: { contains: q } },
-    ];
+    where.AND.push({
+      OR: [
+        { name: { contains: q } },
+        { phone: { contains: q } },
+        { customerCode: { contains: q } },
+      ],
+    });
   }
 
-  try {
-    // PERF-02: drop nested loans array (N+1). Use _count for active loan
-    // count; aggregate outstanding principal in one groupBy. Client fetches
-    // loan detail on demand via /api/v1/customers/:id/loans.
-    const rows = await prisma.customer.findMany({
-      where,
-      include: {
-        route: { select: { id: true, name: true } },
-        _count: { select: { loans: { where: { status: 'active' } } } },
-        collectionPoints: { select: { id: true, name: true, address: true, latitude: true, longitude: true, isPrimary: true } },
-      },
-      orderBy: { id: 'desc' },
-      take: limit + 1,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-    });
-    const hasMore = rows.length > limit;
-    const data = hasMore ? rows.slice(0, limit) : rows;
-    const nextCursor = hasMore ? data[data.length - 1]!.id : null;
+  if (routeId) where.routeId = routeId;
+  if (status) where.status = status;
 
-    // One groupBy gets outstanding principal per visible customer.
-    const customerIds = data.map((c) => c.id);
-    const totals = customerIds.length
-      ? await prisma.loan.groupBy({
-          by: ['customerId'],
-          where: { customerId: { in: customerIds }, status: 'active' },
-          _sum: { principal: true },
-        })
-      : [];
-    const totalMap = new Map(totals.map((t) => [t.customerId, Number(t._sum.principal ?? 0)]));
-    const enriched = data.map((c) => ({
-      ...c,
-      activeLoanCount: c._count.loans,
-      activeLoanPrincipal: totalMap.get(c.id) ?? 0,
-    }));
-    return ok(enriched, { nextCursor, limit });
+  if (where.AND.length === 0) delete where.AND;
+
+  try {
+    if (pageParam) {
+      // Offset pagination for web dashboard
+      const page = Math.max(1, parseInt(pageParam) || 1);
+      const limit = Math.max(1, parseInt(limitParam || '20') || 20);
+      const skip = (page - 1) * limit;
+
+      const [total, rows] = await Promise.all([
+        prisma.customer.count({ where }),
+        prisma.customer.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            route: { select: { id: true, name: true } },
+            guarantors: true,
+            collectionPoints: { select: { id: true, name: true, address: true, latitude: true, longitude: true, isPrimary: true } },
+            loans: {
+              select: {
+                id: true,
+                loanCode: true,
+                principal: true,
+                status: true,
+                tenure: true,
+                instalments: { select: { status: true, receivedAmount: true } },
+                penalties: { select: { grossPenalty: true, status: true } },
+              },
+            },
+          },
+        }),
+      ]);
+
+      return ok(rows, {
+        page,
+        limit,
+        total,
+        pageSize: limit,
+      });
+    } else {
+      // Cursor pagination for mobile
+      const { cursor, limit } = parseCursorPaging(req.url, { defaultLimit: 20, maxLimit: 100 });
+      const rows = await prisma.customer.findMany({
+        where,
+        include: {
+          route: { select: { id: true, name: true } },
+          _count: { select: { loans: { where: { status: 'active' } } } },
+          collectionPoints: { select: { id: true, name: true, address: true, latitude: true, longitude: true, isPrimary: true } },
+        },
+        orderBy: { id: 'desc' },
+        take: limit + 1,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      });
+
+      const hasMore = rows.length > limit;
+      const data = hasMore ? rows.slice(0, limit) : rows;
+      const nextCursor = hasMore ? data[data.length - 1]!.id : null;
+
+      const customerIds = data.map((c) => c.id);
+      const totals = customerIds.length
+        ? await prisma.loan.groupBy({
+            by: ['customerId'],
+            where: { customerId: { in: customerIds }, status: 'active' },
+            _sum: { principal: true },
+          })
+        : [];
+      const totalMap = new Map(totals.map((t) => [t.customerId, Number(t._sum.principal ?? 0)]));
+      const enriched = data.map((c) => ({
+        ...c,
+        activeLoanCount: c._count.loans,
+        activeLoanPrincipal: totalMap.get(c.id) ?? 0,
+      }));
+
+      return ok(enriched, { nextCursor, limit });
+    }
   } catch (e: any) {
+    console.error('[/api/v1/customers GET]', e);
     return fail(e?.message ?? 'Customers list failed', 500);
   }
 }
