@@ -205,12 +205,9 @@ class _OverdueSection extends ConsumerWidget {
         loading: () => const Skeleton(height: 120),
         error: (e, _) => _InlineError(message: e.toString()),
         data: (list) => list.isEmpty
-            ? SizedBox(
-                height: 100,
-                child: EmptyState(
-                  icon: Icons.check_circle_outline_rounded,
-                  title: t.x('acc.no_overdue'),
-                ),
+            ? EmptyState(
+                icon: Icons.check_circle_outline_rounded,
+                title: t.x('acc.no_overdue'),
               )
             : _OverdueList(items: list),
       ),
