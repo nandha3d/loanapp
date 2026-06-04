@@ -39,6 +39,17 @@ class Endpoints {
   static const String collectionEntry = '/collection/entry';
   static const String collectionProofPhoto = '/collection/proof/photo';
   static const String collectionProofQr = '/collection/proof/qr';
+
+  // mCollect — route batch collection runs
+  static const String runOpen = '/collection/run/open';
+  static String runSheet(String id) => '/collection/run/$id/sheet';
+  static String runCollect(String id) => '/collection/run/$id/collect';
+  static String runClose(String id) => '/collection/run/$id/close';
+  static String runReconcile(String id) => '/collection/run/$id/reconcile';
+  // mCollect — digital self-pay
+  static const String selfPayLink = '/collection/self-pay/link';
+  // Per-tenant payment gateway config
+  static const String paymentGateway = '/settings/payment-gateway';
   static String receipt(String entryId) => '/receipts/$entryId';
   static String agentCollections(String agentId) =>
       '/gps/agent/$agentId/collections';

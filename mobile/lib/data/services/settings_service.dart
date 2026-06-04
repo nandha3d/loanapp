@@ -78,6 +78,17 @@ class SettingsService {
           .toList(growable: false);
     });
   }
+
+  /// Per-tenant payment gateway config (masked secrets). Admin only.
+  Future<Map<String, dynamic>> gateway() async {
+    final res = await _dio.get<Map<String, dynamic>>(Endpoints.paymentGateway);
+    return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
+  }
+
+  Future<void> saveGateway(Map<String, dynamic> patch) async {
+    await _dio.post<Map<String, dynamic>>(Endpoints.paymentGateway,
+        data: patch);
+  }
 }
 
 final settingsServiceProvider = Provider<SettingsService>(

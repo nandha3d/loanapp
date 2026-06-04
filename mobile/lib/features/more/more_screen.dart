@@ -41,14 +41,16 @@ final _mapPinsProvider = FutureProvider.autoDispose<List<_MapPin>>((ref) async {
     final agents = await ref.read(liveAgentLocationsProvider.future);
     for (final a in agents) {
       if (!a.hasLocation) continue;
-      pins.add(_MapPin(
-        point: LatLng(a.lat!, a.lng!),
-        label: a.agentName,
-        subtitle: a.online ? 'Online' : 'Offline',
-        color: a.online ? AppColors.success : AppColors.textLight,
-        icon: Icons.person_pin_circle_rounded,
-        navRoute: '/tracking',
-      ));
+      pins.add(
+        _MapPin(
+          point: LatLng(a.lat!, a.lng!),
+          label: a.agentName,
+          subtitle: a.online ? 'Online' : 'Offline',
+          color: a.online ? AppColors.success : AppColors.textLight,
+          icon: Icons.person_pin_circle_rounded,
+          navRoute: '/tracking',
+        ),
+      );
     }
   } catch (_) {}
 
@@ -58,14 +60,16 @@ final _mapPinsProvider = FutureProvider.autoDispose<List<_MapPin>>((ref) async {
     for (final c in customers) {
       for (final cp in c.collectionPoints) {
         if (cp.latitude == null || cp.longitude == null) continue;
-        pins.add(_MapPin(
-          point: LatLng(cp.latitude!, cp.longitude!),
-          label: c.name,
-          subtitle: cp.isPrimary ? '${cp.name} · Primary' : cp.name,
-          color: AppColors.primary,
-          icon: Icons.location_on_rounded,
-          navRoute: '/customers/${c.id}',
-        ));
+        pins.add(
+          _MapPin(
+            point: LatLng(cp.latitude!, cp.longitude!),
+            label: c.name,
+            subtitle: cp.isPrimary ? '${cp.name} · Primary' : cp.name,
+            color: AppColors.primary,
+            icon: Icons.location_on_rounded,
+            navRoute: '/customers/${c.id}',
+          ),
+        );
       }
     }
   } catch (_) {}
@@ -94,6 +98,14 @@ class _ModuleItem {
 }
 
 const _allModules = <_ModuleItem>[
+  _ModuleItem(
+    icon: Icons.route_rounded,
+    label: 'Collection Runs',
+    subtitle: 'Batch-collect a route in one sheet',
+    route: '/collection/runs',
+    color: AppColors.primary,
+    bgColor: AppColors.primaryLight,
+  ),
   _ModuleItem(
     icon: Icons.warning_amber_rounded,
     label: 'Penalties',
@@ -156,6 +168,15 @@ const _allModules = <_ModuleItem>[
     bgColor: AppColors.primaryLight,
   ),
   _ModuleItem(
+    icon: Icons.account_balance_rounded,
+    label: 'Payment Gateway',
+    subtitle: 'UPI & Razorpay for borrower self-pay',
+    route: '/settings/payment-gateway',
+    color: AppColors.info,
+    bgColor: AppColors.infoBg,
+    minRole: UserRole.admin,
+  ),
+  _ModuleItem(
     icon: Icons.settings_outlined,
     label: 'Settings',
     subtitle: 'Routes, account & app preferences',
@@ -171,9 +192,8 @@ bool _canAccess(_ModuleItem item, User user) {
       user.role == UserRole.superadmin ||
       user.role == UserRole.developer;
 
-  final roleOk = item.minRole == null ||
-      privileged ||
-      item.minRole == UserRole.agent;
+  final roleOk =
+      item.minRole == null || privileged || item.minRole == UserRole.agent;
   if (!roleOk) return false;
 
   final key = item.moduleKey;
@@ -183,7 +203,6 @@ bool _canAccess(_ModuleItem item, User user) {
   // Core features are role-gated, not subscription-gated.
   switch (key) {
     case 'approvals':
-      return true;
     case 'analytics':
     case 'accounting':
     case 'settings':
@@ -285,8 +304,7 @@ class MoreScreen extends ConsumerWidget {
                       backgroundColor: AppColors.primary,
                       padding: const EdgeInsets.symmetric(vertical: 13),
                       shape: RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(AppTokens.radiusSm),
+                        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
                       ),
                     ),
                     onPressed: () {
@@ -321,8 +339,8 @@ class _MapSection extends StatelessWidget {
 
   LatLng _center(List<_MapPin> pins) {
     if (pins.isEmpty) return const LatLng(20.5937, 78.9629);
-    final lat = pins.map((p) => p.point.latitude).reduce((a, b) => a + b) /
-        pins.length;
+    final lat =
+        pins.map((p) => p.point.latitude).reduce((a, b) => a + b) / pins.length;
     final lng = pins.map((p) => p.point.longitude).reduce((a, b) => a + b) /
         pins.length;
     return LatLng(lat, lng);
@@ -365,7 +383,8 @@ class _MapSection extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.map_outlined, color: AppColors.textLight, size: 36),
+              const Icon(Icons.map_outlined,
+                  color: AppColors.textLight, size: 36),
               const SizedBox(height: 8),
               Text('Map unavailable', style: AppTypography.caption),
             ],
@@ -430,19 +449,29 @@ class _MapSection extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.person_pin_circle_rounded,
-                          size: 13, color: AppColors.success,),
+                      const Icon(
+                        Icons.person_pin_circle_rounded,
+                        size: 13,
+                        color: AppColors.success,
+                      ),
                       const SizedBox(width: 4),
-                      Text('Agents',
-                          style: AppTypography.extraTiny
-                              .copyWith(color: AppColors.textSecondary),),
+                      Text(
+                        'Agents',
+                        style: AppTypography.extraTiny
+                            .copyWith(color: AppColors.textSecondary),
+                      ),
                       const SizedBox(width: 8),
-                      const Icon(Icons.location_on_rounded,
-                          size: 13, color: AppColors.primary,),
+                      const Icon(
+                        Icons.location_on_rounded,
+                        size: 13,
+                        color: AppColors.primary,
+                      ),
                       const SizedBox(width: 4),
-                      Text('Customers',
-                          style: AppTypography.extraTiny
-                              .copyWith(color: AppColors.textSecondary),),
+                      Text(
+                        'Customers',
+                        style: AppTypography.extraTiny
+                            .copyWith(color: AppColors.textSecondary),
+                      ),
                     ],
                   ),
                 ),
@@ -454,7 +483,9 @@ class _MapSection extends StatelessWidget {
                   right: 48,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 5,),
+                      horizontal: 8,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white.withAlpha(230),
                       borderRadius: BorderRadius.circular(8),
@@ -480,8 +511,11 @@ class _MapSection extends StatelessWidget {
                       borderRadius: BorderRadius.circular(6),
                       boxShadow: AppTokens.shadow,
                     ),
-                    child: const Icon(Icons.open_in_full,
-                        size: 16, color: AppColors.textSecondary,),
+                    child: const Icon(
+                      Icons.open_in_full,
+                      size: 16,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ),
               ),
@@ -494,8 +528,11 @@ class _MapSection extends StatelessWidget {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.location_off_outlined,
-                            color: Colors.white70, size: 32,),
+                        const Icon(
+                          Icons.location_off_outlined,
+                          color: Colors.white70,
+                          size: 32,
+                        ),
                         const SizedBox(height: 6),
                         Text(
                           'No location data yet',
@@ -529,17 +566,13 @@ class _ProfileHeader extends StatelessWidget {
   String _initials() {
     final parts = name.trim().split(RegExp(r'\s+'));
     if (parts.isEmpty || parts.first.isEmpty) return '—';
-    return parts
-        .take(2)
-        .map((p) => p.isEmpty ? '' : p[0].toUpperCase())
-        .join();
+    return parts.take(2).map((p) => p.isEmpty ? '' : p[0].toUpperCase()).join();
   }
 
   @override
   Widget build(BuildContext context) {
-    final roleLabel = role.isEmpty
-        ? ''
-        : '${role[0].toUpperCase()}${role.substring(1)}';
+    final roleLabel =
+        role.isEmpty ? '' : '${role[0].toUpperCase()}${role.substring(1)}';
     final subtitle = [roleLabel, if (tenantSlug.isNotEmpty) tenantSlug]
         .where((s) => s.isNotEmpty)
         .join(' · ');
@@ -605,8 +638,7 @@ class _ProfileHeader extends StatelessWidget {
             ),
           ),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
               color: AppColors.primary.withAlpha(50),
               borderRadius: BorderRadius.circular(999),

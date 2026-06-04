@@ -17,6 +17,9 @@ import 'package:loantrack/features/auth/registration_screen.dart';
 import 'package:loantrack/features/auth/totp_screen.dart';
 import 'package:loantrack/features/chits/chits_screen.dart';
 import 'package:loantrack/features/collection/collection_screen.dart';
+import 'package:loantrack/features/collection/collection_runs_screen.dart';
+import 'package:loantrack/features/collection/run_sheet_screen.dart';
+import 'package:loantrack/features/settings/payment_gateway_screen.dart';
 import 'package:loantrack/features/customers/customer_detail_screen.dart';
 import 'package:loantrack/features/customers/customers_screen.dart';
 import 'package:loantrack/features/customers/new_customer_screen.dart';
@@ -98,7 +101,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (user != null) {
         if (atLogin || atRegister || atTotp || atLock || loc == '/') {
           if (user.role == UserRole.developer) return '/admin';
-          if (user.role == UserRole.superadmin || user.role == UserRole.admin) return '/portal';
+          if (user.role == UserRole.superadmin || user.role == UserRole.admin)
+            return '/portal';
           return '/dashboard';
         }
         // Redirect developer from dashboard to admin
@@ -109,7 +113,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         final blocked = _moduleBlocked(loc, user);
         if (blocked) {
           if (user.role == UserRole.developer) return '/admin';
-          if (user.role == UserRole.superadmin || user.role == UserRole.admin) return '/portal';
+          if (user.role == UserRole.superadmin || user.role == UserRole.admin)
+            return '/portal';
           return '/dashboard';
         }
       }
@@ -117,7 +122,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
-      GoRoute(path: '/forgot-password', builder: (_, __) => const ForgotPasswordScreen()),
+      GoRoute(
+          path: '/forgot-password',
+          builder: (_, __) => const ForgotPasswordScreen()),
       GoRoute(
         path: '/register',
         builder: (_, state) {
@@ -139,17 +146,40 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/dashboard', builder: (_, __) => const DashboardScreen()),
       GoRoute(path: '/admin', builder: (_, __) => const DeveloperAdminScreen()),
       GoRoute(path: '/portal', builder: (_, __) => const PortalScreen()),
-      GoRoute(path: '/admin/team', builder: (_, __) => const TeamManagementScreen()),
-      GoRoute(path: '/admin/users', builder: (_, __) => const TeamManagementScreen(isSuperadmin: true)),
-      GoRoute(path: '/admin/branches', builder: (_, __) => const BranchManagementScreen()),
-      GoRoute(path: '/admin/billing', builder: (_, __) => const TenantBillingScreen()),
-      GoRoute(path: '/portal/billing', builder: (_, __) => const TenantBillingScreen()),
-      GoRoute(path: '/microlending/subscription', builder: (_, __) => const TenantBillingScreen(isSubscriptionOnly: true)),
-      GoRoute(path: '/admin/billing/pricing', builder: (_, __) => const PricingCatalogScreen()),
-      GoRoute(path: '/admin/affiliates', builder: (_, __) => const AffiliateAdminScreen()),
-      GoRoute(path: '/microlending/affiliate', builder: (_, __) => const AffiliateAdminScreen()),
-      GoRoute(path: '/microlending/branch-requests', builder: (_, __) => const AdminRequestsScreen()),
-      GoRoute(path: '/microlending/module-requests', builder: (_, __) => const AdminRequestsScreen(isModuleOnly: true)),
+      GoRoute(
+          path: '/admin/team',
+          builder: (_, __) => const TeamManagementScreen()),
+      GoRoute(
+          path: '/admin/users',
+          builder: (_, __) => const TeamManagementScreen(isSuperadmin: true)),
+      GoRoute(
+          path: '/admin/branches',
+          builder: (_, __) => const BranchManagementScreen()),
+      GoRoute(
+          path: '/admin/billing',
+          builder: (_, __) => const TenantBillingScreen()),
+      GoRoute(
+          path: '/portal/billing',
+          builder: (_, __) => const TenantBillingScreen()),
+      GoRoute(
+          path: '/microlending/subscription',
+          builder: (_, __) =>
+              const TenantBillingScreen(isSubscriptionOnly: true)),
+      GoRoute(
+          path: '/admin/billing/pricing',
+          builder: (_, __) => const PricingCatalogScreen()),
+      GoRoute(
+          path: '/admin/affiliates',
+          builder: (_, __) => const AffiliateAdminScreen()),
+      GoRoute(
+          path: '/microlending/affiliate',
+          builder: (_, __) => const AffiliateAdminScreen()),
+      GoRoute(
+          path: '/microlending/branch-requests',
+          builder: (_, __) => const AdminRequestsScreen()),
+      GoRoute(
+          path: '/microlending/module-requests',
+          builder: (_, __) => const AdminRequestsScreen(isModuleOnly: true)),
       GoRoute(
         path: '/customers',
         builder: (_, __) => const CustomersScreen(),
@@ -196,14 +226,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
-      GoRoute(path: '/collection', builder: (_, __) => const CollectionScreen()),
+      GoRoute(
+        path: '/collection',
+        builder: (_, __) => const CollectionScreen(),
+        routes: [
+          GoRoute(
+              path: 'runs', builder: (_, __) => const CollectionRunsScreen()),
+          GoRoute(
+            path: 'runs/:id',
+            builder: (_, state) =>
+                RunSheetScreen(runId: state.pathParameters['id'] ?? ''),
+          ),
+        ],
+      ),
       GoRoute(path: '/penalties', builder: (_, __) => const PenaltiesScreen()),
       GoRoute(path: '/wallet', builder: (_, __) => const WalletScreen()),
       GoRoute(path: '/approvals', builder: (_, __) => const ApprovalsScreen()),
       GoRoute(path: '/kyc-review', builder: (_, __) => const KycReviewScreen()),
       GoRoute(path: '/analytics', builder: (_, __) => const AnalyticsScreen()),
       GoRoute(path: '/chits', builder: (_, __) => const ChitsScreen()),
-      GoRoute(path: '/accounting', builder: (_, __) => const AccountingScreen()),
+      GoRoute(
+          path: '/accounting', builder: (_, __) => const AccountingScreen()),
       GoRoute(
         path: '/settings',
         builder: (_, __) => const SettingsScreen(),
@@ -221,15 +264,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (_, __) => const PaymentSettingsScreen(),
           ),
           GoRoute(
+            path: 'payment-gateway',
+            builder: (_, __) => const PaymentGatewayScreen(),
+          ),
+          GoRoute(
             path: 'notifications',
             builder: (_, __) => const NotificationSettingsScreen(),
           ),
         ],
       ),
       GoRoute(path: '/more', builder: (_, __) => const MoreScreen()),
-      GoRoute(path: '/tracking', builder: (_, __) => const AgentTrackingScreen()),
+      GoRoute(
+          path: '/tracking', builder: (_, __) => const AgentTrackingScreen()),
       GoRoute(path: '/reports', builder: (_, __) => const ReportsScreen()),
-      GoRoute(path: '/notifications', builder: (_, __) => const NotificationsScreen()),
+      GoRoute(
+          path: '/notifications',
+          builder: (_, __) => const NotificationsScreen()),
       GoRoute(
         path: '/vehicles',
         builder: (_, __) => const VehiclesScreen(),
