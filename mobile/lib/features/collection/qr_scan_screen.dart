@@ -1,7 +1,6 @@
 import 'package:loantrack/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import 'package:loantrack/core/l10n/language_controller.dart';

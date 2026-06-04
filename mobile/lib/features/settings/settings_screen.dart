@@ -83,7 +83,9 @@ class SettingsScreen extends ConsumerWidget {
             ),
             child: ref.watch(_routesProvider).when(
                   loading: () => const Skeleton(
-                      height: 80, borderRadius: AppTokens.radiusSm,),
+                    height: 80,
+                    borderRadius: AppTokens.radiusSm,
+                  ),
                   error: (e, _) => Text(
                     e.toString(),
                     style: AppTypography.body.copyWith(color: AppColors.danger),
@@ -98,8 +100,9 @@ class SettingsScreen extends ConsumerWidget {
                           ),
                         )
                       : Column(
-                          children:
-                              routes.map((r) => _RouteRow(route: r, t: t)).toList(),
+                          children: routes
+                              .map((r) => _RouteRow(route: r, t: t))
+                              .toList(),
                         ),
                 ),
           ),
@@ -108,32 +111,194 @@ class SettingsScreen extends ConsumerWidget {
             title: t.x('set.account'),
             child: Column(
               children: [
-                if (user?.role == UserRole.admin || user?.role == UserRole.developer) ...[
+                if (user?.role == UserRole.admin ||
+                    user?.role == UserRole.superadmin ||
+                    user?.role == UserRole.developer) ...[
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.bolt_outlined, color: AppColors.primary),
-                    title: Text(t.x('set.penalty'), style: AppTypography.bodyLarge),
-                    subtitle: Text(t.x('set.penalty_subtitle'), style: AppTypography.caption),
-                    trailing: const Icon(Icons.chevron_right, color: AppColors.textLight),
+                    leading: const Icon(
+                      Icons.bolt_outlined,
+                      color: AppColors.primary,
+                    ),
+                    title: Text(
+                      t.x('set.penalty'),
+                      style: AppTypography.bodyLarge,
+                    ),
+                    subtitle: Text(
+                      t.x('set.penalty_subtitle'),
+                      style: AppTypography.caption,
+                    ),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      color: AppColors.textLight,
+                    ),
                     onTap: () => context.push('/settings/penalty'),
                   ),
                   const Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.account_balance_wallet_outlined, color: AppColors.primary),
-                    title: Text(t.x('set.payment'), style: AppTypography.bodyLarge),
-                    subtitle: Text(t.x('set.payment_subtitle'), style: AppTypography.caption),
-                    trailing: const Icon(Icons.chevron_right, color: AppColors.textLight),
+                    leading: const Icon(
+                      Icons.account_balance_wallet_outlined,
+                      color: AppColors.primary,
+                    ),
+                    title: Text(
+                      t.x('set.payment'),
+                      style: AppTypography.bodyLarge,
+                    ),
+                    subtitle: Text(
+                      t.x('set.payment_subtitle'),
+                      style: AppTypography.caption,
+                    ),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      color: AppColors.textLight,
+                    ),
                     onTap: () => context.push('/settings/payment'),
                   ),
                   const Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.notifications_active_outlined, color: AppColors.primary),
-                    title: Text(t.x('set.notifications'), style: AppTypography.bodyLarge),
-                    subtitle: Text(t.x('set.notif_subtitle'), style: AppTypography.caption),
-                    trailing: const Icon(Icons.chevron_right, color: AppColors.textLight),
+                    leading: const Icon(
+                      Icons.notifications_active_outlined,
+                      color: AppColors.primary,
+                    ),
+                    title: Text(
+                      t.x('set.notifications'),
+                      style: AppTypography.bodyLarge,
+                    ),
+                    subtitle: Text(
+                      t.x('set.notif_subtitle'),
+                      style: AppTypography.caption,
+                    ),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      color: AppColors.textLight,
+                    ),
                     onTap: () => context.push('/settings/notifications'),
+                  ),
+                  const Divider(height: 1, color: AppColors.border),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(
+                      Icons.folder_open_outlined,
+                      color: AppColors.primary,
+                    ),
+                    title:
+                        Text('Loan Packages', style: AppTypography.bodyLarge),
+                    subtitle: Text(
+                      'Configure product interest rates and terms',
+                      style: AppTypography.caption,
+                    ),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      color: AppColors.textLight,
+                    ),
+                    onTap: () => context.push('/settings/packages'),
+                  ),
+                  const Divider(height: 1, color: AppColors.border),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(
+                      Icons.apps_outage_outlined,
+                      color: AppColors.primary,
+                    ),
+                    title: Text(
+                      'Bulk Collection Settings',
+                      style: AppTypography.bodyLarge,
+                    ),
+                    subtitle: Text(
+                      'Configure batch collection runs and sheet limits',
+                      style: AppTypography.caption,
+                    ),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      color: AppColors.textLight,
+                    ),
+                    onTap: () => context.push('/settings/bulk'),
+                  ),
+                  const Divider(height: 1, color: AppColors.border),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(
+                      Icons.assignment_ind_outlined,
+                      color: AppColors.primary,
+                    ),
+                    title: Text(
+                      'Bureau Pull Configuration',
+                      style: AppTypography.bodyLarge,
+                    ),
+                    subtitle: Text(
+                      'Configure CRIF bureau pull API credentials',
+                      style: AppTypography.caption,
+                    ),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      color: AppColors.textLight,
+                    ),
+                    onTap: () => context.push('/settings/bureau'),
+                  ),
+                  const Divider(height: 1, color: AppColors.border),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(
+                      Icons.warning_amber_outlined,
+                      color: AppColors.primary,
+                    ),
+                    title: Text(
+                      'NPA Status Rules',
+                      style: AppTypography.bodyLarge,
+                    ),
+                    subtitle: Text(
+                      'Configure overdue days and automated penalties',
+                      style: AppTypography.caption,
+                    ),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      color: AppColors.textLight,
+                    ),
+                    onTap: () => context.push('/settings/npa'),
+                  ),
+                  const Divider(height: 1, color: AppColors.border),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(
+                      Icons.security_outlined,
+                      color: AppColors.primary,
+                    ),
+                    title: Text(
+                      'Security & Inactivity Locks',
+                      style: AppTypography.bodyLarge,
+                    ),
+                    subtitle: Text(
+                      'Configure biometric authentication and session timeout',
+                      style: AppTypography.caption,
+                    ),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      color: AppColors.textLight,
+                    ),
+                    onTap: () => context.push('/settings/security'),
+                  ),
+                  const Divider(height: 1, color: AppColors.border),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(
+                      Icons.branding_watermark_outlined,
+                      color: AppColors.primary,
+                    ),
+                    title: Text(
+                      'Branding & Doc Configuration',
+                      style: AppTypography.bodyLarge,
+                    ),
+                    subtitle: Text(
+                      'Configure branding, document prefixes, and counters',
+                      style: AppTypography.caption,
+                    ),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      color: AppColors.textLight,
+                    ),
+                    onTap: () => context.push('/settings/branding'),
                   ),
                   const Divider(height: 1, color: AppColors.border),
                 ],
@@ -141,9 +306,14 @@ class SettingsScreen extends ConsumerWidget {
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.tune, color: AppColors.primary),
-                    title: Text(t.x('sys.title'), style: AppTypography.bodyLarge),
-                    subtitle: Text(t.x('sys.subtitle'), style: AppTypography.caption),
-                    trailing: const Icon(Icons.chevron_right, color: AppColors.textLight),
+                    title:
+                        Text(t.x('sys.title'), style: AppTypography.bodyLarge),
+                    subtitle:
+                        Text(t.x('sys.subtitle'), style: AppTypography.caption),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      color: AppColors.textLight,
+                    ),
                     onTap: () => context.push('/settings/system'),
                   ),
                   const Divider(height: 1, color: AppColors.border),
@@ -201,7 +371,10 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(t.x('btn.create'), style: const TextStyle(color: Colors.white)),
+            child: Text(
+              t.x('btn.create'),
+              style: const TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -243,7 +416,10 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 14),
-              Text(T.of(ref).x('set.choose_language'), style: AppTypography.sectionTitle),
+              Text(
+                T.of(ref).x('set.choose_language'),
+                style: AppTypography.sectionTitle,
+              ),
               const SizedBox(height: 12),
               for (final lang in AppLang.values)
                 _LangTile(
@@ -285,7 +461,10 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(t.x('set.logout'), style: const TextStyle(color: Colors.white)),
+            child: Text(
+              t.x('set.logout'),
+              style: const TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -297,8 +476,11 @@ class SettingsScreen extends ConsumerWidget {
 }
 
 class _ProfileCard extends StatelessWidget {
-  const _ProfileCard(
-      {required this.name, required this.email, required this.role,});
+  const _ProfileCard({
+    required this.name,
+    required this.email,
+    required this.role,
+  });
   final String name, email, role;
 
   @override
@@ -385,8 +567,11 @@ class _RouteRow extends StatelessWidget {
               color: AppColors.infoBg,
               borderRadius: BorderRadius.circular(AppTokens.radiusSm),
             ),
-            child: const Icon(Icons.route_outlined,
-                color: AppColors.info, size: 18,),
+            child: const Icon(
+              Icons.route_outlined,
+              color: AppColors.info,
+              size: 18,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(

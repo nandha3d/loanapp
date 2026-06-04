@@ -48,6 +48,8 @@ export async function GET(req: NextRequest) {
             status: true,
             responseData: true,
             createdAt: true,
+            videoFilePath: true,
+            videoFileName: true,
           },
           orderBy: { createdAt: 'desc' },
           take: 5,

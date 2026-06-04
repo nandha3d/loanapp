@@ -396,8 +396,8 @@ class _SummaryCardOverview extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
     final pct = (progress * 100).round();
-    final totalCollected = loan.instalments.fold(0.0, (sum, i) => sum + i.receivedAmount);
-    final totalRepayable = (loan.instalments.isNotEmpty ? loan.instalments.first.dueAmount : 0) * loan.instalmentCount;
+    final totalCollected = loan.totalCollected;
+    final totalRepayable = loan.totalPayable;
     final outstanding = totalRepayable - totalCollected;
 
     return Container(
@@ -525,9 +525,9 @@ class _SummaryCardMetrics extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
-    final totalCollected = loan.instalments.fold(0.0, (sum, i) => sum + i.receivedAmount);
-    final perInstalment = loan.instalments.isNotEmpty ? loan.instalments.first.dueAmount : 0.0;
-    final totalRepayable = perInstalment * loan.instalmentCount;
+    final totalCollected = loan.totalCollected;
+    final perInstalment = loan.perInstalment;
+    final totalRepayable = loan.totalPayable;
     final outstanding = totalRepayable - totalCollected;
 
     final dynamicRemainingCount = perInstalment > 0 ? (outstanding / perInstalment).ceil() : 0;
@@ -1218,8 +1218,8 @@ class _LoanBottomBar extends ConsumerWidget {
 
   void _confirmAction(BuildContext context, WidgetRef ref, String action) {
     final fmt = ref.watch(currencyFmtProvider);
-    final totalCollected = loan.instalments.fold(0.0, (sum, i) => sum + i.receivedAmount);
-    final totalRepayable = (loan.instalments.isNotEmpty ? loan.instalments.first.dueAmount : 0.0) * loan.instalmentCount;
+    final totalCollected = loan.totalCollected;
+    final totalRepayable = loan.totalPayable;
     final outstanding = totalRepayable - totalCollected;
 
     if (action == 'close') {
@@ -1335,7 +1335,7 @@ class _LoanBottomBar extends ConsumerWidget {
                         ),
                         const SizedBox(height: 16),
                         DropdownButtonFormField<String>(
-                          value: paymentMode,
+                          initialValue: paymentMode,
                           decoration: const InputDecoration(
                             labelText: 'Payment Mode',
                             border: OutlineInputBorder(),

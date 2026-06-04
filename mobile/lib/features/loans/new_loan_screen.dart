@@ -762,17 +762,23 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
           const SizedBox(height: 10),
           Row(
             children: [
+              // ignore: deprecated_member_use
               Radio<String>(
                 value: 'upfront_fixed',
+                // ignore: deprecated_member_use
                 groupValue: _deductionType,
+                // ignore: deprecated_member_use
                 onChanged: (v) =>
                     setState(() => _deductionType = v ?? _deductionType),
               ),
               Text(tr.x('plan.fixed_amount')),
               const SizedBox(width: 12),
+              // ignore: deprecated_member_use
               Radio<String>(
                 value: 'upfront_percentage',
+                // ignore: deprecated_member_use
                 groupValue: _deductionType,
+                // ignore: deprecated_member_use
                 onChanged: (v) =>
                     setState(() => _deductionType = v ?? _deductionType),
               ),

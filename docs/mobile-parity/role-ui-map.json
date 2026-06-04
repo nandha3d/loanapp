@@ -24,12 +24,10 @@
         ]
       },
       "mobile": {
-        "landing": "/dashboard",
-        "primaryRoutes": ["/dashboard", "/admin", "/admin/users", "/admin/branches", "/admin/billing", "/admin/billing/pricing", "/admin/affiliates", "/customers", "/loans", "/collection", "/more", "/settings", "/settings/system", "/analytics", "/reports", "/accounting", "/wallet", "/approvals", "/kyc-review", "/vehicles", "/notifications"]
+        "landing": "/admin",
+        "primaryRoutes": ["/admin", "/admin/users", "/admin/branches", "/admin/billing", "/admin/billing/pricing", "/admin/affiliates", "/admin/branch-requests", "/admin/module-requests", "/customers", "/loans", "/collection", "/more", "/settings", "/settings/system", "/settings/packages", "/settings/bulk", "/settings/bureau", "/settings/npa", "/settings/security", "/settings/branding", "/analytics", "/reports", "/accounting", "/accounting/bank-rec", "/wallet", "/approvals", "/kyc-review", "/vehicles", "/notifications"]
       },
-      "gaps": [
-        { "webRoute": "/microlending/settings", "mobileRoute": "/settings/system", "label": "Developer system settings", "status": "partial", "priority": "P0", "source": "app/(dashboard)/[module]/settings/page.tsx", "notes": "Mobile route exists, but existing parity docs mark developer system settings as missing/insufficient." }
-      ],
+      "gaps": [],
       "mobileOnly": [
         { "route": "/lock", "label": "Biometric lock", "notes": "Mobile security surface." }
       ]
@@ -62,13 +60,13 @@
         ]
       },
       "mobile": {
-        "landing": "/dashboard",
-        "primaryRoutes": ["/dashboard", "/portal", "/admin/users", "/admin/branches", "/portal/billing", "/microlending/subscription", "/microlending/branch-requests", "/microlending/module-requests", "/microlending/affiliate", "/customers", "/loans", "/collection", "/more", "/settings", "/analytics", "/reports", "/accounting", "/wallet", "/approvals", "/kyc-review", "/notifications"]
+        "landing": "/portal",
+        "primaryRoutes": ["/dashboard", "/portal", "/admin/users", "/admin/branches", "/portal/billing", "/microlending/subscription", "/microlending/branch-requests", "/microlending/module-requests", "/microlending/affiliate", "/customers", "/loans", "/collection", "/more", "/settings", "/settings/packages", "/settings/bulk", "/settings/bureau", "/settings/npa", "/settings/security", "/settings/branding", "/analytics", "/reports", "/accounting", "/accounting/bank-rec", "/wallet", "/approvals", "/kyc-review", "/notifications"]
       },
       "gaps": [
         { "webRoute": "/microlending/reports/agents", "mobileRoute": "/reports", "label": "Agent reports", "status": "partial", "priority": "P2", "source": "app/(dashboard)/[module]/reports/agents/page.tsx", "notes": "Mobile reports route exists but no dedicated agent reports route." },
         { "webRoute": "/microlending/notifications/log", "mobileRoute": "/notifications", "label": "Notification log", "status": "partial", "priority": "P3", "source": "app/(dashboard)/[module]/notifications/log/page.tsx", "notes": "Mobile has notifications list only." },
-        { "webRoute": "/microlending/settings", "mobileRoute": "/settings", "label": "Full settings tabs", "status": "partial", "priority": "P1", "source": "app/(dashboard)/[module]/settings/page.tsx", "notes": "Mobile settings are narrower than web settings tabs." }
+        { "webRoute": "/microlending/settings", "mobileRoute": "/settings", "label": "Full settings tabs", "status": "partial", "priority": "P1", "source": "app/(dashboard)/[module]/settings/page.tsx", "notes": "Mobile now covers packages, bulk, bureau, NPA, security, branding/document settings, and core admin settings; remaining route-level gap is the web data/settings depth that is not a dedicated mobile route." }
       ],
       "mobileOnly": [
         { "route": "/lock", "label": "Biometric lock", "notes": "Mobile security surface." },
@@ -103,12 +101,12 @@
         ]
       },
       "mobile": {
-        "landing": "/dashboard",
-        "primaryRoutes": ["/dashboard", "/portal", "/admin/team", "/customers", "/customers/new", "/loans", "/loans/new", "/loans/:id/edit", "/collection", "/tracking", "/more", "/settings", "/settings/penalty", "/settings/payment", "/settings/notifications", "/analytics", "/reports", "/accounting", "/wallet", "/approvals", "/kyc-review", "/notifications"]
+        "landing": "/portal",
+        "primaryRoutes": ["/dashboard", "/portal", "/admin/team", "/customers", "/customers/new", "/loans", "/loans/new", "/loans/:id/edit", "/collection", "/tracking", "/more", "/settings", "/settings/penalty", "/settings/payment", "/settings/notifications", "/settings/packages", "/settings/bulk", "/settings/bureau", "/settings/npa", "/settings/security", "/settings/branding", "/analytics", "/reports", "/accounting", "/accounting/bank-rec", "/wallet", "/approvals", "/kyc-review", "/notifications"]
       },
       "gaps": [
         { "webRoute": "/microlending/reports/agents", "mobileRoute": "/reports", "label": "Agent reports", "status": "partial", "priority": "P2", "source": "app/(dashboard)/[module]/reports/agents/page.tsx", "notes": "Mobile reports route exists but no dedicated agent report route." },
-        { "webRoute": "/microlending/settings", "mobileRoute": "/settings", "label": "Full settings tabs", "status": "partial", "priority": "P1", "source": "app/(dashboard)/[module]/settings/page.tsx", "notes": "Mobile settings lack several web tabs: packages, bulk, bureau, NPA, data, security." },
+        { "webRoute": "/microlending/settings", "mobileRoute": "/settings", "label": "Full settings tabs", "status": "partial", "priority": "P1", "source": "app/(dashboard)/[module]/settings/page.tsx", "notes": "Mobile now covers packages, bulk, bureau, NPA, security, branding/document settings, penalty, payment, and notifications; remaining route-level gap is web data/settings depth that is not a dedicated mobile route." },
         { "webRoute": "/microlending/notifications/log", "mobileRoute": "/notifications", "label": "Notification log", "status": "partial", "priority": "P3", "source": "app/(dashboard)/[module]/notifications/log/page.tsx", "notes": "Mobile has notifications list only." },
         { "webRoute": "/microlending/penalties", "mobileRoute": "/penalties", "label": "Penalty filters and waive", "status": "partial", "priority": "P1", "source": "app/(dashboard)/[module]/penalties/page.tsx", "notes": "Route exists, but existing parity docs mark waive/filter coverage as missing." },
         { "webRoute": "/microlending/approvals", "mobileRoute": "/approvals", "label": "All approval request types", "status": "partial", "priority": "P1", "source": "app/(dashboard)/[module]/approvals/page.tsx", "notes": "Route exists, but mobile covers only a subset of web request types." }

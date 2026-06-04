@@ -376,7 +376,7 @@ class _MapSection extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(Icons.map_outlined,
-                  color: AppColors.textLight, size: 36),
+                  color: AppColors.textLight, size: 36,),
               const SizedBox(height: 8),
               Text('Map unavailable', style: AppTypography.caption),
             ],

@@ -1,7 +1,12 @@
 import { auth } from '@/lib/auth';
 
 export default async function MonitorBanner() {
-  const session = await auth();
+  let session = null;
+  try {
+    session = await auth();
+  } catch (error) {
+    console.error('[MonitorBanner] Session verification failed:', error);
+  }
   
   if (!(session?.user as any)?.isMonitoring) {
     return null;

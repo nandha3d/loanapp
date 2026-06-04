@@ -76,7 +76,7 @@ class _RunSheetScreenState extends ConsumerState<RunSheetScreen> {
           .read(collectionRunServiceProvider)
           .collect(widget.runId, lines);
       _snack(
-          'Posted ${res.posted}${res.skipped > 0 ? ', ${res.skipped} skipped' : ''}');
+          'Posted ${res.posted}${res.skipped > 0 ? ', ${res.skipped} skipped' : ''}',);
       for (final l in lines) {
         _ctrl(l['instalmentId'] as String).clear();
       }
@@ -125,10 +125,10 @@ class _RunSheetScreenState extends ConsumerState<RunSheetScreen> {
       appBar: AppBar(title: const Text('Run Sheet'), centerTitle: true),
       body: sheetAsync.when(
         loading: () => const Padding(
-            padding: EdgeInsets.all(16), child: Skeleton(height: 320)),
+            padding: EdgeInsets.all(16), child: Skeleton(height: 320),),
         error: (e, _) => Center(
           child: Text(e.toString(),
-              style: AppTypography.body.copyWith(color: AppColors.danger)),
+              style: AppTypography.body.copyWith(color: AppColors.danger),),
         ),
         data: (sheet) {
           final run = sheet.run;
@@ -141,7 +141,7 @@ class _RunSheetScreenState extends ConsumerState<RunSheetScreen> {
                     : sheet.rows.isEmpty
                         ? const EmptyState(
                             icon: Icons.check_circle_outline_rounded,
-                            title: 'Nothing due on this route')
+                            title: 'Nothing due on this route',)
                         : ListView.builder(
                             padding: const EdgeInsets.all(12),
                             itemCount: sheet.rows.length,
@@ -152,11 +152,11 @@ class _RunSheetScreenState extends ConsumerState<RunSheetScreen> {
                               mode:
                                   _modes[sheet.rows[i].instalmentId] ?? 'cash',
                               onMode: (m) => setState(
-                                  () => _modes[sheet.rows[i].instalmentId] = m),
+                                  () => _modes[sheet.rows[i].instalmentId] = m,),
                               onFill: () => setState(() =>
                                   _ctrl(sheet.rows[i].instalmentId).text = sheet
                                       .rows[i].outstanding
-                                      .toStringAsFixed(0)),
+                                      .toStringAsFixed(0),),
                               onPayLink: () => _sendPayLink(sheet.rows[i]),
                             ),
                           ),
@@ -206,7 +206,7 @@ class _Header extends StatelessWidget {
             Text(value,
                 style: AppTypography.bodyLarge.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: c ?? AppColors.textPrimary)),
+                    color: c ?? AppColors.textPrimary,),),
           ],
         );
     return Container(
@@ -233,7 +233,7 @@ class _Header extends StatelessWidget {
             children: [
               stat('Expected', fmt.format(run.expectedTotal)),
               stat('Collected', fmt.format(run.collectedTotal),
-                  AppColors.success),
+                  AppColors.success,),
               stat('Cash', fmt.format(run.cashCollected)),
               stat('Digital', fmt.format(run.digitalCollected)),
               stat('Stops', '${run.stopsCollected}/${run.stopsExpected}'),
@@ -284,7 +284,7 @@ class _RowTile extends StatelessWidget {
                   children: [
                     Text(row.name, style: AppTypography.bodyLarge),
                     Text('${row.loanCode} · #${row.instalmentNo}',
-                        style: AppTypography.caption),
+                        style: AppTypography.caption,),
                   ],
                 ),
               ),
@@ -293,11 +293,11 @@ class _RowTile extends StatelessWidget {
                 children: [
                   Text(fmt.format(row.outstanding),
                       style: AppTypography.bodyLarge
-                          .copyWith(fontWeight: FontWeight.w700)),
+                          .copyWith(fontWeight: FontWeight.w700),),
                   if (row.overdue)
                     Text('overdue ${row.daysOverdue}d',
                         style: AppTypography.caption
-                            .copyWith(color: AppColors.danger)),
+                            .copyWith(color: AppColors.danger),),
                 ],
               ),
             ],
@@ -364,7 +364,7 @@ class _DepositHint extends StatelessWidget {
           Text('Run closed', style: AppTypography.sectionTitle),
           const SizedBox(height: 10),
           Text('Cash collected this run: ${fmt.format(run.cashCollected)}',
-              style: AppTypography.bodyLarge),
+              style: AppTypography.bodyLarge,),
           const SizedBox(height: 6),
           Text(
             'Your collections are now in your cash float. Hand the cash to the office from Cash Float — that is the single place cash is settled.',
@@ -419,7 +419,7 @@ class _PayLinkSheet extends StatelessWidget {
                   child: FilledButton.icon(
                     onPressed: () {
                       final wa = Uri.parse(
-                          'https://wa.me/?text=${Uri.encodeComponent('Pay here: $url')}');
+                          'https://wa.me/?text=${Uri.encodeComponent('Pay here: $url')}',);
                       launchUrl(wa, mode: LaunchMode.externalApplication);
                     },
                     icon: const Icon(Icons.share_rounded),

@@ -6,12 +6,27 @@ import 'package:loantrack/core/auth/auth_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
+import 'package:loantrack/data/services/admin_service.dart';
+
+final _developerRequestsProvider =
+    FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
+  return ref.watch(adminServiceProvider).getRequests();
+});
 
 class DeveloperAdminScreen extends ConsumerWidget {
   const DeveloperAdminScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final requestCounts = ref.watch(_developerRequestsProvider);
+    final modulePending = requestCounts.maybeWhen(
+      data: (data) => _pendingCount(data['moduleRequests']),
+      orElse: () => 0,
+    );
+    final branchPending = requestCounts.maybeWhen(
+      data: (data) => _pendingCount(data['branchRequests']),
+      orElse: () => 0,
+    );
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -41,14 +56,19 @@ class DeveloperAdminScreen extends ConsumerWidget {
                 ),
                 boxShadow: AppTokens.shadowLg,
               ),
-              child: Column(
+              child: const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Platform Overview',
-                    style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -82,9 +102,7 @@ class DeveloperAdminScreen extends ConsumerWidget {
                   color: AppColors.primary,
                   label: 'Tenant List',
                   onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Loading tenant registry...')),
-                    );
+                    context.go('/admin/billing');
                   },
                 ),
                 _AdminTile(
@@ -140,22 +158,34 @@ class DeveloperAdminScreen extends ConsumerWidget {
 
             _QueueTile(
               label: 'Module Activation Requests',
-              count: 3,
+              count: modulePending,
               color: AppColors.warning,
-              onTap: () {},
+              onTap: () {
+                context.go('/admin/module-requests');
+              },
             ),
             const SizedBox(height: 8),
             _QueueTile(
               label: 'Branch Extension Requests',
-              count: 1,
+              count: branchPending,
               color: AppColors.info,
-              onTap: () {},
+              onTap: () {
+                context.go('/admin/branch-requests');
+              },
             ),
           ],
         ),
       ),
     );
   }
+}
+
+int _pendingCount(dynamic value) {
+  if (value is! List) return 0;
+  return value.where((dynamic item) {
+    if (item is! Map) return false;
+    return (item['status'] as String? ?? '').toLowerCase() == 'pending';
+  }).length;
 }
 
 class _MiniStat extends StatelessWidget {
@@ -170,7 +200,11 @@ class _MiniStat extends StatelessWidget {
       children: [
         Text(
           value,
-          style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+          ),
         ),
         const SizedBox(height: 2),
         Text(
@@ -223,7 +257,8 @@ class _AdminTile extends StatelessWidget {
             ),
             Text(
               label,
-              style: AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.w700, fontSize: 13),
+              style: AppTypography.bodyLarge
+                  .copyWith(fontWeight: FontWeight.w700, fontSize: 13),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -249,32 +284,37 @@ class _QueueTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-        border: Border.all(color: AppColors.border, width: 1),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.queue_play_next_outlined, color: color, size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(label, style: AppTypography.body),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: color.withAlpha(24),
-              borderRadius: BorderRadius.circular(20),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+          border: Border.all(color: AppColors.border, width: 1),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.queue_play_next_outlined, color: color, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(label, style: AppTypography.body),
             ),
-            child: Text(
-              '$count Pending',
-              style: AppTypography.tiny.copyWith(color: color, fontWeight: FontWeight.bold),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: color.withAlpha(24),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '$count Pending',
+                style: AppTypography.tiny
+                    .copyWith(color: color, fontWeight: FontWeight.bold),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -366,7 +366,7 @@ class _GroupCard extends ConsumerWidget {
   }
 
   void _showDetail(BuildContext context) {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

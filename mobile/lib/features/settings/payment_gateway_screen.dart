@@ -101,12 +101,12 @@ class _PaymentGatewayScreenState extends ConsumerState<PaymentGatewayScreen> {
       appBar: AppBar(title: const Text('Payment Gateway'), centerTitle: true),
       body: _loading
           ? const Padding(
-              padding: EdgeInsets.all(16), child: Skeleton(height: 320))
+              padding: EdgeInsets.all(16), child: Skeleton(height: 320),)
           : _error != null
               ? Center(
                   child: Text(_error!,
                       style:
-                          AppTypography.body.copyWith(color: AppColors.danger)))
+                          AppTypography.body.copyWith(color: AppColors.danger),),)
               : ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
@@ -147,7 +147,7 @@ class _PaymentGatewayScreenState extends ConsumerState<PaymentGatewayScreen> {
                         ),
                         const SizedBox(height: 12),
                         _label(
-                            'Key Secret${_keySecretSet ? ' · saved (blank = keep)' : ''}'),
+                            'Key Secret${_keySecretSet ? ' · saved (blank = keep)' : ''}',),
                         TextField(
                           controller: _keySecret,
                           obscureText: true,
@@ -158,7 +158,7 @@ class _PaymentGatewayScreenState extends ConsumerState<PaymentGatewayScreen> {
                         ),
                         const SizedBox(height: 12),
                         _label(
-                            'Webhook Secret${_webhookSecretSet ? ' · saved (blank = keep)' : ''}'),
+                            'Webhook Secret${_webhookSecretSet ? ' · saved (blank = keep)' : ''}',),
                         TextField(
                           controller: _webhookSecret,
                           obscureText: true,
@@ -210,7 +210,7 @@ class _PaymentGatewayScreenState extends ConsumerState<PaymentGatewayScreen> {
           const SizedBox(height: 4),
           Text(subtitle,
               style: AppTypography.caption
-                  .copyWith(color: AppColors.textSecondary)),
+                  .copyWith(color: AppColors.textSecondary),),
           const SizedBox(height: 12),
           ...children,
         ],

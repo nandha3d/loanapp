@@ -87,7 +87,7 @@ class SettingsService {
 
   Future<void> saveGateway(Map<String, dynamic> patch) async {
     await _dio.post<Map<String, dynamic>>(Endpoints.paymentGateway,
-        data: patch);
+        data: patch,);
   }
 }
 

@@ -110,4 +110,23 @@ class Endpoints {
   // KYC review
   static const String kycQueue = '/kyc/queue';
   static String kycReview(String customerId) => '/kyc/$customerId/review';
+
+  // Admin & Developer
+  static const String adminUsers = '/admin/users';
+  static String adminUser(String id) => '/admin/users/$id';
+  static const String adminBranches = '/admin/branches';
+  static String adminBranch(String id) => '/admin/branches/$id';
+  static const String adminBilling = '/admin/billing';
+  static const String adminAffiliates = '/admin/affiliates';
+  static const String adminRequests = '/admin/requests';
+
+  // Premium Accounting
+  static const String accountingCoa = '/accounting/coa';
+  static const String accountingJournal = '/accounting/journal';
+  static String accountingJournalDetail(String id) => '/accounting/journal/$id';
+  static const String accountingPnl = '/accounting/pnl';
+  static const String accountingBalanceSheet = '/accounting/balance-sheet';
+  static const String accountingTrialBalance = '/accounting/trial-balance';
+  static const String accountingBankRec = '/accounting/bank-rec';
+  static const String accountingPeriods = '/accounting/periods';
 }

@@ -337,7 +337,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     for (final g in groups) {
       m
           .putIfAbsent(
-              g.primary.routeName ?? unassigned, () => <_CustomerGroup>[])
+              g.primary.routeName ?? unassigned, () => <_CustomerGroup>[],)
           .add(g);
     }
     return m;

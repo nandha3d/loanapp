@@ -135,7 +135,7 @@ class _NotificationSettingsScreenState
                   style: AppTypography.caption,
                 ),
                 value: _masterSwitch,
-                activeColor: AppColors.primary,
+                activeThumbColor: AppColors.primary,
                 onChanged: (v) => setState(() => _masterSwitch = v),
               ),
             ],
@@ -292,7 +292,7 @@ class _SwitchRow extends StatelessWidget {
       contentPadding: EdgeInsets.zero,
       title: Text(label, style: AppTypography.body),
       value: value,
-      activeColor: AppColors.primary,
+      activeThumbColor: AppColors.primary,
       onChanged: onChanged,
     );
   }

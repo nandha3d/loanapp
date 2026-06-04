@@ -7,6 +7,7 @@ import 'package:loantrack/data/models/customer.dart';
 import 'package:loantrack/data/models/loan.dart';
 import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/features/accounting/accounting_screen.dart';
+import 'package:loantrack/features/accounting/bank_reconciliation_screen.dart';
 import 'package:loantrack/features/analytics/analytics_screen.dart';
 import 'package:loantrack/features/approvals/approvals_screen.dart';
 import 'package:loantrack/features/auth/biometric_lock_screen.dart';
@@ -20,6 +21,7 @@ import 'package:loantrack/features/collection/collection_screen.dart';
 import 'package:loantrack/features/collection/collection_runs_screen.dart';
 import 'package:loantrack/features/collection/run_sheet_screen.dart';
 import 'package:loantrack/features/settings/payment_gateway_screen.dart';
+import 'package:loantrack/features/settings/settings_detail_screen.dart';
 import 'package:loantrack/features/customers/customer_detail_screen.dart';
 import 'package:loantrack/features/customers/customers_screen.dart';
 import 'package:loantrack/features/customers/new_customer_screen.dart';
@@ -101,8 +103,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (user != null) {
         if (atLogin || atRegister || atTotp || atLock || loc == '/') {
           if (user.role == UserRole.developer) return '/admin';
-          if (user.role == UserRole.superadmin || user.role == UserRole.admin)
+          if (user.role == UserRole.superadmin || user.role == UserRole.admin) {
             return '/portal';
+          }
           return '/dashboard';
         }
         // Redirect developer from dashboard to admin
@@ -113,8 +116,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         final blocked = _moduleBlocked(loc, user);
         if (blocked) {
           if (user.role == UserRole.developer) return '/admin';
-          if (user.role == UserRole.superadmin || user.role == UserRole.admin)
+          if (user.role == UserRole.superadmin || user.role == UserRole.admin) {
             return '/portal';
+          }
           return '/dashboard';
         }
       }
@@ -123,8 +127,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
       GoRoute(
-          path: '/forgot-password',
-          builder: (_, __) => const ForgotPasswordScreen()),
+        path: '/forgot-password',
+        builder: (_, __) => const ForgotPasswordScreen(),
+      ),
       GoRoute(
         path: '/register',
         builder: (_, state) {
@@ -147,39 +152,60 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/admin', builder: (_, __) => const DeveloperAdminScreen()),
       GoRoute(path: '/portal', builder: (_, __) => const PortalScreen()),
       GoRoute(
-          path: '/admin/team',
-          builder: (_, __) => const TeamManagementScreen()),
+        path: '/admin/team',
+        builder: (_, __) => const TeamManagementScreen(),
+      ),
       GoRoute(
-          path: '/admin/users',
-          builder: (_, __) => const TeamManagementScreen(isSuperadmin: true)),
+        path: '/admin/users',
+        builder: (_, __) => const TeamManagementScreen(isSuperadmin: true),
+      ),
       GoRoute(
-          path: '/admin/branches',
-          builder: (_, __) => const BranchManagementScreen()),
+        path: '/admin/branches',
+        builder: (_, __) => const BranchManagementScreen(),
+      ),
       GoRoute(
-          path: '/admin/billing',
-          builder: (_, __) => const TenantBillingScreen()),
+        path: '/admin/billing',
+        builder: (_, __) => const TenantBillingScreen(),
+      ),
       GoRoute(
-          path: '/portal/billing',
-          builder: (_, __) => const TenantBillingScreen()),
+        path: '/portal/billing',
+        builder: (_, __) => const TenantBillingScreen(),
+      ),
       GoRoute(
-          path: '/microlending/subscription',
-          builder: (_, __) =>
-              const TenantBillingScreen(isSubscriptionOnly: true)),
+        path: '/microlending/subscription',
+        builder: (_, __) => const TenantBillingScreen(isSubscriptionOnly: true),
+      ),
       GoRoute(
-          path: '/admin/billing/pricing',
-          builder: (_, __) => const PricingCatalogScreen()),
+        path: '/admin/billing/pricing',
+        builder: (_, __) => const PricingCatalogScreen(),
+      ),
       GoRoute(
-          path: '/admin/affiliates',
-          builder: (_, __) => const AffiliateAdminScreen()),
+        path: '/admin/affiliates',
+        builder: (_, __) => const AffiliateAdminScreen(),
+      ),
       GoRoute(
-          path: '/microlending/affiliate',
-          builder: (_, __) => const AffiliateAdminScreen()),
+        path: '/admin/branch-requests',
+        builder: (_, __) => const AdminRequestsScreen(canReview: true),
+      ),
       GoRoute(
-          path: '/microlending/branch-requests',
-          builder: (_, __) => const AdminRequestsScreen()),
+        path: '/admin/module-requests',
+        builder: (_, __) => const AdminRequestsScreen(
+          isModuleOnly: true,
+          canReview: true,
+        ),
+      ),
       GoRoute(
-          path: '/microlending/module-requests',
-          builder: (_, __) => const AdminRequestsScreen(isModuleOnly: true)),
+        path: '/microlending/affiliate',
+        builder: (_, __) => const AffiliateAdminScreen(),
+      ),
+      GoRoute(
+        path: '/microlending/branch-requests',
+        builder: (_, __) => const AdminRequestsScreen(),
+      ),
+      GoRoute(
+        path: '/microlending/module-requests',
+        builder: (_, __) => const AdminRequestsScreen(isModuleOnly: true),
+      ),
       GoRoute(
         path: '/customers',
         builder: (_, __) => const CustomersScreen(),
@@ -231,7 +257,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, __) => const CollectionScreen(),
         routes: [
           GoRoute(
-              path: 'runs', builder: (_, __) => const CollectionRunsScreen()),
+            path: 'runs',
+            builder: (_, __) => const CollectionRunsScreen(),
+          ),
           GoRoute(
             path: 'runs/:id',
             builder: (_, state) =>
@@ -246,7 +274,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/analytics', builder: (_, __) => const AnalyticsScreen()),
       GoRoute(path: '/chits', builder: (_, __) => const ChitsScreen()),
       GoRoute(
-          path: '/accounting', builder: (_, __) => const AccountingScreen()),
+        path: '/accounting',
+        builder: (_, __) => const AccountingScreen(),
+      ),
+      GoRoute(
+        path: '/accounting/bank-rec',
+        builder: (_, __) => const BankReconciliationScreen(),
+      ),
       GoRoute(
         path: '/settings',
         builder: (_, __) => const SettingsScreen(),
@@ -271,15 +305,58 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: 'notifications',
             builder: (_, __) => const NotificationSettingsScreen(),
           ),
+          GoRoute(
+            path: 'packages',
+            builder: (_, __) => const SettingsDetailScreen(
+              title: 'Loan Packages',
+              type: 'packages',
+            ),
+          ),
+          GoRoute(
+            path: 'bulk',
+            builder: (_, __) => const SettingsDetailScreen(
+              title: 'Bulk Collection',
+              type: 'bulk',
+            ),
+          ),
+          GoRoute(
+            path: 'bureau',
+            builder: (_, __) => const SettingsDetailScreen(
+              title: 'Bureau Configuration',
+              type: 'bureau',
+            ),
+          ),
+          GoRoute(
+            path: 'npa',
+            builder: (_, __) =>
+                const SettingsDetailScreen(title: 'NPA Settings', type: 'npa'),
+          ),
+          GoRoute(
+            path: 'security',
+            builder: (_, __) => const SettingsDetailScreen(
+              title: 'Security & Locks',
+              type: 'security',
+            ),
+          ),
+          GoRoute(
+            path: 'branding',
+            builder: (_, __) => const SettingsDetailScreen(
+              title: 'Branding & Documents',
+              type: 'branding',
+            ),
+          ),
         ],
       ),
       GoRoute(path: '/more', builder: (_, __) => const MoreScreen()),
       GoRoute(
-          path: '/tracking', builder: (_, __) => const AgentTrackingScreen()),
+        path: '/tracking',
+        builder: (_, __) => const AgentTrackingScreen(),
+      ),
       GoRoute(path: '/reports', builder: (_, __) => const ReportsScreen()),
       GoRoute(
-          path: '/notifications',
-          builder: (_, __) => const NotificationsScreen()),
+        path: '/notifications',
+        builder: (_, __) => const NotificationsScreen(),
+      ),
       GoRoute(
         path: '/vehicles',
         builder: (_, __) => const VehiclesScreen(),
@@ -299,7 +376,77 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 });
 
 bool _moduleBlocked(String location, User user) {
-  // Privileged roles always have full access — never module-gated.
+  // First, check administrative / developer routes.
+  // /admin (root developer dashboard)
+  if (location == '/admin') {
+    return user.role != UserRole.developer;
+  }
+
+  // /admin/team (team management)
+  if (location == '/admin/team') {
+    return user.role != UserRole.admin &&
+        user.role != UserRole.superadmin &&
+        user.role != UserRole.developer;
+  }
+
+  // /admin/users (user management)
+  if (location == '/admin/users') {
+    return user.role != UserRole.superadmin && user.role != UserRole.developer;
+  }
+
+  // /admin/branches (branch management)
+  if (location == '/admin/branches') {
+    return user.role != UserRole.superadmin && user.role != UserRole.developer;
+  }
+
+  // /admin/billing and subroutes (developer billing/pricing)
+  if (location.startsWith('/admin/billing')) {
+    return user.role != UserRole.developer;
+  }
+
+  // /admin/affiliates (developer affiliates)
+  if (location == '/admin/affiliates') {
+    return user.role != UserRole.developer;
+  }
+
+  // /admin/branch-requests and /admin/module-requests
+  if (location == '/admin/branch-requests' ||
+      location == '/admin/module-requests') {
+    return user.role != UserRole.developer;
+  }
+
+  // /portal (app selector/hub)
+  if (location == '/portal') {
+    return user.role != UserRole.superadmin && user.role != UserRole.admin;
+  }
+
+  // /portal/billing
+  if (location == '/portal/billing') {
+    return user.role != UserRole.superadmin;
+  }
+
+  // /microlending/subscription
+  if (location == '/microlending/subscription') {
+    return user.role != UserRole.superadmin;
+  }
+
+  // /microlending/affiliate
+  if (location == '/microlending/affiliate') {
+    return user.role != UserRole.superadmin;
+  }
+
+  // /microlending/branch-requests and /microlending/module-requests
+  if (location.startsWith('/microlending/branch-requests') ||
+      location.startsWith('/microlending/module-requests')) {
+    return user.role != UserRole.superadmin;
+  }
+
+  // /settings/system mirrors the developer-only web system tab.
+  if (location == '/settings/system') {
+    return user.role != UserRole.developer;
+  }
+
+  // Privileged roles always have full access to business modules.
   if (user.role == UserRole.admin ||
       user.role == UserRole.superadmin ||
       user.role == UserRole.developer) {

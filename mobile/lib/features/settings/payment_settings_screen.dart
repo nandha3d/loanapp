@@ -235,7 +235,7 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
                 contentPadding: EdgeInsets.zero,
                 title: Text(t.x('set.receipt_pdf'), style: AppTypography.body),
                 value: _receiptPdfActive,
-                activeColor: AppColors.primary,
+                activeThumbColor: AppColors.primary,
                 onChanged: (v) => setState(() => _receiptPdfActive = v),
               ),
             ],

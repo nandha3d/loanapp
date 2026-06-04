@@ -40,7 +40,7 @@ class _CollectionRunsScreenState extends ConsumerState<CollectionRunsScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text(e.toString()), backgroundColor: AppColors.danger),
+            content: Text(e.toString()), backgroundColor: AppColors.danger,),
       );
     } finally {
       if (mounted) setState(() => _openingRouteId = null);
@@ -80,17 +80,17 @@ class _CollectionRunsScreenState extends ConsumerState<CollectionRunsScreen> {
             routesAsync.when(
               loading: () => const Skeleton(height: 160),
               error: (e, _) => Text(e.toString(),
-                  style: AppTypography.body.copyWith(color: AppColors.danger)),
+                  style: AppTypography.body.copyWith(color: AppColors.danger),),
               data: (routes) => routes.isEmpty
                   ? const EmptyState(
-                      icon: Icons.route_outlined, title: 'No routes assigned')
+                      icon: Icons.route_outlined, title: 'No routes assigned',)
                   : Column(
                       children: routes
                           .map((r) => _RouteTile(
                                 route: r,
                                 busy: _openingRouteId == r.id,
                                 onTap: () => _start(r),
-                              ))
+                              ),)
                           .toList(),
                     ),
             ),
@@ -104,7 +104,7 @@ class _CollectionRunsScreenState extends ConsumerState<CollectionRunsScreen> {
 
 class _RouteTile extends StatelessWidget {
   const _RouteTile(
-      {required this.route, required this.busy, required this.onTap});
+      {required this.route, required this.busy, required this.onTap,});
   final AppRoute route;
   final bool busy;
   final VoidCallback onTap;
@@ -126,14 +126,14 @@ class _RouteTile extends StatelessWidget {
         ),
         title: Text(route.name, style: AppTypography.bodyLarge),
         subtitle: Text('${route.customerCount} customers',
-            style: AppTypography.caption),
+            style: AppTypography.caption,),
         trailing: busy
             ? const SizedBox(
                 width: 20,
                 height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2))
+                child: CircularProgressIndicator(strokeWidth: 2),)
             : const Icon(Icons.play_circle_fill_rounded,
-                color: AppColors.primary, size: 30),
+                color: AppColors.primary, size: 30,),
         onTap: busy ? null : onTap,
       ),
     );

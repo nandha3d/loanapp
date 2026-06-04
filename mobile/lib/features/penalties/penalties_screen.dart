@@ -219,7 +219,7 @@ class _PenaltiesBody extends ConsumerWidget {
                     ...routeMap.entries.map((e) => DropdownMenuItem(
                       value: e.key,
                       child: Text(e.value, style: AppTypography.body),
-                    )),
+                    ),),
                   ],
                   onChanged: (v) => ref.read(_routeFilter.notifier).state = v,
                 ),
@@ -950,7 +950,7 @@ class _WaiveDialogState extends ConsumerState<_WaiveDialog> {
                 decoration: BoxDecoration(
                   color: AppColors.dangerBg,
                   borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-                  border: Border.all(color: AppColors.danger.withOpacity(0.5)),
+                  border: Border.all(color: AppColors.danger.withValues(alpha: 0.5)),
                 ),
                 child: Row(
                   children: [

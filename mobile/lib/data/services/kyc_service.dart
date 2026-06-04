@@ -10,12 +10,16 @@ class KycSession {
     required this.method,
     required this.status,
     this.responseData,
+    this.videoFilePath,
+    this.videoFileName,
   });
 
   final String id;
   final String method;
   final String status;
   final String? responseData;
+  final String? videoFilePath;
+  final String? videoFileName;
 
   factory KycSession.fromJson(Map<String, dynamic> json) {
     return KycSession(
@@ -23,6 +27,8 @@ class KycSession {
       method: json['method'] as String,
       status: json['status'] as String,
       responseData: json['responseData'] as String?,
+      videoFilePath: json['videoFilePath'] as String?,
+      videoFileName: json['videoFileName'] as String?,
     );
   }
 }

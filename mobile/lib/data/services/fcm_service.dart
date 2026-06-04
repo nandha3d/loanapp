@@ -26,7 +26,9 @@ class FcmService {
     if (kIsWeb) return;
     if (defaultTargetPlatform == TargetPlatform.windows ||
         defaultTargetPlatform == TargetPlatform.linux ||
-        defaultTargetPlatform == TargetPlatform.macOS) return;
+        defaultTargetPlatform == TargetPlatform.macOS) {
+      return;
+    }
 
     final fm = FirebaseMessaging.instance;
     try {

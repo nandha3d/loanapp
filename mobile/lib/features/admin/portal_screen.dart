@@ -56,23 +56,30 @@ class PortalScreen extends ConsumerWidget {
                   const SizedBox(height: 4),
                   Text(
                     'Role: ${user?.role.name.toUpperCase()} · Tenant: ${user?.tenantSlug ?? 'Default'}',
-                    style: AppTypography.caption.copyWith(color: Colors.white70),
+                    style:
+                        AppTypography.caption.copyWith(color: Colors.white70),
                   ),
                   const SizedBox(height: 16),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
                       color: Colors.white.withAlpha(20),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.info_outline, color: AppColors.primary, size: 18),
+                        const Icon(
+                          Icons.info_outline,
+                          color: AppColors.primary,
+                          size: 18,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             'Active App Scope: ${user?.appType.toUpperCase()}',
-                            style: AppTypography.caption.copyWith(color: Colors.white),
+                            style: AppTypography.caption
+                                .copyWith(color: Colors.white),
                           ),
                         ),
                       ],
@@ -93,7 +100,8 @@ class PortalScreen extends ConsumerWidget {
             // Microlending Module Card
             _ModuleCard(
               title: 'Micro-Lending Platform',
-              description: 'Manage daily loan allocations, field collections, cash handovers, and routing.',
+              description:
+                  'Manage daily loan allocations, field collections, cash handovers, and routing.',
               icon: Icons.monetization_on_outlined,
               iconColor: AppColors.success,
               iconBg: AppColors.successBg,
@@ -104,10 +112,12 @@ class PortalScreen extends ConsumerWidget {
             const SizedBox(height: 16),
 
             // Chit Funds Module Card (Visible if chit module enabled or superadmin/admin)
-            if (user?.role != UserRole.agent || (user?.hasModule('chits') ?? false)) ...[
+            if (user?.role != UserRole.agent ||
+                (user?.hasModule('chits') ?? false)) ...[
               _ModuleCard(
                 title: 'Chit Funds Suite',
-                description: 'Organize chit groups, subscriber allocations, and process bidding auctions.',
+                description:
+                    'Organize chit groups, subscriber allocations, and process bidding auctions.',
                 icon: Icons.account_balance_wallet_outlined,
                 iconColor: AppColors.info,
                 iconBg: AppColors.infoBg,
@@ -118,8 +128,9 @@ class PortalScreen extends ConsumerWidget {
               const SizedBox(height: 24),
             ],
 
-            // Branch Context Switcher (For Superadmins and Admins)
-            if (user?.role == UserRole.superadmin || user?.role == UserRole.admin) ...[
+            // Branch Context (management is available to superadmins only)
+            if (user?.role == UserRole.superadmin ||
+                user?.role == UserRole.admin) ...[
               Text(
                 'Branch Locations',
                 style: AppTypography.sectionTitle,
@@ -139,16 +150,15 @@ class PortalScreen extends ConsumerWidget {
                       'Currently viewing data for Branch ID: ${user?.branchId ?? 'Head Office'}',
                       style: AppTypography.bodyLarge,
                     ),
-                    const SizedBox(height: 12),
-                    AppButton(
-                      label: 'Switch Active Branch',
-                      onPressed: () {
-                        // In a real app, this opens a bottom sheet with available branches
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Branch selector sheet opened')),
-                        );
-                      },
-                    ),
+                    if (user?.role == UserRole.superadmin) ...[
+                      const SizedBox(height: 12),
+                      AppButton(
+                        label: 'Manage Branches',
+                        onPressed: () {
+                          context.go('/admin/branches');
+                        },
+                      ),
+                    ],
                   ],
                 ),
               ),

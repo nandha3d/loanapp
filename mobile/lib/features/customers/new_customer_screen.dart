@@ -893,7 +893,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                   if (_isEdit) ...[
                     const SizedBox(height: 16),
                     _LabeledField(
-                      label: t.x('fld.kyc') ?? 'KYC Status',
+                      label: t.x('fld.kyc'),
                       child: _AppDropdown<String>(
                         value: _kycStatus,
                         hint: 'Select KYC Status',

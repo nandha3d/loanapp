@@ -9,6 +9,7 @@ import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/data/services/kyc_service.dart';
+import 'package:loantrack/core/network/dio_client.dart';
 import 'package:loantrack/shared/widgets/empty_state.dart';
 import 'package:loantrack/shared/widgets/skeleton.dart';
 
@@ -131,18 +132,52 @@ class _KycCardState extends ConsumerState<_KycCard> {
     return reason;
   }
 
+  String _buildVideoUrl(String pathOrUrl) {
+    if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
+      return pathOrUrl;
+    }
+    final baseUri = Uri.parse(kDefaultBaseUrl);
+    final hostBase = '${baseUri.scheme}://${baseUri.host}${baseUri.hasPort ? ":${baseUri.port}" : ""}';
+    
+    var cleanPath = pathOrUrl;
+    if (cleanPath.startsWith('/')) {
+      cleanPath = cleanPath.substring(1);
+    }
+    
+    if (cleanPath.startsWith('private/uploads/')) {
+      cleanPath = cleanPath.replaceFirst('private/uploads/', '');
+    } else if (cleanPath.startsWith('public/uploads/')) {
+      cleanPath = cleanPath.replaceFirst('public/uploads/', '');
+    }
+    
+    if (cleanPath.startsWith('api/files/')) {
+      cleanPath = cleanPath.replaceFirst('api/files/', '');
+    }
+    
+    return '$hostBase/api/files/$cleanPath';
+  }
+
   void _showVideoKycReviewSheet(BuildContext context) {
     final t = T.of(ref);
     final item = widget.item;
     final latestSession = item.kycSessions.isNotEmpty ? item.kycSessions.first : null;
     
-    String? videoUrl;
-    if (latestSession != null && latestSession.responseData != null) {
-      try {
-        final decoded = jsonDecode(latestSession.responseData!) as Map<String, dynamic>;
-        videoUrl = decoded['video_url'] as String?;
-      } catch (_) {}
+    String? rawPath;
+    if (latestSession != null) {
+      if (latestSession.videoFilePath != null && latestSession.videoFilePath!.isNotEmpty) {
+        rawPath = latestSession.videoFilePath;
+      } else if (latestSession.responseData != null) {
+        try {
+          final decoded = jsonDecode(latestSession.responseData!) as Map<String, dynamic>;
+          rawPath = (decoded['video_url'] ??
+                     decoded['videoUrl'] ??
+                     decoded['video_file_path'] ??
+                     decoded['videoFilePath']) as String?;
+        } catch (_) {}
+      }
     }
+
+    final videoUrl = rawPath != null && rawPath.isNotEmpty ? _buildVideoUrl(rawPath) : null;
 
     final notesController = TextEditingController();
     bool sheetBusy = false;

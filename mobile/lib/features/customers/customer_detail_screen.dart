@@ -867,13 +867,13 @@ class _IdentitySection extends StatelessWidget {
           if (customer.email != null && customer.email!.isNotEmpty)
             _IdRow(
               icon: Icons.email_outlined,
-              label: t.x('fld.email') ?? 'Email',
+              label: t.x('fld.email'),
               value: customer.email!,
             ),
           if (customer.pan != null && customer.pan!.isNotEmpty)
             _IdRow(
               icon: Icons.badge_outlined,
-              label: t.x('fld.pan') ?? 'PAN',
+              label: t.x('fld.pan'),
               value: customer.pan!,
             ),
           if (customer.routeName != null)
