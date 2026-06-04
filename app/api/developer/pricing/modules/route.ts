@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
+import { withStandardVerticalBases } from '@/lib/pricing';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,7 +20,7 @@ export async function GET() {
     const modules = await prisma.modulePriceCatalog.findMany({
       orderBy: { sortOrder: 'asc' }
     });
-    return NextResponse.json({ success: true, modules });
+    return NextResponse.json({ success: true, modules: withStandardVerticalBases(modules) });
   } catch (err: any) {
     return NextResponse.json(
       { success: false, error: err.message || 'Unauthorized' },

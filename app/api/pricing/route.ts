@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
+import { withStandardVerticalBases } from '@/lib/pricing';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +31,7 @@ export async function GET() {
       {
         success: true,
         plans: formattedPlans,
-        modules,
+        modules: withStandardVerticalBases(modules),
         addons
       },
       { status: 200 }

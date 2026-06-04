@@ -36,6 +36,7 @@ class Customer {
     this.companyLogo,
     this.designation,
     this.collectionPoints = const [],
+    this.securityCheques = const [],
   });
 
   final String id;
@@ -71,6 +72,7 @@ class Customer {
   final List<KycDocument> kycDocuments;
   final List<Guarantor> guarantors;
   final List<CustomerLoanSummary> loans;
+  final List<SecurityCheque> securityCheques;
 
   String get initials {
     final parts = name.trim().split(RegExp(r'\s+'));
@@ -128,6 +130,12 @@ class Customer {
           .map(
             (dynamic e) =>
                 CustomerLoanSummary.fromJson(e as Map<String, dynamic>),
+          )
+          .toList(growable: false),
+      securityCheques: (json['securityCheques'] as List<dynamic>? ?? const [])
+          .map(
+            (dynamic e) =>
+                SecurityCheque.fromJson(e as Map<String, dynamic>),
           )
           .toList(growable: false),
     );
@@ -219,15 +227,31 @@ class KycDocument {
 }
 
 class Guarantor {
-  const Guarantor({required this.id, required this.name, required this.phone});
+  const Guarantor({
+    required this.id,
+    required this.name,
+    required this.phone,
+    this.address,
+    this.aadharNumber,
+    this.photoUrl,
+    this.relation,
+  });
   final String id;
   final String name;
   final String phone;
+  final String? address;
+  final String? aadharNumber;
+  final String? photoUrl;
+  final String? relation;
 
   factory Guarantor.fromJson(Map<String, dynamic> json) => Guarantor(
         id: json['id'] as String,
         name: (json['name'] as String?) ?? '',
         phone: (json['phone'] as String?) ?? '',
+        address: json['address'] as String?,
+        aadharNumber: json['aadharNumber'] as String?,
+        photoUrl: json['photo'] as String?,
+        relation: json['relation'] as String?,
       );
 }
 
@@ -260,6 +284,43 @@ class CustomerLoanSummary {
       status: (json['status'] as String?) ?? 'active',
       principal: principal,
       loanCode: json['loanCode'] as String?,
+    );
+  }
+}
+
+class SecurityCheque {
+  const SecurityCheque({
+    required this.id,
+    required this.bankName,
+    required this.chequeNumber,
+    this.amount,
+    this.imagePath,
+    required this.status,
+    this.notes,
+    this.loanId,
+  });
+
+  final String id;
+  final String bankName;
+  final String chequeNumber;
+  final double? amount;
+  final String? imagePath;
+  final String status;
+  final String? notes;
+  final String? loanId;
+
+  factory SecurityCheque.fromJson(Map<String, dynamic> json) {
+    double? toDouble(dynamic v) =>
+        v == null ? null : (v is num ? v.toDouble() : double.tryParse('$v'));
+    return SecurityCheque(
+      id: json['id'] as String,
+      bankName: (json['bankName'] as String?) ?? '',
+      chequeNumber: (json['chequeNumber'] as String?) ?? '',
+      amount: toDouble(json['amount']),
+      imagePath: json['imagePath'] as String?,
+      status: (json['status'] as String?) ?? 'active',
+      notes: json['notes'] as String?,
+      loanId: json['loanId'] as String?,
     );
   }
 }

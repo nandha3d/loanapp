@@ -63,6 +63,7 @@ class _GuarantorEntry {
   final TextEditingController address;
   String? relation;
   File? photo;
+  String? photoUrl;
   void dispose() {
     name.dispose();
     phone.dispose();
@@ -107,6 +108,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
   File? _companyLogo;
   bool _showCompany = false;
   final _picker = ImagePicker();
+  String? _kycStatus;
 
   bool get _isEdit => widget.editCustomer != null;
 
@@ -141,6 +143,17 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
           (c.companyPan ?? '').isNotEmpty ||
           c.businessType != null ||
           c.companyType != null;
+      _kycStatus = c.kycStatus;
+      // Prefill guarantors
+      for (final g in c.guarantors) {
+        final entry = _GuarantorEntry()
+          ..name.text = g.name
+          ..phone.text = g.phone
+          ..address.text = g.address ?? ''
+          ..relation = g.relation
+          ..photoUrl = g.photoUrl;
+        _guarantors.add(entry);
+      }
       // Prefill collection points from existing customer.
       for (final cp in c.collectionPoints) {
         final entry = _CollectionPointEntry()
@@ -387,7 +400,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
   // Assembles the extended PAN/email/company fields. Only non-empty values
   // are sent so the API doesn't overwrite with blanks. `logoUrl` is the
   // already-uploaded company logo URL (null when unchanged/unset).
-  Map<String, dynamic> _extendedFields(String? logoUrl) {
+  Map<String, dynamic> _extendedFields(String? logoUrl, List<Map<String, dynamic>> guarantorPayloads) {
     final m = <String, dynamic>{};
     void put(String key, String value) {
       final v = value.trim();
@@ -425,6 +438,10 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
             },)
         .toList();
     if (cps.isNotEmpty) m['collectionPoints'] = cps;
+    if (guarantorPayloads.isNotEmpty) m['guarantors'] = guarantorPayloads;
+    if (_kycStatus != null) m['kycStatus'] = _kycStatus;
+    if (_routeId != null) m['routeId'] = _routeId;
+    if (_agentId != null) m['agentId'] = _agentId;
     return m;
   }
 
@@ -437,13 +454,31 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
       _error = null;
     });
     try {
+      final uploader = ref.read(uploadServiceProvider);
+
+      // Upload guarantor photos
+      final guarantorPayloads = <Map<String, dynamic>>[];
+      for (final g in _guarantors) {
+        if (g.name.text.trim().isEmpty || g.phone.text.trim().isEmpty) continue;
+        String? gPhotoUrl;
+        if (g.photo != null) {
+          final r = await uploader.uploadFile(g.photo!, contentType: 'image/jpeg');
+          gPhotoUrl = r.url;
+        }
+        guarantorPayloads.add({
+          'name': g.name.text.trim(),
+          'phone': g.phone.text.trim(),
+          if (g.address.text.trim().isNotEmpty) 'address': g.address.text.trim(),
+          if (g.relation != null) 'relation': g.relation,
+          if (gPhotoUrl != null || g.photoUrl != null) 'photo': gPhotoUrl ?? g.photoUrl,
+        });
+      }
+
       // ── EDIT mode: PATCH the supported basic fields ──────────────────────
       if (_isEdit) {
         String? logoUrl;
         if (_companyLogo != null) {
-          final r = await ref
-              .read(uploadServiceProvider)
-              .uploadFile(_companyLogo!, contentType: 'image/jpeg');
+          final r = await uploader.uploadFile(_companyLogo!, contentType: 'image/jpeg');
           logoUrl = r.url;
         }
         final patch = <String, dynamic>{
@@ -452,7 +487,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
           'address': _addressCtrl.text.trim().isEmpty
               ? null
               : _addressCtrl.text.trim(),
-          ..._extendedFields(logoUrl),
+          ..._extendedFields(logoUrl, guarantorPayloads),
         };
         if (_aadharCtrl.text.trim().isNotEmpty) {
           patch['aadharNumber'] = _aadharCtrl.text.trim();
@@ -478,7 +513,6 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
         return;
       }
 
-      final uploader = ref.read(uploadServiceProvider);
       String? photoUrl;
       if (_photo != null) {
         final r = await uploader.uploadFile(_photo!, contentType: 'image/jpeg');
@@ -508,7 +542,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
             agentId: _agentId,
             photoUrl: photoUrl,
             kycDocs: kycInputs,
-            extra: _extendedFields(logoUrl),
+            extra: _extendedFields(logoUrl, guarantorPayloads),
           );
       if (!mounted) return;
       ref.invalidate(customerListProvider);
@@ -856,10 +890,26 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                     ),
                   ),
 
-                  if (!_isEdit) const SizedBox(height: 20),
+                  if (_isEdit) ...[
+                    const SizedBox(height: 16),
+                    _LabeledField(
+                      label: t.x('fld.kyc') ?? 'KYC Status',
+                      child: _AppDropdown<String>(
+                        value: _kycStatus,
+                        hint: 'Select KYC Status',
+                        items: const [
+                          DropdownMenuItem(value: 'pending', child: Text('PENDING')),
+                          DropdownMenuItem(value: 'verified', child: Text('VERIFIED')),
+                          DropdownMenuItem(value: 'rejected', child: Text('REJECTED')),
+                        ],
+                        onChanged: (v) => setState(() => _kycStatus = v),
+                      ),
+                    ),
+                  ],
 
-                  // ── Route + Agent (assignment isn't editable from mobile) ──
-                  if (!_isEdit)
+                  const SizedBox(height: 20),
+
+                  // ── Route + Agent ──────────────────────────────────────────
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -965,7 +1015,6 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
             if (!_isEdit) const SizedBox(height: 16),
 
             // ── Documents section ──────────────────────────────────────
-            if (!_isEdit)
             _SectionCard(
               icon: Icons.attachment_rounded,
               title: t.x('sec.documents_label'),
@@ -991,7 +1040,6 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
             if (!_isEdit) const SizedBox(height: 16),
 
             // ── Guarantors section ─────────────────────────────────────
-            if (!_isEdit)
             _SectionCard(
               icon: Icons.people_alt_outlined,
               iconColor: AppColors.warning,

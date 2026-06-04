@@ -15,7 +15,7 @@ type PlanCatalogItem = {
   maxActiveLoans: number;
   features: string[];
   razorpayPlanId: string | null;
-  trialDays: number;
+  trialDays?: number;
   isActive: boolean;
   sortOrder: number;
 };
@@ -52,7 +52,6 @@ export default function PricingClient({
   initialAddons,
 }: Props) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'plans' | 'modules' | 'addons'>('plans');
 
   // Lists state
   const [plans, setPlans] = useState<PlanCatalogItem[]>(initialPlans);
@@ -146,7 +145,7 @@ export default function PricingClient({
     }
   };
 
-  // Save Module Pricing
+  // Save Vertical Base
   const handleSaveModule = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
@@ -178,7 +177,7 @@ export default function PricingClient({
 
       const data = await res.json();
       if (!data.success) {
-        throw new Error(data.error || 'Failed to save module pricing');
+        throw new Error(data.error || 'Failed to save vertical base');
       }
 
       const updated = data.module;
@@ -254,74 +253,53 @@ export default function PricingClient({
         <div className="header-content">
           <h1>⚙️ System Pricing Settings</h1>
           <p className="text-muted">
-            Configure system plans, module additions, and platform addon capabilities pricing.
+            Configure subscription plans, vertical bases, and separate platform add-on pricing.
           </p>
         </div>
-        <div className="header-actions">
-          {activeTab === 'plans' && (
-            <button
-              className="btn btn-primary"
-              onClick={() => {
-                setEditingPlan(null);
-                setError('');
-                setIsPlanModalOpen(true);
-              }}
-            >
-              <span className="material-icons-outlined">add</span> Add Subscription Plan
-            </button>
-          )}
-          {activeTab === 'modules' && (
-            <button
-              className="btn btn-primary"
-              onClick={() => {
-                setEditingModule(null);
-                setError('');
-                setIsModuleModalOpen(true);
-              }}
-            >
-              <span className="material-icons-outlined">add</span> Add Module Pricing
-            </button>
-          )}
-          {activeTab === 'addons' && (
-            <button
-              className="btn btn-primary"
-              onClick={() => {
-                setEditingAddon(null);
-                setError('');
-                setIsAddonModalOpen(true);
-              }}
-            >
-              <span className="material-icons-outlined">add</span> Add Add-on Pricing
-            </button>
-          )}
+        <div className="header-actions" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button
+            className="btn btn-primary"
+            onClick={() => {
+              setEditingPlan(null);
+              setError('');
+              setIsPlanModalOpen(true);
+            }}
+          >
+            <span className="material-icons-outlined">add</span> Add Subscription Plan
+          </button>
+          <button
+            className="btn btn-ghost"
+            onClick={() => {
+              setEditingModule(null);
+              setError('');
+              setIsModuleModalOpen(true);
+            }}
+          >
+            <span className="material-icons-outlined">add</span> Add Vertical
+          </button>
+          <button
+            className="btn btn-ghost"
+            onClick={() => {
+              setEditingAddon(null);
+              setError('');
+              setIsAddonModalOpen(true);
+            }}
+          >
+            <span className="material-icons-outlined">add</span> Add Add-on
+          </button>
         </div>
       </div>
 
-      {/* Tabs Menu */}
-      <div className="tab-menu" style={{ display: 'flex', gap: '10px', marginBottom: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
-        <button
-          className={`btn ${activeTab === 'plans' ? 'btn-primary' : 'btn-ghost'}`}
-          onClick={() => setActiveTab('plans')}
-        >
-          Subscription Plans
-        </button>
-        <button
-          className={`btn ${activeTab === 'modules' ? 'btn-primary' : 'btn-ghost'}`}
-          onClick={() => setActiveTab('modules')}
-        >
-          Modules pricing
-        </button>
-        <button
-          className={`btn ${activeTab === 'addons' ? 'btn-primary' : 'btn-ghost'}`}
-          onClick={() => setActiveTab('addons')}
-        >
-          Add-ons Pricing
-        </button>
+      <div style={{ marginBottom: '18px', color: 'var(--text-secondary)', fontSize: '.86rem' }}>
+        Customers choose one of the vertical bases below, then pick Basic, Pro, or Enterprise for that vertical. Each additional vertical requires another subscription at the same selected plan price; add-ons remain separate.
       </div>
 
-      {/* Plans Tab Content */}
-      {activeTab === 'plans' && (
+      {/* Subscription Plans */}
         <div className="card">
+          <div className="card-header">
+            <h3>Subscription Plans</h3>
+            <span className="text-muted" style={{ fontSize: '.8rem' }}>Priced per selected vertical</span>
+          </div>
           <div className="table-responsive">
             <table className="table">
               <thead>
@@ -358,8 +336,8 @@ export default function PricingClient({
                     <td>{p.maxAgents === 999 ? 'Unlimited' : p.maxAgents}</td>
                     <td>{p.maxActiveLoans === 999999 ? 'Unlimited' : p.maxActiveLoans}</td>
                     <td>
-                      {p.trialDays > 0
-                        ? <span className="badge badge-warning">{p.trialDays}d free</span>
+                      {(p.trialDays ?? 0) > 0
+                        ? <span className="badge badge-warning">{p.trialDays ?? 0}d free</span>
                         : <span className="text-muted" style={{ fontSize: '.78rem' }}>—</span>}
                     </td>
                     <td>
@@ -385,18 +363,20 @@ export default function PricingClient({
             </table>
           </div>
         </div>
-      )}
 
-      {/* Modules Tab Content */}
-      {activeTab === 'modules' && (
-        <div className="card">
+      {/* Vertical Modules */}
+        <div className="card" style={{ marginTop: '18px' }}>
+          <div className="card-header">
+            <h3>Vertical Bases Under Subscription Plans</h3>
+            <span className="text-muted" style={{ fontSize: '.8rem' }}>Micro Lending, Auto Finance, Chit Funds, and Gold Loan are verticals, not add-ons</span>
+          </div>
           <div className="table-responsive">
             <table className="table">
               <thead>
                 <tr>
-                  <th>Module Key</th>
+                  <th>Vertical Key</th>
                   <th>Display Name</th>
-                  <th>Monthly Price</th>
+                  <th>Billing Rule</th>
                   <th>Description</th>
                   <th>Status</th>
                   <th>Action</th>
@@ -411,7 +391,7 @@ export default function PricingClient({
                       </span>
                     </td>
                     <td><strong>{m.displayName}</strong></td>
-                    <td>{m.monthlyPrice === 0 ? 'Included' : `₹${m.monthlyPrice}/mo`}</td>
+                    <td className="text-muted" style={{ fontSize: '0.8rem' }}>Selected subscription plan applies per vertical</td>
                     <td className="text-muted" style={{ fontSize: '0.8rem' }}>{m.description}</td>
                     <td>
                       <span className={`badge ${m.isActive ? 'badge-active' : 'badge-closed'}`}>
@@ -436,11 +416,13 @@ export default function PricingClient({
             </table>
           </div>
         </div>
-      )}
 
-      {/* Addons Tab Content */}
-      {activeTab === 'addons' && (
-        <div className="card">
+      {/* Addons */}
+        <div className="card" style={{ marginTop: '18px' }}>
+          <div className="card-header">
+            <h3>Add-on Pricing</h3>
+            <span className="text-muted" style={{ fontSize: '.8rem' }}>Optional capabilities billed separately from vertical subscriptions</span>
+          </div>
           <div className="table-responsive">
             <table className="table">
               <thead>
@@ -487,7 +469,6 @@ export default function PricingClient({
             </table>
           </div>
         </div>
-      )}
 
       {/* Plan modal */}
       <Modal
@@ -651,18 +632,18 @@ export default function PricingClient({
       <Modal
         isOpen={isModuleModalOpen}
         onClose={() => setIsModuleModalOpen(false)}
-        title={editingModule ? `Edit Module Pricing: ${editingModule.displayName}` : 'Add Module Pricing'}
+        title={editingModule ? `Edit Vertical Base: ${editingModule.displayName}` : 'Add Vertical Base'}
       >
         {error && <div className="login-error" style={{ marginBottom: '16px' }}>{error}</div>}
         <form onSubmit={handleSaveModule}>
           <div className="form-row">
             <div className="form-group">
-              <label className="form-label">Module Key Identifier</label>
+              <label className="form-label">Vertical Key Identifier</label>
               <input
                 type="text"
                 name="module"
                 className="form-control"
-                placeholder="e.g. microlending, autofinance, chitfunds"
+                placeholder="e.g. microlending, autofinance, chitfunds, goldloan"
                 defaultValue={editingModule?.module}
                 required
                 disabled={!!editingModule}
@@ -683,19 +664,19 @@ export default function PricingClient({
           </div>
 
           <div className="form-group">
-            <label className="form-label">Module Description</label>
+            <label className="form-label">Vertical Description</label>
             <input
               type="text"
               name="description"
               className="form-control"
-              placeholder="Brief details about module"
+              placeholder="Brief details about vertical"
               defaultValue={editingModule?.description || ''}
             />
           </div>
 
           <div className="form-row">
             <div className="form-group">
-              <label className="form-label">Monthly Add-on Price (INR)</label>
+              <label className="form-label">Catalog Monthly Price (not charged)</label>
               <input
                 type="number"
                 name="monthlyPrice"
@@ -725,7 +706,7 @@ export default function PricingClient({
 
           <div className="form-actions">
             <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? 'Saving...' : 'Save Module'}
+              {loading ? 'Saving...' : 'Save Vertical'}
             </button>
             <button type="button" className="btn btn-ghost" onClick={() => setIsModuleModalOpen(false)}>
               Cancel

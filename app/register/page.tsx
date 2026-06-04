@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
+import { calculateVerticalSubscriptionPricing } from '@/lib/pricing';
 
 function RegisterForm() {
   const router = useRouter();
@@ -81,8 +82,8 @@ function RegisterForm() {
   }, []);
 
   const handleModuleToggle = (moduleKey: string) => {
-    if (moduleKey === 'microlending') return; // Cannot toggle off default module
     if (selectedModules.includes(moduleKey)) {
+      if (selectedModules.length === 1) return;
       setSelectedModules(selectedModules.filter(m => m !== moduleKey));
     } else {
       setSelectedModules([...selectedModules, moduleKey]);
@@ -99,24 +100,23 @@ function RegisterForm() {
 
   // Pricing calculations
   const getPricingQuote = () => {
-    if (!catalog) return { base: 0, modules: 0, addons: 0, total: 0 };
+    if (!catalog) return { base: 0, modules: 0, addons: 0, total: 0, planPrice: 0, verticalCount: 1 };
     
     const plan = catalog.plans.find((p: any) => p.plan === selectedPlan);
-    const base = plan ? plan.monthlyPrice : 0;
-
-    const modules = catalog.modules
-      .filter((m: any) => selectedModules.includes(m.module))
-      .reduce((sum: number, m: any) => sum + m.monthlyPrice, 0);
+    const planPrice = plan ? plan.monthlyPrice : 0;
 
     const addons = catalog.addons
       .filter((a: any) => selectedAddons.includes(a.addon))
       .reduce((sum: number, a: any) => sum + a.monthlyPrice, 0);
+    const verticalPricing = calculateVerticalSubscriptionPricing(planPrice, selectedModules, addons);
 
     return {
-      base,
-      modules,
+      base: verticalPricing.basePlanPrice,
+      modules: verticalPricing.modulesPrice,
       addons,
-      total: base + modules + addons
+      total: verticalPricing.totalMonthlyPrice,
+      planPrice,
+      verticalCount: verticalPricing.verticalCount
     };
   };
 
@@ -131,6 +131,8 @@ function RegisterForm() {
       setError('');
     }
     
+    setError('');
+
     // Track step progression if we have a referral code
     if (referralCode) {
       let stepName = `step_${step + 1}`;
@@ -270,7 +272,7 @@ function RegisterForm() {
           Register Your Lending Business
         </h2>
         <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '.85rem', marginBottom: '32px' }}>
-          Configure tenant workspace, plan, modules, and add-ons
+          Configure tenant workspace, vertical subscription, and add-ons
         </p>
 
         {/* Stepper Progress */}
@@ -291,7 +293,7 @@ function RegisterForm() {
                 {num}
               </div>
               <span style={{ fontSize: '0.72rem', color: step >= num ? 'var(--text-primary)' : 'var(--text-light)', marginTop: '6px', fontWeight: step === num ? 600 : 400 }}>
-                {num === 1 ? 'Details' : num === 2 ? 'Modules' : num === 3 ? 'Plan' : num === 4 ? 'Add-ons' : 'Review'}
+                {num === 1 ? 'Details' : num === 2 ? 'Verticals' : num === 3 ? 'Plan' : num === 4 ? 'Add-ons' : 'Review'}
               </span>
             </div>
           ))}
@@ -384,16 +386,15 @@ function RegisterForm() {
             </div>
           )}
 
-          {/* Step 2: Modules */}
+          {/* Step 2: Verticals */}
           {step === 2 && (
             <div>
               <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-                Select modules to activate in your workspace. You can customize active modules per branch.
+                Choose the vertical base for this workspace. Each selected vertical uses its own subscription; extra verticals are not add-ons.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 {catalog.modules.map((m: any) => {
                   const isEnabled = selectedModules.includes(m.module);
-                  const isDefault = m.module === 'microlending';
                   return (
                     <div
                       key={m.module}
@@ -402,28 +403,30 @@ function RegisterForm() {
                         padding: '16px', borderRadius: '10px',
                         background: isEnabled ? 'var(--bg-light)' : 'transparent',
                         border: `2px solid ${isEnabled ? 'var(--primary)' : 'var(--border)'}`,
-                        cursor: isDefault ? 'default' : 'pointer',
+                        cursor: 'pointer',
                         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                         transition: 'all 0.2s'
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                         <span className="material-icons-outlined" style={{ fontSize: '24px', color: isEnabled ? 'var(--primary)' : 'var(--text-light)' }}>
-                          {m.module === 'microlending' ? 'monetization_on' : m.module === 'autofinance' ? 'directions_car' : 'groups'}
+                          {m.module === 'microlending' ? 'monetization_on' : m.module === 'autofinance' ? 'directions_car' : m.module === 'goldloan' ? 'account_balance' : 'groups'}
                         </span>
                         <div style={{ textAlign: 'left' }}>
                           <div style={{ fontWeight: 600, fontSize: '0.92rem' }}>{m.displayName}</div>
                           <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '2px' }}>{m.description}</div>
+                          {isEnabled && selectedModules.length === 1 && (
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-light)', marginTop: '4px' }}>At least one vertical is required</div>
+                          )}
                         </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                          {m.monthlyPrice === 0 ? 'Included' : `+₹${m.monthlyPrice}/mo`}
+                          {quote.planPrice === 0 ? 'Included with selected plan' : 'Plan price applies'}
                         </span>
                         <input
                           type="checkbox"
                           checked={isEnabled}
-                          disabled={isDefault}
                           onChange={() => {}}
                           style={{ pointerEvents: 'none' }}
                         />
@@ -439,7 +442,7 @@ function RegisterForm() {
           {step === 3 && (
             <div>
               <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: '24px' }}>
-                Select a subscription plan that fits your business scale. Plans determine branches and agents capacity.
+                Select a subscription plan that fits your business scale. The selected plan is billed once for each active vertical.
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
                 {catalog.plans.map((p: any) => {
@@ -467,7 +470,7 @@ function RegisterForm() {
                       </span>
                       <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                         ₹{p.monthlyPrice}
-                        <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 400 }}>/mo</span>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 400 }}>/vertical/mo</span>
                       </div>
                       <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '8px 0 16px', minHeight: '36px' }}>
                         {p.description}
@@ -576,12 +579,12 @@ function RegisterForm() {
                   {/* Pricing Quote Table */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.85rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Base Subscription Plan ({selectedPlan.toUpperCase()})</span>
+                      <span>Base Vertical Subscription ({selectedPlan.toUpperCase()})</span>
                       <strong style={{ color: 'var(--text-primary)' }}>₹{quote.base}/mo</strong>
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Modules Subscription ({selectedModules.length} active)</span>
+                      <span>Additional Vertical Subscriptions ({Math.max(selectedModules.length - 1, 0)} extra)</span>
                       <strong style={{ color: 'var(--text-primary)' }}>₹{quote.modules}/mo</strong>
                     </div>
 

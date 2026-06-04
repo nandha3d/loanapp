@@ -822,6 +822,39 @@ export default function UsersClient({
               ))}
             </div>
           </div>
+          <div className="form-group">
+            <label className="form-label">Add-ons</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                <input type="checkbox" name="whatsappSmsEnabled" value="true" defaultChecked={activeSub?.whatsappSmsEnabled || false} />
+                Allow WhatsApp &amp; SMS Notifications
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                <input type="checkbox" name="receiptPdfAllowed" value="true" defaultChecked={activeSub?.receiptPdfAllowed || false} />
+                Allow Receipt PDF Downloads
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                <input type="checkbox" name="bureauEnabled" value="true" defaultChecked={activeSub?.bureauEnabled || false} />
+                Allow Credit Bureau Checks (CRIF/CIBIL)
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                <input type="checkbox" name="npaEnabled" value="true" defaultChecked={activeSub?.npaEnabled || false} />
+                Allow NPA Classification Engine (RBI Compliance)
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                <input type="checkbox" name="kycEnabled" value="true" defaultChecked={activeSub?.kycEnabled || false} />
+                Allow Aadhaar OTP &amp; Video KYC Verification (Digio)
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                <input type="checkbox" name="gpsTrackingEnabled" value="true" defaultChecked={activeSub?.gpsTrackingEnabled || false} />
+                Allow GPS Collection Tracking
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                <input type="checkbox" name="premiumAccountingEnabled" value="true" defaultChecked={activeSub?.premiumAccountingEnabled || false} />
+                💎 Allow Premium Accounting (double-entry, GST, Tally export)
+              </label>
+            </div>
+          </div>
           <div className="form-actions">
             <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Updating...' : 'Update Subscription'}</button>
             <button type="button" className="btn btn-ghost" onClick={() => setIsSubModalOpen(false)}>Cancel</button>

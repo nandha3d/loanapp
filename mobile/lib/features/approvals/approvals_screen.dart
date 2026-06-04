@@ -366,38 +366,97 @@ class _ChangesPreview extends StatelessWidget {
 
     if (changes.isEmpty) return const SizedBox.shrink();
 
+    String formatKey(String key) {
+      final words = key.replaceAll(RegExp(r'([A-Z])'), ' \$1').split(RegExp(r'[_ ]+'));
+      return words.map((w) => w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1).toLowerCase()).join(' ');
+    }
+
     return Container(
-      padding: const EdgeInsets.all(8),
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: changes.entries.map((e) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    e.key,
-                    style: AppTypography.caption.copyWith(fontWeight: FontWeight.w600),
-                  ),
+        children: [
+          Text(
+            'Requested Changes / Preview:',
+            style: AppTypography.caption.copyWith(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+          ),
+          const SizedBox(height: 8),
+          ...changes.entries.map((e) {
+            final keyStr = formatKey(e.key);
+            final valStr = e.value.toString();
+
+            if (e.value is Map) {
+              final valMap = e.value as Map;
+              final oldVal = valMap['old'] ?? '—';
+              final newVal = valMap['new'] ?? '—';
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(keyStr, style: AppTypography.tiny.copyWith(fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            oldVal.toString(),
+                            style: AppTypography.caption.copyWith(color: AppColors.danger, decoration: TextDecoration.lineThrough),
+                          ),
+                        ),
+                        const Icon(Icons.arrow_right_alt, size: 14, color: AppColors.textLight),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            newVal.toString(),
+                            style: AppTypography.caption.copyWith(color: AppColors.success, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                Expanded(
-                  flex: 3,
-                  child: Text(
-                    e.value.toString(),
-                    style: AppTypography.caption,
+              );
+            }
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      keyStr,
+                      style: AppTypography.caption.copyWith(fontWeight: FontWeight.w600),
+                    ),
                   ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
+                  Expanded(
+                    flex: 3,
+                    child: Row(
+                      children: [
+                        const Icon(Icons.add_circle_outline, size: 12, color: AppColors.success),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            valStr,
+                            style: AppTypography.caption.copyWith(color: AppColors.success, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
       ),
     );
   }

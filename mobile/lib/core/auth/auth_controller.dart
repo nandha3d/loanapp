@@ -49,7 +49,7 @@ class AuthController extends StateNotifier<AuthState> {
     if (user == null) {
       state = const AuthState(stage: AuthStage.unauthenticated);
     } else {
-      state = AuthState(stage: AuthStage.authenticated, user: user);
+      state = AuthState(stage: AuthStage.locked, user: user);
       _fcm.startTokenSync();
     }
   }

@@ -98,28 +98,28 @@ async function main() {
       module: 'microlending',
       displayName: 'Micro Lending',
       description: 'Manage micro loans, daily collections, routes, and agents',
-      monthlyPrice: 0, // Included in base plan
+      monthlyPrice: 0,
       sortOrder: 0
     },
     {
       module: 'autofinance',
       displayName: 'Auto Finance',
       description: 'Vehicle financing, hire purchase, collateral tracking, and hypothecation',
-      monthlyPrice: 699, // Medium complexity
+      monthlyPrice: 0,
       sortOrder: 1
     },
     {
       module: 'goldloan',
       displayName: 'Gold Loan',
       description: 'Gold-backed lending, valuation, LTV, packets, pledges, and release tracking',
-      monthlyPrice: 899, // High complexity/demand
+      monthlyPrice: 0,
       sortOrder: 2
     },
     {
       module: 'chitfunds',
       displayName: 'Chit Funds',
       description: 'Organize chit groups, auctions, dividend distribution, and member entries',
-      monthlyPrice: 999, // Highest complexity
+      monthlyPrice: 0,
       sortOrder: 3
     }
   ];
@@ -127,7 +127,7 @@ async function main() {
   for (const moduleData of modules) {
     await prisma.modulePriceCatalog.create({ data: moduleData });
   }
-  console.log('✅ Seeded modules pricing catalog');
+  console.log('✅ Seeded vertical bases catalog');
 
   // ── 4. Seed Addons Pricing ───────────────────────────────────────────────────
   const addons = [

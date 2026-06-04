@@ -4,6 +4,7 @@ import prisma from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth';
 import { upsertSubscription } from '@/lib/subscription';
+import { addonKeysFromSubscriptionFlags, calculateVerticalSubscriptionPricing, normalizeSelectedModules } from '@/lib/pricing';
 
 async function requireDeveloper() {
   const session = await auth();
@@ -23,7 +24,7 @@ export async function updateSubscription(formData: FormData) {
     const maxActiveLoans = parseInt(formData.get('maxActiveLoans') as string) || 0;
     const maxAgents = parseInt(formData.get('maxAgents') as string) || 0;
     const maxBranches = parseInt(formData.get('maxBranches') as string) || 0;
-    const enabledModules = formData.getAll('enabledModules');
+    const enabledModules = normalizeSelectedModules(formData.getAll('enabledModules'));
     const trialEndsAtStr = formData.get('trialEndsAt') as string | null;
     const currentPeriodEndStr = formData.get('currentPeriodEnd') as string | null;
     const razorpaySubId = (formData.get('razorpaySubId') as string) || null;
@@ -35,12 +36,31 @@ export async function updateSubscription(formData: FormData) {
     const gpsTrackingEnabled = formData.get('gpsTrackingEnabled') === 'true';
     const premiumAccountingEnabled = formData.get('premiumAccountingEnabled') === 'true';
     const bureauPullsIncluded = parseInt(formData.get('bureauPullsIncluded') as string) || 0;
+    const selectedAddons = addonKeysFromSubscriptionFlags({
+      whatsappSmsEnabled,
+      bureauEnabled,
+      kycEnabled,
+      gpsTrackingEnabled,
+      premiumAccountingEnabled,
+    });
 
     const parseDate = (dStr: string | null) => {
       if (!dStr) return null;
       const d = new Date(dStr);
       return isNaN(d.getTime()) ? null : d;
     };
+    const planCatalog = await prisma.subscriptionPlanCatalog.findUnique({
+      where: { plan },
+    });
+    const addonsCatalog = selectedAddons.length > 0
+      ? await prisma.addonCatalog.findMany({ where: { addon: { in: selectedAddons } } })
+      : [];
+    const addonsPrice = addonsCatalog.reduce((sum, item) => sum + item.monthlyPrice, 0);
+    const { basePlanPrice, modulesPrice, totalMonthlyPrice } = calculateVerticalSubscriptionPricing(
+      planCatalog?.monthlyPrice ?? 0,
+      enabledModules,
+      addonsPrice
+    );
 
     await upsertSubscription(tenantId, {
       plan,
@@ -49,6 +69,7 @@ export async function updateSubscription(formData: FormData) {
       maxAgents,
       maxBranches,
       enabledModules: JSON.stringify(enabledModules),
+      selectedAddons: JSON.stringify(selectedAddons),
       whatsappSmsEnabled,
       receiptPdfAllowed,
       bureauEnabled,
@@ -57,6 +78,10 @@ export async function updateSubscription(formData: FormData) {
       kycEnabled,
       gpsTrackingEnabled,
       premiumAccountingEnabled,
+      basePlanPrice,
+      modulesPrice,
+      addonsPrice,
+      totalMonthlyPrice,
       trialEndsAt: parseDate(trialEndsAtStr),
       currentPeriodEnd: parseDate(currentPeriodEndStr),
       razorpaySubId,

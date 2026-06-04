@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { generateTenantSlug } from '@/lib/slug';
+import { calculateVerticalSubscriptionPricing, normalizeSelectedModules } from '@/lib/pricing';
 
 export async function POST(request: Request) {
   try {
@@ -77,8 +78,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Ensure selectedModules includes microlending by default if empty
-    const finalModules = selectedModules.length > 0 ? selectedModules : ['microlending'];
+    const finalModules = normalizeSelectedModules(selectedModules);
 
     // Generate unique slug
     const slug = await generateTenantSlug(businessName, finalModules);
@@ -95,19 +95,16 @@ export async function POST(request: Request) {
       );
     }
 
-    // Fetch module prices snapshots
-    const modulesCatalog = await prisma.modulePriceCatalog.findMany({
-      where: { module: { in: finalModules } }
-    });
-    const basePlanPrice = planCatalog.monthlyPrice;
-    const modulesPrice = modulesCatalog.reduce((sum, item) => sum + item.monthlyPrice, 0);
-
     // Fetch addons price snapshots
     const addonsCatalog = await prisma.addonCatalog.findMany({
       where: { addon: { in: selectedAddons } }
     });
     const addonsPrice = addonsCatalog.reduce((sum, item) => sum + item.monthlyPrice, 0);
-    const totalMonthlyPrice = basePlanPrice + modulesPrice + addonsPrice;
+    const { basePlanPrice, modulesPrice, totalMonthlyPrice } = calculateVerticalSubscriptionPricing(
+      planCatalog.monthlyPrice,
+      finalModules,
+      addonsPrice
+    );
 
     // Generate unique username from email prefix (e.g. karthik from karthik@gmail.com)
     let username = email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase();

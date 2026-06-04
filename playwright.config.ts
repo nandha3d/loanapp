@@ -15,6 +15,7 @@ import path from 'path';
  * ENV overrides: E2E_BASE_URL, TEST_MODULE, *_EMAIL / *_PASS.
  */
 export const STORAGE = {
+  developer: path.join(__dirname, 'playwright/.auth/developer.json'),
   superadmin: path.join(__dirname, 'playwright/.auth/superadmin.json'),
   admin: path.join(__dirname, 'playwright/.auth/admin.json'),
   agent: path.join(__dirname, 'playwright/.auth/agent.json'),

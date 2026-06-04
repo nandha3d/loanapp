@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:video_player/video_player.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -129,10 +131,203 @@ class _KycCardState extends ConsumerState<_KycCard> {
     return reason;
   }
 
+  void _showVideoKycReviewSheet(BuildContext context) {
+    final t = T.of(ref);
+    final item = widget.item;
+    final latestSession = item.kycSessions.isNotEmpty ? item.kycSessions.first : null;
+    
+    String? videoUrl;
+    if (latestSession != null && latestSession.responseData != null) {
+      try {
+        final decoded = jsonDecode(latestSession.responseData!) as Map<String, dynamic>;
+        videoUrl = decoded['video_url'] as String?;
+      } catch (_) {}
+    }
+
+    final notesController = TextEditingController();
+    bool sheetBusy = false;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+                left: 16,
+                right: 16,
+                top: 16,
+              ),
+              child: SafeArea(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 36,
+                          height: 4,
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: AppColors.border,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      const Text('Review Video KYC', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.background,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Customer: ${item.name}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 4),
+                            Text('Code: ${item.customerCode}'),
+                            const SizedBox(height: 4),
+                            Text('Phone: ${item.phone}'),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      if (videoUrl != null) ...[
+                        const Text('Recorded KYC Video', style: TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: KycVideoPlayer(url: videoUrl),
+                        ),
+                      ] else ...[
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppColors.background,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Center(
+                            child: Text('No recorded video found in session.', style: TextStyle(color: AppColors.textLight)),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: notesController,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          labelText: 'Review Notes / Remarks',
+                          hintText: 'Enter details on physical face match, audio match...',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      if (sheetBusy)
+                        const Center(child: CircularProgressIndicator())
+                      else
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () async {
+                                  if (notesController.text.trim().isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Please provide rejection notes')),
+                                    );
+                                    return;
+                                  }
+                                  final navigator = Navigator.of(ctx);
+                                  final messenger = ScaffoldMessenger.of(context);
+                                  setSheetState(() => sheetBusy = true);
+                                  try {
+                                    await ref.read(kycServiceProvider).review(
+                                      item.id,
+                                      'rejected',
+                                      reason: notesController.text.trim(),
+                                    );
+                                    navigator.pop();
+                                    ref.invalidate(kycQueueProvider);
+                                    messenger.showSnackBar(
+                                      SnackBar(content: Text(t.x('kyc.rejected_msg')), backgroundColor: AppColors.danger),
+                                    );
+                                  } catch (e) {
+                                    setSheetState(() => sheetBusy = false);
+                                    messenger.showSnackBar(
+                                      SnackBar(content: Text(e.toString())),
+                                    );
+                                  }
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.danger,
+                                  side: const BorderSide(color: AppColors.danger),
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                ),
+                                child: Text(t.x('kyc.reject_btn')),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: FilledButton(
+                                onPressed: () async {
+                                  final navigator = Navigator.of(ctx);
+                                  final messenger = ScaffoldMessenger.of(context);
+                                  setSheetState(() => sheetBusy = true);
+                                  try {
+                                    await ref.read(kycServiceProvider).review(
+                                      item.id,
+                                      'verified',
+                                      reason: notesController.text.trim().isEmpty ? null : notesController.text.trim(),
+                                    );
+                                    navigator.pop();
+                                    ref.invalidate(kycQueueProvider);
+                                    messenger.showSnackBar(
+                                      SnackBar(content: Text(t.x('kyc.verified_msg')), backgroundColor: AppColors.success),
+                                    );
+                                  } catch (e) {
+                                    setSheetState(() => sheetBusy = false);
+                                    messenger.showSnackBar(
+                                      SnackBar(content: Text(e.toString())),
+                                    );
+                                  }
+                                },
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: AppColors.success,
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                ),
+                                child: Text(t.x('kyc.verify_btn')),
+                              ),
+                            ),
+                          ],
+                        ),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = T.of(ref);
     final item = widget.item;
+    final isVideoKyc = item.kycMethod == 'video_kyc' ||
+        (item.kycSessions.isNotEmpty && item.kycSessions.first.method == 'video_kyc');
+
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -176,6 +371,19 @@ class _KycCardState extends ConsumerState<_KycCard> {
           const SizedBox(height: 12),
           if (_busy)
             const Center(child: Padding(padding: EdgeInsets.all(6), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))))
+          else if (isVideoKyc)
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                icon: const Icon(Icons.rate_review_outlined),
+                label: const Text('Review Video KYC'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+                onPressed: () => _showVideoKycReviewSheet(context),
+              ),
+            )
           else
             Row(
               children: [
@@ -205,6 +413,92 @@ class _KycCardState extends ConsumerState<_KycCard> {
             ),
         ],
       ),
+    );
+  }
+}
+
+class KycVideoPlayer extends StatefulWidget {
+  const KycVideoPlayer({super.key, required this.url});
+  final String url;
+
+  @override
+  State<KycVideoPlayer> createState() => _KycVideoPlayerState();
+}
+
+class _KycVideoPlayerState extends State<KycVideoPlayer> {
+  late VideoPlayerController _controller;
+  bool _initialized = false;
+  bool _error = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
+      ..initialize().then((_) {
+        setState(() {
+          _initialized = true;
+        });
+      }).catchError((_) {
+        setState(() {
+          _error = true;
+        });
+      });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_error) {
+      return const SizedBox(
+        height: 180,
+        child: Center(
+          child: Text('Error loading video', style: TextStyle(color: AppColors.danger)),
+        ),
+      );
+    }
+    if (!_initialized) {
+      return const SizedBox(
+        height: 180,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AspectRatio(
+          aspectRatio: _controller.value.aspectRatio,
+          child: VideoPlayer(_controller),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            IconButton(
+              icon: Icon(
+                _controller.value.isPlaying ? Icons.pause : Icons.play_arrow,
+              ),
+              onPressed: () {
+                setState(() {
+                  _controller.value.isPlaying ? _controller.pause() : _controller.play();
+                });
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.replay),
+              onPressed: () {
+                _controller.seekTo(Duration.zero);
+                _controller.play();
+                setState(() {});
+              },
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

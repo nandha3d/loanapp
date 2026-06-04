@@ -39,6 +39,14 @@ import 'package:loantrack/features/settings/system_settings_screen.dart';
 import 'package:loantrack/features/settings/penalty_settings_screen.dart';
 import 'package:loantrack/features/settings/payment_settings_screen.dart';
 import 'package:loantrack/features/settings/notification_settings_screen.dart';
+import 'package:loantrack/features/admin/developer_admin_screen.dart';
+import 'package:loantrack/features/admin/portal_screen.dart';
+import 'package:loantrack/features/admin/team_management_screen.dart';
+import 'package:loantrack/features/admin/branch_management_screen.dart';
+import 'package:loantrack/features/admin/tenant_billing_screen.dart';
+import 'package:loantrack/features/admin/pricing_catalog_screen.dart';
+import 'package:loantrack/features/admin/affiliate_admin_screen.dart';
+import 'package:loantrack/features/admin/admin_requests_screen.dart';
 
 /// Module keys — server returns these in `User.enabledModules` (spec §5).
 class ModuleKey {
@@ -85,14 +93,25 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (stage == AuthStage.locked) {
         return atLock ? null : '/lock';
       }
-      // Authenticated
-      if (atLogin || atRegister || atTotp || atLock) return '/dashboard';
-
-      // Module-level guard.
+      // Authenticated redirect.
       final user = auth.user;
       if (user != null) {
+        if (atLogin || atRegister || atTotp || atLock || loc == '/') {
+          if (user.role == UserRole.developer) return '/admin';
+          if (user.role == UserRole.superadmin || user.role == UserRole.admin) return '/portal';
+          return '/dashboard';
+        }
+        // Redirect developer from dashboard to admin
+        if (loc == '/dashboard' && user.role == UserRole.developer) {
+          return '/admin';
+        }
+        // Module-level guard.
         final blocked = _moduleBlocked(loc, user);
-        if (blocked) return '/dashboard';
+        if (blocked) {
+          if (user.role == UserRole.developer) return '/admin';
+          if (user.role == UserRole.superadmin || user.role == UserRole.admin) return '/portal';
+          return '/dashboard';
+        }
       }
       return null;
     },
@@ -118,6 +137,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/2fa', builder: (_, __) => const TotpScreen()),
       GoRoute(path: '/lock', builder: (_, __) => const BiometricLockScreen()),
       GoRoute(path: '/dashboard', builder: (_, __) => const DashboardScreen()),
+      GoRoute(path: '/admin', builder: (_, __) => const DeveloperAdminScreen()),
+      GoRoute(path: '/portal', builder: (_, __) => const PortalScreen()),
+      GoRoute(path: '/admin/team', builder: (_, __) => const TeamManagementScreen()),
+      GoRoute(path: '/admin/users', builder: (_, __) => const TeamManagementScreen(isSuperadmin: true)),
+      GoRoute(path: '/admin/branches', builder: (_, __) => const BranchManagementScreen()),
+      GoRoute(path: '/admin/billing', builder: (_, __) => const TenantBillingScreen()),
+      GoRoute(path: '/portal/billing', builder: (_, __) => const TenantBillingScreen()),
+      GoRoute(path: '/microlending/subscription', builder: (_, __) => const TenantBillingScreen(isSubscriptionOnly: true)),
+      GoRoute(path: '/admin/billing/pricing', builder: (_, __) => const PricingCatalogScreen()),
+      GoRoute(path: '/admin/affiliates', builder: (_, __) => const AffiliateAdminScreen()),
+      GoRoute(path: '/microlending/affiliate', builder: (_, __) => const AffiliateAdminScreen()),
+      GoRoute(path: '/microlending/branch-requests', builder: (_, __) => const AdminRequestsScreen()),
+      GoRoute(path: '/microlending/module-requests', builder: (_, __) => const AdminRequestsScreen(isModuleOnly: true)),
       GoRoute(
         path: '/customers',
         builder: (_, __) => const CustomersScreen(),
@@ -238,7 +270,6 @@ bool _moduleBlocked(String location, User user) {
   }
   // Fallback RBAC when server omits the list.
   switch (required) {
-    case ModuleKey.approvals:
     case ModuleKey.analytics:
     case ModuleKey.settings:
       return user.role == UserRole.agent;

@@ -36,13 +36,17 @@ class PenaltyService {
     required String id,
     double? amount,
     String? reason,
+    String? managerUsername,
+    String? managerPassword,
   }) async {
-    final payload = <String, dynamic>{'action': 'waive'};
+    final payload = <String, dynamic>{};
     if (amount != null) payload['amount'] = amount;
     if (reason != null && reason.isNotEmpty) payload['reason'] = reason;
+    if (managerUsername != null) payload['managerUsername'] = managerUsername;
+    if (managerPassword != null) payload['managerPassword'] = managerPassword;
 
-    await _dio.patch<Map<String, dynamic>>(
-      Endpoints.penaltySettle(id),
+    await _dio.post<Map<String, dynamic>>(
+      Endpoints.penaltyWaive(id),
       data: payload,
     );
   }
