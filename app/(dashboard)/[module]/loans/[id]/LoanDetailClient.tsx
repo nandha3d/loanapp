@@ -45,6 +45,8 @@ export default function LoanDetailClient({
   userRole,
   userId,
   receiptPdfEnabled = false,
+  upiId = '',
+  payeeName = 'LoanTrack',
 }: {
   loan: any;
   currencySymbol: string;
@@ -52,6 +54,8 @@ export default function LoanDetailClient({
   userRole: string;
   userId?: string;
   receiptPdfEnabled?: boolean;
+  upiId?: string;
+  payeeName?: string;
 }) {
   const d = dict.loanDetail;
   const router = useRouter();
@@ -209,17 +213,20 @@ export default function LoanDetailClient({
   const [qrCodeUrl, setQrCodeUrl] = useState('');
 
   useEffect(() => {
-    if (payMode === 'upi' && payAmount > 0) {
-      // Create a standard UPI URI.
-      const upiId = 'admin@upi'; // Default placeholder, can be made dynamic per branch later
-      const upiUri = `upi://pay?pa=${upiId}&pn=Kandhu&am=${payAmount}&cu=INR`;
+    // Build a UPI intent QR against the TENANT's own VPA (no hardcoded payee).
+    // If the tenant hasn't configured a UPI ID, show no QR rather than a QR
+    // that pays the wrong account.
+    if (payMode === 'upi' && payAmount > 0 && upiId) {
+      const params = new URLSearchParams({ pa: upiId, pn: payeeName, am: String(payAmount), cu: 'INR' });
+      params.set('tn', `Loan ${loan.loanCode}`);
+      const upiUri = `upi://pay?${params.toString()}`;
       QRCode.toDataURL(upiUri, { width: 180, margin: 1 }, (err, url) => {
         if (!err) setQrCodeUrl(url);
       });
     } else {
       setQrCodeUrl('');
     }
-  }, [payMode, payAmount]);
+  }, [payMode, payAmount, upiId, payeeName, loan.loanCode]);
 
   const [penAction, setPenAction] = useState<'waive' | 'settle'>('settle');
   const [penAmount, setPenAmount] = useState(0);
@@ -935,9 +942,14 @@ export default function LoanDetailClient({
                   </div>
                   {payMode === 'upi' && qrCodeUrl && (
                     <div style={{ textAlign: 'center', margin: '16px 0', padding: '16px', background: '#fff', border: '1px dashed var(--border)', borderRadius: '8px' }}>
-                      <p style={{ fontSize: '.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px', marginTop: 0 }}>Scan to Pay via UPI</p>
+                      <p style={{ fontSize: '.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px', marginTop: 0 }}>Scan to Pay via UPI{upiId ? ` · ${upiId}` : ''}</p>
                       <img src={qrCodeUrl} alt="UPI QR Code" style={{ display: 'block', margin: '0 auto', width: '150px', height: '150px' }} />
                     </div>
+                  )}
+                  {payMode === 'upi' && !upiId && (
+                    <p style={{ fontSize: '.78rem', color: 'var(--danger, #dc2626)', margin: '12px 0', textAlign: 'center' }}>
+                      No UPI ID configured. Set it in Payments Gateway settings to show a pay QR.
+                    </p>
                   )}
                   <div className="form-group">
                     <label className="form-label">{d.remarksOptional}</label>

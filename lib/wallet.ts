@@ -129,7 +129,7 @@ export async function injectBranchCash(input: {
   note?: string | null;
 }): Promise<{ branchBalance: number }> {
   if (!(input.amount > 0)) throw new Error('amount must be positive');
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const branchBalance = await applyBranch(tx, input.tenantId, input.branchId, input.amount, {
       type: 'inject',
       refType: 'manual',
@@ -138,6 +138,26 @@ export async function injectBranchCash(input: {
     });
     return { branchBalance };
   });
+
+  // GL: a branch top-up is real cash entering the business → capital injection
+  // (Dr Cash on Hand / Cr Owner's Capital). Release-to-agent and agent-deposit
+  // are internal cash↔cash transfers (net-zero in the GL) and are intentionally
+  // NOT journaled. Disbursement/collection are journaled at their own events.
+  // Fire-and-forget — premium JEs are supplemental and must never block float.
+  void import('@/lib/accounting/autoPost').then(({ autoPostCapitalAdd }) =>
+    autoPostCapitalAdd({
+      tenantId: input.tenantId,
+      entryId: `topup-${input.branchId}-${Date.now()}`,
+      description: input.note || 'Branch cash top-up',
+      amount: input.amount,
+      date: new Date(),
+      branchId: input.branchId,
+      createdById: input.byUserId,
+      category: 'cash',
+    }),
+  ).catch((e) => console.error('[wallet] capital-add JE failed:', e));
+
+  return result;
 }
 
 /**

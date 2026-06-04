@@ -62,14 +62,22 @@ export default async function LoanDetailPage({
   const isReceiptPdfActive = await getSetting(tenantId, 'receipt_pdf_active', 'false') === 'true';
   const receiptPdfEnabled = isReceiptPdfAllowed && isReceiptPdfActive;
 
+  // Tenant's own UPI (for the in-modal pay QR) — no hardcoded placeholder.
+  const [upiId, tenantRow] = await Promise.all([
+    getSetting(tenantId, 'upi_id', ''),
+    prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }),
+  ]);
+
   return (
-    <LoanDetailClient 
-      loan={serializedLoan} 
-      currencySymbol={currencySymbol} 
-      dict={dict} 
+    <LoanDetailClient
+      loan={serializedLoan}
+      currencySymbol={currencySymbol}
+      dict={dict}
       userRole={role}
       userId={userId}
       receiptPdfEnabled={receiptPdfEnabled}
+      upiId={upiId}
+      payeeName={tenantRow?.name || 'LoanTrack'}
     />
   );
 }

@@ -234,6 +234,24 @@ export async function reconcileSelfPayToken(input: {
     return { status: 'paid' as const, entryId: rec.entryId, applied: rec.applied };
   });
 
+  // GL: self-pay is auto-verified bank money → post the collection JE
+  // (Dr Bank / Cr Loan Receivable). Fire-and-forget; idempotent on entryId.
+  if (result.status === 'paid' && result.entryId) {
+    void import('@/lib/accounting/autoPost').then(({ autoPostCollection }) =>
+      autoPostCollection({
+        tenantId: tok.tenantId,
+        entryId: result.entryId!,
+        loanId: instalment.loanId,
+        loanCode: instalment.loan.loanCode,
+        amount: result.applied ?? amount,
+        date: new Date(),
+        branchId: instalment.loan.branchId,
+        createdById: resolvedAgentId,
+        paymentMode: 'upi',
+      }),
+    ).catch((e) => console.error('[selfPay] collection JE failed:', e));
+  }
+
   return result;
 }
 

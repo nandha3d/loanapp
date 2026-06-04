@@ -251,6 +251,8 @@ export async function collectRunLines(
 
   const posted: RunCollectResult['posted'] = [];
   const skipped: RunCollectResult['skipped'] = [];
+  // Digital (verified) lines need a GL entry now — cash lines wait for handover.
+  const digitalPosts: { entryId: string; loanId: string; loanCode: string; amount: number; branchId: string | null }[] = [];
 
   await prisma.$transaction(async (tx) => {
     for (const line of lines) {
@@ -308,10 +310,41 @@ export async function collectRunLines(
         gps,
       });
       posted.push({ instalmentId: line.instalmentId, entryId: rec.entryId, applied: rec.applied });
+      if (isDigital(paymentMode)) {
+        digitalPosts.push({
+          entryId: rec.entryId,
+          loanId: instalment.loanId,
+          loanCode: instalment.loan.loanCode,
+          amount: rec.applied,
+          branchId: instalment.loan.branchId,
+        });
+      }
     }
 
     await refreshRunTotals(tx, runId);
   });
+
+  // GL for digital (verified) lines — Dr Bank / Cr Loan Receivable. Cash lines
+  // are posted at handover (existing flow). Fire-and-forget, idempotent.
+  if (digitalPosts.length) {
+    void import('@/lib/accounting/autoPost').then(({ autoPostCollection }) =>
+      Promise.all(
+        digitalPosts.map((d) =>
+          autoPostCollection({
+            tenantId: actor.tenantId,
+            entryId: d.entryId,
+            loanId: d.loanId,
+            loanCode: d.loanCode,
+            amount: d.amount,
+            date: new Date(),
+            branchId: d.branchId,
+            createdById: actor.userId,
+            paymentMode: 'upi',
+          }),
+        ),
+      ),
+    ).catch((e) => console.error('[run] digital collection JE failed:', e));
+  }
 
   return { posted, skipped };
 }

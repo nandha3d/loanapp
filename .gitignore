@@ -56,8 +56,16 @@ next-env.d.ts
 
 # local scratch/export artifacts
 scratch/
-database/*.sql
+scratch.js
+database/
+tmp/
 loantrack_export*.sql
+# test / build reports
+playwright-report/
+test-results/
+# db dumps & patches at root
+*backup*.sql
+*.patch
 
 # local git worktrees
 .worktrees/
