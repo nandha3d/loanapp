@@ -4,6 +4,7 @@ import { useMemo, useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import { formatCurrency, formatDate, getBadgeClass, calcPercentage } from '@/lib/utils';
 import { markInstalmentPaid, requestCollectionEdit, waiveLoanPenalty, settleLoanPenalty, closeLoan, renewLoan, precloseLoanAdmin } from './actions';
+import { createSelfPayLinkAction } from '../../collection/runActions';
 import Link from '@/components/layout/DashboardLink';
 import { useRouter } from 'next/navigation';
 import { calculateCreditScore } from '@/lib/creditScore';
@@ -223,6 +224,28 @@ export default function LoanDetailClient({
   const [penAction, setPenAction] = useState<'waive' | 'settle'>('settle');
   const [penAmount, setPenAmount] = useState(0);
   const [penNotes, setPenNotes] = useState('');
+
+  // mCollect-B: generate + share a borrower self-pay link for an instalment.
+  const [payLinkBusyId, setPayLinkBusyId] = useState<string | null>(null);
+  const [payLinkModal, setPayLinkModal] = useState<{ url: string; amount: number; instNo: number } | null>(null);
+  const [payLinkCopied, setPayLinkCopied] = useState(false);
+
+  const sendPayLink = async (inst: any) => {
+    setPayLinkBusyId(inst.id);
+    try {
+      const res = await createSelfPayLinkAction(inst.id);
+      if (res.success && res.link) {
+        let url = res.link.payUrl as string;
+        if (url.startsWith('/')) url = window.location.origin + url;
+        setPayLinkCopied(false);
+        setPayLinkModal({ url, amount: res.link.amount, instNo: inst.instalmentNo });
+      } else {
+        alert(res.error || 'Could not create payment link');
+      }
+    } finally {
+      setPayLinkBusyId(null);
+    }
+  };
 
   const openPaymentModal = (inst: any) => {
     const isPaid = Number(inst.receivedAmount) > 0;
@@ -713,6 +736,18 @@ export default function LoanDetailClient({
                               {isPaid ? (isAdmin ? d.edit : 'Request') : d.pay}
                             </button>
                           )}
+                          {loan.status !== 'closed' && inst.status !== 'paid' && (
+                            <button
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => sendPayLink(inst)}
+                              disabled={payLinkBusyId === inst.id}
+                              title="Generate a UPI self-pay link for the borrower"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                            >
+                              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>qr_code_2</span>
+                              {payLinkBusyId === inst.id ? '…' : 'Pay link'}
+                            </button>
+                          )}
                           {receiptPdfEnabled && inst.collectionEntry?.id && (
                             <a
                               href={`/api/receipts/${inst.collectionEntry.id}`}
@@ -1091,6 +1126,52 @@ export default function LoanDetailClient({
                 <span className="material-icons-outlined" style={{ fontSize: '16px' }}>autorenew</span>
                 {loading ? 'Renewing...' : 'Renew Loan'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {payLinkModal && (
+        <div className="modal-overlay show" onClick={(e) => { if (e.target === e.currentTarget) setPayLinkModal(null); }}>
+          <div className="modal">
+            <div className="modal-header">
+              <h3>📲 Self-Pay Link</h3>
+              <button className="modal-close material-icons-outlined" onClick={() => setPayLinkModal(null)}>close</button>
+            </div>
+            <div className="modal-body">
+              <p style={{ fontSize: '.9rem', marginBottom: '10px' }}>
+                Instalment #{payLinkModal.instNo} · <strong>{formatCurrency(payLinkModal.amount, currencySymbol)}</strong>
+              </p>
+              <input
+                readOnly
+                value={payLinkModal.url}
+                onFocus={(e) => e.currentTarget.select()}
+                style={{ width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '.82rem', marginBottom: '10px' }}
+              />
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => { navigator.clipboard.writeText(payLinkModal.url); setPayLinkCopied(true); }}
+                >
+                  <span className="material-icons-outlined" style={{ fontSize: '16px' }}>content_copy</span>
+                  {payLinkCopied ? 'Copied' : 'Copy'}
+                </button>
+                {loan.customer?.phone && (
+                  <a
+                    className="btn btn-primary btn-sm"
+                    href={`https://wa.me/${String(loan.customer.phone).replace(/\D/g, '').replace(/^(\d{10})$/, '91$1')}?text=${encodeURIComponent(`Pay ${formatCurrency(payLinkModal.amount, currencySymbol)} for loan ${loan.loanCode}: ${payLinkModal.url}`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}
+                  >
+                    <span className="material-icons-outlined" style={{ fontSize: '16px' }}>chat</span>
+                    WhatsApp
+                  </a>
+                )}
+                <a className="btn btn-ghost btn-sm" href={payLinkModal.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
+                  Open
+                </a>
+              </div>
             </div>
           </div>
         </div>

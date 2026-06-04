@@ -77,6 +77,7 @@ export default function Sidebar({
     { id: 'analytics', icon: 'insights', label: dict.sidebar.analytics, href: '/analytics', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
     { id: 'notifications', icon: 'notifications', label: dict.sidebar.notifications, href: '/notifications' },
     { id: 'settings', icon: 'settings', label: dict.sidebar.settings, href: '/settings', adminOnly: true },
+    { id: 'payment-gateway', icon: 'account_balance', label: 'Payments Gateway', href: '/settings/payment-gateway', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
     { section: dict.sidebar.sections.account },
     { id: 'branch-requests', icon: 'account_tree', label: dict.sidebar.branchRequests, href: '/branch-requests', superadminOnly: true },
     { id: 'subscription', icon: 'credit_card', label: dict.sidebar.subscription, href: '/subscription', superadminOnly: true },
