@@ -99,14 +99,6 @@ class _ModuleItem {
 
 const _allModules = <_ModuleItem>[
   _ModuleItem(
-    icon: Icons.route_rounded,
-    label: 'Collection Runs',
-    subtitle: 'Batch-collect a route in one sheet',
-    route: '/collection/runs',
-    color: AppColors.primary,
-    bgColor: AppColors.primaryLight,
-  ),
-  _ModuleItem(
     icon: Icons.warning_amber_rounded,
     label: 'Penalties',
     subtitle: 'Manage & settle overdue fines',

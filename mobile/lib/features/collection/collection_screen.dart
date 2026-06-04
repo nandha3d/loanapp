@@ -34,12 +34,7 @@ final collectionTodayProvider =
   return ref.watch(collectionServiceProvider).today();
 });
 
-final _filterProvider =
-    StateProvider.autoDispose<String>((_) => 'pending');
-
-final _routeFilterProvider = StateProvider.autoDispose<String?>((ref) => null);
-final _frequencyFilterProvider = StateProvider.autoDispose<String?>((ref) => null);
-final _overdueRangeFilterProvider = StateProvider.autoDispose<String?>((ref) => null);
+final _filterProvider = StateProvider.autoDispose<String>((_) => 'pending');
 
 class CollectionScreen extends ConsumerStatefulWidget {
   const CollectionScreen({super.key});
@@ -71,7 +66,6 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     if (_agentLat == null || r.lat == null || r.lng == null) return null;
     return _distanceKm(_agentLat!, _agentLng!, r.lat!, r.lng!);
   }
-
 
   String? _distanceLabel(double? km) {
     if (km == null) return null;
@@ -139,6 +133,11 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
         ),
         actions: [
           IconButton(
+            tooltip: 'Route run (batch collect & deposit)',
+            onPressed: () => context.push('/collection/runs'),
+            icon: const Icon(Icons.route_rounded),
+          ),
+          IconButton(
             tooltip: _showMap ? t.x('coll.view_list') : t.x('coll.view_map'),
             onPressed: () => setState(() => _showMap = !_showMap),
             icon: Icon(
@@ -177,7 +176,9 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
                 Text(
                   sync.pending > 0
                       ? '${sync.pending} ${t.x('sync.queued_suffix')}'
-                      : (sync.online ? t.x('sync.synced') : t.x('sync.offline')),
+                      : (sync.online
+                          ? t.x('sync.synced')
+                          : t.x('sync.offline')),
                   style: AppTypography.caption,
                 ),
               ],
@@ -190,8 +191,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
           padding: const EdgeInsets.all(16),
           itemCount: 6,
           separatorBuilder: (_, __) => const SizedBox(height: 10),
-          itemBuilder: (_, __) =>
-              const Skeleton(height: 110, borderRadius: 16),
+          itemBuilder: (_, __) => const Skeleton(height: 110, borderRadius: 16),
         ),
         error: (e, _) => EmptyState(
           icon: Icons.cloud_off,
@@ -205,42 +205,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
               title: t.x('dash.no_schedule'),
             );
           }
-          // Apply advanced filters
-          final routeFilter = ref.watch(_routeFilterProvider);
-          final freqFilter = ref.watch(_frequencyFilterProvider);
-          final overdueRangeFilter = ref.watch(_overdueRangeFilterProvider);
-
-          final filtered = rows.where((r) {
-            // Status/Tab filter:
-            final matchTab = filter == 'all' ||
-                (filter == 'pending' && r.status != 'paid') ||
-                (filter == 'paid' && r.status == 'paid') ||
-                (filter == 'overdue' && r.daysOverdue > 0 && r.status != 'paid');
-            
-            // Route filter:
-            final matchRoute = routeFilter == null || r.routeName == routeFilter;
-
-            // Frequency filter:
-            final matchFreq = freqFilter == null || r.frequency?.toLowerCase() == freqFilter.toLowerCase();
-
-            // Overdue range filter:
-            bool matchRange = true;
-            if (overdueRangeFilter != null) {
-              final days = r.daysOverdue;
-              if (overdueRangeFilter == '1-30') {
-                matchRange = days >= 1 && days <= 30;
-              } else if (overdueRangeFilter == '31-60') {
-                matchRange = days >= 31 && days <= 60;
-              } else if (overdueRangeFilter == '61-90') {
-                matchRange = days >= 61 && days <= 90;
-              } else if (overdueRangeFilter == '90+') {
-                matchRange = days > 90;
-              }
-            }
-
-            return matchTab && matchRoute && matchFreq && matchRange;
-          }).toList();
-
+          final filtered = _applyFilter(rows, filter);
           final totalDue = rows.fold<double>(0, (s, r) => s + r.dueAmount);
           final totalCollected =
               rows.fold<double>(0, (s, r) => s + r.receivedAmount);
@@ -254,15 +219,15 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
               agentLng: _agentLng,
               fmt: fmt,
               t: t,
-              onCollect: (CollectionRow row) => _openQuickCollect(context, row, rows),
+              onCollect: (CollectionRow row) =>
+                  _openQuickCollect(context, row, rows),
             );
           }
 
           // ── List view ─────────────────────────────────────────────
           return RefreshIndicator(
             color: AppColors.primary,
-            onRefresh: () async =>
-                ref.refresh(collectionTodayProvider.future),
+            onRefresh: () async => ref.refresh(collectionTodayProvider.future),
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
               children: [
@@ -281,8 +246,6 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
                   t: t,
                 ),
                 const SizedBox(height: 12),
-                _AdvancedFilterBar(rows: rows),
-                const SizedBox(height: 12),
                 if (_nearest && _agentLat != null)
                   ..._sortGroupsByDistance(_groupByCustomer(filtered)).expand(
                     (g) => [
@@ -298,19 +261,17 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
                   ..._groupGroupsByRoute(
                     _groupByCustomer(filtered),
                     t.x('coll.unassigned'),
-                  )
-                      .entries
-                      .expand(
-                    (e) => [
-                      _RouteHeader(routeName: e.key, count: e.value.length),
-                      const SizedBox(height: 8),
-                      for (final g in e.value) ...[
-                        _CollectionCard(group: g, fmt: fmt),
-                        const SizedBox(height: 10),
-                      ],
-                      const SizedBox(height: 6),
-                    ],
-                  ),
+                  ).entries.expand(
+                        (e) => [
+                          _RouteHeader(routeName: e.key, count: e.value.length),
+                          const SizedBox(height: 8),
+                          for (final g in e.value) ...[
+                            _CollectionCard(group: g, fmt: fmt),
+                            const SizedBox(height: 10),
+                          ],
+                          const SizedBox(height: 6),
+                        ],
+                      ),
                 if (filtered.isEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 40),
@@ -337,7 +298,8 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
       case 'paid':
         return rows.where((r) => r.status == 'paid').toList();
       case 'overdue':
-        return rows.where((r) => r.daysOverdue > 0 && r.status != 'paid')
+        return rows
+            .where((r) => r.daysOverdue > 0 && r.status != 'paid')
             .toList();
       default:
         return rows;
@@ -368,17 +330,24 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
   }
 
   Map<String, List<_CustomerGroup>> _groupGroupsByRoute(
-      List<_CustomerGroup> groups, String unassigned,) {
+    List<_CustomerGroup> groups,
+    String unassigned,
+  ) {
     final m = <String, List<_CustomerGroup>>{};
     for (final g in groups) {
-      m.putIfAbsent(g.primary.routeName ?? unassigned, () => <_CustomerGroup>[])
+      m
+          .putIfAbsent(
+              g.primary.routeName ?? unassigned, () => <_CustomerGroup>[])
           .add(g);
     }
     return m;
   }
 
   void _openQuickCollect(
-      BuildContext context, CollectionRow row, List<CollectionRow> all,) {
+    BuildContext context,
+    CollectionRow row,
+    List<CollectionRow> all,
+  ) {
     if (row.status == 'paid') return;
     showModalBottomSheet<void>(
       context: context,
@@ -522,8 +491,11 @@ class _CollectionMap extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.location_off_outlined,
-                      size: 40, color: Colors.white70),
+                  const Icon(
+                    Icons.location_off_outlined,
+                    size: 40,
+                    color: Colors.white70,
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     t.x('coll.no_locations'),
@@ -533,7 +505,9 @@ class _CollectionMap extends StatelessWidget {
                   Text(
                     t.x('coll.no_locations_hint'),
                     style: const TextStyle(
-                        color: Colors.white70, fontSize: 12),
+                      color: Colors.white70,
+                      fontSize: 12,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -547,8 +521,7 @@ class _CollectionMap extends StatelessWidget {
   Widget _dot(Color color) => Container(
         width: 10,
         height: 10,
-        decoration:
-            BoxDecoration(color: color, shape: BoxShape.circle),
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
       );
 
   void _showPinSheet(BuildContext context, CollectionRow row) {
@@ -579,21 +552,25 @@ class _CollectionMap extends StatelessWidget {
               const SizedBox(height: 14),
               Row(
                 children: [
-                  Icon(Icons.location_on_rounded,
-                      color: _pinColor(row), size: 28),
+                  Icon(
+                    Icons.location_on_rounded,
+                    color: _pinColor(row),
+                    size: 28,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(row.customerName,
-                            style: AppTypography.sectionTitle),
+                        Text(
+                          row.customerName,
+                          style: AppTypography.sectionTitle,
+                        ),
                         Text(
                           fmt.format(row.outstanding),
                           style: AppTypography.body.copyWith(
-                            color: isPaid
-                                ? AppColors.success
-                                : AppColors.danger,
+                            color:
+                                isPaid ? AppColors.success : AppColors.danger,
                           ),
                         ),
                       ],
@@ -617,15 +594,19 @@ class _CollectionMap extends StatelessWidget {
                       Navigator.pop(ctx);
                       onCollect(row);
                     },
-                    child: const Text('Collect Payment',
-                        style: TextStyle(color: Colors.white)),
+                    child: const Text(
+                      'Collect Payment',
+                      style: TextStyle(color: Colors.white),
+                    ),
                   ),
                 ),
               if (isPaid)
                 Center(
-                  child: Text(t.x('coll.status_paid'),
-                      style: AppTypography.body
-                          .copyWith(color: AppColors.success)),
+                  child: Text(
+                    t.x('coll.status_paid'),
+                    style:
+                        AppTypography.body.copyWith(color: AppColors.success),
+                  ),
                 ),
             ],
           ),
@@ -652,9 +633,8 @@ class _ProgressHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pct = totalDue <= 0
-        ? 0.0
-        : (totalCollected / totalDue).clamp(0.0, 1.0);
+    final pct =
+        totalDue <= 0 ? 0.0 : (totalCollected / totalDue).clamp(0.0, 1.0);
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -889,8 +869,7 @@ class _RouteHeader extends StatelessWidget {
           Text(routeName, style: AppTypography.label),
           const SizedBox(width: 8),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
               color: AppColors.background,
               borderRadius: BorderRadius.circular(10),
@@ -938,11 +917,12 @@ class _CustomerGroup {
   double get overdueDue =>
       _overdueCollectible.fold(0.0, (s, r) => s + r.outstanding);
   double get totalDue => todayDue + overdueDue;
-  double get collectedTotal =>
-      rows.fold(0.0, (s, r) => s + r.receivedAmount);
+  double get collectedTotal => rows.fold(0.0, (s, r) => s + r.receivedAmount);
 
   int get maxDaysOverdue => _overdueCollectible.fold(
-      0, (m, r) => r.daysOverdue > m ? r.daysOverdue : m);
+        0,
+        (m, r) => r.daysOverdue > m ? r.daysOverdue : m,
+      );
 
   /// Oldest unpaid instalment in each bucket (rows are already dueDate-asc),
   /// so collecting always settles the oldest dues first.
@@ -994,21 +974,16 @@ class _CollectionCard extends ConsumerWidget {
     final allCollected = group.allCollected;
     final rrow = group.receiptRow;
 
-    final bool hasPartial = group.collectedTotal > 0 && !allCollected;
     final Color chipColor = allCollected
         ? AppColors.success
         : overdue != null
             ? AppColors.danger
-            : hasPartial
-                ? AppColors.warning
-                : AppColors.primary;
+            : AppColors.primary;
     final String chipLabel = allCollected
-        ? 'Paid'
+        ? t.x('coll.collected_label')
         : overdue != null
-            ? 'Overdue (${group.maxDaysOverdue}d)'
-            : hasPartial
-                ? 'Partial'
-                : 'Due Today';
+            ? '${group.maxDaysOverdue}d ${t.x('coll.status_overdue_days')}'
+            : t.x('coll.status_due_today');
 
     return Material(
       color: AppColors.surface,
@@ -1049,8 +1024,11 @@ class _CollectionCard extends ConsumerWidget {
                           ),
                           if (distanceLabel != null) ...[
                             const SizedBox(width: 8),
-                            const Icon(Icons.near_me,
-                                size: 12, color: AppColors.primary,),
+                            const Icon(
+                              Icons.near_me,
+                              size: 12,
+                              color: AppColors.primary,
+                            ),
                             const SizedBox(width: 2),
                             Text(
                               distanceLabel!,
@@ -1066,8 +1044,10 @@ class _CollectionCard extends ConsumerWidget {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.call_rounded,
-                      color: AppColors.success,),
+                  icon: const Icon(
+                    Icons.call_rounded,
+                    color: AppColors.success,
+                  ),
                   onPressed: () async {
                     final uri = Uri(scheme: 'tel', path: p.customerCode);
                     if (await canLaunchUrl(uri)) {
@@ -1087,9 +1067,9 @@ class _CollectionCard extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        fmt.format(allCollected
-                            ? group.collectedTotal
-                            : group.totalDue,),
+                        fmt.format(
+                          allCollected ? group.collectedTotal : group.totalDue,
+                        ),
                         style: AppTypography.moneyLg
                             .copyWith(color: AppColors.textPrimary),
                       ),
@@ -1204,7 +1184,10 @@ class _CollectionCard extends ConsumerWidget {
   }
 
   Future<void> _downloadReceipt(
-      BuildContext context, WidgetRef ref, CollectionRow row,) async {
+    BuildContext context,
+    WidgetRef ref,
+    CollectionRow row,
+  ) async {
     final t = T.of(ref);
     final messenger = ScaffoldMessenger.of(context);
     final bytes = await _fetchReceiptBytes(messenger, t, ref, row);
@@ -1219,7 +1202,10 @@ class _CollectionCard extends ConsumerWidget {
   /// through their own WhatsApp/SMS/etc. — no DLT or business registration
   /// needed, which suits unregistered field lenders.
   Future<void> _shareReceipt(
-      BuildContext context, WidgetRef ref, CollectionRow row,) async {
+    BuildContext context,
+    WidgetRef ref,
+    CollectionRow row,
+  ) async {
     final t = T.of(ref);
     final messenger = ScaffoldMessenger.of(context);
     final bytes = await _fetchReceiptBytes(messenger, t, ref, row);
@@ -1358,10 +1344,7 @@ class _Avatar extends StatelessWidget {
   String _initials() {
     final parts = name.trim().split(RegExp(r'\s+'));
     if (parts.isEmpty || parts.first.isEmpty) return '—';
-    return parts
-        .take(2)
-        .map((p) => p.isEmpty ? '' : p[0].toUpperCase())
-        .join();
+    return parts.take(2).map((p) => p.isEmpty ? '' : p[0].toUpperCase()).join();
   }
 
   @override
@@ -1379,108 +1362,6 @@ class _Avatar extends StatelessWidget {
       child: Text(
         _initials(),
         style: AppTypography.bodyLarge.copyWith(color: c, fontSize: 16),
-      ),
-    );
-  }
-}
-
-class _AdvancedFilterBar extends ConsumerWidget {
-  const _AdvancedFilterBar({required this.rows});
-  final List<CollectionRow> rows;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final routeFilter = ref.watch(_routeFilterProvider);
-    final freqFilter = ref.watch(_frequencyFilterProvider);
-    final rangeFilter = ref.watch(_overdueRangeFilterProvider);
-
-    // Extract unique routes
-    final routes = rows.map((r) => r.routeName).whereType<String>().toSet().toList()..sort();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              // Route Dropdown
-              _FilterDropdown<String?>(
-                value: routeFilter,
-                hint: 'All Routes',
-                items: [
-                  const DropdownMenuItem(value: null, child: Text('All Routes')),
-                  ...routes.map((r) => DropdownMenuItem(value: r, child: Text(r))),
-                ],
-                onChanged: (v) => ref.read(_routeFilterProvider.notifier).state = v,
-              ),
-              const SizedBox(width: 8),
-              // Frequency Dropdown
-              _FilterDropdown<String?>(
-                value: freqFilter,
-                hint: 'All Frequencies',
-                items: const [
-                  DropdownMenuItem(value: null, child: Text('All Freq')),
-                  DropdownMenuItem(value: 'daily', child: Text('Daily')),
-                  DropdownMenuItem(value: 'weekly', child: Text('Weekly')),
-                  DropdownMenuItem(value: 'monthly', child: Text('Monthly')),
-                ],
-                onChanged: (v) => ref.read(_frequencyFilterProvider.notifier).state = v,
-              ),
-              const SizedBox(width: 8),
-              // Overdue Days Range Dropdown
-              _FilterDropdown<String?>(
-                value: rangeFilter,
-                hint: 'All Overdue Days',
-                items: const [
-                  DropdownMenuItem(value: null, child: Text('All Overdue')),
-                  DropdownMenuItem(value: '1-30', child: Text('1-30 Days')),
-                  DropdownMenuItem(value: '31-60', child: Text('31-60 Days')),
-                  DropdownMenuItem(value: '61-90', child: Text('61-90 Days')),
-                  DropdownMenuItem(value: '90+', child: Text('90+ Days')),
-                ],
-                onChanged: (v) => ref.read(_overdueRangeFilterProvider.notifier).state = v,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _FilterDropdown<T> extends StatelessWidget {
-  const _FilterDropdown({
-    required this.value,
-    required this.hint,
-    required this.items,
-    required this.onChanged,
-  });
-  final T value;
-  final String hint;
-  final List<DropdownMenuItem<T>> items;
-  final ValueChanged<T> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<T>(
-          value: value,
-          hint: Text(hint, style: AppTypography.caption),
-          style: AppTypography.caption.copyWith(color: AppColors.textPrimary),
-          icon: const Icon(Icons.arrow_drop_down, color: AppColors.textLight, size: 16),
-          items: items,
-          onChanged: (v) {
-            onChanged(v as T);
-          },
-        ),
       ),
     );
   }

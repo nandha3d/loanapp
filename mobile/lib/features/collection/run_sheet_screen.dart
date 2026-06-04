@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -92,47 +93,7 @@ class _RunSheetScreenState extends ConsumerState<RunSheetScreen> {
     try {
       await ref.read(collectionRunServiceProvider).close(widget.runId);
       ref.invalidate(_sheetProvider(widget.runId));
-      _snack('Run closed — reconcile the cash');
-    } catch (e) {
-      _snack(e.toString(), error: true);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _reconcile(double cashCollected) async {
-    final ctrl = TextEditingController(text: cashCollected.toStringAsFixed(0));
-    final amount = await showDialog<double>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Deposit & reconcile'),
-        content: TextField(
-          controller: ctrl,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(labelText: 'Cash deposited'),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () =>
-                Navigator.pop(ctx, double.tryParse(ctrl.text.trim())),
-            child: const Text('Deposit'),
-          ),
-        ],
-      ),
-    );
-    if (amount == null) return;
-    setState(() => _busy = true);
-    try {
-      final run = await ref
-          .read(collectionRunServiceProvider)
-          .reconcile(widget.runId, cashDeposited: amount);
-      ref.invalidate(_sheetProvider(widget.runId));
-      final v = run.varianceAmount ?? 0;
-      _snack(v == 0
-          ? 'Reconciled — exact match'
-          : 'Reconciled · variance $v (approval raised)');
+      _snack('Run closed — deposit cash on Cash Float');
     } catch (e) {
       _snack(e.toString(), error: true);
     } finally {
@@ -176,11 +137,7 @@ class _RunSheetScreenState extends ConsumerState<RunSheetScreen> {
               _Header(run: run, fmt: fmt),
               Expanded(
                 child: run.isLocked
-                    ? _ReconcilePane(
-                        run: run,
-                        fmt: fmt,
-                        busy: _busy,
-                        onReconcile: _reconcile)
+                    ? _DepositHint(run: run, fmt: fmt)
                     : sheet.rows.isEmpty
                         ? const EmptyState(
                             icon: Icons.check_circle_outline_rounded,
@@ -389,46 +346,36 @@ class _RowTile extends StatelessWidget {
   }
 }
 
-class _ReconcilePane extends StatelessWidget {
-  const _ReconcilePane({
-    required this.run,
-    required this.fmt,
-    required this.busy,
-    required this.onReconcile,
-  });
+/// Run closed → settle cash via the single path: the Cash Float deposit.
+/// (Collecting already credited the agent's float; depositing it to the branch
+/// is the one settlement action, shared with the Cash Float screen.)
+class _DepositHint extends StatelessWidget {
+  const _DepositHint({required this.run, required this.fmt});
   final CollectionRun run;
   final NumberFormat fmt;
-  final bool busy;
-  final Future<void> Function(double) onReconcile;
 
   @override
   Widget build(BuildContext context) {
-    final reconciled = run.status == 'reconciled';
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Cash reconciliation', style: AppTypography.sectionTitle),
+          Text('Run closed', style: AppTypography.sectionTitle),
           const SizedBox(height: 10),
-          Text('Cash collected: ${fmt.format(run.cashCollected)}',
+          Text('Cash collected this run: ${fmt.format(run.cashCollected)}',
               style: AppTypography.bodyLarge),
+          const SizedBox(height: 6),
+          Text(
+            'Your collections are now in your cash float. Hand the cash to the office from Cash Float — that is the single place cash is settled.',
+            style: AppTypography.body.copyWith(color: AppColors.textSecondary),
+          ),
           const SizedBox(height: 16),
-          if (reconciled)
-            Text(
-              'Deposited ${fmt.format(run.cashDeposited ?? 0)} · variance ${fmt.format(run.varianceAmount ?? 0)}',
-              style: AppTypography.body.copyWith(
-                color: (run.varianceAmount ?? 0) == 0
-                    ? AppColors.success
-                    : AppColors.danger,
-              ),
-            )
-          else
-            FilledButton.icon(
-              onPressed: busy ? null : () => onReconcile(run.cashCollected),
-              icon: const Icon(Icons.account_balance_rounded),
-              label: const Text('Deposit & reconcile'),
-            ),
+          FilledButton.icon(
+            onPressed: () => context.push('/wallet'),
+            icon: const Icon(Icons.account_balance_wallet_rounded),
+            label: const Text('Go to Cash Float'),
+          ),
         ],
       ),
     );
