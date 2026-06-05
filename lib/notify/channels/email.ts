@@ -9,18 +9,34 @@ export async function sendEmail(
   to: string,
   subject: string,
   html: string,
-  meta?: { entityType?: string; entityId?: string; event?: string }
+  meta?: { entityType?: string; entityId?: string; event?: string },
+  // `system: true` for auth mail (password reset, verification) — uses the
+  // platform SMTP and ignores the tenant's notify_channel_email toggle, so
+  // critical mail always goes out even if the tenant never set up SMTP.
+  opts?: { system?: boolean }
 ): Promise<EmailResult> {
-  const [host, port, user, pass, fromName, enabled] = await Promise.all([
+  const [tHost, tPort, tUser, tPass, tFromName, enabled] = await Promise.all([
     getSetting(tenantId, 'smtp_host',      ''),
-    getSetting(tenantId, 'smtp_port',      '587'),
+    getSetting(tenantId, 'smtp_port',      ''),
     getSetting(tenantId, 'smtp_user',      ''),
     getSetting(tenantId, 'smtp_pass',      ''),
-    getSetting(tenantId, 'smtp_from_name', 'LoanTrack'),
+    getSetting(tenantId, 'smtp_from_name', ''),
     getSetting(tenantId, 'notify_channel_email', 'false'),
   ]);
 
-  if (enabled !== 'true' || !host || !user || !pass) {
+  // Per-tenant SMTP first; fall back to platform SMTP from env.
+  const host     = tHost     || process.env.SMTP_HOST     || '';
+  const port     = tPort     || process.env.SMTP_PORT     || '587';
+  const user     = tUser     || process.env.SMTP_USER     || '';
+  const pass     = tPass     || process.env.SMTP_PASS     || '';
+  const fromName = tFromName || process.env.SMTP_FROM_NAME || 'LoanTrack';
+  // Brevo/SES require a verified sender; allow overriding the From address.
+  const fromAddr = process.env.SMTP_FROM || user;
+
+  // Auth mail (system) always sends if SMTP is configured. Tenant
+  // notification mail still respects the notify_channel_email toggle.
+  const channelOn = opts?.system ? true : enabled === 'true';
+  if (!channelOn || !host || !user || !pass) {
     return { success: false, error: 'Email channel not configured' };
   }
 
@@ -35,7 +51,7 @@ export async function sendEmail(
     });
 
     await transporter.sendMail({
-      from: `"${fromName}" <${user}>`,
+      from: `"${fromName}" <${fromAddr}>`,
       to,
       subject,
       html,

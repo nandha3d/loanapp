@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
          <p>This code expires in 10 minutes.</p>
          <p>If you did not request this, ignore this email.</p>`,
         { event: 'password_reset' },
+        { system: true },
       );
     }
 
