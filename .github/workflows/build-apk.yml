@@ -36,6 +36,15 @@ jobs:
       - name: flutter pub get
         run: flutter pub get
 
+      - name: Patch legacy plugin manifests for AGP 9 (strip package attr)
+        run: |
+          # AGP 9 rejects package="..." in library AndroidManifest.xml; the
+          # namespace is injected by android/build.gradle.kts instead.
+          find "$HOME/.pub-cache" -path '*isar_flutter_libs*/android/src/main/AndroidManifest.xml' \
+            -exec sed -i -E 's/[[:space:]]+package="[^"]*"//' {} +
+          echo "Patched isar manifest:"
+          find "$HOME/.pub-cache" -path '*isar_flutter_libs*/android/src/main/AndroidManifest.xml' -exec cat {} +
+
       - name: Build release APK
         run: |
           flutter build apk --release \
