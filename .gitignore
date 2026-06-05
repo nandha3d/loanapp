@@ -92,3 +92,5 @@ mobile/.vscode/
 *.sql
 # Prisma migration SQL must be committed — exclude them from the *.sql ignore above.
 !prisma/migrations/**/*.sql
+# GitHub Actions workflows must be committed — exclude them from the *.yml ignore above.
+!.github/workflows/*.yml
