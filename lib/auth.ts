@@ -422,7 +422,12 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
         path: '/',
         httpOnly: true,
         sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
+        // The Secure flag must track the actual serving scheme, not the build
+        // mode: a production build served over plain HTTP (e.g. an IP-only VPS
+        // before SSL) must NOT set Secure, or the browser drops the cookie and
+        // login never persists. Derives from the configured public URL, so it
+        // auto-enables once APP_URL/NEXT_PUBLIC_APP_URL is https://.
+        secure: (process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || '').startsWith('https://'),
       },
     },
   },

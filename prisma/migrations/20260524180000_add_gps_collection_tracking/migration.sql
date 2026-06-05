@@ -22,8 +22,10 @@ ALTER TABLE `collection_entries`
 CREATE INDEX `collection_entries_tenant_id_location_status_idx`
   ON `collection_entries`(`tenant_id`, `location_status`);
 
-CREATE INDEX `collection_entries_submitted_at_idx`
-  ON `collection_entries`(`submitted_at`);
+-- NOTE: `collection_entries_submitted_at_idx` is already created in
+-- 20260523010000_add_perf_indexes. Re-creating it here fails with MySQL
+-- error 1061 (duplicate key name) on a clean migrate. Removed to keep the
+-- migration chain idempotent.
 
 -- Extend existing agent_location_pings table (created in 20260523000000_add_gps_fields)
 ALTER TABLE `agent_location_pings`

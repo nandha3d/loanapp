@@ -90,3 +90,5 @@ mobile/.vscode/
 *.yml
 *.zip
 *.sql
+# Prisma migration SQL must be committed — exclude them from the *.sql ignore above.
+!prisma/migrations/**/*.sql
