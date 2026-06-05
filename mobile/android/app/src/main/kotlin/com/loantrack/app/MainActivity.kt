@@ -1,4 +1,4 @@
-package com.example.loantrack
+package com.loantrack.app
 
 import io.flutter.embedding.android.FlutterActivity
 
