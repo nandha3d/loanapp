@@ -36,14 +36,18 @@ jobs:
       - name: flutter pub get
         run: flutter pub get
 
-      - name: Patch legacy plugin manifests for AGP 9 (strip package attr)
+      - name: Patch legacy isar plugin for AGP 9
         run: |
-          # AGP 9 rejects package="..." in library AndroidManifest.xml; the
-          # namespace is injected by android/build.gradle.kts instead.
+          # 1) AGP 9 rejects package="..." in library AndroidManifest.xml; the
+          #    namespace is injected by android/build.gradle.kts instead.
           find "$HOME/.pub-cache" -path '*isar_flutter_libs*/android/src/main/AndroidManifest.xml' \
             -exec sed -i -E 's/[[:space:]]+package="[^"]*"//' {} +
-          echo "Patched isar manifest:"
-          find "$HOME/.pub-cache" -path '*isar_flutter_libs*/android/src/main/AndroidManifest.xml' -exec cat {} +
+          # 2) isar pins compileSdkVersion 30, but its androidx deps require 34+.
+          #    Bump it to 36.
+          find "$HOME/.pub-cache" -path '*isar_flutter_libs*/android/build.gradle' \
+            -exec sed -i -E 's/(compileSdk(Version)?[[:space:]=]+)3[0-4]/\136/' {} +
+          echo "--- patched isar build.gradle ---"
+          find "$HOME/.pub-cache" -path '*isar_flutter_libs*/android/build.gradle' -exec grep -nE 'compileSdk|namespace' {} +
 
       - name: Build release APK
         run: |
