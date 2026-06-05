@@ -26,7 +26,7 @@ export default async function CustomersPage({
   const { page, limit, skip } = parsePagination(resolvedParams);
 
   const routesRes = await serverFetch<any>('/routes');
-  const routes = routesRes || [];
+  const routes = routesRes?.data || routesRes || [];
 
   const queryParams: Record<string, string> = {
     q,
