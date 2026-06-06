@@ -318,10 +318,8 @@ class _LoginCard extends ConsumerWidget {
           ),
           const SizedBox(height: 24),
           Center(
-            child: Wrap(
-              alignment: WrapAlignment.center,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              runSpacing: 4,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Text(
                   'New to LoanTrack? ',

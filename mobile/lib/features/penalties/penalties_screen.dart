@@ -490,22 +490,24 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
                     label: const Text('Settle'),
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: () => _confirmWaive(g),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.ink,
-                      foregroundColor: AppColors.onInk,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                if (isAdmin) ...[
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () => _confirmWaive(g),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.ink,
+                        foregroundColor: AppColors.onInk,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
+                      icon: const Icon(Icons.block_outlined, size: 18),
+                      label: const Text('Waive'),
                     ),
-                    icon: const Icon(Icons.block_outlined, size: 18),
-                    label: const Text('Waive'),
                   ),
-                ),
+                ],
               ],
             ),
         ],
@@ -696,7 +698,7 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
     final result = await showDialog<bool>(
       context: context,
       builder: (_) => _WaiveDialog(
-        group: g,
+        pending: g.pending,
         customerName: g.customerName,
         net: g.net,
       ),
@@ -791,11 +793,11 @@ class _ErrorState extends StatelessWidget {
 /// of each penalty, so this collects a single reason and applies it to all.
 class _WaiveDialog extends ConsumerStatefulWidget {
   const _WaiveDialog({
-    required this.group,
+    required this.pending,
     required this.customerName,
     required this.net,
   });
-  final _LoanPenaltyGroup group;
+  final List<Penalty> pending;
   final String customerName;
   final double net;
 
@@ -804,60 +806,17 @@ class _WaiveDialog extends ConsumerStatefulWidget {
 }
 
 class _WaiveDialogState extends ConsumerState<_WaiveDialog> {
-  late final TextEditingController _amountController;
   final _reasonController = TextEditingController();
-  final _managerUsernameController = TextEditingController();
-  final _managerPasswordController = TextEditingController();
   bool _submitting = false;
 
   @override
-  void initState() {
-    super.initState();
-    _amountController = TextEditingController(text: widget.net.toStringAsFixed(0));
-  }
-
-  @override
   void dispose() {
-    _amountController.dispose();
     _reasonController.dispose();
-    _managerUsernameController.dispose();
-    _managerPasswordController.dispose();
     super.dispose();
-  }
-
-  Future<void> _waiveGroup(_LoanPenaltyGroup g, double amount, String reason, String? managerUsername, String? managerPassword) async {
-    final svc = ref.read(penaltyServiceProvider);
-    final pend = [...g.pending]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
-    var remaining = amount;
-    for (final p in pend) {
-      if (remaining <= 0) break;
-      final pNet = p.grossPenalty - p.settledAmount - p.waivedAmount;
-      if (pNet <= 0) continue;
-      final waiveAmt = remaining < pNet ? remaining : pNet;
-      await svc.waive(
-        id: p.id,
-        amount: waiveAmt,
-        reason: reason,
-        managerUsername: managerUsername,
-        managerPassword: managerPassword,
-      );
-      remaining -= waiveAmt;
-    }
   }
 
   Future<void> _submit() async {
     final t = T.of(ref);
-    final amount = double.tryParse(_amountController.text.trim()) ?? 0;
-    if (amount <= 0 || amount > widget.net) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${t.x('err.enter_valid_amount')} (max ₹${widget.net.toStringAsFixed(0)})'),
-          backgroundColor: AppColors.warning,
-        ),
-      );
-      return;
-    }
-
     final reason = _reasonController.text.trim();
     if (reason.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -866,39 +825,17 @@ class _WaiveDialogState extends ConsumerState<_WaiveDialog> {
       return;
     }
 
-    final user = ref.read(authControllerProvider).user;
-    final isAgent = user?.role == UserRole.agent;
-    String? mUser;
-    String? mPass;
-
-    if (isAgent) {
-      mUser = _managerUsernameController.text.trim();
-      mPass = _managerPasswordController.text.trim();
-      if (mUser.isEmpty || mPass.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Manager credentials are required for sign-off'),
-            backgroundColor: AppColors.warning,
-          ),
-        );
-        return;
-      }
-    }
-
     setState(() => _submitting = true);
     try {
-      await _waiveGroup(widget.group, amount, reason, mUser, mPass);
+      final svc = ref.read(penaltyServiceProvider);
+      for (final p in widget.pending) {
+        await svc.waive(id: p.id, reason: reason);
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(t.x('pen.waived')), backgroundColor: AppColors.success),
         );
         Navigator.pop(context, true);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Waive failed: $e'), backgroundColor: AppColors.danger),
-        );
       }
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -909,9 +846,6 @@ class _WaiveDialogState extends ConsumerState<_WaiveDialog> {
   Widget build(BuildContext context) {
     final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
-    final user = ref.watch(authControllerProvider).user;
-    final isAgent = user?.role == UserRole.agent;
-
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radius)),
       title: Text('Waive Penalty - ${widget.customerName}'),
@@ -921,18 +855,8 @@ class _WaiveDialogState extends ConsumerState<_WaiveDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Outstanding Penalty: ${fmt.format(widget.net)}',
-              style: AppTypography.body.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _amountController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Amount to Waive',
-                prefixIcon: Icon(Icons.currency_rupee, size: 18),
-                border: OutlineInputBorder(),
-              ),
+              '${t.x('pen.waive_full')}: ${fmt.format(widget.net)}',
+              style: AppTypography.body,
             ),
             const SizedBox(height: 16),
             TextField(
@@ -943,51 +867,6 @@ class _WaiveDialogState extends ConsumerState<_WaiveDialog> {
               ),
               maxLines: 2,
             ),
-            if (isAgent) ...[
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.dangerBg,
-                  borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-                  border: Border.all(color: AppColors.danger.withValues(alpha: 0.5)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.warning_amber_rounded, color: AppColors.danger),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Manager Sign-off Required',
-                        style: AppTypography.body.copyWith(
-                          color: AppColors.danger,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _managerUsernameController,
-                decoration: const InputDecoration(
-                  labelText: 'Manager Username/Phone',
-                  prefixIcon: Icon(Icons.person_outline, size: 18),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _managerPasswordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Manager Password',
-                  prefixIcon: Icon(Icons.lock_outline, size: 18),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
           ],
         ),
       ),
