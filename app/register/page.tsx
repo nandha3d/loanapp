@@ -22,6 +22,8 @@ function RegisterForm() {
   const [ownerName, setOwnerName] = useState(googleName || '');
   const [ownerPhone, setOwnerPhone] = useState('');
   const [ownerEmail, setOwnerEmail] = useState(googleEmail || '');
+  const [phoneError, setPhoneError] = useState('');
+  const [emailError, setEmailError] = useState('');
   const [ownerUsername, setOwnerUsername] = useState(
     googleEmail ? googleEmail.split('@')[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase() : ''
   );
@@ -366,11 +368,14 @@ function RegisterForm() {
                   <input
                     type="tel"
                     className="form-control"
+                    style={phoneError ? { borderColor: 'var(--danger)' } : undefined}
                     placeholder="e.g. 9876543210"
                     value={ownerPhone}
-                    onChange={(e) => setOwnerPhone(e.target.value)}
+                    onChange={(e) => { setOwnerPhone(e.target.value); if (phoneError) setPhoneError(''); }}
+                    onBlur={() => { const r = validateIndianMobile(ownerPhone); setPhoneError(r.ok ? '' : r.error); }}
                     required
                   />
+                  {phoneError && <small style={{ color: 'var(--danger)', fontSize: '0.75rem' }}>{phoneError}</small>}
                 </div>
               </div>
 
@@ -380,14 +385,20 @@ function RegisterForm() {
                   <input
                     type="email"
                     className="form-control"
+                    style={emailError ? { borderColor: 'var(--danger)' } : undefined}
                     placeholder="you@business.com"
                     value={ownerEmail}
-                    onChange={(e) => setOwnerEmail(e.target.value)}
+                    onChange={(e) => { setOwnerEmail(e.target.value); if (emailError) setEmailError(''); }}
+                    onBlur={() => { const r = validateEmail(ownerEmail); setEmailError(r.ok ? '' : r.error); }}
                     required
                   />
-                  <small style={{ color: 'var(--text-light)', fontSize: '0.75rem' }}>
-                    We'll send an activation link here — your account stays inactive until verified.
-                  </small>
+                  {emailError ? (
+                    <small style={{ color: 'var(--danger)', fontSize: '0.75rem' }}>{emailError}</small>
+                  ) : (
+                    <small style={{ color: 'var(--text-light)', fontSize: '0.75rem' }}>
+                      We'll send an activation link here — your account stays inactive until verified.
+                    </small>
+                  )}
                 </div>
               )}
 
