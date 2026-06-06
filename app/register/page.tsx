@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
+import { validateIndianMobile, validateEmail } from '@/lib/validation/contact';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { calculateVerticalSubscriptionPricing } from '@/lib/pricing';
@@ -20,6 +21,7 @@ function RegisterForm() {
   const [businessName, setBusinessName] = useState('');
   const [ownerName, setOwnerName] = useState(googleName || '');
   const [ownerPhone, setOwnerPhone] = useState('');
+  const [ownerEmail, setOwnerEmail] = useState(googleEmail || '');
   const [ownerUsername, setOwnerUsername] = useState(
     googleEmail ? googleEmail.split('@')[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase() : ''
   );
@@ -173,6 +175,14 @@ function RegisterForm() {
       return;
     }
     setError('');
+
+    if (!isGoogleRegister) {
+      const ec = validateEmail(ownerEmail);
+      if (!ec.ok) { setError(ec.error); return; }
+      const pc = validateIndianMobile(ownerPhone);
+      if (!pc.ok) { setError(pc.error); return; }
+    }
+
     setLoading(true);
 
     try {
@@ -193,6 +203,7 @@ function RegisterForm() {
             businessName,
             ownerName,
             ownerPhone,
+            ownerEmail,
             ownerUsername,
             ownerPassword,
             selectedPlan,
@@ -240,7 +251,7 @@ function RegisterForm() {
       if (isGoogleRegister) {
         await signIn('google', { callbackUrl: '/portal' });
       } else {
-        router.push(`/login?registered=true&username=${encodeURIComponent(ownerUsername)}`);
+        router.push(`/login?registerPending=1&username=${encodeURIComponent(ownerUsername)}`);
       }
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred');
@@ -356,6 +367,23 @@ function RegisterForm() {
                   />
                 </div>
               </div>
+
+              {!isGoogleRegister && (
+                <div className="form-group">
+                  <label className="form-label">Owner Email</label>
+                  <input
+                    type="email"
+                    className="form-control"
+                    placeholder="you@business.com"
+                    value={ownerEmail}
+                    onChange={(e) => setOwnerEmail(e.target.value)}
+                    required
+                  />
+                  <small style={{ color: 'var(--text-light)', fontSize: '0.75rem' }}>
+                    We'll send an activation link here — your account stays inactive until verified.
+                  </small>
+                </div>
+              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: isGoogleRegister ? '1fr' : '1fr 1fr', gap: '16px' }}>
                 <div className="form-group">

@@ -16,6 +16,15 @@ function LoginForm() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const notice = searchParams.get('registerPending')
+      ? 'Account created! Check your email and click the activation link before signing in.'
+    : searchParams.get('verified')
+      ? 'Email verified — you can sign in now.'
+    : searchParams.get('reset')
+      ? 'Password updated — sign in with your new password.'
+    : '';
+  const verifyError = searchParams.get('verifyError') || '';
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -29,7 +38,7 @@ function LoginForm() {
       });
 
       if (result?.error) {
-        setError('Invalid username or password');
+        setError('Invalid credentials. If you just registered, verify your email using the activation link we sent before signing in.');
         setLoading(false);
         return;
       }
@@ -82,10 +91,15 @@ function LoginForm() {
           Micro-Lending Management System
         </p>
 
-        {error && (
+        {notice && (
+          <div style={{ background: 'var(--success-bg)', border: '1px solid var(--success)', color: 'var(--success)', padding: '10px 14px', borderRadius: '8px', marginBottom: '14px', fontSize: '.82rem' }}>
+            {notice}
+          </div>
+        )}
+        {(error || verifyError) && (
           <div className="login-error">
             <span className="material-icons-outlined" style={{ fontSize: '16px' }}>error</span>
-            {error}
+            {error || verifyError}
           </div>
         )}
 
@@ -120,6 +134,9 @@ function LoginForm() {
             <label className="checkbox-label">
               <input type="checkbox" defaultChecked /> Remember me
             </label>
+            <a href="/forgot-password" style={{ color: 'var(--primary)', fontWeight: 600, fontSize: '.82rem' }}>
+              Forgot password?
+            </a>
           </div>
           <button
             type="submit"

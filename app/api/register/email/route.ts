@@ -3,6 +3,8 @@ import prisma from '@/lib/db';
 import { hash } from 'bcryptjs';
 import { generateTenantSlug } from '@/lib/slug';
 import { calculateVerticalSubscriptionPricing, normalizeSelectedModules } from '@/lib/pricing';
+import { validateEmail, validateIndianMobile } from '@/lib/validation/contact';
+import { sendVerificationEmail } from '@/lib/auth/emailVerification';
 
 export async function POST(request: Request) {
   try {
@@ -11,6 +13,7 @@ export async function POST(request: Request) {
       businessName,
       ownerName,
       ownerPhone,
+      ownerEmail,
       ownerUsername,
       ownerPassword,
       selectedPlan,
@@ -26,6 +29,17 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    const emailCheck = validateEmail(ownerEmail);
+    if (!emailCheck.ok) {
+      return NextResponse.json({ success: false, error: emailCheck.error }, { status: 400 });
+    }
+    const phoneCheck = validateIndianMobile(ownerPhone);
+    if (!phoneCheck.ok) {
+      return NextResponse.json({ success: false, error: phoneCheck.error }, { status: 400 });
+    }
+    const email = emailCheck.value;
+    const phone = phoneCheck.value;
 
     const finalModules = normalizeSelectedModules(selectedModules);
 
@@ -121,12 +135,14 @@ export async function POST(request: Request) {
           tenantId: tenant.id,
           branchId: branch.id,
           name: ownerName,
-          phone: ownerPhone,
+          phone,
+          email,
           username: ownerUsername.trim().toLowerCase(),
           passwordHash: hashedPassword,
           role: 'superadmin',
           appType: finalModules[0],
-          status: 'active',
+          // Account stays inactive until the owner verifies their email.
+          status: 'pending',
           canCreateLoan: true
         }
       });
@@ -207,14 +223,26 @@ export async function POST(request: Request) {
       return {
         tenantId: tenant.id,
         tenantSlug: tenant.slug,
-        username: user.username
+        username: user.username,
+        userId: user.id,
+        ownerEmail: email,
+        ownerName,
       };
     });
+
+    // Send the activation email outside the transaction (network call).
+    await sendVerificationEmail({
+      tenantId: result.tenantId,
+      email: result.ownerEmail,
+      name: result.ownerName,
+      userId: result.userId,
+    }).catch((e) => console.error('[VERIFY_EMAIL_SEND]', e));
 
     return NextResponse.json(
       {
         success: true,
-        message: 'Tenant registered successfully',
+        requiresVerification: true,
+        message: 'Account created. Check your email to verify and activate your account.',
         tenantId: result.tenantId,
         tenantSlug: result.tenantSlug,
         username: result.username

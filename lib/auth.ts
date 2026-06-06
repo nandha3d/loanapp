@@ -128,7 +128,8 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
                   { username },
                   { phone: username },
                 ],
-                status: 'active',
+                // Status checked after password verification (below) so we can
+                // distinguish "wrong credentials" from "email not verified".
                 ...(tenantIdFromHost ? { tenantId: tenantIdFromHost } : {}),
               },
               include: { tenant: true, branch: true },
@@ -159,6 +160,16 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
           const isValid = await compare(credentials.password as string, user.passwordHash);
           if (!isValid) {
             console.warn(`[AUTH_WARN] Invalid password for user: ${username}`);
+            return null;
+          }
+
+          // ── Account status gate (after auth) ─────────────────────────────────
+          if (user.status === 'pending') {
+            console.warn(`[AUTH_WARN] Email not verified for user: ${username}`);
+            throw new Error('EMAIL_NOT_VERIFIED');
+          }
+          if (user.status !== 'active') {
+            console.warn(`[AUTH_WARN] Inactive account (${user.status}) for user: ${username}`);
             return null;
           }
 
