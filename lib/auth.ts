@@ -334,7 +334,38 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
           appType: appType || 'microlending',
         });
         token.apiToken = apiToken;
-        token.apiTokenExp = Date.now() + 15 * 60 * 1000; // 15 min expiry tracking
+      }
+
+      // Dynamic healing: If the token is already issued but missing role/tenantId,
+      // lookup and heal the token dynamically on the fly.
+      if (token.userId && (!token.role || !token.tenantId)) {
+        try {
+          const prisma = (await import('./db')).default;
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.userId },
+            select: { role: true, tenantId: true, branchId: true, appType: true }
+          });
+          if (dbUser) {
+            token.role = dbUser.role;
+            token.tenantId = dbUser.tenantId;
+            token.branchId = dbUser.branchId;
+            token.appType = dbUser.appType;
+            
+            // Also issue a new apiToken
+            const { issueMobileToken } = await import('@/lib/api/v1-auth');
+            const apiToken = await issueMobileToken({
+              userId: token.userId,
+              tenantId: dbUser.tenantId,
+              branchId: dbUser.branchId ?? null,
+              role: dbUser.role,
+              appType: dbUser.appType || 'microlending',
+            });
+            token.apiToken = apiToken;
+            token.apiTokenExp = Date.now() + 15 * 60 * 1000;
+          }
+        } catch (e) {
+          console.error('[AUTH_JWT_HEAL_ERROR]', e);
+        }
       }
 
       // Refresh if within 2 minutes of expiry
