@@ -3,7 +3,15 @@ import prisma from '@/lib/db';
 import { verifyVerifyToken } from '@/lib/auth/emailVerification';
 
 function loginRedirect(req: NextRequest, params: string): NextResponse {
-  return NextResponse.redirect(new URL(`/login?${params}`, req.url));
+  // Behind nginx, req.url is the internal localhost:3000 origin — use the
+  // public app URL so the browser is sent somewhere it can actually reach.
+  const base = (
+    process.env.APP_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.WEB_APP_URL ||
+    req.nextUrl.origin
+  ).replace(/\/+$/, '');
+  return NextResponse.redirect(`${base}/login?${params}`);
 }
 
 // GET /api/auth/verify-email?token=... — clicked from the verification email.
