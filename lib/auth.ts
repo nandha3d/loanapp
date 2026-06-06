@@ -31,6 +31,14 @@ async function resolveLoginTenantId(host: string | null): Promise<string | null>
     return null;
   }
 
+  // If host is IPv4 or IPv6, it's not a tenant host
+  if (
+    /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(hostname) ||
+    /^[0-9a-fA-F:]+$/.test(hostname.replace(/[\[\]]/g, ''))
+  ) {
+    return null;
+  }
+
   const rootDomain = (
     process.env.NEXT_PUBLIC_ROOT_DOMAIN || process.env.APP_ROOT_DOMAIN || ''
   ).toLowerCase().split(':')[0];
@@ -43,12 +51,12 @@ async function resolveLoginTenantId(host: string | null): Promise<string | null>
     }
   } else {
     const labels = hostname.split('.');
-    // If it's a subdomain (e.g. tenant.domain.com), use the first label
-    // If it's a 3rd level subdomain (e.g. springgreen-emu-806212.hostingersite.com), 
-    // we need to be careful if hostingersite.com is the root.
-    if (labels.length > 2) {
-      slug = labels[0];
-    }
+    slug = labels.length > 2 ? labels[0] : null;
+  }
+
+  const reservedSlugs = ['www', 'api', 'admin', 'app', 'portal', 'support', 'static', 'assets'];
+  if (slug && reservedSlugs.includes(slug.toLowerCase())) {
+    return null;
   }
 
   if (!slug) return null;
@@ -275,11 +283,35 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
         // Only store minimal essential data in JWT for authorization
         // Sensitive data (tenantId, branchId, phone, username) are fetched server-side in session callback
         token.userId = user.id;
-        const authorizedUser = user as AuthorizedUser;
-        token.role = authorizedUser.role;
-        token.tenantId = authorizedUser.tenantId;
-        token.branchId = authorizedUser.branchId;
-        token.appType = authorizedUser.appType;
+        
+        let role = (user as AuthorizedUser).role;
+        let tenantId = (user as AuthorizedUser).tenantId;
+        let branchId = (user as AuthorizedUser).branchId;
+        let appType = (user as AuthorizedUser).appType;
+
+        // If these are missing (e.g. Google OAuth login), fetch them from the database
+        if (!role || !tenantId) {
+          try {
+            const prisma = (await import('./db')).default;
+            const dbUser = await prisma.user.findUnique({
+              where: { id: user.id },
+              select: { role: true, tenantId: true, branchId: true, appType: true }
+            });
+            if (dbUser) {
+              role = dbUser.role;
+              tenantId = dbUser.tenantId;
+              branchId = dbUser.branchId;
+              appType = dbUser.appType;
+            }
+          } catch (e) {
+            console.error('[AUTH_JWT_DB_LOOKUP_ERROR]', e);
+          }
+        }
+
+        token.role = role;
+        token.tenantId = tenantId;
+        token.branchId = branchId;
+        token.appType = appType;
         
         // Handle dynamic expiration based on Remember Me
         const rememberMe = (user as any).rememberMe;
@@ -296,10 +328,10 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
         const { issueMobileToken } = await import('@/lib/api/v1-auth');
         const apiToken = await issueMobileToken({
           userId: user.id as string,
-          tenantId: authorizedUser.tenantId as string,
-          branchId: authorizedUser.branchId ?? null,
-          role: authorizedUser.role as string,
-          appType: authorizedUser.appType || 'microlending',
+          tenantId: tenantId as string,
+          branchId: branchId ?? null,
+          role: role as string,
+          appType: appType || 'microlending',
         });
         token.apiToken = apiToken;
         token.apiTokenExp = Date.now() + 15 * 60 * 1000; // 15 min expiry tracking

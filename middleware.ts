@@ -159,18 +159,32 @@ function extractTenantSlugFromHost(
     return null;
   }
 
-  const normalizedRoot = normalizeHost(rootDomain);
-  if (normalizedRoot) {
-    if (hostname === normalizedRoot) return null;
-    if (hostname.endsWith(`.${normalizedRoot}`)) {
-      const slug = hostname.slice(0, -(normalizedRoot.length + 1)).split('.')[0];
-      return slug || null;
-    }
+  // If host is IPv4 or IPv6, it's not a tenant host
+  if (
+    /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(hostname) ||
+    /^[0-9a-fA-F:]+$/.test(hostname.replace(/[\[\]]/g, ''))
+  ) {
     return null;
   }
 
-  const labels = hostname.split('.');
-  return labels.length > 2 ? labels[0] : null;
+  const normalizedRoot = normalizeHost(rootDomain);
+  let slug: string | null = null;
+  if (normalizedRoot) {
+    if (hostname === normalizedRoot) return null;
+    if (hostname.endsWith(`.${normalizedRoot}`)) {
+      slug = hostname.slice(0, -(normalizedRoot.length + 1)).split('.')[0] || null;
+    }
+  } else {
+    const labels = hostname.split('.');
+    slug = labels.length > 2 ? labels[0] : null;
+  }
+
+  const reservedSlugs = ['www', 'api', 'admin', 'app', 'portal', 'support', 'static', 'assets'];
+  if (slug && reservedSlugs.includes(slug.toLowerCase())) {
+    return null;
+  }
+
+  return slug;
 }
 
 function nextWithTenantHeaders(
