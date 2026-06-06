@@ -130,6 +130,12 @@ function RegisterForm() {
         setError('Please fill in all owner and business details.');
         return;
       }
+      if (!isGoogleRegister) {
+        const ec = validateEmail(ownerEmail);
+        if (!ec.ok) { setError(ec.error); return; }
+        const pc = validateIndianMobile(ownerPhone);
+        if (!pc.ok) { setError(pc.error); return; }
+      }
       setError('');
     }
     
