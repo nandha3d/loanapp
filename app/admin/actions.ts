@@ -589,3 +589,154 @@ export async function toggleUserStatus(userId: string, newStatus: string) {
   return { success: true };
 }
 
+// ─── Scoped agent management (module Settings → Users tab) ──────────────────
+// Lets a branch admin / superadmin manage AGENTS within ONE branch + ONE module
+// only. Narrower than manageMasterUser (which is superadmin/dev-only and handles
+// tenant/superadmin creation). Portal /admin/users stays the master editor.
+export async function manageBranchAgent(formData: FormData) {
+  const session = await auth();
+  const user = session?.user as any;
+  const role = user?.role;
+  const actorId = user?.id;
+  if (role !== 'admin' && role !== 'superadmin' && role !== 'developer') {
+    return { success: false, error: 'Unauthorized.' };
+  }
+  const tenantId = await getDefaultTenantId();
+
+  const id = (formData.get('id') as string) || null;
+  const name = ((formData.get('name') as string) || '').trim();
+  const username = ((formData.get('username') as string) || '').trim().toLowerCase();
+  const phone = ((formData.get('phone') as string) || '').trim();
+  const password = (formData.get('password') as string) || '';
+  const status = (formData.get('status') as string) === 'inactive' ? 'inactive' : 'active';
+  const appType = (formData.get('appType') as string) || 'microlending';
+
+  if (!name || !username || !phone) {
+    return { success: false, error: 'Name, username and phone are required.' };
+  }
+
+  // ── Resolve the branch the actor may manage ──
+  let branchId: string | null = null;
+  if (role === 'admin') {
+    const me = await prisma.user.findUnique({ where: { id: actorId }, select: { branchId: true } });
+    branchId = me?.branchId ?? null;
+    if (!branchId) return { success: false, error: 'Your account is not assigned to a branch.' };
+  } else {
+    // superadmin / developer: branch from form; superadmin must own it
+    branchId = (formData.get('branchId') as string) || null;
+    if (!branchId) return { success: false, error: 'No branch selected.' };
+    const owned = await prisma.branch.findFirst({
+      where: { id: branchId, tenantId, ...(role === 'superadmin' ? { superadminId: actorId } : {}) },
+      select: { id: true },
+    });
+    if (!owned) return { success: false, error: 'Unauthorized: you do not manage this branch.' };
+  }
+
+  // Subscription gate (developer bypass)
+  if (role !== 'developer') {
+    try { await assertTenantSubscriptionAccess(tenantId); }
+    catch (e: any) { return { success: false, error: e.message }; }
+  }
+
+  // Module must be enabled on the plan AND the branch
+  const sub = await prisma.tenantSubscription.findUnique({ where: { tenantId }, select: { enabledModules: true } });
+  const planModules = normalizeEnabledModules(sub?.enabledModules);
+  const branchRow = await prisma.branch.findFirst({ where: { id: branchId, tenantId }, select: { enabledModules: true } });
+  const branchModules = normalizeModuleList(branchRow?.enabledModules);
+  const allowedModules = branchModules.length > 0 ? branchModules : (planModules as ModuleKey[]);
+  if (role !== 'developer' && !allowedModules.includes(appType as ModuleKey)) {
+    return { success: false, error: `Module "${appType}" is not enabled for this branch.` };
+  }
+
+  // Username unique within tenant
+  const dupe = await prisma.user.findFirst({
+    where: { username, tenantId, id: id ? { not: id } : undefined },
+    select: { id: true },
+  });
+  if (dupe) return { success: false, error: 'Username already taken.' };
+
+  if (id) {
+    // Edit — target must be an agent inside the allowed branch
+    const target = await prisma.user.findFirst({
+      where: { id, tenantId, role: 'agent', branchId },
+      select: { id: true },
+    });
+    if (!target) return { success: false, error: 'Agent not found in your branch.' };
+    const data: any = { name, username, phone, status };
+    if (password) data.passwordHash = await bcrypt.hash(password, 10);
+    await prisma.user.update({ where: { id }, data });
+    await prisma.auditLog.create({
+      data: { tenantId, userId: actorId, action: 'update', entityType: 'user', entityId: id,
+        newValue: JSON.stringify({ name, username, status, scope: 'branch_agent' }) },
+    }).catch(() => {});
+  } else {
+    if (!password) return { success: false, error: 'Password is required for a new agent.' };
+    if (role !== 'developer') {
+      try { await checkLimit(tenantId, 'agents'); }
+      catch (e: any) { return { success: false, error: e.message }; }
+    }
+    try {
+      const created = await prisma.user.create({
+        data: { tenantId, branchId, name, username, phone,
+          passwordHash: await bcrypt.hash(password, 10),
+          role: 'agent', appType, status, canCreateLoan: true },
+      });
+      await prisma.auditLog.create({
+        data: { tenantId, userId: actorId, action: 'create', entityType: 'user', entityId: created.id,
+          newValue: JSON.stringify({ name, username, role: 'agent', appType, status, scope: 'branch_agent' }) },
+      }).catch(() => {});
+    } catch (err: any) {
+      if (err.code === 'P2002') {
+        const t = err.meta?.target;
+        const tgt = Array.isArray(t) ? t.join(',') : String(t ?? '');
+        if (tgt.includes('phone')) return { success: false, error: 'A user with this phone number already exists.' };
+        if (tgt.includes('username')) return { success: false, error: 'A user with this username already exists.' };
+        return { success: false, error: 'A user with these details already exists.' };
+      }
+      throw err;
+    }
+  }
+
+  revalidatePath(`/${appType}/settings`);
+  return { success: true };
+}
+
+// Activate / deactivate an agent, scoped to the actor's branch(es). Kept separate
+// from toggleUserStatus (superadmin/dev master) so branch admins can use it too.
+export async function setBranchAgentStatus(userId: string, newStatus: string, appType: string) {
+  const session = await auth();
+  const user = session?.user as any;
+  const role = user?.role;
+  const actorId = user?.id;
+  if (role !== 'admin' && role !== 'superadmin' && role !== 'developer') {
+    return { success: false, error: 'Unauthorized.' };
+  }
+  const tenantId = await getDefaultTenantId();
+  const status = newStatus === 'inactive' ? 'inactive' : 'active';
+
+  let branchWhere: any = {};
+  if (role === 'admin') {
+    const me = await prisma.user.findUnique({ where: { id: actorId }, select: { branchId: true } });
+    if (!me?.branchId) return { success: false, error: 'Your account is not assigned to a branch.' };
+    branchWhere = { branchId: me.branchId };
+  } else if (role === 'superadmin') {
+    const owned = await prisma.branch.findMany({ where: { tenantId, superadminId: actorId }, select: { id: true } });
+    branchWhere = { branchId: { in: owned.map((b) => b.id) } };
+  }
+
+  const target = await prisma.user.findFirst({
+    where: { id: userId, tenantId, role: 'agent', ...branchWhere },
+    select: { id: true },
+  });
+  if (!target) return { success: false, error: 'Agent not found in your branch.' };
+
+  await prisma.user.update({ where: { id: userId }, data: { status } });
+  await prisma.auditLog.create({
+    data: { tenantId, userId: actorId, action: 'update', entityType: 'user', entityId: userId,
+      newValue: JSON.stringify({ status, scope: 'branch_agent' }) },
+  }).catch(() => {});
+
+  revalidatePath(`/${appType}/settings`);
+  return { success: true };
+}
+

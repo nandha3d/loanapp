@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 import { getDictionary } from '@/lib/i18n';
 import { modulePath } from '@/types/modules';
 import { getSubscription } from '@/lib/subscription';
+import { getActiveBranchId } from '@/lib/branch';
 
 export default async function SettingsPage() {
   const session = await auth();
@@ -43,6 +44,43 @@ export default async function SettingsPage() {
     penaltyRate: p.penaltyRate.toString(),
   }));
 
+  // ── Scoped agent management (Users tab): resolve the ONE branch this actor
+  // manages for the current module, then list its agents. ──
+  let manageBranchId: string | null = null;
+  if (userRole === 'admin') {
+    manageBranchId = (currentUser as any)?.branchId ?? null;
+  } else {
+    // superadmin / developer → active branch, else first owned/any branch
+    const active = await getActiveBranchId();
+    if (active && active !== 'all') {
+      manageBranchId = active;
+    } else {
+      const firstBranch = await prisma.branch.findFirst({
+        where: userRole === 'superadmin'
+          ? { tenantId, superadminId: session?.user?.id }
+          : { tenantId },
+        select: { id: true },
+        orderBy: { name: 'asc' },
+      });
+      manageBranchId = firstBranch?.id ?? null;
+    }
+  }
+
+  let branchAgents: { id: string; name: string; username: string; phone: string; status: string }[] = [];
+  let manageBranchName: string | null = null;
+  if (manageBranchId) {
+    const [agents, br] = await Promise.all([
+      prisma.user.findMany({
+        where: { tenantId, appType, role: 'agent', branchId: manageBranchId },
+        select: { id: true, name: true, username: true, phone: true, status: true },
+        orderBy: { name: 'asc' },
+      }),
+      prisma.branch.findUnique({ where: { id: manageBranchId }, select: { name: true } }),
+    ]);
+    branchAgents = agents.map((a) => ({ ...a, phone: a.phone ?? '' }));
+    manageBranchName = br?.name ?? null;
+  }
+
   // Decrypt credential fields securely on the server
   let decryptedCreds: any = null;
   if (bureauCredential) {
@@ -70,6 +108,11 @@ export default async function SettingsPage() {
       currentUser={currentUser}
       subscription={subscription}
       bureauCredential={decryptedCreds}
+      viewerRole={userRole}
+      appType={appType}
+      branchAgents={branchAgents}
+      manageBranchId={manageBranchId}
+      manageBranchName={manageBranchName}
     />
   );
 }

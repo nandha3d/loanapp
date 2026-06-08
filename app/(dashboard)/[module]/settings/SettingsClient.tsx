@@ -4,18 +4,48 @@ import { useState } from 'react';
 import { saveSystemSettings, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, deleteLoanPackage, assignAgentToRoute, removeAgentFromRoute, setPrimaryAgent, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections, saveUpiQrCode, saveNotificationSettings, saveBureauSettings } from './actions';
 import Modal from '@/components/Modal';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { manageBranchAgent, setBranchAgentStatus } from '../../../admin/actions';
 
-export default function SettingsClient({ 
-  routes, packages, users, settings, currencySymbol, dict, currentUser, subscription, bureauCredential
-}: { 
-  routes: any[], packages: any[], users: any[], settings: Record<string, string>, currencySymbol: string, dict: any, currentUser: any, subscription: any, bureauCredential: any
+export default function SettingsClient({
+  routes, packages, users, settings, currencySymbol, dict, currentUser, subscription, bureauCredential,
+  viewerRole, appType, branchAgents = [], manageBranchId = null, manageBranchName = null
+}: {
+  routes: any[], packages: any[], users: any[], settings: Record<string, string>, currencySymbol: string, dict: any, currentUser: any, subscription: any, bureauCredential: any,
+  viewerRole?: string, appType?: string, branchAgents?: any[], manageBranchId?: string | null, manageBranchName?: string | null
 }) {
   const d = dict.settings;
   const [activeTab, setActiveTab] = useState('routes');
   const [loading, setLoading] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
   const modulePrefix = pathname.split('/')[1] || 'microlending';
+  const effAppType = appType || modulePrefix;
+
+  // Scoped agent management (Users tab)
+  const canManageAgents = viewerRole === 'admin' || viewerRole === 'superadmin' || viewerRole === 'developer';
+  const [agentModal, setAgentModal] = useState<{ id?: string; name: string; username: string; phone: string; status: string } | null>(null);
+  const [agentBusy, setAgentBusy] = useState(false);
+
+  const submitAgent = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setAgentBusy(true);
+    const fd = new FormData(e.currentTarget);
+    fd.set('appType', effAppType);
+    if (manageBranchId) fd.set('branchId', manageBranchId);
+    if (agentModal?.id) fd.set('id', agentModal.id);
+    const res = await manageBranchAgent(fd);
+    setAgentBusy(false);
+    if (res?.success) { setAgentModal(null); router.refresh(); }
+    else alert(res?.error || 'Failed to save agent');
+  };
+
+  const toggleAgent = async (id: string, current: string) => {
+    const next = current === 'active' ? 'inactive' : 'active';
+    const res = await setBranchAgentStatus(id, next, effAppType);
+    if (res?.success) router.refresh();
+    else alert(res?.error || 'Failed to update status');
+  };
 
   // Modals state
   const [isRouteModalOpen, setIsRouteModalOpen] = useState(false);
@@ -75,8 +105,92 @@ export default function SettingsClient({
         {currentUser?.role === 'superadmin' && (
           <div className={`tab ${activeTab === 'data' ? 'active' : ''}`} style={{color: 'var(--danger)'}} onClick={() => setActiveTab('data')}>{d.tabData}</div>
         )}
+        {canManageAgents && (
+          <div className={`tab ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>Users</div>
+        )}
         <div className={`tab ${activeTab === 'security' ? 'active' : ''}`} onClick={() => setActiveTab('security')}>{d.tabSecurity}</div>
       </div>
+
+      {/* Users (scoped agent management) Tab */}
+      {canManageAgents && (
+      <div className={`tab-content ${activeTab === 'users' ? 'active' : ''}`}>
+        <div className="card-header">
+          <div>
+            <h3>👥 Agents</h3>
+            <p style={{ fontSize: '.78rem', color: 'var(--text-secondary)', margin: '2px 0 0' }}>
+              {manageBranchName ? <>Branch <strong>{manageBranchName}</strong> · {effAppType} module</> : 'No branch available'}
+            </p>
+          </div>
+          {manageBranchId && (
+            <button className="btn btn-primary btn-sm" onClick={() => setAgentModal({ name: '', username: '', phone: '', status: 'active' })}>
+              <span className="material-icons-outlined" style={{ fontSize: '14px' }}>add</span> Add Agent
+            </button>
+          )}
+        </div>
+        {!manageBranchId ? (
+          <p style={{ padding: '16px', color: 'var(--text-secondary)' }}>No branch assigned. Ask a super admin to assign you to a branch.</p>
+        ) : (
+          <div className="table-wrapper">
+            <table>
+              <thead>
+                <tr><th>Name</th><th>Username</th><th>Phone</th><th>Status</th><th style={{ textAlign: 'right' }}>Actions</th></tr>
+              </thead>
+              <tbody>
+                {branchAgents.map((a: any) => (
+                  <tr key={a.id}>
+                    <td>{a.name}</td>
+                    <td>{a.username}</td>
+                    <td>{a.phone}</td>
+                    <td><span className={`badge ${a.status === 'active' ? 'badge-success' : 'badge-danger'}`}>{a.status}</span></td>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <button className="btn btn-ghost btn-sm" onClick={() => setAgentModal({ id: a.id, name: a.name, username: a.username, phone: a.phone, status: a.status })}>Edit</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => toggleAgent(a.id, a.status)} style={{ color: a.status === 'active' ? 'var(--danger)' : 'var(--success)' }}>
+                        {a.status === 'active' ? 'Deactivate' : 'Activate'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {branchAgents.length === 0 && (
+                  <tr><td colSpan={5} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-light)' }}>No agents yet. Add one.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+      )}
+
+      <Modal isOpen={!!agentModal} onClose={() => setAgentModal(null)} title={agentModal?.id ? 'Edit Agent' : 'Add Agent'}>
+        <form onSubmit={submitAgent}>
+          <div className="form-group">
+            <label className="form-label">Name</label>
+            <input name="name" className="form-control" defaultValue={agentModal?.name || ''} required />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Username</label>
+            <input name="username" className="form-control" defaultValue={agentModal?.username || ''} required autoComplete="off" />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Phone</label>
+            <input name="phone" className="form-control" defaultValue={agentModal?.phone || ''} required />
+          </div>
+          <div className="form-group">
+            <label className="form-label">{agentModal?.id ? 'New password (leave blank to keep)' : 'Password'}</label>
+            <input name="password" type="password" className="form-control" autoComplete="new-password" {...(agentModal?.id ? {} : { required: true })} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Status</label>
+            <select name="status" className="form-control" defaultValue={agentModal?.status || 'active'}>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '8px' }}>
+            <button type="button" className="btn btn-ghost" onClick={() => setAgentModal(null)}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={agentBusy}>{agentBusy ? 'Saving…' : agentModal?.id ? 'Save' : 'Create Agent'}</button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Routes Tab */}
       <div className={`tab-content ${activeTab === 'routes' ? 'active' : ''}`}>
