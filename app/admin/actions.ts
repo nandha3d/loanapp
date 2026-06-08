@@ -189,11 +189,15 @@ export async function manageMasterUser(formData: FormData) {
       });
     } catch (err: any) {
       if (err.code === 'P2002') {
-        const fields: string[] = err.meta?.target ?? [];
-        if (fields.some((f: string) => f.includes('phone'))) {
+        // Prisma's meta.target is a string (MySQL index name) — NOT an array as
+        // on Postgres. Normalize to a string before substring checks, or `.some`
+        // throws "some is not a function" and turns a dup into a 500.
+        const t = err.meta?.target;
+        const target = Array.isArray(t) ? t.join(',') : String(t ?? '');
+        if (target.includes('phone')) {
           return { success: false, error: 'A user with this phone number already exists.' };
         }
-        if (fields.some((f: string) => f.includes('username'))) {
+        if (target.includes('username')) {
           return { success: false, error: 'A user with this username already exists.' };
         }
         return { success: false, error: 'A user with these details already exists.' };
