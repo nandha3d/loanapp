@@ -3,6 +3,11 @@ import type { NextConfig } from "next";
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? '').replace(/\/+$/, '');
 const cspApiUrl = API_URL ? ` ${API_URL}` : '';
 
+// Supabase auth runs in the browser (OAuth code exchange, magic-link send), so
+// its origin must be allowed in connect-src or the CSP blocks every call.
+const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/+$/, '');
+const cspSupabase = SUPABASE_URL ? ` ${SUPABASE_URL} wss://${SUPABASE_URL.replace(/^https?:\/\//, '')}` : '';
+
 const securityHeaders = [
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
@@ -16,7 +21,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       `img-src 'self' data: blob:${cspApiUrl}`,
       "font-src 'self' https://fonts.gstatic.com",
-      `connect-src 'self'${cspApiUrl}`,
+      `connect-src 'self'${cspApiUrl}${cspSupabase}`,
       "frame-ancestors 'none'",
     ].join('; '),
   },

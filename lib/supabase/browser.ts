@@ -25,9 +25,8 @@ export function getSupabaseBrowser(): SupabaseClient {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        // We exchange the ?code ourselves in /auth/callback so we can surface
-        // real errors and avoid a double-exchange race (PKCE codes are
-        // single-use). detectSessionInUrl would consume the code first.
+        // We exchange the ?code ourselves in /auth/callback (explicit, so errors
+        // surface and there's no single-use double-exchange race).
         detectSessionInUrl: false,
         flowType: 'pkce',
       },
