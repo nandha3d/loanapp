@@ -231,12 +231,18 @@ export async function POST(request: Request) {
     });
 
     // Send the activation email outside the transaction (network call).
-    await sendVerificationEmail({
-      tenantId: result.tenantId,
-      email: result.ownerEmail,
-      name: result.ownerName,
-      userId: result.userId,
-    }).catch((e) => console.error('[VERIFY_EMAIL_SEND]', e));
+    // When Supabase auth is configured it owns email delivery + ownership proof
+    // (the client triggers a Supabase magic-link after this response), so skip
+    // the legacy Brevo verification mail to avoid a duplicate email.
+    const { isSupabaseConfigured } = await import('@/lib/supabase/server');
+    if (!isSupabaseConfigured()) {
+      await sendVerificationEmail({
+        tenantId: result.tenantId,
+        email: result.ownerEmail,
+        name: result.ownerName,
+        userId: result.userId,
+      }).catch((e) => console.error('[VERIFY_EMAIL_SEND]', e));
+    }
 
     return NextResponse.json(
       {

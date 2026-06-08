@@ -43,6 +43,8 @@ export function isPublicPath(pathname: string): boolean {
     pathname === '/login' ||
     pathname === '/register' ||
     pathname === '/forgot-password' ||
+    pathname === '/reset-password' ||
+    pathname.startsWith('/auth/callback') ||
     pathname.startsWith('/r/') ||
     pathname === '/affiliate' ||
     pathname.startsWith('/borrower') ||

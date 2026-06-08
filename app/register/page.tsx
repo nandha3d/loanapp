@@ -5,6 +5,7 @@ import { validateIndianMobile, validateEmail } from '@/lib/validation/contact';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { calculateVerticalSubscriptionPricing } from '@/lib/pricing';
+import { getSupabaseBrowser, isSupabaseAuthEnabled } from '@/lib/supabase/browser';
 
 function RegisterForm() {
   const router = useRouter();
@@ -14,7 +15,10 @@ function RegisterForm() {
   const googleEmail = searchParams.get('google_email') || '';
   const googleName = searchParams.get('google_name') || '';
   const googleId = searchParams.get('google_id') || '';
-  const isGoogleRegister = !!googleId;
+  // Supabase-brokered Google onboarding lands here with google_email (no Google
+  // `sub`); legacy NextAuth Google flow lands with google_id. Either means the
+  // owner identity is already email-verified and password-less.
+  const isGoogleRegister = !!googleId || !!googleEmail;
 
   // Form state
   const [step, setStep] = useState(1);
@@ -193,11 +197,22 @@ function RegisterForm() {
 
     setLoading(true);
 
+    // For Supabase-brokered Google onboarding, capture the live session token so
+    // the server can verify the email and the client can bridge into the session.
+    let supabaseAccessToken: string | null = null;
+    if (isGoogleRegister && isSupabaseAuthEnabled()) {
+      try {
+        const { data } = await getSupabaseBrowser().auth.getSession();
+        supabaseAccessToken = data.session?.access_token ?? null;
+      } catch { /* fall back to legacy googleId path */ }
+    }
+
     try {
       const endpoint = isGoogleRegister ? '/api/register/google' : '/api/register/email';
       const payload = isGoogleRegister
         ? {
             googleId,
+            supabaseAccessToken,
             ownerEmail: googleEmail,
             ownerName,
             businessName,
@@ -254,10 +269,31 @@ function RegisterForm() {
         }).catch(err => console.error('Error tracking completion', err));
       }
 
-      // Successfully registered. Redirect to login.
-      // If they registered via Google, log them in immediately using NextAuth google provider
+      // Successfully registered.
       if (isGoogleRegister) {
-        await signIn('google', { callbackUrl: '/portal' });
+        // Bridge the existing Supabase (Google) session straight into the app
+        // session. Fall back to the legacy NextAuth Google provider if needed.
+        if (supabaseAccessToken) {
+          await signIn('supabase', { access_token: supabaseAccessToken, redirect: true, callbackUrl: '/portal' });
+        } else {
+          await signIn('google', { callbackUrl: '/portal' });
+        }
+      } else if (isSupabaseAuthEnabled()) {
+        // Email signup: ask Supabase to send the verification magic-link. The
+        // user proves ownership by clicking it (→ /auth/callback?intent=verify),
+        // which activates the pending account.
+        try {
+          await getSupabaseBrowser().auth.signInWithOtp({
+            email: ownerEmail,
+            options: {
+              shouldCreateUser: true,
+              emailRedirectTo: `${window.location.origin}/auth/callback?intent=verify`,
+            },
+          });
+        } catch (e) {
+          console.error('[SUPABASE_OTP_SEND]', e);
+        }
+        router.push(`/login?registerPending=1&username=${encodeURIComponent(ownerUsername)}`);
       } else {
         router.push(`/login?registerPending=1&username=${encodeURIComponent(ownerUsername)}`);
       }

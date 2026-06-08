@@ -245,6 +245,86 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     }),
+    // ── Supabase bridge ──────────────────────────────────────────────────────
+    // Supabase acts as an auth *broker* only (Google OAuth + email ownership
+    // proof via magic-link/OTP). The browser obtains a Supabase access token,
+    // hands it here, and we verify it server-side, then mint our normal MySQL-
+    // backed session. Passwords & app data stay in MySQL; this never touches
+    // them. New-Google-user onboarding is handled client-side (/auth/callback
+    // prechecks and redirects to /register) so a missing account fails closed.
+    Credentials({
+      id: 'supabase',
+      name: 'supabase',
+      credentials: {
+        access_token: { label: 'Supabase Access Token', type: 'text' },
+      },
+      async authorize(credentials) {
+        try {
+          const accessToken = String(credentials?.access_token || '');
+          if (!accessToken) return null;
+
+          const { verifySupabaseToken } = await import('./supabase/server');
+          const identity = await verifySupabaseToken(accessToken);
+          if (!identity || !identity.email) {
+            console.warn('[SUPABASE_AUTH] Invalid/unverifiable access token');
+            return null;
+          }
+
+          const prisma = (await import('./db')).default;
+          const user = await prisma.user.findFirst({
+            where: { email: identity.email },
+            include: { tenant: true, branch: true },
+          });
+
+          if (!user) {
+            // No app account for this verified email. Onboarding is the client's
+            // job (/auth/callback → /register prefilled); fail closed here.
+            console.warn(`[SUPABASE_AUTH] No MySQL user for ${identity.email}`);
+            return null;
+          }
+          if (user.tenant?.status !== 'active') {
+            console.warn(`[SUPABASE_AUTH] Tenant inactive for ${identity.email}`);
+            return null;
+          }
+
+          // Email ownership is now proven by Supabase → activate a pending
+          // account (this is the verification step) and link Google identity.
+          const patch: Record<string, unknown> = {};
+          if (user.status === 'pending') patch.status = 'active';
+          if (identity.provider === 'google' && !user.googleId && identity.supabaseUserId) {
+            patch.googleId = identity.supabaseUserId;
+          }
+          patch.lastLoginAt = new Date();
+          if (Object.keys(patch).length) {
+            await prisma.user.update({ where: { id: user.id }, data: patch }).catch(
+              (e) => console.error('[SUPABASE_AUTH] activate/link failed:', e),
+            );
+          }
+
+          const effectiveStatus = user.status === 'pending' ? 'active' : user.status;
+          if (effectiveStatus !== 'active') {
+            console.warn(`[SUPABASE_AUTH] Inactive account (${user.status}) for ${identity.email}`);
+            return null;
+          }
+
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email || undefined,
+            role: user.role,
+            appType: user.appType,
+            tenantId: user.tenantId,
+            branchId: user.branchId,
+            phone: user.phone,
+            username: user.username,
+            rememberMe: true,
+          };
+        } catch (e) {
+          console.error('[SUPABASE_AUTH_ERROR]', e);
+          return null;
+        }
+      },
+    }),
   ],
   callbacks: {
     async signIn({ user, account }: any) {

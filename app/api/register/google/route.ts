@@ -8,6 +8,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const {
       idToken,
+      supabaseAccessToken,
       googleId: directGoogleId,
       ownerEmail: directEmail,
       ownerName: directName,
@@ -30,6 +31,23 @@ export async function POST(request: Request) {
     let googleId = directGoogleId;
     let email = directEmail;
     let name = directName || 'Google User';
+
+    // Preferred path: a verified Supabase session token from the OAuth handshake.
+    // Supabase brokered Google, so the email is already proven; we use the
+    // Supabase user id as the stable external identity (googleId).
+    if (supabaseAccessToken) {
+      const { verifySupabaseToken } = await import('@/lib/supabase/server');
+      const identity = await verifySupabaseToken(String(supabaseAccessToken));
+      if (!identity) {
+        return NextResponse.json(
+          { success: false, error: 'Invalid or expired Google session' },
+          { status: 401 }
+        );
+      }
+      email = identity.email;
+      name = identity.name || name;
+      googleId = identity.supabaseUserId;
+    }
 
     if (idToken) {
       // Verify Google ID token using Google API

@@ -3,11 +3,13 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { validateEmail } from '@/lib/validation/contact';
+import { getSupabaseBrowser, isSupabaseAuthEnabled } from '@/lib/supabase/browser';
 
-type Step = 'email' | 'reset';
+type Step = 'email' | 'reset' | 'sent';
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
+  const supabaseMode = isSupabaseAuthEnabled();
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
@@ -23,6 +25,29 @@ export default function ForgotPasswordPage() {
     const ec = validateEmail(email);
     if (!ec.ok) { setError(ec.error); return; }
     setLoading(true);
+
+    // Supabase path: email a magic-link. Clicking it proves ownership and lands
+    // the user on /reset-password (via /auth/callback?intent=reset) to set a new
+    // password. We always claim success to avoid email enumeration.
+    if (supabaseMode) {
+      try {
+        await getSupabaseBrowser().auth.signInWithOtp({
+          email: ec.value,
+          options: {
+            shouldCreateUser: false,
+            emailRedirectTo: `${window.location.origin}/auth/callback?intent=reset`,
+          },
+        });
+      } catch (err) {
+        console.error('[SUPABASE_RESET_SEND]', err);
+      }
+      setNotice('If that email is registered, a secure reset link is on its way. Check inbox and spam.');
+      setStep('sent');
+      setLoading(false);
+      return;
+    }
+
+    // Legacy OTP path.
     try {
       const res = await fetch('/api/v1/auth/forgot-password', {
         method: 'POST',
@@ -35,7 +60,6 @@ export default function ForgotPasswordPage() {
         setLoading(false);
         return;
       }
-      // Always advance — server returns success regardless to avoid email enumeration.
       setEmail(ec.value);
       setNotice('If that email is registered, a 6-digit code is on its way. Check inbox and spam.');
       setStep('reset');
@@ -79,7 +103,7 @@ export default function ForgotPasswordPage() {
           <h1>Loan<span>Track</span></h1>
         </div>
         <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '.85rem', marginBottom: '24px' }}>
-          {step === 'email' ? 'Reset your password' : 'Enter the code we emailed you'}
+          {step === 'email' ? 'Reset your password' : step === 'sent' ? 'Check your email' : 'Enter the code we emailed you'}
         </p>
 
         {notice && (
@@ -94,7 +118,7 @@ export default function ForgotPasswordPage() {
           </div>
         )}
 
-        {step === 'email' ? (
+        {step === 'email' && (
           <form onSubmit={requestCode}>
             <div className="form-group">
               <label className="form-label" htmlFor="email">Account email</label>
@@ -110,10 +134,19 @@ export default function ForgotPasswordPage() {
               />
             </div>
             <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '12px' }} disabled={loading}>
-              {loading ? 'Sending...' : 'Send reset code'}
+              {loading ? 'Sending...' : supabaseMode ? 'Send reset link' : 'Send reset code'}
             </button>
           </form>
-        ) : (
+        )}
+
+        {step === 'sent' && (
+          <p style={{ textAlign: 'center', fontSize: '.9rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+            Open the link from <strong>{email}</strong> to choose a new password.
+            The link expires shortly for your security.
+          </p>
+        )}
+
+        {step === 'reset' && (
           <form onSubmit={submitReset}>
             <div className="form-group">
               <label className="form-label" htmlFor="otp">6-digit code</label>
