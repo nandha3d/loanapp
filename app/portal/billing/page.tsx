@@ -2,6 +2,7 @@ import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { getDefaultTenantId } from '@/lib/tenant';
 import { getSubscription, normalizeEnabledModules } from '@/lib/subscription';
+import { MODULE_LABELS } from '@/lib/plans';
 import { formatDate } from '@/lib/utils';
 import Link from 'next/link';
 import { CheckoutButton } from './CheckoutButton';
@@ -19,6 +20,28 @@ export default async function PortalBillingPage() {
 
   const plan = sub?.plan || 'trial';
   const enabledModulesList = normalizeEnabledModules(sub?.enabledModules);
+
+  // Lifetime license: no billing, no upgrade path — show a simple status card.
+  if (plan === 'lifetime') {
+    return (
+      <div style={{ maxWidth: '700px', margin: '0 auto', padding: '24px' }}>
+        <h2 style={{ marginBottom: '16px' }}>Your Subscription</h2>
+        <div className="card" style={{ padding: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span className="material-icons-outlined" style={{ color: 'var(--success)' }}>verified</span>
+            <strong style={{ fontSize: '1.05rem' }}>Lifetime license</strong>
+          </div>
+          <p style={{ marginTop: '10px', color: 'var(--text-secondary)', fontSize: '.9rem' }}>
+            All included — no billing, no renewals. Your enabled features are managed for you.
+          </p>
+          <div style={{ marginTop: '14px', fontSize: '.9rem' }}>
+            <strong>Active modules:</strong>{' '}
+            {enabledModulesList.map((m) => MODULE_LABELS[m] || m).join(', ') || '—'}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Fetch subscription plans catalog from DB
   const catalogPlans = await prisma.subscriptionPlanCatalog.findMany({

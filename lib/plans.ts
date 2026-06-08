@@ -14,6 +14,13 @@ export type PlanFeature = {
 // Enterprise gives a 15-day full-feature trial before billing starts.
 
 export const PLAN_FEATURES: Record<string, PlanFeature> = {
+  // Lifetime — standalone client license: unlimited, all modules, never billed.
+  // Not a buyable/public plan; assigned manually to a specific tenant.
+  lifetime: {
+    loans: 999999, agents: 999, branches: 999,
+    modules: ['microlending', 'autofinance', 'chitfunds', 'goldloan'],
+    gracePeriodDays: 999999, trialDays: 0,
+  },
   // Internal — assigned on registration before user picks a plan.
   trial: {
     loans: 50, agents: 3, branches: 1,
@@ -56,6 +63,7 @@ export const PLAN_PRICING: Record<string, { amount: number; tax: number; total: 
 };
 
 export const PLAN_LABELS: Record<string, string> = {
+  lifetime:   'Lifetime',
   trial:      'Trial',
   free:       'Free',
   basic:      'Basic',
@@ -64,6 +72,7 @@ export const PLAN_LABELS: Record<string, string> = {
 };
 
 export const PLAN_COLORS: Record<string, string> = {
+  lifetime:   'var(--primary)',
   trial:      'var(--warning)',
   free:       'var(--text-secondary)',
   basic:      'var(--info)',
@@ -72,6 +81,7 @@ export const PLAN_COLORS: Record<string, string> = {
 };
 
 export const PLAN_DESCRIPTIONS: Record<string, string> = {
+  lifetime:   'Standalone license — no billing; features set in admin panel',
   trial:      'Get started for free',
   free:       'Perfect for individuals — always free',
   basic:      'Small NBFC or personal lender',

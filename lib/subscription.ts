@@ -53,6 +53,11 @@ export async function assertTenantSubscriptionAccess(tenantId: string): Promise<
   const sub = await prisma.tenantSubscription.findUnique({ where: { tenantId } });
   if (!sub) return;
 
+  // Lifetime = unlimited TIME only: never expires, never billed. Feature flags,
+  // modules and limits stay enforced from this tenant's row (controlled via the
+  // admin billing panel), so we skip ONLY the expiry/billing gates here.
+  if (sub.plan === 'lifetime') return;
+
   if (isTenantTrialExpired(sub)) {
     throw new Error('Your trial has expired. Please upgrade your subscription to continue.');
   }

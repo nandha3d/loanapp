@@ -164,6 +164,19 @@ async function getFallbackDefaultTenantId(): Promise<string> {
 }
 
 export async function getTenantIdFromHost(host: string | null | undefined): Promise<string | null> {
+  // 1. Custom domain (a client's own domain) maps directly to one tenant. Checked
+  //    BEFORE slug logic so a reserved first label (e.g. "loan.clientbrand.com")
+  //    can't shadow it, and so it works regardless of NEXT_PUBLIC_ROOT_DOMAIN.
+  const hostname = normalizeHost(host);
+  if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1' && hostname !== '::1') {
+    const byDomain = await prisma.tenant.findUnique({
+      where: { customDomain: hostname },
+      select: { id: true, status: true },
+    });
+    if (byDomain) return byDomain.status === 'active' ? byDomain.id : null;
+  }
+
+  // 2. Otherwise resolve by subdomain slug of our root domain.
   const slug = extractTenantSlugFromHost(host);
   if (!slug) return null;
 

@@ -39,6 +39,19 @@ async function resolveLoginTenantId(host: string | null): Promise<string | null>
     return null;
   }
 
+  // Custom domain (client's own domain) → tenant, before slug logic so login on
+  // that domain is scoped to exactly that tenant.
+  try {
+    const prisma = (await import('./db')).default;
+    const byDomain = await prisma.tenant.findUnique({
+      where: { customDomain: hostname },
+      select: { id: true, status: true },
+    });
+    if (byDomain) return byDomain.status === 'active' ? byDomain.id : null;
+  } catch (err) {
+    console.error('[AUTH_CUSTOMDOMAIN_RESOLVE_ERROR]', err);
+  }
+
   const rootDomain = (
     process.env.NEXT_PUBLIC_ROOT_DOMAIN || process.env.APP_ROOT_DOMAIN || ''
   ).toLowerCase().split(':')[0];
@@ -271,8 +284,19 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
           }
 
           const prisma = (await import('./db')).default;
+
+          // On a client's custom domain, scope the lookup to that tenant so a
+          // same-email user in another tenant can't sign in here. On our root
+          // SaaS host this resolves to null → unscoped (unchanged behaviour).
+          let hostTenantId: string | null = null;
+          try {
+            const h = await (await import('next/headers')).headers();
+            const host = h.get('x-loantrack-host') || h.get('host');
+            hostTenantId = await resolveLoginTenantId(host);
+          } catch { /* no host context — fall back to global lookup */ }
+
           const user = await prisma.user.findFirst({
-            where: { email: identity.email },
+            where: { email: identity.email, ...(hostTenantId ? { tenantId: hostTenantId } : {}) },
             include: { tenant: true, branch: true },
           });
 

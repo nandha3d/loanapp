@@ -16,6 +16,13 @@ export async function initiateCheckout(planId: string) {
 
   const tenantId = await getDefaultTenantId();
 
+  // Lifetime tenants never go through checkout.
+  const { getSubscription } = await import('@/lib/subscription');
+  const current = await getSubscription(tenantId);
+  if (current?.plan === 'lifetime') {
+    throw new Error('Lifetime plan — no checkout required.');
+  }
+
   try {
     const sub = await createRazorpaySubscription(planId, tenantId);
     if (sub.short_url) {
