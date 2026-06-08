@@ -20,7 +20,18 @@ export async function manageMasterUser(formData: FormData) {
   const id = formData.get('id') as string | null;
   const role = formData.get('role') as string;
   let tenantId = actorTenantId;
-  
+
+  // On a client's custom domain (standalone), block creating new superadmins /
+  // businesses — the instance is limited to its single owner.
+  if (role === 'superadmin' && !id) {
+    const h = await (await import('next/headers')).headers();
+    const host = h.get('x-loantrack-host') || h.get('host');
+    const { getCustomDomainTenantId } = await import('@/lib/tenant');
+    if (await getCustomDomainTenantId(host)) {
+      return { success: false, error: 'Creating new businesses is disabled on this domain.' };
+    }
+  }
+
   if (id) {
     const user = await prisma.user.findUnique({ where: { id }, select: { tenantId: true } });
     if (user) tenantId = user.tenantId;

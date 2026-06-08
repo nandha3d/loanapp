@@ -5,6 +5,13 @@ import { calculateVerticalSubscriptionPricing, normalizeSelectedModules } from '
 
 export async function POST(request: Request) {
   try {
+    // Self-registration is disabled on a client's custom domain (standalone).
+    const host = request.headers.get('x-loantrack-host') || request.headers.get('host');
+    const { getCustomDomainTenantId } = await import('@/lib/tenant');
+    if (await getCustomDomainTenantId(host)) {
+      return NextResponse.json({ success: false, error: 'Registration is disabled on this domain.' }, { status: 403 });
+    }
+
     const body = await request.json();
     const {
       idToken,

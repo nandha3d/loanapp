@@ -163,6 +163,19 @@ async function getFallbackDefaultTenantId(): Promise<string> {
   return tenant.id;
 }
 
+// Returns the tenant id IFF this host is a client's own custom domain (a
+// standalone instance). Used to disable self-registration on such hosts so the
+// client can't create extra businesses/superadmins for friends.
+export async function getCustomDomainTenantId(host: string | null | undefined): Promise<string | null> {
+  const hostname = normalizeHost(host);
+  if (!hostname || hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') return null;
+  const t = await prisma.tenant.findUnique({
+    where: { customDomain: hostname },
+    select: { id: true, status: true },
+  });
+  return t && t.status === 'active' ? t.id : null;
+}
+
 export async function getTenantIdFromHost(host: string | null | undefined): Promise<string | null> {
   // 1. Custom domain (a client's own domain) maps directly to one tenant. Checked
   //    BEFORE slug logic so a reserved first label (e.g. "loan.clientbrand.com")

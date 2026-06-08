@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
@@ -16,6 +16,15 @@ function LoginForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  // Registration is hidden on a client's standalone domain.
+  const [registerAllowed, setRegisterAllowed] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/host/registration')
+      .then((r) => r.json())
+      .then((d) => setRegisterAllowed(d?.allowed !== false))
+      .catch(() => {});
+  }, []);
 
   const notice = searchParams.get('registerPending')
       ? 'Account created! Check your email and click the activation link before signing in.'
@@ -180,9 +189,11 @@ function LoginForm() {
         </button>
         </>)}
 
-        <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '.85rem', color: 'var(--text-secondary)' }}>
-          New to LoanTrack? <a href="/register" style={{ color: 'var(--primary)', fontWeight: 600 }}>Register Business</a>
-        </p>
+        {registerAllowed && (
+          <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '.85rem', color: 'var(--text-secondary)' }}>
+            New to LoanTrack? <a href="/register" style={{ color: 'var(--primary)', fontWeight: 600 }}>Register Business</a>
+          </p>
+        )}
       </div>
     </div>
   );

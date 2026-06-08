@@ -11,6 +11,14 @@ function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  // Registration is disabled on a client's standalone (custom-domain) instance.
+  useEffect(() => {
+    fetch('/api/host/registration')
+      .then((r) => r.json())
+      .then((d) => { if (d?.allowed === false) router.replace('/login'); })
+      .catch(() => {});
+  }, [router]);
+
   // Pre-fill parameters if redirected from Google
   const googleEmail = searchParams.get('google_email') || '';
   const googleName = searchParams.get('google_name') || '';
