@@ -11,11 +11,16 @@ function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Registration is disabled on a client's standalone (custom-domain) instance.
+  // Host registration policy. simpleMode = client's own domain → Details-only
+  // signup that claims it as the lifetime owner. allowed:false → already claimed.
+  const [simpleMode, setSimpleMode] = useState(false);
   useEffect(() => {
     fetch('/api/host/registration')
       .then((r) => r.json())
-      .then((d) => { if (d?.allowed === false) router.replace('/login'); })
+      .then((d) => {
+        if (d?.allowed === false) router.replace('/login');
+        else if (d?.simpleMode) setSimpleMode(true);
+      })
       .catch(() => {});
   }, [router]);
 
@@ -151,8 +156,10 @@ function RegisterForm() {
         if (!pc.ok) { setError(pc.error); return; }
       }
       setError('');
+      // Standalone (client domain) registration is a single Details step.
+      if (simpleMode) { handleSubmit(); return; }
     }
-    
+
     setError('');
 
     // Track step progression if we have a referral code
@@ -188,9 +195,9 @@ function RegisterForm() {
     setStep(prev => prev - 1);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!termsAccepted) {
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!termsAccepted && !simpleMode) {
       setError('You must accept the Terms and Conditions to register.');
       return;
     }
@@ -343,7 +350,7 @@ function RegisterForm() {
           <div style={{ position: 'absolute', top: '15px', left: '10%', right: '10%', height: '2px', background: 'var(--border)', zIndex: 1 }}>
             <div style={{ height: '100%', background: 'var(--primary)', width: `${((step - 1) / 4) * 100}%`, transition: 'width 0.3s' }}></div>
           </div>
-          {[1, 2, 3, 4, 5].map((num) => (
+          {(simpleMode ? [1] : [1, 2, 3, 4, 5]).map((num) => (
             <div key={num} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 2, position: 'relative' }}>
               <div style={{
                 width: '32px', height: '32px', borderRadius: '50%',
@@ -720,8 +727,8 @@ function RegisterForm() {
             )}
 
             {step < 5 ? (
-              <button type="button" className="btn btn-primary" onClick={handleNext}>
-                Continue <span className="material-icons-outlined">arrow_forward</span>
+              <button type="button" className="btn btn-primary" onClick={handleNext} disabled={loading}>
+                {simpleMode ? (loading ? 'Creating...' : 'Create Business') : 'Continue'} <span className="material-icons-outlined">arrow_forward</span>
               </button>
             ) : (
               <button type="submit" className="btn btn-primary" disabled={loading}>

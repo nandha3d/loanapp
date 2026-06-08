@@ -163,6 +163,24 @@ async function getFallbackDefaultTenantId(): Promise<string> {
   return tenant.id;
 }
 
+function saasHostname(): string | null {
+  const raw = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || '';
+  try { return raw ? new URL(raw).hostname.toLowerCase() : null; } catch { return null; }
+}
+
+// True when the host is a real domain that ISN'T our SaaS host (and not IP/
+// localhost) — i.e. a client's own domain. On such a host registration is a
+// single Details step and the first signup claims it as the lifetime owner.
+export function isStandaloneDomainHost(host: string | null | undefined): boolean {
+  const h = normalizeHost(host);
+  if (!h || h === 'localhost' || h === '127.0.0.1' || h === '::1') return false;
+  if (/^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(h)) return false; // IPv4
+  if (!h.includes('.')) return false;
+  const saas = saasHostname();
+  if (saas && h === saas) return false;
+  return true;
+}
+
 // Returns the tenant id IFF this host is a client's own custom domain (a
 // standalone instance). Used to disable self-registration on such hosts so the
 // client can't create extra businesses/superadmins for friends.

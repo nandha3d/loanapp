@@ -5,12 +5,14 @@ import { calculateVerticalSubscriptionPricing, normalizeSelectedModules } from '
 
 export async function POST(request: Request) {
   try {
-    // Self-registration is disabled on a client's custom domain (standalone).
+    // Self-registration is disabled once a client's custom domain is claimed.
     const host = request.headers.get('x-loantrack-host') || request.headers.get('host');
-    const { getCustomDomainTenantId } = await import('@/lib/tenant');
+    const { getCustomDomainTenantId, isStandaloneDomainHost } = await import('@/lib/tenant');
     if (await getCustomDomainTenantId(host)) {
       return NextResponse.json({ success: false, error: 'Registration is disabled on this domain.' }, { status: 403 });
     }
+    const standaloneClaim = isStandaloneDomainHost(host);
+    const claimDomain = standaloneClaim ? (host || '').toLowerCase().split(':')[0] : null;
 
     const body = await request.json();
     const {
@@ -103,33 +105,36 @@ export async function POST(request: Request) {
       );
     }
 
-    const finalModules = normalizeSelectedModules(selectedModules);
+    const ALL_MODULES_LIST = ['microlending', 'autofinance', 'chitfunds', 'goldloan'];
+    const finalModules = standaloneClaim ? ALL_MODULES_LIST : normalizeSelectedModules(selectedModules);
 
     // Generate unique slug
     const slug = await generateTenantSlug(businessName, finalModules);
 
-    // Fetch plan details from catalog
+    // Fetch plan details from catalog (skipped for a standalone lifetime claim).
     const planCatalog = await prisma.subscriptionPlanCatalog.findUnique({
       where: { plan: selectedPlan }
     });
 
-    if (!planCatalog) {
+    if (!planCatalog && !standaloneClaim) {
       return NextResponse.json(
         { success: false, error: `Selected plan "${selectedPlan}" not found in catalog` },
         { status: 400 }
       );
     }
 
-    // Fetch addons price snapshots
-    const addonsCatalog = await prisma.addonCatalog.findMany({
-      where: { addon: { in: selectedAddons } }
-    });
-    const addonsPrice = addonsCatalog.reduce((sum, item) => sum + item.monthlyPrice, 0);
-    const { basePlanPrice, modulesPrice, totalMonthlyPrice } = calculateVerticalSubscriptionPricing(
-      planCatalog.monthlyPrice,
-      finalModules,
-      addonsPrice
-    );
+    let basePlanPrice = 0, modulesPrice = 0, addonsPrice = 0, totalMonthlyPrice = 0;
+    if (!standaloneClaim) {
+      const addonsCatalog = await prisma.addonCatalog.findMany({
+        where: { addon: { in: selectedAddons } }
+      });
+      addonsPrice = addonsCatalog.reduce((sum, item) => sum + item.monthlyPrice, 0);
+      ({ basePlanPrice, modulesPrice, totalMonthlyPrice } = calculateVerticalSubscriptionPricing(
+        planCatalog!.monthlyPrice,
+        finalModules,
+        addonsPrice
+      ));
+    }
 
     // Generate unique username from email prefix (e.g. karthik from karthik@gmail.com)
     let username = email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
@@ -142,7 +147,8 @@ export async function POST(request: Request) {
         data: {
           name: businessName,
           slug,
-          status: 'active'
+          status: 'active',
+          ...(claimDomain ? { customDomain: claimDomain } : {}),
         }
       });
 
@@ -157,8 +163,8 @@ export async function POST(request: Request) {
         }
       });
 
-      // 3. Create TenantSubscription
-      const trialDays = (planCatalog as any).trialDays ?? 0;
+      // 3. Create TenantSubscription (lifetime + unlimited for a standalone claim).
+      const trialDays = standaloneClaim ? 0 : ((planCatalog as any).trialDays ?? 0);
       const trialEndsAt = trialDays > 0
         ? (() => { const d = new Date(); d.setDate(d.getDate() + trialDays); d.setHours(23,59,59,999); return d; })()
         : null;
@@ -166,20 +172,20 @@ export async function POST(request: Request) {
       const subscription = await tx.tenantSubscription.create({
         data: {
           tenantId: tenant.id,
-          plan: selectedPlan,
+          plan: standaloneClaim ? 'lifetime' : selectedPlan,
           status: 'active',
-          maxActiveLoans: planCatalog.maxActiveLoans,
-          maxAgents: planCatalog.maxAgents,
-          maxBranches: planCatalog.maxBranches,
+          maxActiveLoans: standaloneClaim ? 999999 : planCatalog!.maxActiveLoans,
+          maxAgents: standaloneClaim ? 999 : planCatalog!.maxAgents,
+          maxBranches: standaloneClaim ? 999 : planCatalog!.maxBranches,
           enabledModules: JSON.stringify(finalModules),
-          selectedAddons: JSON.stringify(selectedAddons),
-          
-          // Set boolean flags mapped from selected addons
-          whatsappSmsEnabled: selectedAddons.includes('whatsapp_sms'),
-          kycEnabled: selectedAddons.includes('kyc'),
-          gpsTrackingEnabled: selectedAddons.includes('gps_tracking'),
-          premiumAccountingEnabled: selectedAddons.includes('premium_accounting'),
-          bureauEnabled: selectedAddons.includes('bureau'),
+          selectedAddons: JSON.stringify(standaloneClaim ? [] : selectedAddons),
+
+          // Add-on flags (all off for a fresh standalone claim).
+          whatsappSmsEnabled: !standaloneClaim && selectedAddons.includes('whatsapp_sms'),
+          kycEnabled: !standaloneClaim && selectedAddons.includes('kyc'),
+          gpsTrackingEnabled: !standaloneClaim && selectedAddons.includes('gps_tracking'),
+          premiumAccountingEnabled: !standaloneClaim && selectedAddons.includes('premium_accounting'),
+          bureauEnabled: !standaloneClaim && selectedAddons.includes('bureau'),
 
           // Pricing Snapshots
           basePlanPrice,
