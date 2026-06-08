@@ -22,21 +22,37 @@ function CallbackInner() {
   useEffect(() => {
     let cancelled = false;
 
+    const bail = (msg: string) =>
+      router.replace('/login?verifyError=' + encodeURIComponent(msg));
+
     (async () => {
       const supabase = getSupabaseBrowser();
+      const url = new URL(window.location.href);
+      const hash = new URLSearchParams(url.hash.replace(/^#/, ''));
 
-      // Supabase exchanges the ?code / #access_token in the URL on load
-      // (detectSessionInUrl). Poll briefly for the resulting session.
+      // Provider-side failure (consent denied, mismatch, etc.) comes back as
+      // ?error=...&error_description=... — surface it verbatim.
+      const provErr = url.searchParams.get('error_description') || hash.get('error_description');
+      if (provErr) { if (!cancelled) bail(provErr); return; }
+
       let accessToken: string | null = null;
-      for (let i = 0; i < 20 && !accessToken; i++) {
-        const { data } = await supabase.auth.getSession();
+      const code = url.searchParams.get('code');
+
+      if (code) {
+        // PKCE: exchange the one-time code (+ stored verifier) for a session.
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+        if (cancelled) return;
+        if (error) { bail(`Sign-in failed: ${error.message}`); return; }
         accessToken = data.session?.access_token ?? null;
-        if (!accessToken) await new Promise((r) => setTimeout(r, 150));
+      } else {
+        // Implicit/hash fallback (#access_token=...).
+        const { data } = await supabase.auth.getSession();
+        accessToken = data.session?.access_token ?? hash.get('access_token') ?? null;
       }
 
       if (cancelled) return;
       if (!accessToken) {
-        router.replace('/login?verifyError=' + encodeURIComponent('Sign-in link expired or invalid. Try again.'));
+        bail('Sign-in link expired or invalid. Try again.');
         return;
       }
 
