@@ -293,23 +293,8 @@ function RegisterForm() {
         } else {
           await signIn('google', { callbackUrl: '/portal' });
         }
-      } else if (isSupabaseAuthEnabled()) {
-        // Email signup: ask Supabase to send the verification magic-link. The
-        // user proves ownership by clicking it (→ /auth/callback?intent=verify),
-        // which activates the pending account.
-        try {
-          await getSupabaseBrowser().auth.signInWithOtp({
-            email: ownerEmail,
-            options: {
-              shouldCreateUser: true,
-              emailRedirectTo: `${window.location.origin}/auth/callback?intent=verify`,
-            },
-          });
-        } catch (e) {
-          console.error('[SUPABASE_OTP_SEND]', e);
-        }
-        router.push(`/login?registerPending=1&username=${encodeURIComponent(ownerUsername)}`);
       } else {
+        // Email signup: the server already sent the verification email (Brevo).
         router.push(`/login?registerPending=1&username=${encodeURIComponent(ownerUsername)}`);
       }
     } catch (err: any) {

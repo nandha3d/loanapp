@@ -254,19 +254,15 @@ export async function POST(request: Request) {
       };
     });
 
-    // Send the activation email outside the transaction (network call).
-    // When Supabase auth is configured it owns email delivery + ownership proof
-    // (the client triggers a Supabase magic-link after this response), so skip
-    // the legacy Brevo verification mail to avoid a duplicate email.
-    const { isSupabaseConfigured } = await import('@/lib/supabase/server');
-    if (!isSupabaseConfigured()) {
-      await sendVerificationEmail({
-        tenantId: result.tenantId,
-        email: result.ownerEmail,
-        name: result.ownerName,
-        userId: result.userId,
-      }).catch((e) => console.error('[VERIFY_EMAIL_SEND]', e));
-    }
+    // Send the activation email via our own Brevo SMTP — a real transactional
+    // mailer (300/day). Supabase's built-in mailer is throttled to ~3-4/hr and
+    // was dropping signup emails, so we no longer rely on it for verification.
+    await sendVerificationEmail({
+      tenantId: result.tenantId,
+      email: result.ownerEmail,
+      name: result.ownerName,
+      userId: result.userId,
+    }).catch((e) => console.error('[VERIFY_EMAIL_SEND]', e));
 
     return NextResponse.json(
       {
