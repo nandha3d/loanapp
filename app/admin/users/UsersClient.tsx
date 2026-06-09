@@ -211,7 +211,7 @@ export default function UsersClient({
       if (data.success) {
         window.location.href = data.redirectUrl || '/portal';
       } else {
-        alert(data.error || 'Monitor mode failed to start');
+        alert(data.error || 'Could not open this account');
         setImpersonating(null);
       }
     } catch (err) {
@@ -417,12 +417,12 @@ export default function UsersClient({
                               e.stopPropagation();
                               handleImpersonate(superadmin.id, superadmin.name);
                             }}
-                            title="Login as this Super Admin"
+                            title="Open this account (no login)"
                           >
                             <span className="material-icons-outlined" style={{ fontSize: '16px' }}>
-                              {impersonating === superadmin.id ? 'hourglass_top' : 'visibility'}
+                              {impersonating === superadmin.id ? 'hourglass_top' : 'login'}
                             </span>
-                            {impersonating === superadmin.id ? 'Starting...' : 'Monitor'}
+                            {impersonating === superadmin.id ? 'Opening...' : 'Open'}
                           </button>
                         )}
                         {viewerRole === 'developer' && (

@@ -12,7 +12,7 @@ export default async function MonitorBanner() {
     return null;
   }
 
-  const targetName = (session?.user as any)?.monitorTargetName || 'Client';
+  const targetName = (session?.user as any)?.monitorTargetName || 'this account';
 
   return (
     <div style={{
@@ -21,17 +21,18 @@ export default async function MonitorBanner() {
       zIndex: 9999,
       background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
       color: '#ffffff',
-      padding: '8px 16px',
+      padding: '10px 16px',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
       boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
-      fontSize: '0.9rem',
+      fontSize: '0.92rem',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <span className="material-icons-outlined" style={{ fontSize: '20px', color: '#ffd700' }}>visibility</span>
-        <strong>Monitor Mode Active</strong>
-        <span style={{ opacity: 0.8 }}>| Viewing workflow as: <strong>{targetName}</strong></span>
+        <span style={{ opacity: 0.85 }}>You are inside</span>
+        <strong style={{ fontSize: '1rem' }}>{targetName}</strong>
+        <span style={{ opacity: 0.6, fontSize: '.8rem' }}>(developer view)</span>
       </div>
       <form action="/api/developer/monitor/exit" method="POST">
         <button
@@ -41,15 +42,16 @@ export default async function MonitorBanner() {
             background: 'rgba(255, 255, 255, 0.15)',
             color: '#fff',
             border: '1px solid rgba(255, 255, 255, 0.3)',
-            padding: '4px 12px',
-            borderRadius: '4px',
+            padding: '5px 14px',
+            borderRadius: '6px',
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
+            fontWeight: 600,
           }}
         >
           <span className="material-icons-outlined" style={{ fontSize: '16px' }}>logout</span>
-          Exit Monitor Mode
+          Exit to Admin
         </button>
       </form>
     </div>

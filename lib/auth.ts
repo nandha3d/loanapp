@@ -548,11 +548,12 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
                       phone: true,
                       username: true,
                       name: true,
-                      tenant: { select: { slug: true } }
+                      tenant: { select: { slug: true, name: true } }
                     },
                   });
                   if (targetUser) {
-                    monitorTargetName = targetUser.name || targetUser.username;
+                    // Show the ACCOUNT/business name (e.g. "Jeyam Finance"), not the owner.
+                    monitorTargetName = (targetUser.tenant as any)?.name || targetUser.name || targetUser.username;
                     dbUser = targetUser as any; // Override dbUser with targetUser data
                     isMonitoring = true;
                   }
