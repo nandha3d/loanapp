@@ -22,13 +22,22 @@ export async function POST(request: Request) {
     ...(domain ? { domain } : {}),
   });
 
-  // Re-direct the developer back to the main admin dashboard on the root domain if subdomains are active
-  let redirectUrl = '/admin/users';
+  // Build the redirect on the PUBLIC app origin — behind nginx request.url is
+  // the internal localhost:3000, which the browser can't reach (ERR_CONNECTION_REFUSED).
+  const base = (
+    process.env.APP_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.WEB_APP_URL ||
+    new URL(request.url).origin
+  ).replace(/\/+$/, '');
+
+  // If subdomain SaaS is active, send the developer to the root domain instead.
+  let redirectUrl = `${base}/admin/users`;
   if (rootDomain && !rootDomain.includes('localhost') && process.env.NODE_ENV === 'production') {
     const host = request.headers.get('host') || '';
     const port = host.split(':')[1] ? `:${host.split(':')[1]}` : '';
     redirectUrl = `https://${rootDomain.split(':')[0]}${port}/admin/users`;
   }
 
-  return NextResponse.redirect(new URL(redirectUrl, request.url));
+  return NextResponse.redirect(redirectUrl);
 }
