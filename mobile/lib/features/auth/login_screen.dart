@@ -45,7 +45,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
   Future<void> _handleGoogleSignIn() async {
     try {
-      final googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
+      // serverClientId = the Web OAuth client (client_type 3) from
+      // google-services.json. Required on Android so account.authentication
+      // returns a non-null idToken for the backend to verify.
+      final googleSignIn = GoogleSignIn(
+        scopes: const ['email', 'profile'],
+        serverClientId:
+            '895293019400-o8lov2voov7r173e3eltjm9a0lrqvq8v.apps.googleusercontent.com',
+      );
       final account = await googleSignIn.signIn();
       if (account == null) return; // User cancelled
 

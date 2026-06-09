@@ -12,7 +12,20 @@
           "package_name": "com.loantrack.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "895293019400-gvj4r3760op41qfaocafs2slp4qisvao.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.loantrack.app",
+            "certificate_hash": "6546a47458c9b4f0cadfa8723e8cf440d4165eb6"
+          }
+        },
+        {
+          "client_id": "895293019400-o8lov2voov7r173e3eltjm9a0lrqvq8v.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBIYW2ayRZRSxc8gL_CZTxjAQpVxICppeA"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "895293019400-o8lov2voov7r173e3eltjm9a0lrqvq8v.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
