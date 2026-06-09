@@ -113,7 +113,14 @@ export async function POST(request: Request) {
 
       // 3. Create TenantSubscription. Standalone claim → lifetime, unlimited,
       // all add-ons off (features controlled later in the admin panel).
-      const trialDays = standaloneClaim ? 0 : ((planCatalog as any).trialDays ?? 0);
+      // Paid plans get a free trial, then must subscribe (trial gate enforced in
+      // assertTenantSubscriptionAccess). Free plan stays free; standalone=lifetime.
+      const PAID_PLANS = ['basic', 'business', 'enterprise'];
+      const trialDays = standaloneClaim
+        ? 0
+        : PAID_PLANS.includes(selectedPlan)
+          ? (((planCatalog as any)?.trialDays ?? 0) || 14)
+          : 0;
       const trialEndsAt = trialDays > 0
         ? (() => { const d = new Date(); d.setDate(d.getDate() + trialDays); d.setHours(23,59,59,999); return d; })()
         : null;

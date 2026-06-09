@@ -8,9 +8,16 @@ export type TenantSubscriptionAccess = {
   currentPeriodEnd?: Date | null;
 };
 
+// A paid plan signs up with a free trial (trialEndsAt). Once the trial date
+// passes, access is cut UNLESS a paid period currently covers it (set by the
+// Razorpay webhook on payment). Plans without a trialEndsAt (e.g. free) are
+// never trial-gated. Applies to ANY plan that carries a trialEndsAt — not just
+// the internal `trial` plan.
 export function isTenantTrialExpired(sub: TenantSubscriptionAccess | null | undefined, now = new Date()): boolean {
-  if (!sub || sub.plan !== 'trial' || !sub.trialEndsAt) return false;
-  return new Date(sub.trialEndsAt).getTime() < now.getTime();
+  if (!sub || !sub.trialEndsAt) return false;
+  if (new Date(sub.trialEndsAt).getTime() >= now.getTime()) return false; // still in trial
+  const periodEnd = sub.currentPeriodEnd ? new Date(sub.currentPeriodEnd).getTime() : 0;
+  return periodEnd < now.getTime(); // trial over AND no active paid period
 }
 
 export function isTenantSubscriptionExpired(sub: TenantSubscriptionAccess | null | undefined, now = new Date()): boolean {

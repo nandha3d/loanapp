@@ -14,7 +14,7 @@ export function verifyRazorpayWebhookSignature(body: string, secret: string, sig
 export function buildRazorpaySubscriptionRequest(planId: string, tenantId: string) {
   const planIdMap: Record<string, string | undefined> = {
     basic: process.env.RAZORPAY_PLAN_BASIC,
-    pro: process.env.RAZORPAY_PLAN_PRO,
+    business: process.env.RAZORPAY_PLAN_BUSINESS,
     enterprise: process.env.RAZORPAY_PLAN_ENTERPRISE,
   };
   const razorpayPlanId = planIdMap[planId] ?? planId;
