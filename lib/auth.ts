@@ -438,6 +438,9 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
           appType: appType || 'microlending',
         });
         token.apiToken = apiToken;
+        // Track expiry so the refresh block below keeps it alive. Without this
+        // the apiToken (1h TTL) silently expires and every serverFetch 401s.
+        token.apiTokenExp = Date.now() + 15 * 60 * 1000;
       }
 
       // Dynamic healing: If the token is already issued but missing role/tenantId,
@@ -472,8 +475,9 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
         }
       }
 
-      // Refresh if within 2 minutes of expiry
-      if (token.apiTokenExp && Date.now() > (token.apiTokenExp as number) - 2 * 60 * 1000) {
+      // Refresh if the expiry marker is missing (heals older sessions whose
+      // apiToken already expired) or we're within 2 minutes of expiry.
+      if (token.apiToken && (!token.apiTokenExp || Date.now() > (token.apiTokenExp as number) - 2 * 60 * 1000)) {
         try {
           const { issueMobileToken } = await import('@/lib/api/v1-auth');
           const apiToken = await issueMobileToken({
