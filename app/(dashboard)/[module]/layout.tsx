@@ -18,6 +18,7 @@ import {
 } from '@/types/modules';
 import { getSubscription, isTenantSubscriptionExpired } from '@/lib/subscription';
 import SubscriptionExpiredModal from '@/components/layout/SubscriptionExpiredModal';
+import TrialBanner from '@/components/TrialBanner';
 
 export default async function DashboardLayout({
   children,
@@ -130,6 +131,7 @@ export default async function DashboardLayout({
         />
         <div className="page-content fade-up" style={{ position: 'relative' }}>
           <SubscriptionExpiredModal isExpired={isExpired} role={role} />
+          <TrialBanner sub={sub} />
           {children}
         </div>
       </main>
