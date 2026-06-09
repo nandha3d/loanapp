@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "895293019400",
+    "project_id": "loantrack-74cf6",
+    "storage_bucket": "loantrack-74cf6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:895293019400:android:30f0d5db0186033c4988bd",
+        "android_client_info": {
+          "package_name": "com.loantrack.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBIYW2ayRZRSxc8gL_CZTxjAQpVxICppeA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
