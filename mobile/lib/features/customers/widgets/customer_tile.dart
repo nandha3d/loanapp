@@ -1,6 +1,9 @@
+// ignore_for_file: require_trailing_commas
+
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/data/models/customer.dart';
 import 'package:loantrack/core/l10n/language_controller.dart';
@@ -16,7 +19,8 @@ class CustomerTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
     final cs = customer.creditScore;
-    final activeLoans = customer.loans.where((l) => l.status == 'active').toList();
+    final activeLoans =
+        customer.loans.where((l) => l.status == 'active').toList();
     final outstanding = activeLoans.fold<double>(0, (s, l) => s + l.principal);
 
     return Container(
@@ -52,7 +56,8 @@ class CustomerTile extends ConsumerWidget {
                         children: [
                           Text(
                             customer.name,
-                            style: AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.w700),
+                            style: AppTypography.bodyLarge
+                                .copyWith(fontWeight: FontWeight.w700),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -69,14 +74,16 @@ class CustomerTile extends ConsumerWidget {
                               if (customer.routeName != null) ...[
                                 const SizedBox(width: 8),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
                                     color: AppColors.primaryLight,
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Text(
                                     customer.routeName!,
-                                    style: AppTypography.tiny.copyWith(color: AppColors.primaryDark),
+                                    style: AppTypography.tiny
+                                        .copyWith(color: AppColors.primaryDark),
                                   ),
                                 ),
                               ],
@@ -105,7 +112,9 @@ class CustomerTile extends ConsumerWidget {
                       icon: Icons.account_balance_wallet_outlined,
                       label: t.x('loan.outstanding'),
                       value: '₹${outstanding.toInt()}',
-                      valueColor: outstanding > 0 ? AppColors.textPrimary : AppColors.textLight,
+                      valueColor: outstanding > 0
+                          ? AppColors.textPrimary
+                          : AppColors.textLight,
                     ),
                     _InfoSnippet(
                       icon: Icons.receipt_long_outlined,
@@ -207,8 +216,11 @@ class _InfoSnippet extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: AppTypography.tiny.copyWith(color: AppColors.textLight)),
-            Text(value, style: AppTypography.caption.copyWith(color: valueColor, fontWeight: FontWeight.w600)),
+            Text(label,
+                style: AppTypography.tiny.copyWith(color: AppColors.textLight)),
+            Text(value,
+                style: AppTypography.caption
+                    .copyWith(color: valueColor, fontWeight: FontWeight.w600)),
           ],
         ),
       ],

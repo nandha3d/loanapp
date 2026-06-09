@@ -152,6 +152,16 @@ const _allModules = <_ModuleItem>[
     bgColor: AppColors.infoBg,
   ),
   _ModuleItem(
+    icon: Icons.health_and_safety_outlined,
+    label: 'NPA Monitoring',
+    subtitle: 'Portfolio risk, provisioning & upgrades',
+    route: '/npa',
+    moduleKey: 'npa',
+    color: AppColors.warning,
+    bgColor: AppColors.warningBg,
+    minRole: UserRole.admin,
+  ),
+  _ModuleItem(
     icon: Icons.account_balance_wallet_outlined,
     label: 'Cash Float',
     subtitle: 'Agent float & fund release',
@@ -197,6 +207,7 @@ bool _canAccess(_ModuleItem item, User user) {
     case 'approvals':
     case 'analytics':
     case 'accounting':
+    case 'npa':
     case 'settings':
       return user.role != UserRole.agent;
   }
@@ -375,8 +386,11 @@ class _MapSection extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.map_outlined,
-                  color: AppColors.textLight, size: 36,),
+              const Icon(
+                Icons.map_outlined,
+                color: AppColors.textLight,
+                size: 36,
+              ),
               const SizedBox(height: 8),
               Text('Map unavailable', style: AppTypography.caption),
             ],

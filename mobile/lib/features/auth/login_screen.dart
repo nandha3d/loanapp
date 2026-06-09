@@ -1,3 +1,5 @@
+// ignore_for_file: require_trailing_commas
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -61,13 +63,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       if (idToken == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to retrieve Google credentials')),
+            const SnackBar(
+                content: Text('Failed to retrieve Google credentials')),
           );
         }
         return;
       }
 
-      final res = await ref.read(authControllerProvider.notifier).loginWithGoogle(idToken);
+      final res = await ref
+          .read(authControllerProvider.notifier)
+          .loginWithGoogle(idToken);
       if (res != null && res.needsRegistration) {
         if (mounted) {
           // Carry the real idToken (not account.id) — the backend re-verifies it
@@ -307,7 +312,9 @@ class _LoginCard extends ConsumerWidget {
               Expanded(child: Divider(color: AppColors.border)),
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16),
-                child: Text('OR', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                child: Text('OR',
+                    style: TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12)),
               ),
               Expanded(child: Divider(color: AppColors.border)),
             ],
@@ -316,23 +323,30 @@ class _LoginCard extends ConsumerWidget {
           SizedBox(
             height: 48,
             child: OutlinedButton.icon(
-              icon: const Icon(Icons.g_mobiledata, color: AppColors.textPrimary, size: 28),
-              label: const Text('Continue with Google', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+              icon: const Icon(Icons.g_mobiledata,
+                  color: AppColors.textPrimary, size: 28),
+              label: const Text('Continue with Google',
+                  style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600)),
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: AppColors.border),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
               ),
               onPressed: onGoogleSignIn,
             ),
           ),
           const SizedBox(height: 24),
           Center(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 const Text(
                   'New to LoanTrack? ',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                  style:
+                      TextStyle(color: AppColors.textSecondary, fontSize: 13),
                 ),
                 GestureDetector(
                   onTap: () => context.push('/register'),

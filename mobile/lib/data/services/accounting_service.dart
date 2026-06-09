@@ -1,3 +1,5 @@
+// ignore_for_file: require_trailing_commas
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,14 +11,17 @@ class AccountingService {
   final Dio _dio;
 
   // --- Chart of Accounts ---
-  Future<List<Map<String, dynamic>>> listCoA({bool showInactive = false}) async {
+  Future<List<Map<String, dynamic>>> listCoA(
+      {bool showInactive = false}) async {
     final res = await _dio.get<Map<String, dynamic>>(
       Endpoints.accountingCoa,
       queryParameters: {'showInactive': showInactive.toString()},
     );
     return unwrapEnvelope(res, (dynamic d) {
       final list = (d as List<dynamic>);
-      return list.map((dynamic e) => Map<String, dynamic>.from(e as Map)).toList();
+      return list
+          .map((dynamic e) => Map<String, dynamic>.from(e as Map))
+          .toList();
     });
   }
 
@@ -44,7 +49,8 @@ class AccountingService {
     unwrapEnvelope(res, (dynamic d) => d);
   }
 
-  Future<void> updateCoAAccount(String id, {
+  Future<void> updateCoAAccount(
+    String id, {
     String? name,
     String? subType,
     String? parentId,
@@ -101,12 +107,15 @@ class AccountingService {
         if (page != null) 'page': page.toString(),
       },
     );
-    return unwrapEnvelope(res, (dynamic d) => Map<String, dynamic>.from(d as Map));
+    return unwrapEnvelope(
+        res, (dynamic d) => Map<String, dynamic>.from(d as Map));
   }
 
   Future<Map<String, dynamic>> getJournal(String id) async {
-    final res = await _dio.get<Map<String, dynamic>>(Endpoints.accountingJournalDetail(id));
-    return unwrapEnvelope(res, (dynamic d) => Map<String, dynamic>.from(d as Map));
+    final res = await _dio
+        .get<Map<String, dynamic>>(Endpoints.accountingJournalDetail(id));
+    return unwrapEnvelope(
+        res, (dynamic d) => Map<String, dynamic>.from(d as Map));
   }
 
   Future<void> postJournal({
@@ -195,7 +204,8 @@ class AccountingService {
         if (to != null) 'to': to,
       },
     );
-    return unwrapEnvelope(res, (dynamic d) => Map<String, dynamic>.from(d as Map));
+    return unwrapEnvelope(
+        res, (dynamic d) => Map<String, dynamic>.from(d as Map));
   }
 
   Future<Map<String, dynamic>> getBalanceSheet({String? asOf}) async {
@@ -205,7 +215,8 @@ class AccountingService {
         if (asOf != null) 'asOf': asOf,
       },
     );
-    return unwrapEnvelope(res, (dynamic d) => Map<String, dynamic>.from(d as Map));
+    return unwrapEnvelope(
+        res, (dynamic d) => Map<String, dynamic>.from(d as Map));
   }
 
   Future<Map<String, dynamic>> getTrialBalance({String? asOf}) async {
@@ -215,24 +226,132 @@ class AccountingService {
         if (asOf != null) 'asOf': asOf,
       },
     );
-    return unwrapEnvelope(res, (dynamic d) => Map<String, dynamic>.from(d as Map));
+    return unwrapEnvelope(
+        res, (dynamic d) => Map<String, dynamic>.from(d as Map));
+  }
+
+  Future<Map<String, dynamic>> getCashflow({String? from, String? to}) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.accountingCashflow,
+      queryParameters: {
+        if (from != null) 'from': from,
+        if (to != null) 'to': to,
+      },
+    );
+    return unwrapEnvelope(
+        res, (dynamic d) => Map<String, dynamic>.from(d as Map));
+  }
+
+  Future<List<Map<String, dynamic>>> listAccountingApprovals({
+    String? status,
+    String? entityType,
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.accountingApprovals,
+      queryParameters: {
+        if (status != null) 'status': status,
+        if (entityType != null) 'entityType': entityType,
+      },
+    );
+    return unwrapEnvelope(res, (dynamic d) {
+      return (d as List<dynamic>)
+          .map((dynamic e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+    });
+  }
+
+  Future<void> reviewAccountingApproval({
+    required String approvalId,
+    required String action,
+    String? note,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.accountingApprovals,
+      data: {
+        'approvalId': approvalId,
+        'action': action,
+        if (note != null) 'note': note,
+      },
+    );
+    unwrapEnvelope(res, (dynamic d) => d);
+  }
+
+  Future<List<Map<String, dynamic>>> listBudgets({String? periodKey}) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.accountingBudget,
+      queryParameters: {
+        if (periodKey != null) 'periodKey': periodKey,
+      },
+    );
+    return unwrapEnvelope(res, (dynamic d) {
+      return (d as List<dynamic>)
+          .map((dynamic e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+    });
+  }
+
+  Future<Map<String, dynamic>> getTaxSummary({String? periodKey}) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.accountingTax,
+      queryParameters: {
+        if (periodKey != null) 'periodKey': periodKey,
+      },
+    );
+    return unwrapEnvelope(
+        res, (dynamic d) => Map<String, dynamic>.from(d as Map));
+  }
+
+  Future<List<Map<String, dynamic>>> listVendors({String? search}) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.accountingVendors,
+      queryParameters: {
+        if (search != null && search.isNotEmpty) 'search': search,
+      },
+    );
+    return unwrapEnvelope(res, (dynamic d) {
+      return (d as List<dynamic>)
+          .map((dynamic e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> listExportRuns() async {
+    final res =
+        await _dio.get<Map<String, dynamic>>(Endpoints.accountingExport);
+    return unwrapEnvelope(res, (dynamic d) {
+      return (d as List<dynamic>)
+          .map((dynamic e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+    });
+  }
+
+  Future<Map<String, dynamic>> getPremiumSettings() async {
+    final res =
+        await _dio.get<Map<String, dynamic>>(Endpoints.accountingSettings);
+    return unwrapEnvelope(
+        res, (dynamic d) => Map<String, dynamic>.from(d as Map));
   }
 
   // --- Bank Reconciliation ---
   Future<Map<String, dynamic>> listBankAccounts() async {
-    final res = await _dio.get<Map<String, dynamic>>(Endpoints.accountingBankRec);
-    return unwrapEnvelope(res, (dynamic d) => Map<String, dynamic>.from(d as Map));
+    final res =
+        await _dio.get<Map<String, dynamic>>(Endpoints.accountingBankRec);
+    return unwrapEnvelope(
+        res, (dynamic d) => Map<String, dynamic>.from(d as Map));
   }
 
-  Future<Map<String, dynamic>> getBankAccountDetail(String bankAccountId) async {
+  Future<Map<String, dynamic>> getBankAccountDetail(
+      String bankAccountId) async {
     final res = await _dio.get<Map<String, dynamic>>(
       Endpoints.accountingBankRec,
       queryParameters: {'bankAccountId': bankAccountId},
     );
-    return unwrapEnvelope(res, (dynamic d) => Map<String, dynamic>.from(d as Map));
+    return unwrapEnvelope(
+        res, (dynamic d) => Map<String, dynamic>.from(d as Map));
   }
 
-  Future<Map<String, dynamic>> getStatementWithLines(String statementId, {bool showUnmatchedOnly = false}) async {
+  Future<Map<String, dynamic>> getStatementWithLines(String statementId,
+      {bool showUnmatchedOnly = false}) async {
     final res = await _dio.get<Map<String, dynamic>>(
       Endpoints.accountingBankRec,
       queryParameters: {
@@ -240,7 +359,8 @@ class AccountingService {
         'showUnmatchedOnly': showUnmatchedOnly.toString(),
       },
     );
-    return unwrapEnvelope(res, (dynamic d) => Map<String, dynamic>.from(d as Map));
+    return unwrapEnvelope(
+        res, (dynamic d) => Map<String, dynamic>.from(d as Map));
   }
 
   Future<void> createBankAccount({
@@ -356,7 +476,9 @@ class AccountingService {
     );
     return unwrapEnvelope(res, (dynamic d) {
       final list = (d as List<dynamic>);
-      return list.map((dynamic e) => Map<String, dynamic>.from(e as Map)).toList();
+      return list
+          .map((dynamic e) => Map<String, dynamic>.from(e as Map))
+          .toList();
     });
   }
 

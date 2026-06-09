@@ -32,6 +32,7 @@ import 'package:loantrack/features/loans/loans_screen.dart';
 import 'package:loantrack/features/loans/new_loan_screen.dart';
 import 'package:loantrack/features/more/more_screen.dart';
 import 'package:loantrack/features/notifications/notifications_screen.dart';
+import 'package:loantrack/features/npa/npa_screen.dart';
 import 'package:loantrack/features/penalties/penalties_screen.dart';
 import 'package:loantrack/features/reports/reports_screen.dart';
 import 'package:loantrack/features/wallet/wallet_screen.dart';
@@ -275,6 +276,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/kyc-review', builder: (_, __) => const KycReviewScreen()),
       GoRoute(path: '/analytics', builder: (_, __) => const AnalyticsScreen()),
       GoRoute(path: '/chits', builder: (_, __) => const ChitsScreen()),
+      GoRoute(path: '/npa', builder: (_, __) => const NpaScreen()),
       GoRoute(
         path: '/accounting',
         builder: (_, __) => const AccountingScreen(),
@@ -441,6 +443,12 @@ bool _moduleBlocked(String location, User user) {
   if (location.startsWith('/microlending/branch-requests') ||
       location.startsWith('/microlending/module-requests')) {
     return user.role != UserRole.superadmin;
+  }
+
+  if (location.startsWith('/npa')) {
+    return user.role != UserRole.admin &&
+        user.role != UserRole.superadmin &&
+        user.role != UserRole.developer;
   }
 
   // /settings/system mirrors the developer-only web system tab.

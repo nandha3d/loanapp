@@ -129,4 +129,17 @@ class Endpoints {
   static const String accountingTrialBalance = '/accounting/trial-balance';
   static const String accountingBankRec = '/accounting/bank-rec';
   static const String accountingPeriods = '/accounting/periods';
+  static const String accountingCashflow = '/accounting/cashflow';
+  static const String accountingApprovals = '/accounting/approvals';
+  static const String accountingBudget = '/accounting/budget';
+  static const String accountingTax = '/accounting/tax';
+  static const String accountingVendors = '/accounting/vendors';
+  static const String accountingExport = '/accounting/export';
+  static const String accountingSettings = '/accounting/settings';
+
+  // NPA
+  static const String npaSummary = '/npa/summary';
+  static const String npaLoans = '/npa/loans';
+  static const String npaHistory = '/npa/history';
+  static const String npaUpgrade = '/npa/upgrade';
 }

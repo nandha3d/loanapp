@@ -1,3 +1,5 @@
+// ignore_for_file: require_trailing_commas
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,8 +16,45 @@ import 'package:loantrack/shared/widgets/bottom_nav.dart';
 import 'package:loantrack/shared/widgets/app_button.dart';
 import 'package:loantrack/shared/widgets/skeleton.dart';
 
-final _accountingSummaryProvider = FutureProvider.autoDispose<AccountingSummary>((ref) {
+final _accountingSummaryProvider =
+    FutureProvider.autoDispose<AccountingSummary>((ref) {
   return ref.watch(reportsServiceProvider).fetchAccountingSummary();
+});
+
+final _cashflowProvider =
+    FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
+  return ref.watch(accountingServiceProvider).getCashflow();
+});
+
+final _accountingApprovalsProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
+  return ref
+      .watch(accountingServiceProvider)
+      .listAccountingApprovals(status: 'pending');
+});
+
+final _budgetsProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
+  return ref.watch(accountingServiceProvider).listBudgets();
+});
+
+final _taxProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
+  return ref.watch(accountingServiceProvider).getTaxSummary();
+});
+
+final _vendorsProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
+  return ref.watch(accountingServiceProvider).listVendors();
+});
+
+final _exportRunsProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
+  return ref.watch(accountingServiceProvider).listExportRuns();
+});
+
+final _premiumSettingsProvider =
+    FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
+  return ref.watch(accountingServiceProvider).getPremiumSettings();
 });
 
 class AccountingScreen extends ConsumerStatefulWidget {
@@ -26,7 +65,7 @@ class AccountingScreen extends ConsumerStatefulWidget {
 }
 
 class _AccountingScreenState extends ConsumerState<AccountingScreen> {
-  // Navigation sub-view: 'dashboard', 'coa', 'journal', 'periods', 'statements'
+  // Navigation sub-view: dashboard, core premium views, and parity gap views.
   String _activeView = 'dashboard';
 
   @override
@@ -35,15 +74,7 @@ class _AccountingScreenState extends ConsumerState<AccountingScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(_activeView == 'dashboard'
-            ? t.x('title.accounting')
-            : _activeView == 'coa'
-                ? 'Chart of Accounts'
-                : _activeView == 'journal'
-                    ? 'Journal Entries'
-                    : _activeView == 'periods'
-                        ? 'Fiscal Periods'
-                        : 'Financial Statements',),
+        title: Text(_titleForView(t)),
         centerTitle: true,
         leading: _activeView != 'dashboard'
             ? IconButton(
@@ -62,18 +93,41 @@ class _AccountingScreenState extends ConsumerState<AccountingScreen> {
         ],
       ),
       body: SafeArea(
-        child: _activeView == 'coa'
-            ? const _CoAView()
-            : _activeView == 'journal'
-                ? const _JournalView()
-                : _activeView == 'periods'
-                    ? const _PeriodsView()
-                    : _activeView == 'statements'
-                        ? const _StatementsView()
-                        : _buildDashboardView(context),
+        child: switch (_activeView) {
+          'coa' => const _CoAView(),
+          'journal' => const _JournalView(),
+          'periods' => const _PeriodsView(),
+          'statements' => const _StatementsView(),
+          'cashflow' => const _CashflowView(),
+          'approvals' => const _AccountingApprovalsView(),
+          'budget' => const _BudgetView(),
+          'tax' => const _TaxView(),
+          'vendors' => const _VendorsView(),
+          'export' => const _ExportRunsView(),
+          'settings' => const _PremiumSettingsView(),
+          _ => _buildDashboardView(context),
+        },
       ),
       bottomNavigationBar: const AppBottomNav(currentRoute: '/accounting'),
     );
+  }
+
+  String _titleForView(T t) {
+    return switch (_activeView) {
+      'dashboard' => t.x('title.accounting'),
+      'coa' => 'Chart of Accounts',
+      'journal' => 'Journal Entries',
+      'periods' => 'Fiscal Periods',
+      'statements' => 'Financial Statements',
+      'cashflow' => 'Cash Flow',
+      'approvals' => 'Accounting Approvals',
+      'budget' => 'Budget',
+      'tax' => 'Tax & GST',
+      'vendors' => 'Vendors & Bills',
+      'export' => 'Export Runs',
+      'settings' => 'Premium Settings',
+      _ => t.x('title.accounting'),
+    };
   }
 
   Widget _buildDashboardView(BuildContext context) {
@@ -93,7 +147,8 @@ class _AccountingScreenState extends ConsumerState<AccountingScreen> {
           const SizedBox(height: 16),
 
           // Premium Operations Menu
-          Text('Premium Accounting Operations', style: AppTypography.sectionTitle),
+          Text('Premium Accounting Operations',
+              style: AppTypography.sectionTitle),
           const SizedBox(height: 12),
           GridView.count(
             crossAxisCount: 2,
@@ -133,6 +188,48 @@ class _AccountingScreenState extends ConsumerState<AccountingScreen> {
                 color: Colors.purple,
                 onTap: () => setState(() => _activeView = 'statements'),
               ),
+              _MenuTile(
+                title: 'Cash Flow',
+                icon: Icons.waterfall_chart_outlined,
+                color: Colors.teal,
+                onTap: () => setState(() => _activeView = 'cashflow'),
+              ),
+              _MenuTile(
+                title: 'Approvals',
+                icon: Icons.task_alt_outlined,
+                color: Colors.indigo,
+                onTap: () => setState(() => _activeView = 'approvals'),
+              ),
+              _MenuTile(
+                title: 'Budget',
+                icon: Icons.savings_outlined,
+                color: Colors.cyan,
+                onTap: () => setState(() => _activeView = 'budget'),
+              ),
+              _MenuTile(
+                title: 'Tax & GST',
+                icon: Icons.receipt_long_outlined,
+                color: Colors.deepOrange,
+                onTap: () => setState(() => _activeView = 'tax'),
+              ),
+              _MenuTile(
+                title: 'Vendors',
+                icon: Icons.store_outlined,
+                color: Colors.brown,
+                onTap: () => setState(() => _activeView = 'vendors'),
+              ),
+              _MenuTile(
+                title: 'Export Runs',
+                icon: Icons.ios_share_outlined,
+                color: Colors.blueGrey,
+                onTap: () => setState(() => _activeView = 'export'),
+              ),
+              _MenuTile(
+                title: 'Premium Settings',
+                icon: Icons.tune_outlined,
+                color: Colors.grey,
+                onTap: () => setState(() => _activeView = 'settings'),
+              ),
             ],
           ),
           const SizedBox(height: 24),
@@ -145,7 +242,11 @@ class _AccountingScreenState extends ConsumerState<AccountingScreen> {
 // ── Menu Tile Widget ──────────────────────────────────────────────────────────
 
 class _MenuTile extends StatelessWidget {
-  const _MenuTile({required this.title, required this.icon, required this.color, required this.onTap});
+  const _MenuTile(
+      {required this.title,
+      required this.icon,
+      required this.color,
+      required this.onTap});
   final String title;
   final IconData icon;
   final Color color;
@@ -393,6 +494,303 @@ class _InlineError extends StatelessWidget {
 
 // ── Chart of Accounts View (CoA) ──────────────────────────────────────────────
 
+class _CashflowView extends ConsumerWidget {
+  const _CashflowView();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final fmt = ref.watch(currencyFmtProvider);
+    final async = ref.watch(_cashflowProvider);
+    return _AsyncMapView(
+      async: async,
+      title: 'Cash flow summary',
+      rows: (data) => [
+        _InfoRow('Inflow', fmt.format(_num(data['totalInflow']))),
+        _InfoRow('Outflow', fmt.format(_num(data['totalOutflow']))),
+        _InfoRow('Net cashflow', fmt.format(_num(data['netCashflow']))),
+        _InfoRow(
+            'Cash/bank balance', fmt.format(_num(data['cashBankBalance']))),
+      ],
+      listTitle: 'Daily cashflow',
+      listItems: (data) => (data['series'] as List<dynamic>? ?? [])
+          .take(14)
+          .map((dynamic row) => Map<String, dynamic>.from(row as Map))
+          .map((row) => _InfoRow(
+                row['date']?.toString() ?? '',
+                '${fmt.format(_num(row['inflow']))} in / ${fmt.format(_num(row['outflow']))} out',
+              ))
+          .toList(),
+    );
+  }
+}
+
+class _AccountingApprovalsView extends ConsumerWidget {
+  const _AccountingApprovalsView();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final fmt = ref.watch(currencyFmtProvider);
+    final async = ref.watch(_accountingApprovalsProvider);
+    return _AsyncListView(
+      async: async,
+      title: 'Pending approvals',
+      emptyTitle: 'No pending accounting approvals',
+      rowBuilder: (row) => _InfoRow(
+        '${row['entityType'] ?? 'approval'} - L${row['level'] ?? 1}',
+        '${fmt.format(_num(row['amount']))} - ${row['status'] ?? ''}',
+      ),
+    );
+  }
+}
+
+class _BudgetView extends ConsumerWidget {
+  const _BudgetView();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final fmt = ref.watch(currencyFmtProvider);
+    final async = ref.watch(_budgetsProvider);
+    return _AsyncListView(
+      async: async,
+      title: 'Budgets',
+      emptyTitle: 'No budgets configured',
+      rowBuilder: (row) => _InfoRow(
+        row['name']?.toString() ?? 'Budget',
+        '${row['fiscalYear'] ?? ''} - ${row['status'] ?? ''} - ${fmt.format(_num(row['annualTotal']))}',
+      ),
+    );
+  }
+}
+
+class _TaxView extends ConsumerWidget {
+  const _TaxView();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final fmt = ref.watch(currencyFmtProvider);
+    final async = ref.watch(_taxProvider);
+    return _AsyncMapView(
+      async: async,
+      title: 'Tax & GST summary',
+      rows: (data) {
+        final gst = Map<String, dynamic>.from((data['gst'] as Map?) ?? {});
+        return [
+          _InfoRow('Period', data['periodKey']?.toString() ?? ''),
+          _InfoRow('GST liability', fmt.format(_num(gst['netLiability']))),
+          _InfoRow('GST status', gst['status']?.toString() ?? ''),
+          _InfoRow(
+              'TDS rows', '${(data['tds'] as List<dynamic>? ?? []).length}'),
+        ];
+      },
+      listTitle: 'Recent TDS',
+      listItems: (data) => (data['tds'] as List<dynamic>? ?? [])
+          .take(10)
+          .map((dynamic row) => Map<String, dynamic>.from(row as Map))
+          .map((row) => _InfoRow(
+                row['vendorName']?.toString() ?? 'Vendor',
+                '${row['section'] ?? ''} - ${fmt.format(_num(row['tdsAmount']))}',
+              ))
+          .toList(),
+    );
+  }
+}
+
+class _VendorsView extends ConsumerWidget {
+  const _VendorsView();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final fmt = ref.watch(currencyFmtProvider);
+    final async = ref.watch(_vendorsProvider);
+    return _AsyncListView(
+      async: async,
+      title: 'Vendors',
+      emptyTitle: 'No vendors configured',
+      rowBuilder: (row) => _InfoRow(
+        row['name']?.toString() ?? 'Vendor',
+        '${row['openBillCount'] ?? 0} open bills - ${fmt.format(_num(row['outstanding']))}',
+      ),
+    );
+  }
+}
+
+class _ExportRunsView extends ConsumerWidget {
+  const _ExportRunsView();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(_exportRunsProvider);
+    return _AsyncListView(
+      async: async,
+      title: 'Recent export runs',
+      emptyTitle: 'No export runs yet',
+      rowBuilder: (row) => _InfoRow(
+        row['filename']?.toString() ?? 'Export',
+        '${row['kind'] ?? ''} - ${row['periodKey'] ?? ''}',
+      ),
+    );
+  }
+}
+
+class _PremiumSettingsView extends ConsumerWidget {
+  const _PremiumSettingsView();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final fmt = ref.watch(currencyFmtProvider);
+    final async = ref.watch(_premiumSettingsProvider);
+    return _AsyncMapView(
+      async: async,
+      title: 'Premium settings',
+      rows: (data) => [
+        _InfoRow(
+            'Fiscal year start', 'Month ${data['fiscalYearStartMonth'] ?? 4}'),
+        _InfoRow('GSTIN', data['gstin']?.toString() ?? 'Not set'),
+        _InfoRow('GST scheme', data['gstScheme']?.toString() ?? ''),
+        _InfoRow('Admin JE cap', fmt.format(_num(data['adminJeCap']))),
+        _InfoRow('Admin bill cap', fmt.format(_num(data['adminBillCap']))),
+        _InfoRow('Two-level threshold',
+            fmt.format(_num(data['twoLevelApprovalThreshold']))),
+        _InfoRow('Tally connector',
+            data['tallyConnectorEnabled'] == true ? 'Enabled' : 'Disabled'),
+      ],
+    );
+  }
+}
+
+class _AsyncMapView extends StatelessWidget {
+  const _AsyncMapView({
+    required this.async,
+    required this.title,
+    required this.rows,
+    this.listTitle,
+    this.listItems,
+  });
+
+  final AsyncValue<Map<String, dynamic>> async;
+  final String title;
+  final List<_InfoRow> Function(Map<String, dynamic>) rows;
+  final String? listTitle;
+  final List<_InfoRow> Function(Map<String, dynamic>)? listItems;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        async.when(
+          loading: () => const Skeleton(height: 220),
+          error: (e, _) => _InlineError(message: e.toString()),
+          data: (data) => Column(
+            children: [
+              _InfoCard(title: title, rows: rows(data)),
+              if (listTitle != null && listItems != null) ...[
+                const SizedBox(height: 12),
+                _InfoCard(title: listTitle!, rows: listItems!(data)),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AsyncListView extends StatelessWidget {
+  const _AsyncListView({
+    required this.async,
+    required this.title,
+    required this.emptyTitle,
+    required this.rowBuilder,
+  });
+
+  final AsyncValue<List<Map<String, dynamic>>> async;
+  final String title;
+  final String emptyTitle;
+  final _InfoRow Function(Map<String, dynamic>) rowBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        async.when(
+          loading: () => const Skeleton(height: 220),
+          error: (e, _) => _InlineError(message: e.toString()),
+          data: (items) {
+            if (items.isEmpty) {
+              return SizedBox(
+                height: 220,
+                child: Center(
+                  child: Text(emptyTitle, style: AppTypography.caption),
+                ),
+              );
+            }
+            return _InfoCard(
+              title: title,
+              rows: items.take(50).map(rowBuilder).toList(),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _InfoCard extends StatelessWidget {
+  const _InfoCard({required this.title, required this.rows});
+  final String title;
+  final List<_InfoRow> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    return _Card(
+      title: title,
+      child: Column(
+        children: [
+          for (var i = 0; i < rows.length; i++) ...[
+            rows[i],
+            if (i != rows.length - 1) const _Divider(),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow(this.label, this.value);
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Expanded(child: Text(label, style: AppTypography.body)),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              value,
+              style: AppTypography.label,
+              textAlign: TextAlign.end,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+double _num(dynamic value) => value == null
+    ? 0
+    : (value is num
+        ? value.toDouble()
+        : double.tryParse(value.toString()) ?? 0);
+
 class _CoAView extends ConsumerStatefulWidget {
   const _CoAView();
 
@@ -414,7 +812,8 @@ class _CoAViewState extends ConsumerState<_CoAView> {
   Future<void> _fetchAccounts() async {
     setState(() => _loading = true);
     try {
-      final list = await ref.read(accountingServiceProvider).listCoA(showInactive: true);
+      final list =
+          await ref.read(accountingServiceProvider).listCoA(showInactive: true);
       setState(() {
         _accounts = list;
         _loading = false;
@@ -467,7 +866,8 @@ class _CoAViewState extends ConsumerState<_CoAView> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('${_accounts.length} Accounts in Ledger', style: AppTypography.caption),
+              Text('${_accounts.length} Accounts in Ledger',
+                  style: AppTypography.caption),
               TextButton.icon(
                 icon: const Icon(Icons.refresh_outlined, size: 16),
                 label: const Text('Reseed CoA'),
@@ -496,7 +896,8 @@ class _CoAViewState extends ConsumerState<_CoAView> {
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
                   color: AppColors.surface,
                   borderRadius: BorderRadius.circular(10),
@@ -508,15 +909,21 @@ class _CoAViewState extends ConsumerState<_CoAView> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('[$code] $name', style: AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.bold)),
-                          Text('${classType.toUpperCase()} · Normal: ${a['normalSide']}', style: AppTypography.caption),
+                          Text('[$code] $name',
+                              style: AppTypography.bodyLarge
+                                  .copyWith(fontWeight: FontWeight.bold)),
+                          Text(
+                              '${classType.toUpperCase()} · Normal: ${a['normalSide']}',
+                              style: AppTypography.caption),
                         ],
                       ),
                     ),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Text('₹${balAmt.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                        Text('₹${balAmt.toStringAsFixed(2)}',
+                            style:
+                                const TextStyle(fontWeight: FontWeight.bold)),
                         const SizedBox(height: 4),
                         Switch(
                           value: isActive,
@@ -585,25 +992,36 @@ class _JournalViewState extends ConsumerState<_JournalView> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Journal Entry: ${je['entryNo'] ?? 'Draft'}', style: AppTypography.sectionTitle),
+              Text('Journal Entry: ${je['entryNo'] ?? 'Draft'}',
+                  style: AppTypography.sectionTitle),
               const SizedBox(height: 8),
-              Text('Date: ${je['entryDate']?.split('T')[0]}', style: AppTypography.caption),
-              Text('Narration: ${je['narration'] ?? 'None'}', style: AppTypography.body),
-              Text('Status: ${je['status']?.toUpperCase()}', style: AppTypography.caption.copyWith(fontWeight: FontWeight.bold, color: AppColors.primary)),
+              Text('Date: ${je['entryDate']?.split('T')[0]}',
+                  style: AppTypography.caption),
+              Text('Narration: ${je['narration'] ?? 'None'}',
+                  style: AppTypography.body),
+              Text('Status: ${je['status']?.toUpperCase()}',
+                  style: AppTypography.caption.copyWith(
+                      fontWeight: FontWeight.bold, color: AppColors.primary)),
               const Divider(height: 24),
-              const Text('Transaction splits not shown in summary. Use Web for full double-entry details.', style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
+              const Text(
+                  'Transaction splits not shown in summary. Use Web for full double-entry details.',
+                  style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
               const SizedBox(height: 16),
               if (je['status'] == 'pending_approval') ...[
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     TextButton(
-                      child: const Text('Reject', style: TextStyle(color: AppColors.danger)),
+                      child: const Text('Reject',
+                          style: TextStyle(color: AppColors.danger)),
                       onPressed: () async {
                         Navigator.pop(context);
                         setState(() => _loading = true);
                         try {
-                          await ref.read(accountingServiceProvider).rejectJournal(je['id'] as String, 'Rejected from mobile');
+                          await ref
+                              .read(accountingServiceProvider)
+                              .rejectJournal(
+                                  je['id'] as String, 'Rejected from mobile');
                           await _fetchJournals();
                         } catch (e) {
                           setState(() => _loading = false);
@@ -618,7 +1036,9 @@ class _JournalViewState extends ConsumerState<_JournalView> {
                         Navigator.pop(context);
                         setState(() => _loading = true);
                         try {
-                          await ref.read(accountingServiceProvider).approveJournal(je['id'] as String);
+                          await ref
+                              .read(accountingServiceProvider)
+                              .approveJournal(je['id'] as String);
                           await _fetchJournals();
                         } catch (e) {
                           setState(() => _loading = false);
@@ -653,7 +1073,9 @@ class _JournalViewState extends ConsumerState<_JournalView> {
           title: const Text('Reverse Journal Entry'),
           content: TextField(
             controller: ctrl,
-            decoration: const InputDecoration(labelText: 'Reason for reversal *', border: OutlineInputBorder()),
+            decoration: const InputDecoration(
+                labelText: 'Reason for reversal *',
+                border: OutlineInputBorder()),
           ),
           actions: [
             TextButton(
@@ -667,13 +1089,16 @@ class _JournalViewState extends ConsumerState<_JournalView> {
                 Navigator.pop(context);
                 setState(() => _loading = true);
                 try {
-                  await ref.read(accountingServiceProvider).reverseJournal(jeId, r);
+                  await ref
+                      .read(accountingServiceProvider)
+                      .reverseJournal(jeId, r);
                   await _fetchJournals();
                 } catch (e) {
                   setState(() => _loading = false);
                 }
               },
-              child: const Text('Reverse', style: TextStyle(color: AppColors.danger)),
+              child: const Text('Reverse',
+                  style: TextStyle(color: AppColors.danger)),
             ),
           ],
         );
@@ -693,8 +1118,10 @@ class _JournalViewState extends ConsumerState<_JournalView> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('${_journals.length} Journal Entries found', style: AppTypography.caption),
-              IconButton(icon: const Icon(Icons.refresh), onPressed: _fetchJournals),
+              Text('${_journals.length} Journal Entries found',
+                  style: AppTypography.caption),
+              IconButton(
+                  icon: const Icon(Icons.refresh), onPressed: _fetchJournals),
             ],
           ),
         ),
@@ -728,27 +1155,39 @@ class _JournalViewState extends ConsumerState<_JournalView> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('$no ($date)', style: AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.bold)),
-                            Text(narration, style: AppTypography.caption, maxLines: 1, overflow: TextOverflow.ellipsis),
+                            Text('$no ($date)',
+                                style: AppTypography.bodyLarge
+                                    .copyWith(fontWeight: FontWeight.bold)),
+                            Text(narration,
+                                style: AppTypography.caption,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis),
                           ],
                         ),
                       ),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Text('₹${total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                          Text('₹${total.toStringAsFixed(2)}',
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold)),
                           const SizedBox(height: 4),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: isPosted ? AppColors.successBg : AppColors.warningBg,
+                              color: isPosted
+                                  ? AppColors.successBg
+                                  : AppColors.warningBg,
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
                               status.toUpperCase(),
                               style: TextStyle(
                                 fontSize: 8,
-                                color: isPosted ? AppColors.success : AppColors.warning,
+                                color: isPosted
+                                    ? AppColors.success
+                                    : AppColors.warning,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -803,7 +1242,8 @@ class _PeriodsViewState extends ConsumerState<_PeriodsView> {
     }
   }
 
-  Future<void> _updatePeriod(String action, String periodId, [String? reason]) async {
+  Future<void> _updatePeriod(String action, String periodId,
+      [String? reason]) async {
     setState(() => _loading = true);
     try {
       final service = ref.read(accountingServiceProvider);
@@ -842,11 +1282,13 @@ class _PeriodsViewState extends ConsumerState<_PeriodsView> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Manage Period: ${period['periodKey']}', style: AppTypography.sectionTitle),
+              Text('Manage Period: ${period['periodKey']}',
+                  style: AppTypography.sectionTitle),
               const SizedBox(height: 16),
               if (status == 'open') ...[
                 ListTile(
-                  leading: const Icon(Icons.lock_open, color: AppColors.warning),
+                  leading:
+                      const Icon(Icons.lock_open, color: AppColors.warning),
                   title: const Text('Soft Lock Period (Admins Blocked)'),
                   onTap: () {
                     Navigator.pop(context);
@@ -862,7 +1304,8 @@ class _PeriodsViewState extends ConsumerState<_PeriodsView> {
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.check_circle_outline, color: AppColors.success),
+                  leading: const Icon(Icons.check_circle_outline,
+                      color: AppColors.success),
                   title: const Text('Close Period & Transfer Profit'),
                   onTap: () {
                     Navigator.pop(context);
@@ -872,7 +1315,8 @@ class _PeriodsViewState extends ConsumerState<_PeriodsView> {
               ],
               if (status == 'locked' || status == 'soft_locked') ...[
                 ListTile(
-                  leading: const Icon(Icons.lock_open, color: AppColors.primary),
+                  leading:
+                      const Icon(Icons.lock_open, color: AppColors.primary),
                   title: const Text('Unlock Period'),
                   onTap: () {
                     Navigator.pop(context);
@@ -882,7 +1326,8 @@ class _PeriodsViewState extends ConsumerState<_PeriodsView> {
               ],
               if (status == 'closed') ...[
                 ListTile(
-                  leading: const Icon(Icons.replay_outlined, color: AppColors.danger),
+                  leading: const Icon(Icons.replay_outlined,
+                      color: AppColors.danger),
                   title: const Text('Reopen & Reverse Closing JE'),
                   onTap: () {
                     Navigator.pop(context);
@@ -921,7 +1366,9 @@ class _PeriodsViewState extends ConsumerState<_PeriodsView> {
                 final r = ctrl.text.trim();
                 if (r.length < 10) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Justification must be at least 10 characters long')),
+                    const SnackBar(
+                        content: Text(
+                            'Justification must be at least 10 characters long')),
                   );
                   return;
                 }
@@ -966,12 +1413,15 @@ class _PeriodsViewState extends ConsumerState<_PeriodsView> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Key: ${p['periodKey']} (${p['fiscalYear']})', style: AppTypography.nameLg.copyWith(fontSize: 14)),
-                    Text('Net P&L: ₹${profit.toStringAsFixed(2)}', style: AppTypography.caption),
+                    Text('Key: ${p['periodKey']} (${p['fiscalYear']})',
+                        style: AppTypography.nameLg.copyWith(fontSize: 14)),
+                    Text('Net P&L: ₹${profit.toStringAsFixed(2)}',
+                        style: AppTypography.caption),
                   ],
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: isClosed
                         ? AppColors.successBg
@@ -1056,9 +1506,11 @@ class _StatementsViewState extends ConsumerState<_StatementsView> {
           padding: const EdgeInsets.all(16),
           child: DropdownButtonFormField<String>(
             initialValue: _statementType,
-            decoration: const InputDecoration(labelText: 'Statement Type', border: OutlineInputBorder()),
+            decoration: const InputDecoration(
+                labelText: 'Statement Type', border: OutlineInputBorder()),
             items: const [
-              DropdownMenuItem(value: 'pnl', child: Text('Profit & Loss (P&L)')),
+              DropdownMenuItem(
+                  value: 'pnl', child: Text('Profit & Loss (P&L)')),
               DropdownMenuItem(value: 'balance', child: Text('Balance Sheet')),
               DropdownMenuItem(value: 'trial', child: Text('Trial Balance')),
             ],
@@ -1096,17 +1548,38 @@ class _StatementsViewState extends ConsumerState<_StatementsView> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const Text('Revenue (Credit Accounts)', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.success, fontSize: 15)),
+        const Text('Revenue (Credit Accounts)',
+            style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppColors.success,
+                fontSize: 15)),
         const Divider(),
-        ...income.map((i) => _ReportRow(name: i['name'] as String, code: i['code'] as String, amount: i['amount'] as num)),
-        _ReportRow(name: 'TOTAL REVENUE', code: '', amount: totalIn, isBold: true),
+        ...income.map((i) => _ReportRow(
+            name: i['name'] as String,
+            code: i['code'] as String,
+            amount: i['amount'] as num)),
+        _ReportRow(
+            name: 'TOTAL REVENUE', code: '', amount: totalIn, isBold: true),
         const SizedBox(height: 20),
-        const Text('Expenses (Debit Accounts)', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.danger, fontSize: 15)),
+        const Text('Expenses (Debit Accounts)',
+            style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppColors.danger,
+                fontSize: 15)),
         const Divider(),
-        ...expenses.map((e) => _ReportRow(name: e['name'] as String, code: e['code'] as String, amount: e['amount'] as num)),
-        _ReportRow(name: 'TOTAL EXPENSES', code: '', amount: totalEx, isBold: true),
+        ...expenses.map((e) => _ReportRow(
+            name: e['name'] as String,
+            code: e['code'] as String,
+            amount: e['amount'] as num)),
+        _ReportRow(
+            name: 'TOTAL EXPENSES', code: '', amount: totalEx, isBold: true),
         const Divider(height: 32, thickness: 2),
-        _ReportRow(name: 'NET PROFIT / LOSS', code: '', amount: net, isBold: true, color: net >= 0 ? AppColors.success : AppColors.danger),
+        _ReportRow(
+            name: 'NET PROFIT / LOSS',
+            code: '',
+            amount: net,
+            isBold: true,
+            color: net >= 0 ? AppColors.success : AppColors.danger),
       ],
     );
   }
@@ -1125,19 +1598,32 @@ class _StatementsViewState extends ConsumerState<_StatementsView> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const Text('Assets', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+        const Text('Assets',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
         const Divider(),
-        ...assets.map((a) => _ReportRow(name: a['name'] as String, code: a['code'] as String, amount: a['amount'] as num)),
+        ...assets.map((a) => _ReportRow(
+            name: a['name'] as String,
+            code: a['code'] as String,
+            amount: a['amount'] as num)),
         _ReportRow(name: 'TOTAL ASSETS', code: '', amount: totA, isBold: true),
         const SizedBox(height: 20),
-        const Text('Liabilities', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+        const Text('Liabilities',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
         const Divider(),
-        ...liabilities.map((l) => _ReportRow(name: l['name'] as String, code: l['code'] as String, amount: l['amount'] as num)),
-        _ReportRow(name: 'TOTAL LIABILITIES', code: '', amount: totL, isBold: true),
+        ...liabilities.map((l) => _ReportRow(
+            name: l['name'] as String,
+            code: l['code'] as String,
+            amount: l['amount'] as num)),
+        _ReportRow(
+            name: 'TOTAL LIABILITIES', code: '', amount: totL, isBold: true),
         const SizedBox(height: 20),
-        const Text('Equity', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+        const Text('Equity',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
         const Divider(),
-        ...equity.map((eq) => _ReportRow(name: eq['name'] as String, code: eq['code'] as String, amount: eq['amount'] as num)),
+        ...equity.map((eq) => _ReportRow(
+            name: eq['name'] as String,
+            code: eq['code'] as String,
+            amount: eq['amount'] as num)),
         _ReportRow(name: 'TOTAL EQUITY', code: '', amount: totE, isBold: true),
       ],
     );
@@ -1157,9 +1643,19 @@ class _StatementsViewState extends ConsumerState<_StatementsView> {
           color: AppColors.border,
           child: const Row(
             children: [
-              Expanded(child: Text('Account', style: TextStyle(fontWeight: FontWeight.bold))),
-              SizedBox(width: 80, child: Text('Debit', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold))),
-              SizedBox(width: 80, child: Text('Credit', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold))),
+              Expanded(
+                  child: Text('Account',
+                      style: TextStyle(fontWeight: FontWeight.bold))),
+              SizedBox(
+                  width: 80,
+                  child: Text('Debit',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(fontWeight: FontWeight.bold))),
+              SizedBox(
+                  width: 80,
+                  child: Text('Credit',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(fontWeight: FontWeight.bold))),
             ],
           ),
         ),
@@ -1167,22 +1663,40 @@ class _StatementsViewState extends ConsumerState<_StatementsView> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              ...rows.map((r) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
-                      children: [
-                        Expanded(child: Text('[${r['code']}] ${r['name']}')),
-                        SizedBox(width: 80, child: Text('₹${r['debit']}', textAlign: TextAlign.right)),
-                        SizedBox(width: 80, child: Text('₹${r['credit']}', textAlign: TextAlign.right)),
-                      ],
-                    ),
-                  ),),
+              ...rows.map(
+                (r) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Expanded(child: Text('[${r['code']}] ${r['name']}')),
+                      SizedBox(
+                          width: 80,
+                          child: Text('₹${r['debit']}',
+                              textAlign: TextAlign.right)),
+                      SizedBox(
+                          width: 80,
+                          child: Text('₹${r['credit']}',
+                              textAlign: TextAlign.right)),
+                    ],
+                  ),
+                ),
+              ),
               const Divider(height: 24, thickness: 2),
               Row(
                 children: [
-                  const Expanded(child: Text('TOTALS', style: TextStyle(fontWeight: FontWeight.bold))),
-                  SizedBox(width: 80, child: Text('₹${totDr.toStringAsFixed(2)}', textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.bold))),
-                  SizedBox(width: 80, child: Text('₹${totCr.toStringAsFixed(2)}', textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.bold))),
+                  const Expanded(
+                      child: Text('TOTALS',
+                          style: TextStyle(fontWeight: FontWeight.bold))),
+                  SizedBox(
+                      width: 80,
+                      child: Text('₹${totDr.toStringAsFixed(2)}',
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(fontWeight: FontWeight.bold))),
+                  SizedBox(
+                      width: 80,
+                      child: Text('₹${totCr.toStringAsFixed(2)}',
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(fontWeight: FontWeight.bold))),
                 ],
               ),
             ],
@@ -1194,7 +1708,12 @@ class _StatementsViewState extends ConsumerState<_StatementsView> {
 }
 
 class _ReportRow extends StatelessWidget {
-  const _ReportRow({required this.name, required this.code, required this.amount, this.isBold = false, this.color});
+  const _ReportRow(
+      {required this.name,
+      required this.code,
+      required this.amount,
+      this.isBold = false,
+      this.color});
   final String name;
   final String code;
   final num amount;
