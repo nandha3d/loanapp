@@ -36,6 +36,25 @@ jobs:
       - name: flutter pub get
         run: flutter pub get
 
+      - name: Decode release keystore + write key.properties
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 secret missing — release build needs the keystore for Google Sign-In to work."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/loantrack-release.jks
+          cat > android/key.properties <<EOF
+          storePassword=$STORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=loantrack-release.jks
+          EOF
+
       - name: Build release APK
         run: |
           flutter build apk --release \

@@ -1,3 +1,9 @@
+# Signing secrets — never commit. CI writes these from GitHub secrets.
+**/key.properties
+**/*.jks
+**/*.keystore
+keystore-base64.txt
+
 # Miscellaneous
 *.class
 *.log

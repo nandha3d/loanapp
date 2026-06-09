@@ -295,22 +295,22 @@ class _LoginCard extends ConsumerWidget {
           const SizedBox(height: 12),
           const Row(
             children: [
-              Expanded(child: Divider(color: Colors.white10)),
+              Expanded(child: Divider(color: AppColors.border)),
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16),
                 child: Text('OR', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
               ),
-              Expanded(child: Divider(color: Colors.white10)),
+              Expanded(child: Divider(color: AppColors.border)),
             ],
           ),
           const SizedBox(height: 16),
           SizedBox(
             height: 48,
             child: OutlinedButton.icon(
-              icon: const Icon(Icons.g_mobiledata, color: Colors.white, size: 28),
-              label: const Text('Continue with Google', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+              icon: const Icon(Icons.g_mobiledata, color: AppColors.textPrimary, size: 28),
+              label: const Text('Continue with Google', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.white10),
+                side: const BorderSide(color: AppColors.border),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               onPressed: onGoogleSignIn,
