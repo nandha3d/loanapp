@@ -20,6 +20,7 @@ model Tenant {
   deletedAt             DateTime?              @map("deleted_at")
   settings              AppSetting[]
   auditLogs             AuditLog[]
+  deviceTokens          DeviceToken[]
   billingInvoices       BillingInvoice[]
   branchRequests        BranchRequest[]
   branches              Branch[]
@@ -137,6 +138,7 @@ model User {
   approvalRequestsMade       ApprovalRequest[]  @relation("Requester")
   approvalRequestsReviewed   ApprovalRequest[]  @relation("Reviewer")
   auditLogs                  AuditLog[]
+  deviceTokens               DeviceToken[]
   branchRequestsMade         BranchRequest[]    @relation("BranchRequestsMade")
   branchRequestsReviewed     BranchRequest[]    @relation("BranchRequestsReviewed")
   superadminBranches         Branch[]           @relation("SuperadminBranches")
@@ -706,6 +708,22 @@ model CustomerGeocode {
 
   @@index([tenantId])
   @@map("customer_geocodes")
+}
+
+model DeviceToken {
+  id         String   @id @default(cuid())
+  tenantId   String   @map("tenant_id")
+  userId     String   @map("user_id")
+  token      String   @unique
+  platform   String   @default("android")
+  createdAt  DateTime @default(now()) @map("created_at")
+  lastSeenAt DateTime @default(now()) @updatedAt @map("last_seen_at")
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tenantId])
+  @@map("device_tokens")
 }
 
 model SystemNotification {

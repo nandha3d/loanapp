@@ -4,11 +4,9 @@ import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
 
 /**
- * Mobile FCM device token registration. NOTE: no dedicated `DeviceToken`
- * Prisma model yet — tokens are written into `auditLog` as `fcm_register`
- * entries (entityType='device_token', newValue=JSON). A follow-up migration
- * should introduce `DeviceToken { id, userId, tenantId, token, platform,
- * createdAt, lastSeenAt }` and the FCM dispatcher should query it.
+ * Mobile FCM device-token registration. Upserts into the `DeviceToken` table so
+ * the push dispatcher (`lib/notify/channels/push.ts`) can target this user's
+ * devices. Re-registering the same token just refreshes ownership + lastSeenAt.
  */
 export async function POST(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -21,15 +19,10 @@ export async function POST(req: NextRequest) {
     const platform = String(body.platform || 'android');
     if (!token) return fail('token required', 400);
 
-    await prisma.auditLog.create({
-      data: {
-        tenantId: ctx.tenantId,
-        userId: ctx.userId,
-        action: 'fcm_register',
-        entityType: 'device_token',
-        entityId: ctx.userId,
-        newValue: JSON.stringify({ token, platform, registeredAt: new Date() }),
-      },
+    await prisma.deviceToken.upsert({
+      where: { token },
+      update: { userId: ctx.userId, tenantId: ctx.tenantId, platform, lastSeenAt: new Date() },
+      create: { token, userId: ctx.userId, tenantId: ctx.tenantId, platform },
     });
 
     return ok({ registered: true });

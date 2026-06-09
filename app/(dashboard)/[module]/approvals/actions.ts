@@ -8,6 +8,7 @@ import { decryptAadharNumber, encryptAadharNumber, isMaskedAadharNumber } from '
 import { submitCollectionEntry } from '@/app/(dashboard)/[module]/collection/actions';
 import { calculateLoanPreview } from '@/lib/loanCalculator';
 import { findApprovalNotificationTarget } from '@/lib/approvalNotifications';
+import { notifyUser } from '@/lib/notify/userNotify';
 import { modulePath } from '@/types/modules';
 import { getActiveBranchId } from '@/lib/branch';
 
@@ -300,19 +301,17 @@ export async function reviewRequest(formData: FormData) {
     if ((result as any)?.requestedById) {
       const label = action === 'approve' ? 'approved' : 'rejected';
       const requestLabel = ((result as any).requestType as string).replace(/_/g, ' ');
-      await prisma.systemNotification.create({
-        data: {
-          tenantId,
-          appType,
-          targetUserId: (result as any).requestedById,
-          targetRole: 'agent',
-          type: `request_${label}`,
-          icon: action === 'approve' ? 'check_circle' : 'cancel',
-          title: `Request ${label}`,
-          message: `Your ${requestLabel} request has been ${label}.${reviewNotes ? ` Note: ${reviewNotes}` : ''}`,
-          link: modulePath(appType, '/approvals'),
-        },
-      }).catch(() => {});
+      await notifyUser({
+        tenantId,
+        appType,
+        targetUserId: (result as any).requestedById,
+        targetRole: 'agent',
+        type: `request_${label}`,
+        icon: action === 'approve' ? 'check_circle' : 'cancel',
+        title: `Request ${label}`,
+        message: `Your ${requestLabel} request has been ${label}.${reviewNotes ? ` Note: ${reviewNotes}` : ''}`,
+        link: modulePath(appType, '/approvals'),
+      });
     }
 
     revalidatePath('/approvals');
@@ -355,20 +354,18 @@ export async function approveCustomerCreation(customerId: string) {
 
   // Notify the agent that their customer creation was approved
   if (customer.agentId) {
-    await prisma.systemNotification.create({
-      data: {
-        tenantId,
-        branchId: customer.branchId,
-        appType,
-        targetUserId: customer.agentId,
-        targetRole: 'agent',
-        type: 'customer_approved',
-        icon: 'check_circle',
-        title: 'Customer approved',
-        message: `Your customer ${customer.name} has been approved and is now active.`,
-        link: modulePath(appType, '/customers'),
-      },
-    }).catch(() => {});
+    await notifyUser({
+      tenantId,
+      branchId: customer.branchId,
+      appType,
+      targetUserId: customer.agentId,
+      targetRole: 'agent',
+      type: 'customer_approved',
+      icon: 'check_circle',
+      title: 'Customer approved',
+      message: `Your customer ${customer.name} has been approved and is now active.`,
+      link: modulePath(appType, '/customers'),
+    });
   }
 
   revalidatePath('/customers');
