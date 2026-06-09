@@ -293,8 +293,22 @@ function RegisterForm() {
         } else {
           await signIn('google', { callbackUrl: '/portal' });
         }
+      } else if (isSupabaseAuthEnabled()) {
+        // Email signup: Supabase sends the verification magic-link (needs a
+        // custom SMTP configured in Supabase for reliable delivery).
+        try {
+          await getSupabaseBrowser().auth.signInWithOtp({
+            email: ownerEmail,
+            options: {
+              shouldCreateUser: true,
+              emailRedirectTo: `${window.location.origin}/auth/callback?intent=verify`,
+            },
+          });
+        } catch (e) {
+          console.error('[SUPABASE_OTP_SEND]', e);
+        }
+        router.push(`/login?registerPending=1&username=${encodeURIComponent(ownerUsername)}`);
       } else {
-        // Email signup: the server already sent the verification email (Brevo).
         router.push(`/login?registerPending=1&username=${encodeURIComponent(ownerUsername)}`);
       }
     } catch (err: any) {
