@@ -20,23 +20,18 @@ export async function manageMasterUser(formData: FormData) {
   const id = formData.get('id') as string | null;
   const role = formData.get('role') as string;
   let tenantId = actorTenantId;
-
-  // On a client's custom domain (standalone), block creating new superadmins /
-  // businesses — the instance is limited to its single owner.
-  if (role === 'superadmin' && !id) {
-    const h = await (await import('next/headers')).headers();
-    const host = h.get('x-loantrack-host') || h.get('host');
-    const { getCustomDomainTenantId } = await import('@/lib/tenant');
-    if (await getCustomDomainTenantId(host)) {
-      return { success: false, error: 'Creating new businesses is disabled on this domain.' };
-    }
-  }
+  // Only a DEVELOPER onboarding a business creates a new tenant. A superadmin
+  // creating a superadmin adds a CO-OWNER to their OWN account (same tenant).
+  // No new businesses can be created from inside an account — and registration
+  // is separately blocked on client domains.
+  let creatingNewTenant = false;
 
   if (id) {
     const user = await prisma.user.findUnique({ where: { id }, select: { tenantId: true } });
     if (user) tenantId = user.tenantId;
-  } else if (role === 'superadmin') {
-    // New Superadmin starts a new tenant — create a proper Tenant row
+  } else if (role === 'superadmin' && userRole === 'developer') {
+    // Developer onboarding a new business → create a proper Tenant row.
+    creatingNewTenant = true;
     const slug = `tnt_${Math.random().toString(36).substring(2, 9)}`;
     const newTenant = await prisma.tenant.create({
       data: { name: formData.get('name') as string || 'New Tenant', slug, status: 'active' },
@@ -231,22 +226,24 @@ export async function manageMasterUser(formData: FormData) {
   if (savedUserId) {
     if (role === 'superadmin') {
       const subModules = requestedModules.length > 0 ? requestedModules : ['microlending'];
-      await prisma.tenantSubscription.upsert({
-        where: { tenantId },
-        update: { enabledModules: JSON.stringify(subModules) },
-        create: { 
-          tenantId, 
-          enabledModules: JSON.stringify(subModules),
-          plan: 'trial',
-          status: 'active',
-          maxActiveLoans: 100,
-          maxAgents: 5,
-          trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
-        }
-      });
+      if (creatingNewTenant) {
+        await prisma.tenantSubscription.upsert({
+          where: { tenantId },
+          update: { enabledModules: JSON.stringify(subModules) },
+          create: {
+            tenantId,
+            enabledModules: JSON.stringify(subModules),
+            plan: 'trial',
+            status: 'active',
+            maxActiveLoans: 100,
+            maxAgents: 5,
+            trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+          }
+        });
+      }
 
-      // If it is a new superadmin user creation (not updating an existing one)
-      if (!id) {
+      // New-business bootstrap: HQ branch, owner link, default settings.
+      if (creatingNewTenant) {
         // Create default HQ Branch
         const branch = await prisma.branch.create({
           data: {
@@ -302,6 +299,27 @@ export async function manageMasterUser(formData: FormData) {
             ...s
           }))
         });
+      } else if (!id) {
+        // Co-owner: a superadmin added by an existing superadmin joins the SAME
+        // account (no new tenant/branch/settings) with access to all its branches.
+        const tenantBranches = await prisma.branch.findMany({
+          where: { tenantId },
+          select: { id: true },
+        });
+        if (tenantBranches.length > 0) {
+          await prisma.user.update({
+            where: { id: savedUserId },
+            data: { branchId: tenantBranches[0].id },
+          });
+          await prisma.superadminBranch.deleteMany({ where: { superadminId: savedUserId } });
+          await prisma.superadminBranch.createMany({
+            data: tenantBranches.map((b) => ({
+              superadminId: savedUserId!,
+              branchId: b.id,
+              assignedById: actorId,
+            })),
+          });
+        }
       }
 
       // Developer can assign multiple branches to the superadmin via SuperadminBranch join table

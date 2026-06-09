@@ -643,6 +643,8 @@ export default function UsersClient({
                 <option value="admin">Admin</option>
                 <option value="agent">Agent</option>
                 {viewerRole === 'developer' && <option value="superadmin">Super Admin</option>}
+                {/* A superadmin can add a co-owner (another superadmin) to their OWN account. */}
+                {viewerRole === 'superadmin' && !editingUser && <option value="superadmin">Co-Owner (Super Admin)</option>}
                 {viewerRole === 'developer' && <option value="developer">Developer</option>}
               </select>
             </div>
