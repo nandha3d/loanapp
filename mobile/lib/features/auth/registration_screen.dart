@@ -17,12 +17,15 @@ class RegistrationScreen extends ConsumerStatefulWidget {
     this.googleEmail,
     this.googleName,
     this.googleId,
+    this.googleIdToken,
     this.referralCode,
   });
 
   final String? googleEmail;
   final String? googleName;
   final String? googleId;
+  // The Google idToken (JWT) the backend re-verifies to complete registration.
+  final String? googleIdToken;
   final String? referralCode;
 
   @override
@@ -76,7 +79,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     super.dispose();
   }
 
-  bool get _isGoogleRegister => widget.googleId != null;
+  bool get _isGoogleRegister =>
+      widget.googleIdToken != null || widget.googleId != null;
 
   Future<void> _loadCatalog() async {
     try {
@@ -155,7 +159,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     try {
       if (_isGoogleRegister) {
         await ref.read(authControllerProvider.notifier).registerWithGoogle(
-              idToken: widget.googleId!,
+              idToken: widget.googleIdToken ?? widget.googleId!,
               businessName: _businessNameCtrl.text,
               ownerPhone: _ownerPhoneCtrl.text,
               selectedPlan: _selectedPlan,

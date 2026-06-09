@@ -70,8 +70,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       final res = await ref.read(authControllerProvider.notifier).loginWithGoogle(idToken);
       if (res != null && res.needsRegistration) {
         if (mounted) {
+          // Carry the real idToken (not account.id) — the backend re-verifies it
+          // to complete Google registration. account.id alone is not a token.
           context.push(
-            '/register?googleEmail=${Uri.encodeComponent(res.email ?? '')}&googleName=${Uri.encodeComponent(res.name ?? '')}&googleId=${Uri.encodeComponent(account.id)}',
+            '/register?googleEmail=${Uri.encodeComponent(res.email ?? '')}&googleName=${Uri.encodeComponent(res.name ?? '')}&googleId=${Uri.encodeComponent(account.id)}&googleIdToken=${Uri.encodeComponent(idToken)}',
           );
         }
       }
