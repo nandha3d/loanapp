@@ -1,87 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import prisma from '@/lib/db';
+import { listNpaLoans, NpaServiceError, type NpaActor } from '@/lib/npa/npaService';
 
-/**
- * GET /api/npa/loans
- *
- * Returns paginated list of loans filtered by NPA category.
- * Subscription-gated: requires npaEnabled = true.
- */
+type WebSessionUser = {
+  id?: string | null;
+  tenantId?: string | null;
+  role?: string | null;
+  branchId?: string | null;
+  appType?: string | null;
+};
+
+function actorFromSession(user: WebSessionUser | undefined): NpaActor | null {
+  if (!user?.id || !user.tenantId || !user.role) return null;
+  return {
+    tenantId: user.tenantId,
+    userId: user.id,
+    role: user.role,
+    branchId: user.branchId ?? null,
+    appType: user.appType ?? null,
+  };
+}
+
+function errorResponse(error: unknown): NextResponse {
+  if (error instanceof NpaServiceError) {
+    return NextResponse.json({ success: false, error: error.message }, { status: error.status });
+  }
+  const message = error instanceof Error ? error.message : 'NPA loans failed';
+  return NextResponse.json({ success: false, error: message }, { status: 500 });
+}
+
 export async function GET(req: NextRequest) {
   const session = await auth();
-  if (!session?.user) {
+  const actor = actorFromSession(session?.user as WebSessionUser | undefined);
+  if (!actor) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 
-  const user = session.user as any;
-  const tenantId = user.tenantId;
-  const role = user.role;
-
-  if (!['admin', 'superadmin'].includes(role)) {
-    return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+  try {
+    const { searchParams } = new URL(req.url);
+    const result = await listNpaLoans(actor, {
+      category: searchParams.get('category'),
+      page: searchParams.get('page'),
+    });
+    return NextResponse.json({
+      success: true,
+      data: result.data,
+      total: result.total,
+      page: result.page,
+      pageSize: result.pageSize,
+    });
+  } catch (error) {
+    return errorResponse(error);
   }
-
-  // Check subscription gating
-  const subscription = await prisma.tenantSubscription.findUnique({
-    where: { tenantId },
-    select: { npaEnabled: true },
-  });
-
-  if (!subscription || !subscription.npaEnabled) {
-    return NextResponse.json(
-      { success: false, error: 'NPA Classification module is not enabled for your subscription.' },
-      { status: 403 }
-    );
-  }
-
-  const { searchParams } = new URL(req.url);
-  const category = searchParams.get('category');
-  const page = parseInt(searchParams.get('page') ?? '1');
-  const pageSize = 20;
-
-  const where: any = {
-    tenantId,
-    deletedAt: null,
-  };
-
-  if (category) {
-    where.npaStatus = category;
-  } else {
-    where.npaStatus = {
-      in: ['sma_0', 'sma_1', 'sma_2', 'sub_standard', 'doubtful_d1', 'doubtful_d2', 'doubtful_d3', 'loss'],
-    };
-  }
-
-  const [loans, total] = await prisma.$transaction([
-    prisma.loan.findMany({
-      where,
-      select: {
-        id: true,
-        loanCode: true,
-        npaStatus: true,
-        npaSubCategory: true,
-        npaDaysOverdue: true,
-        npaClassifiedAt: true,
-        provisioningAmount: true,
-        provisioningRate: true,
-        npaUpgradeEligible: true,
-        lastNpaReviewDate: true,
-        totalPayable: true,
-        totalCollected: true,
-        customer: { select: { id: true, name: true, phone: true } },
-      },
-      orderBy: { npaDaysOverdue: 'desc' },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    }),
-    prisma.loan.count({ where }),
-  ]);
-
-  const mappedLoans = loans.map((loan) => ({
-    ...loan,
-    outstandingAmount: Number(loan.totalPayable) - Number(loan.totalCollected),
-  }));
-
-  return NextResponse.json({ success: true, data: mappedLoans, total, page, pageSize });
 }

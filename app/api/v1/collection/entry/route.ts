@@ -1,29 +1,28 @@
 import { NextRequest } from 'next/server';
-import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
-import { getAgentRouteIds } from '@/lib/access';
-import { recordPaymentLedger } from '@/lib/paymentService';
-import { reallocateLoanRepayments } from '@/lib/repayments';
-import { buildCollectionIdempotencyKey, getCollectionSubmissionBlockReason } from '@/lib/collectionPolicy';
 import {
   isGpsTrackingEnabled,
   normalizeGpsBody,
   recordCollectionLocationPing,
   verifyAndPersistCollectionLocation,
 } from '@/lib/gps/locationVerifier';
-import { creditCollection } from '@/lib/wallet';
+import { submitCollectionEntry } from '@/lib/collectionWrite';
 
-function parseDay(value: string | null) {
-  const d = value ? new Date(value) : new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : '';
+}
+
+function errorCode(error: unknown): string | undefined {
+  return typeof error === 'object' && error !== null && 'code' in error
+    ? String((error as { code?: unknown }).code)
+    : undefined;
 }
 
 /**
  * Mobile collection submit. Body: `{instalmentId, receivedAmount, paymentMode,
- * remarks?, idempotencyKey?}`. Honors a client-supplied idempotency key
- * (format: `collectionDate:instalmentId`) so retries are safe (spec §6.2).
+ * remarks?, collectionDate?, idempotencyKey?}`. The route resolves mobile JWT
+ * identity and v1 envelope shape; shared collection logic owns the write.
  */
 export async function POST(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -32,158 +31,23 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const instalmentId = String(body.instalmentId || '');
-    const receivedAmount = Number(body.receivedAmount);
-    const paymentMode = String(body.paymentMode || 'cash');
-    const remarks = body.remarks ? String(body.remarks) : null;
     const gpsTrackingEnabled = await isGpsTrackingEnabled(ctx.tenantId);
     const gpsCapture = normalizeGpsBody(body, gpsTrackingEnabled);
-    if (!instalmentId || isNaN(receivedAmount) || receivedAmount <= 0) {
-      return fail('Invalid amount', 400);
-    }
 
-    const instalment = await prisma.instalment.findUnique({
-      where: { id: instalmentId },
-      include: { loan: { include: { customer: true } } },
-    });
-    if (
-      !instalment ||
-      instalment.loan.tenantId !== ctx.tenantId ||
-      instalment.loan.appType !== ctx.appType
-    ) {
-      return fail('Instalment not found', 404);
-    }
-    const block = getCollectionSubmissionBlockReason({
-      loanStatus: instalment.loan.status,
-      dueAmount: Number(instalment.dueAmount),
-      receivedAmount: Number(instalment.receivedAmount || 0),
-    });
-    if (block) return fail(`already_paid: ${block}`, 409);
-
-    if (ctx.role === 'agent') {
-      const routeIds = await getAgentRouteIds(ctx.userId);
-      const cRouteId = instalment.loan.customer.routeId;
-      if (!cRouteId || !routeIds.includes(cRouteId)) {
-        return fail('Forbidden', 403);
-      }
-    }
-
-    const today = parseDay(body.collectionDate ?? null);
-    const idempotencyKey =
-      (body.idempotencyKey as string | undefined) ??
-      buildCollectionIdempotencyKey({
-        tenantId: ctx.tenantId,
-        agentId: ctx.userId,
-        instalmentId,
-        receivedAmount,
-        paymentMode,
-        collectionDate: today,
-      });
-
-    const entry = await prisma.$transaction(async (tx) => {
-      // Check idempotency first.
-      const existing = await tx.collectionEntry.findFirst({
-        where: { idempotencyKey, tenantId: ctx.tenantId },
-      });
-      if (existing) return existing;
-
-      let dailyCollection = await tx.dailyCollection.findFirst({
-        where: {
-          agentId: ctx.userId,
-          date: today,
-          tenantId: ctx.tenantId,
-          appType: ctx.appType,
-        },
-      });
-      if (!dailyCollection) {
-        dailyCollection = await tx.dailyCollection.create({
-          data: {
-            tenantId: ctx.tenantId,
-            branchId: instalment.loan.branchId,
-            agentId: ctx.userId,
-            routeId: instalment.loan.customer.routeId,
-            date: today,
-            totalExpected: 0,
-            totalCollected: 0,
-            entriesCount: 0,
-            appType: ctx.appType,
-            status: 'open',
-          },
-        });
-      }
-
-      // Record the payment against THIS instalment only — "actual" means the
-      // loan reflects exactly what was paid on the chosen date. No oldest-first
-      // redistribution on write (that is the display-only "Distributed" view).
-      // Cap at the instalment's own remaining due.
-      const room = Math.max(
-        0,
-        Number(instalment.dueAmount) - Number(instalment.receivedAmount || 0),
-      );
-      const applied = Math.min(receivedAmount, room);
-      if (applied <= 0) throw new Error('already_paid: fully collected');
-
-      const created = await tx.collectionEntry.create({
-        data: {
-          tenantId: ctx.tenantId,
-          idempotencyKey,
-          collectionId: dailyCollection.id,
-          customerId: instalment.loan.customerId,
-          loanId: instalment.loanId,
-          dueAmount: Number(instalment.dueAmount),
-          receivedAmount: applied,
-          paymentMode,
-          remarks,
-          agentId: ctx.userId,
-          lat: gpsCapture.latitude,
-          lng: gpsCapture.longitude,
-          gpsAccuracyM: gpsCapture.gpsAccuracy,
-          gpsCapturedAt: gpsCapture.gpsTimestamp,
-          gpsAltitude: gpsCapture.gpsAltitude,
-          locationStatus: gpsCapture.locationStatus,
-        },
-      });
-
-      await recordPaymentLedger(tx, {
-        tenantId: ctx.tenantId,
-        loanId: instalment.loanId,
-        instalmentId: instalment.id,
-        amount: applied,
-        paymentMode,
-      });
-      await tx.instalment.update({
-        where: { id: instalment.id },
-        data: { receivedAmount: { increment: applied }, receivedAt: new Date() },
-      });
-
-      await reallocateLoanRepayments(tx, instalment.loanId);
-
-      const all = await tx.collectionEntry.findMany({
-        where: { collectionId: dailyCollection.id },
-      });
-      await tx.dailyCollection.update({
-        where: { id: dailyCollection.id },
-        data: {
-          totalCollected: all.reduce((s, e) => s + Number(e.receivedAmount), 0),
-          totalExpected: all.reduce((s, e) => s + Number(e.dueAmount), 0),
-          entriesCount: all.length,
-        },
-      });
-
-      // Cash-in-hand: collecting agent now holds this cash -> credit their
-      // float. Best-effort so a missing wallet table never breaks collection.
-      try {
-        await creditCollection(tx, {
-          tenantId: ctx.tenantId,
-          agentId: ctx.userId,
-          amount: applied,
-          entryId: created.id,
-        });
-      } catch (err) {
-        console.error('[wallet] collection credit failed:', err);
-      }
-
-      return created;
+    const { entry, instalment } = await submitCollectionEntry({
+      tenantId: ctx.tenantId,
+      appType: ctx.appType,
+      userId: ctx.userId,
+      branchId: ctx.branchId,
+      role: ctx.role,
+    }, {
+      instalmentId: String(body.instalmentId || ''),
+      receivedAmount: Number(body.receivedAmount),
+      paymentMode: String(body.paymentMode || 'cash'),
+      remarks: body.remarks ? String(body.remarks) : null,
+      collectionDate: body.collectionDate ?? null,
+      idempotencyKey: body.idempotencyKey as string | undefined,
+      gps: gpsCapture,
     });
 
     if (gpsTrackingEnabled) {
@@ -209,13 +73,15 @@ export async function POST(req: NextRequest) {
     }
 
     return ok(entry);
-  } catch (e: any) {
-    if (
-      e?.code === 'P2002' ||
-      /duplicate|unique|already/i.test(String(e?.message))
-    ) {
+  } catch (e: unknown) {
+    const msg = errorMessage(e);
+    if (msg === 'invalid_amount') return fail('Invalid amount', 400);
+    if (msg === 'not_found') return fail('Instalment not found', 404);
+    if (msg === 'forbidden') return fail('Forbidden', 403);
+    if (msg.startsWith('already_paid')) return fail(msg, 409);
+    if (errorCode(e) === 'P2002' || /duplicate|unique|already/i.test(msg)) {
       return fail('already_paid', 409);
     }
-    return fail(e?.message ?? 'Collection failed', 500);
+    return fail(msg || 'Collection failed', 500);
   }
 }
