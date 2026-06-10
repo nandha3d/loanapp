@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Modal from '@/components/Modal';
 import { manageMasterUser, toggleUserStatus } from '../actions';
@@ -57,6 +57,10 @@ type Props = {
   allBranches: { id: string; name: string; code: string | null; tenantId: string }[];
 };
 
+type AvailabilityField = { checking: boolean; available: boolean | null; message: string };
+
+const emptyAvailability: AvailabilityField = { checking: false, available: null, message: '' };
+
 function modulePill(module: ModuleKey, disabled = false) {
   return (
     <span
@@ -94,6 +98,12 @@ export default function UsersClient({
   // Multi-branch selection for superadmin (developer assigns)
   const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>([]);
   const [selectedModules, setSelectedModules] = useState<ModuleKey[]>(normalizeModuleList([defaultAppType]));
+  const [userUsername, setUserUsername] = useState('');
+  const [userPhone, setUserPhone] = useState('');
+  const [availability, setAvailability] = useState<Record<'username' | 'phone', AvailabilityField>>({
+    username: emptyAvailability,
+    phone: emptyAvailability,
+  });
   const [viewingSuperadminId, setViewingSuperadminId] = useState<string | null>(
     viewerRole === 'superadmin' && superadmins.length > 0 ? superadmins[0].id : null
   );
@@ -148,6 +158,8 @@ export default function UsersClient({
     setEditingUser(user);
     setSelectedRole(user.role);
     setSelectedBranchId(user.branchId || '');
+    setUserUsername(user.username || '');
+    setUserPhone(user.phone || '');
     
     if (user.role === 'superadmin') {
       const summary = superadmins.find(s => s.id === user.id);
@@ -169,10 +181,52 @@ export default function UsersClient({
     setEditingUser(null);
     setSelectedRole('agent');
     setSelectedBranchId('');
+    setUserUsername('');
+    setUserPhone('');
     setSelectedBranchIds([]);
     setSelectedModules(allowedPlanModules.length > 0 ? [allowedPlanModules[0] as ModuleKey] : normalizeModuleList([defaultAppType]));
     setIsModalOpen(true);
   };
+
+  useEffect(() => {
+    if (!isModalOpen) return;
+    const params = new URLSearchParams();
+    if (userUsername.trim()) params.set('username', userUsername.trim());
+    if (userPhone.trim()) params.set('phone', userPhone.trim());
+    if (editingUser?.id) params.set('excludeUserId', editingUser.id);
+    if (!params.has('username') && !params.has('phone')) {
+      setAvailability({ username: emptyAvailability, phone: emptyAvailability });
+      return;
+    }
+
+    const controller = new AbortController();
+    setAvailability((prev) => ({
+      username: userUsername.trim() ? { ...prev.username, checking: true, message: '' } : emptyAvailability,
+      phone: userPhone.trim() ? { ...prev.phone, checking: true, message: '' } : emptyAvailability,
+    }));
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/users/availability?${params.toString()}`, { signal: controller.signal });
+        const data = await res.json();
+        setAvailability({
+          username: data.fields.username.checked ? { checking: false, available: data.fields.username.available, message: data.fields.username.message || '' } : emptyAvailability,
+          phone: data.fields.phone.checked ? { checking: false, available: data.fields.phone.available, message: data.fields.phone.message || '' } : emptyAvailability,
+        });
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
+        setAvailability((prev) => ({
+          username: { ...prev.username, checking: false },
+          phone: { ...prev.phone, checking: false },
+        }));
+      }
+    }, 350);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [editingUser?.id, isModalOpen, userPhone, userUsername]);
 
   function handleBranchChange(branchId: string) {
     setSelectedBranchId(branchId);
@@ -608,6 +662,9 @@ export default function UsersClient({
       {/* User Modal */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingUser ? 'Edit User' : 'Add New User'}>
         <form action={async (fd) => {
+          const duplicate = Object.values(availability).find((item) => item.available === false);
+          if (duplicate) { alert(duplicate.message); return; }
+          if (Object.values(availability).some((item) => item.checking)) { alert('Checking username and phone availability. Please try again in a moment.'); return; }
           setLoading(true);
           const res = await manageMasterUser(fd);
           setLoading(false);
@@ -625,11 +682,15 @@ export default function UsersClient({
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">Username</label>
-              <input type="text" name="username" className="form-control" defaultValue={editingUser?.username} required />
+              <input type="text" name="username" className="form-control" value={userUsername} onChange={(e) => setUserUsername(e.target.value)} required />
+              {availability.username.checking && <small className="text-muted">Checking username...</small>}
+              {availability.username.available === false && <small style={{ color: 'var(--danger)' }}>{availability.username.message}</small>}
             </div>
             <div className="form-group">
               <label className="form-label">Phone</label>
-              <input type="text" name="phone" className="form-control" defaultValue={editingUser?.phone} required />
+              <input type="text" name="phone" className="form-control" value={userPhone} onChange={(e) => setUserPhone(e.target.value)} required />
+              {availability.phone.checking && <small className="text-muted">Checking phone...</small>}
+              {availability.phone.available === false && <small style={{ color: 'var(--danger)' }}>{availability.phone.message}</small>}
             </div>
           </div>
           <div className="form-group">

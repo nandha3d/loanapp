@@ -7,6 +7,20 @@ import { signIn } from 'next-auth/react';
 import { calculateVerticalSubscriptionPricing } from '@/lib/pricing';
 import { getSupabaseBrowser, isSupabaseAuthEnabled } from '@/lib/supabase/browser';
 
+type AvailabilityFieldState = {
+  checking: boolean;
+  available: boolean | null;
+  message: string;
+};
+
+type AvailabilityState = Record<'username' | 'phone' | 'email', AvailabilityFieldState>;
+
+const emptyAvailabilityField: AvailabilityFieldState = {
+  checking: false,
+  available: null,
+  message: '',
+};
+
 function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -45,6 +59,11 @@ function RegisterForm() {
     googleEmail ? googleEmail.split('@')[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase() : ''
   );
   const [ownerPassword, setOwnerPassword] = useState('');
+  const [availability, setAvailability] = useState<AvailabilityState>({
+    username: emptyAvailabilityField,
+    phone: emptyAvailabilityField,
+    email: emptyAvailabilityField,
+  });
   const [selectedPlan, setSelectedPlan] = useState('basic');
   const [selectedModules, setSelectedModules] = useState(['microlending']);
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
@@ -102,6 +121,65 @@ function RegisterForm() {
     fetchPricing();
   }, []);
 
+  useEffect(() => {
+    const username = ownerUsername.trim();
+    const phone = ownerPhone.trim();
+    const email = (googleEmail || ownerEmail).trim();
+    const params = new URLSearchParams();
+    if (username) params.set('username', username);
+    if (phone) params.set('phone', phone);
+    if (email) params.set('email', email);
+
+    if (!params.toString()) {
+      setAvailability({
+        username: emptyAvailabilityField,
+        phone: emptyAvailabilityField,
+        email: emptyAvailabilityField,
+      });
+      return;
+    }
+
+    const controller = new AbortController();
+    setAvailability((prev) => ({
+      username: username ? { ...prev.username, checking: true, message: '' } : emptyAvailabilityField,
+      phone: phone ? { ...prev.phone, checking: true, message: '' } : emptyAvailabilityField,
+      email: email ? { ...prev.email, checking: true, message: '' } : emptyAvailabilityField,
+    }));
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/users/availability?${params.toString()}`, {
+          signal: controller.signal,
+        });
+        const data = await res.json();
+        if (!data?.success) throw new Error('Availability check failed');
+        setAvailability({
+          username: data.fields.username.checked
+            ? { checking: false, available: data.fields.username.available, message: data.fields.username.message || '' }
+            : emptyAvailabilityField,
+          phone: data.fields.phone.checked
+            ? { checking: false, available: data.fields.phone.available, message: data.fields.phone.message || '' }
+            : emptyAvailabilityField,
+          email: data.fields.email.checked
+            ? { checking: false, available: data.fields.email.available, message: data.fields.email.message || '' }
+            : emptyAvailabilityField,
+        });
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
+        setAvailability((prev) => ({
+          username: { ...prev.username, checking: false },
+          phone: { ...prev.phone, checking: false },
+          email: { ...prev.email, checking: false },
+        }));
+      }
+    }, 350);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [googleEmail, ownerEmail, ownerPhone, ownerUsername]);
+
   const handleModuleToggle = (moduleKey: string) => {
     if (selectedModules.includes(moduleKey)) {
       if (selectedModules.length === 1) return;
@@ -154,6 +232,12 @@ function RegisterForm() {
         if (!ec.ok) { setError(ec.error); return; }
         const pc = validateIndianMobile(ownerPhone);
         if (!pc.ok) { setError(pc.error); return; }
+      }
+      const duplicate = [availability.username, availability.phone, availability.email].find((item) => item.available === false);
+      if (duplicate) { setError(duplicate.message); return; }
+      if ([availability.username, availability.phone, availability.email].some((item) => item.checking)) {
+        setError('Checking username, phone and email availability. Please try again in a moment.');
+        return;
       }
       setError('');
       // Standalone (client domain) registration is a single Details step.
@@ -208,6 +292,12 @@ function RegisterForm() {
       if (!ec.ok) { setError(ec.error); return; }
       const pc = validateIndianMobile(ownerPhone);
       if (!pc.ok) { setError(pc.error); return; }
+    }
+    const duplicate = [availability.username, availability.phone, availability.email].find((item) => item.available === false);
+    if (duplicate) { setError(duplicate.message); return; }
+    if ([availability.username, availability.phone, availability.email].some((item) => item.checking)) {
+      setError('Checking username, phone and email availability. Please try again in a moment.');
+      return;
     }
 
     setLoading(true);
@@ -293,21 +383,6 @@ function RegisterForm() {
         } else {
           await signIn('google', { callbackUrl: '/portal' });
         }
-      } else if (isSupabaseAuthEnabled()) {
-        // Email signup: Supabase sends the verification magic-link (needs a
-        // custom SMTP configured in Supabase for reliable delivery).
-        try {
-          await getSupabaseBrowser().auth.signInWithOtp({
-            email: ownerEmail,
-            options: {
-              shouldCreateUser: true,
-              emailRedirectTo: `${window.location.origin}/auth/callback?intent=verify`,
-            },
-          });
-        } catch (e) {
-          console.error('[SUPABASE_OTP_SEND]', e);
-        }
-        router.push(`/login?registerPending=1&username=${encodeURIComponent(ownerUsername)}`);
       } else {
         router.push(`/login?registerPending=1&username=${encodeURIComponent(ownerUsername)}`);
       }
@@ -426,6 +501,12 @@ function RegisterForm() {
                     required
                   />
                   {phoneError && <small style={{ color: 'var(--danger)', fontSize: '0.75rem' }}>{phoneError}</small>}
+                  {!phoneError && availability.phone.checking && (
+                    <small style={{ color: 'var(--text-light)', fontSize: '0.75rem' }}>Checking phone number...</small>
+                  )}
+                  {!phoneError && availability.phone.available === false && (
+                    <small style={{ color: 'var(--danger)', fontSize: '0.75rem' }}>{availability.phone.message}</small>
+                  )}
                 </div>
               </div>
 
@@ -444,6 +525,10 @@ function RegisterForm() {
                   />
                   {emailError ? (
                     <small style={{ color: 'var(--danger)', fontSize: '0.75rem' }}>{emailError}</small>
+                  ) : availability.email.checking ? (
+                    <small style={{ color: 'var(--text-light)', fontSize: '0.75rem' }}>Checking email...</small>
+                  ) : availability.email.available === false ? (
+                    <small style={{ color: 'var(--danger)', fontSize: '0.75rem' }}>{availability.email.message}</small>
                   ) : (
                     <small style={{ color: 'var(--text-light)', fontSize: '0.75rem' }}>
                       We'll send an activation link here — your account stays inactive until verified.
@@ -463,6 +548,12 @@ function RegisterForm() {
                     onChange={(e) => setOwnerUsername(e.target.value)}
                     required
                   />
+                  {availability.username.checking && (
+                    <small style={{ color: 'var(--text-light)', fontSize: '0.75rem' }}>Checking username...</small>
+                  )}
+                  {availability.username.available === false && (
+                    <small style={{ color: 'var(--danger)', fontSize: '0.75rem' }}>{availability.username.message}</small>
+                  )}
                 </div>
                 {!isGoogleRegister && (
                   <div className="form-group">

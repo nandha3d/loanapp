@@ -2,6 +2,7 @@ import { serverFetch } from '@/lib/api-client/server';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { getDictionary } from '@/lib/i18n';
 import LoanForm from './LoanForm';
+import { auth } from '@/lib/auth';
 
 export default async function NewLoanPage({
   searchParams
@@ -12,6 +13,8 @@ export default async function NewLoanPage({
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
   const dict = await getDictionary(tenantId);
+  const session = await auth();
+  const userRole = (session?.user as any)?.role || 'agent';
   
   const [customersRes, rawPackagesRes, defaultPenalty, currencySymbol, routesRes, agentsRes] = await Promise.all([
     serverFetch<any>('/customers?status=active&page=1&limit=1000'),
@@ -46,6 +49,7 @@ export default async function NewLoanPage({
       agents={agents}
       dict={dict}
       appType={appType}
+      viewerRole={userRole}
     />
   );
 }

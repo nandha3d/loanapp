@@ -3,6 +3,7 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
 import { hash } from 'bcryptjs';
+import { findUserUniqueConflicts } from '@/lib/userUniqueness';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -44,14 +45,23 @@ export async function POST(req: NextRequest) {
     if (!password || password.length < 6)
       return fail('Password must be at least 6 characters', 400);
 
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedPhone = phone.trim();
+    const conflicts = await findUserUniqueConflicts({
+      username: normalizedEmail,
+      email: normalizedEmail,
+      phone: normalizedPhone,
+    });
+    if (conflicts.length > 0) return fail(conflicts[0].message, 409);
+
     const passwordHash = await hash(password, 12);
     const agent = await prisma.user.create({
       data: {
         tenantId: ctx.tenantId,
         name: name.trim(),
-        email: email.trim().toLowerCase(),
-        phone: phone.trim(),
-        username: email.trim().toLowerCase(),
+        email: normalizedEmail,
+        phone: normalizedPhone,
+        username: normalizedEmail,
         passwordHash,
         role: 'agent',
         appType: ctx.appType,

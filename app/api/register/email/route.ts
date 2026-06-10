@@ -5,6 +5,7 @@ import { generateTenantSlug } from '@/lib/slug';
 import { calculateVerticalSubscriptionPricing, normalizeSelectedModules } from '@/lib/pricing';
 import { validateEmail, validateIndianMobile } from '@/lib/validation/contact';
 import { sendVerificationEmail } from '@/lib/auth/emailVerification';
+import { findUserUniqueConflicts } from '@/lib/userUniqueness';
 
 export async function POST(request: Request) {
   try {
@@ -51,6 +52,12 @@ export async function POST(request: Request) {
     }
     const email = emailCheck.value;
     const phone = phoneCheck.value;
+    const username = ownerUsername.trim().toLowerCase();
+
+    const conflicts = await findUserUniqueConflicts({ username, phone, email });
+    if (conflicts.length > 0) {
+      return NextResponse.json({ success: false, error: conflicts[0].message }, { status: 409 });
+    }
 
     const ALL_MODULES_LIST = ['microlending', 'autofinance', 'chitfunds', 'goldloan'];
     const finalModules = standaloneClaim ? ALL_MODULES_LIST : normalizeSelectedModules(selectedModules);
@@ -161,7 +168,7 @@ export async function POST(request: Request) {
           name: ownerName,
           phone,
           email,
-          username: ownerUsername.trim().toLowerCase(),
+          username,
           passwordHash: hashedPassword,
           role: 'superadmin',
           appType: finalModules[0],
@@ -254,18 +261,14 @@ export async function POST(request: Request) {
       };
     });
 
-    // Verification email is sent by Supabase (magic-link from the client) when
-    // Supabase is configured — it must have a custom SMTP set in its dashboard
-    // for reliable delivery. Fall back to our own mail only if Supabase is absent.
-    const { isSupabaseConfigured } = await import('@/lib/supabase/server');
-    if (!isSupabaseConfigured()) {
-      await sendVerificationEmail({
-        tenantId: result.tenantId,
-        email: result.ownerEmail,
-        name: result.ownerName,
-        userId: result.userId,
-      }).catch((e) => console.error('[VERIFY_EMAIL_SEND]', e));
-    }
+    // Use platform SMTP for email registration activation so delivery does not
+    // depend on Supabase OTP/magic-link mail.
+    await sendVerificationEmail({
+      tenantId: result.tenantId,
+      email: result.ownerEmail,
+      name: result.ownerName,
+      userId: result.userId,
+    }).catch((e) => console.error('[VERIFY_EMAIL_SEND]', e));
 
     return NextResponse.json(
       {

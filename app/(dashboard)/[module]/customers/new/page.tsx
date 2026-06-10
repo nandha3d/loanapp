@@ -15,6 +15,8 @@ export default async function NewCustomerPage({
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
   const dict = await getDictionary(tenantId);
+  const session = await auth();
+  const userRole = (session?.user as any)?.role || 'agent';
   
   const [routesRes, agentsRes] = await Promise.all([
     serverFetch<any>('/routes'),
@@ -26,8 +28,6 @@ export default async function NewCustomerPage({
 
   let customer = null;
   if (resolvedSearchParams.edit) {
-    const session = await auth();
-    const userRole = (session?.user as any)?.role;
     if (userRole !== 'admin' && userRole !== 'superadmin' && userRole !== 'developer') {
       redirect(modulePath(appType, `/customers/${resolvedSearchParams.edit}`));
     }
@@ -44,6 +44,6 @@ export default async function NewCustomerPage({
     }
   }
 
-  return <CustomerForm routes={routes} agents={agents} customer={customer} dict={dict} />;
+  return <CustomerForm routes={routes} agents={agents} customer={customer} dict={dict} viewerRole={userRole} />;
 }
 

@@ -7,6 +7,7 @@ import { auth } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
 import { checkLimit, normalizeEnabledModules, assertTenantSubscriptionAccess } from '@/lib/subscription';
 import { normalizeModuleList, type ModuleKey } from '@/types/modules';
+import { findUserUniqueConflicts } from '@/lib/userUniqueness';
 
 export async function manageMasterUser(formData: FormData) {
   const session = await auth();
@@ -104,10 +105,8 @@ export async function manageMasterUser(formData: FormData) {
     return { success: false, error: 'Only a developer can manage developer accounts.' };
   }
 
-  const existingUsername = await prisma.user.findFirst({
-    where: { username, tenantId, id: id ? { not: id } : undefined }
-  });
-  if (existingUsername) return { success: false, error: 'Username already taken' };
+  const conflicts = await findUserUniqueConflicts({ username, phone }, id);
+  if (conflicts.length > 0) return { success: false, error: conflicts[0].message };
 
   const actorId = (session?.user as any)?.id;
   const subscription = await prisma.tenantSubscription.findUnique({
@@ -677,12 +676,8 @@ export async function manageBranchAgent(formData: FormData) {
     return { success: false, error: `Module "${appType}" is not enabled for this branch.` };
   }
 
-  // Username unique within tenant
-  const dupe = await prisma.user.findFirst({
-    where: { username, tenantId, id: id ? { not: id } : undefined },
-    select: { id: true },
-  });
-  if (dupe) return { success: false, error: 'Username already taken.' };
+  const conflicts = await findUserUniqueConflicts({ username, phone }, id);
+  if (conflicts.length > 0) return { success: false, error: conflicts[0].message };
 
   if (id) {
     // Edit — target must be an agent inside the allowed branch

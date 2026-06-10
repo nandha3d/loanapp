@@ -3,6 +3,12 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 
+function routeBranchScope(ctx: { role: string; branchId: string | null }) {
+  const branchWhere = scopedBranchWhere(ctx as any);
+  if (!branchWhere.branchId) return {};
+  return { OR: [{ branchId: branchWhere.branchId }, { branchId: null }] };
+}
+
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
@@ -13,7 +19,15 @@ export async function GET(req: NextRequest) {
       where: {
         tenantId: ctx.tenantId,
         appType: ctx.appType,
-        ...scopedBranchWhere(ctx),
+        ...routeBranchScope(ctx),
+        ...(ctx.role === 'agent'
+          ? {
+              OR: [
+                { assignedAgentId: ctx.userId },
+                { routeAgents: { some: { agentId: ctx.userId } } },
+              ],
+            }
+          : {}),
       },
       include: {
         assignedAgent: { select: { id: true, name: true, phone: true } },
@@ -45,7 +59,7 @@ export async function POST(req: NextRequest) {
         branchId:
           ctx.role === 'admin'
             ? ctx.branchId
-            : (body.branchId ?? null),
+            : (body.branchId ?? ctx.branchId ?? null),
         name: body.name.trim(),
         assignedAgentId: body.assignedAgentId ?? null,
         appType: ctx.appType,

@@ -4,7 +4,7 @@ import { ok, fail, parseCursorPaging } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { getAgentRouteIds } from '@/lib/access';
 import { writeAudit } from '@/lib/audit';
-import { canCreateLoanForRole, validateLoanNumericInputs } from '@/lib/loanPolicy';
+import { buildAgentCustomerAccessWhere, canAgentAccessCustomer, canCreateLoanForRole, validateLoanNumericInputs } from '@/lib/loanPolicy';
 import { getAgentBalance, disburseFromAgent, disburseFromBranch } from '@/lib/wallet';
 
 export async function GET(req: NextRequest) {
@@ -35,9 +35,7 @@ export async function GET(req: NextRequest) {
   if (frequency) where.frequency = frequency;
   
   if (ctx.role === 'agent') {
-    const routeIds = await getAgentRouteIds(ctx.userId);
-    if (routeIds.length === 0) return ok([], { nextCursor: null, limit: 20 });
-    where.AND.push({ customer: { routeId: { in: routeIds } } });
+    where.AND.push({ customer: buildAgentCustomerAccessWhere({ userId: ctx.userId }) });
   }
 
   if (q) {
@@ -197,7 +195,7 @@ export async function POST(req: NextRequest) {
 
     if (ctx.role === 'agent') {
       const routeIds = await getAgentRouteIds(ctx.userId);
-      if (!customer.routeId || !routeIds.includes(customer.routeId)) {
+      if (!canAgentAccessCustomer(customer, routeIds, ctx.userId)) {
         return fail('Forbidden', 403);
       }
     }

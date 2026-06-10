@@ -7,6 +7,7 @@ import { encryptAadharNumber } from '@/lib/pii';
 import { getBranding } from '@/lib/tenant';
 import { generateCode } from '@/lib/utils';
 import { writeAudit } from '@/lib/audit';
+import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -29,12 +30,7 @@ export async function GET(req: NextRequest) {
   };
 
   if (ctx.role === 'agent') {
-    where.AND.push({
-      OR: [
-        { agentId: ctx.userId },
-        { route: { routeAgents: { some: { agentId: ctx.userId } } } }
-      ]
-    });
+    where.AND.push(buildAgentCustomerAccessWhere({ userId: ctx.userId }));
   }
 
   if (q) {
@@ -138,7 +134,7 @@ export async function POST(req: NextRequest) {
   if (auth.response) return auth.response;
   const ctx = auth.context;
 
-  if (!['admin', 'superadmin', 'developer'].includes(ctx.role)) {
+  if (!['agent', 'admin', 'superadmin', 'developer'].includes(ctx.role)) {
     return fail('Forbidden', 403);
   }
 
@@ -221,8 +217,8 @@ export async function POST(req: NextRequest) {
         phone: body.phone,
         address: body.address ?? null,
         aadharNumber: encryptAadharNumber(body.aadharNumber ?? null),
-        routeId: body.routeId ?? null,
-        agentId: body.agentId ?? null,
+        routeId: ctx.role === 'agent' ? null : body.routeId ?? null,
+        agentId: ctx.role === 'agent' ? ctx.userId : body.agentId ?? null,
         status: 'pending_review',
         profilePhoto: body.photoUrl ?? null,
         // Extended profile fields (web parity)

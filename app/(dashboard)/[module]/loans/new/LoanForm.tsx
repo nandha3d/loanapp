@@ -49,7 +49,8 @@ export default function LoanForm({
   routes,
   agents,
   dict,
-  appType
+  appType,
+  viewerRole
 }: {
   customers: any[];
   packages: any[];
@@ -60,6 +61,7 @@ export default function LoanForm({
   agents?: any[];
   dict: any;
   appType?: string;
+  viewerRole?: string;
 }) {
   const [loading, setLoading] = useState(false);
   const [limitError, setLimitError] = useState<string | null>(null);
@@ -1038,7 +1040,7 @@ export default function LoanForm({
 
       <Modal isOpen={isCustomerModalOpen} onClose={() => setIsCustomerModalOpen(false)} title={dict.customers.registerTitle}>
         {routes && agents ? (
-          <CustomerForm routes={routes} agents={agents} onSuccess={handleCustomerCreated} dict={dict} />
+          <CustomerForm routes={routes} agents={agents} onSuccess={handleCustomerCreated} dict={dict} viewerRole={viewerRole} />
         ) : (
           <p>Loading form...</p>
         )}

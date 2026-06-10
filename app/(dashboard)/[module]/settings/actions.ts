@@ -12,6 +12,7 @@ import fs from 'fs';
 import path from 'path';
 import { getRouteDeletionBlockReason } from '@/lib/routePolicy';
 import { getActiveBranchId, getBranchEnabledModules } from '@/lib/branch';
+import { findUserUniqueConflicts } from '@/lib/userUniqueness';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'private', 'uploads');
 
@@ -125,6 +126,7 @@ export async function createRoute(formData: FormData) {
   }
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
+  const branchId = await getActiveBranchId();
   
   const primaryAgentId = formData.get('primaryAgentId') as string || null;
   const agentIds = formData.getAll('agentIds') as string[];
@@ -134,6 +136,7 @@ export async function createRoute(formData: FormData) {
   const newRoute = await prisma.route.create({
     data: {
       tenantId,
+      branchId,
       name: formData.get('name') as string,
       appType,
       status: 'active',
@@ -248,6 +251,14 @@ export async function createUser(formData: FormData) {
   }
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
+  const username = ((formData.get('username') as string) || (formData.get('email') as string) || '').trim().toLowerCase();
+  const phone = ((formData.get('phone') as string) || '').trim();
+  const email = ((formData.get('email') as string) || '').trim().toLowerCase() || null;
+  if (!username || !phone) {
+    return { success: false, error: 'Username and phone are required' };
+  }
+  const conflicts = await findUserUniqueConflicts({ username, phone, email: email || undefined });
+  if (conflicts.length > 0) return { success: false, error: conflicts[0].message };
   const passwordHash = await hash(formData.get('password') as string, 12);
   
   // For admin users, assign the currently active branchId
@@ -263,8 +274,9 @@ export async function createUser(formData: FormData) {
     data: {
       tenantId,
       name: formData.get('name') as string,
-      phone: formData.get('phone') as string,
-      username: formData.get('username') as string,
+      phone,
+      email,
+      username,
       role: requestedRole,
       appType: appType,
       passwordHash,

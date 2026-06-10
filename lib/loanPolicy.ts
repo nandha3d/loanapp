@@ -16,6 +16,15 @@ type LoanDetailWhereInput = {
   userId?: string | null;
 };
 
+type AgentCustomerAccessInput = {
+  userId?: string | null;
+};
+
+type CustomerAgentScope = {
+  agentId?: string | null;
+  routeId?: string | null;
+};
+
 export function canCreateLoanForRole(role: LoanRole): boolean {
   return role === 'agent' || role === 'admin' || role === 'superadmin' || role === 'developer';
 }
@@ -39,8 +48,30 @@ export function validateLoanNumericInputs(input: LoanNumericInputs): { valid: tr
   return { valid: true };
 }
 
+export function buildAgentCustomerAccessWhere(input: AgentCustomerAccessInput) {
+  if (!input.userId) return { id: '__unauthorized_agent__' };
+
+  return {
+    OR: [
+      { agentId: input.userId },
+      { route: { assignedAgentId: input.userId } },
+      { route: { routeAgents: { some: { agentId: input.userId } } } },
+    ],
+  };
+}
+
+export function canAgentAccessCustomer(
+  customer: CustomerAgentScope,
+  agentRouteIds: string[],
+  userId?: string | null,
+): boolean {
+  if (!userId) return false;
+  if (customer.agentId === userId) return true;
+  return Boolean(customer.routeId && agentRouteIds.includes(customer.routeId));
+}
+
 export function buildLoanDetailWhere(input: LoanDetailWhereInput) {
-  const where: any = {
+  const where: Record<string, unknown> = {
     loanCode: input.loanId,
     tenantId: input.tenantId,
     appType: input.appType,
@@ -52,18 +83,7 @@ export function buildLoanDetailWhere(input: LoanDetailWhereInput) {
   }
 
   if (input.role === 'agent') {
-    if (!input.userId) {
-      where.customer = { id: '__unauthorized_agent__' };
-      return where;
-    }
-
-    where.customer = {
-      OR: [
-        { agentId: input.userId },
-        { route: { assignedAgentId: input.userId } },
-        { route: { routeAgents: { some: { agentId: input.userId } } } },
-      ],
-    };
+    where.customer = buildAgentCustomerAccessWhere({ userId: input.userId });
   }
 
   return where;
