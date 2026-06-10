@@ -2,12 +2,12 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
-import { writeAuditLog, getFiscalYear, getPeriodKey } from '@/lib/accounting/premium';
+import { writeAuditLog, getFiscalYear, getFyStartMonth, getPeriodKey } from '@/lib/accounting/premium';
 import { bumpAccountBalance } from '@/lib/accounting/balances';
 
 async function autoCreateFYPeriods(tenantId: string, fiscalYear: string): Promise<any[]> {
   const fyStart = parseInt(fiscalYear.split('-')[0]);
-  const startMonth = 3; // April = month index 3 (0-based)
+  const startMonth = (await getFyStartMonth(tenantId)) - 1; // 0-based month index
   const created = [];
   for (let i = 0; i < 12; i++) {
     const d = new Date(fyStart, startMonth + i, 1);
@@ -47,7 +47,8 @@ export async function GET(req: NextRequest) {
   try {
     const searchParams = req.nextUrl.searchParams;
     const today = new Date();
-    const fy = searchParams.get('fiscalYear') ?? getFiscalYear(today);
+    const fy = searchParams.get('fiscalYear')
+      ?? getFiscalYear(today, await getFyStartMonth(ctx.tenantId));
 
     let periods = await prisma.accountingPeriod.findMany({
       where: { tenantId: ctx.tenantId, fiscalYear: fy },

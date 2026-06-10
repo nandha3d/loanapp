@@ -5,8 +5,9 @@
  * Safe to fail silently — premium JEs are supplemental to operational records.
  */
 import { prisma } from '@/lib/db';
-import { isPremiumAccountingEnabled } from './premium';
+import { isPremiumAccountingEnabled, getOrCreateAccountingSettings } from './premium';
 import { bumpAccountBalance } from './balances';
+import { POSTING_DEFAULTS, type PostingKey } from './postingKeys';
 
 type Tx = typeof prisma;
 
@@ -16,6 +17,28 @@ async function getAcctId(tenantId: string, code: string): Promise<string | null>
     select: { id: true },
   });
   return a?.id ?? null;
+}
+
+/**
+ * Resolve a posting key to a GL account code, honouring the tenant's
+ * AccountingSettings.postingOverrides JSON. Malformed JSON falls back to
+ * the seeded default codes.
+ */
+export async function resolveAccountCode(tenantId: string, key: PostingKey): Promise<string> {
+  const settings = await getOrCreateAccountingSettings(tenantId);
+  let overrides: Record<string, string> = {};
+  try {
+    overrides = JSON.parse(settings.postingOverrides || '{}');
+  } catch {
+    // malformed override JSON — use defaults
+  }
+  const code = overrides[key];
+  return typeof code === 'string' && code.trim() ? code.trim() : POSTING_DEFAULTS[key];
+}
+
+/** getAcctId via posting key (override-aware). */
+async function getAcctIdByKey(tenantId: string, key: PostingKey): Promise<string | null> {
+  return getAcctId(tenantId, await resolveAccountCode(tenantId, key));
 }
 
 async function ensureJeNotDuplicate(tenantId: string, tag: string): Promise<boolean> {
@@ -48,9 +71,9 @@ export async function autoPostLoanDisburse(opts: {
 
     const useBank = ['bank','upi','neft','rtgs','imps'].includes(opts.category ?? '');
     const [lrId, cashId, bankId] = await Promise.all([
-      getAcctId(opts.tenantId, '1310'), // Loan Principal Receivable
-      getAcctId(opts.tenantId, '1100'), // Cash on Hand
-      getAcctId(opts.tenantId, '1200'), // Bank Accounts
+      getAcctIdByKey(opts.tenantId, 'loan_receivable'),
+      getAcctIdByKey(opts.tenantId, 'cash_on_hand'),
+      getAcctIdByKey(opts.tenantId, 'bank_account'),
     ]);
 
     const creditAcctId = useBank ? (bankId ?? cashId) : cashId;
@@ -64,6 +87,7 @@ export async function autoPostLoanDisburse(opts: {
         narration,
         status: 'posted',
         sourceType: 'loan_disburse',
+        voucherType: 'Payment',
         branchId: opts.branchId ?? null,
         createdById: opts.createdById ?? (await getSystemUserId(opts.tenantId)),
         lines: {
@@ -107,9 +131,9 @@ export async function autoPostCollection(opts: {
 
     const useBank = ['upi','bank','online','neft','rtgs','imps'].includes(opts.paymentMode ?? '');
     const [cashId, bankId, lrId] = await Promise.all([
-      getAcctId(opts.tenantId, '1100'),
-      getAcctId(opts.tenantId, '1200'),
-      getAcctId(opts.tenantId, '1310'),
+      getAcctIdByKey(opts.tenantId, 'cash_on_hand'),
+      getAcctIdByKey(opts.tenantId, 'bank_account'),
+      getAcctIdByKey(opts.tenantId, 'loan_receivable'),
     ]);
 
     const debitAcctId = useBank ? (bankId ?? cashId) : cashId;
@@ -123,6 +147,7 @@ export async function autoPostCollection(opts: {
         narration,
         status: 'posted',
         sourceType: 'collection',
+        voucherType: 'Receipt',
         branchId: opts.branchId ?? null,
         createdById: opts.createdById ?? (await getSystemUserId(opts.tenantId)),
         lines: {
@@ -164,9 +189,9 @@ export async function autoPostExpense(opts: {
 
     const useBank = ['bank','upi'].includes(opts.category ?? '');
     const [expId, cashId, bankId] = await Promise.all([
-      getAcctId(opts.tenantId, '5900'),
-      getAcctId(opts.tenantId, '1100'),
-      getAcctId(opts.tenantId, '1200'),
+      getAcctIdByKey(opts.tenantId, 'other_expenses'),
+      getAcctIdByKey(opts.tenantId, 'cash_on_hand'),
+      getAcctIdByKey(opts.tenantId, 'bank_account'),
     ]);
 
     const creditAcctId = useBank ? (bankId ?? cashId) : cashId;
@@ -180,6 +205,7 @@ export async function autoPostExpense(opts: {
         narration,
         status: 'posted',
         sourceType: 'expense',
+        voucherType: 'Payment',
         branchId: opts.branchId ?? null,
         createdById: opts.createdById ?? (await getSystemUserId(opts.tenantId)),
         lines: {
@@ -221,9 +247,9 @@ export async function autoPostCapitalAdd(opts: {
 
     const useBank = ['bank','upi'].includes(opts.category ?? '');
     const [capId, cashId, bankId] = await Promise.all([
-      getAcctId(opts.tenantId, '3100'),
-      getAcctId(opts.tenantId, '1100'),
-      getAcctId(opts.tenantId, '1200'),
+      getAcctIdByKey(opts.tenantId, 'owners_capital'),
+      getAcctIdByKey(opts.tenantId, 'cash_on_hand'),
+      getAcctIdByKey(opts.tenantId, 'bank_account'),
     ]);
 
     const debitAcctId = useBank ? (bankId ?? cashId) : cashId;
@@ -237,6 +263,7 @@ export async function autoPostCapitalAdd(opts: {
         narration,
         status: 'posted',
         sourceType: 'capital_add',
+        voucherType: 'Receipt',
         branchId: opts.branchId ?? null,
         createdById: opts.createdById ?? (await getSystemUserId(opts.tenantId)),
         lines: {
@@ -278,9 +305,9 @@ export async function autoPostCapitalWithdraw(opts: {
 
     const useBank = ['bank','upi'].includes(opts.category ?? '');
     const [capId, cashId, bankId] = await Promise.all([
-      getAcctId(opts.tenantId, '3100'),
-      getAcctId(opts.tenantId, '1100'),
-      getAcctId(opts.tenantId, '1200'),
+      getAcctIdByKey(opts.tenantId, 'owners_capital'),
+      getAcctIdByKey(opts.tenantId, 'cash_on_hand'),
+      getAcctIdByKey(opts.tenantId, 'bank_account'),
     ]);
 
     const creditAcctId = useBank ? (bankId ?? cashId) : cashId;
@@ -294,6 +321,7 @@ export async function autoPostCapitalWithdraw(opts: {
         narration,
         status: 'posted',
         sourceType: 'capital_withdraw',
+        voucherType: 'Payment',
         branchId: opts.branchId ?? null,
         createdById: opts.createdById ?? (await getSystemUserId(opts.tenantId)),
         lines: {

@@ -61,12 +61,14 @@ export async function sendVerificationEmail(params: {
 }): Promise<void> {
   const token = signVerifyToken(params.userId);
   const link = `${appBaseUrl()}/api/auth/verify-email?token=${encodeURIComponent(token)}`;
+  const { getSetting } = await import('@/lib/tenant');
+  const brandName = await getSetting(params.tenantId, 'app_name', 'LoanTrack');
   await sendEmail(
     params.tenantId,
     params.email,
-    'Verify your LoanTrack account',
+    `Verify your ${brandName} account`,
     `<p>Hi ${params.name ?? ''},</p>
-     <p>Welcome to LoanTrack. Confirm your email to activate your account:</p>
+     <p>Welcome to ${brandName}. Confirm your email to activate your account:</p>
      <p><a href="${link}" style="background:#F5A623;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;display:inline-block">Verify my account</a></p>
      <p>Or open this link:<br><a href="${link}">${link}</a></p>
      <p>This link expires in 24 hours. If you didn't sign up, ignore this email.</p>`,

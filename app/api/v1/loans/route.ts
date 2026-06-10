@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
     if (pageParam) {
       // Offset pagination
       const page = Math.max(1, parseInt(pageParam) || 1);
-      const limit = Math.max(1, parseInt(limitParam || '20') || 20);
+      const limit = Math.min(200, Math.max(1, parseInt(limitParam || '20') || 20));
       const skip = (page - 1) * limit;
 
       const [total, rows] = await Promise.all([

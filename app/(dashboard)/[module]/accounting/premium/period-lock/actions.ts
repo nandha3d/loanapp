@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { getDefaultTenantId } from '@/lib/tenant';
 import { redirect } from 'next/navigation';
-import { writeAuditLog, getFiscalYear, getPeriodKey } from '@/lib/accounting/premium';
+import { writeAuditLog, getFiscalYear, getFyStartMonth, getPeriodKey } from '@/lib/accounting/premium';
 import { bumpAccountBalance } from '@/lib/accounting/balances';
 
 export async function listPeriods(fiscalYear?: string) {
@@ -12,7 +12,7 @@ export async function listPeriods(fiscalYear?: string) {
   const tenantId = await getDefaultTenantId();
 
   const today = new Date();
-  const fy = fiscalYear ?? getFiscalYear(today);
+  const fy = fiscalYear ?? getFiscalYear(today, await getFyStartMonth(tenantId));
 
   let periods = await prisma.accountingPeriod.findMany({
     where: { tenantId, fiscalYear: fy },
@@ -65,9 +65,9 @@ export async function listPeriods(fiscalYear?: string) {
 }
 
 async function autoCreateFYPeriods(tenantId: string, fiscalYear: string): Promise<any[]> {
-  // FY '2026-27' starts April 2026
+  // FY '2026-27' starts at the tenant-configured month of 2026
   const fyStart = parseInt(fiscalYear.split('-')[0]);
-  const startMonth = 3; // April = month index 3 (0-based)
+  const startMonth = (await getFyStartMonth(tenantId)) - 1; // 0-based month index
   const created = [];
   for (let i = 0; i < 12; i++) {
     const d = new Date(fyStart, startMonth + i, 1);
@@ -88,7 +88,7 @@ async function autoCreateFYPeriods(tenantId: string, fiscalYear: string): Promis
 
 export async function ensurePeriodExists(tenantId: string, date: Date) {
   const periodKey = getPeriodKey(date);
-  const fiscalYear = getFiscalYear(date);
+  const fiscalYear = getFiscalYear(date, await getFyStartMonth(tenantId));
   const month = date.getMonth();
   const year = date.getFullYear();
   const periodFrom = new Date(year, month, 1);

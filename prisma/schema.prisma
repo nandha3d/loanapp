@@ -49,6 +49,8 @@ model Tenant {
   customerGeocodes      CustomerGeocode[]
   goldCollaterals       GoldLoanCollateral[]
 
+  nachMandates          NachMandate[]
+
   // Premium accounting
   accounts              Account[]
   journalEntries        JournalEntry[]
@@ -177,6 +179,8 @@ model User {
   periodLocker             AccountingPeriod[]    @relation("PeriodLocker")
   periodCloser             AccountingPeriod[]    @relation("PeriodCloser")
   accountingAuditLog       AccountingAuditLog[]  @relation("AccountingAuditUser")
+  nachMandatesCreated      NachMandate[]         @relation("NachCreator")
+  nachMandatesCancelled    NachMandate[]         @relation("NachCanceller")
 
   @@unique([tenantId, username])
   @@unique([tenantId, phone])
@@ -336,6 +340,7 @@ model Customer {
   geocode           CustomerGeocode?
   goldCollaterals   GoldLoanCollateral[]
   collectionPoints  CustomerCollectionPoint[]
+  nachMandates      NachMandate[]
 
   @@unique([tenantId, customerCode])
   // ? Bolt: Added composite index on tenantId, appType, and status to optimize frequent list queries across the app
@@ -486,6 +491,7 @@ model Loan {
   npaHistory        NpaHistory[]
   loanProvisioning  LoanProvisioning[]
   goldCollateral    GoldLoanCollateral?
+  nachMandate       NachMandate?
 
   @@unique([tenantId, loanCode])
   // ⚡ Bolt: Added composite index on tenantId, appType, and status to optimize active loan queries and dashboard aggregations
@@ -1549,6 +1555,8 @@ model JournalEntry {
   status        String        @default("posted")
   sourceType    String        @map("source_type")
   sourceId      String?       @map("source_id")
+  // Tally voucher type for XML export: Journal | Receipt | Payment | Contra
+  voucherType   String        @default("Journal") @map("voucher_type")
   dedupKey      String?       @map("dedup_key") @db.VarChar(512)
   totalDebit    Decimal       @default(0) @map("total_debit") @db.Decimal(18, 2)
   totalCredit   Decimal       @default(0) @map("total_credit") @db.Decimal(18, 2)
@@ -2210,4 +2218,96 @@ model CollectionRun {
   @@index([agentId, date])
   @@index([branchId])
   @@map("collection_runs")
+}
+
+// ── e-NACH / e-Mandate ────────────────────────────────────────────────────────
+
+model NachMandate {
+  id                   String             @id @default(cuid())
+  tenantId             String             @map("tenant_id")
+  loanId               String             @unique @map("loan_id")
+  customerId           String             @map("customer_id")
+
+  // Razorpay objects
+  razorpayCustomerId   String?            @map("razorpay_customer_id")
+  razorpayOrderId      String?            @map("razorpay_order_id")
+  razorpayTokenId      String?            @map("razorpay_token_id")   // populated after auth
+  razorpayPaymentId    String?            @map("razorpay_payment_id") // auth payment id
+
+  authLink             String?            @map("auth_link") @db.Text
+  authType             String             @default("netbanking") @map("auth_type")
+  // netbanking | debitcard | aadhaar
+
+  // Bank account details
+  accountHolderName    String             @map("account_holder_name")
+  accountNumber        String             @map("account_number")
+  accountType          String             @default("savings") @map("account_type")
+  ifscCode             String             @map("ifsc_code")
+  bankName             String?            @map("bank_name")
+
+  maxAmount            Decimal            @map("max_amount") @db.Decimal(12, 2)
+  frequency            String             @default("as_presented") @map("frequency")
+  // as_presented | monthly | weekly | daily
+
+  status               String             @default("created") @map("status")
+  // created | pending_auth | active | paused | cancelled | rejected | expired
+
+  activatedAt          DateTime?          @map("activated_at")
+  cancelledAt          DateTime?          @map("cancelled_at")
+  cancelledById        String?            @map("cancelled_by_id")
+  cancelReason         String?            @map("cancel_reason") @db.Text
+  rejectionReason      String?            @map("rejection_reason") @db.Text
+
+  createdById          String?            @map("created_by_id")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  tenant               Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  loan                 Loan               @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  customer             Customer           @relation(fields: [customerId], references: [id])
+  cancelledBy          User?              @relation("NachCanceller", fields: [cancelledById], references: [id])
+  createdBy            User?              @relation("NachCreator", fields: [createdById], references: [id])
+  presentations        NachPresentation[]
+
+  @@index([tenantId, status])
+  @@index([customerId])
+  @@index([razorpayOrderId])
+  @@map("nach_mandates")
+}
+
+model NachPresentation {
+  id                String      @id @default(cuid())
+  mandateId         String      @map("mandate_id")
+  instalmentId      String?     @map("instalment_id")
+  loanId            String      @map("loan_id")
+  tenantId          String      @map("tenant_id")
+
+  razorpayOrderId   String?     @map("razorpay_order_id")
+  razorpayPaymentId String?     @map("razorpay_payment_id")
+
+  amount            Decimal     @db.Decimal(12, 2)
+  presentedAt       DateTime    @default(now()) @map("presented_at")
+  settledAt         DateTime?   @map("settled_at")
+
+  status            String      @default("pending") @map("status")
+  // pending | submitted | success | failed | bounced
+
+  failureCode       String?     @map("failure_code")
+  failureReason     String?     @map("failure_reason") @db.Text
+  retryCount        Int         @default(0) @map("retry_count")
+  nextRetryAt       DateTime?   @map("next_retry_at")
+
+  collectionEntryId String?     @unique @map("collection_entry_id")
+
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  mandate           NachMandate @relation(fields: [mandateId], references: [id])
+
+  @@index([mandateId, status])
+  @@index([loanId])
+  @@index([instalmentId])
+  @@index([razorpayPaymentId])
+  @@index([razorpayOrderId])
+  @@map("nach_presentations")
 }

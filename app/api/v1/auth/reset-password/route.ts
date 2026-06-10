@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server';
 import { hash } from 'bcryptjs';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
+import { checkRateLimit, getClientIp } from '@/lib/rateLimit';
 
 function timeBucket() {
   return Math.floor(Date.now() / 1000 / 600);
@@ -36,6 +37,17 @@ export async function POST(req: NextRequest) {
 
     if (!email || !otp || !newPassword) {
       return fail('email, otp, and newPassword are required', 400);
+    }
+
+    // Brute-force guard on the 6-digit OTP: 3 attempts/email and 10/IP per 10 min.
+    const windowMs = 10 * 60 * 1000;
+    const ip = getClientIp(req);
+    const [emailLimit, ipLimit] = await Promise.all([
+      checkRateLimit(`rpw:email:${email}`, { limit: 3, windowMs }),
+      checkRateLimit(`rpw:ip:${ip}`, { limit: 10, windowMs }),
+    ]);
+    if (!emailLimit.allowed || !ipLimit.allowed) {
+      return fail('Too many attempts. Try again later.', 429);
     }
     if (newPassword.length < 8) {
       return fail('Password must be at least 8 characters', 400);

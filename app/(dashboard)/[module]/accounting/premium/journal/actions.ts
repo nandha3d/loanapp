@@ -6,16 +6,17 @@ import { getDefaultTenantId } from '@/lib/tenant';
 import { getActiveBranchId } from '@/lib/branch';
 import { revalidatePath } from 'next/cache';
 import { bumpAccountBalance } from '@/lib/accounting/balances';
-import { writeAuditLog, getPeriodKey, getFiscalYear } from '@/lib/accounting/premium';
+import { writeAuditLog, getPeriodKey, getFiscalYear, getFyStartMonth } from '@/lib/accounting/premium';
 
 function requireRole(role: string, allowed: string[]) {
   if (!allowed.includes(role)) throw new Error('Unauthorized');
 }
 
 async function assignNextEntryNo(tenantId: string, entryDate: Date): Promise<string> {
-  const fy = getFiscalYear(entryDate);
+  const fyStartMonth = await getFyStartMonth(tenantId); // 1-based
+  const fy = getFiscalYear(entryDate, fyStartMonth);
   const fyKey = fy.replace('-', '');
-  const startMonth = 3; // April = month index 3
+  const startMonth = fyStartMonth - 1; // JS Date month index
   const fyStart = entryDate.getMonth() >= startMonth
     ? new Date(entryDate.getFullYear(), startMonth, 1)
     : new Date(entryDate.getFullYear() - 1, startMonth, 1);

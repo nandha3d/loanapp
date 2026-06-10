@@ -17,36 +17,43 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Note: Prisma does not support distinct + orderBy properly in all DBs.
-    // Instead we can query the latest ping per agent by doing a query with a 
-    // subquery or fetching all distinct agents and their latest pings, 
-    // but the most reliable way in Prisma without raw SQL is to fetch 
-    // all recent pings and deduplicate in code, or fetch agents and then their ping.
-    
     // Fetch all agents in the tenant
     const agents = await prisma.user.findMany({
       where: { tenantId: ctx.tenantId, role: 'agent', status: 'active' },
       select: { id: true, name: true, phone: true },
     });
 
-    // Fetch the latest ping for each agent (one DB hit per agent is fine if agent count is small, 
-    // but a better way is to query pings grouped or just fetch the last N hours of pings)
-    // Let's fetch the latest ping for all these agents.
-    
-    const pings = await prisma.agentLocationPing.findMany({
-      where: {
-        tenantId: ctx.tenantId,
-        agentId: { in: agents.map((a) => a.id) },
-        // Optionally filter by recent pings only to avoid scanning large tables
-        // capturedAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
-      },
-      orderBy: { capturedAt: 'desc' },
-    });
+    // Latest ping per agent in a single DB round trip (raw SQL — Prisma can't
+    // express "latest row per group" efficiently). 48h lookback keeps the scan
+    // bounded on the (tenant_id, agent_id, captured_at) index.
+    const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
+    const latestPings = await prisma.$queryRaw<Array<{
+      agent_id: string;
+      lat: number;
+      lng: number;
+      captured_at: Date;
+    }>>`
+      SELECT alp.agent_id, alp.lat, alp.lng, alp.captured_at
+      FROM agent_location_pings alp
+      INNER JOIN (
+        SELECT agent_id, MAX(captured_at) AS max_at
+        FROM agent_location_pings
+        WHERE tenant_id = ${ctx.tenantId}
+          AND captured_at >= ${cutoff}
+        GROUP BY agent_id
+      ) latest
+        ON alp.agent_id = latest.agent_id AND alp.captured_at = latest.max_at
+      WHERE alp.tenant_id = ${ctx.tenantId}
+    `;
 
-    const latestPingsMap = new Map<string, (typeof pings)[number]>();
-    for (const ping of pings) {
-      if (!latestPingsMap.has(ping.agentId)) {
-        latestPingsMap.set(ping.agentId, ping);
+    const latestPingsMap = new Map<string, { lat: number; lng: number; capturedAt: Date }>();
+    for (const ping of latestPings) {
+      if (!latestPingsMap.has(ping.agent_id)) {
+        latestPingsMap.set(ping.agent_id, {
+          lat: ping.lat,
+          lng: ping.lng,
+          capturedAt: ping.captured_at,
+        });
       }
     }
 
@@ -78,7 +85,7 @@ export async function GET(req: NextRequest) {
       const ping = latestPingsMap.get(agent.id);
       const coll = collMap.get(agent.id);
       const online =
-        ping != null && now - new Date(ping.capturedAt).getTime() <= ONLINE_MS;
+        ping != null && now - ping.capturedAt.getTime() <= ONLINE_MS;
       return {
         agentId: agent.id,
         agentName: agent.name,

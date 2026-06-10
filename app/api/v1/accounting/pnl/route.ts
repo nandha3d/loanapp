@@ -1,12 +1,11 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { requireMobileContext } from '@/lib/api/v1-auth';
+import { resolveActor } from '@/lib/api/dualAuth';
 
 export async function GET(req: NextRequest) {
-  const auth = await requireMobileContext(req);
-  if (auth.response) return auth.response;
-  const ctx = auth.context;
+  const ctx = await resolveActor(req);
+  if (!ctx) return fail('Unauthorized', 401);
 
   if (!['admin', 'superadmin', 'developer'].includes(ctx.role)) {
     return fail('Forbidden', 403);

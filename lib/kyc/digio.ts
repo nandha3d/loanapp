@@ -156,7 +156,15 @@ import crypto from 'node:crypto';
 
 export function verifyDigioWebhook(payload: string, signature: string): boolean {
   const secret = process.env.DIGIO_WEBHOOK_SECRET;
-  if (!secret) return false;
-  const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex');
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+  if (!secret || !signature) return false;
+
+  // Digio sends HMAC-SHA256 as a lowercase hex string.
+  const expected = crypto.createHmac('sha256', secret).update(payload, 'utf8').digest('hex');
+  const expectedBuf = Buffer.from(expected, 'utf8');
+  const providedBuf = Buffer.from(signature.trim().toLowerCase(), 'utf8');
+
+  // timingSafeEqual throws on length mismatch — return false instead so a
+  // malformed signature header can't crash the webhook handler with a 500.
+  if (expectedBuf.byteLength !== providedBuf.byteLength) return false;
+  return crypto.timingSafeEqual(expectedBuf, providedBuf);
 }

@@ -1,14 +1,22 @@
 import { prisma } from '@/lib/db';
+import { flagCache } from '@/lib/cache/tenantCache';
 
 /**
  * Server-side gate: is premium accounting enabled for this tenant?
+ * Cached in-process for 30s — this is read on nearly every accounting hit.
  */
 export async function isPremiumAccountingEnabled(tenantId: string): Promise<boolean> {
+  const cacheKey = `acct:${tenantId}`;
+  const cached = flagCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
   const sub = await prisma.tenantSubscription.findUnique({
     where: { tenantId },
     select: { premiumAccountingEnabled: true },
   });
-  return Boolean(sub?.premiumAccountingEnabled);
+  const enabled = Boolean(sub?.premiumAccountingEnabled);
+  flagCache.set(cacheKey, enabled);
+  return enabled;
 }
 
 /**
@@ -25,7 +33,19 @@ export async function getOrCreateAccountingSettings(tenantId: string) {
 }
 
 /**
+ * Tenant-configured fiscal-year start month (1=Jan … 12=Dec).
+ * Stored on AccountingSettings.fiscalYearStartMonth, default 4 (Indian FY).
+ */
+export async function getFyStartMonth(tenantId: string): Promise<number> {
+  const settings = await getOrCreateAccountingSettings(tenantId);
+  const month = settings.fiscalYearStartMonth ?? 4;
+  return month >= 1 && month <= 12 ? month : 4;
+}
+
+/**
  * Compute fiscal year string (e.g. '2026-27') from a date and start month.
+ * Pass the tenant's start month from getFyStartMonth() — the default of 4
+ * is only a fallback for legacy call sites.
  */
 export function getFiscalYear(date: Date, startMonth = 4): string {
   const month = date.getMonth() + 1; // 1-based

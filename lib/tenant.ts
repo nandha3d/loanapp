@@ -4,6 +4,7 @@ import { headers, cookies } from 'next/headers';
 import { cache } from 'react';
 import { assertTenantSubscriptionAccess } from './subscription';
 import { isModuleKey, parseModulePath } from '@/types/modules';
+import { appSettingCache, invalidateTenantCache } from './cache/tenantCache';
 
 type SessionUserContext = {
   appType?: string | null;
@@ -253,25 +254,29 @@ export const getCurrentTenantId = cache(async (): Promise<string> => {
 export const getDefaultTenantId = getCurrentTenantId;
 
 export async function getTenantSettings(tenantId: string) {
+  const cached = appSettingCache.get(tenantId);
+  if (cached) return cached;
+
   const settings = await prisma.appSetting.findMany({ where: { tenantId } });
   const map: Record<string, string> = {};
   settings.forEach(s => { map[s.key] = s.value; });
+  appSettingCache.set(tenantId, map);
   return map;
 }
 
 export async function getSetting(tenantId: string, key: string, fallback: string = ''): Promise<string> {
-  const setting = await prisma.appSetting.findUnique({
-    where: { tenantId_key: { tenantId, key } }
-  });
-  return setting?.value ?? fallback;
+  const settings = await getTenantSettings(tenantId);
+  return settings[key] ?? fallback;
 }
 
 export async function setSetting(tenantId: string, key: string, value: string, group: string = 'general') {
-  return prisma.appSetting.upsert({
+  const result = await prisma.appSetting.upsert({
     where: { tenantId_key: { tenantId, key } },
     update: { value, group },
     create: { tenantId, key, value, group }
   });
+  invalidateTenantCache(tenantId);
+  return result;
 }
 
 // ─── Branding Helper ──────────────────────────

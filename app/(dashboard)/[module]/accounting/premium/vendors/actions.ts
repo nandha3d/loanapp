@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { getDefaultTenantId } from '@/lib/tenant';
 import { redirect } from 'next/navigation';
-import { writeAuditLog, getFiscalYear, getPeriodKey } from '@/lib/accounting/premium';
+import { writeAuditLog, getFiscalYear, getFyStartMonth, getPeriodKey } from '@/lib/accounting/premium';
 import { bumpAccountBalance } from '@/lib/accounting/balances';
 
 const VENDOR_PAYABLE_CODE = '2110';
@@ -292,7 +292,7 @@ export async function postBill(id: string) {
 
   jeLines.push({ accountId: payableAcct.id, debit: 0, credit: Number(bill.totalAmount), description: `Bill ${bill.billNo} payable`, lineNo: jeLines.length });
 
-  const fyKey = getFiscalYear(bill.billDate).replace('-', '');
+  const fyKey = getFiscalYear(bill.billDate, await getFyStartMonth(tenantId)).replace('-', '');
   const count = await prisma.journalEntry.count({ where: { tenantId } });
   const entryNo = `JE-${fyKey}-${String(count + 1).padStart(4, '0')}`;
 
@@ -362,7 +362,7 @@ export async function payBill(id: string, input: {
   }
   jeLines.push({ accountId: input.payFromAccountId, debit: 0, credit: bankAmt, description: input.narration ?? `Payment for ${bill.billNo}`, lineNo: jeLines.length });
 
-  const fyKey = getFiscalYear(entryDate).replace('-', '');
+  const fyKey = getFiscalYear(entryDate, await getFyStartMonth(tenantId)).replace('-', '');
   const count = await prisma.journalEntry.count({ where: { tenantId } });
   const entryNo = `JE-${fyKey}-${String(count + 1).padStart(4, '0')}`;
 

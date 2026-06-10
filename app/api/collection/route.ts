@@ -11,6 +11,7 @@ import {
   verifyAndPersistCollectionLocation,
 } from '@/lib/gps/locationVerifier';
 import { submitCollectionEntry } from '@/lib/collectionWrite';
+import { CollectionEntrySchema } from '@/lib/schemas/collectionEntry';
 
 function parseDay(value: string | null) {
   const day = value ? new Date(value) : new Date();
@@ -93,7 +94,12 @@ export async function POST(request: Request) {
     const authResult = await requireApiContext(AUTHENTICATED_API_ROLES);
     if (isApiError(authResult)) return authResult.response;
     const { context } = authResult;
-    const body = await request.json();
+    const rawBody = await request.json().catch(() => null);
+    const parsed = CollectionEntrySchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return apiError(parsed.error.issues[0]?.message ?? 'Invalid request body', 400);
+    }
+    const body = parsed.data;
 
     const gpsTrackingEnabled = await isGpsTrackingEnabled(context.tenantId);
     const gpsCapture = normalizeGpsBody(body, gpsTrackingEnabled);
@@ -104,11 +110,11 @@ export async function POST(request: Request) {
       branchId: context.branchId,
       role: context.role,
     }, {
-      instalmentId: String(body.instalmentId || ''),
-      receivedAmount: Number(body.receivedAmount),
-      paymentMode: String(body.paymentMode || 'cash'),
-      remarks: body.remarks ? String(body.remarks) : null,
-      idempotencyKey: body.idempotencyKey as string | undefined,
+      instalmentId: body.instalmentId,
+      receivedAmount: body.receivedAmount,
+      paymentMode: body.paymentMode,
+      remarks: body.remarks ?? null,
+      idempotencyKey: body.idempotencyKey,
       gps: gpsCapture,
     }, {
       appendDirectPaymentRemark: true,

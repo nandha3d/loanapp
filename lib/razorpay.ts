@@ -25,7 +25,7 @@ export function buildRazorpaySubscriptionRequest(planId: string, tenantId: strin
 
   return {
     plan_id: razorpayPlanId,
-    total_count: 120,
+    total_count: parseInt(process.env.RAZORPAY_SUB_TOTAL_COUNT ?? '120', 10) || 120,
     customer_notify: 1,
     notes: {
       tenant_id: tenantId,

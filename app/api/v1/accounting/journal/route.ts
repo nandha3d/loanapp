@@ -1,14 +1,15 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { requireMobileContext } from '@/lib/api/v1-auth';
+import { resolveActor } from '@/lib/api/dualAuth';
 import { bumpAccountBalance } from '@/lib/accounting/balances';
-import { getPeriodKey, getFiscalYear } from '@/lib/accounting/premium';
+import { getPeriodKey, getFiscalYear, getFyStartMonth } from '@/lib/accounting/premium';
 
 async function assignNextEntryNo(tenantId: string, entryDate: Date): Promise<string> {
-  const fy = getFiscalYear(entryDate);
+  const fyStartMonth = await getFyStartMonth(tenantId); // 1-based
+  const fy = getFiscalYear(entryDate, fyStartMonth);
   const fyKey = fy.replace('-', '');
-  const startMonth = 3; // April = month index 3
+  const startMonth = fyStartMonth - 1; // JS Date month index
   const fyStart = entryDate.getMonth() >= startMonth
     ? new Date(entryDate.getFullYear(), startMonth, 1)
     : new Date(entryDate.getFullYear() - 1, startMonth, 1);
@@ -26,9 +27,8 @@ async function assignNextEntryNo(tenantId: string, entryDate: Date): Promise<str
 }
 
 export async function GET(req: NextRequest) {
-  const auth = await requireMobileContext(req);
-  if (auth.response) return auth.response;
-  const ctx = auth.context;
+  const ctx = await resolveActor(req);
+  if (!ctx) return fail('Unauthorized', 401);
 
   if (!['admin', 'superadmin', 'developer'].includes(ctx.role)) {
     return fail('Forbidden', 403);
@@ -92,9 +92,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireMobileContext(req);
-  if (auth.response) return auth.response;
-  const ctx = auth.context;
+  const ctx = await resolveActor(req);
+  if (!ctx) return fail('Unauthorized', 401);
 
   if (!['admin', 'superadmin', 'developer'].includes(ctx.role)) {
     return fail('Forbidden', 403);

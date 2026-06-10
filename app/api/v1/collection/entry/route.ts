@@ -8,6 +8,7 @@ import {
   verifyAndPersistCollectionLocation,
 } from '@/lib/gps/locationVerifier';
 import { submitCollectionEntry } from '@/lib/collectionWrite';
+import { CollectionEntrySchema } from '@/lib/schemas/collectionEntry';
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : '';
@@ -30,7 +31,12 @@ export async function POST(req: NextRequest) {
   const ctx = auth.context;
 
   try {
-    const body = await req.json();
+    const rawBody = await req.json().catch(() => null);
+    const parsed = CollectionEntrySchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return fail(parsed.error.issues[0]?.message ?? 'Invalid request body', 400);
+    }
+    const body = parsed.data;
     const gpsTrackingEnabled = await isGpsTrackingEnabled(ctx.tenantId);
     const gpsCapture = normalizeGpsBody(body, gpsTrackingEnabled);
 
@@ -41,12 +47,12 @@ export async function POST(req: NextRequest) {
       branchId: ctx.branchId,
       role: ctx.role,
     }, {
-      instalmentId: String(body.instalmentId || ''),
-      receivedAmount: Number(body.receivedAmount),
-      paymentMode: String(body.paymentMode || 'cash'),
-      remarks: body.remarks ? String(body.remarks) : null,
+      instalmentId: body.instalmentId,
+      receivedAmount: body.receivedAmount,
+      paymentMode: body.paymentMode,
+      remarks: body.remarks ?? null,
       collectionDate: body.collectionDate ?? null,
-      idempotencyKey: body.idempotencyKey as string | undefined,
+      idempotencyKey: body.idempotencyKey,
       gps: gpsCapture,
     });
 
