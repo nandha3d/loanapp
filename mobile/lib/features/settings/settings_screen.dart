@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:go_router/go_router.dart';
 
+import 'package:loantrack/core/a11y/ui_prefs.dart';
 import 'package:loantrack/core/a11y/voice_assist.dart';
 import 'package:loantrack/core/auth/auth_controller.dart';
 import 'package:loantrack/core/l10n/app_strings.dart';
@@ -70,6 +71,53 @@ class SettingsScreen extends ConsumerWidget {
                   onChanged: (bool v) =>
                       ref.read(voiceAssistProvider.notifier).setEnabled(v),
                 ),
+                const Divider(height: 1, color: AppColors.border),
+                // Text size (U6) - app-wide scaler, persisted.
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryLight,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.format_size,
+                        size: 20, color: AppColors.primary,),
+                  ),
+                  title: const Text('Text size'),
+                  trailing: Consumer(builder: (context, ref, _) {
+                    final scale = ref.watch(textScaleProvider);
+                    return DropdownButton<double>(
+                      value: scale,
+                      underline: const SizedBox.shrink(),
+                      items: const [
+                        DropdownMenuItem(value: 0.9, child: Text('Small')),
+                        DropdownMenuItem(value: 1.0, child: Text('Normal')),
+                        DropdownMenuItem(value: 1.15, child: Text('Large')),
+                        DropdownMenuItem(value: 1.3, child: Text('Extra large')),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) {
+                          ref.read(textScaleProvider.notifier).set(v);
+                        }
+                      },
+                    );
+                  },),
+                ),
+                const Divider(height: 1, color: AppColors.border),
+                // Simple mode (U4) - reduced More menu for daily field work.
+                Consumer(builder: (context, ref, _) {
+                  final simple = ref.watch(simpleModeProvider);
+                  return _PrefSwitchRow(
+                    icon: Icons.dashboard_customize_outlined,
+                    iconColor: AppColors.primary,
+                    iconBg: AppColors.primaryLight,
+                    label: 'Simple mode',
+                    subtitle: 'Show only daily-work items in the More menu',
+                    value: simple,
+                    onChanged: (bool v) =>
+                        ref.read(simpleModeProvider.notifier).set(v),
+                  );
+                },),
               ],
             ),
           ),

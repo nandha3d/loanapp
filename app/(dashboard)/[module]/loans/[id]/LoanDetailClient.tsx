@@ -9,6 +9,8 @@ import Link from '@/components/layout/DashboardLink';
 import { useRouter } from 'next/navigation';
 import { calculateCreditScore } from '@/lib/creditScore';
 import { getCreditScoreGaugePresentation } from '@/lib/creditScoreGauge';
+import NachPanel from './NachPanel';
+import LoanTimeline from './LoanTimeline';
 import { useDashboardPath } from '@/components/layout/useDashboardPath';
 
 const CreditScoreGauge = ({ score, grade }: { score: number, grade: string }) => {
@@ -891,6 +893,21 @@ export default function LoanDetailClient({
               })()}
             </div>
           </div>
+
+          {['active', 'overdue'].includes(loan.status) && (
+            <NachPanel
+              loanId={loan.id}
+              customerId={loan.customerId ?? loan.customer?.id}
+              customerName={loan.customer?.name}
+              customerPhone={loan.customer?.phone}
+              customerEmail={loan.customer?.email ?? undefined}
+              defaultMaxAmount={Number(loan.perInstalment) || undefined}
+              currencySymbol={currencySymbol}
+              isAdmin={isAdmin}
+            />
+          )}
+
+          <LoanTimeline loanId={loan.id} currencySymbol={currencySymbol} />
         </div>
       </div>
 

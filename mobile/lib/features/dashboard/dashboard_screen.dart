@@ -17,6 +17,7 @@ import 'package:loantrack/data/repositories/dashboard_repository.dart';
 import 'package:loantrack/data/services/collection_service.dart';
 import 'package:loantrack/features/collection/quick_collect_sheet.dart';
 import 'package:loantrack/features/dashboard/widgets/collection_trend_card.dart';
+import 'package:loantrack/features/onboarding/onboarding_overlay.dart';
 import 'package:loantrack/shared/widgets/bottom_nav.dart';
 import 'package:loantrack/shared/widgets/empty_state.dart';
 import 'package:loantrack/shared/widgets/skeleton.dart';
@@ -26,6 +27,9 @@ final _collectionTodayProvider =
   return ref.watch(collectionServiceProvider).today();
 });
 
+// Process-lifetime guard so rebuilds can't queue duplicate onboarding dialogs.
+bool _onboardingRequested = false;
+
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
@@ -33,6 +37,16 @@ class DashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authControllerProvider).user;
     final summary = ref.watch(dashboardSummaryProvider);
+
+    // First-run tour (U1) - no-ops once the seen flag is stored.
+    if (!_onboardingRequested && user != null) {
+      _onboardingRequested = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) {
+          maybeShowOnboarding(context, role: user.role.name);
+        }
+      });
+    }
     final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
 

@@ -25,6 +25,7 @@ import 'package:loantrack/data/models/collection_entry.dart';
 import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/data/services/collection_service.dart';
 import 'package:loantrack/features/collection/quick_collect_sheet.dart';
+import 'package:loantrack/shared/widgets/help_sheet.dart';
 import 'package:loantrack/shared/widgets/bottom_nav.dart';
 import 'package:loantrack/shared/widgets/empty_state.dart';
 import 'package:loantrack/shared/widgets/skeleton.dart';
@@ -132,6 +133,11 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
           onPressed: () => context.go('/dashboard'),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Help',
+            onPressed: () => showHelpSheet(context, HelpTopics.collection),
+            icon: const Icon(Icons.help_outline),
+          ),
           IconButton(
             tooltip: 'Route run (batch collect & deposit)',
             onPressed: () => context.push('/collection/runs'),

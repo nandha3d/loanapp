@@ -4,6 +4,8 @@ import { getActiveBranchId } from '@/lib/branch';
 import { getDefaultTenantId } from '@/lib/tenant';
 import { getRouteProgressForBranch } from '@/lib/gps/routeProgress';
 import { getDictionary } from '@/lib/i18n';
+import { getSetting } from '@/lib/tenant';
+import LiveMapClient from './LiveMapClient';
 
 function statusColor(status: string) {
   if (status === 'verified') return 'var(--success)';
@@ -47,6 +49,7 @@ export default async function RouteTrackerPage() {
   }
 
   const agents = await getRouteProgressForBranch({ tenantId, branchId });
+  const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
 
   return (
     <div style={{ display: 'grid', gap: '16px' }}>
@@ -56,6 +59,8 @@ export default async function RouteTrackerPage() {
           <p>{d.subtitle}</p>
         </div>
       </div>
+
+      <LiveMapClient currencySymbol={currencySymbol} />
 
       <div className="stats-grid">
         <div className="stat-card">

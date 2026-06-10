@@ -131,6 +131,7 @@ export async function POST(request: Request) {
             customerId: instalment.loan.customerId,
             latitude: gpsCapture.latitude,
             longitude: gpsCapture.longitude,
+            isMocked: gpsCapture.isMocked,
           }),
           recordCollectionLocationPing({
             tenantId: context.tenantId,

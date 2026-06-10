@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
             customerId: instalment.loan.customerId,
             latitude: gpsCapture.latitude,
             longitude: gpsCapture.longitude,
+            isMocked: gpsCapture.isMocked,
           }),
           recordCollectionLocationPing({
             tenantId: ctx.tenantId,

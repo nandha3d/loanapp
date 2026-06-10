@@ -132,6 +132,8 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
             'accuracy': pos.accuracy,
             'altitude': pos.altitude,
             'timestamp': pos.timestamp.toIso8601String(),
+            // Fake-GPS provider flag - server marks entry mock_location.
+            'isMocked': pos.isMocked,
           };
         } else {
           gps = {'status': 'not_captured'};

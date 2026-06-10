@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
+import 'package:loantrack/core/a11y/ui_prefs.dart';
 import 'package:loantrack/core/auth/auth_controller.dart';
 import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
@@ -226,9 +227,19 @@ class MoreScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
     final user = ref.watch(authControllerProvider).user;
+    final simpleMode = ref.watch(simpleModeProvider);
+    // Simple mode (U4): field agents see only daily-work items. Admin roles
+    // keep the full grid regardless of the toggle - never hides capability.
+    const dailyWorkRoutes = {'/penalties', '/wallet', '/settings'};
     final visible = user == null
         ? <_ModuleItem>[]
-        : _allModules.where((m) => _canAccess(m, user)).toList();
+        : _allModules
+            .where((m) => _canAccess(m, user))
+            .where((m) =>
+                !simpleMode ||
+                user.role != UserRole.agent ||
+                dailyWorkRoutes.contains(m.route),)
+            .toList();
     final pinsAsync = ref.watch(_mapPinsProvider);
 
     return Scaffold(

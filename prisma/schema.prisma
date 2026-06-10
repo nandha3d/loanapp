@@ -685,6 +685,8 @@ model AgentLocationPing {
   // Additional context (heartbeat/collection ping, on-duty flag)
   pingType    String   @default("heartbeat") @map("ping_type")
   isOnDuty    Boolean  @default(true) @map("is_on_duty")
+  // Fraud: Android flags mock-location providers (fake-GPS apps)
+  isMocked    Boolean  @default(false) @map("is_mocked")
 
   tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   agent  User    @relation(fields: [agentId], references: [id], onDelete: Cascade)

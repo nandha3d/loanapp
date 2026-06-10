@@ -68,6 +68,9 @@ dependencies:
   pdf: ^3.11.1
   printing: ^5.13.4
 
+  # Accessibility - true TTS for low-literacy voice guidance (U2)
+  flutter_tts: ^4.2.0
+
   # Utilities
   intl: ^0.19.0
   google_fonts: ^6.2.1

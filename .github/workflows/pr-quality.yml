@@ -43,6 +43,12 @@ jobs:
       - run: npm audit --audit-level=high
       - run: npm run test:coverage
 
+      # Mobile i18n completeness — warning-only until ta/hi/te/kn/ml gaps are
+      # translated by native speakers (28 keys open as of June 2026).
+      - name: Mobile i18n completeness (non-blocking)
+        run: node scripts/check-mobile-i18n.mjs
+        continue-on-error: true
+
   secret-scan:
     runs-on: ubuntu-latest
     steps:

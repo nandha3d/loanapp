@@ -14,3 +14,10 @@ jobs:
           curl -f -X GET \
             "${{ secrets.APP_URL }}/api/cron/accrue-penalties" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
+      - name: Purge expired GPS pings
+        if: always()   # independent of accrual result
+        run: |
+          curl -f -X GET \
+            "${{ secrets.APP_URL }}/api/cron/gps-purge" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

@@ -6,6 +6,7 @@ export type LocationStatus =
   | 'pending_verification'
   | 'verified'
   | 'mismatch'
+  | 'mock_location'
   | 'unverifiable'
   | 'location_denied'
   | 'gps_timeout'
@@ -18,6 +19,8 @@ export type GpsCapture = {
   gpsTimestamp: Date | null;
   gpsAltitude: number | null;
   locationStatus: LocationStatus;
+  /** Android mock-location provider flag (fake-GPS apps). */
+  isMocked?: boolean;
 };
 
 export type GeocodePoint = {
@@ -79,6 +82,7 @@ export function normalizeGpsFormData(formData: FormData, enabled: boolean): GpsC
     gpsAccuracy: parseOptionalNumber(formData.get('gpsAccuracy')),
     gpsTimestamp: parseOptionalDate(formData.get('gpsTimestamp')),
     gpsAltitude: parseOptionalNumber(formData.get('gpsAltitude')),
+    isMocked: String(formData.get('gpsMocked') || '') === 'true',
     locationStatus: 'pending_verification',
   };
 }
@@ -96,6 +100,9 @@ export function normalizeGpsBody(body: any, enabled: boolean): GpsCapture {
   if (accuracy !== undefined && accuracy !== null) formData.set('gpsAccuracy', String(accuracy));
   if (timestamp) formData.set('gpsTimestamp', String(timestamp));
   if (gps.altitude !== undefined && gps.altitude !== null) formData.set('gpsAltitude', String(gps.altitude));
+  if (gps.isMocked === true || gps.isMocked === 'true' || gps.mocked === true) {
+    formData.set('gpsMocked', 'true');
+  }
   return normalizeGpsFormData(formData, enabled);
 }
 
@@ -106,6 +113,7 @@ function emptyCapture(locationStatus: LocationStatus): GpsCapture {
     gpsAccuracy: null,
     gpsTimestamp: null,
     gpsAltitude: null,
+    isMocked: false,
     locationStatus,
   };
 }
@@ -175,14 +183,40 @@ export async function isGpsTrackingEnabled(tenantId: string): Promise<boolean> {
   return Boolean(subscription?.gpsTrackingEnabled);
 }
 
+/**
+ * Tenant-configurable verified/mismatch cut-off. AppSetting key
+ * `gps_verify_threshold_m`; falls back to the 500 m default.
+ */
+export async function getGpsVerifyThreshold(tenantId: string): Promise<number> {
+  try {
+    const { getSetting } = await import('@/lib/tenant');
+    const raw = await getSetting(tenantId, 'gps_verify_threshold_m', String(DEFAULT_GPS_THRESHOLD_METRES));
+    const parsed = parseInt(raw, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_GPS_THRESHOLD_METRES;
+  } catch {
+    return DEFAULT_GPS_THRESHOLD_METRES;
+  }
+}
+
 export async function verifyAndPersistCollectionLocation(input: {
   entryId: string;
   tenantId: string;
   customerId: string;
   latitude: number | null;
   longitude: number | null;
+  /** Device-reported fake-GPS flag — overrides distance verification. */
+  isMocked?: boolean;
 }) {
   if (!validCoordinates(input.latitude, input.longitude)) return;
+
+  // Fake-GPS providers invalidate any distance check — flag and stop.
+  if (input.isMocked) {
+    await prisma.collectionEntry.update({
+      where: { id: input.entryId },
+      data: { locationStatus: 'mock_location' },
+    });
+    return;
+  }
 
   // Prefer the dedicated CustomerGeocode row; fall back to the lat/lng stored
   // directly on the Customer model (GPS-01).
@@ -205,7 +239,7 @@ export async function verifyAndPersistCollectionLocation(input: {
   const result = verifyGpsAgainstGeocode(
     { latitude: input.latitude!, longitude: input.longitude! },
     borrowerPoint,
-    DEFAULT_GPS_THRESHOLD_METRES,
+    await getGpsVerifyThreshold(input.tenantId),
   );
 
   await prisma.collectionEntry.update({
@@ -238,6 +272,7 @@ export async function recordCollectionLocationPing(input: {
       pingType: 'collection',
       capturedAt,
       isOnDuty: true,
+      isMocked: input.capture.isMocked ?? false,
     },
   });
 }

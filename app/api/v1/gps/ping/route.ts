@@ -2,6 +2,35 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
+import { getSetting } from '@/lib/tenant';
+
+/**
+ * Duty-window stamping: pings outside the tenant's configured work hours are
+ * stored with isOnDuty=false so manager views can exclude them (labour-law
+ * privacy posture). Settings: gps_duty_start / gps_duty_end ("HH:mm"),
+ * evaluated in the tenant's timezone setting (default Asia/Kolkata).
+ */
+async function buildDutyChecker(tenantId: string): Promise<(at: Date) => boolean> {
+  const [dutyStart, dutyEnd, timezone] = await Promise.all([
+    getSetting(tenantId, 'gps_duty_start', '00:00'),
+    getSetting(tenantId, 'gps_duty_end', '23:59'),
+    getSetting(tenantId, 'timezone', 'Asia/Kolkata'),
+  ]);
+  let fmt: Intl.DateTimeFormat;
+  try {
+    fmt = new Intl.DateTimeFormat('en-GB', {
+      hour: '2-digit', minute: '2-digit', hour12: false, timeZone: timezone,
+    });
+  } catch {
+    fmt = new Intl.DateTimeFormat('en-GB', {
+      hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Kolkata',
+    });
+  }
+  return (at: Date) => {
+    const hhmm = fmt.format(at);
+    return hhmm >= dutyStart && hhmm <= dutyEnd;
+  };
+}
 
 /**
  * POST /api/v1/gps/ping
@@ -20,18 +49,25 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const raw: any[] = Array.isArray(body?.pings) ? body.pings : [body];
+    const isOnDuty = await buildDutyChecker(ctx.tenantId);
 
     const rows = raw
-      .map((p) => ({
-        tenantId: ctx.tenantId,
-        agentId: ctx.userId,
-        routeId: typeof p.routeId === 'string' ? p.routeId : null,
-        lat: Number(p.lat),
-        lng: Number(p.lng),
-        accuracyM: typeof p.accuracyM === 'number' ? p.accuracyM : null,
-        speedMps: typeof p.speedMps === 'number' ? p.speedMps : null,
-        capturedAt: p.capturedAt ? new Date(p.capturedAt) : new Date(),
-      }))
+      .map((p) => {
+        const parsed = p.capturedAt ? new Date(p.capturedAt) : new Date();
+        const capturedAt = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+        return {
+          tenantId: ctx.tenantId,
+          agentId: ctx.userId,
+          routeId: typeof p.routeId === 'string' ? p.routeId : null,
+          lat: Number(p.lat),
+          lng: Number(p.lng),
+          accuracyM: typeof p.accuracyM === 'number' ? p.accuracyM : null,
+          speedMps: typeof p.speedMps === 'number' ? p.speedMps : null,
+          capturedAt,
+          isMocked: p.isMocked === true,
+          isOnDuty: isOnDuty(capturedAt),
+        };
+      })
       .filter(
         (p) =>
           Number.isFinite(p.lat) &&
