@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LoanTrack — GPS · Loans · Mobile UX Audit &amp; Enterprise Enhancement Plan</title>
+<style>
+  :root {
+    --bg:#0f1117; --bg2:#161b27; --bg3:#1e2535; --border:#2a3348;
+    --text:#e2e8f0; --muted:#8892a4; --accent:#4f8ef7;
+    --green:#22c55e; --yellow:#f59e0b; --orange:#f97316; --red:#ef4444;
+    --purple:#a78bfa; --cyan:#22d3ee;
+    --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    --mono:'JetBrains Mono','Cascadia Code',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.7}
+  .layout{display:flex;min-height:100vh}
+  .sidebar{width:270px;min-width:270px;background:var(--bg2);border-right:1px solid var(--border);position:sticky;top:0;height:100vh;overflow-y:auto;padding:24px 0;flex-shrink:0}
+  .sidebar-logo{padding:0 20px 20px;border-bottom:1px solid var(--border);margin-bottom:16px}
+  .sidebar-logo h2{font-size:15px;color:var(--accent);font-weight:700}
+  .sidebar-logo p{font-size:11px;color:var(--muted);margin-top:2px}
+  .sidebar nav a{display:block;padding:6px 20px;color:var(--muted);text-decoration:none;font-size:12.5px;border-left:2px solid transparent;transition:all .15s}
+  .sidebar nav a:hover,.sidebar nav a.active{color:var(--text);border-left-color:var(--accent);background:rgba(79,142,247,.06)}
+  .sidebar nav .section-label{padding:12px 20px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+  .main{flex:1;padding:40px 48px;max-width:1100px}
+  .report-header{padding:40px;background:linear-gradient(135deg,#1a2540 0%,#0f1117 100%);border:1px solid var(--border);border-radius:12px;margin-bottom:40px}
+  .report-header .badge{display:inline-block;padding:3px 10px;background:rgba(79,142,247,.15);color:var(--accent);border:1px solid rgba(79,142,247,.3);border-radius:4px;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin-bottom:12px}
+  .report-header h1{font-size:26px;font-weight:800;color:#fff}
+  .report-header .meta{margin-top:12px;color:var(--muted);font-size:13px}
+  .report-header .meta span{margin-right:24px}
+  .report-header .meta strong{color:var(--text)}
+  .score-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:16px;margin-top:28px}
+  .score-card{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center}
+  .score-card .score-val{font-size:26px;font-weight:800;line-height:1}
+  .score-card .score-label{font-size:11px;color:var(--muted);margin-top:4px}
+  .score-card.red .score-val{color:var(--red)} .score-card.orange .score-val{color:var(--orange)}
+  .score-card.yellow .score-val{color:var(--yellow)} .score-card.green .score-val{color:var(--green)}
+  .score-card.blue .score-val{color:var(--accent)}
+  .section{margin-bottom:56px}
+  .section-header{display:flex;align-items:center;gap:12px;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+  .section-num{width:32px;height:32px;background:var(--accent);color:#fff;border-radius:8px;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .section-header h2{font-size:20px;font-weight:700;color:#fff}
+  h3{font-size:15px;font-weight:700;color:var(--text);margin:24px 0 12px}
+  h4{font-size:13px;font-weight:600;color:var(--muted);margin:16px 0 8px;text-transform:uppercase;letter-spacing:.06em}
+  p{color:var(--muted);margin-bottom:12px}
+  ul,ol{padding-left:22px;color:var(--muted);margin-bottom:12px}
+  li{margin-bottom:4px}
+  .table-wrap{overflow-x:auto;margin:16px 0;border-radius:8px;border:1px solid var(--border)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead{background:var(--bg3)}
+  th{padding:10px 14px;text-align:left;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--border)}
+  td{padding:10px 14px;border-bottom:1px solid rgba(42,51,72,.5);vertical-align:top;color:var(--text)}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:rgba(255,255,255,.02)}
+  .pill{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap}
+  .pill-red{background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3)}
+  .pill-orange{background:rgba(249,115,22,.15);color:#fb923c;border:1px solid rgba(249,115,22,.3)}
+  .pill-yellow{background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.3)}
+  .pill-green{background:rgba(34,197,94,.15);color:#4ade80;border:1px solid rgba(34,197,94,.3)}
+  .pill-blue{background:rgba(79,142,247,.15);color:#60a5fa;border:1px solid rgba(79,142,247,.3)}
+  .pill-purple{background:rgba(167,139,250,.15);color:#c4b5fd;border:1px solid rgba(167,139,250,.3)}
+  .pill-gray{background:rgba(136,146,164,.15);color:var(--muted);border:1px solid rgba(136,146,164,.3)}
+  .check{color:var(--green);font-weight:700} .cross{color:var(--red);font-weight:700} .warn{color:var(--yellow);font-weight:700}
+  code{font-family:var(--mono);font-size:12px;background:var(--bg3);border:1px solid var(--border);padding:1px 6px;border-radius:4px;color:var(--cyan)}
+  .alert{padding:14px 18px;border-radius:8px;margin:16px 0;display:flex;gap:12px;align-items:flex-start;font-size:13px}
+  .alert-icon{font-size:16px;flex-shrink:0;margin-top:1px}
+  .alert-red{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);color:#fca5a5}
+  .alert-orange{background:rgba(249,115,22,.08);border:1px solid rgba(249,115,22,.25);color:#fdba74}
+  .alert-yellow{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);color:#fde68a}
+  .alert-green{background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);color:#86efac}
+  .alert-blue{background:rgba(79,142,247,.08);border:1px solid rgba(79,142,247,.25);color:#93c5fd}
+  .action-list{list-style:none;padding:0}
+  .action-list li{display:flex;gap:12px;padding:12px 16px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;align-items:flex-start}
+  .action-list li .num{width:24px;height:24px;border-radius:6px;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .num-red{background:rgba(239,68,68,.2);color:#f87171}
+  .num-orange{background:rgba(249,115,22,.2);color:#fb923c}
+  .num-yellow{background:rgba(245,158,11,.2);color:#fbbf24}
+  .num-green{background:rgba(34,197,94,.2);color:#4ade80}
+  .action-list .content strong{color:var(--text);display:block;margin-bottom:2px;font-size:13px}
+  .action-list .content span{color:var(--muted);font-size:12px}
+  a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+  ::-webkit-scrollbar{width:6px;height:6px}
+  ::-webkit-scrollbar-track{background:var(--bg2)}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+  @media(max-width:900px){.sidebar{display:none}.main{padding:24px 20px}}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <h2>GPS · Loans · Mobile UX</h2>
+    <p>Audit &amp; Enterprise Plan · June 10, 2026</p>
+  </div>
+  <nav>
+    <div class="section-label">Overview</div>
+    <a href="#summary">Executive Summary</a>
+    <div class="section-label">Audits</div>
+    <a href="#s1">1. GPS Module Audit</a>
+    <a href="#s2">2. GPS Enhancements</a>
+    <a href="#s3">3. Loan Pages Audit</a>
+    <a href="#s4">4. Loan Advanced Features</a>
+    <a href="#s5">5. Mobile App UX Audit</a>
+    <a href="#s6">6. UX for Every User Grade</a>
+    <div class="section-label">Launch</div>
+    <a href="#s7">7. Enterprise Readiness</a>
+    <a href="#roadmap">8. Prioritized Roadmap</a>
+  </nav>
+</aside>
+
+<main class="main">
+
+<!-- ═══ HEADER ═══ -->
+<div class="report-header" id="summary">
+  <div class="badge">Deep-Dive Audit</div>
+  <h1>GPS · Loan Tracking · Mobile UX — Audit &amp; Enterprise Enhancement Plan</h1>
+  <div class="meta">
+    <span><strong>Date:</strong> June 10, 2026</span>
+    <span><strong>Branch:</strong> fix-10June-2026</span>
+    <span><strong>Scope:</strong> GPS module · Loan pages · Flutter app UX · Enterprise launch</span>
+  </div>
+  <div class="score-grid">
+    <div class="score-card green"><div class="score-val">B+</div><div class="score-label">GPS Core</div></div>
+    <div class="score-card yellow"><div class="score-val">C+</div><div class="score-label">GPS Web UI</div></div>
+    <div class="score-card green"><div class="score-val">B+</div><div class="score-label">Loan List</div></div>
+    <div class="score-card yellow"><div class="score-val">B−</div><div class="score-label">Loan Detail (Web)</div></div>
+    <div class="score-card green"><div class="score-val">A−</div><div class="score-label">Mobile UX Core</div></div>
+    <div class="score-card orange"><div class="score-val">9</div><div class="score-label">Enterprise Gaps</div></div>
+  </div>
+</div>
+
+<!-- ═══ SECTION 1 — GPS AUDIT ═══ -->
+<div class="section" id="s1">
+  <div class="section-header"><div class="section-num">1</div><h2>GPS Module — What Is Implemented</h2></div>
+
+  <div class="alert alert-green"><span class="alert-icon">✓</span>
+    <div>The GPS core is properly implemented end-to-end: capture → batch upload → verification → audit stamps. Verified against <code>lib/gps/locationVerifier.ts</code>, <code>lib/gps/routeProgress.ts</code>, 5 API routes under <code>app/api/v1/gps/</code>, and <code>mobile/lib/core/gps/</code>.</div>
+  </div>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>Capability</th><th>Status</th><th>Implementation</th></tr></thead>
+    <tbody>
+      <tr><td>Agent location pings (batch, 30s flush)</td><td><span class="check">✓</span></td><td><code>GpsPinger</code> buffers stream points, posts batches to <code>POST /api/v1/gps/ping</code>; re-buffers on failure (cap 200)</td></tr>
+      <tr><td>Battery-aware capture</td><td><span class="check">✓</span></td><td>One-shot reads by default; stream only during active collection with 20&nbsp;m distance filter</td></tr>
+      <tr><td>Permission flow</td><td><span class="check">✓</span></td><td><code>ensurePermission()</code> handles denied / denied-forever → opens app settings</td></tr>
+      <tr><td>Collection geo-stamp + verification</td><td><span class="check">✓</span></td><td>Haversine vs <code>CustomerGeocode</code> (falls back to customer lat/lng); statuses: verified / mismatch / unverifiable / denied / timeout</td></tr>
+      <tr><td>Distance-from-borrower stored per entry</td><td><span class="check">✓</span></td><td><code>collection_entries.distance_from_customer_m</code> + <code>location_status</code> — fraud audit trail</td></tr>
+      <tr><td>Live map (mobile admin)</td><td><span class="check">✓</span></td><td><code>agent_tracking_screen.dart</code> — flutter_map, auto-refresh, agent selection, date-filtered collections table</td></tr>
+      <tr><td>Live endpoint performance</td><td><span class="check">✓</span></td><td>Fixed this branch: single raw-SQL latest-ping-per-agent with 48&nbsp;h cutoff + composite index</td></tr>
+      <tr><td>Tenant gating</td><td><span class="check">✓</span></td><td><code>TenantSubscription.gpsTrackingEnabled</code> checked server-side on every GPS path</td></tr>
+      <tr><td>Route progress / alerts feed</td><td><span class="check">✓</span></td><td><code>getRouteProgressForBranch()</code> — per-agent path, collections, minutes-since-ping, alert list</td></tr>
+      <tr><td>Customer PIN confirmation at collection</td><td><span class="check">✓</span></td><td><code>customer_pin_confirmed</code> — second fraud factor alongside GPS</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Defects &amp; Weaknesses Found</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>Issue</th><th>Severity</th><th>Detail</th></tr></thead>
+    <tbody>
+      <tr><td>G1</td><td><strong>Web has no live map</strong></td><td><span class="pill pill-red">HIGH</span></td><td><code>route-tracker/page.tsx</code> renders tables only. The mobile admin app has a real map; web admins (the primary back-office persona) get coordinates as text. The <code>/api/v1/gps/live</code> endpoint already returns everything a map needs.</td></tr>
+      <tr><td>G2</td><td><strong>Mock-location (fake GPS) not detected</strong></td><td><span class="pill pill-red">HIGH</span></td><td>Agents can install a fake-GPS app and "stand" at the borrower's house. Geolocator exposes <code>Position.isMocked</code> on Android — it is never read or transmitted. This is the #1 GPS fraud vector in field collections.</td></tr>
+      <tr><td>G3</td><td><strong>Ping buffer is in-memory only</strong></td><td><span class="pill pill-orange">MED</span></td><td><code>GpsPinger._buffer</code> is a Dart list. App kill / crash / OS reclaim loses up to 30&nbsp;s of points plus the re-buffered backlog. Collections offline queue uses Hive; pings should too.</td></tr>
+      <tr><td>G4</td><td><strong>No ping retention policy</strong></td><td><span class="pill pill-orange">MED</span></td><td>50 agents × 1 ping/30s × 8h day ≈ 48k rows/day → 17M rows/year. No purge cron exists. Low-spec VPS will degrade.</td></tr>
+      <tr><td>G5</td><td><strong>Verification threshold hardcoded 500&nbsp;m</strong></td><td><span class="pill pill-yellow">LOW</span></td><td><code>DEFAULT_GPS_THRESHOLD_METRES = 500</code>. Urban tenants want 100–200&nbsp;m; rural tenants may need 1&nbsp;km. Should be an <code>AppSetting</code> (<code>gps_verify_threshold_m</code>).</td></tr>
+      <tr><td>G6</td><td><strong>No duty-hours / privacy window</strong></td><td><span class="pill pill-yellow">LOW</span></td><td>Pinger runs whenever a session is active. Tracking employees outside work hours is a labour-law exposure for enterprise clients. <code>is_on_duty</code> exists in the schema but is always <code>true</code>.</td></tr>
+      <tr><td>G7</td><td><strong>History endpoint has no UI</strong></td><td><span class="pill pill-yellow">LOW</span></td><td><code>GET /api/v1/gps/history/[id]</code> exists but neither web nor mobile renders a route replay/timeline.</td></tr>
+    </tbody>
+  </table></div>
+</div>
+
+<!-- ═══ SECTION 2 — GPS ENHANCEMENTS ═══ -->
+<div class="section" id="s2">
+  <div class="section-header"><div class="section-num">2</div><h2>GPS Enhancements for Enterprise</h2></div>
+
+  <h3>2.1 Web Live Map (closes G1)</h3>
+  <p>Add <code>app/(dashboard)/[module]/route-tracker/LiveMapClient.tsx</code> using <strong>Leaflet + OpenStreetMap</strong> (free, no API key, works on the existing VPS). Poll <code>/api/v1/gps/live</code> every 30&nbsp;s. Markers: green = online (&lt;5&nbsp;min), grey = last-known. Click marker → agent card with today's collections + "view route" link. Reuse the existing table below the map as the accessible fallback.</p>
+
+  <h3>2.2 Mock-Location Detection (closes G2)</h3>
+  <ul>
+    <li><strong>Mobile:</strong> include <code>isMocked: p.isMocked</code> in every ping and in the collection GPS payload.</li>
+    <li><strong>Schema:</strong> <code>AgentLocationPing.isMocked Boolean @default(false)</code>; new <code>LocationStatus</code> value <code>mock_location</code>.</li>
+    <li><strong>Server:</strong> if <code>isMocked</code> on a collection → set <code>location_status = 'mock_location'</code>, raise it in the route-tracker alerts column, and notify the branch admin via the existing notification pipeline.</li>
+    <li><strong>Hardening (phase 2):</strong> Play Integrity API check at login for rooted/emulator devices.</li>
+  </ul>
+
+  <h3>2.3 Durable Ping Queue (closes G3)</h3>
+  <p>Mirror the collection offline queue: persist the ping buffer to a Hive box (<code>gps_ping_queue</code>), flush on connectivity-restore using the existing <code>connectivity_plus</code> listener, cap at 1,000 entries FIFO.</p>
+
+  <h3>2.4 Retention Cron (closes G4)</h3>
+  <p>New cron <code>GET /api/cron/gps-purge</code> (CRON_SECRET + CronLock, same pattern as <code>nach-present</code>): delete <code>agent_location_pings</code> older than <code>gps_retention_days</code> (AppSetting, default 90). Keep collection geo-stamps forever — they are audit evidence; only raw movement pings expire.</p>
+
+  <h3>2.5 Config &amp; Privacy (closes G5, G6)</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>AppSetting key</th><th>Default</th><th>Effect</th></tr></thead>
+    <tbody>
+      <tr><td><code>gps_verify_threshold_m</code></td><td>500</td><td>Verified vs mismatch cut-off in <code>verifyGpsAgainstGeocode</code></td></tr>
+      <tr><td><code>gps_retention_days</code></td><td>90</td><td>Purge-cron horizon</td></tr>
+      <tr><td><code>gps_duty_start</code> / <code>gps_duty_end</code></td><td>08:00 / 20:00</td><td>Pinger refuses to start outside the window; pings outside are stamped <code>is_on_duty=false</code> and excluded from manager views</td></tr>
+      <tr><td><code>gps_ping_interval_s</code></td><td>30</td><td>Mobile flush interval — lets tenants trade battery vs granularity</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>2.6 Route Replay + Field Analytics (closes G7, new value)</h3>
+  <ul>
+    <li><strong>Route replay:</strong> web page that draws an agent's day as a polyline with timestamped collection pins (data already served by <code>/api/v1/gps/history/[id]</code>).</li>
+    <li><strong>Distance-travelled report:</strong> daily km per agent (sum of haversine between consecutive pings) — feeds fuel-allowance reconciliation, a real pain point for NBFC ops.</li>
+    <li><strong>Idle alerts:</strong> flag agents stationary &gt;45&nbsp;min during duty hours with pending route stops.</li>
+    <li><strong>Geofenced branch check-in:</strong> auto attendance when first ping of the day is within X&nbsp;m of the branch.</li>
+  </ul>
+</div>
+
+<!-- ═══ SECTION 3 — LOAN PAGES AUDIT ═══ -->
+<div class="section" id="s3">
+  <div class="section-header"><div class="section-num">3</div><h2>Loan Tracking Pages — Audit</h2></div>
+
+  <h3>Loan List (web) — solid</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Feature</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>Search + status/frequency filters, clear button</td><td><span class="check">✓</span></td></tr>
+      <tr><td>Sortable columns (whitelisted — no injection), direction toggle</td><td><span class="check">✓</span></td></tr>
+      <tr><td>Pagination with ellipsis, filter-preserving links</td><td><span class="check">✓</span></td></tr>
+      <tr><td>Progress bar, paid-vs-total, customer photo/initials</td><td><span class="check">✓</span></td></tr>
+      <tr><td>i18n dictionary + tenant currency symbol</td><td><span class="check">✓</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Loan Detail — feature inventory &amp; gaps</h3>
+  <div class="alert alert-orange"><span class="alert-icon">⚠</span>
+    <div><strong>Inversion found:</strong> the mobile loan detail screen has a Foreclosure flow and statement PDF, but the web <code>LoanDetailClient.tsx</code> (1,193 lines) has <em>no foreclosure UI</em> — even though <code>lib/foreclosure.ts</code> and <code>GET /api/loans/[id]/foreclosure-calc</code> exist and are tested. Web admins must use the API manually.</div>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Capability</th><th>Web</th><th>Mobile</th><th>Backend</th></tr></thead>
+    <tbody>
+      <tr><td>Instalment schedule + collect</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td></tr>
+      <tr><td>Penalties view + settle/waive</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td></tr>
+      <tr><td>Collateral details, credit-score gauge</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td></tr>
+      <tr><td>Statement (PDF)</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td></tr>
+      <tr><td><strong>Foreclosure / early settlement</strong></td><td><span class="cross">✗</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td></tr>
+      <tr><td><strong>e-NACH mandate panel</strong></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="check">✓</span> (built this branch)</td></tr>
+      <tr><td>Loan timeline / event audit trail</td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td>partial (audit logs exist, not loan-scoped UI)</td></tr>
+      <tr><td>Reschedule / restructure</td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td></tr>
+      <tr><td>Top-up loan</td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td></tr>
+      <tr><td>Write-off workflow (approval-gated)</td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td></tr>
+      <tr><td>SMA/NPA badge on loan header</td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="check">✓</span> (NPA service exists)</td></tr>
+    </tbody>
+  </table></div>
+</div>
+
+<!-- ═══ SECTION 4 — LOAN ADVANCED FEATURES ═══ -->
+<div class="section" id="s4">
+  <div class="section-header"><div class="section-num">4</div><h2>Loan Pages — Advanced Features to Add</h2></div>
+
+  <ol class="action-list">
+    <li><span class="num num-red">1</span><div class="content"><strong>Foreclosure UI on web loan detail</strong><span>Button → modal showing <code>foreclosure-calc</code> breakdown (outstanding principal, interest saved, fee) → confirm posts settlement. Backend done; ~1 day of UI. Parity with mobile.</span></div></li>
+    <li><span class="num num-red">2</span><div class="content"><strong>e-NACH panel on loan detail (web + mobile)</strong><span>Status chip (none / pending_auth / active / bounced), "Set up auto-debit" → mandate form, presentation history list, cancel action. All six APIs already live on this branch.</span></div></li>
+    <li><span class="num num-orange">3</span><div class="content"><strong>Loan timeline</strong><span>Vertical event feed on the detail page: disbursed → each collection (with GPS badge) → penalty → bounce → status change. Assembled from existing tables; no schema change. Makes disputes resolvable in one screen.</span></div></li>
+    <li><span class="num num-orange">4</span><div class="content"><strong>SMA/NPA risk badge + days-past-due counter</strong><span>Header chip: Standard / SMA-0/1/2 / Sub-standard, driven by the existing NPA service. The single most useful glance-signal for a lender.</span></div></li>
+    <li><span class="num num-orange">5</span><div class="content"><strong>Reschedule / restructure workflow</strong><span>New schedule preview (reuse <code>calculateLoanPreview</code>) + superadmin approval + old instalments marked <code>rescheduled</code> with a link to the new ones. RBI requires restructure flagging — store <code>restructuredAt</code> for NPA classification.</span></div></li>
+    <li><span class="num num-yellow">6</span><div class="content"><strong>Top-up loan</strong><span>"Top up" on an active loan with good repayment: closes or merges remaining principal into a new loan, links via <code>parentLoanId</code>. Common microfinance retention feature.</span></div></li>
+    <li><span class="num num-yellow">7</span><div class="content"><strong>Write-off workflow</strong><span>Approval-gated (two-level for large amounts — thresholds already exist in <code>AccountingSettings</code>), auto-posts JE Dr Bad-Debt / Cr Loan Receivable, keeps recovery tracking open.</span></div></li>
+    <li><span class="num num-yellow">8</span><div class="content"><strong>Bulk actions + CSV export on loan list</strong><span>Multi-select → bulk status change / assign agent / export. Export endpoint pattern already exists in accounting.</span></div></li>
+    <li><span class="num num-green">9</span><div class="content"><strong>Collection-probability hint</strong><span>Simple heuristic score per overdue loan (paid-ratio, days-overdue, bounce count) to rank the daily run sheet. No ML needed for v1.</span></div></li>
+  </ol>
+</div>
+
+<!-- ═══ SECTION 5 — MOBILE UX AUDIT ═══ -->
+<div class="section" id="s5">
+  <div class="section-header"><div class="section-num">5</div><h2>Mobile App — UX Audit</h2></div>
+
+  <div class="alert alert-green"><span class="alert-icon">✓</span>
+    <div>The Flutter app is feature-complete and structurally strong: 38+ routes, offline-first collections, 6 languages, biometric lock, voice assist scaffold. The previous audit's "no mobile accounting" finding is outdated — <code>features/accounting</code> (P&amp;L + bank-rec) shipped in the last merge.</div>
+  </div>
+
+  <h3>What's in place</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Area</th><th>Status</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Navigation</td><td><span class="check">✓</span></td><td>5-tab bottom nav (Home, Customers, Loans, Collection, More) + More grid for everything else — correct pattern for field apps</td></tr>
+      <tr><td>Offline-first collections</td><td><span class="check">✓</span></td><td>Hive queue, idempotency keys, pending/synced/failed lifecycle, dedicated Sync Status screen</td></tr>
+      <tr><td>Fast collection paths</td><td><span class="check">✓</span></td><td>QR-scan to find customer + quick-collect bottom sheet — minimal taps per entry</td></tr>
+      <tr><td>Languages</td><td><span class="check">✓</span></td><td>en / ta / hi / te / kn / ml enum, persisted choice, <code>T</code> lookup class</td></tr>
+      <tr><td>Security</td><td><span class="check">✓</span></td><td>Biometric lock screen, 2FA flow, JWT refresh rotation</td></tr>
+      <tr><td>Admin on the go</td><td><span class="check">✓</span></td><td>Users, branches, billing, module requests, live agent map, NPA, approvals, KYC review</td></tr>
+      <tr><td>Voice assist</td><td><span class="warn">~</span></td><td>SemanticsService only — speaks <em>only when TalkBack/VoiceOver is already on</em>. Not true TTS.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>UX gaps for "any grade of people"</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>Gap</th><th>Who it hurts</th><th>Severity</th></tr></thead>
+    <tbody>
+      <tr><td>U1</td><td><strong>No onboarding / first-run tour.</strong> No tutorial, coach marks, or sample-data walkthrough anywhere in the app.</td><td>New agents, low-tech-literacy staff</td><td><span class="pill pill-red">HIGH</span></td></tr>
+      <tr><td>U2</td><td><strong>Voice assist needs TalkBack pre-enabled</strong> — a setup step a low-literacy agent cannot self-serve. <code>flutter_tts</code> is explicitly noted as "not wired yet" in the code.</td><td>Low-literacy field agents</td><td><span class="pill pill-orange">MED</span></td></tr>
+      <tr><td>U3</td><td><strong>Translation coverage unverified.</strong> 6-language enum exists, but ta/hi/te/kn/ml string maps must be audited for completeness — untranslated keys silently fall back to English mid-screen.</td><td>Regional users</td><td><span class="pill pill-orange">MED</span></td></tr>
+      <tr><td>U4</td><td><strong>More screen is one long grid (742 lines)</strong> showing items by role but without grouping priority — an agent sees admin-ish noise; an owner hunts for Reports.</td><td>Everyone</td><td><span class="pill pill-yellow">LOW</span></td></tr>
+      <tr><td>U5</td><td><strong>No in-app help.</strong> No FAQ, no contact-support action, no "what does this status mean" tooltips.</td><td>New tenants during self-serve onboarding</td><td><span class="pill pill-orange">MED</span></td></tr>
+      <tr><td>U6</td><td><strong>No large-text / display-size setting.</strong> Relies on OS font scaling; layouts not audited for 1.3×+ scale overflow.</td><td>Older users, low-vision users</td><td><span class="pill pill-yellow">LOW</span></td></tr>
+      <tr><td>U7</td><td><strong>No crash/error telemetry</strong> (no Sentry/Crashlytics found) — UX failures in the field are invisible to you.</td><td>You, at launch</td><td><span class="pill pill-red">HIGH</span></td></tr>
+    </tbody>
+  </table></div>
+</div>
+
+<!-- ═══ SECTION 6 — UX FOR EVERY GRADE ═══ -->
+<div class="section" id="s6">
+  <div class="section-header"><div class="section-num">6</div><h2>Making It Usable by Every Grade of User</h2></div>
+
+  <p>Three personas drive the design targets: <strong>field agent</strong> (may be low-literacy, gloves, sunlight, 2G), <strong>branch manager / owner</strong> (numbers-first, often older), <strong>back-office accountant</strong> (desktop web).</p>
+
+  <h3>6.1 First-run onboarding (closes U1)</h3>
+  <ul>
+    <li>Role-aware 4-screen intro after first login (agent sees: scan QR → collect → sync; admin sees: dashboard → approve → track).</li>
+    <li>Coach-mark overlay on the collection screen the first 3 times (package: <code>showcaseview</code> — pure Dart, no native config).</li>
+    <li>"Practice mode" toggle for trainers: a sandbox customer + loan seeded per tenant so new agents can rehearse a collection without touching real books.</li>
+  </ul>
+
+  <h3>6.2 True voice guidance (closes U2)</h3>
+  <ul>
+    <li>Add <code>flutter_tts</code>; swap the body of <code>VoiceAssistController.speak()</code> — the call sites already exist, so this is a one-file change plus pubspec.</li>
+    <li>Speak: collection amount confirmation ("Collected ₹500 from Lakshmi — saved"), sync results, and validation errors, in the user's selected app language.</li>
+    <li>Numeric keypad with oversized keys on the quick-collect sheet (already a bottom sheet — increase touch targets to 56&nbsp;dp).</li>
+  </ul>
+
+  <h3>6.3 Language completeness (closes U3)</h3>
+  <ul>
+    <li>Add a CI script that diffs key sets across the 6 language maps in <code>app_strings.dart</code> and fails on missing keys.</li>
+    <li>Native-speaker review pass for Tamil and Hindi first (your active market), then te/kn/ml.</li>
+  </ul>
+
+  <h3>6.4 Simplicity controls (closes U4, U6)</h3>
+  <ul>
+    <li><strong>Simple mode</strong> (per-user toggle): agents get only Home / Collect / Customers / Sync — everything else hidden. One switch in Settings, persisted in Hive like the language choice.</li>
+    <li>Group the More grid into labelled sections: Daily Work · Money · Admin · Settings.</li>
+    <li>Text-size setting (0.9× / 1.0× / 1.15× / 1.3×) applied via <code>MediaQuery.textScaler</code> at app root; audit the 5 main screens at 1.3× for overflow.</li>
+    <li>High-contrast theme variant for sunlight readability (field agents work outdoors).</li>
+  </ul>
+
+  <h3>6.5 In-app help (closes U5)</h3>
+  <ul>
+    <li>"?" icon on the 5 core screens → bottom sheet with 3–5 illustrated steps (static assets, works offline).</li>
+    <li>Contact-support action: prefilled WhatsApp / phone deep-link using tenant's <code>support_phone</code> AppSetting.</li>
+    <li>Status-glossary sheet: what verified / mismatch / pending / bounced mean, in the selected language.</li>
+  </ul>
+
+  <h3>6.6 Telemetry (closes U7)</h3>
+  <ul>
+    <li>Add Sentry (Flutter + Next.js SDKs, self-hostable later): crashes, ANRs, slow API spans, with tenant + role tags (never PII).</li>
+    <li>Track 4 funnel events only: login success, collection submitted, sync failed, screen-load &gt; 3s. Enough to find field pain without building an analytics empire.</li>
+  </ul>
+</div>
+
+<!-- ═══ SECTION 7 — ENTERPRISE READINESS ═══ -->
+<div class="section" id="s7">
+  <div class="section-header"><div class="section-num">7</div><h2>Enterprise-Grade Launch Checklist</h2></div>
+
+  <div class="alert alert-blue"><span class="alert-icon">ℹ</span>
+    <div>Application-level security and performance items from the June 10 audit are <strong>done</strong> (branch <code>fix-10June-2026</code>). The remaining gaps are infrastructure and operational maturity — what enterprise procurement teams actually ask about.</div>
+  </div>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>Item</th><th>Current</th><th>Required for enterprise</th><th>Priority</th></tr></thead>
+    <tbody>
+      <tr><td>E1</td><td><strong>TLS / HTTPS</strong></td><td><span class="cross">✗</span> No SSL on the VPS (per deployment notes)</td><td>Let's Encrypt via nginx certbot, HSTS, redirect 80→443. <em>Blocking — no enterprise will sign without it, and Razorpay webhooks require HTTPS in live mode.</em></td><td><span class="pill pill-red">P0</span></td></tr>
+      <tr><td>E2</td><td><strong>Automated DB backups</strong></td><td>Unknown / manual</td><td>Nightly <code>mysqldump</code> → off-server (S3/Backblaze), 30-day retention, monthly restore drill. Document RPO 24h / RTO 4h.</td><td><span class="pill pill-red">P0</span></td></tr>
+      <tr><td>E3</td><td><strong>Error monitoring + uptime</strong></td><td><span class="cross">✗</span> None found</td><td>Sentry (web+mobile) + UptimeRobot/healthcheck endpoint + PM2 alerting. You cannot offer an SLA blind.</td><td><span class="pill pill-red">P0</span></td></tr>
+      <tr><td>E4</td><td><strong>Migration discipline</strong></td><td><span class="warn">~</span> <code>db push</code> used; <code>*.sql</code> gitignored hides migrations; schema drift documented in memory</td><td>Reconcile once: <code>migrate dev</code> baseline, un-ignore <code>prisma/migrations</code>, deploy via <code>migrate deploy</code> only. Fresh installs currently break.</td><td><span class="pill pill-orange">P1</span></td></tr>
+      <tr><td>E5</td><td><strong>CI pipeline</strong></td><td><span class="warn">~</span> Test scripts exist, nothing runs them on push</td><td>GitHub Actions: typecheck + <code>test:ci</code> + <code>prisma validate</code> + Flutter analyze on every PR. Also fix the pre-existing <code>isTenantTrialExpired</code> test failure so CI can be green.</td><td><span class="pill pill-orange">P1</span></td></tr>
+      <tr><td>E6</td><td><strong>Audit-log coverage</strong></td><td><span class="warn">~</span> Accounting has audit logs; loan/customer mutations partially covered</td><td>Uniform audit middleware: who/what/before/after for every mutating endpoint, 7-year retention (RBI norm), read-only viewer in admin.</td><td><span class="pill pill-orange">P1</span></td></tr>
+      <tr><td>E7</td><td><strong>Data protection (DPDP Act 2023)</strong></td><td><span class="warn">~</span> Aadhaar encrypted + masked (good); no retention/erasure policy</td><td>Privacy policy, consent text at KYC, customer-data export + erasure flow, processor list (Razorpay, Digio, Supabase, FCM).</td><td><span class="pill pill-orange">P1</span></td></tr>
+      <tr><td>E8</td><td><strong>Per-tenant data export / exit</strong></td><td><span class="cross">✗</span></td><td>One-click full export (customers, loans, ledger CSV + Tally XML — exports built this branch help). Enterprise contracts demand exit clauses.</td><td><span class="pill pill-yellow">P2</span></td></tr>
+      <tr><td>E9</td><td><strong>Load posture</strong></td><td>Single PM2 process, MySQL same host</td><td>Document tested ceiling (k6 run: 200 concurrent agents target); PM2 cluster mode ×2; slow-query log on. Settings cache added this branch already cuts hot-path reads ~95%.</td><td><span class="pill pill-yellow">P2</span></td></tr>
+    </tbody>
+  </table></div>
+</div>
+
+<!-- ═══ SECTION 8 — ROADMAP ═══ -->
+<div class="section" id="roadmap">
+  <div class="section-header"><div class="section-num">8</div><h2>Prioritized Roadmap</h2></div>
+
+  <h3>Week 1 — Launch blockers (P0)</h3>
+  <ol class="action-list">
+    <li><span class="num num-red">1</span><div class="content"><strong>TLS on VPS + HSTS</strong><span>certbot + nginx; switch Razorpay/Digio webhooks to https URLs (E1)</span></div></li>
+    <li><span class="num num-red">2</span><div class="content"><strong>Nightly off-server DB backup + restore test</strong><span>(E2)</span></div></li>
+    <li><span class="num num-red">3</span><div class="content"><strong>Sentry web + mobile, health endpoint, uptime monitor</strong><span>(E3, U7)</span></div></li>
+    <li><span class="num num-red">4</span><div class="content"><strong>Mock-location detection</strong><span>isMocked flag through ping + collection → alert (G2)</span></div></li>
+  </ol>
+
+  <h3>Weeks 2–3 — High-value product (P1)</h3>
+  <ol class="action-list">
+    <li><span class="num num-orange">5</span><div class="content"><strong>Web live map + route replay</strong><span>Leaflet/OSM on route-tracker; history polyline (G1, G7)</span></div></li>
+    <li><span class="num num-orange">6</span><div class="content"><strong>Foreclosure UI (web) + e-NACH panel on loan detail</strong><span>backends exist (Loan #1, #2)</span></div></li>
+    <li><span class="num num-orange">7</span><div class="content"><strong>Loan timeline + SMA/NPA badge</strong><span>(Loan #3, #4)</span></div></li>
+    <li><span class="num num-orange">8</span><div class="content"><strong>Migration baseline + GitHub Actions CI</strong><span>(E4, E5)</span></div></li>
+    <li><span class="num num-orange">9</span><div class="content"><strong>flutter_tts voice + onboarding tour + in-app help</strong><span>(U1, U2, U5)</span></div></li>
+    <li><span class="num num-orange">10</span><div class="content"><strong>GPS settings + retention cron + durable ping queue</strong><span>(G3, G4, G5, G6)</span></div></li>
+  </ol>
+
+  <h3>Month 2 — Enterprise polish (P2)</h3>
+  <ol class="action-list">
+    <li><span class="num num-yellow">11</span><div class="content"><strong>Reschedule / top-up / write-off workflows</strong><span>(Loan #5, #6, #7)</span></div></li>
+    <li><span class="num num-yellow">12</span><div class="content"><strong>Simple mode + text-size + high-contrast + language CI check</strong><span>(U3, U4, U6)</span></div></li>
+    <li><span class="num num-yellow">13</span><div class="content"><strong>Uniform audit-log middleware + viewer</strong><span>(E6)</span></div></li>
+    <li><span class="num num-yellow">14</span><div class="content"><strong>DPDP pack: consent, export, erasure</strong><span>(E7, E8)</span></div></li>
+    <li><span class="num num-yellow">15</span><div class="content"><strong>k6 load test + PM2 cluster + distance-travelled / idle-alert analytics</strong><span>(E9, GPS 2.6)</span></div></li>
+  </ol>
+
+  <div class="alert alert-green"><span class="alert-icon">✓</span>
+    <div><strong>Bottom line:</strong> GPS core, loan operations, and the mobile app are genuinely good — better than typical mid-market NBFC software. The four P0 items (TLS, backups, monitoring, fake-GPS detection) are the only things standing between the current build and a defensible enterprise launch. Everything else on this list is competitive advantage, not survival.</div>
+  </div>
+</div>
+
+</main>
+</div>
+
+<script>
+  const links=[...document.querySelectorAll('.sidebar nav a')];
+  const targets=links.map(a=>document.querySelector(a.getAttribute('href'))).filter(Boolean);
+  const onScroll=()=>{let cur=targets[0];for(const t of targets){if(t.getBoundingClientRect().top<120)cur=t}
+    links.forEach(a=>a.classList.toggle('active',a.getAttribute('href')==='#'+cur.id))};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+</script>
+</body>
+</html>
