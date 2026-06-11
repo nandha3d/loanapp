@@ -253,6 +253,27 @@ export default function UsersClient({
     });
   }
 
+  // Manual email-verification fallback (developer only): when the activation
+  // email never arrives, a developer can flip a pending account to active —
+  // same end-state as clicking the verification link.
+  const [verifying, setVerifying] = useState<string | null>(null);
+  async function handleVerifyActivate(userId: string, name: string) {
+    if (!confirm(`Manually verify & activate "${name}"? This is the same as confirming their email.`)) return;
+    setVerifying(userId);
+    try {
+      const res = await toggleUserStatus(userId, 'active');
+      if (res?.success) {
+        router.refresh();
+      } else {
+        alert('Could not activate this account.');
+      }
+    } catch {
+      alert('Network error while activating.');
+    } finally {
+      setVerifying(null);
+    }
+  }
+
   async function handleImpersonate(superadminId: string, name: string) {
     setImpersonating(superadminId);
     try {
@@ -341,11 +362,25 @@ export default function UsersClient({
               : 'Manage tenant owners, branch teams, module access, and subscription limits.'}
           </p>
         </div>
-        <div className="header-actions">
+        <div className="header-actions" style={{ display: 'flex', gap: '8px' }}>
           {viewingSuperadminId && viewerRole === 'developer' ? (
-            <button className="btn btn-ghost" onClick={() => setViewingSuperadminId(null)}>
-              <span className="material-icons-outlined">arrow_back</span> Back to List
-            </button>
+            <>
+              {activeSuperadmin && activeSuperadmin.status !== 'active' && (
+                <button
+                  className="btn btn-primary"
+                  style={{ background: 'var(--success)', borderColor: 'var(--success)' }}
+                  disabled={verifying === activeSuperadmin.id}
+                  onClick={() => handleVerifyActivate(activeSuperadmin.id, activeSuperadmin.name)}
+                  title="Manually verify this account (email-fallback)"
+                >
+                  <span className="material-icons-outlined">verified_user</span>
+                  {verifying === activeSuperadmin.id ? 'Activating…' : 'Manually Verify & Activate'}
+                </button>
+              )}
+              <button className="btn btn-ghost" onClick={() => setViewingSuperadminId(null)}>
+                <span className="material-icons-outlined">arrow_back</span> Back to List
+              </button>
+            </>
           ) : (
             <button className="btn btn-primary" onClick={handleOpenNew}>
               <span className="material-icons-outlined">add</span> New User
@@ -456,6 +491,20 @@ export default function UsersClient({
                     </td>
                     <td style={{ textAlign: 'right', paddingRight: '24px' }}>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        {viewerRole === 'developer' && superadmin.status !== 'active' && (
+                          <button
+                            className="btn btn-sm"
+                            style={{ background: 'var(--success)', color: '#fff', border: 'none', gap: '4px' }}
+                            disabled={verifying === superadmin.id}
+                            onClick={(e) => { e.stopPropagation(); handleVerifyActivate(superadmin.id, superadmin.name); }}
+                            title="Manually verify & activate (email-fallback)"
+                          >
+                            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>
+                              {verifying === superadmin.id ? 'hourglass_top' : 'verified_user'}
+                            </span>
+                            {verifying === superadmin.id ? 'Activating…' : 'Verify'}
+                          </button>
+                        )}
                         {viewerRole === 'developer' && (
                           <button
                             className="btn btn-sm"
