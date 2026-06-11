@@ -49,8 +49,23 @@ class AuthController extends StateNotifier<AuthState> {
     if (user == null) {
       state = const AuthState(stage: AuthStage.unauthenticated);
     } else {
-      state = AuthState(stage: AuthStage.locked, user: user);
+      // Only gate behind the lock screen when the device can actually show a
+      // biometric prompt — otherwise it just flashes and auto-unlocks.
+      final canLock = await _canUseBiometrics();
+      state = AuthState(
+        stage: canLock ? AuthStage.locked : AuthStage.authenticated,
+        user: user,
+      );
       _fcm.startTokenSync();
+    }
+  }
+
+  Future<bool> _canUseBiometrics() async {
+    try {
+      return await _localAuth.isDeviceSupported() &&
+          await _localAuth.canCheckBiometrics;
+    } on Object {
+      return false;
     }
   }
 
@@ -158,7 +173,9 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   Future<void> lock() async {
-    if (state.stage == AuthStage.authenticated) {
+    // Locking without a biometric prompt available would just flash the lock
+    // screen and auto-unlock — skip it entirely.
+    if (state.stage == AuthStage.authenticated && await _canUseBiometrics()) {
       state = state.copyWith(stage: AuthStage.locked);
     }
   }

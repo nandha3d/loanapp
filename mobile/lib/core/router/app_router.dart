@@ -15,6 +15,7 @@ import 'package:loantrack/features/admin/tracking/agent_tracking_screen.dart';
 import 'package:loantrack/features/auth/forgot_password_screen.dart';
 import 'package:loantrack/features/auth/login_screen.dart';
 import 'package:loantrack/features/auth/registration_screen.dart';
+import 'package:loantrack/features/auth/splash_screen.dart';
 import 'package:loantrack/features/auth/totp_screen.dart';
 import 'package:loantrack/features/chits/chits_screen.dart';
 import 'package:loantrack/features/collection/collection_screen.dart';
@@ -82,12 +83,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final loc = state.matchedLocation;
       final stage = auth.stage;
 
-      if (stage == AuthStage.unknown) return null;
+      // Session bootstrap in progress → branded splash, never a flash of the
+      // login or dashboard screens.
+      if (stage == AuthStage.unknown) {
+        return loc == '/splash' ? null : '/splash';
+      }
 
       final atLogin = loc == '/login';
       final atRegister = loc == '/register';
       final atTotp = loc == '/2fa';
       final atLock = loc == '/lock';
+      final atSplash = loc == '/splash';
 
       if (stage == AuthStage.unauthenticated) {
         if (atRegister) return null;
@@ -102,7 +108,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // Authenticated redirect.
       final user = auth.user;
       if (user != null) {
-        if (atLogin || atRegister || atTotp || atLock || loc == '/') {
+        if (atLogin || atRegister || atTotp || atLock || atSplash || loc == '/') {
           if (user.role == UserRole.developer) return '/admin';
           if (user.role == UserRole.superadmin || user.role == UserRole.admin) {
             return '/portal';
@@ -150,6 +156,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(path: '/2fa', builder: (_, __) => const TotpScreen()),
+      GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),
       GoRoute(path: '/lock', builder: (_, __) => const BiometricLockScreen()),
       GoRoute(path: '/dashboard', builder: (_, __) => const DashboardScreen()),
       GoRoute(path: '/admin', builder: (_, __) => const DeveloperAdminScreen()),

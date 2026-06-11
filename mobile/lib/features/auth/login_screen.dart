@@ -25,6 +25,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   final _username = TextEditingController();
   final _password = TextEditingController();
   bool _obscure = true;
+  bool _submitting = false;
   late final AnimationController _fade = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 400),
@@ -39,13 +40,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   Future<void> _submit() async {
-    await ref.read(authControllerProvider.notifier).login(
-          _username.text.trim(),
-          _password.text,
-        );
+    if (_submitting) return;
+    setState(() => _submitting = true);
+    try {
+      await ref.read(authControllerProvider.notifier).login(
+            _username.text.trim(),
+            _password.text,
+          );
+    } finally {
+      // On success the router redirects away; only reset if still mounted
+      // (i.e. login failed and the screen is still visible).
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   Future<void> _handleGoogleSignIn() async {
+    if (_submitting) return;
+    setState(() => _submitting = true);
     try {
       // serverClientId = the Web OAuth client (client_type 3) from
       // google-services.json. Required on Android so account.authentication
@@ -88,13 +99,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           SnackBar(content: Text('Google Sign-In failed: $e')),
         );
       }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authControllerProvider);
-    final loading = auth.stage == AuthStage.unknown;
+    // Spinner while the login request is in flight (or session bootstrap).
+    // stage==authenticated means we're about to be redirected away — keep
+    // spinning instead of flashing an idle login form.
+    final loading = _submitting ||
+        auth.stage == AuthStage.unknown ||
+        auth.stage == AuthStage.authenticated;
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
