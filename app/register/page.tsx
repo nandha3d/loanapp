@@ -55,9 +55,6 @@ function RegisterForm() {
   const [ownerEmail, setOwnerEmail] = useState(googleEmail || '');
   const [phoneError, setPhoneError] = useState('');
   const [emailError, setEmailError] = useState('');
-  const [ownerUsername, setOwnerUsername] = useState(
-    googleEmail ? googleEmail.split('@')[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase() : ''
-  );
   const [ownerPassword, setOwnerPassword] = useState('');
   const [availability, setAvailability] = useState<AvailabilityState>({
     username: emptyAvailabilityField,
@@ -122,8 +119,10 @@ function RegisterForm() {
   }, []);
 
   useEffect(() => {
-    const username = ownerUsername.trim();
-    const phone = ownerPhone.trim();
+    // Phone number doubles as the default login username, so check both.
+    const phoneResult = validateIndianMobile(ownerPhone);
+    const phone = phoneResult.ok ? phoneResult.value : ownerPhone.trim();
+    const username = phone;
     const email = (googleEmail || ownerEmail).trim();
     const params = new URLSearchParams();
     if (username) params.set('username', username);
@@ -178,7 +177,7 @@ function RegisterForm() {
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [googleEmail, ownerEmail, ownerPhone, ownerUsername]);
+  }, [googleEmail, ownerEmail, ownerPhone]);
 
   const handleModuleToggle = (moduleKey: string) => {
     if (selectedModules.includes(moduleKey)) {
@@ -223,7 +222,7 @@ function RegisterForm() {
 
   const handleNext = () => {
     if (step === 1) {
-      if (!businessName || !ownerName || !ownerPhone || !ownerUsername || (!isGoogleRegister && !ownerPassword)) {
+      if (!businessName || !ownerName || !ownerPhone || (!isGoogleRegister && !ownerPassword)) {
         setError('Please fill in all owner and business details.');
         return;
       }
@@ -332,7 +331,6 @@ function RegisterForm() {
             ownerName,
             ownerPhone,
             ownerEmail,
-            ownerUsername,
             ownerPassword,
             selectedPlan,
             selectedModules,
@@ -384,7 +382,7 @@ function RegisterForm() {
           await signIn('google', { callbackUrl: '/portal' });
         }
       } else {
-        router.push(`/login?registerPending=1&username=${encodeURIComponent(ownerUsername)}`);
+        router.push(`/login?registerPending=1&username=${encodeURIComponent(data.username || ownerPhone)}`);
       }
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred');
@@ -501,11 +499,19 @@ function RegisterForm() {
                     required
                   />
                   {phoneError && <small style={{ color: 'var(--danger)', fontSize: '0.75rem' }}>{phoneError}</small>}
-                  {!phoneError && availability.phone.checking && (
+                  {!phoneError && (availability.phone.checking || availability.username.checking) && (
                     <small style={{ color: 'var(--text-light)', fontSize: '0.75rem' }}>Checking phone number...</small>
                   )}
                   {!phoneError && availability.phone.available === false && (
                     <small style={{ color: 'var(--danger)', fontSize: '0.75rem' }}>{availability.phone.message}</small>
+                  )}
+                  {!phoneError && availability.phone.available !== false && availability.username.available === false && (
+                    <small style={{ color: 'var(--danger)', fontSize: '0.75rem' }}>{availability.username.message}</small>
+                  )}
+                  {!phoneError && !availability.phone.checking && !availability.username.checking && availability.phone.available !== false && availability.username.available !== false && (
+                    <small style={{ color: 'var(--text-light)', fontSize: '0.75rem' }}>
+                      Your phone number is also your login username.
+                    </small>
                   )}
                 </div>
               </div>
@@ -537,38 +543,19 @@ function RegisterForm() {
                 </div>
               )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: isGoogleRegister ? '1fr' : '1fr 1fr', gap: '16px' }}>
+              {!isGoogleRegister && (
                 <div className="form-group">
-                  <label className="form-label">Owner Login Username</label>
+                  <label className="form-label">Login Password</label>
                   <input
-                    type="text"
+                    type="password"
                     className="form-control"
-                    placeholder="Choose login username"
-                    value={ownerUsername}
-                    onChange={(e) => setOwnerUsername(e.target.value)}
+                    placeholder="Choose password"
+                    value={ownerPassword}
+                    onChange={(e) => setOwnerPassword(e.target.value)}
                     required
                   />
-                  {availability.username.checking && (
-                    <small style={{ color: 'var(--text-light)', fontSize: '0.75rem' }}>Checking username...</small>
-                  )}
-                  {availability.username.available === false && (
-                    <small style={{ color: 'var(--danger)', fontSize: '0.75rem' }}>{availability.username.message}</small>
-                  )}
                 </div>
-                {!isGoogleRegister && (
-                  <div className="form-group">
-                    <label className="form-label">Login Password</label>
-                    <input
-                      type="password"
-                      className="form-control"
-                      placeholder="Choose password"
-                      value={ownerPassword}
-                      onChange={(e) => setOwnerPassword(e.target.value)}
-                      required
-                    />
-                  </div>
-                )}
-              </div>
+              )}
             </div>
           )}
 
@@ -758,7 +745,7 @@ function RegisterForm() {
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ color: 'var(--text-secondary)' }}>Owner Profile</div>
                       <strong style={{ display: 'block', fontSize: '0.95rem', marginTop: '2px' }}>{ownerName}</strong>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>@{ownerUsername} • {ownerPhone}</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{ownerPhone} (login username)</span>
                     </div>
                   </div>
 

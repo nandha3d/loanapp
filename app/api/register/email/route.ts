@@ -34,8 +34,8 @@ export async function POST(request: Request) {
       referralCode
     } = body;
 
-    // Validate fields
-    if (!businessName || !ownerName || !ownerPhone || !ownerUsername || !ownerPassword || !selectedPlan) {
+    // Validate fields (username is optional — defaults to the phone number)
+    if (!businessName || !ownerName || !ownerPhone || !ownerPassword || !selectedPlan) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
         { status: 400 }
@@ -52,7 +52,10 @@ export async function POST(request: Request) {
     }
     const email = emailCheck.value;
     const phone = phoneCheck.value;
-    const username = ownerUsername.trim().toLowerCase();
+    // Phone number doubles as the default login username.
+    const username = (typeof ownerUsername === 'string' && ownerUsername.trim())
+      ? ownerUsername.trim().toLowerCase()
+      : phone;
 
     const conflicts = await findUserUniqueConflicts({ username, phone, email });
     if (conflicts.length > 0) {
@@ -244,7 +247,7 @@ export async function POST(request: Request) {
             data: {
               affiliateId: affiliate.id,
               referredTenantId: tenant.id,
-              referredEmail: user.email || ownerUsername + '@' + tenant.slug + '.com',
+              referredEmail: user.email || username + '@' + tenant.slug + '.com',
               status: 'signup'
             }
           });
@@ -287,13 +290,19 @@ export async function POST(request: Request) {
       const target = err.meta?.target || '';
       if (target.includes('username')) {
         return NextResponse.json(
-          { success: false, error: 'Username is already taken by another account.' },
+          { success: false, error: 'This username already exists.' },
           { status: 409 }
         );
       }
       if (target.includes('phone')) {
         return NextResponse.json(
-          { success: false, error: 'Phone number is already registered.' },
+          { success: false, error: 'This phone number already exists.' },
+          { status: 409 }
+        );
+      }
+      if (target.includes('email')) {
+        return NextResponse.json(
+          { success: false, error: 'This email already exists.' },
           { status: 409 }
         );
       }

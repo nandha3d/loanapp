@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { generateTenantSlug } from '@/lib/slug';
 import { calculateVerticalSubscriptionPricing, normalizeSelectedModules } from '@/lib/pricing';
+import { validateIndianMobile } from '@/lib/validation/contact';
+import { findUserUniqueConflicts } from '@/lib/userUniqueness';
 
 export async function POST(request: Request) {
   try {
@@ -83,23 +85,31 @@ export async function POST(request: Request) {
       );
     }
 
-    // ── 2. Check if user already exists in any tenant with this email or googleId ──
+    const phoneCheck = validateIndianMobile(ownerPhone);
+    if (!phoneCheck.ok) {
+      return NextResponse.json({ success: false, error: phoneCheck.error }, { status: 400 });
+    }
+    const phone = phoneCheck.value;
+    // Phone number doubles as the default login username.
+    const username = phone;
+
+    // ── 2. Reject duplicates with a field-specific message ──
+    const conflicts = await findUserUniqueConflicts({ username, phone, email });
+    if (conflicts.length > 0) {
+      return NextResponse.json({ success: false, error: conflicts[0].message }, { status: 409 });
+    }
+
     const existingUser = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { googleId },
-          { email }
-        ]
-      },
+      where: { googleId },
       select: { id: true, tenant: { select: { slug: true } } }
     });
 
     if (existingUser) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: 'An account with this email/Google account is already registered.',
-          existingTenantSlug: existingUser.tenant.slug 
+        {
+          success: false,
+          error: 'An account with this Google account is already registered.',
+          existingTenantSlug: existingUser.tenant.slug
         },
         { status: 409 }
       );
@@ -135,10 +145,6 @@ export async function POST(request: Request) {
         addonsPrice
       ));
     }
-
-    // Generate unique username from email prefix (e.g. karthik from karthik@gmail.com)
-    let username = email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-    if (!username) username = 'user';
 
     // Run transaction
     const result = await prisma.$transaction(async (tx) => {
@@ -210,7 +216,7 @@ export async function POST(request: Request) {
           tenantId: tenant.id,
           branchId: branch.id,
           name,
-          phone: ownerPhone,
+          phone,
           email,
           username,
           googleId,
@@ -317,7 +323,13 @@ export async function POST(request: Request) {
       const target = err.meta?.target || '';
       if (target.includes('phone')) {
         return NextResponse.json(
-          { success: false, error: 'Phone number is already registered.' },
+          { success: false, error: 'This phone number already exists.' },
+          { status: 409 }
+        );
+      }
+      if (target.includes('email')) {
+        return NextResponse.json(
+          { success: false, error: 'This email already exists.' },
           { status: 409 }
         );
       }
