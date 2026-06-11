@@ -38,7 +38,13 @@ export default function AppSelectorClient({
         position: 'absolute', top: '24px', right: '32px',
       }}>
         <button
-          onClick={() => signOut({ callbackUrl: window.location.origin + '/login' })}
+          onClick={async () => {
+            // redirect:false + manual navigation keeps logout on the current
+            // domain (custom tenant domains would otherwise bounce to the root
+            // SaaS host).
+            await signOut({ redirect: false });
+            window.location.href = '/login';
+          }}
           style={{
             background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
             color: '#fff', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer',

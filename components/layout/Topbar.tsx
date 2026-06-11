@@ -222,7 +222,13 @@ export default function Topbar({
           className="btn btn-ghost btn-sm"
           title="Logout"
           suppressHydrationWarning
-          onClick={() => signOut({ callbackUrl: window.location.origin + '/login' })}
+          onClick={async () => {
+            // redirect:false + manual navigation keeps logout on the current
+            // domain (custom tenant domains would otherwise bounce to the root
+            // SaaS host).
+            await signOut({ redirect: false });
+            window.location.href = '/login';
+          }}
         >
           <span className="material-icons-outlined" style={{ fontSize: '20px' }}>logout</span>
         </button>

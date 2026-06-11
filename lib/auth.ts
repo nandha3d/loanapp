@@ -351,6 +351,50 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
     }),
   ],
   callbacks: {
+    // Multi-domain SaaS: sign-in/sign-out happens on tenant subdomains and
+    // registered custom domains. The default same-origin check compares against
+    // NEXTAUTH_URL (the root SaaS host), so a logout on a client domain would
+    // bounce the browser to the root host — where a different session (e.g. the
+    // developer account) may still be active. Allow the root domain, its
+    // subdomains, and any tenant-claimed custom domain; everything else falls
+    // back to baseUrl.
+    async redirect({ url, baseUrl }: any) {
+      if (url.startsWith('/')) return `${baseUrl}${url}`;
+      try {
+        const target = new URL(url);
+        if (target.origin === baseUrl) return url;
+        if (target.protocol !== 'https:' && target.protocol !== 'http:') return baseUrl;
+
+        const hostname = target.hostname.toLowerCase();
+        const rootDomain = (
+          process.env.NEXT_PUBLIC_ROOT_DOMAIN || process.env.APP_ROOT_DOMAIN || ''
+        ).toLowerCase().split(':')[0];
+        if (rootDomain && (hostname === rootDomain || hostname.endsWith(`.${rootDomain}`))) {
+          return url;
+        }
+
+        // Explicitly configured standalone client domains (comma-separated,
+        // e.g. "loan.samuraibuiness.in"). Covers domains routed to this app
+        // before any tenant has claimed them (pre-registration), without
+        // opening redirects to arbitrary hosts.
+        const standaloneDomains = (process.env.STANDALONE_DOMAINS || '')
+          .toLowerCase()
+          .split(',')
+          .map((d) => d.trim().split(':')[0])
+          .filter(Boolean);
+        if (standaloneDomains.includes(hostname)) return url;
+
+        const prisma = (await import('./db')).default;
+        const tenant = await prisma.tenant.findUnique({
+          where: { customDomain: hostname },
+          select: { id: true },
+        });
+        if (tenant) return url;
+      } catch (err) {
+        console.error('[AUTH_REDIRECT_CALLBACK_ERROR]', err);
+      }
+      return baseUrl;
+    },
     async signIn({ user, account }: any) {
       if (account?.provider === 'google') {
         try {
