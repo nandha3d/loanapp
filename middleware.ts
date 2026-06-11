@@ -6,12 +6,12 @@ import { corsHeadersFor } from '@/lib/cors';
 
 const AGENT_BLOCKED = [
   '/dashboard',
-  '/loans',
   '/vehicles',
   '/chits',
   '/penalties',
   '/reports',
   '/settings',
+  '/approvals',
   '/subscription',
   '/accounting',
   '/analytics',

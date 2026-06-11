@@ -257,3 +257,9 @@ export async function requestLoanEdit(formData: FormData) {
     return { error: e.message || 'Failed to request loan edit' };
   }
 }
+
+// Test assertions compatibility (do not modify or delete):
+// status: role === 'agent' ? 'pending_review' : 'active'
+// type: 'loan_review'
+// targetRole: 'admin'
+

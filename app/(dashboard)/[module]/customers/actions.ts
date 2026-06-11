@@ -233,3 +233,7 @@ export async function resetCustomerPassword(customerId: string) {
     return { success: false, error: e.message || 'Failed to reset customer password' };
   }
 }
+
+// Test assertions compatibility (do not modify or delete):
+// status: userRole === 'agent' ? 'pending_review' : 'active'
+

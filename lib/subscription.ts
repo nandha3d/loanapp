@@ -14,7 +14,7 @@ export type TenantSubscriptionAccess = {
 // never trial-gated. Applies to ANY plan that carries a trialEndsAt — not just
 // the internal `trial` plan.
 export function isTenantTrialExpired(sub: TenantSubscriptionAccess | null | undefined, now = new Date()): boolean {
-  if (!sub || !sub.trialEndsAt) return false;
+  if (!sub || !sub.trialEndsAt || sub.plan !== 'trial') return false;
   if (new Date(sub.trialEndsAt).getTime() >= now.getTime()) return false; // still in trial
   const periodEnd = sub.currentPeriodEnd ? new Date(sub.currentPeriodEnd).getTime() : 0;
   return periodEnd < now.getTime(); // trial over AND no active paid period
