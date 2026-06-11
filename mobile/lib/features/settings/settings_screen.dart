@@ -165,6 +165,31 @@ class SettingsScreen extends ConsumerWidget {
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(
+                      Icons.manage_accounts_outlined,
+                      color: AppColors.primary,
+                    ),
+                    title: Text(
+                      'Users & Agents',
+                      style: AppTypography.bodyLarge,
+                    ),
+                    subtitle: Text(
+                      'Create and manage team accounts',
+                      style: AppTypography.caption,
+                    ),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      color: AppColors.textLight,
+                    ),
+                    onTap: () => context.push(
+                      user?.role == UserRole.developer
+                          ? '/admin/users'
+                          : '/admin/team',
+                    ),
+                  ),
+                  const Divider(height: 1, color: AppColors.border),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
                       Icons.bolt_outlined,
                       color: AppColors.primary,
                     ),

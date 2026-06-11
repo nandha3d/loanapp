@@ -16,7 +16,20 @@ export async function GET(req: NextRequest) {
     return fail('User not found', 404);
   }
 
+  // Verticals the tenant subscribed to (microlending/autofinance/chitfunds/
+  // goldloan) — drives the mobile portal module cards, mirroring web /portal.
+  const subscription = await prisma.tenantSubscription.findUnique({
+    where: { tenantId: user.tenantId },
+    select: { enabledModules: true },
+  });
+  let verticals: string[] = [];
+  try {
+    const parsed = JSON.parse(subscription?.enabledModules || '[]');
+    if (Array.isArray(parsed)) verticals = parsed.filter((m) => typeof m === 'string');
+  } catch { /* malformed JSON → empty list */ }
+
   return ok({
+    verticals,
     id: user.id,
     name: user.name,
     phone: user.phone,
