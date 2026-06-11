@@ -229,7 +229,7 @@ class _LoginCard extends ConsumerWidget {
                   color: AppColors.primaryLight,
                   borderRadius: BorderRadius.circular(AppTokens.radiusKpiIcon),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.currency_rupee,
                   color: AppColors.primary,
                   size: 24,
@@ -239,7 +239,7 @@ class _LoginCard extends ConsumerWidget {
               RichText(
                 text: TextSpan(
                   style: AppTypography.display,
-                  children: const [
+                  children: [
                     TextSpan(
                       text: 'Loan',
                       style: TextStyle(color: AppColors.textPrimary),
@@ -350,7 +350,7 @@ class _LoginCard extends ConsumerWidget {
                 ),
                 GestureDetector(
                   onTap: () => context.push('/register'),
-                  child: const Text(
+                  child: Text(
                     'Register Business',
                     style: TextStyle(
                       color: AppColors.primary,

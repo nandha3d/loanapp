@@ -1043,7 +1043,7 @@ class _CompanySection extends StatelessWidget {
                         width: 48,
                         height: 48,
                         color: AppColors.primaryLight,
-                        child: const Icon(Icons.business, color: AppColors.primary),
+                        child: Icon(Icons.business, color: AppColors.primary),
                       ),
                     ),
                   ),
@@ -1122,12 +1122,12 @@ class _SecurityChequesSection extends ConsumerWidget {
                   Container(
                     width: 36,
                     height: 36,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       color: AppColors.primaryLight,
                       shape: BoxShape.circle,
                     ),
                     alignment: Alignment.center,
-                    child: const Icon(
+                    child: Icon(
                       Icons.account_balance_wallet_outlined,
                       color: AppColors.primary,
                       size: 18,

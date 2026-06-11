@@ -145,7 +145,7 @@ class _AffiliateAdminScreenState extends ConsumerState<AffiliateAdminScreen> wit
                                 children: [
                                   Text('Affiliate Settings', style: AppTypography.nameLg.copyWith(fontSize: 16)),
                                   IconButton(
-                                    icon: const Icon(Icons.edit_outlined, color: AppColors.primary, size: 20),
+                                    icon: Icon(Icons.edit_outlined, color: AppColors.primary, size: 20),
                                     onPressed: () => _showConfigSheet(context, config),
                                   ),
                                 ],
@@ -398,7 +398,7 @@ class _AffiliateAdminScreenState extends ConsumerState<AffiliateAdminScreen> wit
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.done_all, color: AppColors.primary),
+                leading: Icon(Icons.done_all, color: AppColors.primary),
                 title: const Text('Mark as GRANTED'),
                 onTap: () async {
                   final messenger = ScaffoldMessenger.of(this.context);

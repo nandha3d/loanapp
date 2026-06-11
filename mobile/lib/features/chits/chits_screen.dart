@@ -788,7 +788,7 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                   label: Text(t.x('ch.record_auction')),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.primary,
-                    side: const BorderSide(color: AppColors.primary),
+                    side: BorderSide(color: AppColors.primary),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),

@@ -220,7 +220,7 @@ class _VehicleBody extends ConsumerWidget {
                             ],
                           ),
                         ),
-                        const Icon(
+                        Icon(
                           Icons.chevron_right,
                           color: AppColors.primary,
                           size: 20,
@@ -268,7 +268,7 @@ class _VehicleBody extends ConsumerWidget {
                             ],
                           ),
                         ),
-                        const Icon(
+                        Icon(
                           Icons.chevron_right,
                           color: AppColors.primary,
                           size: 20,

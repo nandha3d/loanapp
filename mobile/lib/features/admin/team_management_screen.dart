@@ -266,7 +266,7 @@ class _TeamManagementScreenState extends ConsumerState<TeamManagementScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.edit_outlined, color: AppColors.primary),
+                leading: Icon(Icons.edit_outlined, color: AppColors.primary),
                 title: const Text('Edit User Information'),
                 onTap: () {
                   Navigator.pop(context);

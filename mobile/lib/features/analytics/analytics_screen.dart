@@ -395,7 +395,7 @@ class _AgentRow extends ConsumerWidget {
                     value: pct,
                     backgroundColor: AppColors.border,
                     valueColor:
-                        const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                        AlwaysStoppedAnimation<Color>(AppColors.primary),
                     minHeight: 4,
                   ),
                 ),

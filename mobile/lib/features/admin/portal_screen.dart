@@ -69,7 +69,7 @@ class PortalScreen extends ConsumerWidget {
                     ),
                     child: Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.info_outline,
                           color: AppColors.primary,
                           size: 18,

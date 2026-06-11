@@ -229,7 +229,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                 ),
               ),
               ListTile(
-                leading: const Icon(Icons.camera_alt_outlined,
+                leading: Icon(Icons.camera_alt_outlined,
                     color: AppColors.primary,),
                 title: Text(t.x('btn.take_photo')),
                 onTap: () {
@@ -238,7 +238,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.photo_library_outlined,
+                leading: Icon(Icons.photo_library_outlined,
                     color: AppColors.primary,),
                 title: Text(t.x('btn.choose_gallery')),
                 onTap: () {
@@ -276,7 +276,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                 ),
               ),
               ListTile(
-                leading: const Icon(Icons.camera_alt_outlined,
+                leading: Icon(Icons.camera_alt_outlined,
                     color: AppColors.primary,),
                 title: Text(t.x('btn.scan_doc')),
                 onTap: () {
@@ -285,7 +285,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.photo_library_outlined,
+                leading: Icon(Icons.photo_library_outlined,
                     color: AppColors.primary,),
                 title: Text(t.x('btn.choose_gallery')),
                 onTap: () {
@@ -324,7 +324,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                 ),
               ),
               ListTile(
-                leading: const Icon(Icons.camera_alt_outlined,
+                leading: Icon(Icons.camera_alt_outlined,
                     color: AppColors.primary,),
                 title: Text(t.x('btn.take_photo')),
                 onTap: () {
@@ -333,7 +333,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.photo_library_outlined,
+                leading: Icon(Icons.photo_library_outlined,
                     color: AppColors.primary,),
                 title: Text(t.x('btn.choose_gallery')),
                 onTap: () {
@@ -1067,7 +1067,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                     label: Text(t.x('btn.add_guarantor')),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.primary,
-                      side: const BorderSide(color: AppColors.primary),
+                      side: BorderSide(color: AppColors.primary),
                     ),
                   ),
                 ],
@@ -1174,7 +1174,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.place_outlined, size: 18, color: AppColors.primary),
+              Icon(Icons.place_outlined, size: 18, color: AppColors.primary),
               const SizedBox(width: 8),
               Text(t.x('sec.collection_points'), style: AppTypography.sectionTitle),
             ],
@@ -1206,7 +1206,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
             label: Text(t.x('btn.add_collection_point')),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.primary,
-              side: const BorderSide(color: AppColors.primary),
+              side: BorderSide(color: AppColors.primary),
             ),
           ),
         ],
@@ -1287,7 +1287,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
             onTap: () => setState(() => _showCompany = !_showCompany),
             child: Row(
               children: [
-                const Icon(Icons.business_center_outlined,
+                Icon(Icons.business_center_outlined,
                     size: 18, color: AppColors.primary,),
                 const SizedBox(width: 8),
                 Expanded(
@@ -1415,7 +1415,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-        borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+        borderSide: BorderSide(color: AppColors.primary, width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppTokens.radiusSm),
@@ -1611,12 +1611,12 @@ class _AppDropdown<V> extends StatelessWidget {
 // ── Section card ─────────────────────────────────────────────────────────────
 
 class _SectionCard extends StatelessWidget {
-  const _SectionCard({
+  _SectionCard({
     required this.icon,
     required this.title,
     required this.child,
-    this.iconColor = AppColors.primary,
-  });
+    Color? iconColor,
+  }) : iconColor = iconColor ?? AppColors.primary;
   final IconData icon;
   final String title;
   final Widget child;
@@ -1674,7 +1674,7 @@ class _UploadButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.cloud_upload_outlined,
+            Icon(Icons.cloud_upload_outlined,
                 color: AppColors.primary, size: 20,),
             const SizedBox(width: 8),
             Text(
@@ -1802,7 +1802,7 @@ class _CollectionPointTile extends ConsumerWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+          borderSide: BorderSide(color: AppColors.primary, width: 1.5),
         ),
       );
 
@@ -1916,7 +1916,7 @@ class _CollectionPointTile extends ConsumerWidget {
                 label: Text(t.x('btn.use_my_gps')),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.primary,
-                  side: const BorderSide(color: AppColors.primary),
+                  side: BorderSide(color: AppColors.primary),
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
@@ -1959,7 +1959,7 @@ class _GuarantorTile extends ConsumerWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+          borderSide: BorderSide(color: AppColors.primary, width: 1.5),
         ),
       );
 
@@ -2131,7 +2131,7 @@ class _GuarantorTile extends ConsumerWidget {
                             : Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  const Icon(Icons.add_a_photo_outlined,
+                                  Icon(Icons.add_a_photo_outlined,
                                       size: 16, color: AppColors.primary,),
                                   const SizedBox(width: 6),
                                   Text(

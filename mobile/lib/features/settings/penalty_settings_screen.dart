@@ -119,7 +119,7 @@ class _PenaltySettingsScreenState
             children: [
               Row(
                 children: [
-                  const Icon(Icons.bolt_outlined, color: AppColors.primary, size: 18),
+                  Icon(Icons.bolt_outlined, color: AppColors.primary, size: 18),
                   const SizedBox(width: 8),
                   Text(t.x('set.penalty'), style: AppTypography.sectionTitle),
                 ],
@@ -211,7 +211,7 @@ class _NumField extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+          borderSide: BorderSide(color: AppColors.primary, width: 1.5),
         ),
       ),
     );

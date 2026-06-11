@@ -153,13 +153,13 @@ export default function Sidebar({
 
   return (
     <>
-      <aside className={`sidebar ${isOpen ? 'open' : ''}`} id="sidebar"
-        style={{ '--primary': appConfig.primaryColor, '--primary-dark': appConfig.primaryDark } as React.CSSProperties}
-      >
+      {/* Colours inherit from the .app-layout wrapper so the tenant theme
+          (Settings → Theme) wins over the static per-module palette. */}
+      <aside className={`sidebar ${isOpen ? 'open' : ''}`} id="sidebar">
         <div className="sidebar-brand">
           <div style={{
             width: '36px', height: '36px', borderRadius: '10px',
-            background: appConfig.primaryColor, display: 'flex',
+            background: 'var(--primary)', display: 'flex',
             alignItems: 'center', justifyContent: 'center', flexShrink: 0,
           }}>
             <span className="material-icons-outlined" style={{ color: '#fff', fontSize: '20px' }}>{appConfig.icon}</span>

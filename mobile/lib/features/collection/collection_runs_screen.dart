@@ -120,7 +120,7 @@ class _RouteTile extends StatelessWidget {
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        leading: const CircleAvatar(
+        leading: CircleAvatar(
           backgroundColor: AppColors.primaryLight,
           child: Icon(Icons.route_rounded, color: AppColors.primary),
         ),
@@ -132,7 +132,7 @@ class _RouteTile extends StatelessWidget {
                 width: 20,
                 height: 20,
                 child: CircularProgressIndicator(strokeWidth: 2),)
-            : const Icon(Icons.play_circle_fill_rounded,
+            : Icon(Icons.play_circle_fill_rounded,
                 color: AppColors.primary, size: 30,),
         onTap: busy ? null : onTap,
       ),

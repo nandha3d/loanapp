@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:loantrack/core/a11y/ui_prefs.dart';
 import 'package:loantrack/core/router/app_router.dart';
 import 'package:loantrack/core/theme/app_theme.dart';
+import 'package:loantrack/core/theme/theme_controller.dart';
 
 class App extends ConsumerWidget {
   const App({super.key});
@@ -12,6 +13,8 @@ class App extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
     final textScale = ref.watch(textScaleProvider);
+    // Rebuild the ThemeData when the tenant theme changes (see ThemeController).
+    ref.watch(themeControllerProvider);
     return MaterialApp.router(
       title: 'LoanTrack',
       debugShowCheckedModeBanner: false,

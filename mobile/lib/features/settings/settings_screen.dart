@@ -80,7 +80,7 @@ class SettingsScreen extends ConsumerWidget {
                       color: AppColors.primaryLight,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.format_size,
+                    child: Icon(Icons.format_size,
                         size: 20, color: AppColors.primary,),
                   ),
                   title: const Text('Text size'),
@@ -164,7 +164,7 @@ class SettingsScreen extends ConsumerWidget {
                     user?.role == UserRole.developer) ...[
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.bolt_outlined,
                       color: AppColors.primary,
                     ),
@@ -185,7 +185,7 @@ class SettingsScreen extends ConsumerWidget {
                   const Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.account_balance_wallet_outlined,
                       color: AppColors.primary,
                     ),
@@ -206,7 +206,7 @@ class SettingsScreen extends ConsumerWidget {
                   const Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.notifications_active_outlined,
                       color: AppColors.primary,
                     ),
@@ -227,7 +227,7 @@ class SettingsScreen extends ConsumerWidget {
                   const Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.folder_open_outlined,
                       color: AppColors.primary,
                     ),
@@ -246,7 +246,7 @@ class SettingsScreen extends ConsumerWidget {
                   const Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.apps_outage_outlined,
                       color: AppColors.primary,
                     ),
@@ -267,7 +267,7 @@ class SettingsScreen extends ConsumerWidget {
                   const Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.assignment_ind_outlined,
                       color: AppColors.primary,
                     ),
@@ -288,7 +288,7 @@ class SettingsScreen extends ConsumerWidget {
                   const Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.warning_amber_outlined,
                       color: AppColors.primary,
                     ),
@@ -309,7 +309,7 @@ class SettingsScreen extends ConsumerWidget {
                   const Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.security_outlined,
                       color: AppColors.primary,
                     ),
@@ -330,7 +330,7 @@ class SettingsScreen extends ConsumerWidget {
                   const Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.branding_watermark_outlined,
                       color: AppColors.primary,
                     ),
@@ -353,7 +353,7 @@ class SettingsScreen extends ConsumerWidget {
                 if (user?.role == UserRole.developer) ...[
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.tune, color: AppColors.primary),
+                    leading: Icon(Icons.tune, color: AppColors.primary),
                     title:
                         Text(t.x('sys.title'), style: AppTypography.bodyLarge),
                     subtitle:
@@ -536,7 +536,7 @@ class _ProfileCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           colors: [AppColors.primary, AppColors.primaryDark],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -872,7 +872,7 @@ class _LangTile extends StatelessWidget {
                 child: Text(lang.nativeName, style: AppTypography.bodyLarge),
               ),
               if (selected)
-                const Icon(
+                Icon(
                   Icons.check_circle_rounded,
                   color: AppColors.primary,
                   size: 20,

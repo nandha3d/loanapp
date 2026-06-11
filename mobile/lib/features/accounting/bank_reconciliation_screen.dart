@@ -242,7 +242,7 @@ class _BankReconciliationScreenState extends ConsumerState<BankReconciliationScr
             ),
             child: Row(
               children: [
-                const CircleAvatar(
+                CircleAvatar(
                   backgroundColor: AppColors.primaryLight,
                   child: Icon(Icons.account_balance, color: AppColors.primary),
                 ),
@@ -443,7 +443,7 @@ class _BankReconciliationScreenState extends ConsumerState<BankReconciliationScr
                       const Divider(height: 16),
                       TextButton(
                         onPressed: () => _handleLineAction('unmatch', line['id'] as String),
-                        child: const Text('Restore Transaction', style: TextStyle(color: AppColors.primary, fontSize: 12)),
+                        child: Text('Restore Transaction', style: TextStyle(color: AppColors.primary, fontSize: 12)),
                       ),
                     ],
                     if (status == 'unmatched') ...[

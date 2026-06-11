@@ -68,7 +68,7 @@ class _AgentWallet extends ConsumerWidget {
               child: OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.primary,
-                  side: const BorderSide(color: AppColors.primary),
+                  side: BorderSide(color: AppColors.primary),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
                 onPressed:
@@ -140,7 +140,7 @@ class _BalanceHero extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.account_balance_wallet_outlined,
+              Icon(Icons.account_balance_wallet_outlined,
                   color: AppColors.primary, size: 18,),
               const SizedBox(width: 6),
               Text(t.x('wallet.balance'),
@@ -456,7 +456,7 @@ class _AgentRow extends ConsumerWidget {
             backgroundColor: AppColors.primary.withAlpha(30),
             child: Text(
               agent.name.isNotEmpty ? agent.name[0].toUpperCase() : '?',
-              style: const TextStyle(
+              style: TextStyle(
                   color: AppColors.primary, fontWeight: FontWeight.w800,),
             ),
           ),

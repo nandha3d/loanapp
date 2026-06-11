@@ -1,4 +1,4 @@
-import 'package:loantrack/core/currency/currency_controller.dart';
+﻿import 'package:loantrack/core/currency/currency_controller.dart';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -101,7 +101,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
   void initState() {
     super.initState();
     // GPS-05: live-track the agent while the collection screen is open (the
-    // stream stops on dispose — battery-friendly). These pings feed the admin
+    // stream stops on dispose â€” battery-friendly). These pings feed the admin
     // tracking map (/gps/live). Permission is requested inside the pinger.
     final user = ref.read(authControllerProvider).user;
     if (user?.role == UserRole.agent) {
@@ -217,7 +217,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
               rows.fold<double>(0, (s, r) => s + r.receivedAmount);
           final pendingCount = rows.where((r) => r.status != 'paid').length;
 
-          // ── Map view ──────────────────────────────────────────────
+          // â”€â”€ Map view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           if (_showMap) {
             return _CollectionMap(
               rows: filtered,
@@ -230,7 +230,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
             );
           }
 
-          // ── List view ─────────────────────────────────────────────
+          // â”€â”€ List view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           return RefreshIndicator(
             color: AppColors.primary,
             onRefresh: () async => ref.refresh(collectionTodayProvider.future),
@@ -364,7 +364,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
   }
 }
 
-// ───────────────────────────── Collection Map ────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Collection Map â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _CollectionMap extends StatelessWidget {
   const _CollectionMap({
@@ -622,7 +622,7 @@ class _CollectionMap extends StatelessWidget {
   }
 }
 
-// ───────────────────────────── Hero ─────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Hero â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _ProgressHero extends StatelessWidget {
   const _ProgressHero({
@@ -658,7 +658,7 @@ class _ProgressHero extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.savings_outlined,
                 color: AppColors.primary,
                 size: 18,
@@ -727,7 +727,7 @@ class _ProgressHero extends StatelessWidget {
   }
 }
 
-// ───────────────────────────── Filter pills ─────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Filter pills â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _FilterPills extends StatelessWidget {
   const _FilterPills({
@@ -853,7 +853,7 @@ class _Pill extends StatelessWidget {
   }
 }
 
-// ───────────────────────────── Route header ─────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Route header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _RouteHeader extends StatelessWidget {
   const _RouteHeader({required this.routeName, required this.count});
@@ -893,7 +893,7 @@ class _RouteHeader extends StatelessWidget {
   }
 }
 
-// ──────────────────────── Customer collection group ─────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Customer collection group â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
 // One customer's instalments collapsed into a single card. Splits them into
 // two buckets so the field agent has one clear card per customer with two
@@ -949,7 +949,7 @@ class _CustomerGroup {
   }
 }
 
-// ───────────────────────────── Collection card ──────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Collection card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _CollectionCard extends ConsumerWidget {
   const _CollectionCard({
@@ -1030,7 +1030,7 @@ class _CollectionCard extends ConsumerWidget {
                           ),
                           if (distanceLabel != null) ...[
                             const SizedBox(width: 8),
-                            const Icon(
+                            Icon(
                               Icons.near_me,
                               size: 12,
                               color: AppColors.primary,
@@ -1125,7 +1125,7 @@ class _CollectionCard extends ConsumerWidget {
                 ),
               ],
             ),
-            // Receipt / share — shown once any instalment has been collected.
+            // Receipt / share â€” shown once any instalment has been collected.
             if (rrow != null) ...[
               const SizedBox(height: 8),
               Row(
@@ -1205,7 +1205,7 @@ class _CollectionCard extends ConsumerWidget {
   }
 
   /// Shares the receipt PDF via the native share sheet. Lets the agent send it
-  /// through their own WhatsApp/SMS/etc. — no DLT or business registration
+  /// through their own WhatsApp/SMS/etc. â€” no DLT or business registration
   /// needed, which suits unregistered field lenders.
   Future<void> _shareReceipt(
     BuildContext context,
@@ -1223,7 +1223,7 @@ class _CollectionCard extends ConsumerWidget {
   }
 }
 
-// ─────────────────────── Collection card sub-widgets ────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Collection card sub-widgets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /// Small rounded status pill (overdue days / due today / collected).
 class _StatusChip extends StatelessWidget {
@@ -1274,11 +1274,11 @@ class _ActionButton extends StatelessWidget {
       fg = AppColors.textLight;
       border = Border.all(color: AppColors.border);
     } else if (primary) {
-      // Today's due — amber CTA.
+      // Today's due â€” amber CTA.
       bg = AppColors.primary;
       fg = AppColors.onPrimary;
     } else {
-      // Overdue — black action button.
+      // Overdue â€” black action button.
       bg = AppColors.ink;
       fg = AppColors.onInk;
     }
@@ -1335,7 +1335,7 @@ class _Avatar extends StatelessWidget {
   final String name;
 
   Color _color() {
-    const palette = [
+    final palette = [
       AppColors.primary,
       AppColors.info,
       AppColors.purple,
@@ -1349,7 +1349,7 @@ class _Avatar extends StatelessWidget {
 
   String _initials() {
     final parts = name.trim().split(RegExp(r'\s+'));
-    if (parts.isEmpty || parts.first.isEmpty) return '—';
+    if (parts.isEmpty || parts.first.isEmpty) return 'â€”';
     return parts.take(2).map((p) => p.isEmpty ? '' : p[0].toUpperCase()).join();
   }
 

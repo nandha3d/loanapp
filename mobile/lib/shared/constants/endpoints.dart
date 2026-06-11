@@ -84,6 +84,8 @@ class Endpoints {
 
   // Settings
   static const String settings = '/settings';
+  // Tenant colour theme (readable by every role, unlike /settings)
+  static const String theme = '/theme';
   static const String routes = '/routes';
   static const String packages = '/packages';
   static const String agents = '/agents';

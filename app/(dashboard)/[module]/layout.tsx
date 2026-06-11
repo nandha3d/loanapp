@@ -3,8 +3,9 @@ import { notFound, redirect } from 'next/navigation';
 import { headers, cookies } from 'next/headers';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
-import { getDefaultTenantId } from '@/lib/tenant';
+import { getDefaultTenantId, getTenantSettings } from '@/lib/tenant';
 import { getAppConfig } from '@/lib/appConfig';
+import { getThemePreset, THEME_SETTING_KEY } from '@/lib/themes';
 import { getDictionary, getCurrentLanguage } from '@/lib/i18n';
 import BranchSwitcher from '@/components/layout/BranchSwitcher';
 import { getActiveBranchId, getSuperadminBranches } from '@/lib/branch';
@@ -104,14 +105,18 @@ export default async function DashboardLayout({
   const sub = await getSubscription(tenantId);
   const isExpired = isTenantSubscriptionExpired(sub);
 
+  // Tenant theme preset (Settings → Theme) overrides the per-module colours.
+  const tenantSettings = await getTenantSettings(tenantId);
+  const theme = getThemePreset(tenantSettings[THEME_SETTING_KEY]);
+
   return (
     <div
       className="app-layout"
       style={{
-        '--primary': appConfig.primaryColor,
-        '--primary-dark': appConfig.primaryDark,
-        '--primary-light': appConfig.primaryLight,
-        '--accent': appConfig.accentColor,
+        '--primary': theme?.primary ?? appConfig.primaryColor,
+        '--primary-dark': theme?.primaryDark ?? appConfig.primaryDark,
+        '--primary-light': theme?.primaryLight ?? appConfig.primaryLight,
+        '--accent': theme?.accent ?? appConfig.accentColor,
       } as React.CSSProperties}
     >
       <Sidebar

@@ -58,7 +58,7 @@ class AppTextField extends StatelessWidget {
             errorStyle: AppTypography.caption.copyWith(color: AppColors.danger),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-              borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+              borderSide: BorderSide(color: AppColors.primary, width: 1.5),
             ),
           ),
         ),

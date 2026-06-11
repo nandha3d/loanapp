@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { saveSystemSettings, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, deleteLoanPackage, assignAgentToRoute, removeAgentFromRoute, setPrimaryAgent, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections, saveUpiQrCode, saveNotificationSettings, saveBureauSettings } from './actions';
+import { saveSystemSettings, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, deleteLoanPackage, assignAgentToRoute, removeAgentFromRoute, setPrimaryAgent, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections, saveUpiQrCode, saveNotificationSettings, saveBureauSettings, saveThemeSettings } from './actions';
+import { THEME_PRESETS, THEME_SETTING_KEY } from '@/lib/themes';
 import Modal from '@/components/Modal';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { manageBranchAgent, setBranchAgentStatus } from '../../../admin/actions';
 
 export default function SettingsClient({
@@ -15,7 +16,15 @@ export default function SettingsClient({
   viewerRole?: string, appType?: string, branchAgents?: any[], manageBranchId?: string | null, manageBranchName?: string | null
 }) {
   const d = dict.settings;
-  const [activeTab, setActiveTab] = useState('routes');
+  const searchParams = useSearchParams();
+  // Tab survives reloads via ?tab= (history.replaceState avoids a server round-trip).
+  const [activeTab, setActiveTabState] = useState(searchParams.get('tab') || 'routes');
+  const setActiveTab = (tab: string) => {
+    setActiveTabState(tab);
+    const params = new URLSearchParams(window.location.search);
+    params.set('tab', tab);
+    window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
+  };
   const [loading, setLoading] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
@@ -54,6 +63,39 @@ export default function SettingsClient({
   const [raAgentId, setRaAgentId] = useState('');
   const [editingPrimaryRouteId, setEditingPrimaryRouteId] = useState<string | null>(null);
   const [packageDeductionType, setPackageDeductionType] = useState<'fixed' | 'percentage'>('fixed');
+
+  // Theme state
+  const [activeTheme, setActiveTheme] = useState(settings[THEME_SETTING_KEY] || 'default');
+  const [themeBusy, setThemeBusy] = useState(false);
+  const applyTheme = async (key: string) => {
+    if (themeBusy || key === activeTheme) return;
+    setThemeBusy(true);
+    const res = await saveThemeSettings(key);
+    setThemeBusy(false);
+    if (res?.success) {
+      setActiveTheme(key);
+      // Recolour immediately — don't wait for the layout RSC round-trip.
+      const preset = THEME_PRESETS.find((t) => t.key === key);
+      const wrapper = document.querySelector('.app-layout') as HTMLElement | null;
+      if (wrapper) {
+        if (preset) {
+          wrapper.style.setProperty('--primary', preset.primary);
+          wrapper.style.setProperty('--primary-dark', preset.primaryDark);
+          wrapper.style.setProperty('--primary-light', preset.primaryLight);
+          wrapper.style.setProperty('--accent', preset.accent);
+        } else {
+          // Default → let the server-rendered per-module colours win again.
+          wrapper.style.removeProperty('--primary');
+          wrapper.style.removeProperty('--primary-dark');
+          wrapper.style.removeProperty('--primary-light');
+          wrapper.style.removeProperty('--accent');
+        }
+      }
+      router.refresh();
+    } else {
+      alert(res?.error || 'Failed to save theme');
+    }
+  };
 
   // 2FA state
   const [is2faModalOpen, setIs2faModalOpen] = useState(false);
@@ -101,6 +143,9 @@ export default function SettingsClient({
         )}
         {currentUser?.role === 'developer' && (
           <div className={`tab ${activeTab === 'system' ? 'active' : ''}`} onClick={() => setActiveTab('system')}>{d.tabSystem}</div>
+        )}
+        {(viewerRole === 'superadmin' || viewerRole === 'developer') && (
+          <div className={`tab ${activeTab === 'theme' ? 'active' : ''}`} onClick={() => setActiveTab('theme')}>Theme</div>
         )}
         {currentUser?.role === 'superadmin' && (
           <div className={`tab ${activeTab === 'data' ? 'active' : ''}`} style={{color: 'var(--danger)'}} onClick={() => setActiveTab('data')}>{d.tabData}</div>
@@ -1026,8 +1071,66 @@ export default function SettingsClient({
         </div>
       )}
 
+      {/* Theme Tab (superadmin) */}
+      {(viewerRole === 'superadmin' || viewerRole === 'developer') && (
+      <div className={`tab-content ${activeTab === 'theme' ? 'active' : ''}`}>
+        <div className="card-header">
+          <div>
+            <h3>🎨 Colour Theme</h3>
+            <p style={{ fontSize: '.78rem', color: 'var(--text-secondary)', margin: '2px 0 0' }}>
+              Applies to the web dashboard and the mobile app for everyone in this business.
+            </p>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '12px', opacity: themeBusy ? 0.6 : 1 }}>
+          {/* Default = each module keeps its own colours */}
+          <div
+            onClick={() => applyTheme('default')}
+            style={{
+              padding: '12px', borderRadius: '10px', cursor: 'pointer',
+              border: `2px solid ${activeTheme === 'default' ? 'var(--primary)' : 'var(--border)'}`,
+              background: activeTheme === 'default' ? 'var(--primary-light)' : 'transparent',
+            }}
+          >
+            <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
+              <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'linear-gradient(135deg, #E67E22, #2980B9, #27AE60, #B8860B)' }} />
+            </div>
+            <div style={{ fontWeight: 600, fontSize: '.85rem' }}>Default</div>
+            <div style={{ fontSize: '.72rem', color: 'var(--text-secondary)' }}>Per-module colours</div>
+          </div>
+
+          {THEME_PRESETS.map((t) => (
+            <div
+              key={t.key}
+              onClick={() => applyTheme(t.key)}
+              style={{
+                padding: '12px', borderRadius: '10px', cursor: 'pointer',
+                border: `2px solid ${activeTheme === t.key ? t.primary : 'var(--border)'}`,
+                background: activeTheme === t.key ? t.primaryLight : 'transparent',
+              }}
+            >
+              <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
+                <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: t.primary, border: '1px solid rgba(0,0,0,.08)' }} />
+                <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: t.primaryDark, border: '1px solid rgba(0,0,0,.08)' }} />
+                <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: t.primaryLight, border: '1px solid rgba(0,0,0,.08)' }} />
+              </div>
+              <div style={{ fontWeight: 600, fontSize: '.85rem' }}>{t.name}</div>
+              <div style={{ fontSize: '.72rem', color: 'var(--text-secondary)' }}>
+                {activeTheme === t.key ? 'Active' : '3-colour set'}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <p style={{ fontSize: '.78rem', color: 'var(--text-light)', marginTop: '16px' }}>
+          The mobile app picks up the new theme the next time it starts or refreshes its session.
+        </p>
+      </div>
+      )}
+
       {/* --- Modals --- */}
-      
+
       {/* Route Modal */}
       <Modal isOpen={isRouteModalOpen} onClose={() => setIsRouteModalOpen(false)} title={d.addNewRoute}>
         <form action={async (fd) => { await createRoute(fd); setIsRouteModalOpen(false); showToast(d.routeCreated); }}>

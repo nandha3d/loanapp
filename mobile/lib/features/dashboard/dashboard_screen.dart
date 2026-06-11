@@ -1,4 +1,4 @@
-import 'package:loantrack/core/currency/currency_controller.dart';
+﻿import 'package:loantrack/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -69,7 +69,7 @@ class DashboardScreen extends ConsumerWidget {
           const SizedBox(width: 4),
         ],
       ),
-      drawer: _SideDrawer(userName: user?.name ?? '—'),
+      drawer: _SideDrawer(userName: user?.name ?? 'â€”'),
       body: RefreshIndicator(
         color: AppColors.primary,
         onRefresh: () async => ref.refresh(dashboardSummaryProvider.future),
@@ -174,7 +174,7 @@ class _GreetingRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '${t.x('dash.hello')}, ${name.isEmpty ? '—' : name.split(' ').first}',
+                '${t.x('dash.hello')}, ${name.isEmpty ? 'â€”' : name.split(' ').first}',
                 style: AppTypography.nameLg,
               ),
               Text(dateStr, style: AppTypography.caption),
@@ -280,7 +280,7 @@ class _HeroBalance extends ConsumerWidget {
         .length;
     final pctInt = (pct * 100).round();
 
-    // Color shifts: red → orange → green as collection improves
+    // Color shifts: red â†’ orange â†’ green as collection improves
     final barColor = pct >= 0.75
         ? const Color(0xFF34D399)
         : pct >= 0.4
@@ -317,7 +317,7 @@ class _HeroBalance extends ConsumerWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.bolt_rounded, color: AppColors.primary, size: 14),
+                      Icon(Icons.bolt_rounded, color: AppColors.primary, size: 14),
                       const SizedBox(width: 4),
                       Text(t.x('dash.live'),
                           style: AppTypography.tiny.copyWith(color: AppColors.primary),),
@@ -466,7 +466,7 @@ class _CollectionBar extends StatelessWidget {
   }
 }
 
-/// Second pager card — Overdue Collection. Daily snapshot: Total overdue (start
+/// Second pager card â€” Overdue Collection. Daily snapshot: Total overdue (start
 /// of today), Collected today (past-due recovery), Remaining. Re-bases each day.
 class _OverdueBalance extends ConsumerWidget {
   const _OverdueBalance({
@@ -1004,7 +1004,7 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
               GestureDetector(
                 onTap: () => context.go('/collection'),
                 child: Text(
-                  '${t.x('common.see_all')} →',
+                  '${t.x('common.see_all')} â†’',
                   style: AppTypography.caption.copyWith(
                     color: AppColors.textLight,
                     fontWeight: FontWeight.w600,
@@ -1165,7 +1165,7 @@ class _UpNextCard extends ConsumerWidget {
                         Flexible(
                           child: Text(
                             [time, if (route != null && route.isNotEmpty) route]
-                                .join(' · '),
+                                .join(' Â· '),
                             style: AppTypography.caption,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -1392,7 +1392,7 @@ class _Avatar extends StatelessWidget {
   final double size;
 
   Color _color() {
-    const palette = [
+    final palette = [
       AppColors.primary,
       AppColors.info,
       AppColors.purple,
@@ -1406,7 +1406,7 @@ class _Avatar extends StatelessWidget {
 
   String _initials() {
     final parts = name.trim().split(RegExp(r'\s+'));
-    if (parts.isEmpty || parts.first.isEmpty) return '—';
+    if (parts.isEmpty || parts.first.isEmpty) return 'â€”';
     return parts
         .take(2)
         .map((p) => p.isEmpty ? '' : p[0].toUpperCase())
@@ -1578,7 +1578,7 @@ class _RoutePerformanceList extends StatelessWidget {
                       color: AppColors.primaryLight,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.route, color: AppColors.primaryDark, size: 20),
+                    child: Icon(Icons.route, color: AppColors.primaryDark, size: 20),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -1717,7 +1717,7 @@ class _SideDrawer extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
+            Padding(
               padding: EdgeInsets.fromLTRB(24, 20, 24, 20),
               child: Text.rich(
                 TextSpan(
@@ -1819,7 +1819,7 @@ class _SideDrawer extends ConsumerWidget {
             const Spacer(),
             const Divider(color: Colors.white12, height: 1),
             ListTile(
-              leading: const CircleAvatar(
+              leading: CircleAvatar(
                 backgroundColor: AppColors.primary,
                 child: Icon(Icons.person, color: Colors.white, size: 18),
               ),

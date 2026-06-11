@@ -98,7 +98,8 @@ class _ModuleItem {
   final UserRole? minRole;
 }
 
-const _allModules = <_ModuleItem>[
+// Not const: module tiles reference the runtime tenant theme (AppColors).
+final _allModules = <_ModuleItem>[
   _ModuleItem(
     icon: Icons.warning_amber_rounded,
     label: 'Penalties',
@@ -478,7 +479,7 @@ class _MapSection extends StatelessWidget {
                             .copyWith(color: AppColors.textSecondary),
                       ),
                       const SizedBox(width: 8),
-                      const Icon(
+                      Icon(
                         Icons.location_on_rounded,
                         size: 13,
                         color: AppColors.primary,
@@ -616,7 +617,7 @@ class _ProfileHeader extends StatelessWidget {
             alignment: Alignment.center,
             child: Text(
               _initials(),
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.primary,
                 fontWeight: FontWeight.w800,
                 fontSize: 19,
@@ -666,13 +667,13 @@ class _ProfileHeader extends StatelessWidget {
                 Container(
                   width: 6,
                   height: 6,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: AppColors.primary,
                     shape: BoxShape.circle,
                   ),
                 ),
                 const SizedBox(width: 6),
-                const Text(
+                Text(
                   'ONLINE',
                   style: TextStyle(
                     color: AppColors.primary,

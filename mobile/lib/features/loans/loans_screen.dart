@@ -1,4 +1,4 @@
-import 'package:loantrack/core/currency/currency_controller.dart';
+﻿import 'package:loantrack/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -28,7 +28,7 @@ class LoansScreen extends ConsumerStatefulWidget {
 }
 
 class _LoansScreenState extends ConsumerState<LoansScreen> {
-  // Default: hide closed loans — only active/ongoing loans are shown until the
+  // Default: hide closed loans â€” only active/ongoing loans are shown until the
   // user opts in via the toggle.
   bool _showClosed = false;
 
@@ -172,7 +172,7 @@ class _ClosedToggle extends StatelessWidget {
                 Text(
                   value
                       ? '${activeCount + closedCount} ${t.x('loans.total_suffix')}'
-                      : '$activeCount ${t.x('loans.active_suffix')} · $closedCount ${t.x('loans.closed_suffix')}',
+                      : '$activeCount ${t.x('loans.active_suffix')} Â· $closedCount ${t.x('loans.closed_suffix')}',
                   style: AppTypography.caption,
                 ),
               ],
@@ -202,7 +202,7 @@ class _LoanTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final customer = (loan['customer'] as Map<String, dynamic>?) ?? const {};
-    final customerName = customer['name']?.toString() ?? '—';
+    final customerName = customer['name']?.toString() ?? 'â€”';
     final principal = _toDouble(loan['principal']);
     final status = (loan['status'] as String?) ?? 'pending_review';
 
@@ -248,7 +248,7 @@ class _LoanTile extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              loan['loanCode']?.toString() ?? '—',
+                              loan['loanCode']?.toString() ?? 'â€”',
                               style: AppTypography.bodyLarge.copyWith(
                                 fontFamily: 'monospace',
                                 fontWeight: FontWeight.w700,
@@ -264,7 +264,7 @@ class _LoanTile extends StatelessWidget {
                             if (total > 0) ...[
                               const SizedBox(height: 4),
                               Text(
-                                '$paid / $total · ${(pct * 100).round()}%',
+                                '$paid / $total Â· ${(pct * 100).round()}%',
                                 style: AppTypography.extraTiny.copyWith(
                                   color: AppColors.textLight,
                                   fontFeatures: const [
@@ -319,7 +319,7 @@ class _Avatar extends StatelessWidget {
   final double size;
 
   Color _color() {
-    const palette = [
+    final palette = [
       AppColors.primary,
       AppColors.info,
       AppColors.purple,
@@ -333,7 +333,7 @@ class _Avatar extends StatelessWidget {
 
   String _initials() {
     final parts = name.trim().split(RegExp(r'\s+'));
-    if (parts.isEmpty || parts.first.isEmpty) return '—';
+    if (parts.isEmpty || parts.first.isEmpty) return 'â€”';
     return parts
         .take(2)
         .map((p) => p.isEmpty ? '' : p[0].toUpperCase())

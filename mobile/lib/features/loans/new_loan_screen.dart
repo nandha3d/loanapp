@@ -504,7 +504,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
                                 ),
                               ),
                               if (selected)
-                                const Icon(
+                                Icon(
                                   Icons.check_circle,
                                   color: AppColors.primary,
                                 ),

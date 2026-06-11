@@ -330,7 +330,7 @@ class _RowTile extends StatelessWidget {
               IconButton(
                 tooltip: 'Fill due',
                 onPressed: onFill,
-                icon: const Icon(Icons.bolt_rounded, color: AppColors.primary),
+                icon: Icon(Icons.bolt_rounded, color: AppColors.primary),
               ),
               IconButton(
                 tooltip: 'Send pay link',

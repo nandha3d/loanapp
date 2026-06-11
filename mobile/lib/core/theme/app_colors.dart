@@ -5,10 +5,15 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
-  // Primary palette
-  static const Color primary = Color(0xFFF5A623);
-  static const Color primaryDark = Color(0xFFE8930C);
-  static const Color primaryLight = Color(0xFFFFF3E0);
+  // Primary palette. Mutable (NOT const): the tenant theme picked by the
+  // superadmin (web Settings → Theme, served by /api/v1/theme) is applied at
+  // runtime by ThemeController. Defaults below match the web globals.css.
+  static const Color defaultPrimary = Color(0xFFF5A623);
+  static const Color defaultPrimaryDark = Color(0xFFE8930C);
+  static const Color defaultPrimaryLight = Color(0xFFFFF3E0);
+  static Color primary = defaultPrimary;
+  static Color primaryDark = defaultPrimaryDark;
+  static Color primaryLight = defaultPrimaryLight;
 
   // Surfaces
   static const Color background = Color(0xFFF4F6F9);

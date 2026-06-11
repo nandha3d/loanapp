@@ -36,7 +36,7 @@ class _BiometricLockScreenState extends ConsumerState<BiometricLockScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
+              Icon(
                 Icons.lock_outline,
                 size: 56,
                 color: AppColors.primary,

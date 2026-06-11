@@ -655,7 +655,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text('Estimated Monthly Total', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              Text('₹$total/mo', style: const TextStyle(fontSize: 18, color: AppColors.primary, fontWeight: FontWeight.bold)),
+              Text('₹$total/mo', style: TextStyle(fontSize: 18, color: AppColors.primary, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 24),

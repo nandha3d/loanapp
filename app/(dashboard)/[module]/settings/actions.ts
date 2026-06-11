@@ -660,6 +660,43 @@ export async function wipeDatabaseRecords(tablesToWipe: string[]) {
   }
 }
 
+export async function saveThemeSettings(presetKey: string) {
+  const session = await auth();
+  const role = (session?.user as any)?.role;
+  const userId = session?.user?.id;
+  if (!userId || !['superadmin', 'developer'].includes(role)) {
+    return { success: false, error: 'Only a superadmin can change the theme' };
+  }
+  const { getThemePreset, THEME_SETTING_KEY } = await import('@/lib/themes');
+  const preset = presetKey === 'default' ? null : getThemePreset(presetKey);
+  if (presetKey !== 'default' && !preset) {
+    return { success: false, error: 'Unknown theme' };
+  }
+
+  const tenantId = await getDefaultTenantId();
+  await Promise.all([
+    setSetting(tenantId, THEME_SETTING_KEY, presetKey, 'branding'),
+    // Concrete colours so web layout + mobile app read them directly.
+    setSetting(tenantId, 'primary_color', preset?.primary ?? '#F5A623', 'branding'),
+    setSetting(tenantId, 'primary_dark', preset?.primaryDark ?? '#E8930C', 'branding'),
+    setSetting(tenantId, 'primary_light', preset?.primaryLight ?? '#FFF3E0', 'branding'),
+    setSetting(tenantId, 'accent_color', preset?.accent ?? '#FFC107', 'branding'),
+  ]);
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId,
+      userId,
+      action: 'update',
+      entityType: 'settings',
+      newValue: JSON.stringify({ category: 'theme', preset: presetKey }),
+    },
+  });
+
+  revalidatePath('/', 'layout');
+  return { success: true };
+}
+
 export async function saveNotificationSettings(formData: FormData) {
   const session = await auth();
   const role = (session?.user as any)?.role;

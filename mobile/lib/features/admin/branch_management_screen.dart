@@ -195,7 +195,7 @@ class _BranchManagementScreenState extends ConsumerState<BranchManagementScreen>
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.edit_outlined, color: AppColors.primary),
+                leading: Icon(Icons.edit_outlined, color: AppColors.primary),
                 title: const Text('Edit Branch Info'),
                 onTap: () {
                   Navigator.pop(context);

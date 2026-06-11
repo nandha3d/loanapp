@@ -1316,7 +1316,7 @@ class _PeriodsViewState extends ConsumerState<_PeriodsView> {
               if (status == 'locked' || status == 'soft_locked') ...[
                 ListTile(
                   leading:
-                      const Icon(Icons.lock_open, color: AppColors.primary),
+                      Icon(Icons.lock_open, color: AppColors.primary),
                   title: const Text('Unlock Period'),
                   onTap: () {
                     Navigator.pop(context);

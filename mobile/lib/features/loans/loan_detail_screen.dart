@@ -431,7 +431,7 @@ class _SummaryCardOverview extends ConsumerWidget {
                   backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                   child: Text(
                     loan.customer?.initials ?? '?',
-                    style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+                    style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
                   ),
                 ),
               const SizedBox(width: 16),
@@ -465,7 +465,7 @@ class _SummaryCardOverview extends ConsumerWidget {
                       value: progress.clamp(0.0, 1.0),
                       strokeWidth: 5,
                       backgroundColor: AppColors.border,
-                      valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+                      valueColor: AlwaysStoppedAnimation(AppColors.primary),
                     ),
                     Center(
                       child: Text(
@@ -910,7 +910,7 @@ class _BorrowerHeader extends ConsumerWidget {
               backgroundColor: AppColors.primary.withValues(alpha: 0.12),
               child: Text(
                 initials,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.primary,
                   fontWeight: FontWeight.w800,
                   fontSize: 22,
@@ -1139,7 +1139,7 @@ class _LoanBottomBar extends ConsumerWidget {
   Future<void> _exportStatement(BuildContext context, WidgetRef ref) async {
     final messenger = ScaffoldMessenger.of(context);
     messenger.showSnackBar(
-      const SnackBar(
+      SnackBar(
         content: Text('Downloading Loan Statement PDF...'),
         backgroundColor: AppColors.primary,
       ),
@@ -1192,7 +1192,7 @@ class _LoanBottomBar extends ConsumerWidget {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.autorenew_outlined, color: AppColors.primary),
+                leading: Icon(Icons.autorenew_outlined, color: AppColors.primary),
                 title: const Text('Renew Loan'),
                 subtitle: const Text('Create a renewal package for the customer'),
                 onTap: () {

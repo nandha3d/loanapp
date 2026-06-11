@@ -135,7 +135,7 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.account_balance_wallet_outlined,
+                  Icon(Icons.account_balance_wallet_outlined,
                       color: AppColors.primary, size: 18,),
                   const SizedBox(width: 8),
                   Text(t.x('set.upi_id'), style: AppTypography.sectionTitle),
@@ -162,7 +162,7 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppTokens.radiusSm),
                     borderSide:
-                        const BorderSide(color: AppColors.primary, width: 1.5),
+                        BorderSide(color: AppColors.primary, width: 1.5),
                   ),
                 ),
               ),
@@ -202,7 +202,7 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
                     : t.x('btn.choose_photo'),),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.primary,
-                  side: const BorderSide(color: AppColors.primary),
+                  side: BorderSide(color: AppColors.primary),
                 ),
               ),
             ],
@@ -223,7 +223,7 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.picture_as_pdf_outlined,
+                  Icon(Icons.picture_as_pdf_outlined,
                       color: AppColors.primary, size: 18,),
                   const SizedBox(width: 8),
                   Text(t.x('set.receipt_pdf'),
