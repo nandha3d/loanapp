@@ -29,6 +29,7 @@ class User {
     this.email,
     this.branchId,
     this.tenantSlug,
+    this.biometricLockRequired = false,
   });
 
   final String id;
@@ -47,6 +48,10 @@ class User {
 
   /// Tenant slug — needed for X-Tenant-Slug header.
   final String? tenantSlug;
+
+  /// Tenant security policy (Settings → Security): only when true does the
+  /// app gate a stored session behind the biometric lock screen.
+  final bool biometricLockRequired;
 
   bool hasModule(String module) => enabledModules.contains(module);
 
@@ -67,6 +72,8 @@ class User {
               .map((dynamic e) => e as String)
               .toList(growable: false),
       tenantSlug: json['tenantSlug'] as String?,
+      biometricLockRequired:
+          (json['biometricLockRequired'] as bool?) ?? false,
     );
   }
 
@@ -83,5 +90,6 @@ class User {
         'totpEnabled': totpEnabled,
         'enabledModules': enabledModules,
         'tenantSlug': tenantSlug,
+        'biometricLockRequired': biometricLockRequired,
       };
 }

@@ -49,9 +49,10 @@ class AuthController extends StateNotifier<AuthState> {
     if (user == null) {
       state = const AuthState(stage: AuthStage.unauthenticated);
     } else {
-      // Only gate behind the lock screen when the device can actually show a
-      // biometric prompt — otherwise it just flashes and auto-unlocks.
-      final canLock = await _canUseBiometrics();
+      // Lock screen is opt-in: the tenant must enable it (Settings →
+      // Security) AND the device must be able to show a biometric prompt.
+      final canLock =
+          user.biometricLockRequired && await _canUseBiometrics();
       state = AuthState(
         stage: canLock ? AuthStage.locked : AuthStage.authenticated,
         user: user,
@@ -173,9 +174,11 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   Future<void> lock() async {
-    // Locking without a biometric prompt available would just flash the lock
-    // screen and auto-unlock — skip it entirely.
-    if (state.stage == AuthStage.authenticated && await _canUseBiometrics()) {
+    // Lock screen is opt-in (tenant security setting) and needs a working
+    // biometric prompt — otherwise it would just trap the user.
+    if (state.stage == AuthStage.authenticated &&
+        (state.user?.biometricLockRequired ?? false) &&
+        await _canUseBiometrics()) {
       state = state.copyWith(stage: AuthStage.locked);
     }
   }
