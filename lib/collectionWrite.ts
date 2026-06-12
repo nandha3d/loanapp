@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import prisma from '@/lib/db';
 import { getAgentRouteIds } from '@/lib/access';
+import { canAgentAccessCustomer } from '@/lib/loanPolicy';
 import { buildCollectionIdempotencyKey, getCollectionSubmissionBlockReason } from '@/lib/collectionPolicy';
 import { recordPaymentLedger } from '@/lib/paymentService';
 import { reallocateLoanRepayments } from '@/lib/repayments';
@@ -238,9 +239,13 @@ export async function submitCollectionEntry(
     throw new Error('forbidden');
   }
   if (actor.role === 'agent') {
+    // Match the read-side scope (buildAgentCustomerAccessWhere): an agent may
+    // collect for a customer assigned directly to them OR on one of their
+    // routes. Route-only here wrongly rejected directly-assigned customers.
     const routeIds = await getAgentRouteIds(actor.userId);
-    const customerRouteId = instalment.loan.customer.routeId;
-    if (!customerRouteId || !routeIds.includes(customerRouteId)) throw new Error('forbidden');
+    if (!canAgentAccessCustomer(instalment.loan.customer, routeIds, actor.userId)) {
+      throw new Error('forbidden');
+    }
   }
 
   const collectionDate = startOfDay(input.collectionDate);
