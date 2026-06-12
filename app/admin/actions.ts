@@ -9,14 +9,27 @@ import { checkLimit, normalizeEnabledModules, assertTenantSubscriptionAccess } f
 import { normalizeModuleList, type ModuleKey } from '@/types/modules';
 import { findUserUniqueConflicts } from '@/lib/userUniqueness';
 
-export async function manageMasterUser(formData: FormData) {
+// The mobile v1 API authenticates with a Bearer token (no NextAuth cookie),
+// so `auth()` is empty there. Routes that reuse these actions pass the
+// verified mobile context as an explicit actor instead.
+export type ActionActor = { id: string; role: string; tenantId: string };
+
+async function resolveActionActor(override?: ActionActor): Promise<ActionActor | null> {
+  if (override) return override;
   const session = await auth();
-  const userRole = (session?.user as any)?.role;
-  const actorTenantId = (session?.user as any)?.tenantId;
-  
-  if (userRole !== 'superadmin' && userRole !== 'developer') {
+  const u = session?.user as any;
+  if (!u?.id) return null;
+  return { id: u.id, role: u.role, tenantId: u.tenantId };
+}
+
+export async function manageMasterUser(formData: FormData, actorOverride?: ActionActor) {
+  const actor = await resolveActionActor(actorOverride);
+  if (!actor || (actor.role !== 'superadmin' && actor.role !== 'developer')) {
     return { success: false, error: 'Unauthorized. Super Admin or Developer only.' };
   }
+  const userRole = actor.role;
+  const actorTenantId = actor.tenantId;
+  const actorUserId = actor.id;
 
   const id = formData.get('id') as string | null;
   const role = formData.get('role') as string;
@@ -69,7 +82,7 @@ export async function manageMasterUser(formData: FormData) {
   if (userRole === 'superadmin') {
     if (branchId) {
       const branch = await prisma.branch.findFirst({
-        where: { id: branchId, superadminId: session?.user?.id }
+        where: { id: branchId, superadminId: actorUserId }
       });
       if (!branch) {
         return { success: false, error: 'Unauthorized: You do not own the target branch.' };
@@ -84,13 +97,13 @@ export async function manageMasterUser(formData: FormData) {
         where: { id, tenantId }
       });
       if (!targetUser) return { success: false, error: 'User not found' };
-      if (targetUser.id !== session?.user?.id) {
+      if (targetUser.id !== actorUserId) {
         if (targetUser.role === 'superadmin') {
           return { success: false, error: 'Unauthorized: Cannot modify other superadmins.' };
         }
         if (targetUser.branchId) {
           const branch = await prisma.branch.findFirst({
-            where: { id: targetUser.branchId, superadminId: session?.user?.id }
+            where: { id: targetUser.branchId, superadminId: actorUserId }
           });
           if (!branch) {
             return { success: false, error: 'Unauthorized: Target user belongs to a branch you do not own.' };
@@ -108,7 +121,7 @@ export async function manageMasterUser(formData: FormData) {
   const conflicts = await findUserUniqueConflicts({ username, phone }, id);
   if (conflicts.length > 0) return { success: false, error: conflicts[0].message };
 
-  const actorId = (session?.user as any)?.id;
+  const actorId = actorUserId;
   const subscription = await prisma.tenantSubscription.findUnique({
     where: { tenantId },
     select: { enabledModules: true },
@@ -589,13 +602,21 @@ export async function assignAdminModules(data: {
   return { success: true };
 }
 
-export async function toggleUserStatus(userId: string, newStatus: string) {
-  const session = await auth();
-  const role = (session?.user as any)?.role;
-  const actorId = (session?.user as any)?.id;
+export async function toggleUserStatus(userId: string, newStatus: string, actorOverride?: ActionActor) {
+  const actor = await resolveActionActor(actorOverride);
+  const role = actor?.role;
+  const actorId = actor?.id;
   if (role !== 'superadmin' && role !== 'developer') return { success: false };
 
-  const tenantId = await getDefaultTenantId();
+  // Scope: non-developers may only toggle users inside their own tenant.
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { tenantId: true },
+  });
+  if (!target) return { success: false };
+  if (role !== 'developer' && target.tenantId !== actor?.tenantId) {
+    return { success: false };
+  }
 
   await prisma.user.update({
     where: { id: userId },
@@ -604,7 +625,7 @@ export async function toggleUserStatus(userId: string, newStatus: string) {
 
   await prisma.auditLog.create({
     data: {
-      tenantId,
+      tenantId: target.tenantId,
       userId: actorId,
       action: 'update',
       entityType: 'user',
@@ -621,15 +642,15 @@ export async function toggleUserStatus(userId: string, newStatus: string) {
 // Lets a branch admin / superadmin manage AGENTS within ONE branch + ONE module
 // only. Narrower than manageMasterUser (which is superadmin/dev-only and handles
 // tenant/superadmin creation). Portal /admin/users stays the master editor.
-export async function manageBranchAgent(formData: FormData) {
-  const session = await auth();
-  const user = session?.user as any;
-  const role = user?.role;
-  const actorId = user?.id;
+export async function manageBranchAgent(formData: FormData, actorOverride?: ActionActor) {
+  const actor = await resolveActionActor(actorOverride);
+  const role = actor?.role;
+  const actorId = actor?.id;
   if (role !== 'admin' && role !== 'superadmin' && role !== 'developer') {
     return { success: false, error: 'Unauthorized.' };
   }
-  const tenantId = await getDefaultTenantId();
+  // Mobile actor carries its tenant; web resolves from session/host.
+  const tenantId = actorOverride ? actorOverride.tenantId : await getDefaultTenantId();
 
   const id = (formData.get('id') as string) || null;
   const name = ((formData.get('name') as string) || '').trim();
