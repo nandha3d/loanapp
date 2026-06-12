@@ -11,11 +11,12 @@ import CollectionClient from './CollectionClient';
 import { getDictionary } from '@/lib/i18n';
 import { getActiveBranchId } from '@/lib/branch';
 import { COLLECTIBLE_LOAN_STATUSES } from '@/lib/collectionPolicy';
+import { startOfBusinessToday } from '@/lib/businessTime';
 
 function startOfToday() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return today;
+  // IST day boundary (server runs UTC) so overdue/today classification matches
+  // the operator's calendar.
+  return startOfBusinessToday();
 }
 
 function enrichInstalment(instalment: any, today: Date) {
