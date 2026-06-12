@@ -17,6 +17,13 @@ export async function GET(req: NextRequest) {
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
+  // Superadmin/developer oversee the whole tenant (the web shows "All
+  // Branches/All Routes"), so they must NOT be pinned to their token's single
+  // home branch — that left their collection list empty whenever a loan lived
+  // in another branch. Only branch admins stay branch-scoped.
+  const seesAllBranches = ctx.role === 'superadmin' || ctx.role === 'developer';
+  const branchScope = !seesAllBranches && ctx.branchId ? { branchId: ctx.branchId } : {};
+
   try {
     let customerIds: string[];
     let agentRouteIds: string[] = [];
@@ -37,7 +44,7 @@ export async function GET(req: NextRequest) {
         where: {
           tenantId: ctx.tenantId,
           appType: ctx.appType,
-          ...(ctx.branchId ? { branchId: ctx.branchId } : {}),
+          ...branchScope,
         },
         select: { id: true },
       });
@@ -49,7 +56,7 @@ export async function GET(req: NextRequest) {
       appType: ctx.appType,
       customerId: { in: customerIds },
       status: { in: [...COLLECTIBLE_LOAN_STATUSES] },
-      ...(ctx.branchId ? { branchId: ctx.branchId } : {}),
+      ...branchScope,
     };
 
     const includeLoan = {
@@ -76,7 +83,10 @@ export async function GET(req: NextRequest) {
         where: {
           loan: baseLoanWhere,
           dueDate: { lt: today },
-          status: { in: ['upcoming', 'missed', 'partial'] },
+          // Any past-due instalment that isn't fully settled. A status
+          // whitelist used to omit 'pending' rows (the default before the
+          // missed-marking cron runs), so overdue dues silently disappeared.
+          NOT: { status: 'paid' },
         },
         include: includeLoan,
         orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
@@ -86,7 +96,7 @@ export async function GET(req: NextRequest) {
           tenantId: ctx.tenantId,
           appType: ctx.appType,
           status: 'active',
-          ...(ctx.branchId ? { branchId: ctx.branchId } : {}),
+          ...branchScope,
           ...(ctx.role === 'agent' && agentRouteIds.length > 0
             ? { id: { in: agentRouteIds } }
             : ctx.role !== 'agent' ? {} : { id: { in: [] } }),
