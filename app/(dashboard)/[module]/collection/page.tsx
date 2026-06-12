@@ -1,6 +1,11 @@
 import { serverFetch } from '@/lib/api-client/server';
 import { auth } from '@/lib/auth';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
+
+// Collection data is live (today's dues change constantly). Force dynamic
+// rendering so a stale full-route/RSC cache can never show an empty list.
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 import { getAgentRouteIds } from '@/lib/access';
 import CollectionClient from './CollectionClient';
 import { getDictionary } from '@/lib/i18n';
