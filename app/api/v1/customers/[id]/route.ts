@@ -6,7 +6,6 @@ import {
   requireMobileContext,
   scopedBranchWhere,
 } from '@/lib/api/v1-auth';
-import { getAgentRouteIds } from '@/lib/access';
 import {
   decryptAadharNumber,
   encryptAadharNumber,
@@ -14,6 +13,7 @@ import {
 } from '@/lib/pii';
 import { writeAudit } from '@/lib/audit';
 import { calculateCreditScore } from '@/lib/creditScore';
+import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 
 const CUSTOMER_UPDATE_FIELDS = [
   'name',
@@ -52,9 +52,7 @@ async function findScopedCustomer(id: string, ctx: MobileTokenClaims) {
     ...scopedBranchWhere(ctx),
   };
   if (ctx.role === 'agent') {
-    const routeIds = await getAgentRouteIds(ctx.userId);
-    if (routeIds.length === 0) return null;
-    where.routeId = { in: routeIds };
+    where.AND = [buildAgentCustomerAccessWhere({ userId: ctx.userId })];
   }
   return prisma.customer.findFirst({
     where,
