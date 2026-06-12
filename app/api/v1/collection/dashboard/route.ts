@@ -6,16 +6,17 @@ import { getAgentRouteIds } from '@/lib/access';
 import { COLLECTIBLE_LOAN_STATUSES } from '@/lib/collectionPolicy';
 import { getSetting } from '@/lib/tenant';
 import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
+import { startOfBusinessToday, startOfBusinessTomorrow } from '@/lib/businessTime';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
   const ctx = auth.context;
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  // Day window in the business timezone (IST), not the server's UTC midnight,
+  // so "today" matches the operator's calendar.
+  const today = startOfBusinessToday();
+  const tomorrow = startOfBusinessTomorrow();
 
   // Superadmin/developer oversee the whole tenant (the web shows "All
   // Branches/All Routes"), so they must NOT be pinned to their token's single
