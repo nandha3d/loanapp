@@ -108,7 +108,7 @@ export default function Sidebar({
 
     // Check if the route is enabled for the active app module
     if (item.href) {
-      const alwaysVisible = ['/dashboard', '/agent-dashboard', '/collection', '/approvals', '/settings', '/notifications', '/subscription', '/affiliate', '/portal', '/admin', '/kyc-review'];
+      const alwaysVisible = ['/dashboard', '/agent-dashboard', '/collection', '/approvals', '/settings', '/notifications', '/subscription', '/affiliate', '/portal', '/admin', '/kyc-review', '/wallet'];
       if (!alwaysVisible.some((path) => item.href!.startsWith(path))) {
         const routeEnabled = MODULE_ROUTES[userAppType as ModuleKey]?.some((route: string) =>
           item.href!.startsWith(route)

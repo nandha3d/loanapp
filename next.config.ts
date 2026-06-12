@@ -17,9 +17,11 @@ const securityHeaders = [
     key: 'Content-Security-Policy',
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      `img-src 'self' data: blob:${cspApiUrl}`,
+      // unpkg.com: Leaflet (route-tracker live map) is loaded from CDN at runtime
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
+      // OpenStreetMap tiles + Leaflet marker sprites for the live map
+      `img-src 'self' data: blob: https://*.tile.openstreetmap.org https://unpkg.com${cspApiUrl}`,
       "font-src 'self' https://fonts.gstatic.com",
       `connect-src 'self'${cspApiUrl}${cspSupabase}`,
       "frame-ancestors 'none'",

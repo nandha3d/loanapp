@@ -230,7 +230,19 @@ export async function POST(req: NextRequest) {
     const count = await prisma.loan.count({
       where: { tenantId: ctx.tenantId, appType: ctx.appType },
     });
-    const loanCode = generateCode(branding.loanCodePrefix, count + 1, 5);
+    // Frequency-specific prefixes (DL/WL/BWL/ML); tenant prefix is the fallback
+    // for any other/legacy frequency value.
+    const FREQUENCY_PREFIX: Record<string, string> = {
+      daily: 'DL',
+      weekly: 'WL',
+      biweekly: 'BWL',
+      monthly: 'ML',
+    };
+    const loanCode = generateCode(
+      FREQUENCY_PREFIX[frequency] ?? branding.loanCodePrefix,
+      count + 1,
+      5,
+    );
     const endDate = calculateEndDate(startDate, frequency, tenure);
 
     let guarantorId: string | null = null;
