@@ -5,6 +5,7 @@ import { requireMobileContext } from '@/lib/api/v1-auth';
 import { getAgentRouteIds } from '@/lib/access';
 import { COLLECTIBLE_LOAN_STATUSES } from '@/lib/collectionPolicy';
 import { getSetting } from '@/lib/tenant';
+import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -23,7 +24,11 @@ export async function GET(req: NextRequest) {
     if (ctx.role === 'agent') {
       agentRouteIds = await getAgentRouteIds(ctx.userId);
       const customers = await prisma.customer.findMany({
-        where: { tenantId: ctx.tenantId, appType: ctx.appType, routeId: { in: agentRouteIds } },
+        where: {
+          tenantId: ctx.tenantId,
+          appType: ctx.appType,
+          ...buildAgentCustomerAccessWhere({ userId: ctx.userId }),
+        },
         select: { id: true },
       });
       customerIds = customers.map((customer) => customer.id);

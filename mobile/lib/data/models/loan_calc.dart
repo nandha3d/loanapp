@@ -12,9 +12,10 @@ class LoanCalcInstalment {
     double n(dynamic v) => v == null
         ? 0
         : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
+    final dueStr = json['dueDate']?.toString() ?? '';
     return LoanCalcInstalment(
-      instalmentNo: (json['instalmentNo'] as num).toInt(),
-      dueDate: DateTime.parse(json['dueDate'] as String),
+      instalmentNo: (json['instalmentNo'] as num? ?? 0).toInt(),
+      dueDate: DateTime.tryParse(dueStr) ?? DateTime.now(),
       dueAmount: n(json['dueAmount']),
     );
   }
@@ -39,17 +40,30 @@ class LoanCalculation {
     double n(dynamic v) => v == null
         ? 0
         : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
+
+    final instList = (json['instalments'] ?? json['schedule']) as List<dynamic>? ?? const [];
+    final instalments = instList
+        .map(
+          (dynamic e) =>
+              LoanCalcInstalment.fromJson(e as Map<String, dynamic>),
+        )
+        .toList(growable: false);
+
+    final totalPayable = n(json['totalRepayable'] ?? json['totalPayable']);
+    final principal = n(json['principal']);
+    final totalInterest = n(json['totalInterest'] ?? json['deduction'] ?? (totalPayable - principal));
+
+    final endStr = json['endDate']?.toString();
+    final endDate = endStr != null
+        ? (DateTime.tryParse(endStr) ?? DateTime.now())
+        : (instalments.isNotEmpty ? instalments.last.dueDate : DateTime.now());
+
     return LoanCalculation(
       perInstalment: n(json['perInstalment']),
-      totalRepayable: n(json['totalRepayable']),
-      totalInterest: n(json['totalInterest']),
-      endDate: DateTime.parse(json['endDate'] as String),
-      instalments: (json['instalments'] as List<dynamic>? ?? const [])
-          .map(
-            (dynamic e) =>
-                LoanCalcInstalment.fromJson(e as Map<String, dynamic>),
-          )
-          .toList(growable: false),
+      totalRepayable: totalPayable,
+      totalInterest: totalInterest,
+      endDate: endDate,
+      instalments: instalments,
     );
   }
 }
