@@ -1,8 +1,8 @@
 import prisma from '@/lib/db';
 import { ADMIN_API_ROLES, AUTHENTICATED_API_ROLES, isApiError, requireApiContext, scopedBranchWhere } from '@/lib/apiAuth';
-import { getAgentRouteIds } from '@/lib/access';
 import { apiError, apiSuccess } from '@/lib/utils';
 import { decryptAadharNumber, encryptAadharNumber, maskAadharNumber } from '@/lib/pii';
+import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 
 const CUSTOMER_UPDATE_FIELDS = ['name', 'phone', 'address', 'aadharNumber', 'kycStatus'] as const;
 
@@ -15,9 +15,7 @@ async function findScopedCustomer(id: string, context: any) {
   };
 
   if (context.role === 'agent') {
-    const routeIds = await getAgentRouteIds(context.userId);
-    if (routeIds.length === 0) return null;
-    where.routeId = { in: routeIds };
+    where.AND = [buildAgentCustomerAccessWhere({ userId: context.userId })];
   }
 
   return prisma.customer.findFirst({
