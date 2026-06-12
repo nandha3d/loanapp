@@ -9,8 +9,16 @@ export function getCollectionSubmissionBlockReason(input: {
   dueAmount: number;
   receivedAmount: number;
 }): string | null {
+  if (input.loanStatus === 'pending_review') {
+    return 'Loan is pending approval';
+  }
+
+  if (input.loanStatus === 'closed' || input.loanStatus === 'foreclosed' || input.loanStatus === 'settled') {
+    return 'Loan is closed';
+  }
+
   if (!canCollectForLoanStatus(input.loanStatus)) {
-    return 'Loan is closed for collection';
+    return 'Loan is not active for collection';
   }
 
   if (input.receivedAmount >= input.dueAmount) {

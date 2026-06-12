@@ -2,11 +2,19 @@ import 'package:dio/dio.dart';
 
 /// Thrown when API returns an error envelope or HTTP failure.
 class ApiException implements Exception {
-  ApiException(this.message, {this.statusCode, this.code});
+  ApiException(String rawMessage, {this.statusCode, this.code})
+      : message = _cleanMessage(rawMessage);
 
   final String message;
   final int? statusCode;
   final String? code;
+
+  static String _cleanMessage(String raw) {
+    if (raw.startsWith('already_paid:')) {
+      return raw.substring('already_paid:'.length).trim();
+    }
+    return raw;
+  }
 
   bool get isUnauthorized => statusCode == 401;
   bool get isForbidden => statusCode == 403;
@@ -54,5 +62,5 @@ class ApiException implements Exception {
   }
 
   @override
-  String toString() => 'ApiException($statusCode): $message';
+  String toString() => 'ApiException($statusCode): ${code ?? message}';
 }

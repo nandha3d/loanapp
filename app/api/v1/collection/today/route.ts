@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail, parseCursorPaging } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
-import { getAgentRouteIds } from '@/lib/access';
+import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 
 /**
  * Returns today's instalments grouped by route for the current user.
@@ -26,9 +26,7 @@ export async function GET(req: NextRequest) {
     ...scopedBranchWhere(ctx),
   };
   if (ctx.role === 'agent') {
-    const routeIds = await getAgentRouteIds(ctx.userId);
-    if (routeIds.length === 0) return ok([], { nextCursor: null, limit });
-    loanWhere.customer = { routeId: { in: routeIds } };
+    loanWhere.customer = buildAgentCustomerAccessWhere({ userId: ctx.userId });
   }
 
   try {
