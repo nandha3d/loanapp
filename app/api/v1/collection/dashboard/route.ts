@@ -121,6 +121,14 @@ export async function GET(req: NextRequest) {
     const receiptPdfEnabled = isReceiptPdfAllowed && isReceiptPdfActive;
     const gpsTrackingEnabled = sub?.gpsTrackingEnabled || false;
 
+    // TEMP DIAG (remove after diagnosis): logs the real request context so we
+    // can see what the web session token actually carries vs the data.
+    console.error('[COLLECTION_DASH_DIAG]', JSON.stringify({
+      role: ctx.role, tenantId: ctx.tenantId, branchId: ctx.branchId,
+      appType: ctx.appType, tenantSlug: ctx.tenantSlug, requestedBranchId: ctx.requestedBranchId,
+      customers: customerIds.length, today: todayInstalments.length, overdue: overdueInstalments.length,
+    }));
+
     return ok({
       todayInstalments,
       overdueInstalments,
