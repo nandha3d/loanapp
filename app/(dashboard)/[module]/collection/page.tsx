@@ -62,13 +62,17 @@ export default async function CollectionPage() {
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
+  // serverFetch returns the raw v1 envelope { data, error, pagination }; the
+  // payload lives under `.data` (this was the empty-collection bug — fields
+  // were read off the envelope root and came back undefined).
   const res = await serverFetch<any>('/collection/dashboard');
-  const todayInstalments = res?.todayInstalments || [];
-  const overdueInstalments = res?.overdueInstalments || [];
-  const agentRoutes = res?.routes || [];
-  const dailyCollection = res?.dailyCollection || null;
-  const receiptPdfEnabled = res?.receiptPdfEnabled || false;
-  const gpsTrackingEnabled = res?.gpsTrackingEnabled || false;
+  const payload = res?.data ?? res ?? {};
+  const todayInstalments = payload.todayInstalments || [];
+  const overdueInstalments = payload.overdueInstalments || [];
+  const agentRoutes = payload.routes || [];
+  const dailyCollection = payload.dailyCollection || null;
+  const receiptPdfEnabled = payload.receiptPdfEnabled || false;
+  const gpsTrackingEnabled = payload.gpsTrackingEnabled || false;
 
   const routeName = agentRoutes.map((route: any) => route.name).join(', ') || 'All Routes';
 
