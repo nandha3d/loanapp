@@ -11,8 +11,17 @@ type Tx = Prisma.TransactionClient;
 
 function startOfDay(value?: string | Date | null): Date {
   const d = value ? new Date(value) : new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
+  if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0) {
+    const yyyy = d.getUTCFullYear();
+    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(d.getUTCDate()).padStart(2, '0');
+    return new Date(`${yyyy}-${mm}-${dd}T00:00:00.000Z`);
+  } else {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return new Date(`${yyyy}-${mm}-${dd}T00:00:00.000Z`);
+  }
 }
 
 /** Optional GPS capture stamped onto the collection entry (mCollect route runs). */
@@ -83,27 +92,30 @@ export async function recordCollection(
   });
   if (existing) return { entryId: existing.id, applied: Number(existing.receivedAmount), created: false };
 
-  let daily = await tx.dailyCollection.findFirst({
-    where: { tenantId, appType, agentId, date: today },
-    select: { id: true },
-  });
-  if (!daily) {
-    daily = await tx.dailyCollection.create({
-      data: {
+  const daily = await tx.dailyCollection.upsert({
+    where: {
+      tenantId_appType_agentId_date: {
         tenantId,
         appType,
         agentId,
-        branchId: instalment.loan.branchId,
-        routeId: instalment.loan.customer.routeId,
         date: today,
-        totalExpected: 0,
-        totalCollected: 0,
-        entriesCount: 0,
-        status: 'open',
       },
-      select: { id: true },
-    });
-  }
+    },
+    update: {},
+    create: {
+      tenantId,
+      appType,
+      agentId,
+      branchId: instalment.loan.branchId,
+      routeId: instalment.loan.customer.routeId,
+      date: today,
+      totalExpected: 0,
+      totalCollected: 0,
+      entriesCount: 0,
+      status: 'open',
+    },
+    select: { id: true },
+  });
 
   const room = Math.max(
     0,
