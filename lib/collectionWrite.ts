@@ -109,8 +109,8 @@ export async function recordCollection(
     0,
     Number(instalment.dueAmount) - Number(instalment.receivedAmount ?? 0),
   );
-  const applied = Math.min(amount, room);
-  if (applied <= 0) throw new Error('already_paid: instalment fully collected');
+  if (room <= 0) throw new Error('already_paid: instalment fully collected');
+  const applied = amount;
 
   const gps = input.gps ?? null;
   const entry = await tx.collectionEntry.create({
