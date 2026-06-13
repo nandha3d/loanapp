@@ -31,9 +31,18 @@ export type ReallocationSummary = {
 type PrismaTransaction = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
 
 function startOfDay(value: Date): Date {
-  const date = new Date(value);
-  date.setHours(0, 0, 0, 0);
-  return date;
+  const d = new Date(value);
+  if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0) {
+    const yyyy = d.getUTCFullYear();
+    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(d.getUTCDate()).padStart(2, '0');
+    return new Date(`${yyyy}-${mm}-${dd}T00:00:00.000Z`);
+  } else {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return new Date(`${yyyy}-${mm}-${dd}T00:00:00.000Z`);
+  }
 }
 
 function asNumber(value: number | Prisma.Decimal | string): number {
