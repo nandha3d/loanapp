@@ -157,6 +157,8 @@ export default function CollectionClient({
   const [overdueMinDays, setOverdueMinDays] = useState('');
   const [overdueMaxDays, setOverdueMaxDays] = useState('');
   const [selectedLoanForCustomer, setSelectedLoanForCustomer] = useState<Record<string, string>>({});
+  // Which customer's multi-loan dropdown is currently expanded (accordion).
+  const [openLoanMenu, setOpenLoanMenu] = useState<string | null>(null);
   const [gpsStatusText, setGpsStatusText] = useState('');
   const [agentLocation, setAgentLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [isSortedByNearest, setIsSortedByNearest] = useState(false);
@@ -560,17 +562,63 @@ export default function CollectionClient({
                   {group.loanCodes.length === 1 ? (
                     <Link href={`/loans/${group.loanCodes[0]}`}>{group.loanCodes[0]}</Link>
                   ) : (
-                    <select 
-                      className="form-control" 
-                      style={{ padding: '2px 24px 2px 8px', fontSize: '.8rem', height: 'auto', minHeight: '28px' }}
-                      value={currentLoanCode} 
-                      onChange={(e) => handleLoanChange(group.customerId, e.target.value)}
-                    >
-                      <option value="all">{dict.collection.allLoans} ({group.loanCodes.length})</option>
-                      {group.loanCodes.map(code => (
-                        <option key={code} value={code}>{code}</option>
-                      ))}
-                    </select>
+                    <div style={{ position: 'relative', display: 'inline-block', minWidth: '150px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setOpenLoanMenu(openLoanMenu === group.customerId ? null : group.customerId)}
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px',
+                          width: '100%', padding: '5px 8px', minHeight: '30px', fontSize: '.8rem', cursor: 'pointer',
+                          background: 'var(--surface, #fff)', border: '1px solid var(--border, #E2E8F0)',
+                          borderRadius: '8px', color: 'var(--text-primary, #1E293B)',
+                        }}
+                        aria-expanded={openLoanMenu === group.customerId}
+                      >
+                        <span style={{ fontWeight: 600 }}>
+                          {currentLoanCode === 'all'
+                            ? `${dict.collection.allLoans} (${group.loanCodes.length})`
+                            : currentLoanCode}
+                        </span>
+                        <span className="material-icons-outlined" style={{
+                          fontSize: '18px', color: 'var(--text-light, #94A3B8)',
+                          transition: 'transform .2s', transform: openLoanMenu === group.customerId ? 'rotate(180deg)' : 'none',
+                        }}>expand_more</span>
+                      </button>
+                      {openLoanMenu === group.customerId && (
+                        <>
+                          {/* click-away backdrop */}
+                          <div onClick={() => setOpenLoanMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 19 }} />
+                          <div style={{
+                            position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 20, minWidth: '100%',
+                            background: 'var(--surface, #fff)', border: '1px solid var(--border, #E2E8F0)',
+                            borderRadius: '10px', boxShadow: '0 10px 30px rgba(0,0,0,.14)', overflow: 'hidden',
+                          }}>
+                            {[{ code: 'all', label: `${dict.collection.allLoans} (${group.loanCodes.length})` },
+                              ...group.loanCodes.map((code) => ({ code, label: code }))].map((opt) => {
+                              const active = currentLoanCode === opt.code;
+                              return (
+                                <button
+                                  key={opt.code}
+                                  type="button"
+                                  onClick={() => { handleLoanChange(group.customerId, opt.code); setOpenLoanMenu(null); }}
+                                  style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px',
+                                    width: '100%', padding: '9px 12px', fontSize: '.8rem', cursor: 'pointer', border: 'none',
+                                    borderBottom: '1px solid var(--border, #EEF1F5)', textAlign: 'left',
+                                    background: active ? 'var(--primary-light, #FFF3E0)' : 'transparent',
+                                    color: active ? 'var(--primary-dark, #E8930C)' : 'var(--text-primary, #1E293B)',
+                                    fontWeight: active ? 700 : 500,
+                                  }}
+                                >
+                                  {opt.label}
+                                  {active && <span className="material-icons-outlined" style={{ fontSize: '16px' }}>check</span>}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </>
+                      )}
+                    </div>
                   )}
                 </td>
                 <td>{earliestDateIso ? formatDate(earliestDateIso) : '-'}</td>
