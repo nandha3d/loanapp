@@ -125,6 +125,17 @@ export async function recordCollection(
   const applied = amount;
 
   const gps = input.gps ?? null;
+
+  const agent = await tx.user.findUnique({
+    where: { id: agentId },
+    select: { feeConfirmationMandatory: true }
+  });
+
+  let verificationStatus = input.verificationStatus ?? 'pending';
+  if (paymentMode === 'cash' && agent?.feeConfirmationMandatory && verificationStatus === 'pending') {
+    verificationStatus = 'pending_confirmation';
+  }
+
   const entry = await tx.collectionEntry.create({
     data: {
       tenantId,
@@ -137,7 +148,7 @@ export async function recordCollection(
       paymentMode,
       remarks: input.remarks ?? null,
       agentId,
-      verificationStatus: input.verificationStatus ?? 'pending',
+      verificationStatus,
       source: input.source ?? 'field',
       runId: input.runId ?? null,
       lat: gps?.latitude ?? null,

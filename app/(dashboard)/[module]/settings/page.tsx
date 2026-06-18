@@ -66,13 +66,41 @@ export default async function SettingsPage() {
     }
   }
 
-  let branchAgents: { id: string; name: string; username: string; phone: string; status: string }[] = [];
+  let branchAgents: {
+    id: string;
+    name: string;
+    username: string;
+    phone: string;
+    status: string;
+    aadharNumber?: string | null;
+    dob?: Date | null;
+    experience?: string | null;
+    age?: number | null;
+    bypassLoanApproval?: boolean;
+    bypassCustomerApproval?: boolean;
+    autoReleaseFloat?: boolean;
+    feeConfirmationMandatory?: boolean;
+  }[] = [];
   let manageBranchName: string | null = null;
   if (manageBranchId) {
     const [agents, br] = await Promise.all([
       prisma.user.findMany({
         where: { tenantId, appType, role: 'agent', branchId: manageBranchId },
-        select: { id: true, name: true, username: true, phone: true, status: true },
+        select: {
+          id: true,
+          name: true,
+          username: true,
+          phone: true,
+          status: true,
+          aadharNumber: true,
+          dob: true,
+          experience: true,
+          age: true,
+          bypassLoanApproval: true,
+          bypassCustomerApproval: true,
+          autoReleaseFloat: true,
+          feeConfirmationMandatory: true,
+        },
         orderBy: { name: 'asc' },
       }),
       prisma.branch.findUnique({ where: { id: manageBranchId }, select: { name: true } }),

@@ -515,36 +515,39 @@ export async function reviewPendingLoan(formData: FormData) {
         where: { id: loanId },
         data: { status: newStatus },
       });
-
       if (action === 'approve') {
         const { disburseFromAgent, disburseFromBranch } = await import('@/lib/wallet');
         let isAgent = false;
+        let autoRelease = true;
         
         if (loan.createdById) {
           const creator = await tx.user.findUnique({
             where: { id: loan.createdById },
-            select: { role: true },
+            select: { role: true, autoReleaseFloat: true },
           });
           isAgent = creator?.role === 'agent';
+          autoRelease = creator ? creator.autoReleaseFloat !== false : true;
         }
 
-        const disburseAmt = Number(loan.disbursed);
-        if (isAgent && loan.createdById) {
-          await disburseFromAgent(tx, {
-            tenantId,
-            agentId: loan.createdById,
-            amount: disburseAmt,
-            loanId: loan.id,
-            byUserId: userId,
-          });
-        } else if (loan.branchId) {
-          await disburseFromBranch(tx, {
-            tenantId,
-            branchId: loan.branchId,
-            amount: disburseAmt,
-            loanId: loan.id,
-            byUserId: userId,
-          });
+        if (autoRelease) {
+          const disburseAmt = Number(loan.disbursed);
+          if (isAgent && loan.createdById) {
+            await disburseFromAgent(tx, {
+              tenantId,
+              agentId: loan.createdById,
+              amount: disburseAmt,
+              loanId: loan.id,
+              byUserId: userId,
+            });
+          } else if (loan.branchId) {
+            await disburseFromBranch(tx, {
+              tenantId,
+              branchId: loan.branchId,
+              amount: disburseAmt,
+              loanId: loan.id,
+              byUserId: userId,
+            });
+          }
         }
       }
 

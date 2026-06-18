@@ -33,7 +33,21 @@ export default function SettingsClient({
 
   // Scoped agent management (Users tab)
   const canManageAgents = viewerRole === 'admin' || viewerRole === 'superadmin' || viewerRole === 'developer';
-  const [agentModal, setAgentModal] = useState<{ id?: string; name: string; username: string; phone: string; status: string } | null>(null);
+  const [agentModal, setAgentModal] = useState<{
+    id?: string;
+    name: string;
+    username: string;
+    phone: string;
+    status: string;
+    aadharNumber?: string | null;
+    dob?: string | null;
+    experience?: string | null;
+    age?: number | null;
+    bypassLoanApproval?: boolean;
+    bypassCustomerApproval?: boolean;
+    autoReleaseFloat?: boolean;
+    feeConfirmationMandatory?: boolean;
+  } | null>(null);
   const [agentBusy, setAgentBusy] = useState(false);
 
   const submitAgent = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -151,7 +165,7 @@ export default function SettingsClient({
           <div className={`tab ${activeTab === 'data' ? 'active' : ''}`} style={{color: 'var(--danger)'}} onClick={() => setActiveTab('data')}>{d.tabData}</div>
         )}
         {canManageAgents && (
-          <div className={`tab ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>Users</div>
+          <div className={`tab ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>Agents</div>
         )}
         <div className={`tab ${activeTab === 'security' ? 'active' : ''}`} onClick={() => setActiveTab('security')}>{d.tabSecurity}</div>
       </div>
@@ -167,7 +181,7 @@ export default function SettingsClient({
             </p>
           </div>
           {manageBranchId && (
-            <button className="btn btn-primary btn-sm" onClick={() => setAgentModal({ name: '', username: '', phone: '', status: 'active' })}>
+            <button className="btn btn-primary btn-sm" onClick={() => setAgentModal({ name: '', username: '', phone: '', status: 'active', aadharNumber: '', dob: '', experience: '', age: null, bypassLoanApproval: false, bypassCustomerApproval: false, autoReleaseFloat: false, feeConfirmationMandatory: false })}>
               <span className="material-icons-outlined" style={{ fontSize: '14px' }}>add</span> Add Agent
             </button>
           )}
@@ -178,7 +192,7 @@ export default function SettingsClient({
           <div className="table-wrapper">
             <table>
               <thead>
-                <tr><th>Name</th><th>Username</th><th>Phone</th><th>Status</th><th style={{ textAlign: 'right' }}>Actions</th></tr>
+                <tr><th>Name</th><th>Username</th><th>Phone</th><th>Permissions</th><th>Status</th><th style={{ textAlign: 'right' }}>Actions</th></tr>
               </thead>
               <tbody>
                 {branchAgents.map((a: any) => (
@@ -186,9 +200,42 @@ export default function SettingsClient({
                     <td>{a.name}</td>
                     <td>{a.username}</td>
                     <td>{a.phone}</td>
+                    <td>
+                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                        {a.bypassCustomerApproval && (
+                          <span className="badge badge-info" style={{ fontSize: '10px', padding: '2px 8px' }} title="Bypass Customer Approval">Auto Customer</span>
+                        )}
+                        {a.bypassLoanApproval && (
+                          <span className="badge badge-pending" style={{ fontSize: '10px', padding: '2px 8px' }} title="Bypass Loan Approval">Auto Loan</span>
+                        )}
+                        {a.autoReleaseFloat && (
+                          <span className="badge" style={{ background: '#F3E8FF', color: '#7C3AED', fontSize: '10px', padding: '2px 8px' }} title="Auto-Release Float">Auto Disburse</span>
+                        )}
+                        {a.feeConfirmationMandatory && (
+                          <span className="badge" style={{ background: '#FEF3C7', color: '#D97706', fontSize: '10px', padding: '2px 8px' }} title="Mandatory Customer Confirmation">Fee Confirm</span>
+                        )}
+                        {!a.bypassCustomerApproval && !a.bypassLoanApproval && !a.autoReleaseFloat && !a.feeConfirmationMandatory && (
+                          <span style={{ color: 'var(--text-light)', fontSize: '.75rem' }}>Standard</span>
+                        )}
+                      </div>
+                    </td>
                     <td><span className={`badge ${a.status === 'active' ? 'badge-success' : 'badge-danger'}`}>{a.status}</span></td>
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <button className="btn btn-ghost btn-sm" onClick={() => setAgentModal({ id: a.id, name: a.name, username: a.username, phone: a.phone, status: a.status })}>Edit</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => setAgentModal({
+                        id: a.id,
+                        name: a.name,
+                        username: a.username,
+                        phone: a.phone,
+                        status: a.status,
+                        aadharNumber: a.aadharNumber || '',
+                        dob: a.dob ? new Date(a.dob).toISOString().split('T')[0] : '',
+                        experience: a.experience || '',
+                        age: a.age || null,
+                        bypassLoanApproval: !!a.bypassLoanApproval,
+                        bypassCustomerApproval: !!a.bypassCustomerApproval,
+                        autoReleaseFloat: !!a.autoReleaseFloat,
+                        feeConfirmationMandatory: !!a.feeConfirmationMandatory,
+                      })}>Edit</button>
                       <button className="btn btn-ghost btn-sm" onClick={() => toggleAgent(a.id, a.status)} style={{ color: a.status === 'active' ? 'var(--danger)' : 'var(--success)' }}>
                         {a.status === 'active' ? 'Deactivate' : 'Activate'}
                       </button>
@@ -196,7 +243,7 @@ export default function SettingsClient({
                   </tr>
                 ))}
                 {branchAgents.length === 0 && (
-                  <tr><td colSpan={5} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-light)' }}>No agents yet. Add one.</td></tr>
+                  <tr><td colSpan={6} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-light)' }}>No agents yet. Add one.</td></tr>
                 )}
               </tbody>
             </table>
@@ -222,6 +269,89 @@ export default function SettingsClient({
           <div className="form-group">
             <label className="form-label">{agentModal?.id ? 'New password (leave blank to keep)' : 'Password'}</label>
             <input name="password" type="password" className="form-control" autoComplete="new-password" {...(agentModal?.id ? {} : { required: true })} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="form-group">
+              <label className="form-label">Aadhaar Number</label>
+              <input name="aadharNumber" className="form-control" defaultValue={agentModal?.aadharNumber || ''} placeholder="Optional" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Date of Birth</label>
+              <input name="dob" type="date" className="form-control" defaultValue={agentModal?.dob || ''} />
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="form-group">
+              <label className="form-label">Experience</label>
+              <input name="experience" className="form-control" defaultValue={agentModal?.experience || ''} placeholder="e.g. 2 years, Optional" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Age</label>
+              <input name="age" type="number" className="form-control" defaultValue={agentModal?.age || ''} placeholder="Optional" />
+            </div>
+          </div>
+          <div style={{ marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px', marginBottom: '16px' }}>
+            <h4 style={{ fontSize: '.9rem', fontWeight: 600, marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary-dark)' }}>
+              <span className="material-icons-outlined" style={{ fontSize: '18px' }}>admin_panel_settings</span>
+              Agent Permissions & Autopay Controls
+            </h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  name="bypassCustomerApproval" 
+                  value="true" 
+                  defaultChecked={!!agentModal?.bypassCustomerApproval} 
+                  style={{ marginTop: '3px' }}
+                />
+                <div>
+                  <strong style={{ fontSize: '.85rem', display: 'block' }}>Bypass Customer Approval</strong>
+                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>Allow agent to create active customers without admin review.</span>
+                </div>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  name="bypassLoanApproval" 
+                  value="true" 
+                  defaultChecked={!!agentModal?.bypassLoanApproval} 
+                  style={{ marginTop: '3px' }}
+                />
+                <div>
+                  <strong style={{ fontSize: '.85rem', display: 'block' }}>Bypass Loan Approval</strong>
+                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>Allow agent to create active loans immediately.</span>
+                </div>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  name="autoReleaseFloat" 
+                  value="true" 
+                  defaultChecked={!!agentModal?.autoReleaseFloat} 
+                  style={{ marginTop: '3px' }}
+                />
+                <div>
+                  <strong style={{ fontSize: '.85rem', display: 'block' }}>Auto-Release Float</strong>
+                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>Automatically disburse funds from agent float when loan is created/approved.</span>
+                </div>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  name="feeConfirmationMandatory" 
+                  value="true" 
+                  defaultChecked={!!agentModal?.feeConfirmationMandatory} 
+                  style={{ marginTop: '3px' }}
+                />
+                <div>
+                  <strong style={{ fontSize: '.85rem', display: 'block' }}>Mandatory Customer Confirmation</strong>
+                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>Require borrower to confirm cash collection before it reflects to admin dashboard.</span>
+                </div>
+              </label>
+            </div>
           </div>
           <div className="form-group">
             <label className="form-label">Status</label>

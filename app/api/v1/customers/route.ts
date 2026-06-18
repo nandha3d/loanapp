@@ -205,7 +205,21 @@ export async function POST(req: NextRequest) {
         ...scopedBranchWhere(ctx),
       },
     });
+
     const customerCode = generateCode(branding.customerCodePrefix, count + 1, 4);
+
+    let bypassCustomerApproval = false;
+    if (['admin', 'superadmin', 'developer'].includes(ctx.role)) {
+      bypassCustomerApproval = true;
+    } else if (ctx.role === 'agent') {
+      const agent = await prisma.user.findUnique({
+        where: { id: ctx.userId },
+        select: { bypassCustomerApproval: true },
+      });
+      if (agent?.bypassCustomerApproval) {
+        bypassCustomerApproval = true;
+      }
+    }
 
     const customer = await prisma.customer.create({
       data: {
@@ -219,7 +233,7 @@ export async function POST(req: NextRequest) {
         aadharNumber: encryptAadharNumber(body.aadharNumber ?? null),
         routeId: ctx.role === 'agent' ? null : body.routeId ?? null,
         agentId: ctx.role === 'agent' ? ctx.userId : body.agentId ?? null,
-        status: 'pending_review',
+        status: bypassCustomerApproval ? 'active' : 'pending_review',
         profilePhoto: body.photoUrl ?? null,
         // Extended profile fields (web parity)
         email: body.email ?? null,

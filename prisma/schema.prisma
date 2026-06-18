@@ -137,6 +137,14 @@ model User {
   deletedAt                DateTime?          @map("deleted_at")
   totpSecret               String?            @map("totp_secret")
   googleId                 String?            @unique @map("google_id")
+  aadharNumber             String?            @map("aadhar_number")
+  dob                      DateTime?          @map("dob") @db.Date
+  experience               String?            @map("experience")
+  age                      Int?               @map("age")
+  bypassLoanApproval       Boolean            @default(false) @map("bypass_loan_approval")
+  bypassCustomerApproval   Boolean            @default(false) @map("bypass_customer_approval")
+  autoReleaseFloat         Boolean            @default(false) @map("auto_release_float")
+  feeConfirmationMandatory Boolean            @default(false) @map("fee_confirmation_mandatory")
   approvalRequestsMade       ApprovalRequest[]  @relation("Requester")
   approvalRequestsReviewed   ApprovalRequest[]  @relation("Reviewer")
   auditLogs                  AuditLog[]

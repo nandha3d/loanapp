@@ -746,6 +746,89 @@ export default function UsersClient({
             <label className="form-label">Password {editingUser && <span className="text-muted">(Leave blank to keep)</span>}</label>
             <input type="password" name="password" className="form-control" required={!editingUser} />
           </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="form-group">
+              <label className="form-label">Aadhaar Number</label>
+              <input name="aadharNumber" className="form-control" defaultValue={editingUser?.aadharNumber || ''} placeholder="Optional" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Date of Birth</label>
+              <input name="dob" type="date" className="form-control" defaultValue={editingUser?.dob ? new Date(editingUser.dob).toISOString().split('T')[0] : ''} />
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="form-group">
+              <label className="form-label">Experience</label>
+              <input name="experience" className="form-control" defaultValue={editingUser?.experience || ''} placeholder="e.g. 2 years, Optional" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Age</label>
+              <input name="age" type="number" className="form-control" defaultValue={editingUser?.age || ''} placeholder="Optional" />
+            </div>
+          </div>
+          <div style={{ marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px', marginBottom: '16px' }}>
+            <h4 style={{ fontSize: '.9rem', fontWeight: 600, marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary-dark)' }}>
+              <span className="material-icons-outlined" style={{ fontSize: '18px' }}>admin_panel_settings</span>
+              User Permissions & Autopay Controls
+            </h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  name="bypassCustomerApproval" 
+                  value="true" 
+                  defaultChecked={!!editingUser?.bypassCustomerApproval} 
+                  style={{ marginTop: '3px' }}
+                />
+                <div>
+                  <strong style={{ fontSize: '.85rem', display: 'block' }}>Bypass Customer Approval</strong>
+                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>Allow user to create active customers without admin review.</span>
+                </div>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  name="bypassLoanApproval" 
+                  value="true" 
+                  defaultChecked={!!editingUser?.bypassLoanApproval} 
+                  style={{ marginTop: '3px' }}
+                />
+                <div>
+                  <strong style={{ fontSize: '.85rem', display: 'block' }}>Bypass Loan Approval</strong>
+                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>Allow user to create active loans immediately.</span>
+                </div>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  name="autoReleaseFloat" 
+                  value="true" 
+                  defaultChecked={!!editingUser?.autoReleaseFloat} 
+                  style={{ marginTop: '3px' }}
+                />
+                <div>
+                  <strong style={{ fontSize: '.85rem', display: 'block' }}>Auto-Release Float</strong>
+                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>Automatically disburse funds when loan is created/approved.</span>
+                </div>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  name="feeConfirmationMandatory" 
+                  value="true" 
+                  defaultChecked={!!editingUser?.feeConfirmationMandatory} 
+                  style={{ marginTop: '3px' }}
+                />
+                <div>
+                  <strong style={{ fontSize: '.85rem', display: 'block' }}>Mandatory Customer Confirmation</strong>
+                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>Require borrower to confirm cash collection before it reflects to admin dashboard.</span>
+                </div>
+              </label>
+            </div>
+          </div>
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">Role</label>

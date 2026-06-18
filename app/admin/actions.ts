@@ -61,6 +61,7 @@ export async function manageMasterUser(formData: FormData, actorOverride?: Actio
       return { success: false, error: err.message };
     }
   }
+
   const name = formData.get('name') as string;
   const username = formData.get('username') as string;
   const phone = formData.get('phone') as string;
@@ -74,6 +75,19 @@ export async function manageMasterUser(formData: FormData, actorOverride?: Actio
   const adminModules = normalizeModuleList(formData.getAll('adminModules'));
   const userModuleList = normalizeModuleList(formData.getAll('userModules'));
   const appType = requestedAppType || adminModules[0] || userModuleList[0] || 'microlending';
+
+  // New optional details & permission switches
+  const aadharNumber = formData.get('aadharNumber') as string | null || null;
+  const dobRaw = formData.get('dob') as string | null;
+  const dob = dobRaw ? new Date(dobRaw) : null;
+  const experience = formData.get('experience') as string | null || null;
+  const ageRaw = formData.get('age') as string | null;
+  const age = ageRaw ? parseInt(ageRaw, 10) : null;
+
+  const bypassLoanApproval = formData.get('bypassLoanApproval') === 'true' || formData.get('bypassLoanApproval') === 'on';
+  const bypassCustomerApproval = formData.get('bypassCustomerApproval') === 'true' || formData.get('bypassCustomerApproval') === 'on';
+  const autoReleaseFloat = formData.get('autoReleaseFloat') === 'true' || formData.get('autoReleaseFloat') === 'on';
+  const feeConfirmationMandatory = formData.get('feeConfirmationMandatory') === 'true' || formData.get('feeConfirmationMandatory') === 'on';
 
   if (!name || !username || !phone || !role || !appType) {
     return { success: false, error: 'Missing required fields' };
@@ -160,6 +174,14 @@ export async function manageMasterUser(formData: FormData, actorOverride?: Actio
       appType,
       branchId,
       status,
+      aadharNumber,
+      dob,
+      experience,
+      age,
+      bypassLoanApproval,
+      bypassCustomerApproval,
+      autoReleaseFloat,
+      feeConfirmationMandatory,
     };
     if (password) {
       updateData.passwordHash = await bcrypt.hash(password, 10);
@@ -202,9 +224,18 @@ export async function manageMasterUser(formData: FormData, actorOverride?: Actio
           role,
           appType,
           branchId,
-          status
+          status,
+          aadharNumber,
+          dob,
+          experience,
+          age,
+          bypassLoanApproval,
+          bypassCustomerApproval,
+          autoReleaseFloat,
+          feeConfirmationMandatory,
         }
       });
+      savedUserId = savedUser.id;
     } catch (err: any) {
       if (err.code === 'P2002') {
         // Prisma's meta.target is a string (MySQL index name) — NOT an array as
@@ -660,6 +691,19 @@ export async function manageBranchAgent(formData: FormData, actorOverride?: Acti
   const status = (formData.get('status') as string) === 'inactive' ? 'inactive' : 'active';
   const appType = (formData.get('appType') as string) || 'microlending';
 
+  // New optional details & permission switches
+  const aadharNumber = formData.get('aadharNumber') as string | null || null;
+  const dobRaw = formData.get('dob') as string | null;
+  const dob = dobRaw ? new Date(dobRaw) : null;
+  const experience = formData.get('experience') as string | null || null;
+  const ageRaw = formData.get('age') as string | null;
+  const age = ageRaw ? parseInt(ageRaw, 10) : null;
+
+  const bypassLoanApproval = formData.get('bypassLoanApproval') === 'true' || formData.get('bypassLoanApproval') === 'on';
+  const bypassCustomerApproval = formData.get('bypassCustomerApproval') === 'true' || formData.get('bypassCustomerApproval') === 'on';
+  const autoReleaseFloat = formData.get('autoReleaseFloat') === 'true' || formData.get('autoReleaseFloat') === 'on';
+  const feeConfirmationMandatory = formData.get('feeConfirmationMandatory') === 'true' || formData.get('feeConfirmationMandatory') === 'on';
+
   if (!name || !username || !phone) {
     return { success: false, error: 'Name, username and phone are required.' };
   }
@@ -707,7 +751,9 @@ export async function manageBranchAgent(formData: FormData, actorOverride?: Acti
       select: { id: true },
     });
     if (!target) return { success: false, error: 'Agent not found in your branch.' };
-    const data: any = { name, username, phone, status };
+    const data: any = { name, username, phone, status,
+      aadharNumber, dob, experience, age,
+      bypassLoanApproval, bypassCustomerApproval, autoReleaseFloat, feeConfirmationMandatory };
     if (password) data.passwordHash = await bcrypt.hash(password, 10);
     await prisma.user.update({ where: { id }, data });
     await prisma.auditLog.create({
@@ -724,7 +770,9 @@ export async function manageBranchAgent(formData: FormData, actorOverride?: Acti
       const created = await prisma.user.create({
         data: { tenantId, branchId, name, username, phone,
           passwordHash: await bcrypt.hash(password, 10),
-          role: 'agent', appType, status, canCreateLoan: true },
+          role: 'agent', appType, status, canCreateLoan: true,
+          aadharNumber, dob, experience, age,
+          bypassLoanApproval, bypassCustomerApproval, autoReleaseFloat, feeConfirmationMandatory },
       });
       await prisma.auditLog.create({
         data: { tenantId, userId: actorId, action: 'create', entityType: 'user', entityId: created.id,

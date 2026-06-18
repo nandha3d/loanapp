@@ -1,4 +1,4 @@
-﻿import 'package:loantrack/core/currency/currency_controller.dart';
+import 'package:loantrack/core/currency/currency_controller.dart';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -212,10 +212,11 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
             );
           }
           final filtered = _applyFilter(rows, filter);
-          final totalDue = rows.fold<double>(0, (s, r) => s + r.dueAmount);
+          final todaysRows = rows.where((r) => r.daysOverdue <= 0).toList();
+          final totalDue = todaysRows.fold<double>(0, (s, r) => s + r.dueAmount);
           final totalCollected =
-              rows.fold<double>(0, (s, r) => s + r.receivedAmount);
-          final pendingCount = rows.where((r) => r.status != 'paid').length;
+              todaysRows.fold<double>(0, (s, r) => s + r.receivedAmount);
+          final pendingCount = todaysRows.where((r) => r.status != 'paid').length;
 
           // â”€â”€ Map view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           if (_showMap) {
@@ -300,7 +301,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
   List<CollectionRow> _applyFilter(List<CollectionRow> rows, String filter) {
     switch (filter) {
       case 'pending':
-        return rows.where((r) => r.status != 'paid').toList();
+        return rows.where((r) => r.status != 'paid' && r.daysOverdue <= 0).toList();
       case 'paid':
         return rows.where((r) => r.status == 'paid').toList();
       case 'overdue':
@@ -743,7 +744,7 @@ class _FilterPills extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pendingC = rows.where((r) => r.status != 'paid').length;
+    final pendingC = rows.where((r) => r.status != 'paid' && r.daysOverdue <= 0).length;
     final overdueC =
         rows.where((r) => r.daysOverdue > 0 && r.status != 'paid').length;
     final paidC = rows.where((r) => r.status == 'paid').length;
@@ -900,11 +901,8 @@ class _RouteHeader extends StatelessWidget {
 // explicit actions: collect today's due, or settle overdue.
 class _CustomerGroup {
   _CustomerGroup(this.rows);
-
-  /// All of a customer's instalments for today's run, in API order (dueDate asc).
   final List<CollectionRow> rows;
 
-  /// Representative row for header/identity/location (oldest due first).
   CollectionRow get primary => rows.first;
 
   List<CollectionRow> get _collectible =>
@@ -949,7 +947,7 @@ class _CustomerGroup {
   }
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Collection card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ───────────────────────────── Collection card ────────────────────────────
 
 class _CollectionCard extends ConsumerWidget {
   const _CollectionCard({
@@ -969,6 +967,115 @@ class _CollectionCard extends ConsumerWidget {
       backgroundColor: Colors.transparent,
       builder: (_) => QuickCollectSheet(row: row),
     ).then((_) => ref.invalidate(collectionTodayProvider));
+  }
+
+  void _showOverdueDetails(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
+    final overdueList = group._overdueCollectible;
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                group.primary.customerName,
+                style: AppTypography.sectionTitle.copyWith(fontSize: 18),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${group.primary.loanCode} • ${overdueList.length} ${t.x('coll.filter_overdue').toLowerCase()} dues',
+                style: AppTypography.caption,
+              ),
+              const SizedBox(height: 16),
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: overdueList.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.border),
+                  itemBuilder: (context, idx) {
+                    final row = overdueList[idx];
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  DateFormat('dd MMM yyyy').format(row.dueDate),
+                                  style: AppTypography.bodyLarge,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${row.daysOverdue} days overdue',
+                                  style: AppTypography.caption.copyWith(color: AppColors.danger),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                fmt.format(row.outstanding),
+                                style: AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 4),
+                              GestureDetector(
+                                onTap: () {
+                                  Navigator.pop(ctx);
+                                  _collect(context, ref, row);
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Text(
+                                    'Collect',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -994,178 +1101,178 @@ class _CollectionCard extends ConsumerWidget {
     return Material(
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: AppTokens.shadow,
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header: avatar, name + loan code, call.
-            Row(
-              children: [
-                _Avatar(name: p.customerName),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        p.customerName,
-                        style: AppTypography.nameLg,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          Text(
-                            p.loanCode,
-                            style: AppTypography.caption.copyWith(
-                              fontFamily: 'monospace',
-                            ),
-                          ),
-                          if (distanceLabel != null) ...[
-                            const SizedBox(width: 8),
-                            Icon(
-                              Icons.near_me,
-                              size: 12,
-                              color: AppColors.primary,
-                            ),
-                            const SizedBox(width: 2),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: overdue != null ? () => _showOverdueDetails(context, ref) : null,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: AppTokens.shadow,
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _Avatar(name: p.customerName),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          p.customerName,
+                          style: AppTypography.nameLg,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
                             Text(
-                              distanceLabel!,
+                              p.loanCode,
                               style: AppTypography.caption.copyWith(
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.w600,
+                                fontFamily: 'monospace',
                               ),
                             ),
+                            if (distanceLabel != null) ...[
+                              const SizedBox(width: 8),
+                              Icon(
+                                Icons.near_me,
+                                size: 12,
+                                color: AppColors.primary,
+                              ),
+                              const SizedBox(width: 2),
+                              Text(
+                                distanceLabel!,
+                                style: AppTypography.caption.copyWith(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                           ],
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(
-                    Icons.call_rounded,
-                    color: AppColors.success,
-                  ),
-                  onPressed: () async {
-                    final uri = Uri(scheme: 'tel', path: p.customerCode);
-                    if (await canLaunchUrl(uri)) {
-                      await launchUrl(uri);
-                    }
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            // Amount summary + status chip.
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        fmt.format(
-                          allCollected ? group.collectedTotal : group.totalDue,
                         ),
-                        style: AppTypography.moneyLg
-                            .copyWith(color: AppColors.textPrimary),
-                      ),
-                      Text(
-                        allCollected
-                            ? t.x('coll.collected_label')
-                            : t.x('coll.amount_due'),
-                        style: AppTypography.caption,
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                _StatusChip(color: chipColor, label: chipLabel),
-              ],
-            ),
-            const SizedBox(height: 14),
-            // Two explicit actions: today's due | overdue (grayed when none).
-            Row(
-              children: [
-                Expanded(
-                  child: _ActionButton(
-                    primary: true,
-                    enabled: today != null,
-                    icon: Icons.today_rounded,
-                    label: t.x('coll.btn_today'),
-                    amount: today != null ? fmt.format(group.todayDue) : null,
-                    onTap: today != null
-                        ? () => _collect(context, ref, today)
-                        : null,
+                  IconButton(
+                    icon: const Icon(
+                      Icons.call_rounded,
+                      color: AppColors.success,
+                    ),
+                    onPressed: () async {
+                      final uri = Uri(scheme: 'tel', path: p.customerCode);
+                      if (await canLaunchUrl(uri)) {
+                        await launchUrl(uri);
+                      }
+                    },
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _ActionButton(
-                    primary: false,
-                    enabled: overdue != null,
-                    icon: Icons.history_rounded,
-                    label: overdue != null
-                        ? t.x('coll.btn_overdue')
-                        : t.x('coll.no_overdue'),
-                    amount:
-                        overdue != null ? fmt.format(group.overdueDue) : null,
-                    onTap: overdue != null
-                        ? () => _collect(context, ref, overdue)
-                        : null,
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          fmt.format(
+                            allCollected ? group.collectedTotal : group.totalDue,
+                          ),
+                          style: AppTypography.moneyLg.copyWith(
+                            color: AppColors.textPrimary,
+                            fontSize: 24,
+                          ),
+                        ),
+                        Text(
+                          allCollected
+                              ? t.x('coll.collected_label')
+                              : t.x('coll.amount_due'),
+                          style: AppTypography.caption,
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-            // Receipt / share â€” shown once any instalment has been collected.
-            if (rrow != null) ...[
-              const SizedBox(height: 8),
+                  _StatusChip(color: chipColor, label: chipLabel),
+                ],
+              ),
+              const SizedBox(height: 14),
               Row(
                 children: [
                   Expanded(
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.textPrimary,
-                        side: const BorderSide(color: AppColors.border),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      onPressed: () => _downloadReceipt(context, ref, rrow),
-                      icon: const Icon(Icons.receipt_long, size: 18),
-                      label: Text(t.x('coll.receipt')),
+                    child: _ActionButton(
+                      primary: true,
+                      enabled: today != null,
+                      icon: Icons.today_rounded,
+                      label: t.x('coll.btn_today'),
+                      amount: today != null ? fmt.format(group.todayDue) : null,
+                      onTap: today != null
+                          ? () => _collect(context, ref, today)
+                          : null,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   Expanded(
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.textPrimary,
-                        side: const BorderSide(color: AppColors.border),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      onPressed: () => _shareReceipt(context, ref, rrow),
-                      icon: const Icon(Icons.share, size: 18),
-                      label: Text(t.x('coll.receipt_share')),
+                    child: _ActionButton(
+                      primary: false,
+                      enabled: overdue != null,
+                      icon: Icons.history_rounded,
+                      label: overdue != null
+                          ? t.x('coll.btn_overdue')
+                          : t.x('coll.no_overdue'),
+                      amount:
+                          overdue != null ? fmt.format(group.overdueDue) : null,
+                      onTap: overdue != null
+                          ? () => _showOverdueDetails(context, ref)
+                          : null,
                     ),
                   ),
                 ],
               ),
+              if (rrow != null) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.textPrimary,
+                          side: const BorderSide(color: AppColors.border),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        onPressed: () => _downloadReceipt(context, ref, rrow),
+                        icon: const Icon(Icons.receipt_long, size: 18),
+                        label: Text(t.x('coll.receipt')),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.textPrimary,
+                          side: const BorderSide(color: AppColors.border),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        onPressed: () => _shareReceipt(context, ref, rrow),
+                        icon: const Icon(Icons.share, size: 18),
+                        label: Text(t.x('coll.receipt_share')),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
   }
 
-  /// Fetches the receipt PDF bytes, showing a loading/failure snackbar.
-  /// Returns null on failure (snackbar already shown).
   Future<Uint8List?> _fetchReceiptBytes(
     ScaffoldMessengerState messenger,
     T t,
@@ -1204,9 +1311,6 @@ class _CollectionCard extends ConsumerWidget {
     );
   }
 
-  /// Shares the receipt PDF via the native share sheet. Lets the agent send it
-  /// through their own WhatsApp/SMS/etc. â€” no DLT or business registration
-  /// needed, which suits unregistered field lenders.
   Future<void> _shareReceipt(
     BuildContext context,
     WidgetRef ref,
@@ -1223,9 +1327,8 @@ class _CollectionCard extends ConsumerWidget {
   }
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Collection card sub-widgets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ───────────────────────────── Collection card sub-widgets ────────────────
 
-/// Small rounded status pill (overdue days / due today / collected).
 class _StatusChip extends StatelessWidget {
   const _StatusChip({required this.color, required this.label});
   final Color color;
@@ -1244,9 +1347,6 @@ class _StatusChip extends StatelessWidget {
   }
 }
 
-/// Dual-line action button used for "Today's due" and "Overdue".
-/// `primary` paints the amber CTA; otherwise it's a danger-tonal button.
-/// When `enabled` is false it greys out (used when there is no overdue).
 class _ActionButton extends StatelessWidget {
   const _ActionButton({
     required this.primary,
@@ -1269,16 +1369,13 @@ class _ActionButton extends StatelessWidget {
     final Color fg;
     Border? border;
     if (!enabled) {
-      // Greyed-out (e.g. no overdue) on the light card.
       bg = AppColors.background;
       fg = AppColors.textLight;
       border = Border.all(color: AppColors.border);
     } else if (primary) {
-      // Today's due â€” amber CTA.
       bg = AppColors.primary;
       fg = AppColors.onPrimary;
     } else {
-      // Overdue â€” black action button.
       bg = AppColors.ink;
       fg = AppColors.onInk;
     }
@@ -1349,7 +1446,7 @@ class _Avatar extends StatelessWidget {
 
   String _initials() {
     final parts = name.trim().split(RegExp(r'\s+'));
-    if (parts.isEmpty || parts.first.isEmpty) return 'â€”';
+    if (parts.isEmpty || parts.first.isEmpty) return '—';
     return parts.take(2).map((p) => p.isEmpty ? '' : p[0].toUpperCase()).join();
   }
 
