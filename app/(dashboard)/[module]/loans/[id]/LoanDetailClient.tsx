@@ -160,35 +160,34 @@ export default function LoanDetailClient({
   //   rate = perInstalment + (overdueTillDate / remainingPeriods)
   //   • Paid on schedule → overdueTillDate 0 → rate = perInstalment (no change).
   //   • Fell behind      → rate slightly above normal, clears backlog on time.
+  // Restructure: spread the entire outstanding amount across the actual remaining days/periods:
+  //   rate = outstanding / actualRemainingCount
   const { restructureRemainingCount, adjustedInstallment } = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    let overdueTillDate = 0;
-    let remaining = 0;
-    let perInst = 0;
-    for (const inst of loan.instalments as any[]) {
-      const out = Math.max(0, Number(inst.dueAmount) - Number(inst.receivedAmount));
-      if (out <= 0) continue;
-      const d = new Date(inst.dueDate);
-      d.setHours(0, 0, 0, 0);
-      if (d.getTime() < today.getTime()) {
-        overdueTillDate += out; // strictly past = backlog
+    const endDate = loan.endDate ? new Date(loan.endDate) : new Date();
+    endDate.setHours(0, 0, 0, 0);
+    const calendarDays = Math.ceil((endDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+    
+    let actualCount = 0;
+    if (calendarDays > 0) {
+      if (loan.frequency === 'weekly') {
+        actualCount = Math.max(1, Math.ceil(calendarDays / 7));
+      } else if (loan.frequency === 'monthly') {
+        actualCount = Math.max(1, Math.ceil(calendarDays / 30));
       } else {
-        remaining += 1; // today + future = days still paid
-        if (perInst === 0) perInst = Number(inst.dueAmount);
+        actualCount = Math.max(1, calendarDays);
       }
     }
-    if (remaining === 0) {
-      return {
-        restructureRemainingCount: overdueTillDate > 0 ? 1 : 1,
-        adjustedInstallment: Math.round(overdueTillDate * 100) / 100,
-      };
-    }
+    
+    const divisor = actualCount || 1;
+    const rate = Math.round((outstanding / divisor) * 100) / 100;
+    
     return {
-      restructureRemainingCount: remaining,
-      adjustedInstallment: Math.round((perInst + overdueTillDate / remaining) * 100) / 100,
+      restructureRemainingCount: actualCount,
+      adjustedInstallment: rate,
     };
-  }, [loan.instalments]);
+  }, [loan.endDate, loan.frequency, outstanding]);
 
   const missedInstalments = displayInstalments.filter((i: any) => i.status === 'missed');
   const missedCount = missedInstalments.length;
@@ -590,7 +589,13 @@ export default function LoanDetailClient({
                 </div>
               </div>
               <div>
-                <div className="cm-label">Remaining</div>
+                <div className="cm-label">Remaining (Actual)</div>
+                <div className="cm-value" style={{ color: 'var(--danger)' }}>
+                  {restructureRemainingCount} {loan.frequency === 'daily' ? 'Days' : loan.frequency === 'weekly' ? 'Weeks' : 'Months'}
+                </div>
+              </div>
+              <div>
+                <div className="cm-label">Remaining (Extended)</div>
                 <div className="cm-value" style={{ color: 'var(--danger)' }}>
                   {dynamicRemainingCount} {loan.frequency === 'daily' ? 'Days' : loan.frequency === 'weekly' ? 'Weeks' : 'Months'}
                 </div>
@@ -601,7 +606,9 @@ export default function LoanDetailClient({
                   <div>
                     <span style={{ fontSize: '.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>💡 Finishing Rate Option</span>
                     <p style={{ fontSize: '.68rem', color: 'var(--text-light)', margin: '2px 0 0' }}>
-                      Normal due + backlog spread across the remaining {restructureRemainingCount} {loan.frequency === 'daily' ? 'days' : loan.frequency === 'weekly' ? 'weeks' : 'months'} to finish on time:
+                      {restructureRemainingCount > 0 
+                        ? `Outstanding balance spread across the remaining ${restructureRemainingCount} ${loan.frequency === 'daily' ? 'days' : loan.frequency === 'weekly' ? 'weeks' : 'months'} to finish on time:`
+                        : 'Outstanding balance (overdue past end date):'}
                     </p>
                   </div>
                   <div style={{ textAlign: 'right' }}>
@@ -781,36 +788,66 @@ export default function LoanDetailClient({
         </div>
 
         <div>
-          <div className="card" style={{ marginBottom: '20px' }}>
-            <div className="card-header">
-              <h3>⚡ {d.penaltySummary}</h3>
-              <Link href={`/penalties?q=${encodeURIComponent(loan.loanCode)}`} className="btn btn-ghost btn-sm">
-                <span className="material-icons-outlined" style={{ fontSize: '14px' }}>open_in_new</span>
-                {d.viewInPenalties}
+          {/* Overdue Summary Card */}
+          <div className="card" style={{ marginBottom: '16px', padding: '14px' }}>
+            <div className="card-header" style={{ marginBottom: '12px' }}>
+              <h3 style={{ fontSize: '.9rem', display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}>
+                <span className="material-icons-outlined" style={{ fontSize: '18px', color: 'var(--danger)' }}>report_problem</span>
+                Overdues
+              </h3>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div style={{ background: 'var(--bg)', padding: '10px', borderRadius: 'var(--radius-sm)' }}>
+                <span style={{ fontSize: '.72rem', color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '.3px' }}>{d.missedDays}</span>
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--danger)', marginTop: '2px' }}>
+                  {missedCount}
+                </div>
+              </div>
+              <div style={{ background: 'var(--bg)', padding: '10px', borderRadius: 'var(--radius-sm)' }}>
+                <span style={{ fontSize: '.72rem', color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '.3px' }}>Overdue Amount</span>
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--danger)', marginTop: '2px' }}>
+                  {formatCurrency(duesPending, currencySymbol)}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Penalty Summary Card */}
+          <div className="card" style={{ marginBottom: '20px', padding: '14px' }}>
+            <div className="card-header" style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '.9rem', display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}>
+                <span className="material-icons-outlined" style={{ fontSize: '18px', color: 'var(--primary)' }}>gavel</span>
+                {d.penaltySummary}
+              </h3>
+              <Link href={`/penalties?q=${encodeURIComponent(loan.loanCode)}`} className="btn btn-ghost btn-xs" style={{ padding: '2px 6px', fontSize: '.7rem', height: 'auto', minHeight: 'auto' }}>
+                <span className="material-icons-outlined" style={{ fontSize: '12px', marginRight: '3px' }}>open_in_new</span>
+                View
               </Link>
             </div>
-            <div className="stats-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-              <div className="stat-item">
-                <div className="stat-value" style={{ color: 'var(--danger)' }}>{missedCount}</div>
-                <div className="stat-label">{d.missedDays}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '4px' }}>
+              <div style={{ background: 'var(--bg)', padding: '8px', borderRadius: 'var(--radius-sm)', textAlign: 'center' }}>
+                <span style={{ fontSize: '.65rem', color: 'var(--text-light)', textTransform: 'uppercase' }}>Total</span>
+                <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--danger)', marginTop: '2px' }}>
+                  {formatCurrency(totalPenalty, currencySymbol)}
+                </div>
               </div>
-              <div className="stat-item">
-                <div className="stat-value" style={{ color: 'var(--danger)' }}>{formatCurrency(totalPenalty, currencySymbol)}</div>
-                <div className="stat-label">{d.totalPenalty}</div>
+              <div style={{ background: 'var(--bg)', padding: '8px', borderRadius: 'var(--radius-sm)', textAlign: 'center' }}>
+                <span style={{ fontSize: '.65rem', color: 'var(--text-light)', textTransform: 'uppercase' }}>{d.settledWaived}</span>
+                <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--success)', marginTop: '2px' }}>
+                  {formatCurrency(settledPenalty + waivedPenalty, currencySymbol)}
+                </div>
               </div>
-              <div className="stat-item">
-                <div className="stat-value" style={{ color: 'var(--success)' }}>{formatCurrency(settledPenalty + waivedPenalty, currencySymbol)}</div>
-                <div className="stat-label">{d.settledWaived}</div>
-              </div>
-              <div className="stat-item">
-                <div className="stat-value" style={{ color: 'var(--primary-dark)' }}>{formatCurrency(netPenalty, currencySymbol)}</div>
-                <div className="stat-label">{d.netDue}</div>
+              <div style={{ background: 'var(--bg)', padding: '8px', borderRadius: 'var(--radius-sm)', textAlign: 'center' }}>
+                <span style={{ fontSize: '.65rem', color: 'var(--text-light)', textTransform: 'uppercase' }}>{d.netDue}</span>
+                <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--primary-dark)', marginTop: '2px' }}>
+                  {formatCurrency(netPenalty, currencySymbol)}
+                </div>
               </div>
             </div>
             {netPenalty > 0 && (
-              <div style={{ marginTop: '16px', display: 'flex', gap: '8px' }}>
-                <button className="btn btn-ghost btn-sm" style={{ flex: 1, border: '1px solid var(--border)' }} onClick={() => openPenaltyModal({ id: 'new', grossPenalty: netPenalty }, 'waive')}>{d.waisePenalty}</button>
-                <button className="btn btn-ghost btn-sm" style={{ flex: 1, border: '1px solid var(--border)' }} onClick={() => openPenaltyModal({ id: 'new', grossPenalty: netPenalty }, 'settle')}>{d.settlePenalty}</button>
+              <div style={{ marginTop: '12px', display: 'flex', gap: '6px' }}>
+                <button className="btn btn-ghost btn-xs" style={{ flex: 1, border: '1px solid var(--border)', padding: '6px 8px', fontSize: '.75rem', minHeight: 'auto' }} onClick={() => openPenaltyModal({ id: 'new', grossPenalty: netPenalty }, 'waive')}>{d.waisePenalty}</button>
+                <button className="btn btn-ghost btn-xs" style={{ flex: 1, border: '1px solid var(--border)', padding: '6px 8px', fontSize: '.75rem', minHeight: 'auto' }} onClick={() => openPenaltyModal({ id: 'new', grossPenalty: netPenalty }, 'settle')}>{d.settlePenalty}</button>
               </div>
             )}
           </div>

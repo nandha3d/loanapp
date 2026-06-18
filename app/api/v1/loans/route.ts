@@ -218,13 +218,24 @@ export async function POST(req: NextRequest) {
       dueDay,
     });
 
-    // Note: Agents now disburse on-approval. We don't block them from creating the
-    // loan request if they have insufficient float, because the admin can release
-    // funds before approving the loan.
-    // (If the creator is an admin/superadmin, the loan is active immediately and
-    // disburses from the branch pool, which doesn't have a strict balance block here).
-
     const { calculateEndDate, generateCode } = await import('@/lib/utils');
+    let bypassLoanApproval = false;
+    let autoReleaseFloat = true;
+    if (ctx.role === 'agent') {
+       const agentUser = await prisma.user.findUnique({
+          where: { id: ctx.userId },
+          select: { bypassLoanApproval: true, autoReleaseFloat: true }
+       });
+       bypassLoanApproval = agentUser?.bypassLoanApproval === true;
+       autoReleaseFloat = agentUser?.autoReleaseFloat !== false;
+    } else {
+       bypassLoanApproval = true;
+       const adminUser = await prisma.user.findUnique({
+          where: { id: ctx.userId },
+          select: { autoReleaseFloat: true }
+       });
+       autoReleaseFloat = adminUser?.autoReleaseFloat !== false;
+    }
     const { getBranding } = await import('@/lib/tenant');
     const branding = await getBranding(ctx.tenantId);
     const count = await prisma.loan.count({
@@ -302,7 +313,7 @@ export async function POST(req: NextRequest) {
         totalPayable: preview.totalPayable,
         totalInstalments: tenure,
         createdById: ctx.userId,
-        status: ctx.role === 'agent' ? 'pending_review' : 'active',
+        status,
         instalments: {
           create: preview.schedule.map((i: any) => ({
             instalmentNo: i.instalmentNo,
@@ -327,13 +338,23 @@ export async function POST(req: NextRequest) {
       newValue: { loanCode, principal, customerId },
     });
 
-    // Disburse cash from the float ledger. For agents, this now happens 
-    // ON APPROVAL in the review action. For admin/superadmin (loan goes straight
-    // to active), we draw from the branch cash pool here.
-    if (loan.status === 'active') {
+    // Disburse cash from the float ledger. For agents, this happens automatically
+    // on creation if autoReleaseFloat is enabled. For admin/superadmin (loan goes straight
+    // to active), we draw from the branch cash pool.
+    if (loan.status === 'active' && autoReleaseFloat) {
       try {
         const disburseAmt = Number(preview.disbursedAmount);
-        if (loan.branchId) {
+        if (ctx.role === 'agent') {
+          await prisma.$transaction((tx) =>
+            disburseFromAgent(tx, {
+              tenantId: ctx.tenantId,
+              agentId: ctx.userId,
+              amount: disburseAmt,
+              loanId: loan.id,
+              byUserId: ctx.userId,
+            }),
+          );
+        } else if (loan.branchId) {
           await prisma.$transaction((tx) =>
             disburseFromBranch(tx, {
               tenantId: ctx.tenantId,
@@ -345,7 +366,7 @@ export async function POST(req: NextRequest) {
           );
         }
       } catch (err) {
-        console.error('[wallet] branch disbursement debit failed:', err);
+        console.error('[wallet] disbursement debit failed:', err);
       }
     }
 
