@@ -164,6 +164,7 @@ export async function POST(req: NextRequest) {
         companyEmail?: string;
         companyLogo?: string;
         designation?: string;
+        preferredCollectionTime?: string;
         collectionPoints?: Array<{
           name?: string;
           address?: string;
@@ -251,6 +252,7 @@ export async function POST(req: NextRequest) {
         companyEmail: body.companyEmail ?? null,
         companyLogo: body.companyLogo ?? null,
         designation: body.designation ?? null,
+        preferredCollectionTime: body.preferredCollectionTime ?? null,
         kycDocuments: body.kycDocs && body.kycDocs.length > 0
           ? {
               create: body.kycDocs.map((d) => ({

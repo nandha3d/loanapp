@@ -526,7 +526,10 @@ export async function reviewPendingLoan(formData: FormData) {
             select: { role: true, autoReleaseFloat: true },
           });
           isAgent = creator?.role === 'agent';
-          autoRelease = creator ? creator.autoReleaseFloat !== false : true;
+          // autoReleaseFloat is an AGENT-only toggle. Non-agent creators always
+          // auto-release (original privilege) so admin-created loans aren't
+          // accidentally blocked by the agent permission default.
+          autoRelease = isAgent ? creator!.autoReleaseFloat !== false : true;
         }
 
         if (autoRelease) {

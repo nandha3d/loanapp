@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 import prisma from '@/lib/db';
 import { getAgentRouteIds } from '@/lib/access';
 import { canAgentAccessCustomer } from '@/lib/loanPolicy';
-import { buildCollectionIdempotencyKey, getCollectionSubmissionBlockReason } from '@/lib/collectionPolicy';
+import { buildCollectionIdempotencyKey, getCollectionSubmissionBlockReason, getLoanCollectionBlockReason } from '@/lib/collectionPolicy';
 import { recordPaymentLedger } from '@/lib/paymentService';
 import { reallocateLoanRepayments } from '@/lib/repayments';
 import { creditCollection } from '@/lib/wallet';
@@ -69,6 +69,20 @@ export type RecordCollectionInput = {
   creditFloat?: boolean;
   /** Optional GPS capture for field collection. */
   gps?: CollectionGpsCapture | null;
+  /**
+   * Loan-distribution fast path: when a single payment is spread across many
+   * instalments, the caller runs the expensive loan reallocation, daily-rollup
+   * recompute and float credit ONCE at the end instead of per instalment (which
+   * is O(n²) and blows the interactive-transaction timeout). These let the
+   * per-instalment write stay cheap. Single-instalment callers leave them unset.
+   */
+  skipReallocate?: boolean;
+  skipRollup?: boolean;
+  /**
+   * Prefetched decision for whether cash collection must wait for customer
+   * confirmation (agent-only). When provided, skips the per-call user lookup.
+   */
+  forceConfirmation?: boolean;
 };
 
 /**
@@ -122,17 +136,29 @@ export async function recordCollection(
     Number(instalment.dueAmount) - Number(instalment.receivedAmount ?? 0),
   );
   if (room <= 0) throw new Error('already_paid: instalment fully collected');
-  const applied = amount;
+  // Cap each entry to the instalment's remaining room. Surplus must NOT inflate a
+  // single instalment past its due (corrupts the loan actual-vs-distributed view).
+  // Callers that collect more than one instalment's worth must distribute the
+  // payment across instalments (see distributeCollectionAcrossLoan).
+  const applied = Math.min(amount, room);
 
   const gps = input.gps ?? null;
 
-  const agent = await tx.user.findUnique({
-    where: { id: agentId },
-    select: { feeConfirmationMandatory: true }
-  });
+  // feeConfirmationMandatory is an AGENT-only toggle. Only force customer
+  // confirmation when the collector is actually an agent — admins/managers
+  // collecting keep their original privilege (no mandatory confirmation).
+  // Distribution callers prefetch this once and pass `forceConfirmation`.
+  let forceConfirmation = input.forceConfirmation;
+  if (forceConfirmation === undefined) {
+    const agent = await tx.user.findUnique({
+      where: { id: agentId },
+      select: { role: true, feeConfirmationMandatory: true },
+    });
+    forceConfirmation = agent?.role === 'agent' && !!agent?.feeConfirmationMandatory;
+  }
 
   let verificationStatus = input.verificationStatus ?? 'pending';
-  if (paymentMode === 'cash' && agent?.feeConfirmationMandatory && verificationStatus === 'pending') {
+  if (paymentMode === 'cash' && forceConfirmation && verificationStatus === 'pending') {
     verificationStatus = 'pending_confirmation';
   }
 
@@ -174,20 +200,27 @@ export async function recordCollection(
     data: { receivedAmount: { increment: applied }, receivedAt: new Date() },
   });
 
-  await reallocateLoanRepayments(tx, instalment.loanId);
+  // Loan reallocation + daily rollup are O(n) each. Distribution callers defer
+  // both and run them ONCE after the whole batch, so a single payment across N
+  // instalments stays O(n) instead of O(n²).
+  if (!input.skipReallocate) {
+    await reallocateLoanRepayments(tx, instalment.loanId);
+  }
 
-  const all = await tx.collectionEntry.findMany({
-    where: { collectionId: daily.id },
-    select: { receivedAmount: true, dueAmount: true },
-  });
-  await tx.dailyCollection.update({
-    where: { id: daily.id },
-    data: {
-      totalCollected: all.reduce((s, e) => s + Number(e.receivedAmount), 0),
-      totalExpected: all.reduce((s, e) => s + Number(e.dueAmount), 0),
-      entriesCount: all.length,
-    },
-  });
+  if (!input.skipRollup) {
+    const all = await tx.collectionEntry.findMany({
+      where: { collectionId: daily.id },
+      select: { receivedAmount: true, dueAmount: true },
+    });
+    await tx.dailyCollection.update({
+      where: { id: daily.id },
+      data: {
+        totalCollected: all.reduce((s, e) => s + Number(e.receivedAmount), 0),
+        totalExpected: all.reduce((s, e) => s + Number(e.dueAmount), 0),
+        entriesCount: all.length,
+      },
+    });
+  }
 
   // Cash-in-hand: a collecting agent now holds this cash -> credit their float.
   // Best-effort so a missing wallet table never breaks collection (mirrors the
@@ -323,4 +356,185 @@ export async function submitCollectionEntry(
   });
 
   return { ...result, instalment };
+}
+
+export type DistributeCollectionInput = {
+  loanId: string;
+  amount: number;
+  paymentMode?: string;
+  remarks?: string | null;
+  collectionDate?: string | Date | null;
+  /** Base idempotency key; per-instalment keys derive from it (`base:instalmentId`). */
+  idempotencyKey?: string;
+  gps?: CollectionGpsCapture | null;
+};
+
+export type DistributeCollectionResult = {
+  posted: { instalmentId: string; instalmentNo: number; applied: number }[];
+  applied: number;
+  leftover: number;
+};
+
+/**
+ * Collects ONE payment and spreads it across a loan's open instalments,
+ * OLDEST-FIRST (overdue before today before future). Each instalment is filled
+ * up to its remaining room only — so the recorded "actual" allocation matches
+ * the chronological "distributed" view shown on the loan page, and no single
+ * instalment is ever over-credited.
+ *
+ * Example: customer owes 10×₹100 overdue + ₹100 today and pays ₹1100 → the 11
+ * instalments are each settled ₹100 in date order, all dated today.
+ *
+ * Runs in ONE transaction. Reuses `recordCollection` per instalment, so ledger,
+ * daily rollup, wallet float, and loan reallocation behave exactly as a single
+ * collection. Idempotent: replaying the same payment re-derives the same keys.
+ */
+export async function distributeCollectionAcrossLoan(
+  actor: CollectionActor,
+  input: DistributeCollectionInput,
+  options: { enforceBranchScope?: boolean } = {},
+): Promise<DistributeCollectionResult> {
+  const amount = Number(input.amount);
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error('invalid_amount');
+  const paymentMode = String(input.paymentMode || 'cash');
+
+  const loan = await prisma.loan.findUnique({
+    where: { id: input.loanId },
+    include: { customer: true },
+  });
+  if (!loan || loan.tenantId !== actor.tenantId || loan.appType !== actor.appType) {
+    throw new Error('not_found');
+  }
+
+  const loanBlock = getLoanCollectionBlockReason(loan.status);
+  if (loanBlock) throw new Error(`already_paid: ${loanBlock}`);
+
+  if (options.enforceBranchScope && actor.branchId && loan.branchId !== actor.branchId) {
+    throw new Error('forbidden');
+  }
+  if (actor.role === 'agent') {
+    const routeIds = await getAgentRouteIds(actor.userId);
+    if (!canAgentAccessCustomer(loan.customer, routeIds, actor.userId)) {
+      throw new Error('forbidden');
+    }
+  }
+
+  const collectionDate = startOfDay(input.collectionDate);
+
+  // Prefetch the agent-only confirmation decision ONCE (avoids a user lookup per
+  // instalment inside the transaction).
+  const collector = await prisma.user.findUnique({
+    where: { id: actor.userId },
+    select: { role: true, feeConfirmationMandatory: true },
+  });
+  const forceConfirmation = collector?.role === 'agent' && !!collector?.feeConfirmationMandatory;
+
+  return prisma.$transaction(
+    async (tx) => {
+      const instalments = await tx.instalment.findMany({
+        where: { loanId: input.loanId },
+        include: { loan: { include: { customer: { select: { routeId: true } } } } },
+        orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
+      });
+
+      const posted: DistributeCollectionResult['posted'] = [];
+      let remaining = amount;
+      let dailyId: string | null = null;
+      let firstEntryId: string | null = null;
+      let cashApplied = 0;
+
+      for (const inst of instalments) {
+        if (remaining <= 0) break;
+        if (inst.status === 'waived') continue;
+        const room = Number(inst.dueAmount) - Number(inst.receivedAmount ?? 0);
+        if (room <= 0) continue;
+
+        const pay = Math.min(remaining, room);
+        const idempotencyKey = input.idempotencyKey
+          ? `${input.idempotencyKey}:${inst.id}`
+          : buildCollectionIdempotencyKey({
+              tenantId: actor.tenantId,
+              agentId: actor.userId,
+              instalmentId: inst.id,
+              receivedAmount: pay,
+              paymentMode,
+              collectionDate,
+            });
+
+        // Defer reallocation, rollup and float credit — done ONCE below so the
+        // whole batch stays within the transaction budget.
+        const rec = await recordCollection(tx, {
+          tenantId: actor.tenantId,
+          appType: actor.appType,
+          agentId: actor.userId,
+          instalment: inst as never,
+          amount: pay,
+          paymentMode,
+          idempotencyKey,
+          collectionDate,
+          remarks: input.remarks ?? null,
+          creditFloat: false,
+          forceConfirmation,
+          skipReallocate: true,
+          skipRollup: true,
+          gps: input.gps ?? null,
+        });
+        posted.push({ instalmentId: inst.id, instalmentNo: inst.instalmentNo, applied: rec.applied });
+        remaining -= rec.applied;
+        if (rec.created) {
+          firstEntryId ??= rec.entryId;
+          cashApplied += rec.applied;
+        }
+      }
+
+      if (posted.length === 0) throw new Error('already_paid: nothing to collect');
+
+      // Run the deferred work exactly once.
+      await reallocateLoanRepayments(tx, input.loanId);
+
+      const daily = await tx.dailyCollection.findUnique({
+        where: {
+          tenantId_appType_agentId_date: {
+            tenantId: actor.tenantId,
+            appType: actor.appType,
+            agentId: actor.userId,
+            date: collectionDate,
+          },
+        },
+        select: { id: true },
+      });
+      dailyId = daily?.id ?? null;
+      if (dailyId) {
+        const all = await tx.collectionEntry.findMany({
+          where: { collectionId: dailyId },
+          select: { receivedAmount: true, dueAmount: true },
+        });
+        await tx.dailyCollection.update({
+          where: { id: dailyId },
+          data: {
+            totalCollected: all.reduce((s, e) => s + Number(e.receivedAmount), 0),
+            totalExpected: all.reduce((s, e) => s + Number(e.dueAmount), 0),
+            entriesCount: all.length,
+          },
+        });
+      }
+
+      // Credit the collecting agent's float once with the whole cash amount.
+      if (cashApplied > 0 && firstEntryId) {
+        try {
+          await creditCollection(tx, {
+            tenantId: actor.tenantId,
+            agentId: actor.userId,
+            amount: cashApplied,
+            entryId: firstEntryId,
+          });
+        } catch (err) {
+          console.error('[wallet] distributed collection credit failed:', err);
+        }
+      }
+
+      return { posted, applied: amount - remaining, leftover: remaining };
+    },
+    { timeout: 30000, maxWait: 15000 },
+  );
 }

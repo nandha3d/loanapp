@@ -355,6 +355,7 @@ export const ml = {
     submitPayment: 'പേയ്‌മെന്റ് സമർപ്പിക്കുക',
     outstandingDetails: 'ബാക്കി വിശദാംശങ്ങൾ',
     totalOutstandingBalance: 'ആകെ ബാക്കി ബാലൻസ്',
+    totalDue: 'ആകെ കുടിശ്ശിക',
     includesPreviousOverdue: 'മുൻ കാലഹരണം ഉൾക്കൊള്ളുന്നു',
     handoverRequested: 'ഹാൻഡോവർ അഭ്യർത്ഥന സമർപ്പിച്ചു',
     failedHandover: 'ഹാൻഡോവർ സമർപ്പിക്കുന്നതിൽ പരാജയം',

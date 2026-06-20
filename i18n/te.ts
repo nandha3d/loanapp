@@ -355,6 +355,7 @@ export const te = {
     submitPayment: 'చెల్లింపు సమర్పించండి',
     outstandingDetails: 'బకాయి వివరాలు',
     totalOutstandingBalance: 'మొత్తం బకాయి బ్యాలెన్స్',
+    totalDue: 'మొత్తం బకాయి',
     includesPreviousOverdue: 'మునుపటి అతిగడువు వాయిదాలు కలిపి',
     handoverRequested: 'హ్యాండ్‌ఓవర్ విజయవంతంగా అభ్యర్థించబడింది',
     failedHandover: 'హ్యాండ్‌ఓవర్ సమర్పించడంలో విఫలమైంది',

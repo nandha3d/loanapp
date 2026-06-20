@@ -1,4 +1,4 @@
-﻿import 'package:loantrack/core/currency/currency_controller.dart';
+import 'package:loantrack/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -69,7 +69,7 @@ class DashboardScreen extends ConsumerWidget {
           const SizedBox(width: 4),
         ],
       ),
-      drawer: _SideDrawer(userName: user?.name ?? 'â€”'),
+      drawer: _SideDrawer(userName: user?.name ?? '-'),
       body: RefreshIndicator(
         color: AppColors.primary,
         onRefresh: () async => ref.refresh(dashboardSummaryProvider.future),
@@ -133,6 +133,8 @@ class _DashboardBody extends ConsumerWidget {
         ],
         _UpNextPager(fmt: fmt, t: t),
         const SizedBox(height: 18),
+        _TodayActivitySection(summary: summary, fmt: fmt, t: t),
+        const SizedBox(height: 18),
         _ActivitySection(summary: summary, t: t),
       ],
     );
@@ -174,7 +176,7 @@ class _GreetingRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '${t.x('dash.hello')}, ${name.isEmpty ? 'â€”' : name.split(' ').first}',
+                '${t.x('dash.hello')}, ${name.isEmpty ? '-' : name.split(' ').first}',
                 style: AppTypography.nameLg,
               ),
               Text(dateStr, style: AppTypography.caption),
@@ -222,7 +224,7 @@ class _CollectionPagerState extends State<_CollectionPager> {
     return Column(
       children: [
         SizedBox(
-          height: 304,
+          height: 380,
           child: PageView(
             controller: _ctrl,
             onPageChanged: (i) => setState(() => _idx = i),
@@ -266,10 +268,11 @@ class _HeroBalance extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Headline the actual cash taken today (all instalments), not just the
-    // portion that landed on today's scheduled dues.
-    final collected = summary.cashCollectedToday;
+    // Use todayCollected (money applied to today's scheduled dues only).
+    // cashCollectedToday includes overdue recovery and should NOT appear here.
+    final collected = summary.todayCollected;
     final expected = summary.todayExpected;
+    final remaining = (expected - collected).clamp(0.0, double.infinity);
     final pct = expected <= 0 ? 0.0 : (collected / expected).clamp(0.0, 1.0);
     final paid = summary.todayInstalments.where((i) => i.status == 'paid').length;
     final pending = summary.todayInstalments
@@ -280,7 +283,7 @@ class _HeroBalance extends ConsumerWidget {
         .length;
     final pctInt = (pct * 100).round();
 
-    // Color shifts: red â†’ orange â†’ green as collection improves
+    // Color shifts: red → orange → green as collection improves
     final barColor = pct >= 0.75
         ? const Color(0xFF34D399)
         : pct >= 0.4
@@ -360,28 +363,46 @@ class _HeroBalance extends ConsumerWidget {
             const SizedBox(height: 12),
             // Progress bar
             _CollectionBar(pct: pct, color: barColor),
-            const SizedBox(height: 8),
-            // Collected / Expected labels
-            Row(
-              children: [
-                const Icon(Icons.check_circle_outline, size: 12, color: Colors.white38),
-                const SizedBox(width: 4),
-                Text(
-                  fmt.format(collected),
-                  style: AppTypography.tiny.copyWith(color: Colors.white54),
-                ),
-                const Spacer(),
-                const Icon(Icons.flag_outlined, size: 12, color: Colors.white38),
-                const SizedBox(width: 4),
-                Text(
-                  fmt.format(expected),
-                  style: AppTypography.tiny.copyWith(color: Colors.white54),
-                ),
-              ],
+            const SizedBox(height: 14),
+            // ── Prominent money breakdown: Collected / Collectable / Remaining ──
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withAlpha(10),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _MoneyStatLarge(
+                      label: t.x('dash.collected_today'),
+                      value: fmt.format(collected),
+                      tone: const Color(0xFF34D399),
+                    ),
+                  ),
+                  Container(width: 1, height: 36, color: Colors.white.withAlpha(20)),
+                  Expanded(
+                    child: _MoneyStatLarge(
+                      label: t.x('dash.collectable'),
+                      value: fmt.format(expected),
+                      tone: Colors.white,
+                    ),
+                  ),
+                  Container(width: 1, height: 36, color: Colors.white.withAlpha(20)),
+                  Expanded(
+                    child: _MoneyStatLarge(
+                      label: t.x('dash.remaining'),
+                      value: fmt.format(remaining),
+                      tone: const Color(0xFFFF8674),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 16),
-            Container(height: 1, color: Colors.white.withAlpha(20)),
             const SizedBox(height: 12),
+            Container(height: 1, color: Colors.white.withAlpha(20)),
+            const SizedBox(height: 10),
+            // ── Secondary count stats: Paid / Pending / Overdue ──
             Row(
               children: [
                 Expanded(child: _HeroStat(n: paid, label: t.x('coll.filter_paid'))),
@@ -466,7 +487,7 @@ class _CollectionBar extends StatelessWidget {
   }
 }
 
-/// Second pager card â€” Overdue Collection. Daily snapshot: Total overdue (start
+/// Second pager card — Overdue Collection. Daily snapshot: Total overdue (start
 /// of today), Collected today (past-due recovery), Remaining. Re-bases each day.
 class _OverdueBalance extends ConsumerWidget {
   const _OverdueBalance({
@@ -633,6 +654,43 @@ class _MoneyStat extends StatelessWidget {
         Text(
           label,
           style: AppTypography.tiny.copyWith(color: Colors.white54),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+    );
+  }
+}
+
+/// Larger money stat used in the Today's Collection hero card for prominent
+/// Collected / Collectable / Remaining breakdown.
+class _MoneyStatLarge extends StatelessWidget {
+  const _MoneyStatLarge({required this.label, required this.value, this.tone});
+  final String label;
+  final String value;
+  final Color? tone;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: AppTypography.bodyLarge.copyWith(
+            color: tone ?? Colors.white,
+            fontWeight: FontWeight.w800,
+            fontSize: 17,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 3),
+        Text(
+          label,
+          style: AppTypography.tiny.copyWith(
+            color: Colors.white60,
+            fontWeight: FontWeight.w500,
+          ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
@@ -1004,7 +1062,7 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
               GestureDetector(
                 onTap: () => context.go('/collection'),
                 child: Text(
-                  '${t.x('common.see_all')} â†’',
+                  '${t.x('common.see_all')} \u2192',
                   style: AppTypography.caption.copyWith(
                     color: AppColors.textLight,
                     fontWeight: FontWeight.w600,
@@ -1165,7 +1223,7 @@ class _UpNextCard extends ConsumerWidget {
                         Flexible(
                           child: Text(
                             [time, if (route != null && route.isNotEmpty) route]
-                                .join(' Â· '),
+                                .join(' \u00b7 '),
                             style: AppTypography.caption,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -1349,6 +1407,98 @@ String _relTime(DateTime dt, T t) {
   return DateFormat('d MMM').format(dt);
 }
 
+/// Today's Activity — every collection recorded today, newest first, with the
+/// time, customer collected from, the agent who collected, and the amount. Lets
+/// the user see "what was done today" without leaving the dashboard.
+class _TodayActivitySection extends StatelessWidget {
+  const _TodayActivitySection({
+    required this.summary,
+    required this.fmt,
+    required this.t,
+  });
+  final DashboardSummary summary;
+  final NumberFormat fmt;
+  final T t;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = summary.todayActivity;
+    final total = items.fold<double>(0, (s, a) => s + a.amount);
+    return _Section(
+      title:
+          '${t.x('dash.today_activity')}${items.isEmpty ? '' : '  ·  ${fmt.format(total)}'}',
+      child: items.isEmpty
+          ? SizedBox(
+              height: 100,
+              child: EmptyState(
+                icon: Icons.event_available_outlined,
+                title: t.x('dash.no_today_activity'),
+              ),
+            )
+          : Column(
+              children: [
+                for (final a in items)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: InkWell(
+                      onTap: a.customerId.isEmpty
+                          ? null
+                          : () => context.push('/customers/${a.customerId}'),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Row(
+                        children: [
+                          // Time column
+                          SizedBox(
+                            width: 58,
+                            child: Text(
+                              DateFormat('h:mm a').format(a.submittedAt),
+                              style: AppTypography.caption.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          _Avatar(name: a.customerName, size: 34),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  a.customerName,
+                                  style: AppTypography.bodyLarge,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  '${a.loanCode} · ${a.agentName} · ${a.paymentMode.toUpperCase()}'
+                                  '${a.count > 1 ? ' · ${a.count} inst.' : ''}',
+                                  style: AppTypography.caption,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            fmt.format(a.amount),
+                            style: AppTypography.bodyLarge.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.success,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+    );
+  }
+}
+
 class _Section extends StatelessWidget {
   const _Section({
     required this.title,
@@ -1406,7 +1556,7 @@ class _Avatar extends StatelessWidget {
 
   String _initials() {
     final parts = name.trim().split(RegExp(r'\s+'));
-    if (parts.isEmpty || parts.first.isEmpty) return 'â€”';
+    if (parts.isEmpty || parts.first.isEmpty) return '-';
     return parts
         .take(2)
         .map((p) => p.isEmpty ? '' : p[0].toUpperCase())

@@ -355,6 +355,7 @@ export const ta = {
     submitPayment: 'கட்டணம் சமர்ப்பி',
     outstandingDetails: 'நிலுவை விவரங்கள்',
     totalOutstandingBalance: 'மொத்த நிலுவை இருப்பு',
+    totalDue: 'மொத்த நிலுவை',
     includesPreviousOverdue: 'முந்தைய காலாவதி தவணைகள் உட்பட',
     handoverRequested: 'கையளிப்பு வெற்றிகரமாக கோரப்பட்டது',
     failedHandover: 'கையளிப்பு சமர்ப்பிக்க முடியவில்லை',

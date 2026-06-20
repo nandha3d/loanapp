@@ -355,6 +355,7 @@ export const kn = {
     submitPayment: 'ಪಾವತಿ ಸಲ್ಲಿಸಿ',
     outstandingDetails: 'ಬಾಕಿ ವಿವರಗಳು',
     totalOutstandingBalance: 'ಒಟ್ಟು ಬಾಕಿ ಶಿಲ್ಕು',
+    totalDue: 'ಒಟ್ಟು ಬಾಕಿ',
     includesPreviousOverdue: 'ಹಿಂದಿನ ಅತೀತ ಸೇರಿದೆ',
     handoverRequested: 'ಹ್ಯಾಂಡೋವರ್ ವಿನಂತಿ ಸಲ್ಲಿಸಲಾಗಿದೆ',
     failedHandover: 'ಹ್ಯಾಂಡೋವರ್ ಸಲ್ಲಿಸಲು ವಿಫಲ',

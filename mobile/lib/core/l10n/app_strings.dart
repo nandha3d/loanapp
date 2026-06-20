@@ -220,6 +220,10 @@ const Map<String, Map<String, String>> kStrings = {
     'en': 'today', 'ta': 'இன்று', 'hi': 'आज',
     'te': 'నేడు', 'kn': 'ಇಂದು', 'ml': 'ഇന്ന്',
   },
+  'dash.collectable': {
+    'en': 'Collectable', 'ta': 'வசூலிக்க வேண்டியது', 'hi': 'वसूली योग्य',
+    'te': 'వసూలు చేయవలసినది', 'kn': 'ವಸೂಲಿ ಮಾಡಬೇಕಾದ', 'ml': 'പിരിക്കേണ്ടത്',
+  },
   'dash.remaining': {
     'en': 'Remaining', 'ta': 'மீதம்', 'hi': 'शेष',
     'te': 'మిగిలినది', 'kn': 'ಉಳಿದದ್ದು', 'ml': 'ബാക്കി',
@@ -239,6 +243,14 @@ const Map<String, Map<String, String>> kStrings = {
   'dash.no_activity': {
     'en': 'No recent activity', 'ta': 'செயல்பாடு இல்லை', 'hi': 'कोई गतिविधि नहीं',
     'te': 'కార్యకలాపం లేదు', 'kn': 'ಚಟುವಟಿಕೆ ಇಲ್ಲ', 'ml': 'പ്രവർത്തനം ഇല്ല',
+  },
+  'dash.today_activity': {
+    'en': "Today's Activity", 'ta': 'இன்றைய செயல்பாடு', 'hi': 'आज की गतिविधि',
+    'te': 'నేటి కార్యకలాపం', 'kn': 'ಇಂದಿನ ಚಟುವಟಿಕೆ', 'ml': 'ഇന്നത്തെ പ്രവർത്തനം',
+  },
+  'dash.no_today_activity': {
+    'en': 'No collections recorded today', 'ta': 'இன்று வசூல் இல்லை', 'hi': 'आज कोई वसूली नहीं',
+    'te': 'నేడు వసూలు లేదు', 'kn': 'ಇಂದು ವಸೂಲಿ ಇಲ್ಲ', 'ml': 'ഇന്ന് പിരിവ് ഇല്ല',
   },
   'dash.net_profit': {
     'en': 'Net Profit', 'ta': 'நிகர லாபம்', 'hi': 'शुद्ध लाभ',
@@ -2095,6 +2107,10 @@ const Map<String, Map<String, String>> kStrings = {
   'coll.btn_overdue': {
     'en': 'Overdue', 'ta': 'நிலுவை', 'hi': 'बकाया',
     'te': 'బకాయి', 'kn': 'ಬಾಕಿ', 'ml': 'കുടിശ്ശിക',
+  },
+  'coll.total_due': {
+    'en': 'Total Due', 'ta': 'மொத்த நிலுவை', 'hi': 'कुल बकाया',
+    'te': 'మొత్తం బకాయి', 'kn': 'ಒಟ್ಟು ಬಾಕಿ', 'ml': 'ആകെ കുടിശ്ശിക',
   },
   'coll.no_overdue': {
     'en': 'No overdue', 'ta': 'நிலுவை இல்லை', 'hi': 'कोई बकाया नहीं',

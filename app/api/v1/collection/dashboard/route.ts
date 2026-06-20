@@ -3,7 +3,7 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
 import { getAgentRouteIds } from '@/lib/access';
-import { COLLECTIBLE_LOAN_STATUSES } from '@/lib/collectionPolicy';
+import { COLLECTIBLE_LOAN_STATUSES, isCollectionDay } from '@/lib/collectionPolicy';
 import { getSetting } from '@/lib/tenant';
 import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 import { startOfBusinessToday, startOfBusinessTomorrow } from '@/lib/businessTime';
@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
       },
     };
 
-    const [todayInstalments, overdueInstalments, agentRoutes] = await Promise.all([
+    const [todayDueInstalments, overdueInstalments, paidTodayInstalments, agentRoutes] = await Promise.all([
       prisma.instalment.findMany({
         where: {
           loan: baseLoanWhere,
@@ -88,6 +88,19 @@ export async function GET(req: NextRequest) {
           // whitelist used to omit 'pending' rows (the default before the
           // missed-marking cron runs), so overdue dues silently disappeared.
           NOT: { status: 'paid' },
+        },
+        include: includeLoan,
+        orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
+      }),
+      // Past-due instalments that were CLEARED today. Without this, a customer
+      // whose overdue was fully settled today vanishes from the agent's list
+      // (it's no longer "due" and no longer "overdue"). Keep them visible —
+      // grayed-out — so the day's work is auditable at a glance.
+      prisma.instalment.findMany({
+        where: {
+          loan: baseLoanWhere,
+          dueDate: { lt: today },
+          receivedAt: { gte: today, lt: tomorrow },
         },
         include: includeLoan,
         orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
@@ -122,9 +135,26 @@ export async function GET(req: NextRequest) {
     const receiptPdfEnabled = isReceiptPdfAllowed && isReceiptPdfActive;
     const gpsTrackingEnabled = sub?.gpsTrackingEnabled || false;
 
+    // Frequency-aware worklist: a non-daily loan's overdue backlog only surfaces
+    // on its cadence day (weekly → its weekday, monthly → its day-of-month), so
+    // the agent isn't told to chase weekly/monthly customers every single day.
+    // Daily loans are unaffected. Today's dues and today's collections always show.
+    const overdueVisible = overdueInstalments.filter((i) =>
+      isCollectionDay(i.loan.frequency, i.dueDate, today),
+    );
+
+    // Merge today's dues with past-due-cleared-today. Dedupe by id (a partial
+    // paid today can appear in both the overdue and paid-today queries; the
+    // client also de-dupes, but keep the payload clean).
+    const seen = new Set(todayDueInstalments.map((i) => i.id));
+    const todayInstalments = [
+      ...todayDueInstalments,
+      ...paidTodayInstalments.filter((i) => !seen.has(i.id)),
+    ];
+
     return ok({
       todayInstalments,
-      overdueInstalments,
+      overdueInstalments: overdueVisible,
       routes: agentRoutes,
       dailyCollection: dailyCollectionRaw ? {
         id: dailyCollectionRaw.id,

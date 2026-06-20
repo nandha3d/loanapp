@@ -229,13 +229,16 @@ export async function POST(req: NextRequest) {
        bypassLoanApproval = agentUser?.bypassLoanApproval === true;
        autoReleaseFloat = agentUser?.autoReleaseFloat !== false;
     } else {
+       // Non-agents (admin/superadmin/manager/...) keep their original
+       // privileges: loans go straight to active and float auto-releases. The
+       // agent permission toggles must NEVER gate non-agent users.
        bypassLoanApproval = true;
-       const adminUser = await prisma.user.findUnique({
-          where: { id: ctx.userId },
-          select: { autoReleaseFloat: true }
-       });
-       autoReleaseFloat = adminUser?.autoReleaseFloat !== false;
+       autoReleaseFloat = true;
     }
+    // Loan starts active when approval is bypassed, else waits for review.
+    // (This was referenced at create time but never declared — loan creation
+    // 500'd with "status is not defined" until now.)
+    const status = bypassLoanApproval ? 'active' : 'pending_review';
     const { getBranding } = await import('@/lib/tenant');
     const branding = await getBranding(ctx.tenantId);
     const count = await prisma.loan.count({

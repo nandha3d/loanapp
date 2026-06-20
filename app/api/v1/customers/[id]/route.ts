@@ -38,6 +38,7 @@ const CUSTOMER_UPDATE_FIELDS = [
   'companyPhone',
   'companyEmail',
   'designation',
+  'preferredCollectionTime',
   'profilePhoto',
   'companyLogo',
 ] as const;
