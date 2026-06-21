@@ -18,6 +18,8 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   // Registration is hidden on a client's standalone domain.
   const [registerAllowed, setRegisterAllowed] = useState(true);
+  const [resending, setResending] = useState(false);
+  const [resendMsg, setResendMsg] = useState('');
 
   useEffect(() => {
     fetch('/api/host/registration')
@@ -26,14 +28,39 @@ function LoginForm() {
       .catch(() => {});
   }, []);
 
-  const notice = searchParams.get('registerPending')
-      ? 'Account created! Check your email and click the activation link before signing in.'
+  const registerPending = !!searchParams.get('registerPending');
+  const emailSent = searchParams.get('emailSent') !== '0';
+  const pendingEmail = searchParams.get('email') || '';
+  const notice = registerPending
+      ? (emailSent
+          ? 'Account created! Check your email and click the activation link before signing in.'
+          : 'Account created — but we could not send the verification email. Use “Resend verification email” below.')
     : searchParams.get('verified')
       ? 'Email verified — you can sign in now.'
     : searchParams.get('reset')
       ? 'Password updated — sign in with your new password.'
     : '';
   const verifyError = searchParams.get('verifyError') || '';
+
+  const handleResend = async () => {
+    setResendMsg('');
+    const target = pendingEmail || window.prompt('Enter the email you registered with:')?.trim();
+    if (!target) return;
+    setResending(true);
+    try {
+      const res = await fetch('/api/auth/resend-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: target }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setResendMsg(data?.message || 'If an unverified account exists for that email, a new verification link has been sent.');
+    } catch {
+      setResendMsg('Could not reach the server. Please try again.');
+    } finally {
+      setResending(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,6 +145,21 @@ function LoginForm() {
         {notice && (
           <div style={{ background: 'var(--success-bg)', border: '1px solid var(--success)', color: 'var(--success)', padding: '10px 14px', borderRadius: '8px', marginBottom: '14px', fontSize: '.82rem' }}>
             {notice}
+          </div>
+        )}
+        {registerPending && (
+          <div style={{ textAlign: 'center', marginBottom: '14px', fontSize: '.8rem' }}>
+            <button
+              type="button"
+              onClick={handleResend}
+              disabled={resending}
+              style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: resending ? 'default' : 'pointer', fontWeight: 600, textDecoration: 'underline' }}
+            >
+              {resending ? 'Sending…' : 'Resend verification email'}
+            </button>
+            {resendMsg && (
+              <div style={{ color: 'var(--text-secondary)', marginTop: '6px' }}>{resendMsg}</div>
+            )}
           </div>
         )}
         {(error || verifyError) && (

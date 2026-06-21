@@ -382,7 +382,7 @@ function RegisterForm() {
           await signIn('google', { callbackUrl: '/portal' });
         }
       } else {
-        router.push(`/login?registerPending=1&username=${encodeURIComponent(data.username || ownerPhone)}`);
+        router.push(`/login?registerPending=1&emailSent=${data.emailSent ? 1 : 0}&username=${encodeURIComponent(data.username || ownerPhone)}&email=${encodeURIComponent(ownerEmail || '')}`);
       }
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred');
