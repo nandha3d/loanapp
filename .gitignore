@@ -94,3 +94,12 @@ mobile/.vscode/
 !prisma/migrations/**/*.sql
 # GitHub Actions workflows must be committed — exclude them from the *.yml ignore above.
 !.github/workflows/*.yml
+*.apk
+*.html
+*.html
+*.dart
+loantrack_marketing_page_en.html
+mobile/lib/data/services/fcm_service.dart
+mobile/pubspec.lock
+mobile/windows/flutter/generated_plugin_registrant.cc
+mobile/windows/flutter/generated_plugins.cmake
