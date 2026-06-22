@@ -29,10 +29,14 @@ export async function GET(req: NextRequest) {
   const loanWhere: any = {
     tenantId: ctx.tenantId,
     appType: ctx.appType,
-    ...scopedBranchWhere(ctx),
   };
   if (ctx.role === 'agent') {
+    // Agents are scoped to their own customers (agentId / route assignment), NOT
+    // by branch — a branch pin falsely hides their customers' loans that have
+    // branchId = null or live in another branch.
     loanWhere.customer = buildAgentCustomerAccessWhere({ userId: ctx.userId });
+  } else {
+    Object.assign(loanWhere, scopedBranchWhere(ctx));
   }
 
   try {

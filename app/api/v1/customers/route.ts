@@ -25,12 +25,16 @@ export async function GET(req: NextRequest) {
   const where: any = {
     tenantId: ctx.tenantId,
     appType: ctx.appType,
-    ...scopedBranchWhere(ctx),
     AND: [],
   };
 
   if (ctx.role === 'agent') {
+    // Agents scope by customer-linkage (agentId / route), NOT branch — a branch
+    // pin falsely hides their own customers whose branchId is null or differs
+    // from the agent's home branch.
     where.AND.push(buildAgentCustomerAccessWhere({ userId: ctx.userId }));
+  } else {
+    Object.assign(where, scopedBranchWhere(ctx));
   }
 
   if (q) {

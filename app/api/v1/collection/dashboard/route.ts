@@ -21,9 +21,15 @@ export async function GET(req: NextRequest) {
   // Superadmin/developer oversee the whole tenant (the web shows "All
   // Branches/All Routes"), so they must NOT be pinned to their token's single
   // home branch — that left their collection list empty whenever a loan lived
-  // in another branch. Only branch admins stay branch-scoped.
-  const seesAllBranches = ctx.role === 'superadmin' || ctx.role === 'developer';
-  const branchScope = !seesAllBranches && ctx.branchId ? { branchId: ctx.branchId } : {};
+  // in another branch. Agents are ALSO not branch-pinned: they're already scoped
+  // to their own customers via buildAgentCustomerAccessWhere (agentId / route
+  // assignment), so an extra branch filter only causes false exclusions —
+  // notably for loans created with branchId = null, or a customer's loan that
+  // lives in a different branch than the agent's home branch. Only branch admins
+  // stay branch-scoped.
+  const branchUnpinned =
+    ctx.role === 'superadmin' || ctx.role === 'developer' || ctx.role === 'agent';
+  const branchScope = !branchUnpinned && ctx.branchId ? { branchId: ctx.branchId } : {};
 
   try {
     let customerIds: string[];
