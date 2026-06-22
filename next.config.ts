@@ -3,6 +3,14 @@ import type { NextConfig } from "next";
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? '').replace(/\/+$/, '');
 const cspApiUrl = API_URL ? ` ${API_URL}` : '';
 
+function normalizeBasePath(value: string | undefined): string {
+  const raw = (value ?? '').trim();
+  if (!raw || raw === '/') return '';
+  return `/${raw.replace(/^\/+|\/+$/g, '')}`;
+}
+
+const PUBLIC_BASE_PATH = normalizeBasePath(process.env.NEXT_PUBLIC_BASE_PATH);
+
 // Supabase auth runs in the browser (OAuth code exchange, magic-link send), so
 // its origin must be allowed in connect-src or the CSP blocks every call.
 const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/+$/, '');
@@ -36,6 +44,7 @@ const noStoreHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  ...(PUBLIC_BASE_PATH ? { basePath: PUBLIC_BASE_PATH } : {}),
   output: 'standalone',
   compress: true,
   allowedDevOrigins: ['lvh.me', '*.lvh.me', 'localhost:3000', 'localhost:3001'],

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { calculateVerticalSubscriptionPricing } from '@/lib/pricing';
 import { getSupabaseBrowser, isSupabaseAuthEnabled } from '@/lib/supabase/browser';
+import { withBasePath } from '@/lib/public-path';
 import PasswordInput from '@/components/ui/PasswordInput';
 
 type AvailabilityFieldState = {
@@ -408,7 +409,7 @@ function RegisterForm() {
         
         {/* Header */}
         <div className="login-logo" style={{ marginBottom: '16px' }}>
-          <img src="/assets/logo.svg" alt="LoanTrack" />
+          <img src={withBasePath('/assets/logo.svg')} alt="LoanTrack" />
           <h1>Loan<span>Track</span></h1>
         </div>
         <h2 style={{ textAlign: 'center', fontSize: '1.2rem', marginBottom: '8px', color: 'var(--text-primary)' }}>
@@ -798,7 +799,7 @@ function RegisterForm() {
                 <span className="material-icons-outlined">arrow_back</span> Back
               </button>
             ) : (
-              <a href="/login" className="btn btn-ghost" style={{ textDecoration: 'none' }}>
+              <a href={withBasePath('/login')} className="btn btn-ghost" style={{ textDecoration: 'none' }}>
                 Cancel
               </a>
             )}

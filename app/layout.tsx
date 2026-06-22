@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import MonitorBanner from '@/components/MonitorBanner';
+import { withBasePath } from '@/lib/public-path';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -15,7 +16,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="icon" href="/assets/logo.svg" />
+        <link rel="icon" href={withBasePath('/assets/logo.svg')} />
       </head>
       <body suppressHydrationWarning>
         <MonitorBanner />

@@ -19,6 +19,7 @@ const AGENT_BLOCKED = [
 
 const SUPERADMIN_ONLY: string[] = [];
 const DEVELOPER_ONLY = ['/admin'];
+const PUBLIC_BASE_PATH = normalizeBasePath(process.env.NEXT_PUBLIC_BASE_PATH);
 const PUBLIC_PREFIXES = [
   '/_next',
   '/api',
@@ -36,6 +37,42 @@ const MARKETING_PATHS = [
   '/about-us',
   '/contact',
 ];
+
+function normalizeBasePath(value: string | undefined): string {
+  const raw = (value ?? '').trim();
+  if (!raw || raw === '/') return '';
+  return `/${raw.replace(/^\/+|\/+$/g, '')}`;
+}
+
+function withBasePath(path: string): string {
+  if (!PUBLIC_BASE_PATH) return path;
+  if (!path.startsWith('/')) return path;
+  if (path === PUBLIC_BASE_PATH || path.startsWith(`${PUBLIC_BASE_PATH}/`)) return path;
+  return `${PUBLIC_BASE_PATH}${path}`;
+}
+
+function getPublicOrigin(request: NextRequest): string {
+  const configured =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.WEB_APP_URL ||
+    process.env.APP_URL ||
+    '';
+  if (configured) {
+    const parsed = new URL(configured);
+    return parsed.origin;
+  }
+
+  const proto = request.headers.get('x-forwarded-proto') || request.nextUrl.protocol.replace(':', '') || 'https';
+  const host =
+    request.headers.get('x-forwarded-host') ||
+    request.headers.get('host') ||
+    request.nextUrl.host;
+  return `${proto}://${host}`;
+}
+
+function publicUrl(request: NextRequest, path: string): URL {
+  return new URL(withBasePath(path), getPublicOrigin(request));
+}
 
 export function isPublicPath(pathname: string): boolean {
   return (
@@ -253,8 +290,13 @@ export async function middleware(request: NextRequest) {
   const token = await getSessionToken(request);
 
   if (!token) {
-    const loginUrl = new URL('/login', request.url);
-    if (pathname !== '/') loginUrl.searchParams.set('callbackUrl', request.url);
+    const loginUrl = publicUrl(request, '/login');
+    if (pathname !== '/') {
+      loginUrl.searchParams.set(
+        'callbackUrl',
+        publicUrl(request, `${pathname}${request.nextUrl.search}`).toString(),
+      );
+    }
     return NextResponse.redirect(loginUrl);
   }
 
@@ -272,7 +314,7 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.searchParams.has('edit'),
   );
   if (redirectTarget) {
-    return NextResponse.redirect(new URL(redirectTarget, request.url));
+    return NextResponse.redirect(publicUrl(request, redirectTarget));
   }
 
   return nextWithTenantHeaders(request, tenantSlug);
