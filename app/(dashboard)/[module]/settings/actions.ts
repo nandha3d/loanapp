@@ -251,8 +251,8 @@ export async function createUser(formData: FormData) {
   }
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
-  const username = ((formData.get('username') as string) || (formData.get('email') as string) || '').trim().toLowerCase();
   const phone = ((formData.get('phone') as string) || '').trim();
+  const username = ((formData.get('username') as string) || phone).trim().toLowerCase();
   const email = ((formData.get('email') as string) || '').trim().toLowerCase() || null;
   if (!username || !phone) {
     return { success: false, error: 'Username and phone are required' };

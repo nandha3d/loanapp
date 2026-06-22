@@ -148,6 +148,7 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
                 OR: [
                   { username },
                   { phone: username },
+                  { email: username },
                 ],
                 // Status checked after password verification (below) so we can
                 // distinguish "wrong credentials" from "email not verified".

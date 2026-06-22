@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { saveCustomer } from '../actions';
 import Modal from '@/components/Modal';
 import { createRoute, createUser } from '../../settings/actions';
+import { usePathname, useRouter } from 'next/navigation';
 
 interface CustomerFormProps {
   routes: any[];
@@ -19,6 +20,8 @@ type AvailabilityField = { checking: boolean; available: boolean | null; message
 const emptyAvailability: AvailabilityField = { checking: false, available: null, message: '' };
 
 export default function CustomerForm({ routes: initialRoutes, agents: initialAgents, customer, onSuccess, dict, viewerRole }: CustomerFormProps) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [loading, setLoading] = useState(false);
   const isAgentViewer = viewerRole === 'agent';
   const [localRoutes, setLocalRoutes] = useState(initialRoutes);
@@ -211,22 +214,32 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
 
   // --- Submit ---
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    const formData = new FormData(e.currentTarget);
+    formData.append('collectionPoints', JSON.stringify(collectionPoints));
     if (onSuccess) {
-      e.preventDefault();
-      setLoading(true);
-      const formData = new FormData(e.currentTarget);
       formData.append('isPopup', 'true');
-      formData.append('collectionPoints', JSON.stringify(collectionPoints));
-      const res = await saveCustomer(formData);
-      if (res.success && res.customer) {
-        onSuccess(res.customer);
-      } else if (res.error) {
-        alert(res.error);
-      }
-      setLoading(false);
-    } else {
-      setLoading(true);
     }
+    const res = await saveCustomer(formData);
+    if (res?.success) {
+      if (onSuccess && res.customer) {
+        onSuccess(res.customer);
+      }
+    } else if (res?.error === 'CUSTOMER_ALREADY_EXISTS') {
+      const select = confirm(`Customer "${res.customer.name}" (${res.customer.customerCode}) is already created with this phone number. Do you want to select that customer?`);
+      if (select) {
+        if (onSuccess) {
+          onSuccess(res.customer);
+        } else {
+          const appType = pathname.split('/')[1] || 'microlending';
+          router.push(`/${appType}/customers/${res.customer.customerCode}`);
+        }
+      }
+    } else {
+      alert(res?.error || 'Failed to save customer');
+    }
+    setLoading(false);
   };
 
   return (
@@ -234,7 +247,7 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
       <div className="card-header">
         <h3>{customer ? `✏️ ${dict.customers.editTitle} — ${customer.name}` : `➕ ${dict.customers.registerTitle}`}</h3>
       </div>
-      <form action={onSuccess ? undefined : (saveCustomer as unknown as (formData: FormData) => Promise<void>)} onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit}>
         {customer && <input type="hidden" name="id" value={customer.id} />}
         <input type="hidden" name="collectionPoints" value={JSON.stringify(collectionPoints)} />
         

@@ -28,6 +28,7 @@ type SuperadminSummary = {
   name: string;
   username: string;
   phone: string;
+  email: string | null;
   status: string;
   subscription: any;
   adminCount: number;
@@ -100,9 +101,11 @@ export default function UsersClient({
   const [selectedModules, setSelectedModules] = useState<ModuleKey[]>(normalizeModuleList([defaultAppType]));
   const [userUsername, setUserUsername] = useState('');
   const [userPhone, setUserPhone] = useState('');
-  const [availability, setAvailability] = useState<Record<'username' | 'phone', AvailabilityField>>({
+  const [userEmail, setUserEmail] = useState('');
+  const [availability, setAvailability] = useState<Record<'username' | 'phone' | 'email', AvailabilityField>>({
     username: emptyAvailability,
     phone: emptyAvailability,
+    email: emptyAvailability,
   });
   const [viewingSuperadminId, setViewingSuperadminId] = useState<string | null>(
     viewerRole === 'superadmin' && superadmins.length > 0 ? superadmins[0].id : null
@@ -160,6 +163,7 @@ export default function UsersClient({
     setSelectedBranchId(user.branchId || '');
     setUserUsername(user.username || '');
     setUserPhone(user.phone || '');
+    setUserEmail(user.email || '');
     
     if (user.role === 'superadmin') {
       const summary = superadmins.find(s => s.id === user.id);
@@ -183,6 +187,7 @@ export default function UsersClient({
     setSelectedBranchId('');
     setUserUsername('');
     setUserPhone('');
+    setUserEmail('');
     setSelectedBranchIds([]);
     setSelectedModules(allowedPlanModules.length > 0 ? [allowedPlanModules[0] as ModuleKey] : normalizeModuleList([defaultAppType]));
     setIsModalOpen(true);
@@ -193,9 +198,10 @@ export default function UsersClient({
     const params = new URLSearchParams();
     if (userUsername.trim()) params.set('username', userUsername.trim());
     if (userPhone.trim()) params.set('phone', userPhone.trim());
+    if (userEmail.trim()) params.set('email', userEmail.trim());
     if (editingUser?.id) params.set('excludeUserId', editingUser.id);
-    if (!params.has('username') && !params.has('phone')) {
-      setAvailability({ username: emptyAvailability, phone: emptyAvailability });
+    if (!params.has('username') && !params.has('phone') && !params.has('email')) {
+      setAvailability({ username: emptyAvailability, phone: emptyAvailability, email: emptyAvailability });
       return;
     }
 
@@ -203,6 +209,7 @@ export default function UsersClient({
     setAvailability((prev) => ({
       username: userUsername.trim() ? { ...prev.username, checking: true, message: '' } : emptyAvailability,
       phone: userPhone.trim() ? { ...prev.phone, checking: true, message: '' } : emptyAvailability,
+      email: userEmail.trim() ? { ...prev.email, checking: true, message: '' } : emptyAvailability,
     }));
 
     const timer = window.setTimeout(async () => {
@@ -212,12 +219,14 @@ export default function UsersClient({
         setAvailability({
           username: data.fields.username.checked ? { checking: false, available: data.fields.username.available, message: data.fields.username.message || '' } : emptyAvailability,
           phone: data.fields.phone.checked ? { checking: false, available: data.fields.phone.available, message: data.fields.phone.message || '' } : emptyAvailability,
+          email: data.fields.email.checked ? { checking: false, available: data.fields.email.available, message: data.fields.email.message || '' } : emptyAvailability,
         });
       } catch (err: any) {
         if (err.name === 'AbortError') return;
         setAvailability((prev) => ({
           username: { ...prev.username, checking: false },
           phone: { ...prev.phone, checking: false },
+          email: { ...prev.email, checking: false },
         }));
       }
     }, 350);
@@ -226,7 +235,7 @@ export default function UsersClient({
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [editingUser?.id, isModalOpen, userPhone, userUsername]);
+  }, [editingUser?.id, isModalOpen, userPhone, userUsername, userEmail]);
 
   function handleBranchChange(branchId: string) {
     setSelectedBranchId(branchId);
@@ -445,7 +454,10 @@ export default function UsersClient({
                         </div>
                         <div>
                           <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text)', marginBottom: '2px' }}>{superadmin.name}</div>
-                          <div className="text-muted" style={{ fontSize: '0.8rem' }}>{superadmin.username} &middot; {superadmin.phone}</div>
+                          <div className="text-muted" style={{ fontSize: '0.8rem' }}>
+                            {superadmin.username} &middot; {superadmin.phone}
+                            {superadmin.email && <span> &middot; {superadmin.email}</span>}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -673,7 +685,10 @@ export default function UsersClient({
                       <tr key={user.id}>
                         <td>
                           <div style={{ fontWeight: 600 }}>{user.name}</div>
-                          <div className="text-muted" style={{ fontSize: '0.8rem' }}>{user.username}</div>
+                          <div className="text-muted" style={{ fontSize: '0.8rem' }}>
+                            {user.username} &middot; {user.phone}
+                            {user.email && <span> &middot; {user.email}</span>}
+                          </div>
                         </td>
                         <td><span className="badge badge-pending">{user.role}</span></td>
                         <td>{user.branch?.name || 'Global'}</td>
@@ -741,6 +756,12 @@ export default function UsersClient({
               {availability.phone.checking && <small className="text-muted">Checking phone...</small>}
               {availability.phone.available === false && <small style={{ color: 'var(--danger)' }}>{availability.phone.message}</small>}
             </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Email</label>
+            <input type="email" name="email" className="form-control" value={userEmail} onChange={(e) => setUserEmail(e.target.value)} placeholder="Optional" />
+            {availability.email.checking && <small className="text-muted">Checking email...</small>}
+            {availability.email.available === false && <small style={{ color: 'var(--danger)' }}>{availability.email.message}</small>}
           </div>
           <div className="form-group">
             <label className="form-label">Password {editingUser && <span className="text-muted">(Leave blank to keep)</span>}</label>

@@ -38,6 +38,7 @@ export default function SettingsClient({
     name: string;
     username: string;
     phone: string;
+    email?: string | null;
     status: string;
     aadharNumber?: string | null;
     dob?: string | null;
@@ -181,7 +182,7 @@ export default function SettingsClient({
             </p>
           </div>
           {manageBranchId && (
-            <button className="btn btn-primary btn-sm" onClick={() => setAgentModal({ name: '', username: '', phone: '', status: 'active', aadharNumber: '', dob: '', experience: '', age: null, bypassLoanApproval: false, bypassCustomerApproval: false, autoReleaseFloat: false, feeConfirmationMandatory: false })}>
+            <button className="btn btn-primary btn-sm" onClick={() => setAgentModal({ name: '', username: '', phone: '', email: '', status: 'active', aadharNumber: '', dob: '', experience: '', age: null, bypassLoanApproval: false, bypassCustomerApproval: false, autoReleaseFloat: false, feeConfirmationMandatory: false })}>
               <span className="material-icons-outlined" style={{ fontSize: '14px' }}>add</span> Add Agent
             </button>
           )}
@@ -226,6 +227,7 @@ export default function SettingsClient({
                         name: a.name,
                         username: a.username,
                         phone: a.phone,
+                        email: a.email || '',
                         status: a.status,
                         aadharNumber: a.aadharNumber || '',
                         dob: a.dob ? new Date(a.dob).toISOString().split('T')[0] : '',
@@ -265,6 +267,10 @@ export default function SettingsClient({
           <div className="form-group">
             <label className="form-label">Phone</label>
             <input name="phone" className="form-control" defaultValue={agentModal?.phone || ''} required />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Email</label>
+            <input name="email" type="email" className="form-control" defaultValue={agentModal?.email || ''} placeholder="Optional" />
           </div>
           <div className="form-group">
             <label className="form-label">{agentModal?.id ? 'New password (leave blank to keep)' : 'Password'}</label>
