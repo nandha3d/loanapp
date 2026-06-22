@@ -148,6 +148,44 @@ export async function releaseToAgent(input: {
   });
 }
 
+/**
+ * Agent hands field cash back to the branch (handover settlement). Debits the
+ * agent float (hard block — they can't hand over more cash than they hold) and
+ * credits the branch pool. A net-zero internal cash↔cash transfer, so it is not
+ * journaled (mirrors release-to-agent).
+ */
+export async function collectFromAgent(input: {
+  tenantId: string;
+  agentId: string;
+  branchId?: string | null;
+  amount: number;
+  byUserId: string;
+  note?: string | null;
+}): Promise<{ agentBalance: number; branchBalance: number | null }> {
+  if (!(input.amount > 0)) throw new Error('amount must be positive');
+  return prisma.$transaction(async (tx) => {
+    const agentBalance = await applyAgent(
+      tx,
+      input.tenantId,
+      input.agentId,
+      -input.amount,
+      { type: 'deposit', refType: 'handover', note: input.note, byUserId: input.byUserId },
+      true,
+    );
+    let branchBalance: number | null = null;
+    if (input.branchId) {
+      branchBalance = await applyBranch(tx, input.tenantId, input.branchId, input.amount, {
+        type: 'deposit',
+        refType: 'agent',
+        refId: input.agentId,
+        note: input.note,
+        byUserId: input.byUserId,
+      });
+    }
+    return { agentBalance, branchBalance };
+  });
+}
+
 /** Adds capital to a branch cash pool (so it can fund releases/disbursements). */
 export async function injectBranchCash(input: {
   tenantId: string;

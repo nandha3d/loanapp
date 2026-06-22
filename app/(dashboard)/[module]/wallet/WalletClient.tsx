@@ -1,10 +1,23 @@
 'use client';
 
 import { useState } from 'react';
-import { releaseFundsAction, injectBranchAction } from './actions';
+import {
+  releaseFundsAction,
+  injectBranchAction,
+  collectFromAgentAction,
+  collectHandoverAction,
+  rejectHandoverAction,
+} from './actions';
 
 type Pool = { branchId: string; branchName: string; balance: number };
 type Agent = { agentId: string; name: string; phone: string | null; balance: number };
+type PendingHandover = {
+  id: string;
+  agentName: string;
+  amount: number;
+  requestedAt: string;
+  remarks: string | null;
+};
 type CashSummary = {
   accountingCapital: number;
   releasedToAgents: number;
@@ -73,11 +86,13 @@ function EmptyState({ icon, title, text }: { icon: string; title: string; text: 
 export default function WalletClient({
   pools,
   agents,
+  pendingHandovers,
   currencySymbol,
   summary,
 }: {
   pools: Pool[];
   agents: Agent[];
+  pendingHandovers: PendingHandover[];
   currencySymbol: string;
   summary: CashSummary;
 }) {
@@ -181,6 +196,23 @@ export default function WalletClient({
           detail={`${activeAgentCount} active holder${activeAgentCount === 1 ? '' : 's'} - ${floatCoverage}% of releases still in field.`}
         />
       </div>
+
+      {pendingHandovers.length > 0 && (
+        <section className="card" style={{ padding: 0, overflow: 'hidden', border: '1px solid var(--primary)' }}>
+          <div className="card-header" style={{ padding: '20px 24px 14px', marginBottom: 0, borderBottom: '1px solid var(--border)' }}>
+            <div>
+              <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 800 }}>Cash handovers to collect</h2>
+              <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: '.8rem' }}>Agents raised these. Collect to move the cash from their float into the branch pool.</p>
+            </div>
+            <span className="badge badge-warning">{pendingHandovers.length} pending</span>
+          </div>
+          <div>
+            {pendingHandovers.map((h) => (
+              <HandoverRow key={h.id} handover={h} currencySymbol={currencySymbol} />
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div className="card-header" style={{ padding: '20px 24px 14px', marginBottom: 0, borderBottom: '1px solid var(--border)' }}>
@@ -297,19 +329,26 @@ function AgentRow({ agent, currencySymbol }: { agent: Agent; currencySymbol: str
   return (
     <form
       action={async (fd) => {
+        const op = String(fd.get('op') || 'release');
         const amt = Number(fd.get('amount'));
         if (!amt || amt <= 0) return;
-        if (!confirm(`Release ${fmt(currencySymbol, amt)} to ${agent.name}?`)) return;
+        const collect = op === 'collect';
+        if (collect && amt > agent.balance) {
+          alert(`${agent.name} only holds ${fmt(currencySymbol, agent.balance)} — cannot collect more.`);
+          return;
+        }
+        if (!confirm(`${collect ? 'Collect' : 'Release'} ${fmt(currencySymbol, amt)} ${collect ? 'from' : 'to'} ${agent.name}?`)) return;
         setBusy(true);
         try {
-          await releaseFundsAction(fd);
+          if (collect) await collectFromAgentAction(fd);
+          else await releaseFundsAction(fd);
         } finally {
           setBusy(false);
         }
       }}
       style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
         gap: 12,
         alignItems: 'center',
         padding: '16px 24px',
@@ -346,12 +385,76 @@ function AgentRow({ agent, currencySymbol }: { agent: Agent; currencySymbol: str
       />
       <button
         type="submit"
+        name="op"
+        value="release"
         disabled={busy}
         className="btn btn-primary"
         style={{ justifyContent: 'center', whiteSpace: 'nowrap', width: '100%' }}
       >
         <span className="material-icons-outlined" style={{ fontSize: 16 }}>{busy ? 'autorenew' : 'send'}</span>
-        {busy ? 'Posting...' : 'Release'}
+        {busy ? '...' : 'Release'}
+      </button>
+      <button
+        type="submit"
+        name="op"
+        value="collect"
+        disabled={busy || agent.balance <= 0}
+        className="btn btn-secondary"
+        style={{ justifyContent: 'center', whiteSpace: 'nowrap', width: '100%' }}
+        title={agent.balance <= 0 ? 'Agent holds no float' : 'Collect cash from this agent'}
+      >
+        <span className="material-icons-outlined" style={{ fontSize: 16 }}>download</span>
+        Collect
+      </button>
+    </form>
+  );
+}
+
+function HandoverRow({ handover, currencySymbol }: { handover: PendingHandover; currencySymbol: string }) {
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <form
+      action={async (fd) => {
+        const op = String(fd.get('op'));
+        if (op === 'collect' && !confirm(`Collect ${fmt(currencySymbol, handover.amount)} from ${handover.agentName}?`)) return;
+        if (op === 'reject' && !confirm(`Reject this ${fmt(currencySymbol, handover.amount)} handover from ${handover.agentName}?`)) return;
+        setBusy(true);
+        try {
+          if (op === 'reject') await rejectHandoverAction(fd);
+          else await collectHandoverAction(fd);
+        } finally {
+          setBusy(false);
+        }
+      }}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+        gap: 12,
+        alignItems: 'center',
+        padding: '16px 24px',
+        borderBottom: '1px solid var(--border)',
+      }}
+    >
+      <input type="hidden" name="handoverId" value={handover.id} />
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', minWidth: 0 }}>
+        <div style={{ width: 42, height: 42, borderRadius: '50%', display: 'grid', placeItems: 'center', background: tones.orange.bg, color: tones.orange.color, fontWeight: 800, flexShrink: 0 }}>
+          {initials(handover.agentName)}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{handover.agentName}</div>
+          <div style={{ color: 'var(--text-light)', fontSize: '.74rem' }}>
+            {new Date(handover.requestedAt).toLocaleDateString('en-IN')}{handover.remarks ? ` · ${handover.remarks}` : ''}
+          </div>
+        </div>
+      </div>
+      <div style={{ fontWeight: 800, color: 'var(--primary-dark)' }}>{fmt(currencySymbol, handover.amount)}</div>
+      <button type="submit" name="op" value="collect" disabled={busy} className="btn btn-primary" style={{ justifyContent: 'center', whiteSpace: 'nowrap', width: '100%' }}>
+        <span className="material-icons-outlined" style={{ fontSize: 16 }}>{busy ? 'autorenew' : 'download'}</span>
+        {busy ? '...' : 'Collect'}
+      </button>
+      <button type="submit" name="op" value="reject" disabled={busy} className="btn btn-ghost" style={{ justifyContent: 'center', whiteSpace: 'nowrap', width: '100%', color: 'var(--danger)' }}>
+        Reject
       </button>
     </form>
   );

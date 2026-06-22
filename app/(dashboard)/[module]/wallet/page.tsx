@@ -17,9 +17,14 @@ export default async function WalletPage() {
   // Agents see their OWN cash float (cash held in the field) + ledger — not the
   // branch/oversight view. Cash handover stays on the collection page.
   if (role === 'agent' && userId) {
-    const [balance, txns] = await Promise.all([
+    const [balance, txns, handoversRaw] = await Promise.all([
       getAgentBalance(tenantId, userId),
       getAgentStatement(tenantId, userId, 50),
+      prisma.cashHandover.findMany({
+        where: { tenantId, agentId: userId },
+        orderBy: { requestedAt: 'desc' },
+        take: 20,
+      }),
     ]);
     const transactions = txns.map((t) => ({
       id: t.id,
@@ -30,11 +35,20 @@ export default async function WalletPage() {
       refType: t.refType ?? null,
       createdAt: t.createdAt.toISOString(),
     }));
+    const handovers = handoversRaw.map((h) => ({
+      id: h.id,
+      amount: Number(h.amount),
+      status: h.status,
+      requestedAt: h.requestedAt.toISOString(),
+      confirmedAt: h.confirmedAt ? h.confirmedAt.toISOString() : null,
+      remarks: h.remarks ?? null,
+    }));
     return (
       <AgentWalletClient
         agentName={(session?.user as any)?.name || 'Agent'}
         balance={balance}
         transactions={transactions}
+        handovers={handovers}
         currencySymbol={currencySymbol}
       />
     );
@@ -100,10 +114,29 @@ export default async function WalletPage() {
   }));
   const totalFloat = agentRows.reduce((sum, agent) => sum + agent.balance, 0);
 
+  // Pending agent → office handover requests awaiting collection (branch-scoped).
+  const pendingHandoversRaw = await prisma.cashHandover.findMany({
+    where: {
+      tenantId,
+      status: 'pending',
+      ...(branchScope ? { agent: { branchId: branchScope } } : {}),
+    },
+    orderBy: { requestedAt: 'asc' },
+    include: { agent: { select: { name: true } } },
+  });
+  const pendingHandovers = pendingHandoversRaw.map((h) => ({
+    id: h.id,
+    agentName: h.agent?.name || 'Agent',
+    amount: Number(h.amount),
+    requestedAt: h.requestedAt.toISOString(),
+    remarks: h.remarks ?? null,
+  }));
+
   return (
     <WalletClient
       pools={pools}
       agents={agentRows}
+      pendingHandovers={pendingHandovers}
       currencySymbol={currencySymbol}
       summary={{
         accountingCapital: accountingCapitalIn - accountingCapitalOut,
