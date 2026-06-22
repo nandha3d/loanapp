@@ -265,19 +265,32 @@ export async function POST(request: Request) {
     });
 
     // Use platform SMTP for email registration activation so delivery does not
-    // depend on Supabase OTP/magic-link mail.
-    await sendVerificationEmail({
+    // depend on Supabase OTP/magic-link mail. Capture the outcome so the client
+    // can tell the user whether to expect a mail or to use "resend".
+    const emailResult = await sendVerificationEmail({
       tenantId: result.tenantId,
       email: result.ownerEmail,
       name: result.ownerName,
       userId: result.userId,
-    }).catch((e) => console.error('[VERIFY_EMAIL_SEND]', e));
+    }).catch((e) => {
+      console.error('[VERIFY_EMAIL_SEND]', e);
+      return { success: false, error: e?.message } as { success: boolean; error?: string };
+    });
+
+    if (!emailResult.success) {
+      // Account is created but pending; mail could not be sent. Don't fail the
+      // signup — surface emailSent:false so the UI can offer a resend.
+      console.error('[VERIFY_EMAIL_SEND] not delivered:', emailResult.error);
+    }
 
     return NextResponse.json(
       {
         success: true,
         requiresVerification: true,
-        message: 'Account created. Check your email to verify and activate your account.',
+        emailSent: emailResult.success === true,
+        message: emailResult.success
+          ? 'Account created. Check your email to verify and activate your account.'
+          : 'Account created, but we could not send the verification email. Please use "Resend verification email" on the login page.',
         tenantId: result.tenantId,
         tenantSlug: result.tenantSlug,
         username: result.username

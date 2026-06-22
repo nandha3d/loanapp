@@ -19,6 +19,7 @@ class DashboardSummary {
     required this.defaulterAlerts,
     required this.routePerformance,
     required this.recentActivity,
+    required this.todayActivity,
   });
 
   final int activeLoans;
@@ -42,6 +43,7 @@ class DashboardSummary {
   final List<DefaulterAlert> defaulterAlerts;
   final List<RoutePerformance> routePerformance;
   final List<RecentActivity> recentActivity;
+  final List<TodayActivity> todayActivity;
 
   factory DashboardSummary.fromJson(Map<String, dynamic> json) {
     double toNum(dynamic v) => v == null
@@ -85,6 +87,62 @@ class DashboardSummary {
             (dynamic e) => RecentActivity.fromJson(e as Map<String, dynamic>),
           )
           .toList(growable: false),
+      todayActivity: (json['todayActivity'] as List<dynamic>? ?? const [])
+          .map(
+            (dynamic e) => TodayActivity.fromJson(e as Map<String, dynamic>),
+          )
+          .toList(growable: false),
+    );
+  }
+}
+
+/// One collection recorded today — for the dashboard "Today's Activity" feed.
+class TodayActivity {
+  const TodayActivity({
+    required this.id,
+    required this.amount,
+    required this.count,
+    required this.paymentMode,
+    required this.submittedAt,
+    required this.customerName,
+    required this.customerCode,
+    required this.customerId,
+    required this.agentName,
+    required this.loanCode,
+    required this.verificationStatus,
+  });
+
+  final String id;
+  final double amount;
+  /// Number of instalments this single payment was distributed across.
+  final int count;
+  final String paymentMode;
+  final DateTime submittedAt;
+  final String customerName;
+  final String customerCode;
+  final String customerId;
+  final String agentName;
+  final String loanCode;
+  final String verificationStatus;
+
+  factory TodayActivity.fromJson(Map<String, dynamic> json) {
+    double toNum(dynamic v) => v == null
+        ? 0
+        : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
+    return TodayActivity(
+      id: (json['id'] as String?) ?? '',
+      amount: toNum(json['amount']),
+      count: (json['count'] as num?)?.toInt() ?? 1,
+      paymentMode: (json['paymentMode'] as String?) ?? 'cash',
+      submittedAt:
+          DateTime.tryParse(json['submittedAt'] as String? ?? '')?.toLocal() ??
+              DateTime.now(),
+      customerName: (json['customerName'] as String?) ?? '—',
+      customerCode: (json['customerCode'] as String?) ?? '',
+      customerId: (json['customerId'] as String?) ?? '',
+      agentName: (json['agentName'] as String?) ?? '—',
+      loanCode: (json['loanCode'] as String?) ?? '',
+      verificationStatus: (json['verificationStatus'] as String?) ?? 'pending',
     );
   }
 }

@@ -1179,7 +1179,11 @@ export default async function DashboardPage() {
   const remainingPct = 100 - collectedPct;
   const overduePct = data.overdueTotalTillToday > 0 ? Math.min(100, Math.round((data.overdueCollectedToday / data.overdueTotalTillToday) * 100)) : 0;
   const overdueRemainingPct = 100 - overduePct;
-  const totalSplit = data.todayCollected;
+  // Total for the split = the sum of what each payment mode actually collected
+  // today (today's dues + overdue recovery). Using today's-dues-only here made
+  // the % overshoot (e.g. cash 14000 / 450 = 3111%); the denominator must be the
+  // same population as the bars it scales.
+  const totalSplit = Object.values(data.todayByMode).reduce((s: number, a) => s + Number(a || 0), 0);
   const modeConfig: Record<string, { label: string; icon: string; color: string; bg: string }> = {
     cash:   { label: 'Cash',   icon: 'payments',        color: '#16a34a', bg: '#f0fdf4' },
     upi:    { label: 'UPI',    icon: 'qr_code_scanner', color: '#7c3aed', bg: '#f5f3ff' },

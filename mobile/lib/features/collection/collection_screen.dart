@@ -211,17 +211,18 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
               title: t.x('dash.no_schedule'),
             );
           }
-          final filtered = _applyFilter(rows, filter);
+          final allGroups = _groupByCustomer(rows);
+          final filteredGroups = _applyGroupFilter(allGroups, filter);
           final todaysRows = rows.where((r) => r.daysOverdue <= 0).toList();
           final totalDue = todaysRows.fold<double>(0, (s, r) => s + r.dueAmount);
           final totalCollected =
               todaysRows.fold<double>(0, (s, r) => s + r.receivedAmount);
           final pendingCount = todaysRows.where((r) => r.status != 'paid').length;
 
-          // â”€â”€ Map view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+          // ── Map view ────────────────────────────────────────────────────────
           if (_showMap) {
             return _CollectionMap(
-              rows: filtered,
+              rows: filteredGroups.expand((g) => g.rows).toList(),
               agentLat: _agentLat,
               agentLng: _agentLng,
               fmt: fmt,
@@ -231,7 +232,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
             );
           }
 
-          // â”€â”€ List view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+          // ── List view ───────────────────────────────────────────────────────
           return RefreshIndicator(
             color: AppColors.primary,
             onRefresh: () async => ref.refresh(collectionTodayProvider.future),
@@ -254,11 +255,12 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
                 ),
                 const SizedBox(height: 12),
                 if (_nearest && _agentLat != null)
-                  ..._sortGroupsByDistance(_groupByCustomer(filtered)).expand(
+                  ..._sortGroupsByDistance(filteredGroups).expand(
                     (g) => [
                       _CollectionCard(
                         group: g,
                         fmt: fmt,
+                        filter: filter,
                         distanceLabel: _distanceLabel(_distTo(g.primary)),
                       ),
                       const SizedBox(height: 10),
@@ -266,20 +268,20 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
                   )
                 else
                   ..._groupGroupsByRoute(
-                    _groupByCustomer(filtered),
+                    filteredGroups,
                     t.x('coll.unassigned'),
                   ).entries.expand(
                         (e) => [
                           _RouteHeader(routeName: e.key, count: e.value.length),
                           const SizedBox(height: 8),
                           for (final g in e.value) ...[
-                            _CollectionCard(group: g, fmt: fmt),
+                            _CollectionCard(group: g, fmt: fmt, filter: filter),
                             const SizedBox(height: 10),
                           ],
                           const SizedBox(height: 6),
                         ],
                       ),
-                if (filtered.isEmpty)
+                if (filteredGroups.isEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 40),
                     child: Center(
@@ -298,18 +300,18 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     );
   }
 
-  List<CollectionRow> _applyFilter(List<CollectionRow> rows, String filter) {
+  List<_CustomerGroup> _applyGroupFilter(List<_CustomerGroup> groups, String filter) {
     switch (filter) {
       case 'pending':
-        return rows.where((r) => r.status != 'paid' && r.daysOverdue <= 0).toList();
+        return groups.where((g) => g.rows.any((r) => r.daysOverdue <= 0)).toList();
       case 'paid':
-        return rows.where((r) => r.status == 'paid').toList();
+        return groups.where((g) => g.rows.any((r) => r.status == 'paid')).toList();
       case 'overdue':
-        return rows
-            .where((r) => r.daysOverdue > 0 && r.status != 'paid')
+        return groups
+            .where((g) => g.rows.any((r) => r.daysOverdue > 0 && r.status != 'paid'))
             .toList();
       default:
-        return rows;
+        return groups;
     }
   }
 
@@ -744,7 +746,7 @@ class _FilterPills extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pendingC = rows.where((r) => r.status != 'paid' && r.daysOverdue <= 0).length;
+    final pendingC = rows.where((r) => r.daysOverdue <= 0).length;
     final overdueC =
         rows.where((r) => r.daysOverdue > 0 && r.status != 'paid').length;
     final paidC = rows.where((r) => r.status == 'paid').length;
@@ -755,7 +757,7 @@ class _FilterPills extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         children: [
           _Pill(
-            label: t.x('coll.filter_pending'),
+            label: t.x('coll.btn_today'),
             count: pendingC,
             active: current == 'pending',
             onTap: () => onTap('pending'),
@@ -953,10 +955,12 @@ class _CollectionCard extends ConsumerWidget {
   const _CollectionCard({
     required this.group,
     required this.fmt,
+    required this.filter,
     this.distanceLabel,
   });
   final _CustomerGroup group;
   final NumberFormat fmt;
+  final String filter;
   final String? distanceLabel;
 
   void _collect(BuildContext context, WidgetRef ref, CollectionRow row) {
@@ -1087,16 +1091,53 @@ class _CollectionCard extends ConsumerWidget {
     final allCollected = group.allCollected;
     final rrow = group.receiptRow;
 
-    final Color chipColor = allCollected
-        ? AppColors.success
-        : overdue != null
-            ? AppColors.danger
-            : AppColors.primary;
-    final String chipLabel = allCollected
-        ? t.x('coll.collected_label')
-        : overdue != null
-            ? '${group.maxDaysOverdue}d ${t.x('coll.status_overdue_days')}'
-            : t.x('coll.status_due_today');
+    final double displayAmount;
+    final String displayLabel;
+    final Color chipColor;
+    final String chipLabel;
+
+    if (filter == 'paid') {
+      displayAmount = group.collectedTotal;
+      displayLabel = t.x('coll.collected_label');
+      chipColor = AppColors.success;
+      chipLabel = t.x('coll.collected_label');
+    } else if (filter == 'pending') {
+      if (today == null) {
+        displayAmount = group.collectedTotal;
+        displayLabel = t.x('coll.collected_label');
+        chipColor = AppColors.success;
+        chipLabel = t.x('coll.collected_label');
+      } else {
+        displayAmount = group.todayDue;
+        displayLabel = t.x('coll.amount_due');
+        chipColor = AppColors.primary;
+        chipLabel = t.x('coll.status_due_today');
+      }
+    } else if (filter == 'overdue') {
+      displayAmount = group.overdueDue;
+      displayLabel = t.x('coll.amount_due');
+      chipColor = AppColors.danger;
+      chipLabel = overdue != null
+          ? '${group.maxDaysOverdue}d ${t.x('coll.status_overdue_days')}'
+          : t.x('coll.no_overdue');
+    } else {
+      if (allCollected) {
+        displayAmount = group.collectedTotal;
+        displayLabel = t.x('coll.collected_label');
+        chipColor = AppColors.success;
+        chipLabel = t.x('coll.collected_label');
+      } else if (overdue != null) {
+        displayAmount = group.totalDue;
+        displayLabel = t.x('coll.amount_due');
+        chipColor = AppColors.danger;
+        chipLabel = '${group.maxDaysOverdue}d ${t.x('coll.status_overdue_days')}';
+      } else {
+        displayAmount = group.todayDue;
+        displayLabel = t.x('coll.amount_due');
+        chipColor = AppColors.primary;
+        chipLabel = t.x('coll.status_due_today');
+      }
+    }
 
     return Material(
       color: AppColors.surface,
@@ -1181,18 +1222,14 @@ class _CollectionCard extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          fmt.format(
-                            allCollected ? group.collectedTotal : group.totalDue,
-                          ),
+                          fmt.format(displayAmount),
                           style: AppTypography.moneyLg.copyWith(
                             color: AppColors.textPrimary,
                             fontSize: 24,
                           ),
                         ),
                         Text(
-                          allCollected
-                              ? t.x('coll.collected_label')
-                              : t.x('coll.amount_due'),
+                          displayLabel,
                           style: AppTypography.caption,
                         ),
                       ],

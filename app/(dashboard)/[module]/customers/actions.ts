@@ -48,6 +48,7 @@ export async function saveCustomer(formData: FormData) {
   const companyPhone = (formData.get('companyPhone') as string) || null;
   const companyEmail = (formData.get('companyEmail') as string) || null;
   const designation = (formData.get('designation') as string) || null;
+  const preferredCollectionTime = (formData.get('preferredCollectionTime') as string) || null;
   const isPopup = formData.get('isPopup') === 'true';
 
   try {
@@ -143,6 +144,7 @@ export async function saveCustomer(formData: FormData) {
       companyPhone,
       companyEmail,
       designation,
+      preferredCollectionTime,
       photoUrl: photoUrl || undefined,
       companyLogo: companyLogoUrl || undefined,
       kycDocs,

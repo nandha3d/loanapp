@@ -300,6 +300,18 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
               <textarea name="address" className="form-control" rows={2} placeholder="Complete postal address" value={mainAddress} onChange={e => setMainAddress(e.target.value)} style={{ fontSize: '1rem', padding: '12px' }} />
             </div>
           </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Preferred Collection Time</label>
+              <select name="preferredCollectionTime" className="form-control" defaultValue={customer?.preferredCollectionTime || ''} style={{ fontSize: '1rem', padding: '12px' }}>
+                <option value="">Anytime</option>
+                <option value="morning">Morning (6am – 12pm)</option>
+                <option value="afternoon">Afternoon (12pm – 4pm)</option>
+                <option value="evening">Evening (4pm – 8pm)</option>
+                <option value="night">Night (after 8pm)</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         {!isAgentViewer && (

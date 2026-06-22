@@ -46,6 +46,7 @@ export async function GET(req: NextRequest) {
         activeAgents: 0,
         recentLoans: [],
         todayInstalments: [],
+        todayActivity: [],
       });
     }
     baseCustomer.routeId = { in: routeIds };
@@ -67,6 +68,7 @@ export async function GET(req: NextRequest) {
       routes,
       recentActivity,
       cashCollectedAgg,
+      todayActivityRows,
     ] = await Promise.all([
       prisma.loan.count({ where: { ...baseLoan, status: 'active' } }),
       prisma.loan.count({ where: { ...baseLoan, status: 'overdue' } }),
@@ -153,6 +155,29 @@ export async function GET(req: NextRequest) {
         },
         _sum: { receivedAmount: true },
       }),
+      // Today's activity feed — every collection recorded today, newest first,
+      // with the customer collected from, the agent who collected, the amount,
+      // and the time. Lets the dashboard show "what was done today" at a glance.
+      prisma.collectionEntry.findMany({
+        where: {
+          tenantId: ctx.tenantId,
+          submittedAt: { gte: today, lt: tomorrow },
+          loan: baseLoan,
+        },
+        select: {
+          id: true,
+          receivedAmount: true,
+          paymentMode: true,
+          submittedAt: true,
+          verificationStatus: true,
+          source: true,
+          customer: { select: { id: true, name: true, customerCode: true } },
+          agent: { select: { id: true, name: true } },
+          loan: { select: { loanCode: true } },
+        },
+        orderBy: { submittedAt: 'desc' },
+        take: 100,
+      }),
     ]);
 
     const todayExpected = todayInstalments.reduce(
@@ -222,6 +247,44 @@ export async function GET(req: NextRequest) {
       defaulterAlerts,
       routePerformance,
       recentActivity,
+      // Group the raw entries into one activity line per collection action: a
+      // single payment is distributed into many instalment rows (all written in
+      // the same instant), so we fold them by customer+agent+loan+minute and
+      // sum the amount — the feed shows one tidy line, newest first.
+      todayActivity: (() => {
+        const groups = new Map<string, any>();
+        for (const e of todayActivityRows) {
+          const minute = new Date(e.submittedAt);
+          minute.setSeconds(0, 0);
+          const key = `${e.customer?.id ?? ''}|${e.agent?.id ?? ''}|${e.loan?.loanCode ?? ''}|${minute.getTime()}`;
+          const existing = groups.get(key);
+          if (existing) {
+            existing.amount += Number(e.receivedAmount);
+            existing.count += 1;
+            if (new Date(e.submittedAt) > new Date(existing.submittedAt)) {
+              existing.submittedAt = e.submittedAt;
+            }
+          } else {
+            groups.set(key, {
+              id: e.id,
+              amount: Number(e.receivedAmount),
+              count: 1,
+              paymentMode: e.paymentMode,
+              submittedAt: e.submittedAt,
+              verificationStatus: e.verificationStatus,
+              source: e.source,
+              customerName: e.customer?.name ?? '—',
+              customerCode: e.customer?.customerCode ?? '',
+              customerId: e.customer?.id ?? '',
+              agentName: e.agent?.name ?? '—',
+              loanCode: e.loan?.loanCode ?? '',
+            });
+          }
+        }
+        return Array.from(groups.values()).sort(
+          (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime(),
+        );
+      })(),
     });
   } catch (e: any) {
     return fail(e?.message ?? 'Dashboard failed', 500);

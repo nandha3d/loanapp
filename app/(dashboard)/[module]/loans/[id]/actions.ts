@@ -3,12 +3,20 @@
 import { apiFetch } from '@/lib/api-client/index';
 import { getApiRequestContext } from '@/lib/api-client/server';
 import { revalidatePath } from 'next/cache';
-import { submitCollectionEntry, requestCollectionEdit } from '@/app/(dashboard)/[module]/collection/actions';
+import { submitCollectionEntry, submitLoanCollection, requestCollectionEdit } from '@/app/(dashboard)/[module]/collection/actions';
 
 export { requestCollectionEdit };
 
 export async function markInstalmentPaid(formData: FormData) {
   return submitCollectionEntry(formData);
+}
+
+/**
+ * Loan-wide collection from the loan page — same engine as the collection page
+ * popup: spreads the amount across open instalments oldest-first, recorded today.
+ */
+export async function markLoanCollection(formData: FormData) {
+  return submitLoanCollection(formData);
 }
 
 export async function waiveLoanPenalty(formData: FormData) {

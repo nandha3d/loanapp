@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import { formatCurrency, formatDate, getBadgeClass, calcPercentage } from '@/lib/utils';
-import { markInstalmentPaid, requestCollectionEdit, waiveLoanPenalty, settleLoanPenalty, closeLoan, renewLoan, precloseLoanAdmin } from './actions';
+import { markInstalmentPaid, markLoanCollection, requestCollectionEdit, waiveLoanPenalty, settleLoanPenalty, closeLoan, renewLoan, precloseLoanAdmin } from './actions';
 import { createSelfPayLinkAction } from '../../collection/runActions';
 import Link from '@/components/layout/DashboardLink';
 import { useRouter } from 'next/navigation';
@@ -212,6 +212,56 @@ export default function LoanDetailClient({
   const [payRemarks, setPayRemarks] = useState('');
   const [payReason, setPayReason] = useState('');
   const [qrCodeUrl, setQrCodeUrl] = useState('');
+
+  // Loan-wide collect popup (same UX as the collection page): two preset cards
+  // (today's due / total due), editable amount, spread oldest-first server-side.
+  const [collectOpen, setCollectOpen] = useState(false);
+  const [collectAmount, setCollectAmount] = useState(0);
+  const [collectCard, setCollectCard] = useState<'today' | 'total'>('today');
+  const [collectMode, setCollectMode] = useState('cash');
+  const [collectRemarks, setCollectRemarks] = useState('');
+
+  const todayISO = new Date().toISOString().slice(0, 10);
+  // Today's due across this loan = outstanding on the instalment dated today.
+  const todayDueForLoan = useMemo(() => {
+    return loan.instalments.reduce((sum: number, inst: any) => {
+      const due = new Date(inst.dueDate).toISOString().slice(0, 10);
+      if (due !== todayISO) return sum;
+      return sum + Math.max(0, Number(inst.dueAmount) - Number(inst.receivedAmount || 0));
+    }, 0);
+  }, [loan.instalments, todayISO]);
+
+  const openCollectModal = () => {
+    const defaultAmt = todayDueForLoan > 0 ? todayDueForLoan : outstanding;
+    setCollectCard(todayDueForLoan > 0 ? 'today' : 'total');
+    setCollectAmount(defaultAmt);
+    setCollectMode('cash');
+    setCollectRemarks('');
+    setCollectOpen(true);
+  };
+
+  const handleCollect = async () => {
+    if (collectAmount <= 0) return;
+    setLoading(true);
+    const fd = new FormData();
+    fd.set('loanId', loan.id);
+    fd.set('amount', String(collectAmount));
+    fd.set('paymentMode', collectMode);
+    fd.set('remarks', collectRemarks);
+    try {
+      const result = await markLoanCollection(fd);
+      setLoading(false);
+      if (result.success) {
+        setCollectOpen(false);
+        router.refresh();
+      } else {
+        alert(result.error || d.failedToRecordPayment);
+      }
+    } catch (err: any) {
+      setLoading(false);
+      alert(err?.message || d.failedToRecordPayment);
+    }
+  };
 
   useEffect(() => {
     // Build a UPI intent QR against the TENANT's own VPA (no hardcoded payee).
@@ -680,19 +730,27 @@ export default function LoanDetailClient({
 
       <div className="grid-60-40">
         <div className="card">
-          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             <h3>📅 {d.paymentSchedule}</h3>
-            {outstanding > 0 && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '.72rem', color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
-                <input 
-                  type="checkbox" 
-                  checked={showRestructuredRates} 
-                  onChange={(e) => setShowRestructuredRates(e.target.checked)} 
-                  style={{ width: '13px', height: '13px', cursor: 'pointer' }}
-                />
-                <strong>Show Restructured Rate</strong>
-              </label>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              {outstanding > 0 && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '.72rem', color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
+                  <input
+                    type="checkbox"
+                    checked={showRestructuredRates}
+                    onChange={(e) => setShowRestructuredRates(e.target.checked)}
+                    style={{ width: '13px', height: '13px', cursor: 'pointer' }}
+                  />
+                  <strong>Show Restructured Rate</strong>
+                </label>
+              )}
+              {loan.status !== 'closed' && outstanding > 0 && (
+                <button className="btn btn-primary btn-sm" onClick={openCollectModal} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <span className="material-icons-outlined" style={{ fontSize: '16px' }}>payments</span>
+                  {d.recordPayment || 'Record Payment'}
+                </button>
+              )}
+            </div>
           </div>
           <div className="table-wrapper" style={{ maxHeight: '500px', overflowY: 'auto' }}>
             <table>
@@ -712,12 +770,21 @@ export default function LoanDetailClient({
                   const collectedTime = inst.receivedAt ? new Date(inst.receivedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : null;
                   const isPaid = Number(inst.receivedAmount) > 0;
                   const isHighlighted = highlightedInstalmentNo === inst.instalmentNo;
+                  // Overdue = past-due and not fully paid. These rows are shown
+                  // dull red and read-only (no per-row Pay) — collection happens
+                  // via the single "Record Payment" popup, which clears the
+                  // backlog oldest-first. Admin keeps an Edit to correct a date.
+                  const isOverdue = inst.status === 'missed';
                   return (
-                    <tr 
-                      key={inst.id} 
+                    <tr
+                      key={inst.id}
                       id={`inst-row-${inst.instalmentNo}`}
                       className={isHighlighted ? 'highlight-row' : ''}
-                      style={{ opacity: inst.status === 'paid' && !isHighlighted ? 0.6 : 1 }}
+                      style={{
+                        opacity: inst.status === 'paid' && !isHighlighted ? 0.6 : 1,
+                        background: isOverdue && !isHighlighted ? 'rgba(239,68,68,0.06)' : undefined,
+                        color: isOverdue ? '#b91c1c' : undefined,
+                      }}
                     >
                       <td>{inst.instalmentNo}</td>
                       <td>{formatDate(inst.dueDate)}</td>
@@ -744,25 +811,41 @@ export default function LoanDetailClient({
                       <td><span className={getBadgeClass(inst.status)} style={{textTransform:'capitalize'}}>{inst.status}</span></td>
                       <td>
                         <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                          {loan.status !== 'closed' && (
-                            <button className="btn btn-primary btn-sm" onClick={() => openPaymentModal(inst)} style={{ padding: '8px 12px', minHeight: '36px' }}>
+                          {loan.status !== 'closed' && isPaid && (
+                            // Paid → edit/correct this specific instalment.
+                            <button className="btn btn-ghost btn-sm" onClick={() => openPaymentModal(inst)} style={{ padding: '6px 10px' }}>
                               <span className="material-icons-outlined" style={{ fontSize: '14px' }}>
-                                {isPaid ? (isAdmin ? 'edit' : 'history_edu') : 'payments'}
+                                {isAdmin ? 'edit' : 'history_edu'}
                               </span>{' '}
-                              {isPaid ? (isAdmin ? d.edit : 'Request') : d.pay}
+                              {isAdmin ? d.edit : 'Request'}
                             </button>
                           )}
-                          {loan.status !== 'closed' && inst.status !== 'paid' && (
-                            <button
-                              className="btn btn-ghost btn-sm"
-                              onClick={() => sendPayLink(inst)}
-                              disabled={payLinkBusyId === inst.id}
-                              title="Generate a UPI self-pay link for the borrower"
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                            >
-                              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>qr_code_2</span>
-                              {payLinkBusyId === inst.id ? '…' : 'Pay link'}
+                          {loan.status !== 'closed' && !isPaid && isOverdue && isAdmin && (
+                            // Overdue → dull red row, no Pay. Admin-only Edit to
+                            // manually correct this date if ever needed.
+                            <button className="btn btn-ghost btn-sm" onClick={() => openPaymentModal(inst)} style={{ padding: '6px 10px', color: '#b91c1c' }}>
+                              <span className="material-icons-outlined" style={{ fontSize: '14px' }}>edit</span>{' '}
+                              {d.edit}
                             </button>
+                          )}
+                          {loan.status !== 'closed' && !isPaid && !isOverdue && (
+                            // Today / upcoming → collect via the loan-wide popup.
+                            <>
+                              <button className="btn btn-primary btn-sm" onClick={openCollectModal} style={{ padding: '8px 12px', minHeight: '36px' }}>
+                                <span className="material-icons-outlined" style={{ fontSize: '14px' }}>payments</span>{' '}
+                                {d.pay}
+                              </button>
+                              <button
+                                className="btn btn-ghost btn-sm"
+                                onClick={() => sendPayLink(inst)}
+                                disabled={payLinkBusyId === inst.id}
+                                title="Generate a UPI self-pay link for the borrower"
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              >
+                                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>qr_code_2</span>
+                                {payLinkBusyId === inst.id ? '…' : 'Pay link'}
+                              </button>
+                            </>
                           )}
                           {receiptPdfEnabled && inst.collectionEntry?.id && (
                             <a
@@ -947,6 +1030,85 @@ export default function LoanDetailClient({
           <LoanTimeline loanId={loan.id} currencySymbol={currencySymbol} />
         </div>
       </div>
+
+      {/* Loan-wide collect popup — same UX as the collection page. Pick a preset
+          (today's due / total due), edit if needed; the server spreads it across
+          open instalments oldest-first and records it today. */}
+      {collectOpen && (
+        <div className="modal-overlay show" onClick={(e) => { if (e.target === e.currentTarget) setCollectOpen(false); }}>
+          <div className="modal">
+            <div className="modal-header">
+              <h3>💰 {d.recordPayment || 'Record Payment'}</h3>
+              <button className="modal-close material-icons-outlined" onClick={() => setCollectOpen(false)}>close</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ background: 'var(--bg)', borderRadius: 'var(--radius-sm)', padding: '14px', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.9rem' }}>
+                  <span><strong>{loan.customer.name}</strong></span>
+                  <span style={{ color: 'var(--text-secondary)' }}>{loan.loanCode}</span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '14px' }}>
+                <button
+                  type="button"
+                  onClick={() => { setCollectCard('today'); setCollectAmount(todayDueForLoan); }}
+                  style={{
+                    flex: 1, textAlign: 'left', cursor: 'pointer',
+                    background: collectCard === 'today' ? 'rgba(245,158,11,0.08)' : 'var(--bg)',
+                    border: `2px solid ${collectCard === 'today' ? 'var(--primary)' : 'var(--border)'}`,
+                    borderRadius: 'var(--radius-sm)', padding: '12px 14px',
+                  }}
+                >
+                  <div style={{ fontSize: '.72rem', fontWeight: 600, color: collectCard === 'today' ? 'var(--primary)' : 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Today&apos;s Due</div>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 800, marginTop: '4px' }}>{formatCurrency(todayDueForLoan, currencySymbol)}</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setCollectCard('total'); setCollectAmount(outstanding); }}
+                  style={{
+                    flex: 1, textAlign: 'left', cursor: 'pointer',
+                    background: collectCard === 'total' ? 'rgba(239,68,68,0.08)' : 'var(--bg)',
+                    border: `2px solid ${collectCard === 'total' ? 'var(--danger)' : 'var(--border)'}`,
+                    borderRadius: 'var(--radius-sm)', padding: '12px 14px',
+                  }}
+                >
+                  <div style={{ fontSize: '.72rem', fontWeight: 600, color: collectCard === 'total' ? 'var(--danger)' : 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Total Due</div>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 800, marginTop: '4px' }}>{formatCurrency(outstanding, currencySymbol)}</div>
+                  {outstanding > todayDueForLoan && (
+                    <div style={{ fontSize: '.66rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Includes previous overdue</div>
+                  )}
+                </button>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">{d.receivedAmount} ({currencySymbol}) *</label>
+                <input type="number" className="form-control" style={{ fontSize: '1.1rem', padding: '12px' }} value={collectAmount} onChange={(e) => setCollectAmount(Number(e.target.value))} min={0} required />
+              </div>
+              <div className="form-group">
+                <label className="form-label">{d.paymentMode}</label>
+                <select className="form-control" style={{ fontSize: '1rem', padding: '12px' }} value={collectMode} onChange={(e) => setCollectMode(e.target.value)}>
+                  <option value="cash">{d.cash}</option>
+                  <option value="upi">{d.upi}</option>
+                  <option value="cheque">{d.cheque}</option>
+                  <option value="bank_transfer">{d.bankTransfer}</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">{d.remarksOptional}</label>
+                <input type="text" className="form-control" style={{ fontSize: '1rem', padding: '12px' }} value={collectRemarks} onChange={(e) => setCollectRemarks(e.target.value)} placeholder={d.notesPlaceholder} />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setCollectOpen(false)}>{d.cancel}</button>
+              <button className="btn btn-primary" onClick={handleCollect} disabled={loading || collectAmount <= 0}>
+                <span className="material-icons-outlined" style={{ fontSize: '18px' }}>check</span>
+                {loading ? d.submitting : d.submitPayment}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {paymentModal && (() => {
         return (

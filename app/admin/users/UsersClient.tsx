@@ -766,10 +766,13 @@ export default function UsersClient({
               <input name="age" type="number" className="form-control" defaultValue={editingUser?.age || ''} placeholder="Optional" />
             </div>
           </div>
+          {/* Agent-only: these toggles are privilege downgrades meant for field
+              agents. Other roles keep full privileges, so the block is hidden. */}
+          {selectedRole === 'agent' && (
           <div style={{ marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px', marginBottom: '16px' }}>
             <h4 style={{ fontSize: '.9rem', fontWeight: 600, marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary-dark)' }}>
               <span className="material-icons-outlined" style={{ fontSize: '18px' }}>admin_panel_settings</span>
-              User Permissions & Autopay Controls
+              Agent Permissions & Autopay Controls
             </h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
@@ -829,6 +832,7 @@ export default function UsersClient({
               </label>
             </div>
           </div>
+          )}
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">Role</label>

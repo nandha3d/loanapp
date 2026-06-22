@@ -355,6 +355,7 @@ export const hi = {
     submitPayment: 'भुगतान सबमिट करें',
     outstandingDetails: 'बकाया विवरण',
     totalOutstandingBalance: 'कुल बकाया शेष',
+    totalDue: 'कुल बकाया',
     includesPreviousOverdue: 'पिछली अतिदेय किस्तें शामिल हैं',
     handoverRequested: 'हस्तांतरण सफलतापूर्वक अनुरोधित',
     failedHandover: 'हस्तांतरण सबमिट करने में विफल',

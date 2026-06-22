@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { formatCurrency, formatDate, getBadgeClass, getInitials, getPaginationPages } from '@/lib/utils';
-import { submitCollectionEntry, requestCollectionEdit, requestCashHandover } from './actions';
+import { submitCollectionEntry, submitLoanCollection, requestCollectionEdit, requestCashHandover } from './actions';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from '@/components/layout/DashboardLink';
 
@@ -137,6 +137,8 @@ export default function CollectionClient({
   const [overdueCustomerGroup, setOverdueCustomerGroup] = useState<CustomerOverdueGroup | null>(null);
   const [loading, setLoading] = useState(false);
   const [amount, setAmount] = useState(0);
+  // Which preset card the agent picked in the collect popup ('today' | 'total').
+  const [selectedCard, setSelectedCard] = useState<'today' | 'total'>('today');
   const [mode, setMode] = useState('cash');
   const [remarks, setRemarks] = useState('');
   const [reason, setReason] = useState('');
@@ -342,14 +344,36 @@ export default function CollectionClient({
     year: 'numeric',
   });
 
+  // Loan-level figures for the collect popup: today's due and total outstanding
+  // (overdue + today + any future) across ALL the loan's open instalments.
+  const loanFiguresFor = (instalment: CollectionRow) => {
+    const map = new Map<string, CollectionRow>();
+    [...todayInstalments, ...overdueInstalments]
+      .filter((r) => r.loan.id === instalment.loan.id)
+      .forEach((r) => map.set(r.id, r));
+    const rows = Array.from(map.values());
+    const totalOutstanding = rows.reduce((s, r) => s + r.outstandingAmount, 0);
+    const todayDue = rows
+      .filter((r) => r.dueDate.slice(0, 10) === todayISO)
+      .reduce((s, r) => s + r.outstandingAmount, 0);
+    return { rows, totalOutstanding, todayDue, overdue: Math.max(0, totalOutstanding - todayDue) };
+  };
+
   const openModal = (instalment: CollectionRow) => {
     const isPaid = instalment.receivedAmount > 0;
-    // Default to THIS instalment's own outstanding (not the whole loan) — payment
-    // is recorded against the chosen instalment as-is ("actual"); the agent pays
-    // each row individually. Capping at its due avoids silently dropping surplus.
-    const defaultDue =
-      instalment.outstandingAmount > 0 ? instalment.outstandingAmount : instalment.dueAmount;
-    setAmount(isPaid ? instalment.receivedAmount : defaultDue);
+    if (isPaid) {
+      // Edit/correction path stays single-instalment (admin edits, or agent edit
+      // requests) — unchanged behaviour, recorded against THIS instalment only.
+      setAmount(instalment.receivedAmount);
+    } else {
+      // New collection: default to today's due; if nothing is due today (pure
+      // overdue catch-up) default to the full outstanding. Recorded loan-wide,
+      // distributed oldest-first by the server.
+      const fig = loanFiguresFor(instalment);
+      const defaultAmt = fig.todayDue > 0 ? fig.todayDue : fig.totalOutstanding;
+      setSelectedCard(fig.todayDue > 0 ? 'today' : 'total');
+      setAmount(defaultAmt);
+    }
     setMode('cash');
     setRemarks('');
     setReason('');
@@ -426,7 +450,6 @@ export default function CollectionClient({
           alert(result.error || 'Failed to submit request');
         }
       } else {
-        fd.set('receivedAmount', String(amount));
         fd.set('paymentMode', mode);
         fd.set('remarks', remarks);
         const gps = await captureCurrentLocation();
@@ -436,7 +459,19 @@ export default function CollectionClient({
         if (gps.accuracy !== undefined) fd.set('gpsAccuracy', String(gps.accuracy));
         if (gps.altitude !== undefined && gps.altitude !== null) fd.set('gpsAltitude', String(gps.altitude));
         if (gps.timestamp) fd.set('gpsTimestamp', gps.timestamp);
-        const result = await submitCollectionEntry(fd);
+
+        // New collection (instalment never paid) → record loan-wide, spread
+        // oldest-first. Admin correction of an already-paid instalment stays a
+        // single-instalment write.
+        let result;
+        if (modal.receivedAmount === 0) {
+          fd.set('loanId', modal.loan.id);
+          fd.set('amount', String(amount));
+          result = await submitLoanCollection(fd);
+        } else {
+          fd.set('receivedAmount', String(amount));
+          result = await submitCollectionEntry(fd);
+        }
         setLoading(false);
         if (result.success) {
           setModal(null);
@@ -943,7 +978,6 @@ export default function CollectionClient({
               {/* Per-instalment list */}
               <div style={{ padding: '8px 0' }}>
                 {overdueCustomerGroup.instalments.map((inst, idx) => {
-                  const isPaid = inst.receivedAmount > 0;
                   return (
                     <div
                       key={inst.id}
@@ -999,7 +1033,8 @@ export default function CollectionClient({
                         </div>
                       </div>
 
-                      {/* Days overdue */}
+                      {/* Days overdue — read-only mapped day, no per-row Pay
+                          (settle the whole loan via the footer button instead). */}
                       {inst.daysOverdue > 0 && (
                         <span style={{
                           flexShrink: 0,
@@ -1014,33 +1049,38 @@ export default function CollectionClient({
                           {inst.daysOverdue}d
                         </span>
                       )}
-
-                      {/* Pay button */}
-                      {isPaid ? (
-                        isAdmin ? (
-                          <button className="btn btn-ghost btn-sm" style={{ flexShrink: 0 }}
-                            onClick={() => { setOverdueCustomerGroup(null); openModal(inst); }}>
-                            <span className="material-icons-outlined" style={{ fontSize: '13px' }}>edit</span> {dict.collection.editLabel}
-                          </button>
-                        ) : (
-                          <button className="btn btn-ghost btn-sm" style={{ flexShrink: 0 }}
-                            onClick={() => { setOverdueCustomerGroup(null); openModal(inst); }}>
-                            <span className="material-icons-outlined" style={{ fontSize: '13px' }}>history_edu</span> {dict.collection.requestLabel}
-                          </button>
-                        )
-                      ) : (
-                        <button className="btn btn-primary btn-sm" style={{ flexShrink: 0 }}
-                          onClick={() => { setOverdueCustomerGroup(null); openModal(inst); }}>
-                          <span className="material-icons-outlined" style={{ fontSize: '13px' }}>payments</span> {dict.collection.payLabel}
-                        </button>
-                      )}
                     </div>
                   );
                 })}
               </div>
             </div>
 
-            <div className="modal-footer">
+            <div className="modal-footer" style={{ flexWrap: 'wrap', gap: '8px' }}>
+              {(() => {
+                // One Collect button per distinct loan with something unpaid. Each
+                // opens the loan-wide collect popup (oldest-first distribution).
+                const loanMap = new Map<string, { code: string; inst: CollectionRow; outstanding: number }>();
+                for (const inst of overdueCustomerGroup.instalments) {
+                  if (inst.outstandingAmount <= 0) continue;
+                  const key = inst.loan.id;
+                  if (!loanMap.has(key)) {
+                    loanMap.set(key, { code: inst.loan.loanCode, inst, outstanding: 0 });
+                  }
+                  loanMap.get(key)!.outstanding += inst.outstandingAmount;
+                }
+                const loans = Array.from(loanMap.values());
+                const multi = loans.length > 1;
+                return loans.map((l) => (
+                  <button
+                    key={l.code}
+                    className="btn btn-primary"
+                    onClick={() => { setOverdueCustomerGroup(null); openModal(l.inst); }}
+                  >
+                    <span className="material-icons-outlined" style={{ fontSize: '16px' }}>payments</span>
+                    {dict.collection.payLabel}{multi ? ` ${l.code}` : ''} · {formatCurrency(l.outstanding, currencySymbol)}
+                  </button>
+                ));
+              })()}
               <button className="btn btn-secondary" onClick={() => setOverdueCustomerGroup(null)}>{dict.collection.closeLabel}</button>
             </div>
           </div>
@@ -1054,7 +1094,11 @@ export default function CollectionClient({
           .forEach(r => uniqueRowsMap.set(r.id, r));
         const uniqueRows = Array.from(uniqueRowsMap.values());
         const totalLoanOutstanding = uniqueRows.reduce((sum, r) => sum + r.outstandingAmount, 0);
-        const hasOverdue = totalLoanOutstanding > modal.outstandingAmount && modal.receivedAmount === 0;
+        const dueTodayForLoan = uniqueRows
+          .filter((r) => r.dueDate.slice(0, 10) === todayISO)
+          .reduce((sum, r) => sum + r.outstandingAmount, 0);
+        const overdueForLoan = Math.max(0, totalLoanOutstanding - dueTodayForLoan);
+        const isNewCollect = modal.receivedAmount === 0;
 
         return (
         <div className="modal-overlay show" onClick={(event) => { if (event.target === event.currentTarget) setModal(null); }}>
@@ -1075,43 +1119,59 @@ export default function CollectionClient({
                 </div>
               </div>
               
-              {hasOverdue && (
-                <div style={{ 
-                  background: 'rgba(239, 68, 68, 0.08)', 
-                  border: '1px solid rgba(239, 68, 68, 0.16)', 
-                  borderRadius: 'var(--radius-sm)', 
-                  padding: '16px', 
-                  marginBottom: '16px' 
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <span style={{ fontSize: '.75rem', color: 'var(--danger)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{dict.collection.totalOutstandingBalance}</span>
-                      <div style={{ fontSize: '1.6rem', fontWeight: 900, color: 'var(--danger)', marginTop: '2px', lineHeight: 1.1 }}>
-                        {formatCurrency(totalLoanOutstanding, currencySymbol)}
-                      </div>
-                      <span style={{ fontSize: '.7rem', color: 'var(--text-secondary)', display: 'block', marginTop: '4px' }}>{dict.collection.includesPreviousOverdue}</span>
-                    </div>
-                    <Link 
-                      href={`/loans/${modal.loan.loanCode}`} 
-                      className="btn" 
-                      style={{ 
-                        background: 'var(--primary)', 
-                        color: '#fff', 
-                        border: 'none', 
-                        padding: '10px 16px', 
-                        borderRadius: 'var(--radius-sm)', 
-                        fontSize: '.85rem', 
-                        fontWeight: 600, 
-                        textDecoration: 'none',
-                        boxShadow: 'var(--shadow-sm)'
+              {isNewCollect && (
+                <>
+                  {/* Two preset amount cards. Pick one to fill the amount, then
+                      edit freely. Payment is spread oldest-first server-side. */}
+                  <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedCard('today'); setAmount(dueTodayForLoan); }}
+                      style={{
+                        flex: 1, textAlign: 'left', cursor: 'pointer',
+                        background: selectedCard === 'today' ? 'rgba(245,158,11,0.08)' : 'var(--bg)',
+                        border: `2px solid ${selectedCard === 'today' ? 'var(--primary)' : 'var(--border)'}`,
+                        borderRadius: 'var(--radius-sm)', padding: '12px 14px',
                       }}
                     >
-                      {dict.collection.outstandingDetails}
+                      <div style={{ fontSize: '.72rem', fontWeight: 600, color: selectedCard === 'today' ? 'var(--primary)' : 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                        {dict.collection.todayDue}
+                      </div>
+                      <div style={{ fontSize: '1.3rem', fontWeight: 800, marginTop: '4px', color: 'var(--text)' }}>
+                        {formatCurrency(dueTodayForLoan, currencySymbol)}
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedCard('total'); setAmount(totalLoanOutstanding); }}
+                      style={{
+                        flex: 1, textAlign: 'left', cursor: 'pointer',
+                        background: selectedCard === 'total' ? 'rgba(239,68,68,0.08)' : 'var(--bg)',
+                        border: `2px solid ${selectedCard === 'total' ? 'var(--danger)' : 'var(--border)'}`,
+                        borderRadius: 'var(--radius-sm)', padding: '12px 14px',
+                      }}
+                    >
+                      <div style={{ fontSize: '.72rem', fontWeight: 600, color: selectedCard === 'total' ? 'var(--danger)' : 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                        {dict.collection.totalDue}
+                      </div>
+                      <div style={{ fontSize: '1.3rem', fontWeight: 800, marginTop: '4px', color: 'var(--text)' }}>
+                        {formatCurrency(totalLoanOutstanding, currencySymbol)}
+                      </div>
+                      {overdueForLoan > 0 && (
+                        <div style={{ fontSize: '.66rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                          {dict.collection.includesPreviousOverdue}
+                        </div>
+                      )}
+                    </button>
+                  </div>
+                  <div style={{ textAlign: 'right', marginBottom: '14px' }}>
+                    <Link href={`/loans/${modal.loan.loanCode}`} style={{ fontSize: '.78rem', color: 'var(--primary)', fontWeight: 600 }}>
+                      {dict.collection.outstandingDetails} →
                     </Link>
                   </div>
-                </div>
+                </>
               )}
-              
+
               {modal.receivedAmount > 0 && !isAdmin ? (
                 <div className="form-group">
                   <label className="form-label">{dict.collection.correctAmount} ({currencySymbol}) *</label>

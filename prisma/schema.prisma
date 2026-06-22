@@ -332,6 +332,9 @@ model Customer {
   lat               Float?            @map("lat")
   lng               Float?            @map("lng")
   geocodedAt        DateTime?         @map("geocoded_at")
+  // Preferred time of day for the agent to visit/collect (e.g. "morning",
+  // "afternoon", "evening", or a free-form "10:00-12:00"). Optional.
+  preferredCollectionTime String?     @map("preferred_collection_time")
   chitGroupMembers  ChitMember[]
   collectionEntries CollectionEntry[]
   agent             User?             @relation("AgentCustomers", fields: [agentId], references: [id])

@@ -49,6 +49,55 @@ export async function submitCollectionEntry(formData: FormData) {
   }
 }
 
+/**
+ * Loan-level collection: one payment spread across the loan's open instalments
+ * oldest-first (overdue → today → future). The amount is recorded today and
+ * each instalment is filled only up to its remaining due.
+ */
+export async function submitLoanCollection(formData: FormData) {
+  const loanId = formData.get('loanId') as string;
+  const amount = Number(formData.get('amount'));
+  const paymentMode = (formData.get('paymentMode') as string) || 'cash';
+  const remarks = (formData.get('remarks') as string) || null;
+  const collectionDate = (formData.get('collectionDate') as string) || undefined;
+
+  const latitude = formData.get('gpsLatitude') ? Number(formData.get('gpsLatitude')) : undefined;
+  const longitude = formData.get('gpsLongitude') ? Number(formData.get('gpsLongitude')) : undefined;
+  const gpsAccuracy = formData.get('gpsAccuracy') ? Number(formData.get('gpsAccuracy')) : undefined;
+  const locationStatus = (formData.get('gpsStatus') as string) || undefined;
+
+  try {
+    const apiContext = await getApiRequestContext();
+    const payload = {
+      loanId,
+      amount,
+      paymentMode,
+      remarks,
+      collectionDate,
+      latitude,
+      longitude,
+      gpsAccuracy,
+      locationStatus,
+    };
+
+    const res = await apiFetch<any>('/collection/collect', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      ...apiContext,
+    });
+
+    if (res.error) {
+      return { success: false, error: res.error };
+    }
+
+    revalidatePath('/collection');
+    revalidatePath('/dashboard');
+    return { success: true, data: res.data };
+  } catch (e: any) {
+    return { success: false, error: e.message || 'Failed to submit collection' };
+  }
+}
+
 export async function requestCollectionEdit(formData: FormData) {
   const instalmentId = formData.get('instalmentId') as string;
   const requestedAmount = Number(formData.get('requestedAmount'));

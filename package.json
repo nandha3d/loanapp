@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "postinstall": "prisma generate",
+    "seed:locations": "tsx prisma/seed_locations.ts",
     "test:repayments": "tsx tests/repaymentAllocation.test.ts",
     "test:e2e-features": "tsx tests/endToEndFeatures.test.ts",
     "test:security": "tsx tests/security.test.ts",

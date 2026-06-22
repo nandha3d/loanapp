@@ -355,6 +355,7 @@ export const en = {
     submitPayment: 'Submit Payment',
     outstandingDetails: 'Outstanding Details',
     totalOutstandingBalance: 'Total Outstanding Balance',
+    totalDue: 'Total Due',
     includesPreviousOverdue: 'Includes previous overdue instalments',
     handoverRequested: 'Handover requested successfully',
     failedHandover: 'Failed to submit handover',
