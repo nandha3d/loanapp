@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
-import { getAgentRouteIds } from '@/lib/access';
+import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -20,38 +20,23 @@ export async function GET(req: NextRequest) {
   const today = new Date(istMidnightUtcMs);
   const tomorrow = new Date(istMidnightUtcMs + 24 * 60 * 60 * 1000);
 
+  // Agent scoping — restrict to the agent's OWN customers via linkage (direct
+  // agentId or route assignment), NOT by branch. A branch pin falsely excluded
+  // their customers/loans with a null or different branchId. Admins stay
+  // branch-scoped; superadmin/developer see the whole tenant.
+  const isAgent = ctx.role === 'agent';
+  const agentAccess = isAgent ? buildAgentCustomerAccessWhere({ userId: ctx.userId }) : null;
+
   const baseLoan: any = {
     tenantId: ctx.tenantId,
     appType: ctx.appType,
-    ...scopedBranchWhere(ctx),
+    ...(isAgent ? { customer: agentAccess } : scopedBranchWhere(ctx)),
   };
-  const baseCustomer: any = { ...baseLoan };
-
-  // Agent scoping — restrict to customers/loans in agent's assigned routes.
-  if (ctx.role === 'agent') {
-    const routeIds = await getAgentRouteIds(ctx.userId);
-    if (routeIds.length === 0) {
-      return ok({
-        activeLoans: 0,
-        overdueLoans: 0,
-        totalCustomers: 0,
-        todayExpected: 0,
-        todayCollected: 0,
-        cashCollectedToday: 0,
-        todayGap: 0,
-        overdueOutstanding: 0,
-        overdueCollectedToday: 0,
-        overdueTotalTillToday: 0,
-        pendingPenalties: 0,
-        activeAgents: 0,
-        recentLoans: [],
-        todayInstalments: [],
-        todayActivity: [],
-      });
-    }
-    baseCustomer.routeId = { in: routeIds };
-    baseLoan.customer = { routeId: { in: routeIds } };
-  }
+  const baseCustomer: any = {
+    tenantId: ctx.tenantId,
+    appType: ctx.appType,
+    ...(isAgent ? agentAccess : scopedBranchWhere(ctx)),
+  };
 
   try {
     const [

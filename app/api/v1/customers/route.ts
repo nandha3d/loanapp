@@ -240,6 +240,34 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Route → agent linkage. The route's primary agent becomes the customer's
+    // collecting agent (shared agents still see them via routeAgents). There is
+    // no per-customer agent picker any more — agent↔route assignment lives in
+    // Settings → Routes. Agents may only file customers on a route assigned to
+    // them. The customer also inherits the route's branch so branch views stay
+    // consistent (fixes customers/loans landing with a null branch).
+    let resolvedRouteId: string | null = body.routeId ?? null;
+    let resolvedAgentId: string | null = body.agentId ?? null;
+    let resolvedBranchId: string | null = ctx.branchId;
+    if (ctx.role === 'agent') {
+      const myRoutes = await getAgentRouteIds(ctx.userId);
+      if (resolvedRouteId && !myRoutes.includes(resolvedRouteId)) {
+        return fail('You can only add customers to a route assigned to you.', 403);
+      }
+      if (!resolvedRouteId && myRoutes.length === 1) resolvedRouteId = myRoutes[0];
+    }
+    if (resolvedRouteId) {
+      const route = await prisma.route.findFirst({
+        where: { id: resolvedRouteId, tenantId: ctx.tenantId },
+        select: { assignedAgentId: true, branchId: true },
+      });
+      if (!route) return fail('Selected route not found.', 400);
+      resolvedAgentId = route.assignedAgentId ?? (ctx.role === 'agent' ? ctx.userId : null);
+      resolvedBranchId = route.branchId ?? ctx.branchId;
+    } else if (ctx.role === 'agent') {
+      resolvedAgentId = ctx.userId;
+    }
+
     // Retry loop to handle race conditions on customer code generation
     const MAX_RETRIES = 5;
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
@@ -271,14 +299,14 @@ export async function POST(req: NextRequest) {
           data: {
             tenantId: ctx.tenantId,
             appType: ctx.appType,
-            branchId: ctx.branchId,
+            branchId: resolvedBranchId,
             customerCode,
             name: body.name,
             phone: body.phone,
             address: body.address ?? null,
             aadharNumber: encryptAadharNumber(body.aadharNumber ?? null),
-            routeId: ctx.role === 'agent' ? null : body.routeId ?? null,
-            agentId: ctx.role === 'agent' ? ctx.userId : body.agentId ?? null,
+            routeId: resolvedRouteId,
+            agentId: resolvedAgentId,
             status: bypassCustomerApproval ? 'active' : 'pending_review',
             profilePhoto: body.photoUrl ?? null,
             // Extended profile fields (web parity)

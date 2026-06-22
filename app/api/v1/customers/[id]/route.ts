@@ -50,10 +50,13 @@ async function findScopedCustomer(id: string, ctx: MobileTokenClaims) {
     OR: [{ id }, { customerCode: id }],
     tenantId: ctx.tenantId,
     appType: ctx.appType,
-    ...scopedBranchWhere(ctx),
   };
   if (ctx.role === 'agent') {
+    // Agents scope by customer-linkage only, NOT branch (a branch pin 404s their
+    // own customers whose branchId is null or differs from the agent's branch).
     where.AND = [buildAgentCustomerAccessWhere({ userId: ctx.userId })];
+  } else {
+    Object.assign(where, scopedBranchWhere(ctx));
   }
   return prisma.customer.findFirst({
     where,
@@ -135,6 +138,20 @@ export async function PATCH(
       if (body[f] !== undefined) {
         const n = Number(body[f]);
         data[f] = Number.isFinite(n) ? n : null;
+      }
+    }
+
+    // Route drives the collecting agent: when the route is (re)assigned, derive
+    // the agent from the route's primary agent and inherit the route's branch.
+    // (The per-customer agent picker was removed — assignment lives in Settings.)
+    if (typeof data.routeId === 'string' && data.routeId) {
+      const route = await prisma.route.findFirst({
+        where: { id: data.routeId, tenantId: ctx.tenantId },
+        select: { assignedAgentId: true, branchId: true },
+      });
+      if (route) {
+        data.agentId = route.assignedAgentId ?? (data.agentId as string | null) ?? null;
+        if (route.branchId) data.branchId = route.branchId;
       }
     }
 

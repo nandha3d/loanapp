@@ -3,87 +3,28 @@
 import { useEffect, useState } from 'react';
 import { saveCustomer } from '../actions';
 import Modal from '@/components/Modal';
-import { createRoute, createUser } from '../../settings/actions';
+import { createRoute } from '../../settings/actions';
 import { usePathname, useRouter } from 'next/navigation';
 
 interface CustomerFormProps {
   routes: any[];
-  agents: any[];
+  agents?: any[];
   customer?: any;
   onSuccess?: (customer: any) => void;
   dict: any;
   viewerRole?: string;
 }
 
-type AvailabilityField = { checking: boolean; available: boolean | null; message: string };
-
-const emptyAvailability: AvailabilityField = { checking: false, available: null, message: '' };
-
-export default function CustomerForm({ routes: initialRoutes, agents: initialAgents, customer, onSuccess, dict, viewerRole }: CustomerFormProps) {
+export default function CustomerForm({ routes: initialRoutes, customer, onSuccess, dict, viewerRole }: CustomerFormProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [loading, setLoading] = useState(false);
   const isAgentViewer = viewerRole === 'agent';
   const [localRoutes, setLocalRoutes] = useState(initialRoutes);
-  const [localAgents, setLocalAgents] = useState(initialAgents);
   const [selectedRouteId, setSelectedRouteId] = useState(customer?.routeId || '');
-  const [selectedAgentId, setSelectedAgentId] = useState(customer?.agentId || '');
 
   const [isRouteModalOpen, setIsRouteModalOpen] = useState(false);
   const [creatingRoute, setCreatingRoute] = useState(false);
-  const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
-  const [creatingAgent, setCreatingAgent] = useState(false);
-  const [newAgentUsername, setNewAgentUsername] = useState('');
-  const [newAgentPhone, setNewAgentPhone] = useState('');
-  const [newAgentEmail, setNewAgentEmail] = useState('');
-  const [agentAvailability, setAgentAvailability] = useState<Record<'username' | 'phone' | 'email', AvailabilityField>>({
-    username: emptyAvailability,
-    phone: emptyAvailability,
-    email: emptyAvailability,
-  });
-
-  useEffect(() => {
-    if (!isAgentModalOpen) return;
-    const params = new URLSearchParams();
-    if (newAgentUsername.trim()) params.set('username', newAgentUsername.trim());
-    if (newAgentPhone.trim()) params.set('phone', newAgentPhone.trim());
-    if (newAgentEmail.trim()) params.set('email', newAgentEmail.trim());
-    if (!params.toString()) {
-      setAgentAvailability({ username: emptyAvailability, phone: emptyAvailability, email: emptyAvailability });
-      return;
-    }
-
-    const controller = new AbortController();
-    setAgentAvailability((prev) => ({
-      username: newAgentUsername.trim() ? { ...prev.username, checking: true, message: '' } : emptyAvailability,
-      phone: newAgentPhone.trim() ? { ...prev.phone, checking: true, message: '' } : emptyAvailability,
-      email: newAgentEmail.trim() ? { ...prev.email, checking: true, message: '' } : emptyAvailability,
-    }));
-
-    const timer = window.setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/users/availability?${params.toString()}`, { signal: controller.signal });
-        const data = await res.json();
-        setAgentAvailability({
-          username: data.fields.username.checked ? { checking: false, available: data.fields.username.available, message: data.fields.username.message || '' } : emptyAvailability,
-          phone: data.fields.phone.checked ? { checking: false, available: data.fields.phone.available, message: data.fields.phone.message || '' } : emptyAvailability,
-          email: data.fields.email.checked ? { checking: false, available: data.fields.email.available, message: data.fields.email.message || '' } : emptyAvailability,
-        });
-      } catch (err: any) {
-        if (err.name === 'AbortError') return;
-        setAgentAvailability((prev) => ({
-          username: { ...prev.username, checking: false },
-          phone: { ...prev.phone, checking: false },
-          email: { ...prev.email, checking: false },
-        }));
-      }
-    }, 350);
-
-    return () => {
-      controller.abort();
-      window.clearTimeout(timer);
-    };
-  }, [isAgentModalOpen, newAgentEmail, newAgentPhone, newAgentUsername]);
 
   // Customer photo — track new file for preview; existing URL comes from customer prop
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -185,32 +126,7 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
     setCreatingRoute(false);
   };
 
-  // --- Agent create handler ---
-  const handleCreateAgent = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (hasAgentAvailabilityError) {
-      alert('Please use unique username, phone and email values.');
-      return;
-    }
-    if (isAgentAvailabilityChecking) {
-      alert('Checking username, phone and email availability. Please try again in a moment.');
-      return;
-    }
-    setCreatingAgent(true);
-    const formData = new FormData(e.currentTarget);
-    formData.set('role', 'agent');
-    const res = await createUser(formData);
-    if (res.success && res.user) {
-      setLocalAgents([...localAgents, res.user]);
-      setSelectedAgentId(res.user.id);
-      setIsAgentModalOpen(false);
-    }
-    setCreatingAgent(false);
-  };
-
   const [documents, setDocuments] = useState<any[]>([]);
-  const hasAgentAvailabilityError = Object.values(agentAvailability).some((item) => item.available === false);
-  const isAgentAvailabilityChecking = Object.values(agentAvailability).some((item) => item.checking);
 
   // --- Submit ---
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -327,34 +243,29 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
           </div>
         </div>
 
-        {!isAgentViewer && (
+        {/* Route / Line. The route drives the collecting agent — the agent is
+            assigned to routes in Settings → Routes (primary + shared), so there
+            is no per-customer agent picker. Agents only see their own routes
+            here; a customer they create is auto-linked to that route's agent. */}
         <div className="form-row">
           <div className="form-group">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
               <label className="form-label" style={{ margin: 0 }}>{dict.customers.route} *</label>
-              <button type="button" onClick={() => setIsRouteModalOpen(true)} className="btn btn-ghost btn-sm" style={{ padding: '2px 8px', fontSize: '.75rem' }}>
-                + New Route
-              </button>
+              {!isAgentViewer && (
+                <button type="button" onClick={() => setIsRouteModalOpen(true)} className="btn btn-ghost btn-sm" style={{ padding: '2px 8px', fontSize: '.75rem' }}>
+                  + New Route
+                </button>
+              )}
             </div>
             <select name="routeId" className="form-control" value={selectedRouteId} onChange={e => setSelectedRouteId(e.target.value)} required style={{ fontSize: '1rem', padding: '12px' }}>
-              <option value="">Select Route</option>
+              <option value="">{isAgentViewer ? 'Select your route / line' : 'Select Route'}</option>
               {localRoutes.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
-          </div>
-          <div className="form-group">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <label className="form-label" style={{ margin: 0 }}>{dict.customers.agent} *</label>
-              <button type="button" onClick={() => setIsAgentModalOpen(true)} className="btn btn-ghost btn-sm" style={{ padding: '2px 8px', fontSize: '.75rem' }}>
-                + New Agent
-              </button>
-            </div>
-            <select name="agentId" className="form-control" value={selectedAgentId} onChange={e => setSelectedAgentId(e.target.value)} required style={{ fontSize: '1rem', padding: '12px' }}>
-              <option value="">Select Agent</option>
-              {localAgents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
+            {isAgentViewer && localRoutes.length === 0 && (
+              <small style={{ color: 'var(--danger)' }}>No route assigned to you yet. Ask an admin to assign you a route in Settings.</small>
+            )}
           </div>
         </div>
-        )}
 
         {/* --- Company / Business Details --- */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '24px 0 12px' }}>
@@ -657,44 +568,6 @@ export default function CustomerForm({ routes: initialRoutes, agents: initialAge
         </Modal>
       )}
 
-      {isAgentModalOpen && (
-        <Modal isOpen={isAgentModalOpen} onClose={() => setIsAgentModalOpen(false)} title="Add New Agent">
-          <form onSubmit={handleCreateAgent}>
-            <div className="form-group">
-              <label className="form-label">Agent Name</label>
-              <input type="text" name="name" className="form-control" required />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Username</label>
-              <input type="text" name="username" className="form-control" value={newAgentUsername} onChange={(e) => setNewAgentUsername(e.target.value)} required />
-              {agentAvailability.username.checking && <small style={{ color: 'var(--text-light)' }}>Checking username...</small>}
-              {agentAvailability.username.available === false && <small style={{ color: 'var(--danger)' }}>{agentAvailability.username.message}</small>}
-            </div>
-            <div className="form-group">
-              <label className="form-label">Phone</label>
-              <input type="tel" name="phone" className="form-control" value={newAgentPhone} onChange={(e) => setNewAgentPhone(e.target.value)} required />
-              {agentAvailability.phone.checking && <small style={{ color: 'var(--text-light)' }}>Checking phone...</small>}
-              {agentAvailability.phone.available === false && <small style={{ color: 'var(--danger)' }}>{agentAvailability.phone.message}</small>}
-            </div>
-            <div className="form-group">
-              <label className="form-label">Email</label>
-              <input type="email" name="email" className="form-control" value={newAgentEmail} onChange={(e) => setNewAgentEmail(e.target.value)} />
-              {agentAvailability.email.checking && <small style={{ color: 'var(--text-light)' }}>Checking email...</small>}
-              {agentAvailability.email.available === false && <small style={{ color: 'var(--danger)' }}>{agentAvailability.email.message}</small>}
-            </div>
-            <div className="form-group">
-              <label className="form-label">Password</label>
-              <input type="password" name="password" className="form-control" required />
-            </div>
-            <div className="modal-actions">
-              <button type="button" onClick={() => setIsAgentModalOpen(false)} className="btn btn-ghost">Cancel</button>
-              <button type="submit" className="btn btn-primary" disabled={creatingAgent || hasAgentAvailabilityError || isAgentAvailabilityChecking}>
-                {creatingAgent ? 'Creating...' : 'Create Agent'}
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
     </div>
   );
 }

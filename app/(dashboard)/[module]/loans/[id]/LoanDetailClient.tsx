@@ -464,17 +464,23 @@ export default function LoanDetailClient({
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   
-  // Calculate total scheduled/expected payments up to today
-  const totalExpectedUpToToday = displayInstalments
+  // Overdue = sum of the STILL-UNPAID amount on each instalment whose due date
+  // has already passed (today's instalment is not overdue yet). This mirrors the
+  // collection page exactly. The previous formula — (total expected up to today)
+  // minus (ALL collections ever) — drifted toward the full outstanding balance
+  // and overstated the overdue figure, so the loan page disagreed with the
+  // collection page.
+  const duesPending = (loan.instalments || [])
     .filter((inst: any) => {
       const dueDate = new Date(inst.dueDate);
       dueDate.setHours(0, 0, 0, 0);
       return dueDate < today;
     })
-    .reduce((sum: number, inst: any) => sum + Number(inst.dueAmount), 0);
-
-  // True dues pending is the scheduled expectation minus total collections (capped at 0)
-  const duesPending = Math.max(0, totalExpectedUpToToday - totalCollected);
+    .reduce(
+      (sum: number, inst: any) =>
+        sum + Math.max(0, Number(inst.dueAmount) - Number(inst.receivedAmount || 0)),
+      0,
+    );
 
   const duesPendingBox = duesPending > 0 && (
     <div style={{ 

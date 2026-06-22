@@ -8,7 +8,7 @@ import { calculateLoanPreview } from '@/lib/loanCalculator';
 import { validateGuarantorPhone } from '@/lib/guarantorPolicy';
 import { encryptAadharNumber, decryptAadharNumber } from '@/lib/pii';
 import { writeAudit } from '@/lib/audit';
-import { validateLoanNumericInputs } from '@/lib/loanPolicy';
+import { validateLoanNumericInputs, buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 import { hasFinancialActivity } from '@/lib/repayments';
 
 export async function GET(
@@ -20,16 +20,23 @@ export async function GET(
   const ctx = auth.context;
   const { id } = await params;
 
+  const loanWhere: any = {
+    OR: [
+      { id },
+      { loanCode: id }
+    ],
+    tenantId: ctx.tenantId,
+    appType: ctx.appType,
+  };
+  if (ctx.role === 'agent') {
+    // Agents see only their own customers' loans (linkage), regardless of branch.
+    loanWhere.customer = buildAgentCustomerAccessWhere({ userId: ctx.userId });
+  } else {
+    Object.assign(loanWhere, scopedBranchWhere(ctx));
+  }
+
   const loan = await prisma.loan.findFirst({
-    where: {
-      OR: [
-        { id },
-        { loanCode: id }
-      ],
-      tenantId: ctx.tenantId,
-      appType: ctx.appType,
-      ...scopedBranchWhere(ctx),
-    },
+    where: loanWhere,
     include: {
       customer: {
         include: {
