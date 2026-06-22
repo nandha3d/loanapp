@@ -5,8 +5,8 @@ import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getSupabaseBrowser } from '@/lib/supabase/browser';
 
-// Landing point for every Supabase auth handshake (Google OAuth + email
-// magic-link/OTP). Supabase has already established a browser session here; we
+// Landing point after /auth/exchange finishes the Supabase PKCE code exchange.
+// Supabase has already established a cookie-backed browser session here; we
 // read its access token, then bridge into the app's NextAuth session.
 //
 //   intent=login  (default) → Google sign-in. Existing user → portal;
@@ -35,20 +35,10 @@ function CallbackInner() {
       const provErr = url.searchParams.get('error_description') || hash.get('error_description');
       if (provErr) { if (!cancelled) bail(provErr); return; }
 
-      let accessToken: string | null = null;
-      const code = url.searchParams.get('code');
-
-      if (code) {
-        // PKCE: exchange the one-time code (+ stored verifier) for a session.
-        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-        if (cancelled) return;
-        if (error) { bail(`Sign-in failed: ${error.message}`); return; }
-        accessToken = data.session?.access_token ?? null;
-      } else {
-        // Implicit/hash fallback (#access_token=...).
-        const { data } = await supabase.auth.getSession();
-        accessToken = data.session?.access_token ?? hash.get('access_token') ?? null;
-      }
+      // The normal PKCE path is exchanged in /auth/exchange. Keep a hash
+      // fallback for older magic links that may still include #access_token.
+      const { data } = await supabase.auth.getSession();
+      const accessToken = data.session?.access_token ?? hash.get('access_token') ?? null;
 
       if (cancelled) return;
       if (!accessToken) {

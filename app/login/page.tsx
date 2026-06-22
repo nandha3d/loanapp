@@ -115,7 +115,7 @@ function LoginForm() {
       const supabase = getSupabaseBrowser();
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: `${currentOriginWithBasePath()}/auth/callback?intent=login` },
+        options: { redirectTo: `${currentOriginWithBasePath()}/auth/exchange?intent=login` },
       });
       if (error) setError(error.message || 'Google sign-in failed.');
     } catch (e: any) {
