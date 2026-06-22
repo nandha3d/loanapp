@@ -12,8 +12,62 @@ type CashSummary = {
   agentFloat: number;
 };
 
+const tones = {
+  green: { bg: 'var(--success-bg)', color: 'var(--success)' },
+  orange: { bg: 'var(--primary-light)', color: 'var(--primary-dark)' },
+  blue: { bg: 'var(--info-bg)', color: 'var(--info)' },
+  red: { bg: 'var(--danger-bg)', color: 'var(--danger)' },
+  slate: { bg: 'var(--bg)', color: 'var(--text-secondary)' },
+};
+
 function fmt(symbol: string, n: number) {
   return `${symbol}${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+}
+
+function initials(name: string) {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'A';
+}
+
+function MetricCard({
+  icon,
+  label,
+  value,
+  tone,
+  detail,
+}: {
+  icon: string;
+  label: string;
+  value: string;
+  tone: keyof typeof tones;
+  detail: string;
+}) {
+  return (
+    <div className="kpi-card" style={{ minHeight: '118px', border: '1px solid var(--border)' }}>
+      <div className="kpi-icon" style={{ background: tones[tone].bg, color: tones[tone].color }}>
+        <span className="material-icons-outlined">{icon}</span>
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <div className="kpi-value" style={{ color: tones[tone].color, wordBreak: 'break-word' }}>{value}</div>
+        <div className="kpi-label">{label}</div>
+        <div style={{ marginTop: 6, color: 'var(--text-light)', fontSize: '.72rem', lineHeight: 1.35 }}>{detail}</div>
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({ icon, title, text }: { icon: string; title: string; text: string }) {
+  return (
+    <div className="empty-state" style={{ padding: '34px 18px' }}>
+      <span className="material-icons-outlined" style={{ fontSize: 42 }}>{icon}</span>
+      <h3>{title}</h3>
+      <p style={{ marginBottom: 0 }}>{text}</p>
+    </div>
+  );
 }
 
 export default function WalletClient({
@@ -27,53 +81,140 @@ export default function WalletClient({
   currencySymbol: string;
   summary: CashSummary;
 }) {
-  return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-xl font-bold text-slate-800">Cash Float</h1>
+  const branchCount = pools.length;
+  const agentCount = agents.length;
+  const activeAgentCount = agents.filter((agent) => agent.balance > 0).length;
+  const floatCoverage =
+    summary.releasedToAgents > 0 ? Math.round((summary.agentFloat / summary.releasedToAgents) * 100) : 0;
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl shadow p-5">
-          <div className="text-2xl font-bold text-blue-600">{fmt(currencySymbol, summary.accountingCapital)}</div>
-          <div className="text-sm text-slate-500">Accounting cash capital</div>
+  return (
+    <div className="fade-up" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <section
+        className="card"
+        style={{
+          position: 'relative',
+          overflow: 'hidden',
+          padding: '26px 28px',
+          color: '#fff',
+          background: 'linear-gradient(135deg, #1A1D23 0%, #2D1F0E 56%, #E8930C 130%)',
+          boxShadow: 'var(--shadow-lg)',
+        }}
+      >
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            width: 280,
+            height: 280,
+            borderRadius: '50%',
+            right: -88,
+            top: -118,
+            background: 'radial-gradient(circle, rgba(245,166,35,.38), transparent 68%)',
+          }}
+        />
+        <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', gap: 18, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', maxWidth: 620 }}>
+            <div
+              style={{
+                width: 52,
+                height: 52,
+                borderRadius: 14,
+                display: 'grid',
+                placeItems: 'center',
+                background: 'rgba(255,255,255,.14)',
+                border: '1px solid rgba(255,255,255,.22)',
+                flexShrink: 0,
+              }}
+            >
+              <span className="material-icons-outlined" style={{ fontSize: 28 }}>account_balance_wallet</span>
+            </div>
+            <div>
+              <div className="badge" style={{ background: 'rgba(255,243,224,.16)', color: '#FFE2A3', marginBottom: 10 }}>
+                Live cash control
+              </div>
+              <h1 style={{ margin: 0, fontSize: '1.75rem', lineHeight: 1.15, fontWeight: 800 }}>Cash Float</h1>
+              <p style={{ margin: '8px 0 0', color: 'rgba(255,255,255,.72)', maxWidth: 560, fontSize: '.92rem' }}>
+                Release funds to agents, top up branch pools, and keep field cash aligned with accounting capital.
+              </p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            <div className="badge" style={{ background: 'rgba(255,255,255,.12)', color: '#fff', border: '1px solid rgba(255,255,255,.16)' }}>
+              <span className="material-icons-outlined" style={{ fontSize: 14 }}>storefront</span>
+              {branchCount} branches
+            </div>
+            <div className="badge" style={{ background: 'rgba(255,255,255,.12)', color: '#fff', border: '1px solid rgba(255,255,255,.16)' }}>
+              <span className="material-icons-outlined" style={{ fontSize: 14 }}>groups</span>
+              {agentCount} agents
+            </div>
+          </div>
         </div>
-        <div className="bg-white rounded-xl shadow p-5">
-          <div className="text-2xl font-bold text-amber-600">{fmt(currencySymbol, summary.releasedToAgents)}</div>
-          <div className="text-sm text-slate-500">Released to agents</div>
-        </div>
-        <div className="bg-white rounded-xl shadow p-5">
-          <div className="text-2xl font-bold text-emerald-600">{fmt(currencySymbol, summary.branchCashAvailable)}</div>
-          <div className="text-sm text-slate-500">Available branch cash</div>
-        </div>
-        <div className="bg-white rounded-xl shadow p-5">
-          <div className="text-2xl font-bold text-teal-600">{fmt(currencySymbol, summary.agentFloat)}</div>
-          <div className="text-sm text-slate-500">Agent float (cash in field)</div>
-        </div>
+      </section>
+
+      <div className="kpi-grid" style={{ marginBottom: 0 }}>
+        <MetricCard
+          icon="savings"
+          label="Accounting cash capital"
+          value={fmt(currencySymbol, summary.accountingCapital)}
+          tone={summary.accountingCapital >= 0 ? 'blue' : 'red'}
+          detail="Book cash available before field movement."
+        />
+        <MetricCard
+          icon="outbox"
+          label="Released to agents"
+          value={fmt(currencySymbol, summary.releasedToAgents)}
+          tone="orange"
+          detail="Total branch cash released into the field."
+        />
+        <MetricCard
+          icon="account_balance"
+          label="Available branch cash"
+          value={fmt(currencySymbol, summary.branchCashAvailable)}
+          tone={summary.branchCashAvailable >= 0 ? 'green' : 'red'}
+          detail={`${branchCount} branch pool${branchCount === 1 ? '' : 's'} ready for release.`}
+        />
+        <MetricCard
+          icon="payments"
+          label="Agent float"
+          value={fmt(currencySymbol, summary.agentFloat)}
+          tone="green"
+          detail={`${activeAgentCount} active holder${activeAgentCount === 1 ? '' : 's'} - ${floatCoverage}% of releases still in field.`}
+        />
       </div>
 
-      {/* Branch pools */}
-      <section className="bg-white rounded-xl shadow p-5">
-        <h2 className="font-semibold text-slate-800 mb-3">Branch cash pools</h2>
+      <section className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="card-header" style={{ padding: '20px 24px 14px', marginBottom: 0, borderBottom: '1px solid var(--border)' }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 800 }}>Branch cash pools</h2>
+            <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: '.8rem' }}>Top up a branch when accounting capital is physically available.</p>
+          </div>
+          <span className="badge badge-info">{fmt(currencySymbol, summary.branchCashAvailable)} available</span>
+        </div>
         {pools.length === 0 ? (
-          <p className="text-sm text-slate-400">No branches.</p>
+          <EmptyState icon="storefront" title="No branches" text="Create a branch to start tracking branch cash pools." />
         ) : (
-          <div className="divide-y divide-slate-100">
-            {pools.map((p) => (
-              <BranchRow key={p.branchId} pool={p} currencySymbol={currencySymbol} />
+          <div>
+            {pools.map((pool) => (
+              <BranchRow key={pool.branchId} pool={pool} currencySymbol={currencySymbol} />
             ))}
           </div>
         )}
       </section>
 
-      {/* Agents */}
-      <section className="bg-white rounded-xl shadow p-5">
-        <h2 className="font-semibold text-slate-800 mb-3">Agent float</h2>
+      <section className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="card-header" style={{ padding: '20px 24px 14px', marginBottom: 0, borderBottom: '1px solid var(--border)' }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 800 }}>Agent float</h2>
+            <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: '.8rem' }}>Release cash to field agents and monitor what each person currently holds.</p>
+          </div>
+          <span className="badge badge-active">{fmt(currencySymbol, summary.agentFloat)} in field</span>
+        </div>
         {agents.length === 0 ? (
-          <p className="text-sm text-slate-400">No agents.</p>
+          <EmptyState icon="group_off" title="No active agents" text="Active agents will appear here once they are assigned to this tenant or branch." />
         ) : (
-          <div className="divide-y divide-slate-100">
-            {agents.map((a) => (
-              <AgentRow key={a.agentId} agent={a} currencySymbol={currencySymbol} />
+          <div>
+            {agents.map((agent) => (
+              <AgentRow key={agent.agentId} agent={agent} currencySymbol={currencySymbol} />
             ))}
           </div>
         )}
@@ -84,6 +225,8 @@ export default function WalletClient({
 
 function BranchRow({ pool, currencySymbol }: { pool: Pool; currencySymbol: string }) {
   const [busy, setBusy] = useState(false);
+  const tone = pool.balance < 0 ? tones.red : tones.green;
+
   return (
     <form
       action={async (fd) => {
@@ -97,20 +240,32 @@ function BranchRow({ pool, currencySymbol }: { pool: Pool; currencySymbol: strin
           setBusy(false);
         }
       }}
-      className="flex items-center gap-3 py-3"
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+        gap: 12,
+        alignItems: 'center',
+        padding: '16px 24px',
+        borderBottom: '1px solid var(--border)',
+      }}
     >
       <input type="hidden" name="branchId" value={pool.branchId} />
-      <div className="flex-1">
-        <div className="font-medium text-slate-800">{pool.branchName}</div>
-        <div className={`text-sm font-semibold ${pool.balance < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-          {fmt(currencySymbol, pool.balance)}
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', minWidth: 0 }}>
+        <div style={{ width: 42, height: 42, borderRadius: 12, display: 'grid', placeItems: 'center', background: tone.bg, color: tone.color, flexShrink: 0 }}>
+          <span className="material-icons-outlined" style={{ fontSize: 22 }}>storefront</span>
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pool.branchName}</div>
+          <div style={{ color: tone.color, fontSize: '.82rem', fontWeight: 800 }}>
+            {fmt(currencySymbol, pool.balance)}
+          </div>
         </div>
       </div>
       <input
         name="note"
         type="text"
         placeholder="Note"
-        className="w-28 border border-slate-300 rounded px-2 py-1 text-sm"
+        className="form-control"
       />
       <input
         name="amount"
@@ -119,14 +274,16 @@ function BranchRow({ pool, currencySymbol }: { pool: Pool; currencySymbol: strin
         step="any"
         placeholder="Amount"
         required
-        className="w-28 border border-slate-300 rounded px-2 py-1 text-sm"
+        className="form-control"
       />
       <button
         type="submit"
         disabled={busy}
-        className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold px-3 py-1.5 rounded"
+        className="btn btn-primary"
+        style={{ justifyContent: 'center', whiteSpace: 'nowrap', width: '100%' }}
       >
-        {busy ? '…' : 'Top up'}
+        <span className="material-icons-outlined" style={{ fontSize: 16 }}>{busy ? 'autorenew' : 'add_circle'}</span>
+        {busy ? 'Posting...' : 'Top up'}
       </button>
     </form>
   );
@@ -134,6 +291,9 @@ function BranchRow({ pool, currencySymbol }: { pool: Pool; currencySymbol: strin
 
 function AgentRow({ agent, currencySymbol }: { agent: Agent; currencySymbol: string }) {
   const [busy, setBusy] = useState(false);
+  const hasFloat = agent.balance > 0;
+  const tone = hasFloat ? tones.green : tones.slate;
+
   return (
     <form
       action={async (fd) => {
@@ -147,20 +307,33 @@ function AgentRow({ agent, currencySymbol }: { agent: Agent; currencySymbol: str
           setBusy(false);
         }
       }}
-      className="flex items-center gap-3 py-3"
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+        gap: 12,
+        alignItems: 'center',
+        padding: '16px 24px',
+        borderBottom: '1px solid var(--border)',
+      }}
     >
       <input type="hidden" name="agentId" value={agent.agentId} />
-      <div className="flex-1">
-        <div className="font-medium text-slate-800">{agent.name}</div>
-        <div className={`text-sm font-semibold ${agent.balance > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
-          {fmt(currencySymbol, agent.balance)}
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', minWidth: 0 }}>
+        <div style={{ width: 42, height: 42, borderRadius: '50%', display: 'grid', placeItems: 'center', background: tone.bg, color: tone.color, fontWeight: 800, flexShrink: 0 }}>
+          {initials(agent.name)}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{agent.name}</div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ color: tone.color, fontSize: '.82rem', fontWeight: 800 }}>{fmt(currencySymbol, agent.balance)}</span>
+            {agent.phone && <span style={{ color: 'var(--text-light)', fontSize: '.74rem' }}>{agent.phone}</span>}
+          </div>
         </div>
       </div>
       <input
         name="note"
         type="text"
         placeholder="Note"
-        className="w-28 border border-slate-300 rounded px-2 py-1 text-sm"
+        className="form-control"
       />
       <input
         name="amount"
@@ -169,14 +342,16 @@ function AgentRow({ agent, currencySymbol }: { agent: Agent; currencySymbol: str
         step="any"
         placeholder="Amount"
         required
-        className="w-28 border border-slate-300 rounded px-2 py-1 text-sm"
+        className="form-control"
       />
       <button
         type="submit"
         disabled={busy}
-        className="bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-semibold px-3 py-1.5 rounded"
+        className="btn btn-primary"
+        style={{ justifyContent: 'center', whiteSpace: 'nowrap', width: '100%' }}
       >
-        {busy ? '…' : 'Release'}
+        <span className="material-icons-outlined" style={{ fontSize: 16 }}>{busy ? 'autorenew' : 'send'}</span>
+        {busy ? 'Posting...' : 'Release'}
       </button>
     </form>
   );

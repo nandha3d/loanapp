@@ -11,7 +11,6 @@ const AGENT_BLOCKED = [
   '/penalties',
   '/reports',
   '/settings',
-  '/approvals',
   '/subscription',
   '/accounting',
   '/analytics',
