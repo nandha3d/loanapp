@@ -26,8 +26,8 @@ export function getSupabaseBrowser(): SupabaseClient {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        // The /auth/exchange route exchanges the ?code first. This remains
-        // disabled so the callback page can surface explicit errors.
+        // We exchange the ?code ourselves in /auth/callback so errors surface
+        // clearly and there is no single-use double-exchange race.
         detectSessionInUrl: false,
         flowType: 'pkce',
       },

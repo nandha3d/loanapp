@@ -29,7 +29,7 @@ export default function ForgotPasswordPage() {
     setLoading(true);
 
     // Supabase path: email a magic-link. Clicking it proves ownership and lands
-    // the user on /reset-password (via /auth/exchange -> /auth/callback) to set a new
+    // the user on /reset-password (via /auth/callback?intent=reset) to set a new
     // password. We always claim success to avoid email enumeration.
     if (supabaseMode) {
       try {
@@ -37,7 +37,7 @@ export default function ForgotPasswordPage() {
           email: ec.value,
           options: {
             shouldCreateUser: false,
-            emailRedirectTo: `${currentOriginWithBasePath()}/auth/exchange?intent=reset`,
+            emailRedirectTo: `${currentOriginWithBasePath()}/auth/callback?intent=reset`,
           },
         });
       } catch (err) {
