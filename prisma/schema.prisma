@@ -192,6 +192,7 @@ model User {
 
   @@unique([tenantId, username])
   @@unique([tenantId, phone])
+  @@unique([tenantId, email])
   @@index([branchId], map: "users_branch_id_fkey")
   @@map("users")
 }

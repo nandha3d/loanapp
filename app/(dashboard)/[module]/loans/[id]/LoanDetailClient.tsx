@@ -91,6 +91,16 @@ export default function LoanDetailClient({
     const today = new Date();
     today.setHours(0, 0, 0, 0); // Start of today (don't mark missed until tomorrow)
 
+    const toDateStr = (dateInput: Date | string) => {
+      const d = new Date(dateInput);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    };
+
+    const todayStr = toDateStr(today);
+
     if (viewMode === 'actual') {
       return loan.instalments.map((inst: any) => {
         const dueDate = new Date(inst.dueDate);
@@ -106,6 +116,8 @@ export default function LoanDetailClient({
             dynamicStatus = 'partial';
           } else if (dueDate < today) {
             dynamicStatus = 'missed';
+          } else if (toDateStr(dueDate) === todayStr) {
+            dynamicStatus = 'due today';
           }
         }
         return { ...inst, status: dynamicStatus };
@@ -130,7 +142,7 @@ export default function LoanDetailClient({
           inst.receivedAmount = 0;
           const dueDate = new Date(inst.dueDate);
           dueDate.setHours(0, 0, 0, 0);
-          inst.status = dueDate < today ? 'missed' : 'upcoming';
+          inst.status = dueDate < today ? 'missed' : (toDateStr(dueDate) === todayStr ? 'due today' : 'upcoming');
         }
       }
       return dist;

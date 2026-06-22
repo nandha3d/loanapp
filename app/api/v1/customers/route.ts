@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail, parseCursorPaging } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
@@ -176,6 +176,29 @@ export async function POST(req: NextRequest) {
     | null;
   if (!body?.name || !body?.phone) {
     return fail('name and phone are required', 400);
+  }
+
+  const normalizedPhone = body.phone.trim();
+  const existingCustomer = await prisma.customer.findFirst({
+    where: {
+      tenantId: ctx.tenantId,
+      appType: ctx.appType,
+      phone: normalizedPhone,
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      name: true,
+      customerCode: true,
+    },
+  });
+
+  if (existingCustomer) {
+    return NextResponse.json({
+      data: { customer: existingCustomer },
+      error: 'Customer already exists with this phone number',
+      code: 'CUSTOMER_ALREADY_EXISTS',
+    }, { status: 409 });
   }
 
   // Normalise collection points (mirror web: drop entries missing name/address).

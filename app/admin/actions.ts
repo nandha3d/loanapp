@@ -63,8 +63,9 @@ export async function manageMasterUser(formData: FormData, actorOverride?: Actio
   }
 
   const name = formData.get('name') as string;
-  const username = formData.get('username') as string;
   const phone = formData.get('phone') as string;
+  const username = ((formData.get('username') as string) || phone).trim().toLowerCase();
+  const email = ((formData.get('email') as string) || '').trim().toLowerCase() || null;
   const password = formData.get('password') as string;
   const requestedAppType = formData.get('appType') as string;
   // For superadmins: branchId is ignored; branchIds[] is the multi-select
@@ -132,7 +133,7 @@ export async function manageMasterUser(formData: FormData, actorOverride?: Actio
     return { success: false, error: 'Only a developer can manage developer accounts.' };
   }
 
-  const conflicts = await findUserUniqueConflicts({ username, phone }, id);
+  const conflicts = await findUserUniqueConflicts({ username, phone, email: email || undefined }, id);
   if (conflicts.length > 0) return { success: false, error: conflicts[0].message };
 
   const actorId = actorUserId;
@@ -170,6 +171,7 @@ export async function manageMasterUser(formData: FormData, actorOverride?: Actio
       name,
       username,
       phone,
+      email,
       role,
       appType,
       branchId,
@@ -220,6 +222,7 @@ export async function manageMasterUser(formData: FormData, actorOverride?: Actio
           name,
           username,
           phone,
+          email,
           passwordHash: await bcrypt.hash(password, 10),
           role,
           appType,
@@ -685,8 +688,9 @@ export async function manageBranchAgent(formData: FormData, actorOverride?: Acti
 
   const id = (formData.get('id') as string) || null;
   const name = ((formData.get('name') as string) || '').trim();
-  const username = ((formData.get('username') as string) || '').trim().toLowerCase();
   const phone = ((formData.get('phone') as string) || '').trim();
+  const username = ((formData.get('username') as string) || phone).trim().toLowerCase();
+  const email = ((formData.get('email') as string) || '').trim().toLowerCase() || null;
   const password = (formData.get('password') as string) || '';
   const status = (formData.get('status') as string) === 'inactive' ? 'inactive' : 'active';
   const appType = (formData.get('appType') as string) || 'microlending';
@@ -741,9 +745,10 @@ export async function manageBranchAgent(formData: FormData, actorOverride?: Acti
     return { success: false, error: `Module "${appType}" is not enabled for this branch.` };
   }
 
-  const conflicts = await findUserUniqueConflicts({ username, phone }, id);
+  const conflicts = await findUserUniqueConflicts({ username, phone, email: email || undefined }, id);
   if (conflicts.length > 0) return { success: false, error: conflicts[0].message };
 
+  let savedUserId = id;
   if (id) {
     // Edit — target must be an agent inside the allowed branch
     const target = await prisma.user.findFirst({
@@ -751,7 +756,7 @@ export async function manageBranchAgent(formData: FormData, actorOverride?: Acti
       select: { id: true },
     });
     if (!target) return { success: false, error: 'Agent not found in your branch.' };
-    const data: any = { name, username, phone, status,
+    const data: any = { name, username, phone, email, status,
       aadharNumber, dob, experience, age,
       bypassLoanApproval, bypassCustomerApproval, autoReleaseFloat, feeConfirmationMandatory };
     if (password) data.passwordHash = await bcrypt.hash(password, 10);
@@ -768,12 +773,13 @@ export async function manageBranchAgent(formData: FormData, actorOverride?: Acti
     }
     try {
       const created = await prisma.user.create({
-        data: { tenantId, branchId, name, username, phone,
+        data: { tenantId, branchId, name, username, phone, email,
           passwordHash: await bcrypt.hash(password, 10),
           role: 'agent', appType, status, canCreateLoan: true,
           aadharNumber, dob, experience, age,
           bypassLoanApproval, bypassCustomerApproval, autoReleaseFloat, feeConfirmationMandatory },
       });
+      savedUserId = created.id;
       await prisma.auditLog.create({
         data: { tenantId, userId: actorId, action: 'create', entityType: 'user', entityId: created.id,
           newValue: JSON.stringify({ name, username, role: 'agent', appType, status, scope: 'branch_agent' }) },
@@ -788,6 +794,25 @@ export async function manageBranchAgent(formData: FormData, actorOverride?: Acti
       }
       throw err;
     }
+  }
+
+  if (savedUserId && branchId) {
+    // 1. Update UserModule
+    await prisma.userModule.deleteMany({ where: { userId: savedUserId } });
+    await prisma.userModule.create({
+      data: {
+        userId: savedUserId,
+        appType,
+        assignedById: actorId,
+      },
+    });
+
+    // 2. Update UserBranchModule
+    await prisma.userBranchModule.upsert({
+      where: { userId_branchId: { userId: savedUserId, branchId } },
+      update: { enabledModules: JSON.stringify([appType]) },
+      create: { userId: savedUserId, branchId, enabledModules: JSON.stringify([appType]) },
+    });
   }
 
   revalidatePath(`/${appType}/settings`);

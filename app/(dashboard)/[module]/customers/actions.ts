@@ -1,6 +1,6 @@
 'use server';
 
-import { apiFetch } from '@/lib/api-client/index';
+import { apiFetch, ApiError } from '@/lib/api-client/index';
 import {
   getApiRequestContext,
   type ApiRequestContext,
@@ -183,6 +183,18 @@ export async function saveCustomer(formData: FormData) {
   } catch (e: any) {
     if (e.message && e.message.includes('NEXT_REDIRECT')) {
       throw e;
+    }
+    if (e instanceof ApiError && e.status === 409) {
+      try {
+        const parsed = JSON.parse(e.body);
+        if (parsed.code === 'CUSTOMER_ALREADY_EXISTS') {
+          return {
+            success: false,
+            error: 'CUSTOMER_ALREADY_EXISTS',
+            customer: parsed.data?.customer,
+          };
+        }
+      } catch {}
     }
     return { success: false, error: e.message || 'Failed to save customer' };
   }

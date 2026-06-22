@@ -136,6 +136,8 @@ T unwrapEnvelope<T>(Response<dynamic> res, T Function(dynamic) parse) {
     throw ApiException(
       err is String ? err : err.toString(),
       statusCode: res.statusCode,
+      code: body['code']?.toString() ?? (err is String ? err : null),
+      data: body['data'],
     );
   }
   return parse(body['data']);

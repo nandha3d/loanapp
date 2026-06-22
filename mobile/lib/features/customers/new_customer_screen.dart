@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:loantrack/core/network/api_exception.dart';
 
 import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
@@ -558,6 +559,40 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
       } else {
         context.go('/customers');
       }
+    } on ApiException catch (e) {
+      if (e.code == 'CUSTOMER_ALREADY_EXISTS' && e.data != null) {
+        final custMap = e.data['customer'] as Map<String, dynamic>?;
+        if (custMap != null) {
+          final existingCust = Customer.fromJson(custMap);
+          final select = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Customer Already Exists'),
+              content: Text('Customer "${existingCust.name}" (${existingCust.customerCode}) is already created with this phone number. Do you want to select that customer?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('No'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Yes, Select'),
+                ),
+              ],
+            ),
+          );
+          if (select == true) {
+            if (!mounted) return;
+            if (widget.returnTo == 'loan' && context.canPop()) {
+              context.pop(existingCust);
+            } else {
+              context.go('/customers/${existingCust.id}');
+            }
+            return;
+          }
+        }
+      }
+      setState(() => _error = e.message);
     } catch (e) {
       setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
     } finally {

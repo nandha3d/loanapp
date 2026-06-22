@@ -49,15 +49,96 @@ export async function GET(
       penalties: { orderBy: { createdAt: 'desc' } },
       collaterals: true,
       guarantor: true,
+      payments: {
+        orderBy: { paymentDate: 'asc' }
+      }
     },
   });
   if (!loan) return fail('Loan not found', 404);
 
+  // Helper to get local date string YYYY-MM-DD
+  const toDateStr = (dateInput: Date | string) => {
+    const d = new Date(dateInput);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const payments = loan.payments || [];
+
+  // Match each payment to the closest installment by dueDate
+  const instMap = new Map<string, number>();
+  for (const payment of payments) {
+    const pDate = new Date(payment.paymentDate);
+    pDate.setHours(0, 0, 0, 0);
+    
+    let closestInst = loan.instalments[0];
+    let minDiff = Infinity;
+    for (const inst of loan.instalments) {
+      const iDate = new Date(inst.dueDate);
+      iDate.setHours(0, 0, 0, 0);
+      const diff = Math.abs(pDate.getTime() - iDate.getTime());
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestInst = inst;
+      }
+    }
+    
+    if (closestInst) {
+      const current = instMap.get(closestInst.id) || 0;
+      instMap.set(closestInst.id, current + Number(payment.amount));
+    }
+  }
+
+  // Pre-map instalments with actual receivedAmount and computed status
+  const preMappedInstalments = loan.instalments.map((inst) => {
+    const actualAmount = instMap.get(inst.id) || 0;
+    const isPaid = actualAmount >= Number(inst.dueAmount);
+    const isPartial = actualAmount > 0 && actualAmount < Number(inst.dueAmount);
+
+    let computedStatus = inst.status;
+    const instDateStr = toDateStr(inst.dueDate);
+
+    if (inst.status !== 'paid' && inst.status !== 'partial') {
+      if (isPaid) {
+        computedStatus = 'paid';
+      } else if (isPartial) {
+        computedStatus = 'partial';
+      } else if (new Date(inst.dueDate) < today) {
+        computedStatus = 'missed';
+      } else if (instDateStr === toDateStr(today)) {
+        computedStatus = 'due today';
+      }
+    } else {
+      if (isPaid) {
+        computedStatus = 'paid';
+      } else if (isPartial) {
+        computedStatus = 'partial';
+      } else if (new Date(inst.dueDate) < today) {
+        computedStatus = 'missed';
+      } else if (instDateStr === toDateStr(today)) {
+        computedStatus = 'due today';
+      } else {
+        computedStatus = 'upcoming';
+      }
+    }
+
+    return {
+      ...inst,
+      receivedAmount: actualAmount,
+      status: computedStatus,
+    };
+  });
+
   // Restructured rate — computed server-side (single source of truth). Each
   // instalment gets a `restructuredAmount`; the loan carries the loan-level
   // figures. Clients render these directly and never recompute.
-  const restructure = computeRestructure(loan.instalments);
-  const instalments = loan.instalments.map((inst) => ({
+  const restructure = computeRestructure(preMappedInstalments);
+  const instalments = preMappedInstalments.map((inst) => ({
     ...inst,
     restructuredAmount: restructuredAmountFor(inst, restructure.restructuredRate),
   }));

@@ -2,12 +2,13 @@ import 'package:dio/dio.dart';
 
 /// Thrown when API returns an error envelope or HTTP failure.
 class ApiException implements Exception {
-  ApiException(String rawMessage, {this.statusCode, this.code})
+  ApiException(String rawMessage, {this.statusCode, this.code, this.data})
       : message = _cleanMessage(rawMessage);
 
   final String message;
   final int? statusCode;
   final String? code;
+  final dynamic data;
 
   static String _cleanMessage(String raw) {
     if (raw.startsWith('already_paid:')) {
