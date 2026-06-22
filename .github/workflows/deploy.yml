@@ -21,10 +21,26 @@ jobs:
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_PORT: ${{ secrets.VPS_PORT }}
         run: |
+          set -euo pipefail
+
+          : "${VPS_SSH_KEY:?Missing GitHub secret VPS_SSH_KEY}"
+          : "${VPS_HOST:?Missing GitHub secret VPS_HOST}"
+          : "${VPS_USER:?Missing GitHub secret VPS_USER}"
+          VPS_PORT="${VPS_PORT:-22}"
+
           mkdir -p ~/.ssh
-          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$VPS_SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -p "$VPS_PORT" "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+          echo "Adding VPS host key for $VPS_HOST:$VPS_PORT"
+          ssh-keyscan -T 20 -p "$VPS_PORT" "$VPS_HOST" >> ~/.ssh/known_hosts
+
+          echo "Running remote deploy preflight"
           ssh -i ~/.ssh/id_ed25519 -p "$VPS_PORT" \
-            -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
-            "$VPS_USER@$VPS_HOST" 'bash /home/loantrack/app/deploy.sh'
+            -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            "$VPS_USER@$VPS_HOST" \
+            'set -euo pipefail
+             echo "connected: $(hostname) as $(whoami)"
+             test -d /home/loantrack/app || { echo "missing /home/loantrack/app"; exit 20; }
+             test -f /home/loantrack/app/deploy.sh || { echo "missing /home/loantrack/app/deploy.sh"; exit 21; }
+             bash /home/loantrack/app/deploy.sh'
