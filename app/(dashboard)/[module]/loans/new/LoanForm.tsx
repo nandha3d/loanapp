@@ -723,7 +723,7 @@ export default function LoanForm({
             </div>
             <div className="form-group">
               <label className="form-label">{dict.loans.endDate}</label>
-              <div className="form-computed">{endDate ? endDate.toISOString().split('T')[0] : '—'}</div>
+              <div className="form-computed">{endDate ? formatDateISO(endDate) : '—'}</div>
             </div>
           </div>
 

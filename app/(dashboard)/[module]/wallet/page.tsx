@@ -37,6 +37,29 @@ export default async function WalletPage({
     branchName: b.name,
     balance: balByBranch.get(b.id) ?? 0,
   }));
+  const totalPool = pools.reduce((sum, pool) => sum + pool.balance, 0);
+  const capitalRows = await prisma.accountEntry.groupBy({
+    by: ['type'],
+    where: {
+      tenantId,
+      category: 'cash',
+      type: { in: ['capital_add', 'capital_withdraw'] },
+      ...(branchScope ? { branchId: branchScope } : {}),
+    },
+    _sum: { amount: true },
+  });
+  const accountingCapitalIn = Number(capitalRows.find((row) => row.type === 'capital_add')?._sum.amount ?? 0);
+  const accountingCapitalOut = Number(capitalRows.find((row) => row.type === 'capital_withdraw')?._sum.amount ?? 0);
+  const releaseAgg = await prisma.walletTransaction.aggregate({
+    where: {
+      tenantId,
+      accountKind: 'branch',
+      type: 'release',
+      ...(branchScope ? { branchId: branchScope } : {}),
+    },
+    _sum: { amount: true },
+  });
+  const releasedToAgents = Math.abs(Number(releaseAgg._sum.amount ?? 0));
 
   // Agents (scoped) + float balances.
   const agents = await prisma.user.findMany({
@@ -55,8 +78,19 @@ export default async function WalletPage({
     phone: a.phone,
     balance: balByAgent.get(a.id) ?? 0,
   }));
+  const totalFloat = agentRows.reduce((sum, agent) => sum + agent.balance, 0);
 
   return (
-    <WalletClient pools={pools} agents={agentRows} currencySymbol={currencySymbol} />
+    <WalletClient
+      pools={pools}
+      agents={agentRows}
+      currencySymbol={currencySymbol}
+      summary={{
+        accountingCapital: accountingCapitalIn - accountingCapitalOut,
+        releasedToAgents,
+        branchCashAvailable: totalPool,
+        agentFloat: totalFloat,
+      }}
+    />
   );
 }

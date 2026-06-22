@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import PasswordInput from '@/components/ui/PasswordInput';
 import { useRouter } from 'next/navigation';
+import { withBasePath } from '@/lib/public-path';
 
 // Reached after a Supabase reset magic-link verifies email ownership and the
 // /auth/callback bridge establishes an authenticated session. The user simply
@@ -43,7 +45,7 @@ export default function ResetPasswordPage() {
     <div className="login-wrapper">
       <div className="login-card">
         <div className="login-logo">
-          <img src="/assets/logo.svg" alt="LoanTrack" />
+          <img src={withBasePath('/assets/logo.svg')} alt="LoanTrack" />
           <h1>Loan<span>Track</span></h1>
         </div>
         <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '.85rem', marginBottom: '24px' }}>
@@ -60,8 +62,7 @@ export default function ResetPasswordPage() {
         <form onSubmit={submit}>
           <div className="form-group">
             <label className="form-label" htmlFor="newPassword">New password</label>
-            <input
-              type="password"
+            <PasswordInput
               id="newPassword"
               className="form-control"
               placeholder="At least 8 characters"
@@ -73,8 +74,7 @@ export default function ResetPasswordPage() {
           </div>
           <div className="form-group">
             <label className="form-label" htmlFor="confirm">Confirm password</label>
-            <input
-              type="password"
+            <PasswordInput
               id="confirm"
               className="form-control"
               placeholder="Re-enter password"

@@ -90,6 +90,34 @@ async function applyBranch(
   return next;
 }
 
+/**
+ * Mirrors a basic-accounting cash capital entry into the branch cash pool.
+ * The AccountEntry remains the GL/accounting source; this only keeps the
+ * operational cash float in sync and deliberately does not auto-post a JE.
+ */
+export async function applyAccountingCashToBranch(
+  tx: Tx,
+  input: {
+    tenantId: string;
+    branchId: string;
+    amount: number;
+    entryType: 'capital_add' | 'capital_withdraw';
+    accountEntryId: string;
+    byUserId?: string | null;
+    note?: string | null;
+  },
+): Promise<number> {
+  if (!(input.amount > 0)) throw new Error('amount must be positive');
+  const isAddition = input.entryType === 'capital_add';
+  return applyBranch(tx, input.tenantId, input.branchId, isAddition ? input.amount : -input.amount, {
+    type: isAddition ? 'inject' : 'adjustment',
+    refType: 'account_entry',
+    refId: input.accountEntryId,
+    note: input.note ?? (isAddition ? 'Accounting cash capital addition' : 'Accounting cash capital withdrawal'),
+    byUserId: input.byUserId ?? null,
+  });
+}
+
 /** Admin releases company cash to an agent. Debits branch pool, credits agent. */
 export async function releaseToAgent(input: {
   tenantId: string;

@@ -5,6 +5,12 @@ import { releaseFundsAction, injectBranchAction } from './actions';
 
 type Pool = { branchId: string; branchName: string; balance: number };
 type Agent = { agentId: string; name: string; phone: string | null; balance: number };
+type CashSummary = {
+  accountingCapital: number;
+  releasedToAgents: number;
+  branchCashAvailable: number;
+  agentFloat: number;
+};
 
 function fmt(symbol: string, n: number) {
   return `${symbol}${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
@@ -14,26 +20,33 @@ export default function WalletClient({
   pools,
   agents,
   currencySymbol,
+  summary,
 }: {
   pools: Pool[];
   agents: Agent[];
   currencySymbol: string;
+  summary: CashSummary;
 }) {
-  const totalPool = pools.reduce((s, p) => s + p.balance, 0);
-  const totalFloat = agents.reduce((s, a) => s + a.balance, 0);
-
   return (
     <div className="p-6 space-y-6">
       <h1 className="text-xl font-bold text-slate-800">Cash Float</h1>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl shadow p-5">
-          <div className="text-2xl font-bold text-blue-600">{fmt(currencySymbol, totalPool)}</div>
-          <div className="text-sm text-slate-500">Branch cash pools</div>
+          <div className="text-2xl font-bold text-blue-600">{fmt(currencySymbol, summary.accountingCapital)}</div>
+          <div className="text-sm text-slate-500">Accounting cash capital</div>
         </div>
         <div className="bg-white rounded-xl shadow p-5">
-          <div className="text-2xl font-bold text-emerald-600">{fmt(currencySymbol, totalFloat)}</div>
+          <div className="text-2xl font-bold text-amber-600">{fmt(currencySymbol, summary.releasedToAgents)}</div>
+          <div className="text-sm text-slate-500">Released to agents</div>
+        </div>
+        <div className="bg-white rounded-xl shadow p-5">
+          <div className="text-2xl font-bold text-emerald-600">{fmt(currencySymbol, summary.branchCashAvailable)}</div>
+          <div className="text-sm text-slate-500">Available branch cash</div>
+        </div>
+        <div className="bg-white rounded-xl shadow p-5">
+          <div className="text-2xl font-bold text-teal-600">{fmt(currencySymbol, summary.agentFloat)}</div>
           <div className="text-sm text-slate-500">Agent float (cash in field)</div>
         </div>
       </div>

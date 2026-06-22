@@ -6,6 +6,7 @@ import { auth } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import { getActiveBranchId } from '@/lib/branch';
 import { autoPostExpense, autoPostCapitalAdd, autoPostCapitalWithdraw } from '@/lib/accounting/autoPost';
+import { applyAccountingCashToBranch } from '@/lib/wallet';
 
 export async function addAccountEntry(formData: FormData) {
   const session = await auth();
@@ -28,18 +29,39 @@ export async function addAccountEntry(formData: FormData) {
   }
 
   const entryDate = entryDateStr ? new Date(entryDateStr) : new Date();
+  const syncsBranchCash = category === 'cash' && (type === 'capital_add' || type === 'capital_withdraw');
 
-  const entry = await prisma.accountEntry.create({
-    data: {
-      tenantId,
-      entryDate,
-      type,
-      category,
-      amount,
-      description,
-      createdBy: userId,
-      branchId: activeBranchId || null,
-    },
+  if (syncsBranchCash && !activeBranchId) {
+    return { error: 'Select an active branch before adding or withdrawing cash capital.' };
+  }
+
+  const entry = await prisma.$transaction(async (tx) => {
+    const accountEntry = await tx.accountEntry.create({
+      data: {
+        tenantId,
+        entryDate,
+        type,
+        category,
+        amount,
+        description,
+        createdBy: userId,
+        branchId: activeBranchId || null,
+      },
+    });
+
+    if (syncsBranchCash) {
+      await applyAccountingCashToBranch(tx, {
+        tenantId,
+        branchId: activeBranchId!,
+        amount,
+        entryType: type as 'capital_add' | 'capital_withdraw',
+        accountEntryId: accountEntry.id,
+        byUserId: userId,
+        note: description,
+      });
+    }
+
+    return accountEntry;
   });
 
   if (type === 'expense') {
@@ -130,6 +152,38 @@ export async function getAccountingSummary(tenantId: string, branchId?: string |
       totalPayable: true,
     },
   });
+  const agentIds = branchId
+    ? await prisma.user.findMany({
+        where: { tenantId, branchId, role: 'agent' },
+        select: { id: true },
+      }).then((rows) => rows.map((row) => row.id))
+    : null;
+  const releaseWhere = {
+    tenantId,
+    accountKind: 'branch',
+    type: 'release',
+    ...(branchId ? { branchId } : {}),
+  };
+  const [releasedAgg, releaseEntries, branchCashAgg, agentFloatAgg] = await Promise.all([
+    prisma.walletTransaction.aggregate({
+      where: releaseWhere,
+      _sum: { amount: true },
+    }),
+    prisma.walletTransaction.findMany({
+      where: releaseWhere,
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    }),
+    prisma.branchCashAccount.aggregate({
+      where: { tenantId, ...(branchId ? { branchId } : {}) },
+      _sum: { balance: true },
+    }),
+    prisma.agentAccount.aggregate({
+      where: { tenantId, ...(agentIds ? { agentId: { in: agentIds } } : {}) },
+      _sum: { balance: true },
+    }),
+  ]);
+  const releasedToAgents = Math.abs(Number(releasedAgg._sum.amount ?? 0));
 
   return {
     capitalIn,
@@ -140,6 +194,10 @@ export async function getAccountingSummary(tenantId: string, branchId?: string |
     currentCapital,
     grossProfit,
     netProfit,
+    releasedToAgents,
+    branchCashAvailable: Number(branchCashAgg._sum.balance ?? 0),
+    agentFloat: Number(agentFloatAgg._sum.balance ?? 0),
+    releaseEntries,
     loans,
     entries,
   };

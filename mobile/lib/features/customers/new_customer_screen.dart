@@ -614,6 +614,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
       builder: (ctx) {
         String? err;
         bool creating = false;
+        bool obscurePassword = true;
         return StatefulBuilder(
           builder: (ctx, setLocal) => AlertDialog(
             title: Text(t.x('dlg.add_agent')),
@@ -655,8 +656,15 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                   const SizedBox(height: 10),
                   TextField(
                     controller: passCtrl,
-                    obscureText: true,
-                    decoration: InputDecoration(labelText: t.x('fld.password_label')),
+                    obscureText: obscurePassword,
+                    decoration: InputDecoration(
+                      labelText: t.x('fld.password_label'),
+                      suffixIcon: IconButton(
+                        tooltip: obscurePassword ? 'Show password' : 'Hide password',
+                        icon: Icon(obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                        onPressed: () => setLocal(() => obscurePassword = !obscurePassword),
+                      ),
+                    ),
                   ),
                 ],
               ),

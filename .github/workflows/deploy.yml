@@ -21,39 +21,37 @@ jobs:
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_PORT: ${{ secrets.VPS_PORT }}
         run: |
-          # 1. Validate secrets are populated
-          if [ -z "$VPS_SSH_KEY" ]; then
-            echo "ERROR: VPS_SSH_KEY secret is not set or empty in GitHub."
-            exit 1
-          fi
-          if [ -z "$VPS_HOST" ]; then
-            echo "ERROR: VPS_HOST secret is not set or empty in GitHub."
-            exit 1
-          fi
-          if [ -z "$VPS_USER" ]; then
-            echo "ERROR: VPS_USER secret is not set or empty in GitHub."
-            exit 1
-          fi
-          if [ -z "$VPS_PORT" ]; then
-            echo "WARNING: VPS_PORT secret is empty. Defaulting to 22."
-            VPS_PORT=22
-          fi
+          set -euo pipefail
 
-          # 2. Setup SSH directory and private key
+          : "${VPS_SSH_KEY:?Missing GitHub secret VPS_SSH_KEY}"
+          : "${VPS_HOST:?Missing GitHub secret VPS_HOST}"
+          : "${VPS_USER:?Missing GitHub secret VPS_USER}"
+          VPS_PORT="${VPS_PORT:-22}"
+
           mkdir -p ~/.ssh
-          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$VPS_SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
-          # 3. Add host key to known_hosts (non-blocking fallback)
-          echo "Adding host key for $VPS_HOST:$VPS_PORT to known_hosts..."
-          ssh-keyscan -p "$VPS_PORT" "$VPS_HOST" >> ~/.ssh/known_hosts || {
-            echo "WARNING: ssh-keyscan failed, but continuing since StrictHostKeyChecking is accept-new."
-          }
+          echo "Resolving VPS host"
+          getent hosts "$VPS_HOST" || true
 
-          # 4. SSH and run deploy script
-          echo "Connecting to $VPS_USER@$VPS_HOST:$VPS_PORT..."
-          ssh -i ~/.ssh/id_ed25519 -p "$VPS_PORT" \
-            -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
-            -o ConnectTimeout=15 \
-            "$VPS_USER@$VPS_HOST" 'bash /home/loantrack/app/deploy.sh'
+          echo "Checking SSH TCP reachability for $VPS_HOST:$VPS_PORT"
+          nc -vz -w 20 "$VPS_HOST" "$VPS_PORT"
 
+          echo "Adding VPS host key for $VPS_HOST:$VPS_PORT"
+          if ssh-keyscan -4 -T 20 -p "$VPS_PORT" "$VPS_HOST" >> ~/.ssh/known_hosts 2>ssh-keyscan.err; then
+            echo "Host key added from ssh-keyscan"
+          else
+            echo "::warning::ssh-keyscan failed; ssh will use StrictHostKeyChecking=accept-new"
+            cat ssh-keyscan.err
+          fi
+
+          echo "Running remote deploy preflight"
+          ssh -4 -i ~/.ssh/id_ed25519 -p "$VPS_PORT" \
+            -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
+            "$VPS_USER@$VPS_HOST" \
+            'set -euo pipefail
+             echo "connected: $(hostname) as $(whoami)"
+             test -d /home/loantrack/app || { echo "missing /home/loantrack/app"; exit 20; }
+             test -f /home/loantrack/app/deploy.sh || { echo "missing /home/loantrack/app/deploy.sh"; exit 21; }
+             bash /home/loantrack/app/deploy.sh'

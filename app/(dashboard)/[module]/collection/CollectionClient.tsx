@@ -30,6 +30,7 @@ type CollectionRow = {
       id: string;
       name: string;
       customerCode: string;
+      preferredCollectionTime?: string | null;
       route?: { id: string; name: string } | null;
       collectionPoints?: { id: string; name: string; address: string; latitude: number | null; longitude: number | null; isPrimary: boolean }[];
     };
@@ -47,6 +48,7 @@ type UnifiedGroup = {
   customerName: string;
   customerCode: string;
   routeName: string;
+  preferredCollectionTime?: string | null;
   instalments: CollectionRow[];
   loanCodes: string[];
   collectionPoints: { id: string; name: string; address: string; latitude: number | null; longitude: number | null; isPrimary: boolean }[];
@@ -156,6 +158,7 @@ export default function CollectionClient({
     },
   );
   const [frequencyFilter, setFrequencyFilter] = useState('');
+  const [sessionFilter, setSessionFilter] = useState('');
   const [overdueMinDays, setOverdueMinDays] = useState('');
   const [overdueMaxDays, setOverdueMaxDays] = useState('');
   const [selectedLoanForCustomer, setSelectedLoanForCustomer] = useState<Record<string, string>>({});
@@ -258,15 +261,21 @@ export default function CollectionClient({
       const matchesRoute = !routeFilter || row.loan.customer.route?.id === routeFilter;
       const matchesStatus = !statusFilter || deriveInstalmentStatus(row, todayISO).key === statusFilter;
       const matchesFrequency = !frequencyFilter || row.loan.frequency === frequencyFilter;
+      const preferredSession = (row.loan.customer.preferredCollectionTime || '').toLowerCase();
+      const knownSessions = ['morning', 'afternoon', 'evening', 'night'];
+      const matchesSession = !sessionFilter
+        || (sessionFilter === 'anytime' && !preferredSession)
+        || (sessionFilter === 'other' && !!preferredSession && !knownSessions.includes(preferredSession))
+        || preferredSession === sessionFilter;
 
       // Overdue days range filter
       const minD = overdueMinDays ? Number(overdueMinDays) : 0;
       const maxD = overdueMaxDays ? Number(overdueMaxDays) : Infinity;
       const matchesOverdueDays = row.daysOverdue >= minD && row.daysOverdue <= maxD;
 
-      return matchesDate && matchesCustomer && matchesRoute && matchesStatus && matchesFrequency && matchesOverdueDays;
+      return matchesDate && matchesCustomer && matchesRoute && matchesStatus && matchesFrequency && matchesSession && matchesOverdueDays;
     });
-  }, [allInstalments, typeFilter, customerFilter, dateFilter, routeFilter, statusFilter, frequencyFilter, overdueMinDays, overdueMaxDays, todayISO]);
+  }, [allInstalments, typeFilter, customerFilter, dateFilter, routeFilter, statusFilter, frequencyFilter, sessionFilter, overdueMinDays, overdueMaxDays, todayISO]);
 
   const todayTotals = useMemo(() => {
     return {
@@ -294,6 +303,7 @@ export default function CollectionClient({
           customerName: row.loan.customer.name,
           customerCode: row.loan.customer.customerCode,
           routeName: row.loan.customer.route?.name || '-',
+          preferredCollectionTime: row.loan.customer.preferredCollectionTime || null,
           instalments: [],
           loanCodes: [],
           collectionPoints: row.loan.customer.collectionPoints || [],
@@ -309,7 +319,7 @@ export default function CollectionClient({
       g.instalments.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
     }
     
-    let groups = Array.from(map.values()).sort((a, b) => a.customerName.localeCompare(b.customerName));
+    const groups = Array.from(map.values()).sort((a, b) => a.customerName.localeCompare(b.customerName));
 
     if (isSortedByNearest && agentLocation) {
       groups.forEach(g => {
@@ -493,6 +503,7 @@ export default function CollectionClient({
     setRouteFilter('');
     setStatusFilter('');
     setFrequencyFilter('');
+    setSessionFilter('');
     setTypeFilter('all');
     setOverdueMinDays('');
     setOverdueMaxDays('');
@@ -500,9 +511,9 @@ export default function CollectionClient({
 
   useEffect(() => {
     setPage(1);
-  }, [typeFilter, customerFilter, dateFilter, routeFilter, statusFilter, frequencyFilter, overdueMinDays, overdueMaxDays]);
+  }, [typeFilter, customerFilter, dateFilter, routeFilter, statusFilter, frequencyFilter, sessionFilter, overdueMinDays, overdueMaxDays]);
 
-  const hasActiveFilters = dateFilter || customerFilter || routeFilter || statusFilter || frequencyFilter || typeFilter !== 'all' || overdueMinDays || overdueMaxDays;
+  const hasActiveFilters = dateFilter || customerFilter || routeFilter || statusFilter || frequencyFilter || sessionFilter || typeFilter !== 'all' || overdueMinDays || overdueMaxDays;
 
   const pageSize = 20;
   const totalPages = Math.max(1, Math.ceil(unifiedGroups.length / pageSize));
@@ -873,6 +884,18 @@ export default function CollectionClient({
               <option value="weekly">{dict.collection.weeklyLoan}</option>
               <option value="biweekly">{dict.collection.biweeklyLoan}</option>
               <option value="monthly">{dict.collection.monthlyLoan}</option>
+            </select>
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Session</label>
+            <select className="form-control" value={sessionFilter} onChange={(event) => setSessionFilter(event.target.value)}>
+              <option value="">All sessions</option>
+              <option value="anytime">Anytime</option>
+              <option value="morning">Morning</option>
+              <option value="afternoon">Afternoon</option>
+              <option value="evening">Evening</option>
+              <option value="night">Night</option>
+              <option value="other">Other</option>
             </select>
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>

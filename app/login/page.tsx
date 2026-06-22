@@ -5,12 +5,14 @@ import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { getSupabaseBrowser, isSupabaseAuthEnabled } from '@/lib/supabase/browser';
+import { currentOriginWithBasePath, withBasePath } from '@/lib/public-path';
+import { normalizeLocalCallbackUrl } from '@/lib/auth/callback-url';
+import PasswordInput from '@/components/ui/PasswordInput';
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const rawCallbackUrl = searchParams.get('callbackUrl') || '/';
-  const callbackUrl = rawCallbackUrl.startsWith('/') ? rawCallbackUrl : '/';
+  const callbackUrl = normalizeLocalCallbackUrl(searchParams.get('callbackUrl'));
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -18,13 +20,17 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   // Registration is hidden on a client's standalone domain.
   const [registerAllowed, setRegisterAllowed] = useState(true);
+  const [standaloneDomain, setStandaloneDomain] = useState(false);
   const [resending, setResending] = useState(false);
   const [resendMsg, setResendMsg] = useState('');
 
   useEffect(() => {
     fetch('/api/host/registration')
       .then((r) => r.json())
-      .then((d) => setRegisterAllowed(d?.allowed !== false))
+      .then((d) => {
+        setRegisterAllowed(d?.allowed !== false);
+        setStandaloneDomain(Boolean(d?.standalone));
+      })
       .catch(() => {});
   }, []);
 
@@ -113,7 +119,7 @@ function LoginForm() {
       const supabase = getSupabaseBrowser();
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: `${window.location.origin}/auth/callback?intent=login` },
+        options: { redirectTo: `${currentOriginWithBasePath()}/auth/callback?intent=login` },
       });
       if (error) setError(error.message || 'Google sign-in failed.');
     } catch (e: any) {
@@ -135,7 +141,7 @@ function LoginForm() {
     <div className="login-wrapper">
       <div className="login-card">
         <div className="login-logo">
-          <img src="/assets/logo.svg" alt="LoanTrack" />
+          <img src={withBasePath('/assets/logo.svg')} alt="LoanTrack" />
           <h1>Loan<span>Track</span></h1>
         </div>
         <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '.85rem', marginBottom: '28px' }}>
@@ -185,8 +191,7 @@ function LoginForm() {
           </div>
           <div className="form-group">
             <label className="form-label" htmlFor="password">Password</label>
-            <input
-              type="password"
+            <PasswordInput
               id="password"
               className="form-control"
               placeholder="Enter password"
@@ -200,7 +205,7 @@ function LoginForm() {
             <label className="checkbox-label">
               <input type="checkbox" defaultChecked /> Remember me
             </label>
-            <a href="/forgot-password" style={{ color: 'var(--primary)', fontWeight: 600, fontSize: '.82rem' }}>
+            <a href={withBasePath('/forgot-password')} style={{ color: 'var(--primary)', fontWeight: 600, fontSize: '.82rem' }}>
               Forgot password?
             </a>
           </div>
@@ -215,7 +220,7 @@ function LoginForm() {
           </button>
         </form>
 
-        {isSupabaseAuthEnabled() && (<>
+        {isSupabaseAuthEnabled() && !standaloneDomain && (<>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '18px 0' }}>
           <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
           <span style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>OR</span>
@@ -233,7 +238,7 @@ function LoginForm() {
 
         {registerAllowed && (
           <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '.85rem', color: 'var(--text-secondary)' }}>
-            New to LoanTrack? <a href="/register" style={{ color: 'var(--primary)', fontWeight: 600 }}>Register Business</a>
+            New to LoanTrack? <a href={withBasePath('/register')} style={{ color: 'var(--primary)', fontWeight: 600 }}>Register Business</a>
           </p>
         )}
       </div>
