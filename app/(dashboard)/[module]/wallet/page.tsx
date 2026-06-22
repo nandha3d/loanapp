@@ -1,26 +1,46 @@
 import { auth } from '@/lib/auth';
-import { redirect } from 'next/navigation';
 import prisma from '@/lib/db';
-import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
+import { getDefaultTenantId, getSetting } from '@/lib/tenant';
 import { getActiveBranchId } from '@/lib/branch';
-import { getBranchAccounts } from '@/lib/wallet';
-import { modulePath } from '@/types/modules';
+import { getBranchAccounts, getAgentBalance, getAgentStatement } from '@/lib/wallet';
 import WalletClient from './WalletClient';
+import AgentWalletClient from './AgentWalletClient';
 
-export default async function WalletPage({
-  params,
-}: {
-  params: Promise<{ module: string }>;
-}) {
+export default async function WalletPage() {
   const session = await auth();
   const role = (session?.user as any)?.role;
-  const { module } = await params;
-  const appType = await getUserAppType();
-  if (role === 'agent') redirect(modulePath(module, '/collection'));
+  const userId = (session?.user as any)?.id as string | undefined;
 
   const tenantId = await getDefaultTenantId();
-  const branchId = await getActiveBranchId();
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
+
+  // Agents see their OWN cash float (cash held in the field) + ledger — not the
+  // branch/oversight view. Cash handover stays on the collection page.
+  if (role === 'agent' && userId) {
+    const [balance, txns] = await Promise.all([
+      getAgentBalance(tenantId, userId),
+      getAgentStatement(tenantId, userId, 50),
+    ]);
+    const transactions = txns.map((t) => ({
+      id: t.id,
+      type: t.type,
+      amount: Number(t.amount),
+      balanceAfter: Number(t.balanceAfter),
+      note: t.note ?? null,
+      refType: t.refType ?? null,
+      createdAt: t.createdAt.toISOString(),
+    }));
+    return (
+      <AgentWalletClient
+        agentName={(session?.user as any)?.name || 'Agent'}
+        balance={balance}
+        transactions={transactions}
+        currencySymbol={currencySymbol}
+      />
+    );
+  }
+
+  const branchId = await getActiveBranchId();
   const seesAll = role === 'superadmin' || role === 'developer';
   const branchScope = branchId && !seesAll ? branchId : null;
 
