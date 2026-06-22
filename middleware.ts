@@ -51,7 +51,22 @@ function withBasePath(path: string): string {
   return `${PUBLIC_BASE_PATH}${path}`;
 }
 
-function getPublicOrigin(request: NextRequest): string {
+function isInternalHost(host: string): boolean {
+  const hostname = host.toLowerCase().split(':')[0];
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+}
+
+export function getPublicOrigin(request: NextRequest): string {
+  const proto = request.headers.get('x-forwarded-proto') || request.nextUrl.protocol.replace(':', '') || 'https';
+  const requestHost =
+    request.headers.get('x-forwarded-host') ||
+    request.headers.get('host') ||
+    request.nextUrl.host;
+
+  if (requestHost && !isInternalHost(requestHost)) {
+    return `${proto}://${requestHost}`;
+  }
+
   const configured =
     process.env.NEXT_PUBLIC_APP_URL ||
     process.env.WEB_APP_URL ||
@@ -62,12 +77,7 @@ function getPublicOrigin(request: NextRequest): string {
     return parsed.origin;
   }
 
-  const proto = request.headers.get('x-forwarded-proto') || request.nextUrl.protocol.replace(':', '') || 'https';
-  const host =
-    request.headers.get('x-forwarded-host') ||
-    request.headers.get('host') ||
-    request.nextUrl.host;
-  return `${proto}://${host}`;
+  return `${proto}://${requestHost}`;
 }
 
 function publicUrl(request: NextRequest, path: string): URL {

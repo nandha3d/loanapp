@@ -6,13 +6,13 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { getSupabaseBrowser, isSupabaseAuthEnabled } from '@/lib/supabase/browser';
 import { currentOriginWithBasePath, withBasePath } from '@/lib/public-path';
+import { normalizeLocalCallbackUrl } from '@/lib/auth/callback-url';
 import PasswordInput from '@/components/ui/PasswordInput';
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const rawCallbackUrl = searchParams.get('callbackUrl') || '/';
-  const callbackUrl = rawCallbackUrl.startsWith('/') ? rawCallbackUrl : '/';
+  const callbackUrl = normalizeLocalCallbackUrl(searchParams.get('callbackUrl'));
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -20,13 +20,17 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   // Registration is hidden on a client's standalone domain.
   const [registerAllowed, setRegisterAllowed] = useState(true);
+  const [standaloneDomain, setStandaloneDomain] = useState(false);
   const [resending, setResending] = useState(false);
   const [resendMsg, setResendMsg] = useState('');
 
   useEffect(() => {
     fetch('/api/host/registration')
       .then((r) => r.json())
-      .then((d) => setRegisterAllowed(d?.allowed !== false))
+      .then((d) => {
+        setRegisterAllowed(d?.allowed !== false);
+        setStandaloneDomain(Boolean(d?.standalone));
+      })
       .catch(() => {});
   }, []);
 
@@ -216,7 +220,7 @@ function LoginForm() {
           </button>
         </form>
 
-        {isSupabaseAuthEnabled() && (<>
+        {isSupabaseAuthEnabled() && !standaloneDomain && (<>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '18px 0' }}>
           <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
           <span style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>OR</span>
