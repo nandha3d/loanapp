@@ -11,7 +11,7 @@ assert.match(wallet, /refType:\s*'account_entry'/, 'accounting cash sync writes 
 assert.match(wallet, /type:\s*isAddition \? 'inject' : 'adjustment'/, 'capital add/withdraw map to signed branch wallet deltas');
 
 const accountingActions = read('app/(dashboard)/[module]/accounting/actions.ts');
-assert.match(accountingActions, /syncsBranchCash.*capital_add.*capital_withdraw/s, 'basic accounting detects cash capital entries');
+assert.match(accountingActions, /syncsBranchCash[\s\S]*capital_add[\s\S]*capital_withdraw/, 'basic accounting detects cash capital entries');
 assert.match(accountingActions, /Select an active branch/, 'cash capital entries require active branch selection');
 assert.match(accountingActions, /applyAccountingCashToBranch\(tx/, 'cash capital entries sync branch cash inside the AccountEntry transaction');
 assert.match(accountingActions, /type:\s*'release'/, 'accounting summary reads agent release wallet transactions');
