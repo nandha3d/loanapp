@@ -222,15 +222,6 @@ export async function POST(req: NextRequest) {
 
   try {
     const branding = await getBranding(ctx.tenantId);
-    const count = await prisma.customer.count({
-      where: {
-        tenantId: ctx.tenantId,
-        appType: ctx.appType,
-        ...scopedBranchWhere(ctx),
-      },
-    });
-
-    const customerCode = generateCode(branding.customerCodePrefix, count + 1, 4);
 
     let bypassCustomerApproval = false;
     if (['admin', 'superadmin', 'developer'].includes(ctx.role)) {
@@ -245,67 +236,107 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const customer = await prisma.customer.create({
-      data: {
-        tenantId: ctx.tenantId,
-        appType: ctx.appType,
-        branchId: ctx.branchId,
-        customerCode,
-        name: body.name,
-        phone: body.phone,
-        address: body.address ?? null,
-        aadharNumber: encryptAadharNumber(body.aadharNumber ?? null),
-        routeId: ctx.role === 'agent' ? null : body.routeId ?? null,
-        agentId: ctx.role === 'agent' ? ctx.userId : body.agentId ?? null,
-        status: bypassCustomerApproval ? 'active' : 'pending_review',
-        profilePhoto: body.photoUrl ?? null,
-        // Extended profile fields (web parity)
-        email: body.email ?? null,
-        pan: body.pan ?? null,
-        occupation: body.occupation ?? null,
-        monthlyIncome: monthlyIncome != null && !Number.isNaN(monthlyIncome) ? monthlyIncome : null,
-        companyName: body.companyName ?? null,
-        companyType: body.companyType ?? null,
-        businessType: body.businessType ?? null,
-        gstNumber: body.gstNumber ?? null,
-        companyPan: body.companyPan ?? null,
-        companyRegNo: body.companyRegNo ?? null,
-        companyAddress: body.companyAddress ?? null,
-        companyPhone: body.companyPhone ?? null,
-        companyEmail: body.companyEmail ?? null,
-        companyLogo: body.companyLogo ?? null,
-        designation: body.designation ?? null,
-        preferredCollectionTime: body.preferredCollectionTime ?? null,
-        kycDocuments: body.kycDocs && body.kycDocs.length > 0
-          ? {
-              create: body.kycDocs.map((d) => ({
-                docType: d.type,
-                filePath: d.url,
-                fileName: d.url.split('/').pop() || 'document',
-              })),
-            }
-          : undefined,
-        collectionPoints: collectionPoints.length > 0
-          ? { create: collectionPoints }
-          : undefined,
-      },
-      include: {
-        route: { select: { id: true, name: true } },
-        kycDocuments: true,
-        collectionPoints: true,
-      },
-    });
+    // Retry loop to handle race conditions on customer code generation
+    const MAX_RETRIES = 5;
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        // Find the highest existing customer code number instead of using count
+        // This prevents collisions when customers are deleted
+        const prefix = branding.customerCodePrefix || 'CUS';
+        const lastCustomer = await prisma.customer.findFirst({
+          where: {
+            tenantId: ctx.tenantId,
+            customerCode: { startsWith: prefix },
+          },
+          orderBy: { customerCode: 'desc' },
+          select: { customerCode: true },
+        });
 
-    await writeAudit({
-      tenantId: ctx.tenantId,
-      userId: ctx.userId,
-      action: 'create',
-      entityType: 'customer',
-      entityId: customer.id,
-      newValue: { customerCode, name: body.name },
-    });
+        let nextSeq = 1;
+        if (lastCustomer?.customerCode) {
+          const numPart = lastCustomer.customerCode.slice(prefix.length);
+          const parsed = parseInt(numPart, 10);
+          if (!isNaN(parsed)) {
+            nextSeq = parsed + 1;
+          }
+        }
 
-    return ok(customer);
+        const customerCode = generateCode(prefix, nextSeq, 4);
+
+        const customer = await prisma.customer.create({
+          data: {
+            tenantId: ctx.tenantId,
+            appType: ctx.appType,
+            branchId: ctx.branchId,
+            customerCode,
+            name: body.name,
+            phone: body.phone,
+            address: body.address ?? null,
+            aadharNumber: encryptAadharNumber(body.aadharNumber ?? null),
+            routeId: ctx.role === 'agent' ? null : body.routeId ?? null,
+            agentId: ctx.role === 'agent' ? ctx.userId : body.agentId ?? null,
+            status: bypassCustomerApproval ? 'active' : 'pending_review',
+            profilePhoto: body.photoUrl ?? null,
+            // Extended profile fields (web parity)
+            email: body.email ?? null,
+            pan: body.pan ?? null,
+            occupation: body.occupation ?? null,
+            monthlyIncome: monthlyIncome != null && !Number.isNaN(monthlyIncome) ? monthlyIncome : null,
+            companyName: body.companyName ?? null,
+            companyType: body.companyType ?? null,
+            businessType: body.businessType ?? null,
+            gstNumber: body.gstNumber ?? null,
+            companyPan: body.companyPan ?? null,
+            companyRegNo: body.companyRegNo ?? null,
+            companyAddress: body.companyAddress ?? null,
+            companyPhone: body.companyPhone ?? null,
+            companyEmail: body.companyEmail ?? null,
+            companyLogo: body.companyLogo ?? null,
+            designation: body.designation ?? null,
+            preferredCollectionTime: body.preferredCollectionTime ?? null,
+            kycDocuments: body.kycDocs && body.kycDocs.length > 0
+              ? {
+                  create: body.kycDocs.map((d) => ({
+                    docType: d.type,
+                    filePath: d.url,
+                    fileName: d.url.split('/').pop() || 'document',
+                  })),
+                }
+              : undefined,
+            collectionPoints: collectionPoints.length > 0
+              ? { create: collectionPoints }
+              : undefined,
+          },
+          include: {
+            route: { select: { id: true, name: true } },
+            kycDocuments: true,
+            collectionPoints: true,
+          },
+        });
+
+        await writeAudit({
+          tenantId: ctx.tenantId,
+          userId: ctx.userId,
+          action: 'create',
+          entityType: 'customer',
+          entityId: customer.id,
+          newValue: { customerCode, name: body.name },
+        });
+
+        return ok(customer);
+      } catch (retryErr: any) {
+        // P2002 = Prisma unique constraint violation — retry with next sequence
+        const isPrismaUniqueError =
+          retryErr?.code === 'P2002' ||
+          retryErr?.message?.includes('Unique constraint');
+        if (isPrismaUniqueError && attempt < MAX_RETRIES - 1) {
+          continue;
+        }
+        throw retryErr;
+      }
+    }
+
+    return fail('Customer create failed after retries', 500);
   } catch (e: any) {
     return fail(e?.message ?? 'Customer create failed', 500);
   }

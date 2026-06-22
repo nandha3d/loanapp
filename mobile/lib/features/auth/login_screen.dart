@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import 'package:loantrack/core/auth/auth_controller.dart';
@@ -325,37 +326,39 @@ class _LoginCard extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 12),
-          const Row(
-            children: [
-              Expanded(child: Divider(color: AppColors.border)),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: Text('OR',
-                    style: TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12)),
-              ),
-              Expanded(child: Divider(color: AppColors.border)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 48,
-            child: OutlinedButton.icon(
-              icon: const Icon(Icons.g_mobiledata,
-                  color: AppColors.textPrimary, size: 28),
-              label: const Text('Continue with Google',
-                  style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w600)),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppColors.border),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
-              ),
-              onPressed: onGoogleSignIn,
+          if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) ...[
+            const Row(
+              children: [
+                Expanded(child: Divider(color: AppColors.border)),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: Text('OR',
+                      style: TextStyle(
+                          color: AppColors.textSecondary, fontSize: 12)),
+                ),
+                Expanded(child: Divider(color: AppColors.border)),
+              ],
             ),
-          ),
-          const SizedBox(height: 24),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 48,
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.g_mobiledata,
+                    color: AppColors.textPrimary, size: 28),
+                label: const Text('Continue with Google',
+                    style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: AppColors.border),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: onGoogleSignIn,
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
           Center(
             child: Wrap(
               alignment: WrapAlignment.center,
