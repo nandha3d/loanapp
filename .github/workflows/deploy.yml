@@ -32,12 +32,23 @@ jobs:
           printf '%s\n' "$VPS_SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
+          echo "Resolving VPS host"
+          getent hosts "$VPS_HOST" || true
+
+          echo "Checking SSH TCP reachability for $VPS_HOST:$VPS_PORT"
+          nc -vz -w 20 "$VPS_HOST" "$VPS_PORT"
+
           echo "Adding VPS host key for $VPS_HOST:$VPS_PORT"
-          ssh-keyscan -T 20 -p "$VPS_PORT" "$VPS_HOST" >> ~/.ssh/known_hosts
+          if ssh-keyscan -4 -T 20 -p "$VPS_PORT" "$VPS_HOST" >> ~/.ssh/known_hosts 2>ssh-keyscan.err; then
+            echo "Host key added from ssh-keyscan"
+          else
+            echo "::warning::ssh-keyscan failed; ssh will use StrictHostKeyChecking=accept-new"
+            cat ssh-keyscan.err
+          fi
 
           echo "Running remote deploy preflight"
-          ssh -i ~/.ssh/id_ed25519 -p "$VPS_PORT" \
-            -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+          ssh -4 -i ~/.ssh/id_ed25519 -p "$VPS_PORT" \
+            -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
             "$VPS_USER@$VPS_HOST" \
             'set -euo pipefail
              echo "connected: $(hostname) as $(whoami)"
