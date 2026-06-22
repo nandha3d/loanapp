@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { calculateVerticalSubscriptionPricing } from '@/lib/pricing';
 import { getSupabaseBrowser, isSupabaseAuthEnabled } from '@/lib/supabase/browser';
+import PasswordInput from '@/components/ui/PasswordInput';
 
 type AvailabilityFieldState = {
   checking: boolean;
@@ -546,8 +547,7 @@ function RegisterForm() {
               {!isGoogleRegister && (
                 <div className="form-group">
                   <label className="form-label">Login Password</label>
-                  <input
-                    type="password"
+                  <PasswordInput
                     className="form-control"
                     placeholder="Choose password"
                     value={ownerPassword}

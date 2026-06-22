@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Modal from '@/components/Modal';
 import { manageAgent, toggleAgentStatus } from './actions';
 import { ALL_MODULES, MODULE_LABELS, normalizeModuleList, type ModuleKey } from '@/types/modules';
+import PasswordInput from '@/components/ui/PasswordInput';
 
 type Agent = {
   id: string;
@@ -334,7 +335,7 @@ export default function TeamClient({
             <label className="form-label" style={{ fontWeight: 600, marginBottom: '6px' }}>
               {editingAgent ? `${a.password || 'Password'} (leave blank to keep unchanged)` : `${a.password || 'Password'} *`}
             </label>
-            <input type="password" className="form-control" value={password}
+            <PasswordInput className="form-control" value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder={editingAgent ? 'Enter new password' : 'Enter agent password'}
               required={!editingAgent} />

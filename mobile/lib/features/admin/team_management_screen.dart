@@ -290,58 +290,68 @@ class _TeamManagementScreenState extends ConsumerState<TeamManagementScreen> {
 
   void _showResetPasswordDialog(BuildContext context, Map<String, dynamic> user) {
     final passwordController = TextEditingController();
+    var obscurePassword = true;
     showDialog<void>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: Text('Reset Password for ${user['name']}'),
-          content: TextField(
-            controller: passwordController,
-            obscureText: true,
-            decoration: const InputDecoration(
-              labelText: 'New Password *',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () async {
-                final pw = passwordController.text.trim();
-                if (pw.isEmpty) return;
-                final messenger = ScaffoldMessenger.of(this.context);
-                Navigator.pop(context);
-                setState(() => _isLoading = true);
-                try {
-                  await ref.read(adminServiceProvider).updateUser(
-                        user['id'] as String,
-                        name: user['name'] as String,
-                        username: user['username'] as String,
-                        phone: user['phone'] as String? ?? '',
-                        password: pw,
-                        role: user['role'] as String,
-                        branchId: user['branchId'] as String?,
-                        status: user['status'] as String?,
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text('Reset Password for ${user['name']}'),
+              content: TextField(
+                controller: passwordController,
+                obscureText: obscurePassword,
+                decoration: InputDecoration(
+                  labelText: 'New Password *',
+                  border: const OutlineInputBorder(),
+                  suffixIcon: IconButton(
+                    tooltip: obscurePassword ? 'Show password' : 'Hide password',
+                    icon: Icon(obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                    onPressed: () => setDialogState(() => obscurePassword = !obscurePassword),
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    final pw = passwordController.text.trim();
+                    if (pw.isEmpty) return;
+                    final messenger = ScaffoldMessenger.of(this.context);
+                    Navigator.pop(context);
+                    setState(() => _isLoading = true);
+                    try {
+                      await ref.read(adminServiceProvider).updateUser(
+                            user['id'] as String,
+                            name: user['name'] as String,
+                            username: user['username'] as String,
+                            phone: user['phone'] as String? ?? '',
+                            password: pw,
+                            role: user['role'] as String,
+                            branchId: user['branchId'] as String?,
+                            status: user['status'] as String?,
+                          );
+                      await _fetchData();
+                      if (!mounted) return;
+                      messenger.showSnackBar(
+                        const SnackBar(content: Text('Password updated successfully')),
                       );
-                  await _fetchData();
-                  if (!mounted) return;
-                  messenger.showSnackBar(
-                    const SnackBar(content: Text('Password updated successfully')),
-                  );
-                } catch (e) {
-                  setState(() => _isLoading = false);
-                  if (!mounted) return;
-                  messenger.showSnackBar(
-                    SnackBar(content: Text('Failed to update password: $e')),
-                  );
-                }
-              },
-              child: const Text('Reset'),
-            ),
-          ],
+                    } catch (e) {
+                      setState(() => _isLoading = false);
+                      if (!mounted) return;
+                      messenger.showSnackBar(
+                        SnackBar(content: Text('Failed to update password: $e')),
+                      );
+                    }
+                  },
+                  child: const Text('Reset'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -353,6 +363,7 @@ class _TeamManagementScreenState extends ConsumerState<TeamManagementScreen> {
     final phoneController = TextEditingController(text: existingUser?['phone'] as String?);
     final usernameController = TextEditingController(text: existingUser?['username'] as String?);
     final passwordController = TextEditingController();
+    var obscurePassword = true;
     
     String selectedRole = existingUser?['role'] as String? ?? 'agent';
     String? selectedBranchId = existingUser?['branchId'] as String?;
@@ -398,8 +409,16 @@ class _TeamManagementScreenState extends ConsumerState<TeamManagementScreen> {
                     const SizedBox(height: 12),
                     TextField(
                       controller: passwordController,
-                      obscureText: true,
-                      decoration: const InputDecoration(labelText: 'Password *', border: OutlineInputBorder()),
+                      obscureText: obscurePassword,
+                      decoration: InputDecoration(
+                        labelText: 'Password *',
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          tooltip: obscurePassword ? 'Show password' : 'Hide password',
+                          icon: Icon(obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                          onPressed: () => setModalState(() => obscurePassword = !obscurePassword),
+                        ),
+                      ),
                     ),
                   ],
                   const SizedBox(height: 12),

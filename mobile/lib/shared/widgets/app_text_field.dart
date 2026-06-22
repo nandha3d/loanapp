@@ -4,7 +4,7 @@ import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
 
-class AppTextField extends StatelessWidget {
+class AppTextField extends StatefulWidget {
   const AppTextField({
     super.key,
     required this.label,
@@ -33,28 +33,50 @@ class AppTextField extends StatelessWidget {
   final int maxLines;
 
   @override
+  State<AppTextField> createState() => _AppTextFieldState();
+}
+
+class _AppTextFieldState extends State<AppTextField> {
+  late bool _obscured = widget.obscureText;
+
+  @override
   Widget build(BuildContext context) {
+    final suffix = widget.suffixIcon ??
+        (widget.obscureText
+            ? IconButton(
+                tooltip: _obscured ? 'Show password' : 'Hide password',
+                icon: Icon(
+                  _obscured
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                  size: 18,
+                  color: AppColors.textSecondary,
+                ),
+                onPressed: () => setState(() => _obscured = !_obscured),
+              )
+            : null);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: AppTypography.label),
+        Text(widget.label, style: AppTypography.label),
         const SizedBox(height: 6),
         TextField(
-          controller: controller,
-          obscureText: obscureText,
-          keyboardType: keyboardType,
-          autofillHints: autofillHints,
-          onChanged: onChanged,
-          maxLines: maxLines,
+          controller: widget.controller,
+          obscureText: widget.obscureText && _obscured,
+          keyboardType: widget.keyboardType,
+          autofillHints: widget.autofillHints,
+          onChanged: widget.onChanged,
+          maxLines: widget.maxLines,
           style: AppTypography.body,
           decoration: InputDecoration(
-            hintText: hintText,
+            hintText: widget.hintText,
             hintStyle: AppTypography.body.copyWith(color: AppColors.textLight),
-            prefixIcon: prefixIcon != null
-                ? Icon(prefixIcon, size: 18, color: AppColors.textSecondary)
+            prefixIcon: widget.prefixIcon != null
+                ? Icon(widget.prefixIcon, size: 18, color: AppColors.textSecondary)
                 : null,
-            suffixIcon: suffixIcon,
-            errorText: errorText,
+            suffixIcon: suffix,
+            errorText: widget.errorText,
             errorStyle: AppTypography.caption.copyWith(color: AppColors.danger),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppTokens.radiusSm),

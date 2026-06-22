@@ -7,6 +7,7 @@ import { manageMasterUser, toggleUserStatus } from '../actions';
 import { updateSubscription } from '../billing/billingActions';
 import { ALL_MODULES, MODULE_LABELS, normalizeModuleList, type ModuleKey } from '@/types/modules';
 import { PLAN_LABELS, PLAN_FEATURES } from '@/lib/plans';
+import PasswordInput from '@/components/ui/PasswordInput';
 
 type BranchOption = {
   id: string;
@@ -765,7 +766,7 @@ export default function UsersClient({
           </div>
           <div className="form-group">
             <label className="form-label">Password {editingUser && <span className="text-muted">(Leave blank to keep)</span>}</label>
-            <input type="password" name="password" className="form-control" required={!editingUser} />
+            <PasswordInput name="password" className="form-control" required={!editingUser} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div className="form-group">

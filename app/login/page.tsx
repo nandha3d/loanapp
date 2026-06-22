@@ -5,6 +5,7 @@ import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { getSupabaseBrowser, isSupabaseAuthEnabled } from '@/lib/supabase/browser';
+import PasswordInput from '@/components/ui/PasswordInput';
 
 function LoginForm() {
   const router = useRouter();
@@ -185,8 +186,7 @@ function LoginForm() {
           </div>
           <div className="form-group">
             <label className="form-label" htmlFor="password">Password</label>
-            <input
-              type="password"
+            <PasswordInput
               id="password"
               className="form-control"
               placeholder="Enter password"

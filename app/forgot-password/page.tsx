@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import PasswordInput from '@/components/ui/PasswordInput';
 import { useRouter } from 'next/navigation';
 import { validateEmail } from '@/lib/validation/contact';
 import { getSupabaseBrowser, isSupabaseAuthEnabled } from '@/lib/supabase/browser';
@@ -164,8 +165,7 @@ export default function ForgotPasswordPage() {
             </div>
             <div className="form-group">
               <label className="form-label" htmlFor="newPassword">New password</label>
-              <input
-                type="password"
+              <PasswordInput
                 id="newPassword"
                 className="form-control"
                 placeholder="At least 8 characters"
@@ -177,8 +177,7 @@ export default function ForgotPasswordPage() {
             </div>
             <div className="form-group">
               <label className="form-label" htmlFor="confirm">Confirm password</label>
-              <input
-                type="password"
+              <PasswordInput
                 id="confirm"
                 className="form-control"
                 placeholder="Re-enter password"

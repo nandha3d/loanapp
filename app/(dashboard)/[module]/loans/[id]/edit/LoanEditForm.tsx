@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { updateLoan, requestLoanEdit } from '../../actions';
 import { useRouter } from 'next/navigation';
-import { calculateEndDate, formatDateISO } from '@/lib/utils';
+import { formatDateISO } from '@/lib/utils';
 import Link from '@/components/layout/DashboardLink';
 import { useDashboardPath } from '@/components/layout/useDashboardPath';
 
@@ -142,11 +142,12 @@ export default function LoanEditForm({
         });
         const data = await res.json();
         if (data.success) {
+          const preview = data.data ?? data;
           setCalculatedData({
-            disbursedAmount: data.disbursedAmount || data.netDisbursed || 0,
-            totalPayable: data.totalPayable || 0,
-            perInstalment: data.perInstalment || 0,
-            endDate: data.endDate || null
+            disbursedAmount: preview.disbursedAmount || preview.netDisbursed || 0,
+            totalPayable: preview.totalPayable || 0,
+            perInstalment: preview.perInstalment || 0,
+            endDate: preview.endDate ? formatDateISO(new Date(preview.endDate)) : null
           });
         }
       } catch (e) {

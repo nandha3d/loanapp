@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import PasswordInput from '@/components/ui/PasswordInput';
 import { useRouter } from 'next/navigation';
 
 // Reached after a Supabase reset magic-link verifies email ownership and the
@@ -60,8 +61,7 @@ export default function ResetPasswordPage() {
         <form onSubmit={submit}>
           <div className="form-group">
             <label className="form-label" htmlFor="newPassword">New password</label>
-            <input
-              type="password"
+            <PasswordInput
               id="newPassword"
               className="form-control"
               placeholder="At least 8 characters"
@@ -73,8 +73,7 @@ export default function ResetPasswordPage() {
           </div>
           <div className="form-group">
             <label className="form-label" htmlFor="confirm">Confirm password</label>
-            <input
-              type="password"
+            <PasswordInput
               id="confirm"
               className="form-control"
               placeholder="Re-enter password"
