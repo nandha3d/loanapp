@@ -49,6 +49,20 @@ export async function POST(req: NextRequest) {
       })
     ]);
 
+    const agent = await prisma.user.findUnique({ where: { id: ctx.userId }, select: { name: true, branchId: true } });
+    const { notifyApprovers } = await import('@/lib/notify/approvers');
+    const { modulePath } = await import('@/types/modules');
+    await notifyApprovers({
+      tenantId: ctx.tenantId,
+      branchId: agent?.branchId ?? ctx.branchId,
+      appType: ctx.appType,
+      type: 'cash_handover',
+      icon: 'payments',
+      title: 'Cash handover to collect',
+      message: `${agent?.name ?? 'An agent'} requested end-of-day handover of ₹${Number(dailyCollection.totalCollected).toLocaleString('en-IN')}.`,
+      link: modulePath(ctx.appType, '/approvals'),
+    });
+
     return ok({ success: true });
   } catch (e: any) {
     console.error('[/api/v1/collection/handover POST]', e);

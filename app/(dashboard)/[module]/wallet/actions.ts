@@ -111,6 +111,18 @@ export async function requestFloatHandoverAction(formData: FormData) {
   });
 
   const appType = await getUserAppType();
+  const agent = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, branchId: true } });
+  const { notifyApprovers } = await import('@/lib/notify/approvers');
+  await notifyApprovers({
+    tenantId,
+    branchId: agent?.branchId ?? null,
+    appType,
+    type: 'cash_handover',
+    icon: 'payments',
+    title: 'Cash handover to collect',
+    message: `${agent?.name ?? 'An agent'} is handing over ₹${amount.toLocaleString('en-IN')}.`,
+    link: modulePath(appType, '/wallet'),
+  });
   revalidatePath(modulePath(appType, '/wallet'));
 }
 

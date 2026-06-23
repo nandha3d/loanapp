@@ -7,7 +7,6 @@ import { auth } from '@/lib/auth';
 import { decryptAadharNumber, encryptAadharNumber, isMaskedAadharNumber } from '@/lib/pii';
 import { submitCollectionEntry } from '@/app/(dashboard)/[module]/collection/actions';
 import { calculateLoanPreview } from '@/lib/loanCalculator';
-import { findApprovalNotificationTarget } from '@/lib/approvalNotifications';
 import { notifyUser } from '@/lib/notify/userNotify';
 import { modulePath } from '@/types/modules';
 import { getActiveBranchId } from '@/lib/branch';
@@ -448,28 +447,20 @@ export async function submitEditRequest(formData: FormData) {
     },
   });
 
-  // Notify admin that there's a new customer edit request
+  // Notify everyone who can review (branch admins + tenant superadmins) so the
+  // request never lands only on one inbox.
   const notifBranchId = agentBranchId || customer.branchId;
-  const targetUserId = await findApprovalNotificationTarget({
+  const { notifyApprovers } = await import('@/lib/notify/approvers');
+  await notifyApprovers({
     tenantId,
-    appType,
-    agentId: userId,
     branchId: notifBranchId,
+    appType,
+    type: 'customer_edit_review',
+    icon: 'rate_review',
+    title: 'Customer edit pending review',
+    message: `Agent requested edits for customer ${customer.name}.`,
+    link: modulePath(appType, '/approvals'),
   });
-  await prisma.systemNotification.create({
-    data: {
-      tenantId,
-      branchId: notifBranchId,
-      targetUserId,
-      appType,
-      type: 'customer_edit_review',
-      icon: 'rate_review',
-      title: 'Customer edit pending review',
-      message: `Agent requested edits for customer ${customer.name}.`,
-      link: modulePath(appType, '/approvals'),
-      targetRole: 'admin',
-    },
-  }).catch(() => {});
 
   revalidatePath(`/customers/${customerId}`);
   revalidatePath('/approvals');
