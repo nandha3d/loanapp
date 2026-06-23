@@ -30,6 +30,9 @@ export async function addAccountEntry(formData: FormData) {
 
   const entryDate = entryDateStr ? new Date(entryDateStr) : new Date();
   const syncsBranchCash = category === 'cash' && (type === 'capital_add' || type === 'capital_withdraw');
+  // A cash expense reduces the branch pool too (so Liquid Cash reflects it), but
+  // we don't force a branch — tenant-wide expenses still record without one.
+  const isCashExpense = category === 'cash' && type === 'expense';
 
   if (syncsBranchCash && !activeBranchId) {
     return { error: 'Select an active branch before adding or withdrawing cash capital.' };
@@ -55,6 +58,16 @@ export async function addAccountEntry(formData: FormData) {
         branchId: activeBranchId!,
         amount,
         entryType: type as 'capital_add' | 'capital_withdraw',
+        accountEntryId: accountEntry.id,
+        byUserId: userId,
+        note: description,
+      });
+    } else if (isCashExpense && activeBranchId) {
+      await applyAccountingCashToBranch(tx, {
+        tenantId,
+        branchId: activeBranchId,
+        amount,
+        entryType: 'expense',
         accountEntryId: accountEntry.id,
         byUserId: userId,
         note: description,

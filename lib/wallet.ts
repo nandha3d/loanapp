@@ -101,7 +101,7 @@ export async function applyAccountingCashToBranch(
     tenantId: string;
     branchId: string;
     amount: number;
-    entryType: 'capital_add' | 'capital_withdraw';
+    entryType: 'capital_add' | 'capital_withdraw' | 'expense';
     accountEntryId: string;
     byUserId?: string | null;
     note?: string | null;
@@ -109,11 +109,17 @@ export async function applyAccountingCashToBranch(
 ): Promise<number> {
   if (!(input.amount > 0)) throw new Error('amount must be positive');
   const isAddition = input.entryType === 'capital_add';
+  const defaultNote =
+    input.entryType === 'capital_add'
+      ? 'Accounting cash capital addition'
+      : input.entryType === 'expense'
+        ? 'Accounting cash expense'
+        : 'Accounting cash capital withdrawal';
   return applyBranch(tx, input.tenantId, input.branchId, isAddition ? input.amount : -input.amount, {
     type: isAddition ? 'inject' : 'adjustment',
     refType: 'account_entry',
     refId: input.accountEntryId,
-    note: input.note ?? (isAddition ? 'Accounting cash capital addition' : 'Accounting cash capital withdrawal'),
+    note: input.note ?? defaultNote,
     byUserId: input.byUserId ?? null,
   });
 }
