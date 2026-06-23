@@ -147,7 +147,7 @@ export default function WalletClient({
               <div className="badge" style={{ background: 'rgba(255,243,224,.16)', color: '#FFE2A3', marginBottom: 10 }}>
                 Live cash control
               </div>
-              <h1 style={{ margin: 0, fontSize: '1.75rem', lineHeight: 1.15, fontWeight: 800 }}>Cash Float</h1>
+              <h1 style={{ margin: 0, fontSize: '1.75rem', lineHeight: 1.15, fontWeight: 800 }}>Agent Wallet</h1>
               <p style={{ margin: '8px 0 0', color: 'rgba(255,255,255,.72)', maxWidth: 560, fontSize: '.92rem' }}>
                 Release funds to agents, top up branch pools, and keep field cash aligned with accounting capital.
               </p>

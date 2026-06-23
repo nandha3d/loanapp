@@ -114,7 +114,10 @@ export async function getAccountingSummary(tenantId: string, branchId?: string |
   // Calculate totals
   let capitalIn = 0;
   let capitalOut = 0;
-  let totalDisbursed = 0;
+  // NET cash that physically left the business at disbursement (principal − upfront
+  // fee). Used only for the capital/cash balance — NOT the "Total Disbursed" KPI,
+  // which reports the gross loan book (see totalDisbursed below).
+  let netDisbursed = 0;
   let totalCollected = 0;
   let totalExpenses = 0;
 
@@ -128,7 +131,7 @@ export async function getAccountingSummary(tenantId: string, branchId?: string |
         capitalOut += amt;
         break;
       case 'loan_disburse':
-        totalDisbursed += amt;
+        netDisbursed += amt;
         break;
       case 'collection':
         totalCollected += amt;
@@ -139,9 +142,9 @@ export async function getAccountingSummary(tenantId: string, branchId?: string |
     }
   }
 
-  const currentCapital = capitalIn - capitalOut - totalDisbursed + totalCollected - totalExpenses;
-  const grossProfit = totalCollected - totalDisbursed;
-  const netProfit = grossProfit - totalExpenses;
+  // Capital/cash balance uses NET disbursed (actual cash out). e.g. 10,000 − 900
+  // (net out) + 100 (collected) = 9,200.
+  const currentCapital = capitalIn - capitalOut - netDisbursed + totalCollected - totalExpenses;
 
   const loans = await prisma.loan.findMany({
     where: { tenantId, ...(branchId ? { branchId } : {}) },
@@ -152,6 +155,17 @@ export async function getAccountingSummary(tenantId: string, branchId?: string |
       totalPayable: true,
     },
   });
+
+  // Total Disbursed KPI = GROSS loan book (principal), e.g. 1,000 — not the net
+  // cash (900). Profit = interest income recognized at disbursement: the upfront
+  // fee (deduction) for upfront loans + (totalPayable − principal) for EMI loans.
+  const totalDisbursed = loans.reduce((sum, l) => sum + Number(l.principal), 0);
+  const interestIncome = loans.reduce(
+    (sum, l) => sum + Number(l.deduction) + Math.max(0, Number(l.totalPayable) - Number(l.principal)),
+    0,
+  );
+  const grossProfit = interestIncome;
+  const netProfit = interestIncome - totalExpenses;
   const agentIds = branchId
     ? await prisma.user.findMany({
         where: { tenantId, branchId, role: 'agent' },

@@ -363,6 +363,15 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     });
   }
 
+  // Total Disbursed KPI = GROSS loan book (principal), not the net cash that left
+  // (principal − upfront fee). The `loan_disburse` AccountEntry stays net for the
+  // capital balance; this is a separate, gross figure for the headline KPI.
+  const grossDisbursedAgg = await prisma.loan.aggregate({
+    where: loanWhere,
+    _sum: { principal: true },
+  });
+  const grossDisbursed = Number(grossDisbursedAgg._sum.principal || 0);
+
   return {
     totalCustomers,
     recentLoans,
@@ -410,9 +419,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     bestPayer,
     pendingUpiCollections,
     pendingCashCollections,
-    totalDisbursed: accountEntries
-      .filter((e) => e.type === 'loan_disburse')
-      .reduce((sum, e) => sum + Number(e.amount), 0),
+    totalDisbursed: grossDisbursed,
     totalCollectedAllTime: accountEntries
       .filter((e) => e.type === 'collection')
       .reduce((sum, e) => sum + Number(e.amount), 0),

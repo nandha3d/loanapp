@@ -60,7 +60,7 @@ export default function AgentWalletClient({
       <div className="card" style={{ marginBottom: '20px' }}>
         <h3 style={{ fontSize: '1rem', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span className="material-icons-outlined" style={{ color: 'var(--primary)' }}>payments</span>
-          Cash Float
+          Agent Wallet
         </h3>
         <p style={{ fontSize: '.82rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
           {agentName} — cash currently with you in the field. Hand it over to the office below; an admin confirms collection.

@@ -295,7 +295,9 @@ export async function getAnalyticsData(
   }
 
   // 3. Portfolio summary
-  const totalDisbursed = Number(activeLoans._sum.disbursed || 0) + Number(closedLoans._sum.principal || 0);
+  // Total Disbursed = GROSS loan book (principal) for both active & closed loans.
+  // (Was mixing net `disbursed` for active + gross `principal` for closed.)
+  const totalDisbursed = Number(activeLoans._sum.principal || 0) + Number(closedLoans._sum.principal || 0);
   const activePrincipal = Number(activeLoans._sum.principal || 0);
   const totalRecovered = Number(activeLoans._sum.totalCollected || 0) + Number(closedLoans._sum.totalCollected || 0);
   const activeCount = activeLoans._count;
