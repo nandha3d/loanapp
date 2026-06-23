@@ -105,6 +105,14 @@ export default function Topbar({
     return () => clearInterval(interval);
   }, [pathname, fetchCount]);
 
+  // Reflect unread notifications in the browser tab title: "(3) Page — App".
+  // Strips any prior count prefix first so it never stacks across re-renders /
+  // navigations (Next resets the title from page metadata on each route change).
+  useEffect(() => {
+    const base = document.title.replace(/^\(\d+\)\s*/, '');
+    document.title = unreadCount > 0 ? `(${unreadCount}) ${base}` : base;
+  }, [unreadCount, pathname]);
+
   // Mark one read on click, then refresh the badge immediately (don't wait for
   // the 30s poll). Optimistically drop the count so the bell feels responsive.
   const handleNotifClick = useCallback(async (n: any) => {

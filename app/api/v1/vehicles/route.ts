@@ -132,8 +132,23 @@ export async function POST(req: NextRequest) {
         insuranceExpiry: body.insuranceExpiry ? new Date(String(body.insuranceExpiry)) : null,
         status,
       },
-      include: { customer: { select: { id: true, name: true, customerCode: true } } },
+      include: { customer: { select: { id: true, name: true, customerCode: true, branchId: true } } },
     });
+
+    if (status === 'pending_review') {
+      const { notifyApprovers } = await import('@/lib/notify/approvers');
+      const { modulePath } = await import('@/types/modules');
+      await notifyApprovers({
+        tenantId: ctx.tenantId,
+        branchId: vehicle.customer?.branchId ?? ctx.branchId,
+        appType: ctx.appType,
+        type: 'approval_pending',
+        icon: 'directions_car',
+        title: 'Vehicle awaiting approval',
+        message: `Vehicle ${registrationNo} (${vehicle.customer?.name ?? 'customer'}) was submitted and needs review.`,
+        link: modulePath(ctx.appType, '/approvals'),
+      });
+    }
 
     return ok(vehicle);
   } catch (e: any) {

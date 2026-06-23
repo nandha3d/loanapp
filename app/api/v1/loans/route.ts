@@ -344,6 +344,21 @@ export async function POST(req: NextRequest) {
       newValue: { loanCode, principal, customerId },
     });
 
+    if (status === 'pending_review') {
+      const { notifyApprovers } = await import('@/lib/notify/approvers');
+      const { modulePath } = await import('@/types/modules');
+      await notifyApprovers({
+        tenantId: ctx.tenantId,
+        branchId: loan.branchId,
+        appType: ctx.appType,
+        type: 'approval_pending',
+        icon: 'account_balance',
+        title: 'Loan awaiting approval',
+        message: `Loan ${loanCode} (${loan.customer?.name ?? 'customer'}) was submitted and needs review.`,
+        link: modulePath(ctx.appType, '/approvals'),
+      });
+    }
+
     // Disburse cash from the float ledger. An agent physically hands the NET
     // disbursed cash to the customer, so their float ALWAYS drops by that amount
     // when the loan is active (not gated by autoReleaseFloat). Admin/superadmin

@@ -121,6 +121,20 @@ export async function createVehicle(formData: FormData) {
     },
   });
 
+  if (status === 'pending_review') {
+    const { notifyApprovers } = await import('@/lib/notify/approvers');
+    await notifyApprovers({
+      tenantId,
+      branchId: customer.branchId,
+      appType,
+      type: 'approval_pending',
+      icon: 'directions_car',
+      title: 'Vehicle awaiting approval',
+      message: `Vehicle ${data.registrationNo} was submitted and needs review.`,
+      link: modulePath(appType, '/approvals'),
+    });
+  }
+
   revalidatePath(modulePath(appType, '/vehicles'));
   redirect(modulePath(appType, `/vehicles/${vehicle.id}`));
 }

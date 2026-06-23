@@ -1,3 +1,4 @@
+import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { notFound, redirect } from 'next/navigation';
 import { headers, cookies } from 'next/headers';
@@ -107,6 +108,44 @@ export default async function DashboardLayout({
   const sub = await getSubscription(tenantId);
   const isExpired = isTenantSubscriptionExpired(sub);
 
+  // Pending-approvals count for the Sidebar badge (admins/superadmins only).
+  // Scope to the active branch when one is selected; superadmin "all"/none =
+  // tenant-wide. Cheap indexed counts.
+  let pendingApprovals = 0;
+  if (role === 'admin' || role === 'superadmin' || role === 'developer') {
+    const scopeBranchId =
+      activeBranchId && activeBranchId !== 'all'
+        ? activeBranchId
+        : role === 'admin'
+          ? (await getActiveBranchId()) ?? undefined
+          : undefined;
+    const base = {
+      tenantId,
+      appType: requestedModule,
+      status: 'pending_review',
+      ...(scopeBranchId ? { branchId: scopeBranchId } : {}),
+    };
+    const [pc, pl, pv, pr] = await Promise.all([
+      prisma.customer.count({ where: base }),
+      prisma.loan.count({ where: base }),
+      requestedModule === 'autofinance'
+        ? prisma.vehicle.count({
+            where: {
+              tenantId,
+              appType: requestedModule,
+              status: 'pending_review',
+              deletedAt: null,
+              ...(scopeBranchId ? { customer: { branchId: scopeBranchId } } : {}),
+            },
+          })
+        : Promise.resolve(0),
+      prisma.approvalRequest.count({
+        where: { tenantId, appType: requestedModule, status: 'pending' },
+      }),
+    ]);
+    pendingApprovals = pc + pl + pv + pr;
+  }
+
   // Tenant theme preset (Settings → Theme) overrides the per-module colours.
   const tenantSettings = await getTenantSettings(tenantId);
   const theme = getThemePreset(tenantSettings[THEME_SETTING_KEY]);
@@ -129,6 +168,7 @@ export default async function DashboardLayout({
         userName={user.name || 'User'}
         modulePrefix={`/${requestedModule}`}
         subscription={sub}
+        pendingApprovals={pendingApprovals}
       />
       <main className="main-content">
         <Topbar

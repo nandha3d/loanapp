@@ -67,6 +67,8 @@ a:hover { text-decoration: underline; }
 .sidebar-nav a.active { background: var(--primary); color: #fff; }
 .sidebar-nav a .material-icons-outlined { font-size: 20px; }
 .sidebar-nav .nav-section { font-size: .7rem; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,.3); padding: 16px 16px 6px; }
+.sidebar-nav a .nav-badge { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--danger, #ef4444); color: #fff; font-size: .68rem; font-weight: 700; line-height: 18px; text-align: center; flex-shrink: 0; }
+.sidebar-nav a.active .nav-badge { background: #fff; color: var(--primary); }
 .sidebar-footer { padding: 16px 24px; border-top: 1px solid rgba(255,255,255,.08); flex-shrink: 0; }
 .sidebar-footer .user-info { display: flex; align-items: center; gap: 10px; }
 .sidebar-footer .avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .85rem; }

@@ -8,6 +8,8 @@ import { getBranding } from '@/lib/tenant';
 import { generateCode } from '@/lib/utils';
 import { writeAudit } from '@/lib/audit';
 import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
+import { notifyApprovers } from '@/lib/notify/approvers';
+import { modulePath } from '@/types/modules';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -354,6 +356,19 @@ export async function POST(req: NextRequest) {
           entityId: customer.id,
           newValue: { customerCode, name: body.name },
         });
+
+        if (!bypassCustomerApproval) {
+          await notifyApprovers({
+            tenantId: ctx.tenantId,
+            branchId: resolvedBranchId,
+            appType: ctx.appType,
+            type: 'approval_pending',
+            icon: 'person_add',
+            title: 'Customer awaiting approval',
+            message: `${body.name} (${customerCode}) was submitted and needs review.`,
+            link: modulePath(ctx.appType, '/approvals'),
+          });
+        }
 
         return ok(customer);
       } catch (retryErr: any) {

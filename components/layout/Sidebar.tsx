@@ -31,6 +31,7 @@ export default function Sidebar({
   userName,
   modulePrefix,
   subscription,
+  pendingApprovals = 0,
 }: {
   appType?: string;
   enabledModules?: string[];
@@ -43,6 +44,7 @@ export default function Sidebar({
     kycEnabled?: boolean;
     premiumAccountingEnabled?: boolean;
   } | null;
+  pendingApprovals?: number;
 }) {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
@@ -181,7 +183,12 @@ export default function Sidebar({
                 onClick={() => document.getElementById('sidebar')?.classList.remove('open')}
               >
                 <span className="material-icons-outlined">{item.icon}</span>
-                {item.label}
+                <span style={{ flex: 1 }}>{item.label}</span>
+                {item.id === 'approvals' && pendingApprovals > 0 && (
+                  <span className="nav-badge" aria-label={`${pendingApprovals} pending approvals`}>
+                    {pendingApprovals > 99 ? '99+' : pendingApprovals}
+                  </span>
+                )}
               </Link>
             );
           })}
