@@ -190,7 +190,7 @@ export default function WalletClient({
         />
         <MetricCard
           icon="payments"
-          label="Agent float"
+          label="Agent cash"
           value={fmt(currencySymbol, summary.agentFloat)}
           tone="green"
           detail={`${activeAgentCount} active holder${activeAgentCount === 1 ? '' : 's'} - ${floatCoverage}% of releases still in field.`}
@@ -236,7 +236,7 @@ export default function WalletClient({
       <section className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div className="card-header" style={{ padding: '20px 24px 14px', marginBottom: 0, borderBottom: '1px solid var(--border)' }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 800 }}>Agent float</h2>
+            <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 800 }}>Agent cash</h2>
             <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: '.8rem' }}>Release cash to field agents and monitor what each person currently holds.</p>
           </div>
           <span className="badge badge-active">{fmt(currencySymbol, summary.agentFloat)} in field</span>

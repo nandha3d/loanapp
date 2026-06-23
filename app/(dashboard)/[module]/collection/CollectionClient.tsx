@@ -286,12 +286,33 @@ export default function CollectionClient({
   }, [todayInstalments]);
 
   const overdueTotals = useMemo(() => {
+    // dueTotal = the full scheduled amount on overdue instalments; recovered =
+    // what's already been paid against them; amount = still outstanding.
+    const dueTotal = overdueInstalments.reduce((sum, row) => sum + row.dueAmount, 0);
+    const recovered = overdueInstalments.reduce((sum, row) => sum + Math.min(row.receivedAmount, row.dueAmount), 0);
     return {
       amount: overdueInstalments.reduce((sum, row) => sum + row.overdueAmount, 0),
+      dueTotal,
+      recovered,
       count: overdueInstalments.length,
       maxDays: overdueInstalments.reduce((max, row) => Math.max(max, row.daysOverdue), 0),
     };
   }, [overdueInstalments]);
+
+  // Customer worklist progress for today: how many distinct customers due today
+  // have had something collected. Drives the "Customers" completion bar.
+  const customerProgress = useMemo(() => {
+    const dueSet = new Set<string>();
+    const doneSet = new Set<string>();
+    for (const row of todayInstalments) {
+      const cid = row.loan.customer.id;
+      dueSet.add(cid);
+      if (row.receivedAmount > 0) doneSet.add(cid);
+    }
+    return { total: dueSet.size, done: doneSet.size };
+  }, [todayInstalments]);
+
+  const pct = (num: number, den: number) => (den > 0 ? Math.min(100, Math.round((num / den) * 100)) : 0);
 
   const unifiedGroups = useMemo<UnifiedGroup[]>(() => {
     const map = new Map<string, UnifiedGroup>();
@@ -779,43 +800,59 @@ export default function CollectionClient({
         </div>
       </div>
 
-      <div className="summary-bar" style={{ marginBottom: '20px' }}>
-        <div className="summary-item">
-          <div className="summary-item-icon" style={{ background: 'rgba(249,115,22,.12)' }}>
-            <span className="material-icons-outlined" style={{ color: 'var(--primary)', fontSize: '18px' }}>today</span>
+      {(() => {
+        const todayPct = pct(todayTotals.collected, todayTotals.due);
+        const overduePct = pct(overdueTotals.recovered, overdueTotals.dueTotal);
+        const custPct = pct(customerProgress.done, customerProgress.total);
+        const ProgressCard = ({
+          icon, tone, title, badge, big, bigColor, barPct, sub,
+        }: {
+          icon: string; tone: string; title: string; badge?: string;
+          big: string; bigColor: string; barPct: number; sub: string;
+        }) => (
+          <div className="card" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ width: 34, height: 34, borderRadius: 9, display: 'grid', placeItems: 'center', background: `${tone}1f`, color: tone, flexShrink: 0 }}>
+                <span className="material-icons-outlined" style={{ fontSize: '18px' }}>{icon}</span>
+              </div>
+              <span style={{ fontSize: '.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{title}</span>
+              {badge && <span style={{ marginLeft: 'auto', fontSize: '.7rem', fontWeight: 700, color: tone, background: `${tone}1f`, padding: '2px 8px', borderRadius: 999 }}>{badge}</span>}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+              <span style={{ fontSize: '1.3rem', fontWeight: 800, color: bigColor }}>{big}</span>
+              <span style={{ fontSize: '1rem', fontWeight: 800, color: tone }}>{barPct}%</span>
+            </div>
+            <div style={{ height: 8, background: 'var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+              <div style={{ width: `${barPct}%`, height: '100%', background: tone, borderRadius: 6, transition: 'width .4s ease' }} />
+            </div>
+            <span style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>{sub}</span>
           </div>
-          <div className="summary-label">{dict.collection.todayDue}</div>
-          <div className="summary-value">{formatCurrency(todayTotals.due, currencySymbol)}</div>
-        </div>
-        <div className="summary-item">
-          <div className="summary-item-icon" style={{ background: 'rgba(16,185,129,.12)' }}>
-            <span className="material-icons-outlined" style={{ color: 'var(--success)', fontSize: '18px' }}>check_circle</span>
+        );
+        return (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px', marginBottom: '20px' }}>
+            <ProgressCard
+              icon="today" tone="#10B981" title={dict.collection.todayDue}
+              big={`${formatCurrency(todayTotals.collected, currencySymbol)} / ${formatCurrency(todayTotals.due, currencySymbol)}`}
+              bigColor="var(--text)" barPct={todayPct}
+              sub={`${dict.collection.collectedToday} · ${formatCurrency(todayTotals.outstanding, currencySymbol)} left`}
+            />
+            <ProgressCard
+              icon="warning_amber" tone="#EF4444" title={dict.collection.overdueLabel}
+              badge={`${overdueTotals.count} · ${overdueTotals.maxDays}d`}
+              big={`${formatCurrency(overdueTotals.recovered, currencySymbol)} / ${formatCurrency(overdueTotals.dueTotal, currencySymbol)}`}
+              bigColor="var(--text)" barPct={overduePct}
+              sub={`${formatCurrency(overdueTotals.amount, currencySymbol)} ${dict.collection.overdueLabel.toLowerCase()} pending`}
+            />
+            <ProgressCard
+              icon="groups" tone="#6366F1" title={dict.customers.title}
+              badge={`${customerProgress.done}/${customerProgress.total}`}
+              big={`${customerProgress.done} / ${customerProgress.total}`}
+              bigColor="var(--text)" barPct={custPct}
+              sub={`${customerProgress.done} ${dict.collection.collectedToday.toLowerCase()} · ${customerProgress.total - customerProgress.done} left`}
+            />
           </div>
-          <div className="summary-label">{dict.collection.collectedToday}</div>
-          <div className="summary-value" style={{ color: 'var(--success)' }}>{formatCurrency(todayTotals.collected, currencySymbol)}</div>
-        </div>
-        <div className="summary-item">
-          <div className="summary-item-icon" style={{ background: 'rgba(245,158,11,.12)' }}>
-            <span className="material-icons-outlined" style={{ color: '#D97706', fontSize: '18px' }}>account_balance_wallet</span>
-          </div>
-          <div className="summary-label">{dict.collection.todayBalance}</div>
-          <div className="summary-value" style={{ color: '#D97706' }}>{formatCurrency(todayTotals.outstanding, currencySymbol)}</div>
-        </div>
-        <div className="summary-item">
-          <div className="summary-item-icon" style={{ background: 'rgba(239,68,68,.12)' }}>
-            <span className="material-icons-outlined" style={{ color: 'var(--danger)', fontSize: '18px' }}>warning_amber</span>
-          </div>
-          <div className="summary-label">{dict.collection.overdueLabel} ({overdueTotals.count})</div>
-          <div className="summary-value" style={{ color: 'var(--danger)' }}>{formatCurrency(overdueTotals.amount, currencySymbol)}</div>
-        </div>
-        <div className="summary-item">
-          <div className="summary-item-icon" style={{ background: 'rgba(99,102,241,.12)' }}>
-            <span className="material-icons-outlined" style={{ color: '#6366F1', fontSize: '18px' }}>schedule</span>
-          </div>
-          <div className="summary-label">{dict.collection.oldestDue}</div>
-          <div className="summary-value" style={{ color: '#6366F1' }}>{overdueTotals.maxDays}d</div>
-        </div>
-      </div>
+        );
+      })()}
 
       <div className="card" style={{ marginBottom: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
