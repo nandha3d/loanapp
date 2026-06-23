@@ -87,6 +87,7 @@ export async function manageMasterUser(formData: FormData, actorOverride?: Actio
 
   const bypassLoanApproval = formData.get('bypassLoanApproval') === 'true' || formData.get('bypassLoanApproval') === 'on';
   const bypassCustomerApproval = formData.get('bypassCustomerApproval') === 'true' || formData.get('bypassCustomerApproval') === 'on';
+  const bypassVehicleApproval = formData.get('bypassVehicleApproval') === 'true' || formData.get('bypassVehicleApproval') === 'on';
   const autoReleaseFloat = formData.get('autoReleaseFloat') === 'true' || formData.get('autoReleaseFloat') === 'on';
   const feeConfirmationMandatory = formData.get('feeConfirmationMandatory') === 'true' || formData.get('feeConfirmationMandatory') === 'on';
 
@@ -182,6 +183,7 @@ export async function manageMasterUser(formData: FormData, actorOverride?: Actio
       age,
       bypassLoanApproval,
       bypassCustomerApproval,
+      bypassVehicleApproval,
       autoReleaseFloat,
       feeConfirmationMandatory,
     };
@@ -234,6 +236,7 @@ export async function manageMasterUser(formData: FormData, actorOverride?: Actio
           age,
           bypassLoanApproval,
           bypassCustomerApproval,
+          bypassVehicleApproval,
           autoReleaseFloat,
           feeConfirmationMandatory,
         }
@@ -705,6 +708,7 @@ export async function manageBranchAgent(formData: FormData, actorOverride?: Acti
 
   const bypassLoanApproval = formData.get('bypassLoanApproval') === 'true' || formData.get('bypassLoanApproval') === 'on';
   const bypassCustomerApproval = formData.get('bypassCustomerApproval') === 'true' || formData.get('bypassCustomerApproval') === 'on';
+  const bypassVehicleApproval = formData.get('bypassVehicleApproval') === 'true' || formData.get('bypassVehicleApproval') === 'on';
   const autoReleaseFloat = formData.get('autoReleaseFloat') === 'true' || formData.get('autoReleaseFloat') === 'on';
   const feeConfirmationMandatory = formData.get('feeConfirmationMandatory') === 'true' || formData.get('feeConfirmationMandatory') === 'on';
 
@@ -758,7 +762,7 @@ export async function manageBranchAgent(formData: FormData, actorOverride?: Acti
     if (!target) return { success: false, error: 'Agent not found in your branch.' };
     const data: any = { name, username, phone, email, status,
       aadharNumber, dob, experience, age,
-      bypassLoanApproval, bypassCustomerApproval, autoReleaseFloat, feeConfirmationMandatory };
+      bypassLoanApproval, bypassCustomerApproval, bypassVehicleApproval, autoReleaseFloat, feeConfirmationMandatory };
     if (password) data.passwordHash = await bcrypt.hash(password, 10);
     await prisma.user.update({ where: { id }, data });
     await prisma.auditLog.create({
@@ -777,7 +781,7 @@ export async function manageBranchAgent(formData: FormData, actorOverride?: Acti
           passwordHash: await bcrypt.hash(password, 10),
           role: 'agent', appType, status, canCreateLoan: true,
           aadharNumber, dob, experience, age,
-          bypassLoanApproval, bypassCustomerApproval, autoReleaseFloat, feeConfirmationMandatory },
+          bypassLoanApproval, bypassCustomerApproval, bypassVehicleApproval, autoReleaseFloat, feeConfirmationMandatory },
       });
       savedUserId = created.id;
       await prisma.auditLog.create({

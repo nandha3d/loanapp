@@ -64,7 +64,7 @@ export default function Sidebar({
     { section: dict.sidebar.sections.management },
     { id: 'customers', icon: 'people', label: dict.sidebar.customers, href: '/customers' },
     { id: 'loans', icon: 'account_balance', label: dict.sidebar.loans, href: '/loans', appTypes: ['microlending', 'autofinance', 'goldloan'] },
-    { id: 'vehicles', icon: 'directions_car', label: dict.sidebar.vehicles, href: '/vehicles', adminOnly: true, appTypes: ['autofinance'] },
+    { id: 'vehicles', icon: 'directions_car', label: dict.sidebar.vehicles, href: '/vehicles', appTypes: ['autofinance'] },
     { id: 'chits', icon: 'savings', label: dict.sidebar.chits, href: '/chits', adminOnly: true, appTypes: ['chitfunds'] },
     { id: 'penalties', icon: 'gavel', label: dict.sidebar.penalties, href: '/penalties', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
     { id: 'approvals', icon: 'verified', label: dict.sidebar.approvals, href: '/approvals', appTypes: ['microlending', 'autofinance', 'goldloan'] },

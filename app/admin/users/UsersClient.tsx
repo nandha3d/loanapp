@@ -826,9 +826,23 @@ export default function UsersClient({
               </label>
 
               <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
-                <input 
-                  type="checkbox" 
-                  name="autoReleaseFloat" 
+                <input
+                  type="checkbox"
+                  name="bypassVehicleApproval"
+                  value="true"
+                  defaultChecked={!!editingUser?.bypassVehicleApproval}
+                  style={{ marginTop: '3px' }}
+                />
+                <div>
+                  <strong style={{ fontSize: '.85rem', display: 'block' }}>Bypass Vehicle Approval</strong>
+                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>Allow user to file active vehicles (auto finance) without admin review.</span>
+                </div>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  name="autoReleaseFloat"
                   value="true" 
                   defaultChecked={!!editingUser?.autoReleaseFloat} 
                   style={{ marginTop: '3px' }}

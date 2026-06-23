@@ -143,6 +143,7 @@ model User {
   age                      Int?               @map("age")
   bypassLoanApproval       Boolean            @default(false) @map("bypass_loan_approval")
   bypassCustomerApproval   Boolean            @default(false) @map("bypass_customer_approval")
+  bypassVehicleApproval    Boolean            @default(false) @map("bypass_vehicle_approval")
   autoReleaseFloat         Boolean            @default(false) @map("auto_release_float")
   feeConfirmationMandatory Boolean            @default(false) @map("fee_confirmation_mandatory")
   approvalRequestsMade       ApprovalRequest[]  @relation("Requester")

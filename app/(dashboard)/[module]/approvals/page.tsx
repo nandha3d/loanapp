@@ -41,6 +41,7 @@ export default async function ApprovalsPage() {
   // Fetch pending_review loans for admin/superadmin/developer
   let pendingLoans: any[] = [];
   let pendingCustomers: any[] = [];
+  let pendingVehicles: any[] = [];
   if (userRole !== 'agent') {
     const loanWhere: any = { tenantId, appType, status: 'pending_review' };
     if (activeBranchId) loanWhere.branchId = activeBranchId;
@@ -62,6 +63,21 @@ export default async function ApprovalsPage() {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    // Vehicles only exist in autofinance. Scope by the customer's branch (vehicles
+    // have no branch column of their own).
+    if (appType === 'autofinance') {
+      const vehicleWhere: any = { tenantId, appType, status: 'pending_review', deletedAt: null };
+      if (activeBranchId) vehicleWhere.customer = { branchId: activeBranchId };
+      pendingVehicles = await prisma.vehicle.findMany({
+        where: vehicleWhere,
+        include: {
+          customer: { select: { name: true, customerCode: true, agent: { select: { name: true } } } },
+          loan: { select: { loanCode: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
   }
 
   return (
@@ -69,6 +85,7 @@ export default async function ApprovalsPage() {
       requests={requests}
       pendingLoans={pendingLoans}
       pendingCustomers={pendingCustomers}
+      pendingVehicles={pendingVehicles}
       userRole={userRole}
       dict={dict}
     />

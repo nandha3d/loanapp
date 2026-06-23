@@ -6,7 +6,6 @@ import { corsHeadersFor } from '@/lib/cors';
 
 const AGENT_BLOCKED = [
   '/dashboard',
-  '/vehicles',
   '/chits',
   '/penalties',
   '/reports',
@@ -144,9 +143,10 @@ export function getRoleRedirectTarget(
   }
 
   // Bare module-exclusive route (no module prefix) → send to its owning module
-  // so it resolves instead of 404-ing. Agents are blocked from these and fall
-  // through to the agent block below (which routes them to a safe page).
-  if (role !== 'agent' && module === null) {
+  // so it resolves instead of 404-ing. For agents the prefixed path re-enters
+  // middleware: /autofinance/vehicles renders (agents allowed), while
+  // /chitfunds/chits hits the agent block below and lands on agent-dashboard.
+  if (module === null) {
     const exclusive = bareExclusiveModule(pathname);
     if (exclusive) return `/${exclusive}${pathname}`;
   }

@@ -672,3 +672,106 @@ export async function rejectCustomerCreation(customerId: string, reviewNotes?: s
   revalidatePath('/approvals');
   return { success: true };
 }
+
+export async function approveVehicleCreation(vehicleId: string) {
+  const session = await auth();
+  const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  const userId = session?.user?.id;
+  const userRole = (session?.user as any)?.role;
+  if (userRole === 'agent') return { success: false, error: 'Unauthorized' };
+
+  const vehicle = await prisma.vehicle.findFirst({
+    where: { id: vehicleId, tenantId, status: 'pending_review' },
+    select: {
+      id: true,
+      registrationNo: true,
+      customer: { select: { agentId: true, branchId: true, name: true } },
+    },
+  });
+  if (!vehicle) return { success: false, error: 'Vehicle not found or not in pending review' };
+
+  await prisma.vehicle.update({ where: { id: vehicleId }, data: { status: 'active' } });
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId: tenantId!,
+      userId,
+      action: 'approve',
+      entityType: 'vehicle',
+      entityId: vehicleId,
+      newValue: JSON.stringify({ action: 'approve_creation', status: 'active' }),
+    },
+  });
+
+  // Notify the filing agent (the vehicle's customer's agent).
+  if (vehicle.customer?.agentId) {
+    await notifyUser({
+      tenantId,
+      branchId: vehicle.customer.branchId,
+      appType,
+      targetUserId: vehicle.customer.agentId,
+      targetRole: 'agent',
+      type: 'vehicle_approved',
+      icon: 'check_circle',
+      title: 'Vehicle approved',
+      message: `Vehicle ${vehicle.registrationNo} has been approved and is now active.`,
+      link: modulePath(appType, '/vehicles'),
+    });
+  }
+
+  revalidatePath('/vehicles');
+  revalidatePath('/approvals');
+  return { success: true };
+}
+
+export async function rejectVehicleCreation(vehicleId: string, reviewNotes?: string) {
+  const session = await auth();
+  const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  const userId = session?.user?.id;
+  const userRole = (session?.user as any)?.role;
+  if (userRole === 'agent') return { success: false, error: 'Unauthorized' };
+
+  const vehicle = await prisma.vehicle.findFirst({
+    where: { id: vehicleId, tenantId, status: 'pending_review' },
+    select: {
+      id: true,
+      registrationNo: true,
+      customer: { select: { agentId: true, branchId: true, name: true } },
+    },
+  });
+  if (!vehicle) return { success: false, error: 'Vehicle not found or not in pending review' };
+
+  await prisma.vehicle.update({ where: { id: vehicleId }, data: { status: 'inactive' } });
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId: tenantId!,
+      userId,
+      action: 'reject',
+      entityType: 'vehicle',
+      entityId: vehicleId,
+      newValue: JSON.stringify({ action: 'reject_creation', status: 'inactive', reviewNotes }),
+    },
+  });
+
+  if (vehicle.customer?.agentId) {
+    await notifyUser({
+      tenantId,
+      branchId: vehicle.customer.branchId,
+      appType,
+      targetUserId: vehicle.customer.agentId,
+      targetRole: 'agent',
+      type: 'vehicle_rejected',
+      icon: 'cancel',
+      title: 'Vehicle rejected',
+      message: `Vehicle ${vehicle.registrationNo} was not approved.${reviewNotes ? ` Note: ${reviewNotes}` : ''}`,
+      link: modulePath(appType, '/vehicles'),
+    });
+  }
+
+  revalidatePath('/vehicles');
+  revalidatePath('/approvals');
+  return { success: true };
+}
