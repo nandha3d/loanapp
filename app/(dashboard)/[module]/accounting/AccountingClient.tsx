@@ -27,6 +27,9 @@ export default function AccountingClient({
     totalCollected: number;
     totalExpenses: number;
     currentCapital: number;
+    liquidCash: number;
+    loanOutstanding: number;
+    netWorth: number;
     grossProfit: number;
     netProfit: number;
     releasedToAgents: number;
@@ -295,10 +298,41 @@ export default function AccountingClient({
       {/* KPI Cards */}
       <div className="kpi-grid">
         <div className="kpi-card">
+          <div className="kpi-icon green"><span className="material-icons-outlined">account_balance</span></div>
+          <div>
+            <div className="kpi-value">{formatCurrency(summary.netWorth, currencySymbol)}</div>
+            <div className="kpi-label">{ac.netWorth || 'Net Worth (Capital)'}</div>
+            <div style={{ fontSize: '.68rem', color: 'var(--text-light)', marginTop: '2px' }}>Liquid Cash + Loan Outstanding</div>
+          </div>
+        </div>
+        <div className="kpi-card">
           <div className="kpi-icon green"><span className="material-icons-outlined">savings</span></div>
           <div>
-            <div className="kpi-value">{formatCurrency(summary.currentCapital, currencySymbol)}</div>
-            <div className="kpi-label">{ac.currentCapital || 'Current Capital'}</div>
+            <div className="kpi-value">{formatCurrency(summary.liquidCash, currencySymbol)}</div>
+            <div className="kpi-label">{ac.liquidCash || 'Liquid Cash'}</div>
+            <div style={{ fontSize: '.68rem', color: 'var(--text-light)', marginTop: '2px' }}>Branch + Agent cash on hand</div>
+          </div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-icon blue"><span className="material-icons-outlined">account_balance_wallet</span></div>
+          <div>
+            <div className="kpi-value">{formatCurrency(summary.branchCashAvailable, currencySymbol)}</div>
+            <div className="kpi-label">{ac.branchCashOffice || 'Branch Cash (office)'}</div>
+          </div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-icon orange"><span className="material-icons-outlined">savings</span></div>
+          <div>
+            <div className="kpi-value">{formatCurrency(summary.agentFloat, currencySymbol)}</div>
+            <div className="kpi-label">{ac.agentCashField || 'Agent Cash (field)'}</div>
+          </div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-icon blue"><span className="material-icons-outlined">request_quote</span></div>
+          <div>
+            <div className="kpi-value">{formatCurrency(summary.loanOutstanding, currencySymbol)}</div>
+            <div className="kpi-label">{ac.loanOutstanding || 'Loan Outstanding'}</div>
+            <div style={{ fontSize: '.68rem', color: 'var(--text-light)', marginTop: '2px' }}>Receivable from borrowers</div>
           </div>
         </div>
         <div className="kpi-card">
@@ -306,13 +340,6 @@ export default function AccountingClient({
           <div>
             <div className="kpi-value">{formatCurrency(metrics.releasedToAgents, currencySymbol)}</div>
             <div className="kpi-label">Released to Agent</div>
-          </div>
-        </div>
-        <div className="kpi-card">
-          <div className="kpi-icon blue"><span className="material-icons-outlined">account_balance_wallet</span></div>
-          <div>
-            <div className="kpi-value">{formatCurrency(summary.branchCashAvailable, currencySymbol)}</div>
-            <div className="kpi-label">Branch Cash Available</div>
           </div>
         </div>
         <div className="kpi-card">

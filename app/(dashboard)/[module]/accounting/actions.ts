@@ -199,6 +199,26 @@ export async function getAccountingSummary(tenantId: string, branchId?: string |
   ]);
   const releasedToAgents = Math.abs(Number(releasedAgg._sum.amount ?? 0));
 
+  // Loan Book Outstanding = amount borrowers still owe (unpaid instalments on
+  // live loans). This is the receivable asset — the cash you lent that is still
+  // yours, just in someone else's hands.
+  const outstandingAgg = await prisma.instalment.aggregate({
+    where: { loan: { tenantId, status: { in: ['active', 'overdue'] }, ...(branchId ? { branchId } : {}) } },
+    _sum: { dueAmount: true, receivedAmount: true },
+  });
+  const loanOutstanding = Math.max(
+    0,
+    Number(outstandingAgg._sum.dueAmount ?? 0) - Number(outstandingAgg._sum.receivedAmount ?? 0),
+  );
+
+  const branchCashAvailable = Number(branchCashAgg._sum.balance ?? 0);
+  const agentFloat = Number(agentFloatAgg._sum.balance ?? 0);
+  // Liquid Cash = all cash physically held (office safe + agents in the field).
+  const liquidCash = branchCashAvailable + agentFloat;
+  // Net Worth (Capital) = cash on hand + receivable. Stays flat when you lend
+  // (cash drops, receivable rises by the same amount).
+  const netWorth = liquidCash + loanOutstanding;
+
   return {
     capitalIn,
     capitalOut,
@@ -206,11 +226,14 @@ export async function getAccountingSummary(tenantId: string, branchId?: string |
     totalCollected,
     totalExpenses,
     currentCapital,
+    liquidCash,
+    loanOutstanding,
+    netWorth,
     grossProfit,
     netProfit,
     releasedToAgents,
-    branchCashAvailable: Number(branchCashAgg._sum.balance ?? 0),
-    agentFloat: Number(agentFloatAgg._sum.balance ?? 0),
+    branchCashAvailable,
+    agentFloat,
     releaseEntries,
     loans,
     entries,
