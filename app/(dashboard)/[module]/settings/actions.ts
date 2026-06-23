@@ -521,6 +521,13 @@ export async function wipeDatabaseRecords(tablesToWipe: string[]) {
 
       if (tablesToWipe.includes('accounting')) {
         await tx.accountEntry.deleteMany({ where: { tenantId } });
+        // Wallet ledger drives Branch Cash / Agent Float / Released-to-Agent on
+        // the dashboard. Clear the transactions first, then zero the balances by
+        // removing the account rows (recreated lazily on next release/disburse).
+        await tx.walletTransaction.deleteMany({ where: { tenantId } });
+        await tx.cashHandover.deleteMany({ where: { tenantId } });
+        await tx.agentAccount.deleteMany({ where: { tenantId } });
+        await tx.branchCashAccount.deleteMany({ where: { tenantId } });
       }
 
       // Helper function to delete a specific set of users
