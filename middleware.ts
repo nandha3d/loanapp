@@ -100,6 +100,7 @@ function publicUrl(request: NextRequest, path: string): URL {
 export function isPublicPath(pathname: string): boolean {
   return (
     pathname === '/favicon.ico' ||
+    pathname === '/firebase-messaging-sw.js' ||
     pathname === '/login' ||
     pathname === '/register' ||
     pathname === '/forgot-password' ||
