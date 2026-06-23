@@ -16,6 +16,21 @@ const AGENT_BLOCKED = [
   '/analytics',
 ];
 
+// Module-exclusive routes that only live under one module. When hit WITHOUT a
+// module prefix (bare /chits, /vehicles — e.g. a typed URL or stale link) the
+// `[module]` segment captures the page name and 404s. Map them to their owner.
+const BARE_EXCLUSIVE: Record<string, string> = {
+  '/chits': 'chitfunds',
+  '/vehicles': 'autofinance',
+};
+
+function bareExclusiveModule(pathname: string): string | null {
+  for (const [bare, mod] of Object.entries(BARE_EXCLUSIVE)) {
+    if (pathname === bare || pathname.startsWith(`${bare}/`)) return mod;
+  }
+  return null;
+}
+
 const SUPERADMIN_ONLY: string[] = [];
 const DEVELOPER_ONLY = ['/admin'];
 const PUBLIC_BASE_PATH = normalizeBasePath(process.env.NEXT_PUBLIC_BASE_PATH);
@@ -126,6 +141,14 @@ export function getRoleRedirectTarget(
       return '/admin';
     }
     return null;
+  }
+
+  // Bare module-exclusive route (no module prefix) → send to its owning module
+  // so it resolves instead of 404-ing. Agents are blocked from these and fall
+  // through to the agent block below (which routes them to a safe page).
+  if (role !== 'agent' && module === null) {
+    const exclusive = bareExclusiveModule(pathname);
+    if (exclusive) return `/${exclusive}${pathname}`;
   }
 
   // Superadmin: allow specific /admin paths for user and branch management
