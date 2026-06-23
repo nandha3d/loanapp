@@ -77,6 +77,24 @@ export function getInitials(name: string): string {
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 }
 
+// Relative time for the last 24h ("5 minutes ago"); the exact date + time once
+// it crosses 24h, so older notifications stay meaningful. `labels` are i18n
+// strings for the relative units.
+export function formatNotificationTime(
+  dateStr: string | Date,
+  labels: { justNow: string; minutesAgo: string; hoursAgo: string },
+): string {
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return '';
+  const diff = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (diff < 60) return labels.justNow;
+  if (diff < 3600) return `${Math.floor(diff / 60)} ${labels.minutesAgo}`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} ${labels.hoursAgo}`;
+  return date.toLocaleString('en-IN', {
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+}
+
 // ─── Percentage Helper ────────────────────────
 export function calcPercentage(current: number, total: number): number {
   if (total === 0) return 0;
