@@ -344,10 +344,14 @@ export async function POST(req: NextRequest) {
       newValue: { loanCode, principal, customerId },
     });
 
-    // Disburse cash from the float ledger. For agents, this happens automatically
-    // on creation if autoReleaseFloat is enabled. For admin/superadmin (loan goes straight
-    // to active), we draw from the branch cash pool.
-    if (loan.status === 'active' && autoReleaseFloat) {
+    // Disburse cash from the float ledger. An agent physically hands the NET
+    // disbursed cash to the customer, so their float ALWAYS drops by that amount
+    // when the loan is active (not gated by autoReleaseFloat). Admin/superadmin
+    // loans draw from the branch cash pool. Note: `disbursedAmount` is already
+    // net of the upfront fee for upfront loans (= principal for EMI loans), so the
+    // upfront fee is never deducted from the float.
+    const shouldDisburse = loan.status === 'active' && (ctx.role === 'agent' || autoReleaseFloat);
+    if (shouldDisburse) {
       try {
         const disburseAmt = Number(preview.disbursedAmount);
         if (ctx.role === 'agent') {

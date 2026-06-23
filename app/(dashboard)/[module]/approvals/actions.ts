@@ -501,7 +501,7 @@ export async function reviewPendingLoan(formData: FormData) {
 
   const loan = await prisma.loan.findFirst({
     where: { id: loanId, tenantId, status: 'pending_review' },
-    select: { id: true, loanCode: true, branchId: true, createdById: true, disbursed: true },
+    select: { id: true, loanCode: true, branchId: true, createdById: true, disbursed: true, startDate: true },
   });
 
   if (!loan) {
@@ -532,7 +532,11 @@ export async function reviewPendingLoan(formData: FormData) {
           autoRelease = isAgent ? creator!.autoReleaseFloat !== false : true;
         }
 
-        if (autoRelease) {
+        // An agent's float ALWAYS drops by the net disbursed when their loan is
+        // approved (the cash was handed to the customer); not gated by
+        // autoReleaseFloat. Admin/branch loans honour autoRelease (always true).
+        const shouldDisburse = isAgent ? true : autoRelease;
+        if (shouldDisburse) {
           const disburseAmt = Number(loan.disbursed);
           if (isAgent && loan.createdById) {
             await disburseFromAgent(tx, {
@@ -551,6 +555,23 @@ export async function reviewPendingLoan(formData: FormData) {
               byUserId: userId,
             });
           }
+          // Record the cash leaving the books (drives the capital balance). At
+          // creation this is posted only for already-active loans, so approved
+          // loans need it here too.
+          await tx.accountEntry.create({
+            data: {
+              tenantId,
+              branchId: loan.branchId || undefined,
+              entryDate: loan.startDate || new Date(),
+              type: 'loan_disburse',
+              category: 'cash',
+              amount: disburseAmt,
+              description: `Loan ${loan.loanCode} disbursed to customer`,
+              referenceId: loan.id,
+              referenceType: 'loan',
+              createdBy: loan.createdById || userId,
+            },
+          });
         }
       }
 
