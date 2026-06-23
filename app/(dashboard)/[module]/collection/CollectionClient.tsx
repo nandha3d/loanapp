@@ -153,8 +153,9 @@ export default function CollectionClient({
     () => {
       const tab = searchParams.get('tab');
       if (tab === 'overdue') return 'overdue';
-      if (tab === 'today') return 'today';
-      return 'all';
+      if (tab === 'all') return 'all';
+      // Default to today's worklist — the agent's day-to-day view.
+      return 'today';
     },
   );
   const [frequencyFilter, setFrequencyFilter] = useState('');
