@@ -712,8 +712,10 @@ export default function LoanDetailClient({
                   </div>
                 ) : (
                   // DEFAULT — extend the term at the normal rate; finish slides out.
-                  <div style={{ gridColumn: 'span 4', borderTop: '1px dashed var(--border)', paddingTop: '12px', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                    <div>
+                  // Same flex layout as the restructure panel so the ₹/Day on the
+                  // right keeps its position (no wrap / no shift).
+                  <div style={{ gridColumn: 'span 4', borderTop: '1px dashed var(--border)', paddingTop: '12px', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ minWidth: 0, paddingRight: '12px' }}>
                       <span style={{ fontSize: '.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>📅 Extended Plan (normal rate)</span>
                       <p style={{ fontSize: '.68rem', color: 'var(--text-light)', margin: '2px 0 0' }}>
                         {extended.remainingPayments} more {loan.frequency === 'daily' ? 'days' : loan.frequency === 'weekly' ? 'weeks' : loan.frequency === 'monthly' ? 'months' : 'periods'} at {formatCurrency(loan.perInstalment, currencySymbol)}
@@ -721,7 +723,7 @@ export default function LoanDetailClient({
                         {' · '}finishes <strong style={{ color: 'var(--text-secondary)' }}>{formatDate(extended.projectedEndDate)}</strong>
                       </p>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       <span style={{ fontSize: '.9rem', fontWeight: 800, color: 'var(--primary)' }}>
                         {formatCurrency(loan.perInstalment, currencySymbol)}
                       </span>
@@ -767,9 +769,26 @@ export default function LoanDetailClient({
                     </div>
                   );
                 })}
+                {/* Extended days (extend mode) — projected term beyond the original. */}
+                {!showRestructuredRates && projectedExtraRows.map((r) => (
+                  <div
+                    key={`cal-proj-${r.no}`}
+                    className="heatmap-cell"
+                    style={{ width: '18px', height: '18px', borderRadius: '3px', backgroundColor: '#C7D2FE', border: '1px dashed #6366F1' }}
+                  >
+                    <div className="tooltip-content">
+                      <div style={{ fontWeight: 800, marginBottom: '2px', borderBottom: '1px solid #475569', paddingBottom: '2px', fontSize: '.75rem' }}>
+                        #{r.no} (Projected)
+                      </div>
+                      <div>Due: <strong>{formatDate(r.date)}</strong></div>
+                      <div>Amount: <strong>{formatCurrency(r.amount, currencySymbol)}</strong></div>
+                      <div style={{ marginTop: '2px', fontWeight: 700, color: '#A5B4FC' }}>Extended day</div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
- 
+
             <div className="stats-col" style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center' }}>
               <div style={{ display: 'flex', gap: '20px', alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{ textAlign: 'center' }}>
