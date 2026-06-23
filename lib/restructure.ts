@@ -67,6 +67,61 @@ export function computeRestructure(instalments: RInstalment[], now = new Date())
 }
 
 /**
+ * "Extend days" projection (the DEFAULT model): keep paying the normal
+ * per-instalment amount, and let the finish date slide out by one period for
+ * every unpaid due. Pure/derived from the outstanding balance — no DB mutation.
+ *
+ *   remainingPayments = ceil(outstanding / perInstalment)   (last one = finalPartial)
+ *   projectedEndDate  = today + (remainingPayments - 1) periods
+ *   extraPeriods      = remainingPayments - (unpaid instalments dated today-or-later)
+ *                       = how many days the term grows beyond the original schedule
+ *
+ * Paying (full/partial) lowers `outstanding` → fewer remaining payments → finish
+ * pulls in. An unpaid day advances `today` → finish slides +1.
+ */
+export function computeExtendedSchedule(
+  instalments: RInstalment[],
+  perInstalment: number,
+  frequency: string,
+  now = new Date(),
+) {
+  const today = startOfDay(now);
+  let outstanding = 0;
+  let futureUnpaid = 0; // unpaid instalments dated today-or-later
+  for (const i of instalments) {
+    const out = Math.max(0, Number(i.dueAmount) - Number(i.receivedAmount ?? 0));
+    if (out <= 0) continue;
+    outstanding += out;
+    if (startOfDay(new Date(i.dueDate)).getTime() >= today.getTime()) futureUnpaid += 1;
+  }
+
+  const per = perInstalment > 0 ? perInstalment : 1;
+  const remainingPayments = Math.ceil(outstanding / per);
+  const finalPartial = remainingPayments > 0
+    ? Math.round((outstanding - (remainingPayments - 1) * per) * 100) / 100
+    : 0;
+
+  const step = frequency === 'weekly' ? 7 : frequency === 'biweekly' ? 14 : frequency === 'monthly' ? 30 : 1;
+  const projectedDates: Date[] = [];
+  for (let k = 0; k < remainingPayments; k++) {
+    const d = new Date(today);
+    if (frequency === 'monthly') d.setMonth(d.getMonth() + k);
+    else d.setDate(d.getDate() + k * step);
+    projectedDates.push(d);
+  }
+  const projectedEndDate = projectedDates.length ? projectedDates[projectedDates.length - 1] : today;
+
+  return {
+    outstanding: Math.round(outstanding * 100) / 100,
+    remainingPayments,
+    finalPartial,
+    projectedDates,
+    projectedEndDate,
+    extraPeriods: Math.max(0, remainingPayments - futureUnpaid),
+  };
+}
+
+/**
  * Per-instalment amount to display when "restructured rate" is on: the spread
  * rate for unpaid instalments due AFTER today (the remaining periods you'll
  * actually pay at the new rate); other rows keep their own due amount.

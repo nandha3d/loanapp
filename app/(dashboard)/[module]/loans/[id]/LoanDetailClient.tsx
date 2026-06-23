@@ -8,6 +8,7 @@ import { createSelfPayLinkAction } from '../../collection/runActions';
 import Link from '@/components/layout/DashboardLink';
 import { useRouter } from 'next/navigation';
 import { calculateCreditScore } from '@/lib/creditScore';
+import { computeExtendedSchedule } from '@/lib/restructure';
 import { getCreditScoreGaugePresentation } from '@/lib/creditScoreGauge';
 import NachPanel from './NachPanel';
 import LoanTimeline from './LoanTimeline';
@@ -153,6 +154,26 @@ export default function LoanDetailClient({
   const dynamicRemainingCount = useMemo(() => {
     return Math.ceil(outstanding / Number(loan.perInstalment));
   }, [outstanding, loan.perInstalment]);
+
+  // DEFAULT "extend days" projection: keep paying the normal per-instalment, slide
+  // the finish out one period per unpaid due. Recomputed live from outstanding.
+  const extended = useMemo(
+    () => computeExtendedSchedule(loan.instalments || [], Number(loan.perInstalment), loan.frequency, new Date()),
+    [loan.instalments, loan.perInstalment, loan.frequency],
+  );
+  // Projected rows BEYOND the original schedule's last date — appended (muted) to
+  // the schedule in extend mode so the extra days are visible.
+  const projectedExtraRows = useMemo(() => {
+    if (extended.extraPeriods <= 0) return [] as { no: number; date: Date; amount: number }[];
+    const per = Number(loan.perInstalment) || 0;
+    const startNo = loan.totalInstalments + 1;
+    const dates = extended.projectedDates.slice(-extended.extraPeriods);
+    return dates.map((date, idx) => ({
+      no: startNo + idx,
+      date,
+      amount: idx === dates.length - 1 ? extended.finalPartial : per,
+    }));
+  }, [extended, loan.perInstalment, loan.totalInstalments]);
 
   const dynamicPaidCount = useMemo(() => {
     return Math.max(0, loan.totalInstalments - dynamicRemainingCount);
@@ -670,22 +691,44 @@ export default function LoanDetailClient({
               </div>
 
               {outstanding > 0 && (
-                <div style={{ gridColumn: 'span 4', borderTop: '1px dashed var(--border)', paddingTop: '12px', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <span style={{ fontSize: '.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>💡 Finishing Rate Option</span>
-                    <p style={{ fontSize: '.68rem', color: 'var(--text-light)', margin: '2px 0 0' }}>
-                      {restructureRemainingCount > 0 
-                        ? `Outstanding balance spread across the remaining ${restructureRemainingCount} ${loan.frequency === 'daily' ? 'days' : loan.frequency === 'weekly' ? 'weeks' : 'months'} to finish on time:`
-                        : 'Outstanding balance (overdue past end date):'}
-                    </p>
+                showRestructuredRates ? (
+                  // RESTRUCTURE (toggle on): keep the original tenure, raise the rate
+                  // so the backlog clears by the original end date. Unchanged.
+                  <div style={{ gridColumn: 'span 4', borderTop: '1px dashed var(--border)', paddingTop: '12px', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <span style={{ fontSize: '.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>💡 Finishing Rate Option</span>
+                      <p style={{ fontSize: '.68rem', color: 'var(--text-light)', margin: '2px 0 0' }}>
+                        {restructureRemainingCount > 0
+                          ? `Outstanding balance spread across the remaining ${restructureRemainingCount} ${loan.frequency === 'daily' ? 'days' : loan.frequency === 'weekly' ? 'weeks' : 'months'} to finish on time:`
+                          : 'Outstanding balance (overdue past end date):'}
+                      </p>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '.9rem', fontWeight: 800, color: 'var(--primary)' }}>
+                        {formatCurrency(adjustedInstallment, currencySymbol)}
+                      </span>
+                      <span style={{ fontSize: '.68rem', color: 'var(--text-light)' }}> / {loan.frequency === 'daily' ? 'Day' : loan.frequency === 'weekly' ? 'Week' : 'Month'}</span>
+                    </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <span style={{ fontSize: '.9rem', fontWeight: 800, color: 'var(--primary)' }}>
-                      {formatCurrency(adjustedInstallment, currencySymbol)}
-                    </span>
-                    <span style={{ fontSize: '.68rem', color: 'var(--text-light)' }}> / {loan.frequency === 'daily' ? 'Day' : loan.frequency === 'weekly' ? 'Week' : 'Month'}</span>
+                ) : (
+                  // DEFAULT — extend the term at the normal rate; finish slides out.
+                  <div style={{ gridColumn: 'span 4', borderTop: '1px dashed var(--border)', paddingTop: '12px', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                    <div>
+                      <span style={{ fontSize: '.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>📅 Extended Plan (normal rate)</span>
+                      <p style={{ fontSize: '.68rem', color: 'var(--text-light)', margin: '2px 0 0' }}>
+                        {extended.remainingPayments} more {loan.frequency === 'daily' ? 'days' : loan.frequency === 'weekly' ? 'weeks' : loan.frequency === 'monthly' ? 'months' : 'periods'} at {formatCurrency(loan.perInstalment, currencySymbol)}
+                        {extended.extraPeriods > 0 ? ` · +${extended.extraPeriods} beyond the original term` : ''}
+                        {' · '}finishes <strong style={{ color: 'var(--text-secondary)' }}>{formatDate(extended.projectedEndDate)}</strong>
+                      </p>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '.9rem', fontWeight: 800, color: 'var(--primary)' }}>
+                        {formatCurrency(loan.perInstalment, currencySymbol)}
+                      </span>
+                      <span style={{ fontSize: '.68rem', color: 'var(--text-light)' }}> / {loan.frequency === 'daily' ? 'Day' : loan.frequency === 'weekly' ? 'Week' : 'Month'}</span>
+                    </div>
                   </div>
-                </div>
+                )
               )}
             </div>
  
@@ -752,7 +795,7 @@ export default function LoanDetailClient({
             <h3>📅 {d.paymentSchedule}</h3>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               {outstanding > 0 && (
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '.72rem', color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '.72rem', color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none' }} title="Default: extend the term at the normal rate. Check to keep the original tenure and raise the rate instead.">
                   <input
                     type="checkbox"
                     checked={showRestructuredRates}
@@ -760,6 +803,7 @@ export default function LoanDetailClient({
                     style={{ width: '13px', height: '13px', cursor: 'pointer' }}
                   />
                   <strong>Show Restructured Rate</strong>
+                  <span style={{ fontSize: '.64rem', color: 'var(--text-light)' }}>({showRestructuredRates ? 'keep tenure, higher rate' : 'default: extend term'})</span>
                 </label>
               )}
               {loan.status !== 'closed' && outstanding > 0 && (
@@ -883,6 +927,19 @@ export default function LoanDetailClient({
                     </tr>
                   );
                 })}
+                {/* Projected extra days (extend mode only) — the term sliding out
+                    past the original schedule. Display-only, non-actionable. */}
+                {!showRestructuredRates && projectedExtraRows.map((r) => (
+                  <tr key={`proj-${r.no}`} style={{ background: 'rgba(99,102,241,0.05)', color: 'var(--text-light)' }}>
+                    <td>{r.no}</td>
+                    <td>{formatDate(r.date)}</td>
+                    <td>—</td>
+                    <td>{formatCurrency(r.amount, currencySymbol)}</td>
+                    <td>—</td>
+                    <td><span className="badge" style={{ background: 'rgba(99,102,241,0.12)', color: '#6366F1' }}>Projected</span></td>
+                    <td>—</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -942,6 +999,16 @@ export default function LoanDetailClient({
                 </div>
               );
             })}
+            {!showRestructuredRates && projectedExtraRows.map((r) => (
+              <div key={`proj-m-${r.no}`} className="sched-row" style={{ borderLeft: '3px solid #6366F1', background: 'rgba(99,102,241,0.05)' }}>
+                <div className="sched-main">
+                  <span className="sched-no">#{r.no}</span>
+                  <span className="sched-date">{formatDate(r.date)}</span>
+                  <span className="sched-amt">{formatCurrency(r.amount, currencySymbol)}</span>
+                  <span className="badge" style={{ background: 'rgba(99,102,241,0.12)', color: '#6366F1', marginLeft: 'auto' }}>Projected</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
