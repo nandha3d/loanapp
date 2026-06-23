@@ -905,7 +905,16 @@ export default function LoanDetailClient({
                   <div className="sched-main">
                     <span className="sched-no">#{inst.instalmentNo}</span>
                     <span className="sched-date">{formatDate(inst.dueDate)}</span>
-                    <span className="sched-amt">{formatCurrency(inst.dueAmount, currencySymbol)}</span>
+                    {showRestructuredRates && Number(inst.receivedAmount) < Number(inst.dueAmount) && new Date(inst.dueDate) >= new Date(new Date().setHours(0, 0, 0, 0)) ? (
+                      <span className="sched-amt" style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5 }}>
+                        <span style={{ color: 'var(--primary)', fontWeight: 800 }}>{formatCurrency(adjustedInstallment, currencySymbol)}</span>
+                        {Math.abs(adjustedInstallment - Number(inst.dueAmount)) >= 0.01 && (
+                          <span style={{ fontSize: '.62rem', color: 'var(--text-light)', textDecoration: 'line-through' }}>{formatCurrency(inst.dueAmount, currencySymbol)}</span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="sched-amt">{formatCurrency(inst.dueAmount, currencySymbol)}</span>
+                    )}
                     <span className={getBadgeClass(inst.status)} style={{ textTransform: 'capitalize', marginLeft: 'auto' }}>{inst.status}</span>
                   </div>
                   <div className="sched-sub">
