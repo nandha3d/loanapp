@@ -21,6 +21,7 @@ import { getSubscription, isTenantSubscriptionExpired } from '@/lib/subscription
 import SubscriptionExpiredModal from '@/components/layout/SubscriptionExpiredModal';
 import TrialBanner from '@/components/TrialBanner';
 import OnboardingTour from '@/components/onboarding/OnboardingTour';
+import MobileBottomNav from '@/components/layout/MobileBottomNav';
 
 export default async function DashboardLayout({
   children,
@@ -112,7 +113,7 @@ export default async function DashboardLayout({
 
   return (
     <div
-      className="app-layout"
+      className={`app-layout${role === 'agent' ? ' has-bottom-nav' : ''}`}
       style={{
         '--primary': theme?.primary ?? appConfig.primaryColor,
         '--primary-dark': theme?.primaryDark ?? appConfig.primaryDark,
@@ -142,6 +143,7 @@ export default async function DashboardLayout({
           {children}
         </div>
       </main>
+      {role === 'agent' && <MobileBottomNav modulePrefix={`/${requestedModule}`} dict={dict} />}
     </div>
   );
 }

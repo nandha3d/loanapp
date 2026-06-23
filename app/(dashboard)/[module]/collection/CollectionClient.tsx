@@ -591,16 +591,17 @@ export default function CollectionClient({
     const m = metricsFor(insts);
     return (
       <>
-        <td>{m.earliestDateIso ? formatDate(m.earliestDateIso) : '-'}</td>
-        <td>{m.dueTodayAmount > 0 ? formatCurrency(m.dueTodayAmount, currencySymbol) : '-'}</td>
-        <td>{m.receivedAmount > 0 ? formatCurrency(m.receivedAmount, currencySymbol) : '-'}</td>
+        <td data-label={dict.collection.dueDate}>{m.earliestDateIso ? formatDate(m.earliestDateIso) : '-'}</td>
+        <td data-label={dict.collection.dueTodayLabel}>{m.dueTodayAmount > 0 ? formatCurrency(m.dueTodayAmount, currencySymbol) : '-'}</td>
+        <td data-label={dict.collection.receivedLabel}>{m.receivedAmount > 0 ? formatCurrency(m.receivedAmount, currencySymbol) : '-'}</td>
         <td
+          data-label={dict.collection.outstandingLabel}
           title={`Total Payable: ${formatCurrency(m.totalLoanPayable, currencySymbol)}\nTotal Paid: ${formatCurrency(m.totalLoanCollected, currencySymbol)}\nRemaining Instalments: ${m.remainingInstalments}`}
           style={{ fontWeight: 700, color: m.totalLoanOutstanding > 0 ? 'var(--danger)' : 'var(--success)', cursor: 'help' }}
         >
           {formatCurrency(m.totalLoanOutstanding, currencySymbol)}
         </td>
-        <td onClick={(e) => e.stopPropagation()}>
+        <td data-label={dict.collection.overdueLabel} onClick={(e) => e.stopPropagation()}>
           {m.overdueInstalments.length > 0 ? (
             <button className="btn btn-ghost btn-sm" onClick={() => setOverdueCustomerGroup(buildOverdueGroup(sg))} style={{ padding: '2px 6px', height: 'auto', minHeight: '26px' }}>
               <span style={{ color: 'var(--danger)', fontWeight: 600 }}>{m.maxDaysOverdue}d</span>
@@ -609,12 +610,12 @@ export default function CollectionClient({
             </button>
           ) : '-'}
         </td>
-        <td>
+        <td data-label={dict.collection.statusLabel}>
           <span className={getBadgeClass(m.displayStatus.toLowerCase())} style={{ textTransform: 'capitalize' }}>
             {m.displayStatus}
           </span>
         </td>
-        <td onClick={(e) => e.stopPropagation()}>
+        <td data-label={dict.collection.actionLabel} onClick={(e) => e.stopPropagation()}>
           <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
             {m.unpaidInstalments.length === 0 ? (
               <>
@@ -674,7 +675,7 @@ export default function CollectionClient({
                   style={{ opacity: pm.isSettled ? 0.62 : 1, cursor: multi ? 'pointer' : undefined }}
                   onClick={multi ? () => toggleCustomerExpand(group.customerId) : undefined}
                 >
-                  <td>
+                  <td data-label={dict.customers.title}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       {multi ? (
                         <span className="material-icons-outlined" style={{ fontSize: '20px', color: 'var(--text-light)', transition: 'transform .2s', transform: expanded ? 'rotate(90deg)' : 'none' }}>chevron_right</span>
@@ -700,7 +701,7 @@ export default function CollectionClient({
                       </div>
                     </div>
                   </td>
-                  <td onClick={(e) => e.stopPropagation()}>
+                  <td data-label={dict.sidebar.loans} onClick={(e) => e.stopPropagation()}>
                     {multi ? (
                       <button
                         type="button"

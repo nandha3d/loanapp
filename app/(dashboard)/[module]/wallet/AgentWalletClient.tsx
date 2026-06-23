@@ -173,15 +173,15 @@ export default function AgentWalletClient({
                 const credit = t.amount >= 0;
                 return (
                   <tr key={t.id}>
-                    <td style={{ whiteSpace: 'nowrap' }}>{formatDate(t.createdAt)}</td>
-                    <td>
+                    <td data-label="Date" style={{ whiteSpace: 'nowrap' }}>{formatDate(t.createdAt)}</td>
+                    <td data-label="Activity">
                       {TYPE_LABEL[t.type] || t.type}
                       {t.note ? <span style={{ color: 'var(--text-light)', fontSize: '.78rem' }}> · {t.note}</span> : null}
                     </td>
-                    <td style={{ textAlign: 'right', fontWeight: 600, color: credit ? 'var(--success)' : 'var(--danger)' }}>
+                    <td data-label="Amount" style={{ textAlign: 'right', fontWeight: 600, color: credit ? 'var(--success)' : 'var(--danger)' }}>
                       {credit ? '+' : '−'}{formatCurrency(Math.abs(t.amount), currencySymbol)}
                     </td>
-                    <td style={{ textAlign: 'right' }}>{formatCurrency(t.balanceAfter, currencySymbol)}</td>
+                    <td data-label="Balance" style={{ textAlign: 'right' }}>{formatCurrency(t.balanceAfter, currencySymbol)}</td>
                   </tr>
                 );
               })}

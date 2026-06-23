@@ -103,7 +103,7 @@ export default async function CustomersPage({
               
               return (
                 <tr key={c.id}>
-                  <td>
+                  <td data-label={dict.customersList.customerId}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <div className="profile-avatar" style={{ width: '32px', height: '32px', fontSize: '.75rem', flexShrink: 0 }}>
                         {c.profilePhoto ? (
@@ -115,10 +115,10 @@ export default async function CustomersPage({
                       <strong>{c.customerCode}</strong>
                     </div>
                   </td>
-                  <td>{c.name}</td>
-                  <td>{c.phone}</td>
-                  <td>{c.route?.name || '—'}</td>
-                  <td>
+                  <td data-label={dict.customersList.name}>{c.name}</td>
+                  <td data-label={dict.customersList.phone}>{c.phone}</td>
+                  <td data-label={dict.customersList.route}>{c.route?.name || '—'}</td>
+                  <td data-label={dict.customersList.score}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <span style={{ 
                         fontWeight: 700, 
@@ -131,7 +131,7 @@ export default async function CustomersPage({
                       </span>
                     </div>
                   </td>
-                  <td>
+                  <td data-label={dict.customersList.activeLoan}>
                     {activeLoan ? (
                       <>
                         <Link href={`/loans/${activeLoan.loanCode}`}>{activeLoan.loanCode}</Link>
@@ -144,12 +144,12 @@ export default async function CustomersPage({
                       <span style={{color:'var(--text-light)'}}>{dict.customersList.none}</span>
                     )}
                   </td>
-                  <td>
+                  <td data-label={dict.customersList.status}>
                     <span className={getBadgeClass(c.status)} style={{textTransform:'capitalize'}}>
                       {c.status === 'pending_review' ? dict.approvals.pendingReview : c.status}
                     </span>
                   </td>
-                  <td>
+                  <td data-label={dict.customersList.action}>
                     <Link href={`/customers/${c.customerCode}`} className="btn btn-ghost btn-sm">{dict.customersList.view}</Link>
                     {userRole !== 'agent' && (
                       <Link href={`/customers/new?edit=${c.id}`} className="btn btn-ghost btn-sm">{dict.customersList.edit}</Link>
