@@ -648,8 +648,79 @@ export default function CollectionClient({
     );
   };
 
+  // App-like card list for mobile (the table is hidden <=768px via CSS). Big
+  // name, big due, big Pay button — scannable and thumb-friendly.
+  const renderMobileCards = (groups: UnifiedGroup[]) => (
+    <div className="collection-cards">
+      {groups.map((group) => {
+        const m = metricsFor(group.instalments);
+        const settled = m.unpaidInstalments.length === 0;
+        const payAmount = m.dueTodayAmount > 0 ? m.dueTodayAmount : m.totalLoanOutstanding;
+        return (
+          <div key={group.customerId} className="collect-card" style={{ opacity: m.isSettled ? 0.7 : 1 }}>
+            <div className="collect-card-head">
+              <div className="profile-avatar" style={{ width: 40, height: 40, fontSize: '.9rem', flexShrink: 0 }}>
+                {getInitials(group.customerName)}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <Link href={`/customers/${group.customerCode}`} onClick={(e) => e.stopPropagation()} style={{ fontWeight: 700, fontSize: '1.02rem' }}>
+                  {group.customerName}
+                </Link>
+                <div className="collect-muted" style={{ textTransform: 'none', letterSpacing: 0 }}>
+                  {group.loanCodes.join(', ')} · {group.routeName}
+                </div>
+              </div>
+              <span className={getBadgeClass(m.displayStatus.toLowerCase())} style={{ textTransform: 'capitalize', flexShrink: 0 }}>
+                {m.displayStatus}
+              </span>
+            </div>
+
+            <div className="collect-card-figs">
+              <div>
+                <span className="collect-muted">{dict.collection.dueTodayLabel}</span>
+                <b className="collect-big">{formatCurrency(m.dueTodayAmount, currencySymbol)}</b>
+              </div>
+              <div>
+                <span className="collect-muted">{dict.collection.outstandingLabel}</span>
+                <b style={{ fontSize: '1rem', fontWeight: 800, color: m.totalLoanOutstanding > 0 ? 'var(--danger)' : 'var(--success)' }}>
+                  {formatCurrency(m.totalLoanOutstanding, currencySymbol)}
+                </b>
+              </div>
+              {m.totalOverdueAmount > 0 && (
+                <div>
+                  <span className="collect-muted">{dict.collection.overdueLabel} · {m.maxDaysOverdue}d</span>
+                  <b style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--danger)' }}>{formatCurrency(m.totalOverdueAmount, currencySymbol)}</b>
+                </div>
+              )}
+            </div>
+
+            {settled ? (
+              <button className="btn btn-secondary btn-block" onClick={() => openModal(group.instalments[0])}>
+                <span className="material-icons-outlined" style={{ fontSize: 18 }}>{isAdmin ? 'edit' : 'history_edu'}</span>
+                {isAdmin ? dict.collection.editLabel : dict.collection.requestLabel}
+              </button>
+            ) : (
+              <button
+                className="btn btn-primary btn-block collect-big-pay"
+                onClick={() => (m.unpaidInstalments.length === 1 ? openModal(m.unpaidInstalments[0]) : setOverdueCustomerGroup(buildOverdueGroup(group)))}
+              >
+                <span className="material-icons-outlined" style={{ fontSize: 20 }}>payments</span>
+                {dict.collection.payLabel} {formatCurrency(payAmount, currencySymbol)}
+              </button>
+            )}
+          </div>
+        );
+      })}
+      {groups.length === 0 && (
+        <div className="collect-card" style={{ textAlign: 'center', color: 'var(--text-light)' }}>
+          {dict.collection.noInstalmentsMatch}
+        </div>
+      )}
+    </div>
+  );
+
   const renderUnifiedRows = (groups: UnifiedGroup[]) => (
-    <div className="table-wrapper">
+    <div className="table-wrapper collection-table-wrap">
       <table>
         <thead>
           <tr>
@@ -948,6 +1019,7 @@ export default function CollectionClient({
         </div>
 
         {renderUnifiedRows(paginatedGroups)}
+        {renderMobileCards(paginatedGroups)}
 
         {totalPages > 1 && (
           <div className="pagination" style={{ justifyContent: 'center', marginTop: '12px' }}>
