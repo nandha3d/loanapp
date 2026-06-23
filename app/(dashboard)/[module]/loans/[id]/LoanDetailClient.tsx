@@ -770,7 +770,7 @@ export default function LoanDetailClient({
               )}
             </div>
           </div>
-          <div className="table-wrapper" style={{ maxHeight: '500px', overflowY: 'auto' }}>
+          <div className="table-wrapper schedule-table-wrap" style={{ maxHeight: '500px', overflowY: 'auto' }}>
             <table>
               <thead>
                 <tr>
@@ -885,6 +885,54 @@ export default function LoanDetailClient({
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* Compact mobile schedule — one tight row per instalment instead of
+              the table reflowing into a giant card per row. */}
+          <div className="schedule-mobile">
+            {displayInstalments.map((inst: any) => {
+              const isPaid = Number(inst.receivedAmount) > 0;
+              const isOverdue = inst.status === 'missed';
+              const collectedTime = inst.receivedAt ? new Date(inst.receivedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : null;
+              const accent = inst.status === 'paid' ? 'var(--success)' : isOverdue ? 'var(--danger)' : 'var(--primary)';
+              return (
+                <div
+                  key={inst.id}
+                  id={`inst-row-m-${inst.instalmentNo}`}
+                  className="sched-row"
+                  style={{ borderLeft: `3px solid ${accent}`, opacity: inst.status === 'paid' ? 0.75 : 1 }}
+                >
+                  <div className="sched-main">
+                    <span className="sched-no">#{inst.instalmentNo}</span>
+                    <span className="sched-date">{formatDate(inst.dueDate)}</span>
+                    <span className="sched-amt">{formatCurrency(inst.dueAmount, currencySymbol)}</span>
+                    <span className={getBadgeClass(inst.status)} style={{ textTransform: 'capitalize', marginLeft: 'auto' }}>{inst.status}</span>
+                  </div>
+                  <div className="sched-sub">
+                    <span style={{ color: 'var(--text-light)' }}>
+                      {isPaid ? `${d.received}: ${formatCurrency(inst.receivedAmount, currencySymbol)}${collectedTime ? ` · ${collectedTime}` : ''}` : ''}
+                    </span>
+                    {loan.status !== 'closed' && (
+                      isPaid ? (
+                        <button className="btn btn-ghost btn-sm" onClick={() => openPaymentModal(inst)} style={{ minHeight: 36 }}>
+                          <span className="material-icons-outlined" style={{ fontSize: 14 }}>{isAdmin ? 'edit' : 'history_edu'}</span> {isAdmin ? d.edit : 'Request'}
+                        </button>
+                      ) : isOverdue ? (
+                        isAdmin ? (
+                          <button className="btn btn-ghost btn-sm" onClick={() => openPaymentModal(inst)} style={{ minHeight: 36, color: '#b91c1c' }}>
+                            <span className="material-icons-outlined" style={{ fontSize: 14 }}>edit</span> {d.edit}
+                          </button>
+                        ) : null
+                      ) : (
+                        <button className="btn btn-primary btn-sm" onClick={openCollectModal} style={{ minHeight: 36 }}>
+                          <span className="material-icons-outlined" style={{ fontSize: 14 }}>payments</span> {d.pay}
+                        </button>
+                      )
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
