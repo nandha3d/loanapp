@@ -277,6 +277,15 @@ export default function CustomerProfileClient({
                 <span className="material-icons-outlined" style={{ fontSize: '14px' }}>edit_note</span> {d.requestEdit}
               </button>
             )}
+            <a
+              href={`/api/customers/${customer.id}/collection-receipt`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-secondary btn-sm"
+            >
+              <span className="material-icons-outlined" style={{ fontSize: '14px' }}>receipt_long</span>
+              {d.collectionReceipt || 'Collection Receipt'}
+            </a>
             {userRole !== 'agent' && (
               <Link href={`/loans/new?customerId=${customer.id}`} className="btn btn-primary btn-sm">
                 <span className="material-icons-outlined" style={{ fontSize: '14px' }}>add</span> {d.newLoan}

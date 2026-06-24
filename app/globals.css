@@ -346,7 +346,6 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   .form-actions .btn { width: 100%; justify-content: center; }
   .notification-dropdown { width: calc(100vw - 32px); right: -16px; }
   .collection-entry { flex-direction: column; gap: 8px; align-items: stretch !important; }
-  .grid-60-40 > :last-child { display: none; }
   .topbar { padding: 0 16px; }
   .page-content { padding: 16px; }
   .login-card { padding: 32px 24px; }
