@@ -2,17 +2,17 @@ import React from 'react';
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
 
 const styles = StyleSheet.create({
-  page: { fontFamily: 'Helvetica', fontSize: 9, padding: 40, backgroundColor: '#FFFFFF' },
+  page: { fontFamily: 'Helvetica', fontSize: 9, padding: 40, paddingBottom: 56, backgroundColor: '#FFFFFF' },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
-    marginBottom: 18, borderBottomWidth: 2, borderBottomColor: '#F5A623', borderBottomStyle: 'solid', paddingBottom: 14,
+    marginBottom: 16, borderBottomWidth: 2, borderBottomColor: '#F5A623', borderBottomStyle: 'solid', paddingBottom: 12,
   },
-  brandTitle: { fontSize: 22, fontFamily: 'Helvetica-Bold', color: '#F5A623' },
+  brandTitle: { fontSize: 20, fontFamily: 'Helvetica-Bold', color: '#F5A623' },
   brandSub: { fontSize: 9, color: '#4B5563', marginTop: 2 },
-  docTitle: { fontSize: 14, fontFamily: 'Helvetica-Bold', color: '#111827', textAlign: 'right' },
+  docTitle: { fontSize: 13, fontFamily: 'Helvetica-Bold', color: '#111827', textAlign: 'right' },
   docDate: { fontSize: 8, color: '#6B7280', textAlign: 'right', marginTop: 3 },
   infoBlock: {
-    backgroundColor: '#F9FAFB', borderRadius: 6, padding: 10, marginBottom: 16,
+    backgroundColor: '#F9FAFB', borderRadius: 6, padding: 10, marginBottom: 14,
     borderWidth: 0.5, borderColor: '#E5E7EB', borderStyle: 'solid',
   },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 },
@@ -24,33 +24,31 @@ const styles = StyleSheet.create({
   },
   loanCode: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#1E293B' },
   loanMeta: { fontSize: 8, color: '#4B5563' },
-  tableHeader: { flexDirection: 'row', backgroundColor: '#1E293B', padding: 5 },
+  tableHeader: { flexDirection: 'row', backgroundColor: '#1E293B', paddingVertical: 5, paddingHorizontal: 6 },
   th: { fontFamily: 'Helvetica-Bold', color: '#FFFFFF', fontSize: 7.5, textTransform: 'uppercase' },
-  row: { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB', borderBottomStyle: 'solid', paddingVertical: 4, paddingHorizontal: 5, alignItems: 'center' },
-  rowAlt: { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB', borderBottomStyle: 'solid', backgroundColor: '#F9FAFB', paddingVertical: 4, paddingHorizontal: 5, alignItems: 'center' },
-  rowPaid: { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB', borderBottomStyle: 'solid', backgroundColor: '#F0FDF4', paddingVertical: 4, paddingHorizontal: 5, alignItems: 'center' },
-  td: { fontSize: 8, color: '#374151' },
-  loanTotal: { flexDirection: 'row', justifyContent: 'flex-end', paddingVertical: 5, paddingHorizontal: 5, backgroundColor: '#F1F5F9' },
+  row: { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB', borderBottomStyle: 'solid', paddingVertical: 5, paddingHorizontal: 6, alignItems: 'center' },
+  rowAlt: { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB', borderBottomStyle: 'solid', backgroundColor: '#F9FAFB', paddingVertical: 5, paddingHorizontal: 6, alignItems: 'center' },
+  td: { fontSize: 8.5, color: '#374151' },
+  empty: { fontSize: 8.5, color: '#9CA3AF', paddingVertical: 8, paddingHorizontal: 6 },
+  loanTotal: { flexDirection: 'row', justifyContent: 'flex-end', paddingVertical: 5, paddingHorizontal: 6, backgroundColor: '#F1F5F9' },
   loanTotalText: { fontSize: 8.5, fontFamily: 'Helvetica-Bold', color: '#111827' },
-  grandTotal: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 14, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#1E293B', borderTopStyle: 'solid' },
-  grandLabel: { fontSize: 9.5, fontFamily: 'Helvetica-Bold', color: '#111827', marginRight: 12 },
-  grandValue: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#166534' },
+  grandTotal: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#1E293B', borderTopStyle: 'solid' },
+  grandLabel: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#111827', marginRight: 12 },
+  grandValue: { fontSize: 12, fontFamily: 'Helvetica-Bold', color: '#166534' },
   footer: {
     position: 'absolute', bottom: 30, left: 40, right: 40, borderTopWidth: 0.5, borderTopColor: '#E5E7EB',
     borderTopStyle: 'solid', paddingTop: 8, flexDirection: 'row', justifyContent: 'space-between', fontSize: 7.5, color: '#9CA3AF',
   },
 });
 
-// Column widths (sum to 100). Numbers right-aligned with their own cell so
-// Received and Mode never collide.
-const W = { idx: '6%', date: '20%', due: '17%', paid: '17%', balance: '20%', mode: '12%', by: '8%' };
+// Column widths (sum to 100) — each value in its own cell so nothing collides.
+const W = { idx: '6%', date: '22%', amount: '20%', mode: '14%', balance: '22%', by: '16%' };
 
-export interface ReceiptLedgerRow {
+export interface ReceiptPayment {
   date: string | Date;
-  due: number;
-  paid: number;
-  balance: number;
+  amount: number;
   mode: string;
+  balance: number;
   collectedBy?: string;
 }
 
@@ -59,7 +57,7 @@ export interface ReceiptLoan {
   principal: number;
   totalPayable: number;
   totalPaid: number;
-  rows: ReceiptLedgerRow[];
+  payments: ReceiptPayment[];
 }
 
 export interface CollectionReceiptProps {
@@ -72,10 +70,9 @@ export interface CollectionReceiptProps {
 }
 
 /**
- * Customer collection receipt — a day-wise passbook per loan: each row is a
- * date showing what was due, what was actually paid that day (0 if none, the
- * full amount on the day it was paid — never back-distributed) and the running
- * balance.
+ * Customer collection receipt — lists only the ACTUAL payments recorded (one
+ * row per payment date, the amount as given; never split across instalments),
+ * with the running balance. Flows across as many pages as needed.
  */
 export function CollectionReceiptPDF({
   customer,
@@ -129,7 +126,7 @@ export function CollectionReceiptPDF({
         </View>
 
         {loans.map((loan) => (
-          <View key={loan.loanCode} wrap={false}>
+          <View key={loan.loanCode}>
             <View style={styles.loanHead}>
               <Text style={styles.loanCode}>{loan.loanCode}</Text>
               <Text style={styles.loanMeta}>
@@ -140,27 +137,26 @@ export function CollectionReceiptPDF({
             <View style={styles.tableHeader}>
               <Text style={{ ...styles.th, width: W.idx, textAlign: 'center' }}>#</Text>
               <Text style={{ ...styles.th, width: W.date }}>Date</Text>
-              <Text style={{ ...styles.th, width: W.due, textAlign: 'right' }}>Due</Text>
-              <Text style={{ ...styles.th, width: W.paid, textAlign: 'right' }}>Paid</Text>
-              <Text style={{ ...styles.th, width: W.balance, textAlign: 'right' }}>Balance</Text>
+              <Text style={{ ...styles.th, width: W.amount, textAlign: 'right' }}>Paid</Text>
               <Text style={{ ...styles.th, width: W.mode, textAlign: 'center' }}>Mode</Text>
+              <Text style={{ ...styles.th, width: W.balance, textAlign: 'right' }}>Balance</Text>
               <Text style={{ ...styles.th, width: W.by }}>By</Text>
             </View>
 
-            {loan.rows.map((r, idx) => {
-              const rowStyle = r.paid > 0 ? styles.rowPaid : idx % 2 ? styles.rowAlt : styles.row;
-              return (
-                <View key={idx} style={rowStyle}>
+            {loan.payments.length === 0 ? (
+              <Text style={styles.empty}>No payments recorded yet.</Text>
+            ) : (
+              loan.payments.map((p, idx) => (
+                <View key={idx} style={idx % 2 ? styles.rowAlt : styles.row} wrap={false}>
                   <Text style={{ ...styles.td, width: W.idx, textAlign: 'center' }}>{idx + 1}</Text>
-                  <Text style={{ ...styles.td, width: W.date }}>{fmtDate(r.date)}</Text>
-                  <Text style={{ ...styles.td, width: W.due, textAlign: 'right' }}>{r.due > 0 ? fmt(r.due) : '—'}</Text>
-                  <Text style={{ ...styles.td, width: W.paid, textAlign: 'right', fontFamily: r.paid > 0 ? 'Helvetica-Bold' : 'Helvetica', color: r.paid > 0 ? '#166534' : '#9CA3AF' }}>{fmt(r.paid)}</Text>
-                  <Text style={{ ...styles.td, width: W.balance, textAlign: 'right' }}>{fmt(r.balance)}</Text>
-                  <Text style={{ ...styles.td, width: W.mode, textAlign: 'center', textTransform: 'uppercase', fontSize: 7 }}>{r.paid > 0 ? (r.mode || 'cash') : '—'}</Text>
-                  <Text style={{ ...styles.td, width: W.by, fontSize: 7 }}>{r.collectedBy || '—'}</Text>
+                  <Text style={{ ...styles.td, width: W.date }}>{fmtDate(p.date)}</Text>
+                  <Text style={{ ...styles.td, width: W.amount, textAlign: 'right', fontFamily: 'Helvetica-Bold', color: '#166534' }}>{fmt(p.amount)}</Text>
+                  <Text style={{ ...styles.td, width: W.mode, textAlign: 'center', textTransform: 'uppercase', fontSize: 7.5 }}>{p.mode || 'cash'}</Text>
+                  <Text style={{ ...styles.td, width: W.balance, textAlign: 'right' }}>{fmt(p.balance)}</Text>
+                  <Text style={{ ...styles.td, width: W.by, fontSize: 7.5 }}>{p.collectedBy || '—'}</Text>
                 </View>
-              );
-            })}
+              ))
+            )}
 
             <View style={styles.loanTotal}>
               <Text style={styles.loanTotalText}>Loan total paid: {fmt(loan.totalPaid)}</Text>
@@ -169,7 +165,7 @@ export function CollectionReceiptPDF({
         ))}
 
         {loans.length === 0 ? (
-          <Text style={{ ...styles.td, textAlign: 'center', color: '#9CA3AF', marginTop: 20 }}>No loans found for this customer.</Text>
+          <Text style={{ ...styles.empty, textAlign: 'center', marginTop: 20 }}>No loans found for this customer.</Text>
         ) : null}
 
         <View style={styles.grandTotal}>

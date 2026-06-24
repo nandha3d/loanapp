@@ -6,15 +6,14 @@ import { requireApiContext, isApiError } from '@/lib/apiAuth';
 import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 import { getBranding } from '@/lib/tenant';
 import { apiError } from '@/lib/utils';
-import { CollectionReceiptPDF, type ReceiptLoan, type ReceiptLedgerRow } from '@/lib/collectionReceipt';
+import { CollectionReceiptPDF, type ReceiptLoan, type ReceiptPayment } from '@/lib/collectionReceipt';
 
 const dayKey = (d: Date | string) => new Date(d).toISOString().slice(0, 10);
 
 /**
- * Customer collection receipt PDF — a day-wise passbook per loan. Each row is a
- * date: what was due, what was ACTUALLY paid that day (payments grouped by date,
- * never back-distributed across instalments; 0 on unpaid days) and the running
- * balance. Optional ?from=YYYY-MM-DD&to=YYYY-MM-DD to bound the period.
+ * Customer collection receipt PDF — lists only the ACTUAL payments recorded per
+ * loan (one row per payment date, the amount as given; never split across
+ * instalments) with the running balance. Optional ?from=YYYY-MM-DD&to=YYYY-MM-DD.
  */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -46,7 +45,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         loanCode: true,
         principal: true,
         totalPayable: true,
-        instalments: { select: { dueDate: true, dueAmount: true }, orderBy: { dueDate: 'asc' } },
         collectionEntries: {
           select: { submittedAt: true, receivedAmount: true, paymentMode: true, agent: { select: { name: true } } },
           orderBy: { submittedAt: 'asc' },
@@ -59,7 +57,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const loans: ReceiptLoan[] = loanRows.map((loan) => {
       const totalPayable = Number(loan.totalPayable ?? loan.principal);
 
-      // Actual payments grouped by calendar date (NOT split per instalment).
+      // Actual payments grouped by calendar date (the amount as given — never
+      // split per instalment). One row per payment day.
       const paidByDate = new Map<string, { paid: number; mode: string; by: string }>();
       for (const e of loan.collectionEntries) {
         if (!inPeriod(new Date(e.submittedAt))) continue;
@@ -69,35 +68,27 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         paidByDate.set(k, cur);
       }
 
-      // Due amounts by scheduled date.
-      const dueByDate = new Map<string, number>();
-      for (const i of loan.instalments) {
-        const k = dayKey(i.dueDate);
-        dueByDate.set(k, (dueByDate.get(k) ?? 0) + Number(i.dueAmount));
-      }
-
-      // One row per date — union of schedule dates and actual payment dates.
-      const allKeys = Array.from(new Set([...dueByDate.keys(), ...paidByDate.keys()])).sort();
       let cumulativePaid = 0;
-      const rows: ReceiptLedgerRow[] = allKeys.map((k) => {
-        const paid = paidByDate.get(k)?.paid ?? 0;
-        cumulativePaid += paid;
-        return {
-          date: k,
-          due: dueByDate.get(k) ?? 0,
-          paid,
-          balance: Math.max(0, totalPayable - cumulativePaid),
-          mode: paidByDate.get(k)?.mode ?? '',
-          collectedBy: paidByDate.get(k)?.by ?? '',
-        };
-      });
+      const payments: ReceiptPayment[] = Array.from(paidByDate.keys())
+        .sort()
+        .map((k) => {
+          const g = paidByDate.get(k)!;
+          cumulativePaid += g.paid;
+          return {
+            date: k,
+            amount: g.paid,
+            mode: g.mode,
+            balance: Math.max(0, totalPayable - cumulativePaid),
+            collectedBy: g.by,
+          };
+        });
 
       return {
         loanCode: loan.loanCode,
         principal: Number(loan.principal),
         totalPayable,
         totalPaid: cumulativePaid,
-        rows,
+        payments,
       };
     });
 
