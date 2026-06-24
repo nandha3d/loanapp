@@ -264,8 +264,19 @@ export default function LoanDetailClient({
     }, 0);
   }, [loan.instalments, todayISO]);
 
+  // "Total Due" = everything payable UP TO today (previous overdue + today's
+  // due) — NOT the full loan outstanding, which includes instalments not yet
+  // due. The amount field stays editable for an early full settlement.
+  const dueTillTodayForLoan = useMemo(() => {
+    return loan.instalments.reduce((sum: number, inst: any) => {
+      const due = new Date(inst.dueDate).toISOString().slice(0, 10);
+      if (due > todayISO) return sum; // future instalment — not due yet
+      return sum + Math.max(0, Number(inst.dueAmount) - Number(inst.receivedAmount || 0));
+    }, 0);
+  }, [loan.instalments, todayISO]);
+
   const openCollectModal = () => {
-    const defaultAmt = todayDueForLoan > 0 ? todayDueForLoan : outstanding;
+    const defaultAmt = todayDueForLoan > 0 ? todayDueForLoan : dueTillTodayForLoan;
     setCollectCard(todayDueForLoan > 0 ? 'today' : 'total');
     setCollectAmount(defaultAmt);
     setCollectMode('cash');
@@ -1226,7 +1237,7 @@ export default function LoanDetailClient({
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setCollectCard('total'); setCollectAmount(outstanding); }}
+                  onClick={() => { setCollectCard('total'); setCollectAmount(dueTillTodayForLoan); }}
                   style={{
                     flex: 1, textAlign: 'left', cursor: 'pointer',
                     background: collectCard === 'total' ? 'rgba(239,68,68,0.08)' : 'var(--bg)',
@@ -1235,8 +1246,8 @@ export default function LoanDetailClient({
                   }}
                 >
                   <div style={{ fontSize: '.72rem', fontWeight: 600, color: collectCard === 'total' ? 'var(--danger)' : 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Total Due</div>
-                  <div style={{ fontSize: '1.3rem', fontWeight: 800, marginTop: '4px' }}>{formatCurrency(outstanding, currencySymbol)}</div>
-                  {outstanding > todayDueForLoan && (
+                  <div style={{ fontSize: '1.3rem', fontWeight: 800, marginTop: '4px' }}>{formatCurrency(dueTillTodayForLoan, currencySymbol)}</div>
+                  {dueTillTodayForLoan > todayDueForLoan && (
                     <div style={{ fontSize: '.66rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Includes previous overdue</div>
                   )}
                 </button>
