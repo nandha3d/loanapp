@@ -265,6 +265,36 @@ export async function disburseFromBranch(
   });
 }
 
+/** Chit contribution received into the office — credits the branch cash pool. */
+export async function chitContributionToBranch(
+  tx: Tx,
+  input: { tenantId: string; branchId: string; amount: number; refId: string; byUserId?: string | null },
+): Promise<number> {
+  if (!(input.amount > 0)) return 0;
+  return applyBranch(tx, input.tenantId, input.branchId, input.amount, {
+    type: 'collection',
+    refType: 'chit',
+    refId: input.refId,
+    note: 'Chit contribution',
+    byUserId: input.byUserId ?? null,
+  });
+}
+
+/** Chit prize paid out to the winner — debits the branch cash pool. */
+export async function chitPayoutFromBranch(
+  tx: Tx,
+  input: { tenantId: string; branchId: string; amount: number; refId: string; byUserId?: string | null },
+): Promise<number> {
+  if (!(input.amount > 0)) return 0;
+  return applyBranch(tx, input.tenantId, input.branchId, -input.amount, {
+    type: 'disburse',
+    refType: 'chit',
+    refId: input.refId,
+    note: 'Chit prize payout',
+    byUserId: input.byUserId ?? null,
+  });
+}
+
 /** Credits an agent's float when they collect a repayment (cash now in hand). */
 export async function creditCollection(
   tx: Tx,

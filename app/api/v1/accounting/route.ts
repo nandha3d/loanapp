@@ -31,6 +31,7 @@ export async function GET(req: NextRequest) {
     let totalDisbursed = 0;
     let totalCollected = 0;
     let totalExpenses = 0;
+    let chitPayouts = 0;
 
     for (const e of entries) {
       const amt = Number(e.amount);
@@ -40,11 +41,12 @@ export async function GET(req: NextRequest) {
         case 'loan_disburse':    totalDisbursed += amt; break;
         case 'collection':       totalCollected += amt; break;
         case 'expense':          totalExpenses  += amt; break;
+        case 'chit_payout':      chitPayouts    += amt; break;
       }
     }
 
     const currentCapital =
-      capitalIn - capitalOut - totalDisbursed + totalCollected - totalExpenses;
+      capitalIn - capitalOut - totalDisbursed + totalCollected - totalExpenses - chitPayouts;
 
     // Projected interest from active loans
     const activeLoans = await prisma.loan.findMany({

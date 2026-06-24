@@ -75,6 +75,7 @@ export default function AccountingClient({
       case 'agent_release': return { label: 'Released to Agent', icon: 'payments', color: '#D97706', sign: '-' };
       case 'collection': return { label: 'Collection', icon: 'point_of_sale', color: 'var(--success)', sign: '+' };
       case 'expense': return { label: ac.expense || 'Expense', icon: 'receipt_long', color: 'var(--warning)', sign: '-' };
+      case 'chit_payout': return { label: 'Chit Payout', icon: 'emoji_events', color: '#E67E22', sign: '-' };
       case 'adjustment': return { label: 'Adjustment', icon: 'tune', color: 'var(--text-secondary)', sign: '±' };
       default: return { label: type, icon: 'help', color: 'var(--text-secondary)', sign: '' };
     }

@@ -133,6 +133,7 @@ export async function getAccountingSummary(tenantId: string, branchId?: string |
   let netDisbursed = 0;
   let totalCollected = 0;
   let totalExpenses = 0;
+  let chitPayouts = 0; // prize money paid out to chit winners (cash out)
 
   for (const entry of entries) {
     const amt = Number(entry.amount);
@@ -152,12 +153,15 @@ export async function getAccountingSummary(tenantId: string, branchId?: string |
       case 'expense':
         totalExpenses += amt;
         break;
+      case 'chit_payout':
+        chitPayouts += amt;
+        break;
     }
   }
 
   // Capital/cash balance uses NET disbursed (actual cash out). e.g. 10,000 − 900
-  // (net out) + 100 (collected) = 9,200.
-  const currentCapital = capitalIn - capitalOut - netDisbursed + totalCollected - totalExpenses;
+  // (net out) + 100 (collected) = 9,200. Chit prize payouts are cash out too.
+  const currentCapital = capitalIn - capitalOut - netDisbursed + totalCollected - totalExpenses - chitPayouts;
 
   const loans = await prisma.loan.findMany({
     where: { tenantId, ...(branchId ? { branchId } : {}) },
