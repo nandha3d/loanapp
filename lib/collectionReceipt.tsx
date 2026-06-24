@@ -42,7 +42,7 @@ const styles = StyleSheet.create({
 });
 
 // Column widths (sum to 100) — each value in its own cell so nothing collides.
-const W = { idx: '6%', date: '22%', amount: '20%', mode: '14%', balance: '22%', by: '16%' };
+const W = { idx: '6%', date: '22%', amount: '18%', mode: '12%', balance: '24%', by: '18%' };
 
 export interface ReceiptPayment {
   date: string | Date;
@@ -82,8 +82,11 @@ export function CollectionReceiptPDF({
   currencySymbol = '₹',
   periodLabel,
 }: CollectionReceiptProps) {
+  // Helvetica (react-pdf's built-in font) has no ₹ glyph — it renders as "¹".
+  // Use an ASCII-safe symbol in the PDF instead.
+  const sym = !currencySymbol || currencySymbol === '₹' ? 'Rs.' : currencySymbol;
   const fmt = (n: number | undefined | null) =>
-    `${currencySymbol}${Number(n ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+    `${sym}${Number(n ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
   const fmtDate = (d: string | Date | undefined | null) =>
     d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
@@ -139,8 +142,8 @@ export function CollectionReceiptPDF({
               <Text style={{ ...styles.th, width: W.date }}>Date</Text>
               <Text style={{ ...styles.th, width: W.amount, textAlign: 'right' }}>Paid</Text>
               <Text style={{ ...styles.th, width: W.mode, textAlign: 'center' }}>Mode</Text>
-              <Text style={{ ...styles.th, width: W.balance, textAlign: 'right' }}>Balance</Text>
-              <Text style={{ ...styles.th, width: W.by }}>By</Text>
+              <Text style={{ ...styles.th, width: W.balance, textAlign: 'right', paddingRight: 12 }}>Balance</Text>
+              <Text style={{ ...styles.th, width: W.by, paddingLeft: 6 }}>By</Text>
             </View>
 
             {loan.payments.length === 0 ? (
@@ -152,8 +155,8 @@ export function CollectionReceiptPDF({
                   <Text style={{ ...styles.td, width: W.date }}>{fmtDate(p.date)}</Text>
                   <Text style={{ ...styles.td, width: W.amount, textAlign: 'right', fontFamily: 'Helvetica-Bold', color: '#166534' }}>{fmt(p.amount)}</Text>
                   <Text style={{ ...styles.td, width: W.mode, textAlign: 'center', textTransform: 'uppercase', fontSize: 7.5 }}>{p.mode || 'cash'}</Text>
-                  <Text style={{ ...styles.td, width: W.balance, textAlign: 'right' }}>{fmt(p.balance)}</Text>
-                  <Text style={{ ...styles.td, width: W.by, fontSize: 7.5 }}>{p.collectedBy || '—'}</Text>
+                  <Text style={{ ...styles.td, width: W.balance, textAlign: 'right', paddingRight: 12 }}>{fmt(p.balance)}</Text>
+                  <Text style={{ ...styles.td, width: W.by, fontSize: 7.5, paddingLeft: 6 }}>{p.collectedBy || '—'}</Text>
                 </View>
               ))
             )}
