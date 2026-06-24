@@ -86,14 +86,25 @@ export function computeExtendedSchedule(
   now = new Date(),
 ) {
   const today = startOfDay(now);
-  let outstanding = 0;
-  let futureUnpaid = 0; // unpaid instalments dated today-or-later
+  // Outstanding is CASH-based (total due − total received), not the sum of
+  // per-instalment shortfalls. Those differ when a payment overpays one
+  // instalment while an older one is still unpaid (e.g. ₹400 booked on today's
+  // ₹200 row clears yesterday's miss in cash but leaves that row's shortfall on
+  // the books) — the per-row sum would phantom-extend the term by a day even
+  // though every due rupee up to now is paid.
+  let totalDue = 0;
+  let totalReceived = 0;
+  let futureUnpaid = 0; // instalments dated today-or-later still short of cash
   for (const i of instalments) {
-    const out = Math.max(0, Number(i.dueAmount) - Number(i.receivedAmount ?? 0));
-    if (out <= 0) continue;
-    outstanding += out;
-    if (startOfDay(new Date(i.dueDate)).getTime() >= today.getTime()) futureUnpaid += 1;
+    const due = Number(i.dueAmount);
+    const received = Number(i.receivedAmount ?? 0);
+    totalDue += due;
+    totalReceived += received;
+    if (due - received > 0 && startOfDay(new Date(i.dueDate)).getTime() >= today.getTime()) {
+      futureUnpaid += 1;
+    }
   }
+  const outstanding = Math.max(0, totalDue - totalReceived);
 
   const per = perInstalment > 0 ? perInstalment : 1;
   const remainingPayments = Math.ceil(outstanding / per);
