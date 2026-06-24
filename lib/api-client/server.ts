@@ -1,9 +1,10 @@
 import { auth } from '@/lib/auth';
+import { getUserAppType } from '@/lib/tenant';
 import { apiFetch, type ApiFetchOptions } from './index';
 
 export type ApiRequestContext = Pick<
   ApiFetchOptions,
-  'token' | 'tenantSlug' | 'branchId'
+  'token' | 'tenantSlug' | 'branchId' | 'appType'
 >;
 
 type ApiSession = {
@@ -30,10 +31,13 @@ export async function getApiRequestContext(): Promise<ApiRequestContext> {
   const token = session?.apiToken;
   if (!token) throw new Error('Unauthenticated');
 
+  const appType = await getUserAppType();
+
   return {
     token,
     tenantSlug: session?.user?.tenantSlug ?? undefined,
     branchId: session?.user?.branchId ?? undefined,
+    appType,
   };
 }
 

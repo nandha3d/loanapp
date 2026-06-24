@@ -131,9 +131,19 @@ export async function requireMobileContext(req: NextRequest): Promise<MobileAuth
   const token = header.slice('Bearer '.length).trim();
   try {
     const claims = await verifyMobileToken(token);
+    // Active module override: web forwards the URL-resolved module via X-App-Type
+    // (already module-gated by getUserAppType). Mobile sends no header → JWT appType.
+    // Privileged roles may switch module freely; others are pinned to their own.
+    const requestedAppType = req.headers.get('x-app-type');
+    const privileged = ['superadmin', 'developer', 'admin'].includes(claims.role);
+    const appType =
+      requestedAppType && (privileged || requestedAppType === claims.appType)
+        ? requestedAppType
+        : claims.appType;
     return {
       context: {
         ...claims,
+        appType,
         tenantSlug: req.headers.get('x-tenant-slug'),
         requestedBranchId: req.headers.get('x-branch-id'),
       },
