@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
     const entries = await prisma.accountEntry.findMany({
       where: {
         tenantId: ctx.tenantId,
+        appType: ctx.appType,
         ...scopedBranchWhere(ctx),
       },
       select: { type: true, amount: true },
@@ -78,11 +79,11 @@ export async function GET(req: NextRequest) {
       : null;
     const [branchCashAgg, agentFloatAgg, outstandingAgg] = await Promise.all([
       prisma.branchCashAccount.aggregate({
-        where: { tenantId: ctx.tenantId, ...(branchScopeId ? { branchId: branchScopeId } : {}) },
+        where: { tenantId: ctx.tenantId, appType: ctx.appType, ...(branchScopeId ? { branchId: branchScopeId } : {}) },
         _sum: { balance: true },
       }),
       prisma.agentAccount.aggregate({
-        where: { tenantId: ctx.tenantId, ...(agentIds ? { agentId: { in: agentIds } } : {}) },
+        where: { tenantId: ctx.tenantId, appType: ctx.appType, ...(agentIds ? { agentId: { in: agentIds } } : {}) },
         _sum: { balance: true },
       }),
       prisma.instalment.aggregate({
@@ -158,6 +159,7 @@ export async function POST(req: NextRequest) {
       const accountEntry = await tx.accountEntry.create({
         data: {
           tenantId: ctx.tenantId,
+          appType: ctx.appType,
           entryDate,
           type,
           category,
@@ -171,6 +173,7 @@ export async function POST(req: NextRequest) {
       if (syncsBranchCash) {
         await applyAccountingCashToBranch(tx, {
           tenantId: ctx.tenantId,
+          appType: ctx.appType,
           branchId: branchId!,
           amount,
           entryType: type as 'capital_add' | 'capital_withdraw',
@@ -181,6 +184,7 @@ export async function POST(req: NextRequest) {
       } else if (isCashExpense && branchId) {
         await applyAccountingCashToBranch(tx, {
           tenantId: ctx.tenantId,
+          appType: ctx.appType,
           branchId,
           amount,
           entryType: 'expense',

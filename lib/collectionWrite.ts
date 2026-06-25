@@ -227,7 +227,7 @@ export async function recordCollection(
   // v1 collection route). Self-pay callers pass creditFloat=false.
   if (input.creditFloat) {
     try {
-      await creditCollection(tx, { tenantId, agentId, amount: applied, entryId: entry.id });
+      await creditCollection(tx, { tenantId, appType, agentId, amount: applied, entryId: entry.id });
     } catch (err) {
       console.error('[wallet] collection credit failed:', err);
     }
@@ -524,6 +524,7 @@ export async function distributeCollectionAcrossLoan(
         try {
           await creditCollection(tx, {
             tenantId: actor.tenantId,
+            appType: actor.appType,
             agentId: actor.userId,
             amount: cashApplied,
             entryId: firstEntryId,

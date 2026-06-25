@@ -373,6 +373,7 @@ export async function POST(req: NextRequest) {
           await prisma.$transaction((tx) =>
             disburseFromAgent(tx, {
               tenantId: ctx.tenantId,
+              appType: ctx.appType,
               agentId: ctx.userId,
               amount: disburseAmt,
               loanId: loan.id,
@@ -383,6 +384,7 @@ export async function POST(req: NextRequest) {
           await prisma.$transaction((tx) =>
             disburseFromBranch(tx, {
               tenantId: ctx.tenantId,
+              appType: ctx.appType,
               branchId: loan.branchId!,
               amount: disburseAmt,
               loanId: loan.id,
@@ -399,6 +401,7 @@ export async function POST(req: NextRequest) {
       await prisma.accountEntry.create({
         data: {
           tenantId: ctx.tenantId,
+          appType: ctx.appType,
           branchId: ctx.branchId || undefined,
           entryDate: startDate,
           type: 'loan_disburse',

@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/db';
-import { getDefaultTenantId, getSetting } from '@/lib/tenant';
+import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { getActiveBranchId } from '@/lib/branch';
 import { getBranchAccounts, getAgentBalance, getAgentStatement } from '@/lib/wallet';
 import WalletClient from './WalletClient';
@@ -12,14 +12,15 @@ export default async function WalletPage() {
   const userId = (session?.user as any)?.id as string | undefined;
 
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
 
   // Agents see their OWN cash float (cash held in the field) + ledger — not the
   // branch/oversight view. Cash handover stays on the collection page.
   if (role === 'agent' && userId) {
     const [balance, txns, handoversRaw] = await Promise.all([
-      getAgentBalance(tenantId, userId),
-      getAgentStatement(tenantId, userId, 50),
+      getAgentBalance(tenantId, appType, userId),
+      getAgentStatement(tenantId, appType, userId, 50),
       prisma.cashHandover.findMany({
         where: { tenantId, agentId: userId },
         orderBy: { requestedAt: 'desc' },
@@ -64,7 +65,7 @@ export default async function WalletPage() {
     select: { id: true, name: true },
     orderBy: { name: 'asc' },
   });
-  const branchAccounts = await getBranchAccounts(tenantId, branches.map((b) => b.id));
+  const branchAccounts = await getBranchAccounts(tenantId, appType, branches.map((b) => b.id));
   const balByBranch = new Map(branchAccounts.map((a) => [a.branchId, Number(a.balance)]));
   const pools = branches.map((b) => ({
     branchId: b.id,
@@ -76,6 +77,7 @@ export default async function WalletPage() {
     by: ['type'],
     where: {
       tenantId,
+      appType,
       category: 'cash',
       type: { in: ['capital_add', 'capital_withdraw'] },
       ...(branchScope ? { branchId: branchScope } : {}),
@@ -87,6 +89,7 @@ export default async function WalletPage() {
   const releaseAgg = await prisma.walletTransaction.aggregate({
     where: {
       tenantId,
+      appType,
       accountKind: 'branch',
       type: 'release',
       ...(branchScope ? { branchId: branchScope } : {}),
@@ -102,7 +105,7 @@ export default async function WalletPage() {
     orderBy: { name: 'asc' },
   });
   const accts = await prisma.agentAccount.findMany({
-    where: { tenantId, agentId: { in: agents.map((a) => a.id) } },
+    where: { tenantId, appType, agentId: { in: agents.map((a) => a.id) } },
     select: { agentId: true, balance: true },
   });
   const balByAgent = new Map(accts.map((a) => [a.agentId, Number(a.balance)]));

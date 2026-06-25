@@ -1,7 +1,7 @@
 'use server';
 
 import prisma from '@/lib/db';
-import { getDefaultTenantId } from '@/lib/tenant';
+import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { auth } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import { getActiveBranchId } from '@/lib/branch';
@@ -17,6 +17,7 @@ export async function addAccountEntry(formData: FormData) {
   }
 
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
   const activeBranchId = await getActiveBranchId();
   const type = formData.get('type') as string;
   const category = formData.get('category') as string || 'cash';
@@ -42,6 +43,7 @@ export async function addAccountEntry(formData: FormData) {
     const accountEntry = await tx.accountEntry.create({
       data: {
         tenantId,
+        appType,
         entryDate,
         type,
         category,
@@ -55,6 +57,7 @@ export async function addAccountEntry(formData: FormData) {
     if (syncsBranchCash) {
       await applyAccountingCashToBranch(tx, {
         tenantId,
+        appType,
         branchId: activeBranchId!,
         amount,
         entryType: type as 'capital_add' | 'capital_withdraw',
@@ -65,6 +68,7 @@ export async function addAccountEntry(formData: FormData) {
     } else if (isCashExpense && activeBranchId) {
       await applyAccountingCashToBranch(tx, {
         tenantId,
+        appType,
         branchId: activeBranchId,
         amount,
         entryType: 'expense',
@@ -116,10 +120,10 @@ export async function addAccountEntry(formData: FormData) {
   return { success: true };
 }
 
-export async function getAccountingSummary(tenantId: string, branchId?: string | null) {
-  // Get all entries for the tenant
+export async function getAccountingSummary(tenantId: string, appType: string, branchId?: string | null) {
+  // Get all entries for the tenant + active module
   const entries = await prisma.accountEntry.findMany({
-    where: { tenantId, ...(branchId ? { branchId } : {}) },
+    where: { tenantId, appType, ...(branchId ? { branchId } : {}) },
     orderBy: { entryDate: 'desc' },
     include: { user: { select: { name: true } } },
   });
@@ -164,7 +168,7 @@ export async function getAccountingSummary(tenantId: string, branchId?: string |
   const currentCapital = capitalIn - capitalOut - netDisbursed + totalCollected - totalExpenses - chitPayouts;
 
   const loans = await prisma.loan.findMany({
-    where: { tenantId, ...(branchId ? { branchId } : {}) },
+    where: { tenantId, appType, ...(branchId ? { branchId } : {}) },
     select: {
       startDate: true,
       principal: true,
@@ -191,6 +195,7 @@ export async function getAccountingSummary(tenantId: string, branchId?: string |
     : null;
   const releaseWhere = {
     tenantId,
+    appType,
     accountKind: 'branch',
     type: 'release',
     ...(branchId ? { branchId } : {}),
@@ -206,11 +211,11 @@ export async function getAccountingSummary(tenantId: string, branchId?: string |
       take: 100,
     }),
     prisma.branchCashAccount.aggregate({
-      where: { tenantId, ...(branchId ? { branchId } : {}) },
+      where: { tenantId, appType, ...(branchId ? { branchId } : {}) },
       _sum: { balance: true },
     }),
     prisma.agentAccount.aggregate({
-      where: { tenantId, ...(agentIds ? { agentId: { in: agentIds } } : {}) },
+      where: { tenantId, appType, ...(agentIds ? { agentId: { in: agentIds } } : {}) },
       _sum: { balance: true },
     }),
   ]);
@@ -220,7 +225,7 @@ export async function getAccountingSummary(tenantId: string, branchId?: string |
   // live loans). This is the receivable asset — the cash you lent that is still
   // yours, just in someone else's hands.
   const outstandingAgg = await prisma.instalment.aggregate({
-    where: { loan: { tenantId, status: { in: ['active', 'overdue'] }, ...(branchId ? { branchId } : {}) } },
+    where: { loan: { tenantId, appType, status: { in: ['active', 'overdue'] }, ...(branchId ? { branchId } : {}) } },
     _sum: { dueAmount: true, receivedAmount: true },
   });
   const loanOutstanding = Math.max(

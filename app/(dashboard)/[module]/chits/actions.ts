@@ -133,6 +133,7 @@ export async function recordAuctionWinner(
 ) {
   const session = await requireAdmin();
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
   await requireModule(tenantId, 'chitfunds');
 
   const auction = await prisma.chitAuction.findUnique({
@@ -183,6 +184,7 @@ export async function recordAuctionWinner(
       await tx.accountEntry.create({
         data: {
           tenantId,
+          appType,
           entryDate: new Date(),
           type: 'chit_payout',
           category: 'cash',
@@ -196,7 +198,7 @@ export async function recordAuctionWinner(
       });
       if (payoutBranchId) {
         const { chitPayoutFromBranch } = await import('@/lib/wallet');
-        await chitPayoutFromBranch(tx, { tenantId, branchId: payoutBranchId, amount: prize, refId: auctionId, byUserId: session.user?.id });
+        await chitPayoutFromBranch(tx, { tenantId, appType, branchId: payoutBranchId, amount: prize, refId: auctionId, byUserId: session.user?.id });
       }
     });
   }
@@ -241,6 +243,7 @@ export async function recordChitPayment(
 ) {
   const session = await requireAdmin();
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
   await requireModule(tenantId, 'chitfunds');
 
   // Security: verify subscription belongs to this tenant by joining through ChitGroup
@@ -273,6 +276,7 @@ export async function recordChitPayment(
       await tx.accountEntry.create({
         data: {
           tenantId,
+          appType,
           entryDate: new Date(),
           type: 'collection',
           category: 'cash',
@@ -286,7 +290,7 @@ export async function recordChitPayment(
       });
       if (branchId) {
         const { chitContributionToBranch } = await import('@/lib/wallet');
-        await chitContributionToBranch(tx, { tenantId, branchId, amount: delta, refId: sub.id, byUserId: userId });
+        await chitContributionToBranch(tx, { tenantId, appType, branchId, amount: delta, refId: sub.id, byUserId: userId });
       }
     }
   });

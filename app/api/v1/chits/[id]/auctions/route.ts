@@ -112,6 +112,7 @@ export async function POST(
         await tx.accountEntry.create({
           data: {
             tenantId: ctx.tenantId,
+            appType: ctx.appType,
             entryDate: new Date(),
             type: 'chit_payout',
             category: 'cash',
@@ -125,7 +126,7 @@ export async function POST(
         });
         if (group.branchId) {
           const { chitPayoutFromBranch } = await import('@/lib/wallet');
-          await chitPayoutFromBranch(tx, { tenantId: ctx.tenantId, branchId: group.branchId, amount: prizeAmount, refId: auction.id, byUserId: ctx.userId });
+          await chitPayoutFromBranch(tx, { tenantId: ctx.tenantId, appType: ctx.appType, branchId: group.branchId, amount: prizeAmount, refId: auction.id, byUserId: ctx.userId });
         }
       });
     }

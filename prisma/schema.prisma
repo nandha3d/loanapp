@@ -1241,6 +1241,7 @@ model CronLock {
 model AccountEntry {
   id            String   @id @default(cuid())
   tenantId      String   @map("tenant_id")
+  appType       String   @default("microlending") @map("app_type")
   branchId      String?  @map("branch_id")
   entryDate     DateTime @map("entry_date") @db.Date
   type          String // capital_add, capital_withdraw, loan_disburse, collection, expense, adjustment
@@ -1256,8 +1257,8 @@ model AccountEntry {
   branch Branch? @relation(fields: [branchId], references: [id])
   user   User?   @relation(fields: [createdBy], references: [id])
 
-  @@index([tenantId, entryDate])
-  @@index([tenantId, type])
+  @@index([tenantId, appType, entryDate])
+  @@index([tenantId, appType, type])
   @@map("account_entries")
 }
 
@@ -2147,30 +2148,33 @@ model ReferralLead {
 model AgentAccount {
   id        String   @id @default(cuid())
   tenantId  String   @map("tenant_id")
+  appType   String   @default("microlending") @map("app_type")
   agentId   String   @map("agent_id")
   balance   Decimal  @default(0) @db.Decimal(18, 2)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@unique([tenantId, agentId], map: "agent_accounts_tenant_agent_key")
+  @@unique([tenantId, appType, agentId], map: "agent_accounts_tenant_app_agent_key")
   @@map("agent_accounts")
 }
 
 model BranchCashAccount {
   id        String   @id @default(cuid())
   tenantId  String   @map("tenant_id")
+  appType   String   @default("microlending") @map("app_type")
   branchId  String   @map("branch_id")
   balance   Decimal  @default(0) @db.Decimal(18, 2)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@unique([tenantId, branchId], map: "branch_cash_accounts_tenant_branch_key")
+  @@unique([tenantId, appType, branchId], map: "branch_cash_accounts_tenant_app_branch_key")
   @@map("branch_cash_accounts")
 }
 
 model WalletTransaction {
   id           String   @id @default(cuid())
   tenantId     String   @map("tenant_id")
+  appType      String   @default("microlending") @map("app_type")
   accountKind  String   @map("account_kind") // agent | branch
   agentId      String?  @map("agent_id")
   branchId     String?  @map("branch_id")
@@ -2183,8 +2187,8 @@ model WalletTransaction {
   createdById  String?  @map("created_by_id")
   createdAt    DateTime @default(now()) @map("created_at")
 
-  @@index([tenantId, agentId], map: "wallet_tx_tenant_agent_idx")
-  @@index([tenantId, branchId], map: "wallet_tx_tenant_branch_idx")
+  @@index([tenantId, appType, agentId], map: "wallet_tx_tenant_app_agent_idx")
+  @@index([tenantId, appType, branchId], map: "wallet_tx_tenant_app_branch_idx")
   @@index([createdAt], map: "wallet_tx_created_at_idx")
   @@map("wallet_transactions")
 }

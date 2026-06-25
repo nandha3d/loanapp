@@ -287,6 +287,7 @@ export async function PATCH(
           if (isAgent && loan.createdById) {
             await disburseFromAgent(tx, {
               tenantId: ctx.tenantId,
+              appType: ctx.appType,
               agentId: loan.createdById,
               amount: disburseAmt,
               loanId: loan.id,
@@ -295,6 +296,7 @@ export async function PATCH(
           } else if (loan.branchId) {
             await disburseFromBranch(tx, {
               tenantId: ctx.tenantId,
+              appType: ctx.appType,
               branchId: loan.branchId,
               amount: disburseAmt,
               loanId: loan.id,

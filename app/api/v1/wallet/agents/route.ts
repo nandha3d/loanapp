@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
     });
 
     const accounts = await prisma.agentAccount.findMany({
-      where: { tenantId: ctx.tenantId, agentId: { in: agents.map((a) => a.id) } },
+      where: { tenantId: ctx.tenantId, appType: ctx.appType, agentId: { in: agents.map((a) => a.id) } },
       select: { agentId: true, balance: true },
     });
     const balanceMap = new Map(accounts.map((a) => [a.agentId, Number(a.balance)]));

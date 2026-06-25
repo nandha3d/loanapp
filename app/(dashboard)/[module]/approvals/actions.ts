@@ -532,6 +532,7 @@ export async function reviewPendingLoan(formData: FormData) {
           if (isAgent && loan.createdById) {
             await disburseFromAgent(tx, {
               tenantId,
+              appType,
               agentId: loan.createdById,
               amount: disburseAmt,
               loanId: loan.id,
@@ -540,6 +541,7 @@ export async function reviewPendingLoan(formData: FormData) {
           } else if (loan.branchId) {
             await disburseFromBranch(tx, {
               tenantId,
+              appType,
               branchId: loan.branchId,
               amount: disburseAmt,
               loanId: loan.id,
@@ -552,6 +554,7 @@ export async function reviewPendingLoan(formData: FormData) {
           await tx.accountEntry.create({
             data: {
               tenantId,
+              appType,
               branchId: loan.branchId || undefined,
               entryDate: loan.startDate || new Date(),
               type: 'loan_disburse',

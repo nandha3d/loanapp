@@ -25,7 +25,7 @@ export default async function AccountingPage({
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
   const activeBranchId = await getActiveBranchId();
   const dict = await getDictionary(tenantId);
-  const summary = await getAccountingSummary(tenantId, activeBranchId);
+  const summary = await getAccountingSummary(tenantId, appType, activeBranchId);
 
   // Serialize Decimal fields
   const serializedSummary = JSON.parse(JSON.stringify(summary));

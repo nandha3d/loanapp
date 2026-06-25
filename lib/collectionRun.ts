@@ -395,6 +395,7 @@ export async function reconcileRun(
   if (cashDeposited > 0 && run.branchId) {
     await depositToOffice({
       tenantId: actor.tenantId,
+      appType: actor.appType,
       agentId: run.agentId,
       branchId: run.branchId,
       amount: cashDeposited,

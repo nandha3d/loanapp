@@ -16,7 +16,8 @@ async function requirePrivileged() {
     throw new Error('Forbidden');
   }
   const tenantId = await getDefaultTenantId();
-  return { role, userId, tenantId };
+  const appType = await getUserAppType();
+  return { role, userId, tenantId, appType };
 }
 
 async function requireAgent() {
@@ -25,11 +26,12 @@ async function requireAgent() {
   const userId = (session?.user as any)?.id as string | undefined;
   if (!userId || role !== 'agent') throw new Error('Forbidden');
   const tenantId = await getDefaultTenantId();
-  return { userId, tenantId };
+  const appType = await getUserAppType();
+  return { userId, tenantId, appType };
 }
 
 export async function releaseFundsAction(formData: FormData) {
-  const { userId, tenantId } = await requirePrivileged();
+  const { userId, tenantId, appType } = await requirePrivileged();
   const agentId = String(formData.get('agentId') || '');
   const amount = Number(formData.get('amount'));
   const note = (String(formData.get('note') || '') || null) as string | null;
@@ -43,6 +45,7 @@ export async function releaseFundsAction(formData: FormData) {
 
   await releaseToAgent({
     tenantId,
+    appType,
     agentId,
     branchId: agent.branchId,
     amount,
@@ -58,12 +61,11 @@ export async function releaseFundsAction(formData: FormData) {
     newValue: { amount },
   });
 
-  const appType = await getUserAppType();
   revalidatePath(modulePath(appType, '/wallet'));
 }
 
 export async function injectBranchAction(formData: FormData) {
-  const { userId, tenantId } = await requirePrivileged();
+  const { userId, tenantId, appType } = await requirePrivileged();
   const branchId = String(formData.get('branchId') || '');
   const amount = Number(formData.get('amount'));
   const note = (String(formData.get('note') || '') || null) as string | null;
@@ -75,7 +77,7 @@ export async function injectBranchAction(formData: FormData) {
   });
   if (!branch) throw new Error('Branch not found');
 
-  await injectBranchCash({ tenantId, branchId, amount, byUserId: userId, note });
+  await injectBranchCash({ tenantId, appType, branchId, amount, byUserId: userId, note });
   await writeAudit({
     tenantId,
     userId,
@@ -85,7 +87,6 @@ export async function injectBranchAction(formData: FormData) {
     newValue: { amount },
   });
 
-  const appType = await getUserAppType();
   revalidatePath(modulePath(appType, '/wallet'));
 }
 
@@ -94,12 +95,12 @@ export async function injectBranchAction(formData: FormData) {
 /** Agent requests to hand over field cash. Creates a pending CashHandover; no
  *  float movement yet — the admin settles it on collect. */
 export async function requestFloatHandoverAction(formData: FormData) {
-  const { userId, tenantId } = await requireAgent();
+  const { userId, tenantId, appType } = await requireAgent();
   const amount = Number(formData.get('amount'));
   const remarks = (String(formData.get('note') || '') || null) as string | null;
   if (!(amount > 0)) throw new Error('A positive amount is required');
 
-  const balance = await getAgentBalance(tenantId, userId);
+  const balance = await getAgentBalance(tenantId, appType, userId);
   if (amount > balance) throw new Error('Amount exceeds your float balance');
 
   // Avoid stacking duplicate pending requests.
@@ -110,7 +111,6 @@ export async function requestFloatHandoverAction(formData: FormData) {
     data: { tenantId, agentId: userId, amount, status: 'pending', remarks },
   });
 
-  const appType = await getUserAppType();
   const agent = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, branchId: true } });
   const { notifyApprovers } = await import('@/lib/notify/approvers');
   await notifyApprovers({
@@ -129,7 +129,7 @@ export async function requestFloatHandoverAction(formData: FormData) {
 /** Admin collects/settles a pending handover: debits the agent float, credits
  *  the branch pool, marks the handover confirmed. */
 export async function collectHandoverAction(formData: FormData) {
-  const { userId, tenantId } = await requirePrivileged();
+  const { userId, tenantId, appType } = await requirePrivileged();
   const handoverId = String(formData.get('handoverId') || '');
   if (!handoverId) throw new Error('handoverId is required');
 
@@ -141,6 +141,7 @@ export async function collectHandoverAction(formData: FormData) {
 
   await collectFromAgent({
     tenantId,
+    appType,
     agentId: ho.agentId,
     branchId: ho.agent.branchId,
     amount: Number(ho.amount),
@@ -160,13 +161,12 @@ export async function collectHandoverAction(formData: FormData) {
     newValue: { amount: Number(ho.amount) },
   });
 
-  const appType = await getUserAppType();
   revalidatePath(modulePath(appType, '/wallet'));
 }
 
 /** Admin rejects a pending handover request (no cash movement). */
 export async function rejectHandoverAction(formData: FormData) {
-  const { userId, tenantId } = await requirePrivileged();
+  const { userId, tenantId, appType } = await requirePrivileged();
   const handoverId = String(formData.get('handoverId') || '');
   if (!handoverId) throw new Error('handoverId is required');
 
@@ -176,14 +176,13 @@ export async function rejectHandoverAction(formData: FormData) {
   });
   if (updated.count === 0) throw new Error('Handover not found or already settled');
 
-  const appType = await getUserAppType();
   revalidatePath(modulePath(appType, '/wallet'));
 }
 
 /** Admin-initiated direct collection from an agent (no prior request), e.g. the
  *  agent hands cash over in person. Settles immediately and records it. */
 export async function collectFromAgentAction(formData: FormData) {
-  const { userId, tenantId } = await requirePrivileged();
+  const { userId, tenantId, appType } = await requirePrivileged();
   const agentId = String(formData.get('agentId') || '');
   const amount = Number(formData.get('amount'));
   const note = (String(formData.get('note') || '') || null) as string | null;
@@ -195,7 +194,7 @@ export async function collectFromAgentAction(formData: FormData) {
   });
   if (!agent) throw new Error('Agent not found');
 
-  await collectFromAgent({ tenantId, agentId, branchId: agent.branchId, amount, byUserId: userId, note });
+  await collectFromAgent({ tenantId, appType, agentId, branchId: agent.branchId, amount, byUserId: userId, note });
   await prisma.cashHandover.create({
     data: {
       tenantId,
@@ -217,6 +216,5 @@ export async function collectFromAgentAction(formData: FormData) {
     newValue: { amount },
   });
 
-  const appType = await getUserAppType();
   revalidatePath(modulePath(appType, '/wallet'));
 }

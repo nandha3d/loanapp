@@ -53,6 +53,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         await tx.accountEntry.create({
           data: {
             tenantId: ctx.tenantId,
+            appType: ctx.appType,
             entryDate: new Date(),
             type: 'collection',
             category: 'cash',
@@ -65,7 +66,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           },
         });
         if (branchId) {
-          await chitContributionToBranch(tx, { tenantId: ctx.tenantId, branchId, amount: delta, refId: sub.id, byUserId: ctx.userId });
+          await chitContributionToBranch(tx, { tenantId: ctx.tenantId, appType: ctx.appType, branchId, amount: delta, refId: sub.id, byUserId: ctx.userId });
         }
       }
     });
