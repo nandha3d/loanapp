@@ -44,6 +44,7 @@ export default function CustomerProfileClient({
   dict,
   kycEnabled = false,
   tenantKycMethod = 'manual_upload',
+  loansEnabled = true,
 }: {
   customer: any;
   currencySymbol: string;
@@ -51,6 +52,7 @@ export default function CustomerProfileClient({
   dict: any;
   kycEnabled?: boolean;
   tenantKycMethod?: string;
+  loansEnabled?: boolean;
 }) {
   const router = useRouter();
   const d = dict.customerProfile;
@@ -286,7 +288,7 @@ export default function CustomerProfileClient({
               <span className="material-icons-outlined" style={{ fontSize: '14px' }}>receipt_long</span>
               {d.collectionReceipt || 'Collection Receipt'}
             </a>
-            {userRole !== 'agent' && (
+            {userRole !== 'agent' && loansEnabled && (
               <Link href={`/loans/new?customerId=${customer.id}`} className="btn btn-primary btn-sm">
                 <span className="material-icons-outlined" style={{ fontSize: '14px' }}>add</span> {d.newLoan}
               </Link>

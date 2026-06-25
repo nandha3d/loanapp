@@ -3,6 +3,7 @@ import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { getDictionary } from '@/lib/i18n';
 import LoanForm from './LoanForm';
 import { auth } from '@/lib/auth';
+import { notFound } from 'next/navigation';
 
 export default async function NewLoanPage({
   searchParams
@@ -12,6 +13,8 @@ export default async function NewLoanPage({
   const resolvedSearchParams = await searchParams;
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
+  // Chitfunds is chit-only — no loan origination.
+  if (appType === 'chitfunds') notFound();
   const dict = await getDictionary(tenantId);
   const session = await auth();
   const userRole = (session?.user as any)?.role || 'agent';

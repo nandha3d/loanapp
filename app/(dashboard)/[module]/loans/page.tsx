@@ -6,6 +6,7 @@ import { getDictionary } from '@/lib/i18n';
 import { getActiveBranchId } from '@/lib/branch';
 
 import { auth } from '@/lib/auth';
+import { notFound } from 'next/navigation';
 
 export default async function LoansPage({
   searchParams
@@ -16,6 +17,8 @@ export default async function LoansPage({
   const userRole = (session?.user as any)?.role || 'agent';
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
+  // Chitfunds is chit-only — no loan origination.
+  if (appType === 'chitfunds') notFound();
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
   const dict = await getDictionary(tenantId);
   const branchId = await getActiveBranchId();
