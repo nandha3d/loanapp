@@ -56,7 +56,7 @@ export default function CustomerProfileClient({
 }) {
   const router = useRouter();
   const d = dict.customerProfile;
-  const [activeTab, setActiveTab] = useState('loans');
+  const [activeTab, setActiveTab] = useState(loansEnabled ? 'loans' : 'kyc');
   const [editRequestModal, setEditRequestModal] = useState(false);
   const [editRequestLoading, setEditRequestLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
@@ -319,7 +319,9 @@ export default function CustomerProfileClient({
       {/* Tabs */}
       <div className="card">
         <div className="tabs">
-          <div className={`tab ${activeTab === 'loans' ? 'active' : ''}`} onClick={() => setActiveTab('loans')}>{d.loanHistory}</div>
+          {loansEnabled && (
+            <div className={`tab ${activeTab === 'loans' ? 'active' : ''}`} onClick={() => setActiveTab('loans')}>{d.loanHistory}</div>
+          )}
           <div className={`tab ${activeTab === 'kyc' ? 'active' : ''}`} onClick={() => setActiveTab('kyc')}>{d.kycDocuments}</div>
           <div className={`tab ${activeTab === 'cheques' ? 'active' : ''}`} onClick={() => setActiveTab('cheques')}>{d.securityCheques}</div>
           <div className={`tab ${activeTab === 'guarantors' ? 'active' : ''}`} onClick={() => setActiveTab('guarantors')}>{d.guarantors}</div>

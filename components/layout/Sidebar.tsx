@@ -60,8 +60,8 @@ export default function Sidebar({
   const navItems: NavItem[] = [
     { section: dict.sidebar.sections.main },
     { id: 'agent-dashboard', icon: 'dashboard', label: dict.sidebar.dashboard, href: '/agent-dashboard', agentOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
-    { id: 'dashboard', icon: 'dashboard', label: dict.sidebar.dashboard, href: '/dashboard', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
-    { id: 'collection', icon: 'point_of_sale', label: dict.sidebar.collection, href: '/collection', appTypes: ['microlending', 'autofinance', 'goldloan'] },
+    { id: 'dashboard', icon: 'dashboard', label: dict.sidebar.dashboard, href: '/dashboard', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan', 'chitfunds'] },
+    { id: 'collection', icon: 'point_of_sale', label: dict.sidebar.collection, href: '/collection', appTypes: ['microlending', 'autofinance', 'goldloan', 'chitfunds'] },
     { id: 'route-tracker', icon: 'map', label: dict.sidebar.routeTracker, href: '/route-tracker', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
     { section: dict.sidebar.sections.management },
     { id: 'customers', icon: 'people', label: dict.sidebar.customers, href: '/customers' },

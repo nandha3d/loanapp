@@ -91,7 +91,7 @@ export default async function CustomersPage({
               <th>{dict.customersList.phone}</th>
               <th>{dict.customersList.route}</th>
               <th>{dict.customersList.score}</th>
-              <th>{dict.customersList.activeLoan}</th>
+              {appType !== 'chitfunds' && <th>{dict.customersList.activeLoan}</th>}
               <th>{dict.customersList.status}</th>
               <th>{dict.customersList.action}</th>
             </tr>
@@ -131,19 +131,21 @@ export default async function CustomersPage({
                       </span>
                     </div>
                   </td>
-                  <td data-label={dict.customersList.activeLoan}>
-                    {activeLoan ? (
-                      <>
-                        <Link href={`/loans/${activeLoan.loanCode}`}>{activeLoan.loanCode}</Link>
-                        <br />
-                        <span style={{fontSize:'.75rem', color:'var(--text-light)'}}>
-                          {formatCurrency(Number(activeLoan.principal), currencySymbol)}
-                        </span>
-                      </>
-                    ) : (
-                      <span style={{color:'var(--text-light)'}}>{dict.customersList.none}</span>
-                    )}
-                  </td>
+                  {appType !== 'chitfunds' && (
+                    <td data-label={dict.customersList.activeLoan}>
+                      {activeLoan ? (
+                        <>
+                          <Link href={`/loans/${activeLoan.loanCode}`}>{activeLoan.loanCode}</Link>
+                          <br />
+                          <span style={{fontSize:'.75rem', color:'var(--text-light)'}}>
+                            {formatCurrency(Number(activeLoan.principal), currencySymbol)}
+                          </span>
+                        </>
+                      ) : (
+                        <span style={{color:'var(--text-light)'}}>{dict.customersList.none}</span>
+                      )}
+                    </td>
+                  )}
                   <td data-label={dict.customersList.status}>
                     <span className={getBadgeClass(c.status)} style={{textTransform:'capitalize'}}>
                       {c.status === 'pending_review' ? dict.approvals.pendingReview : c.status}
@@ -160,7 +162,7 @@ export default async function CustomersPage({
             })}
             {customers.length === 0 && (
               <tr>
-                <td colSpan={8} style={{textAlign:'center', padding:'32px', color:'var(--text-light)'}}>
+                <td colSpan={appType !== 'chitfunds' ? 8 : 7} style={{textAlign:'center', padding:'32px', color:'var(--text-light)'}}>
                   {dict.customersList.noCustomers}
                 </td>
               </tr>

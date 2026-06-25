@@ -24,7 +24,7 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
 export const MODULE_ROUTES: Record<ModuleKey, string[]> = {
   microlending: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard'],
   autofinance: ['/vehicles', '/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard'],
-  chitfunds: ['/chits', '/customers', '/accounting', '/reports', '/analytics', '/notifications'],
+  chitfunds: ['/chits', '/customers', '/collection', '/accounting', '/reports', '/analytics', '/notifications'],
   goldloan: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard'],
 };
 

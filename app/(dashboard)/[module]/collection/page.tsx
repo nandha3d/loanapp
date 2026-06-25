@@ -8,6 +8,8 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { getAgentRouteIds } from '@/lib/access';
 import CollectionClient from './CollectionClient';
+import ChitCollectionClient from './ChitCollectionClient';
+import prisma from '@/lib/db';
 import { getDictionary } from '@/lib/i18n';
 import { getActiveBranchId } from '@/lib/branch';
 import { COLLECTIBLE_LOAN_STATUSES } from '@/lib/collectionPolicy';
@@ -63,6 +65,13 @@ export default async function CollectionPage() {
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
+  // ── Chitfunds: contribution collection, NOT loan instalments ───────────────
+  // Chit collects members' monthly subscriptions. Render a chit-specific
+  // worklist and return before any loan-collection logic runs below.
+  if (appType === 'chitfunds') {
+    return renderChitCollection({ tenantId, appType, activeBranchId, today, tomorrow, currencySymbol, dict });
+  }
+
   // serverFetch returns the raw v1 envelope { data, error, pagination }; the
   // payload lives under `.data` (this was the empty-collection bug — fields
   // were read off the envelope root and came back undefined).
@@ -102,6 +111,75 @@ export default async function CollectionPage() {
       } : null}
       receiptPdfEnabled={receiptPdfEnabled}
       gpsTrackingEnabled={gpsTrackingEnabled}
+    />
+  );
+}
+
+// ── Chitfunds contribution collection ────────────────────────────────────────
+// Worklist of chit subscriptions (members' monthly contributions) due today and
+// overdue, across the active branch's chit groups. Collect action reuses the
+// existing recordChitPayment server action. Entirely separate from the loan
+// collection path above.
+async function renderChitCollection(args: {
+  tenantId: string;
+  appType: string;
+  activeBranchId: string | null;
+  today: Date;
+  tomorrow: Date;
+  currencySymbol: string;
+  dict: any;
+}) {
+  const { tenantId, appType, activeBranchId, today, tomorrow, currencySymbol, dict } = args;
+  const branchFilter = activeBranchId ? { branchId: activeBranchId } : {};
+
+  const groupWhere = { tenantId, appType, ...branchFilter };
+
+  const [dueToday, overdue] = await Promise.all([
+    prisma.chitSubscription.findMany({
+      where: {
+        status: { not: 'paid' },
+        dueDate: { gte: today, lt: tomorrow },
+        member: { chitGroup: groupWhere },
+      },
+      include: { member: { include: { customer: true, chitGroup: true } } },
+      orderBy: { dueDate: 'asc' },
+    }),
+    prisma.chitSubscription.findMany({
+      where: {
+        status: { not: 'paid' },
+        dueDate: { lt: today },
+        member: { chitGroup: groupWhere },
+      },
+      include: { member: { include: { customer: true, chitGroup: true } } },
+      orderBy: { dueDate: 'asc' },
+    }),
+  ]);
+
+  const toRow = (s: any, bucket: 'today' | 'overdue') => ({
+    id: s.id,
+    memberId: s.memberId,
+    periodNumber: s.periodNumber,
+    customerName: s.member?.customer?.name ?? 'Member',
+    customerPhone: s.member?.customer?.phone ?? '',
+    groupName: s.member?.chitGroup?.name ?? 'Chit Group',
+    dueAmount: Number(s.dueAmount),
+    paidAmount: Number(s.paidAmount),
+    outstanding: Math.max(0, Number(s.dueAmount) - Number(s.paidAmount)),
+    dueDate: s.dueDate.toISOString(),
+    status: s.status,
+    bucket,
+  });
+
+  const rows = [
+    ...dueToday.map((s) => toRow(s, 'today')),
+    ...overdue.map((s) => toRow(s, 'overdue')),
+  ];
+
+  return (
+    <ChitCollectionClient
+      rows={rows}
+      currencySymbol={currencySymbol}
+      dict={dict}
     />
   );
 }
