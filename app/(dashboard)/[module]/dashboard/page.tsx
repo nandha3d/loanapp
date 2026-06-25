@@ -197,7 +197,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     }),
     // Capital KPI
     prisma.accountEntry.findMany({
-      where: { tenantId, ...(branchId ? { branchId } : {}) },
+      where: { tenantId, appType, ...(branchId ? { branchId } : {}) },
       select: { type: true, amount: true },
     }),
     // Feature 6 & 8: Today's collection entries for cash/UPI split + route-wise.
