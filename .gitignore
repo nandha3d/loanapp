@@ -17,8 +17,7 @@
 /.next/
 /out/
 
-# test folders
-/tests
+# test OUTPUT folders (not the /tests source dir — that is committed)
 /Testing
 /.playwright/
 /outputs

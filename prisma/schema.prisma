@@ -896,12 +896,43 @@ model GoldLoanCollateral {
   branch   Branch?   @relation(fields: [branchId], references: [id])
   loan     Loan      @relation(fields: [loanId], references: [id])
   customer Customer  @relation(fields: [customerId], references: [id])
+  items    GoldOrnamentItem[]
 
   @@index([tenantId, releaseStatus])
   @@index([tenantId, packetNo])
   @@index([branchId])
   @@index([customerId])
   @@map("gold_loan_collaterals")
+}
+
+// Per-ornament line item of a pledge (competitor parity: a pledge holds many
+// ornaments, each with its own weights/rate/value). The collateral row remains
+// the pledge header (packet, storage, valuer, aggregate totals).
+model GoldOrnamentItem {
+  id               String   @id @default(cuid())
+  tenantId         String   @map("tenant_id")
+  collateralId     String   @map("collateral_id")
+  ornamentType     String   @map("ornament_type")
+  specification    String?
+  purityKarat      String?  @map("purity_karat")
+  quantity         Int      @default(1)
+  grossWeightGrams Decimal  @default(0) @map("gross_weight_grams") @db.Decimal(12, 3)
+  wastageGrams     Decimal  @default(0) @map("wastage_grams") @db.Decimal(12, 3)
+  netWeightGrams   Decimal  @default(0) @map("net_weight_grams") @db.Decimal(12, 3)
+  ratePerGram      Decimal  @default(0) @map("rate_per_gram") @db.Decimal(12, 2)
+  value            Decimal  @default(0) @db.Decimal(14, 2)
+  bankName         String?  @map("bank_name")
+  refNo            String?  @map("ref_no")
+  photoPath        String?  @map("photo_path")
+  sortOrder        Int      @default(0) @map("sort_order")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  collateral GoldLoanCollateral @relation(fields: [collateralId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([collateralId])
+  @@map("gold_ornament_items")
 }
 
 // ── Gold/Silver master data — the no-hardcode source for pledge dropdowns ──────
