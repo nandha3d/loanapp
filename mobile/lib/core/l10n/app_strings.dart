@@ -1006,6 +1006,7 @@ const Map<String, Map<String, String>> kStrings = {
     'hi': 'संपत्ति आधारित', 'te': 'ఆస్తి ఆధారిత',
     'kn': 'ಆಸ್ತಿ ಆಧಾರಿತ', 'ml': 'വസ്തു അടിസ്ഥാനം',
   },
+  'lt.product': { 'en': 'Product Finance' },
 
   // ── Gold Loan Fields ────────────────────────────────────────────────
   'fld.gold_weight': {
@@ -1055,6 +1056,15 @@ const Map<String, Map<String, String>> kStrings = {
     'hi': 'भूमि', 'te': 'భూమి',
     'kn': 'ಭೂಮಿ', 'ml': 'ഭൂമി',
   },
+  'fld.product_name': { 'en': 'Product Name' },
+  'fld.product_category': { 'en': 'Category' },
+  'fld.product_brand': { 'en': 'Brand' },
+  'fld.product_model_no': { 'en': 'Model No' },
+  'fld.product_serial_no': { 'en': 'Serial / IMEI' },
+  'fld.product_dealer': { 'en': 'Dealer' },
+  'fld.product_invoice_no': { 'en': 'Invoice No' },
+  'fld.product_invoice_amount': { 'en': 'Invoice Amount (₹)' },
+  'fld.product_down_payment': { 'en': 'Down Payment (₹)' },
 
   // ── Relations ───────────────────────────────────────────────────────
   'rel.father': {

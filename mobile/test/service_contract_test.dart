@@ -9,12 +9,14 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:loantrack/data/services/auth_service.dart';
 import 'package:loantrack/data/services/collection_run_service.dart';
+import 'package:loantrack/data/services/loan_service.dart';
 import 'package:loantrack/data/services/vehicles_service.dart';
 import 'package:loantrack/data/services/wallet_service.dart';
 import 'package:loantrack/shared/constants/endpoints.dart';
 
 class _ContractAdapter implements HttpClientAdapter {
   final requests = <String>[];
+  final requestBodies = <Map<String, dynamic>>[];
 
   @override
   Future<ResponseBody> fetch(
@@ -23,6 +25,13 @@ class _ContractAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     requests.add('${options.method} ${options.path}');
+    final bodyBytes = requestStream == null
+        ? <int>[]
+        : await requestStream.expand((chunk) => chunk).toList();
+    if (bodyBytes.isNotEmpty) {
+      final decoded = jsonDecode(utf8.decode(bodyBytes));
+      if (decoded is Map<String, dynamic>) requestBodies.add(decoded);
+    }
     final data = _responseFor(options);
     return ResponseBody.fromString(
       jsonEncode({'data': data, 'error': null}),
@@ -54,6 +63,27 @@ class _ContractAdapter implements HttpClientAdapter {
         };
       case Endpoints.walletMe:
         return {'balance': 2500, 'transactions': []};
+      case Endpoints.loans:
+        if (options.method == 'POST') {
+          return {
+            'id': 'loan1',
+            'loanCode': 'DL-001',
+            'customerId': 'cust1',
+            'principal': 30000,
+            'disbursed': 27000,
+            'interestRate': 3000,
+            'frequency': 'daily',
+            'status': 'active',
+            'startDate': '2026-06-29T00:00:00.000Z',
+            'totalInstalments': 100,
+            'penaltyRate': 1.5,
+            'instalments': [],
+            'totalPayable': 33000,
+            'totalCollected': 0,
+            'perInstalment': 330,
+          };
+        }
+        return [];
       case Endpoints.vehicles:
         if (options.method == 'POST') {
           return {
@@ -117,7 +147,8 @@ class _ContractAdapter implements HttpClientAdapter {
 
 void main() {
   group('MOB-SERVICE contract tests', () {
-    test('MOB-SVC-001 auth login unwraps v1 envelope and user modules', () async {
+    test('MOB-SVC-001 auth login unwraps v1 envelope and user modules',
+        () async {
       final adapter = _ContractAdapter();
       final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'));
       dio.httpClientAdapter = adapter;
@@ -165,6 +196,68 @@ void main() {
       expect(wallet.balance, 2500);
       expect(vehicles.single.registrationNo, 'TN01QA0001');
       expect(created.id, 'v2');
+    });
+
+    test('MOB-SVC-004 loan create serializes property and product payloads',
+        () async {
+      final adapter = _ContractAdapter();
+      final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'));
+      dio.httpClientAdapter = adapter;
+      final service = LoanService(dio);
+
+      await service.create(
+        customerId: 'cust1',
+        principal: 30000,
+        deduction: 3000,
+        deductionType: 'upfront_fixed',
+        tenure: 100,
+        frequency: 'daily',
+        startDate: DateTime.utc(2026, 6, 29),
+        penaltyRate: 1.5,
+        loanType: 'property',
+        propertyCollateral: {
+          'propertyType': 'residential',
+          'marketValue': 500000,
+          'address': 'Main Street',
+        },
+      );
+
+      await service.create(
+        customerId: 'cust1',
+        principal: 30000,
+        deduction: 3000,
+        deductionType: 'upfront_fixed',
+        tenure: 100,
+        frequency: 'daily',
+        startDate: DateTime.utc(2026, 6, 29),
+        penaltyRate: 1.5,
+        loanType: 'other',
+        productItem: {
+          'productName': 'LED TV',
+          'brand': 'Acme',
+          'dealerName': 'City Dealer',
+          'invoiceNo': 'INV-1',
+          'downPayment': 5000,
+        },
+      );
+
+      expect(adapter.requests.where((r) => r == 'POST /loans').length, 2);
+      expect(
+        adapter.requestBodies.first['propertyCollateral'],
+        containsPair('propertyType', 'residential'),
+      );
+      expect(
+        adapter.requestBodies.first['propertyCollateral'],
+        containsPair('marketValue', 500000),
+      );
+      expect(
+        adapter.requestBodies.last['productItem'],
+        containsPair('productName', 'LED TV'),
+      );
+      expect(
+        adapter.requestBodies.last['productItem'],
+        containsPair('downPayment', 5000),
+      );
     });
   });
 }

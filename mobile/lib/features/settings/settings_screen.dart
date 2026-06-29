@@ -572,21 +572,10 @@ class SettingsScreen extends ConsumerWidget {
 
   List<String> _moduleOptions(User? user) {
     if (user == null) return const <String>[];
-    final options = <String>{user.appType, ...user.enabledModules};
-    if (options.contains(AppType.legacyChit)) {
-      options
-        ..remove(AppType.legacyChit)
-        ..add(AppType.chitfunds);
-    }
-    return options
-        .where((m) => m == AppType.microlending || m == AppType.chitfunds)
+    return <String>{user.appType, ...user.enabledModules}
+        .map(AppType.normalize)
+        .where(AppType.isSupported)
         .toList(growable: false);
-  }
-
-  String _moduleLabel(String module) {
-    if (AppType.isChit(module)) return 'Chit Funds';
-    if (module == AppType.microlending) return 'Microlending';
-    return module;
   }
 
   Future<void> _switchModule(
@@ -597,9 +586,9 @@ class SettingsScreen extends ConsumerWidget {
     await ref.read(authControllerProvider.notifier).setActiveAppType(appType);
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Switched to ${_moduleLabel(appType)}')),
+      SnackBar(content: Text('Switched to ${AppType.label(appType)}')),
     );
-    context.go(AppType.isChit(appType) ? '/chits' : '/dashboard');
+    context.go(AppType.landingRoute(appType));
   }
 
   Future<void> _editApiBaseUrl(BuildContext context, WidgetRef ref) async {
@@ -855,27 +844,15 @@ class _ModuleSwitcherRow extends StatelessWidget {
   final ValueChanged<String> onChanged;
 
   List<String> get _options {
-    final values = <String>{user.appType, ...user.enabledModules};
-    if (values.contains(AppType.legacyChit)) {
-      values
-        ..remove(AppType.legacyChit)
-        ..add(AppType.chitfunds);
-    }
-    return values
-        .where((m) => m == AppType.microlending || m == AppType.chitfunds)
+    return <String>{user.appType, ...user.enabledModules}
+        .map(AppType.normalize)
+        .where(AppType.isSupported)
         .toList(growable: false);
-  }
-
-  String _label(String module) {
-    if (AppType.isChit(module)) return 'Chit Funds';
-    if (module == AppType.microlending) return 'Microlending';
-    return module;
   }
 
   @override
   Widget build(BuildContext context) {
-    final current =
-        AppType.isChit(user.appType) ? AppType.chitfunds : user.appType;
+    final current = AppType.normalize(user.appType);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -917,7 +894,10 @@ class _ModuleSwitcherRow extends StatelessWidget {
                 for (final option in _options)
                   DropdownMenuItem(
                     value: option,
-                    child: Text(_label(option), style: AppTypography.body),
+                    child: Text(
+                      AppType.label(option),
+                      style: AppTypography.body,
+                    ),
                   ),
               ],
               onChanged: (value) {

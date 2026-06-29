@@ -19,8 +19,21 @@ class AppType {
   const AppType._();
 
   static const microlending = 'microlending';
+  static const autofinance = 'autofinance';
   static const chitfunds = 'chitfunds';
+  static const goldloan = 'goldloan';
+  static const property = 'property';
+  static const productfinance = 'productfinance';
   static const legacyChit = 'chit';
+
+  static const all = <String>{
+    microlending,
+    autofinance,
+    chitfunds,
+    goldloan,
+    property,
+    productfinance,
+  };
 
   static bool isChit(String? value) =>
       value == chitfunds || value == legacyChit;
@@ -29,6 +42,41 @@ class AppType {
 
   static bool userHasChits(User? user) =>
       userIsChit(user) || (user?.hasModule(chitfunds) ?? false);
+
+  static String normalize(String module) =>
+      module == legacyChit ? chitfunds : module;
+
+  static bool isSupported(String module) => all.contains(normalize(module));
+
+  static String label(String module) {
+    switch (normalize(module)) {
+      case microlending:
+        return 'Microlending';
+      case autofinance:
+        return 'Auto Finance';
+      case chitfunds:
+        return 'Chit Funds';
+      case goldloan:
+        return 'Gold Loan';
+      case property:
+        return 'Property Loan';
+      case productfinance:
+        return 'Product Finance';
+      default:
+        return module;
+    }
+  }
+
+  static String landingRoute(String module) {
+    switch (normalize(module)) {
+      case autofinance:
+        return '/vehicles';
+      case chitfunds:
+        return '/chits';
+      default:
+        return '/dashboard';
+    }
+  }
 }
 
 class User {
@@ -55,7 +103,7 @@ class User {
   final String username;
   final UserRole role;
   final String? branchId;
-  final String appType; // "microlending" | "chit"
+  final String appType; // See AppType constants.
   final String status; // "active" | "suspended"
   final bool totpEnabled;
 

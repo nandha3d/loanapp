@@ -13,7 +13,8 @@ import 'package:loantrack/shared/constants/endpoints.dart';
 
 /// Verticals the tenant subscribed to — served by /api/v1/auth/me, mirrors
 /// the web /portal module cards.
-final _verticalsProvider = FutureProvider.autoDispose<List<String>>((ref) async {
+final _verticalsProvider =
+    FutureProvider.autoDispose<List<String>>((ref) async {
   final dio = ref.watch(dioProvider);
   final res = await dio.get<Map<String, dynamic>>(Endpoints.me);
   final data = res.data?['data'] as Map<String, dynamic>?;
@@ -23,8 +24,15 @@ final _verticalsProvider = FutureProvider.autoDispose<List<String>>((ref) async 
 });
 
 class _VerticalDef {
-  const _VerticalDef(this.key, this.title, this.description, this.icon,
-      this.color, this.bg, this.route,);
+  const _VerticalDef(
+    this.key,
+    this.title,
+    this.description,
+    this.icon,
+    this.color,
+    this.bg,
+    this.route,
+  );
   final String key;
   final String title;
   final String description;
@@ -36,7 +44,7 @@ class _VerticalDef {
 
 const _verticalDefs = <_VerticalDef>[
   _VerticalDef(
-    'microlending',
+    AppType.microlending,
     'Micro Lending',
     'Manage micro-loans, collections, penalties, and customer portfolios.',
     Icons.monetization_on_outlined,
@@ -45,7 +53,7 @@ const _verticalDefs = <_VerticalDef>[
     '/dashboard',
   ),
   _VerticalDef(
-    'autofinance',
+    AppType.autofinance,
     'Auto Finance',
     'Vehicle financing, EMI management, and auto loan tracking.',
     Icons.directions_car_outlined,
@@ -54,7 +62,7 @@ const _verticalDefs = <_VerticalDef>[
     '/vehicles',
   ),
   _VerticalDef(
-    'chitfunds',
+    AppType.chitfunds,
     'Chit Funds',
     'Chit fund management, auctions, and member tracking.',
     Icons.savings_outlined,
@@ -63,12 +71,30 @@ const _verticalDefs = <_VerticalDef>[
     '/chits',
   ),
   _VerticalDef(
-    'goldloan',
+    AppType.goldloan,
     'Gold Loan',
     'Gold-backed lending, valuation, LTV, pledges, and release tracking.',
     Icons.workspace_premium_outlined,
     AppColors.warning,
     AppColors.warningBg,
+    '/dashboard',
+  ),
+  _VerticalDef(
+    AppType.property,
+    'Property Loan',
+    'Property-backed origination, valuations, and document-led lending.',
+    Icons.home_work_outlined,
+    AppColors.defaultPrimary,
+    AppColors.defaultPrimaryLight,
+    '/dashboard',
+  ),
+  _VerticalDef(
+    AppType.productfinance,
+    'Product Finance',
+    'Consumer durable finance with dealer, invoice, and down-payment capture.',
+    Icons.shopping_bag_outlined,
+    AppColors.info,
+    AppColors.infoBg,
     '/dashboard',
   ),
 ];
@@ -142,10 +168,17 @@ class PortalScreen extends ConsumerWidget {
                   child: Center(child: CircularProgressIndicator()),
                 ),
               ],
-              error: (_, __) => _verticalCards(context, [user?.appType ?? 'microlending']),
+              error: (_, __) => _verticalCards(
+                context,
+                ref,
+                [user?.appType ?? AppType.microlending],
+              ),
               data: (verticals) => _verticalCards(
                 context,
-                verticals.isEmpty ? [user?.appType ?? 'microlending'] : verticals,
+                ref,
+                verticals.isEmpty
+                    ? [user?.appType ?? AppType.microlending]
+                    : verticals,
               ),
             ),
             const SizedBox(height: 24),
@@ -154,17 +187,41 @@ class PortalScreen extends ConsumerWidget {
             if (isAdminish) ...[
               Text('Quick Access', style: AppTypography.sectionTitle),
               const SizedBox(height: 12),
-              _quickTile(context, Icons.payments_outlined, AppColors.success,
-                  'My Collections', 'View and manage collections', '/collection',),
+              _quickTile(
+                context,
+                Icons.payments_outlined,
+                AppColors.success,
+                'My Collections',
+                'View and manage collections',
+                '/collection',
+              ),
               const SizedBox(height: 10),
-              _quickTile(context, Icons.people_outline, AppColors.info,
-                  'My Customers', 'View assigned customers', '/customers',),
+              _quickTile(
+                context,
+                Icons.people_outline,
+                AppColors.info,
+                'My Customers',
+                'View assigned customers',
+                '/customers',
+              ),
               const SizedBox(height: 10),
-              _quickTile(context, Icons.account_balance_wallet_outlined,
-                  AppColors.primary, 'My Loans', 'View loan details', '/loans',),
+              _quickTile(
+                context,
+                Icons.account_balance_wallet_outlined,
+                AppColors.primary,
+                'My Loans',
+                'View loan details',
+                '/loans',
+              ),
               const SizedBox(height: 10),
-              _quickTile(context, Icons.dashboard_outlined,
-                  AppColors.purpleText, 'My Dashboard', 'View stats and overview', '/dashboard',),
+              _quickTile(
+                context,
+                Icons.dashboard_outlined,
+                AppColors.purpleText,
+                'My Dashboard',
+                'View stats and overview',
+                '/dashboard',
+              ),
               const SizedBox(height: 24),
             ],
 
@@ -179,14 +236,28 @@ class PortalScreen extends ConsumerWidget {
                 AppColors.warning,
                 'User Management',
                 'Manage team roles and access',
-                user?.role == UserRole.developer ? '/admin/users' : '/admin/team',
+                user?.role == UserRole.developer
+                    ? '/admin/users'
+                    : '/admin/team',
               ),
               const SizedBox(height: 10),
-              _quickTile(context, Icons.store_mall_directory_outlined,
-                  AppColors.info, 'Branch Management', 'Branches and module access', '/admin/branches',),
+              _quickTile(
+                context,
+                Icons.store_mall_directory_outlined,
+                AppColors.info,
+                'Branch Management',
+                'Branches and module access',
+                '/admin/branches',
+              ),
               const SizedBox(height: 10),
-              _quickTile(context, Icons.receipt_long_outlined,
-                  AppColors.purpleText, 'My Subscription', 'View plan details and usage', '/admin/billing',),
+              _quickTile(
+                context,
+                Icons.receipt_long_outlined,
+                AppColors.purpleText,
+                'My Subscription',
+                'View plan details and usage',
+                '/admin/billing',
+              ),
             ],
           ],
         ),
@@ -194,36 +265,56 @@ class PortalScreen extends ConsumerWidget {
     );
   }
 
-  List<Widget> _verticalCards(BuildContext context, List<String> enabled) {
+  List<Widget> _verticalCards(
+    BuildContext context,
+    WidgetRef ref,
+    List<String> enabled,
+  ) {
     final cards = <Widget>[];
+    final normalized = enabled.map(AppType.normalize).toSet();
     for (final def in _verticalDefs) {
-      if (!enabled.contains(def.key)) continue;
+      if (!normalized.contains(def.key)) continue;
       if (cards.isNotEmpty) cards.add(const SizedBox(height: 12));
-      cards.add(_ModuleCard(
-        title: def.title,
-        description: def.description,
-        icon: def.icon,
-        iconColor: def.color,
-        iconBg: def.bg,
-        onTap: () => context.go(def.route),
-      ),);
+      cards.add(
+        _ModuleCard(
+          title: def.title,
+          description: def.description,
+          icon: def.icon,
+          iconColor: def.color,
+          iconBg: def.bg,
+          onTap: () async {
+            await ref
+                .read(authControllerProvider.notifier)
+                .setActiveAppType(def.key);
+            if (context.mounted) context.go(def.route);
+          },
+        ),
+      );
     }
     if (cards.isEmpty) {
-      cards.add(_ModuleCard(
-        title: 'Micro Lending',
-        description:
-            'Manage micro-loans, collections, penalties, and customer portfolios.',
-        icon: Icons.monetization_on_outlined,
-        iconColor: AppColors.success,
-        iconBg: AppColors.successBg,
-        onTap: () => context.go('/dashboard'),
-      ),);
+      cards.add(
+        _ModuleCard(
+          title: 'Micro Lending',
+          description:
+              'Manage micro-loans, collections, penalties, and customer portfolios.',
+          icon: Icons.monetization_on_outlined,
+          iconColor: AppColors.success,
+          iconBg: AppColors.successBg,
+          onTap: () => context.go('/dashboard'),
+        ),
+      );
     }
     return cards;
   }
 
-  Widget _quickTile(BuildContext context, IconData icon, Color color,
-      String title, String subtitle, String route,) {
+  Widget _quickTile(
+    BuildContext context,
+    IconData icon,
+    Color color,
+    String title,
+    String subtitle,
+    String route,
+  ) {
     return InkWell(
       onTap: () => context.go(route),
       borderRadius: BorderRadius.circular(AppTokens.radius),
@@ -243,9 +334,11 @@ class PortalScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title,
-                      style: AppTypography.bodyLarge
-                          .copyWith(fontWeight: FontWeight.w600),),
+                  Text(
+                    title,
+                    style: AppTypography.bodyLarge
+                        .copyWith(fontWeight: FontWeight.w600),
+                  ),
                   Text(subtitle, style: AppTypography.caption),
                 ],
               ),

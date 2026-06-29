@@ -1,4 +1,4 @@
-import 'package:loantrack/core/currency/currency_controller.dart';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -7,12 +7,15 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
+import 'package:loantrack/core/auth/auth_controller.dart';
+import 'package:loantrack/core/currency/currency_controller.dart';
 import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/data/models/customer.dart';
 import 'package:loantrack/data/models/loan_calc.dart';
+import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/data/repositories/customer_repository.dart';
 import 'package:loantrack/data/services/loan_service.dart';
 import 'package:loantrack/data/services/gold_service.dart';
@@ -146,6 +149,17 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
   final _propertyValue = TextEditingController();
   final _propertyAddress = TextEditingController();
 
+  // Product finance fields
+  final _productName = TextEditingController();
+  final _productCategory = TextEditingController();
+  final _productBrand = TextEditingController();
+  final _productModelNo = TextEditingController();
+  final _productSerialNo = TextEditingController();
+  final _productDealerName = TextEditingController();
+  final _productInvoiceNo = TextEditingController();
+  final _productInvoiceAmount = TextEditingController();
+  final _productDownPayment = TextEditingController();
+
   // Step 2 — principal/terms
   final _principal = TextEditingController(text: '30000');
   String _deductionType = 'upfront_fixed';
@@ -211,14 +225,17 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
                   Text(
                     'Value: ₹${_ornValue(o).toStringAsFixed(0)}',
                     style: AppTypography.bodyLarge.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primaryDark,),
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primaryDark,
+                    ),
                   ),
                   const Spacer(),
                   if (_ornaments.length > 1)
                     IconButton(
-                      icon: const Icon(Icons.delete_outline,
-                          color: AppColors.danger,),
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        color: AppColors.danger,
+                      ),
                       onPressed: () => setState(() => _ornaments.removeAt(i)),
                     ),
                 ],
@@ -247,7 +264,10 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
       return TextFormField(
         initialValue: o['type'],
         decoration: const InputDecoration(
-            labelText: 'Ornament', isDense: true, border: OutlineInputBorder(),),
+          labelText: 'Ornament',
+          isDense: true,
+          border: OutlineInputBorder(),
+        ),
         onChanged: (v) => o['type'] = v,
       );
     }
@@ -255,13 +275,16 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
       initialValue: (o['type'] ?? '').isEmpty ? null : o['type'],
       isExpanded: true,
       decoration: const InputDecoration(
-          labelText: 'Ornament', isDense: true, border: OutlineInputBorder(),),
+        labelText: 'Ornament',
+        isDense: true,
+        border: OutlineInputBorder(),
+      ),
       items: [
         for (final t in _ornTypes)
           DropdownMenuItem(
-              value: t['name'] as String,
-              child:
-                  Text(t['name'] as String, overflow: TextOverflow.ellipsis),),
+            value: t['name'] as String,
+            child: Text(t['name'] as String, overflow: TextOverflow.ellipsis),
+          ),
       ],
       onChanged: (v) => setState(() => o['type'] = v ?? ''),
     );
@@ -272,7 +295,10 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
       return TextFormField(
         initialValue: o['spec'],
         decoration: const InputDecoration(
-            labelText: 'Spec', isDense: true, border: OutlineInputBorder(),),
+          labelText: 'Spec',
+          isDense: true,
+          border: OutlineInputBorder(),
+        ),
         onChanged: (v) => o['spec'] = v,
       );
     }
@@ -280,13 +306,16 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
       initialValue: (o['spec'] ?? '').isEmpty ? null : o['spec'],
       isExpanded: true,
       decoration: const InputDecoration(
-          labelText: 'Spec', isDense: true, border: OutlineInputBorder(),),
+        labelText: 'Spec',
+        isDense: true,
+        border: OutlineInputBorder(),
+      ),
       items: [
         for (final s in _ornSpecs)
           DropdownMenuItem(
-              value: s['name'] as String,
-              child:
-                  Text(s['name'] as String, overflow: TextOverflow.ellipsis),),
+            value: s['name'] as String,
+            child: Text(s['name'] as String, overflow: TextOverflow.ellipsis),
+          ),
       ],
       onChanged: (v) => setState(() => o['spec'] = v ?? ''),
     );
@@ -297,15 +326,19 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
         initialValue: o[key],
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         decoration: InputDecoration(
-            labelText: label,
-            isDense: true,
-            border: const OutlineInputBorder(),),
+          labelText: label,
+          isDense: true,
+          border: const OutlineInputBorder(),
+        ),
         onChanged: (v) => setState(() => o[key] = v),
       );
 
   @override
   void initState() {
     super.initState();
+    _loanType = _defaultLoanTypeForApp(
+      ref.read(authControllerProvider).user?.appType,
+    );
     _loadGoldMaster();
   }
 
@@ -332,6 +365,15 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
     _goldItems.dispose();
     _propertyValue.dispose();
     _propertyAddress.dispose();
+    _productName.dispose();
+    _productCategory.dispose();
+    _productBrand.dispose();
+    _productModelNo.dispose();
+    _productSerialNo.dispose();
+    _productDealerName.dispose();
+    _productInvoiceNo.dispose();
+    _productInvoiceAmount.dispose();
+    _productDownPayment.dispose();
     _page.dispose();
     super.dispose();
   }
@@ -350,16 +392,80 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
   double get _deductionNum => double.tryParse(_deduction.text) ?? 0;
   int get _tenureNum => int.tryParse(_tenure.text) ?? 0;
 
+  String _defaultLoanTypeForApp(String? appType) {
+    switch (AppType.normalize(appType ?? '')) {
+      case AppType.goldloan:
+        return 'gold';
+      case AppType.property:
+        return 'property';
+      case AppType.productfinance:
+        return 'other';
+      default:
+        return 'cheque';
+    }
+  }
+
   String _buildCollateralJson() {
     if (_loanType == 'cheque') {
-      return '{"bankName":"${_chequeBankName.text}","chequeNumber":"${_chequeNumber.text}","chequeAmount":${double.tryParse(_chequeAmount.text) ?? 0}}';
+      return jsonEncode({
+        'bankName': _chequeBankName.text.trim(),
+        'chequeNumber': _chequeNumber.text.trim(),
+        'chequeAmount': double.tryParse(_chequeAmount.text) ?? 0,
+      });
     } else if (_loanType == 'gold') {
-      return '{"grams":${double.tryParse(_goldGrams.text) ?? 0},"carat":"$_goldCarat","items":"${_goldItems.text}"}';
+      return jsonEncode({
+        'grams': double.tryParse(_goldGrams.text) ?? 0,
+        'carat': _goldCarat,
+        'items': _goldItems.text.trim(),
+      });
     } else if (_loanType == 'property') {
-      return '{"type":"$_propertyType","value":${double.tryParse(_propertyValue.text) ?? 0},"address":"${_propertyAddress.text}"}';
+      return jsonEncode({
+        'type': _propertyType,
+        'value': double.tryParse(_propertyValue.text) ?? 0,
+        'address': _propertyAddress.text.trim(),
+      });
     }
     return '';
   }
+
+  Map<String, dynamic> _propertyCollateralMap() => {
+        'propertyType': _propertyType,
+        'address': _propertyAddress.text.trim().isEmpty
+            ? null
+            : _propertyAddress.text.trim(),
+        'marketValue': _propertyValue.text.trim().isEmpty
+            ? null
+            : double.tryParse(_propertyValue.text),
+      };
+
+  Map<String, dynamic> _productItemMap() => {
+        'category': _productCategory.text.trim().isEmpty
+            ? null
+            : _productCategory.text.trim(),
+        'productName':
+            _productName.text.trim().isEmpty ? null : _productName.text.trim(),
+        'brand': _productBrand.text.trim().isEmpty
+            ? null
+            : _productBrand.text.trim(),
+        'modelNo': _productModelNo.text.trim().isEmpty
+            ? null
+            : _productModelNo.text.trim(),
+        'serialNo': _productSerialNo.text.trim().isEmpty
+            ? null
+            : _productSerialNo.text.trim(),
+        'dealerName': _productDealerName.text.trim().isEmpty
+            ? null
+            : _productDealerName.text.trim(),
+        'invoiceNo': _productInvoiceNo.text.trim().isEmpty
+            ? null
+            : _productInvoiceNo.text.trim(),
+        'invoiceAmount': _productInvoiceAmount.text.trim().isEmpty
+            ? null
+            : double.tryParse(_productInvoiceAmount.text),
+        'downPayment': _productDownPayment.text.trim().isEmpty
+            ? null
+            : double.tryParse(_productDownPayment.text),
+      };
 
   double _netDisbursed() {
     switch (_deductionType) {
@@ -471,12 +577,16 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
             guarantor: guarantorPayload,
             securityCheques: cheques.isEmpty ? null : cheques,
             goldCollateral: _loanType == 'gold' ? _goldCollateralMap() : null,
+            propertyCollateral:
+                _loanType == 'property' ? _propertyCollateralMap() : null,
+            productItem: _loanType == 'other' ? _productItemMap() : null,
           );
       if (!mounted) return;
       final t = T.of(ref);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text('${t.x('msg.created_prefix')} ${loan.loanCode}'),),
+          content: Text('${t.x('msg.created_prefix')} ${loan.loanCode}'),
+        ),
       );
       context.go('/loans');
     } catch (e) {
@@ -500,8 +610,10 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
         actions: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-            child: Text('${t.x('step.label')} ${_step + 1}/5',
-                style: AppTypography.caption,),
+            child: Text(
+              '${t.x('step.label')} ${_step + 1}/5',
+              style: AppTypography.caption,
+            ),
           ),
         ],
         bottom: PreferredSize(
@@ -750,6 +862,26 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
   // ─────────────────────── Step 1: Loan Type & Cheques ─────────────────
   Widget _stepLoanType() {
     final tr = T.of(ref);
+    final appType = AppType.normalize(
+      ref.watch(authControllerProvider).user?.appType ?? '',
+    );
+    final loanTypes = <(String, String, IconData)>[
+      if (appType == AppType.productfinance)
+        ('other', tr.x('lt.product'), Icons.shopping_bag_outlined)
+      else if (appType == AppType.property)
+        ('property', tr.x('lt.property'), Icons.home_work_outlined)
+      else if (appType == AppType.goldloan)
+        ('gold', tr.x('lt.gold'), Icons.diamond_outlined)
+      else ...[
+        (
+          'cheque',
+          tr.x('lt.cheque'),
+          Icons.account_balance_wallet_outlined,
+        ),
+        ('gold', tr.x('lt.gold'), Icons.diamond_outlined),
+        ('property', tr.x('lt.property'), Icons.home_work_outlined),
+      ],
+    ];
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -759,15 +891,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
           spacing: 8,
           runSpacing: 8,
           children: [
-            for (final lt in [
-              (
-                'cheque',
-                tr.x('lt.cheque'),
-                Icons.account_balance_wallet_outlined
-              ),
-              ('gold', tr.x('lt.gold'), Icons.diamond_outlined),
-              ('property', tr.x('lt.property'), Icons.home_work_outlined),
-            ])
+            for (final lt in loanTypes)
               ChoiceChip(
                 label: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -823,13 +947,17 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
             ),
             items: [
               DropdownMenuItem(
-                  value: 'residential',
-                  child: Text(tr.x('fld.property_type_residential')),),
+                value: 'residential',
+                child: Text(tr.x('fld.property_type_residential')),
+              ),
               DropdownMenuItem(
-                  value: 'commercial',
-                  child: Text(tr.x('fld.property_type_commercial')),),
+                value: 'commercial',
+                child: Text(tr.x('fld.property_type_commercial')),
+              ),
               DropdownMenuItem(
-                  value: 'land', child: Text(tr.x('fld.property_type_land')),),
+                value: 'land',
+                child: Text(tr.x('fld.property_type_land')),
+              ),
             ],
             onChanged: (v) =>
                 setState(() => _propertyType = v ?? 'residential'),
@@ -846,6 +974,80 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
             label: tr.x('fld.property_address'),
             controller: _propertyAddress,
             hintText: tr.x('fld.address'),
+          ),
+          const SizedBox(height: 16),
+        ] else if (_loanType == 'other') ...[
+          AppTextField(
+            label: tr.x('fld.product_name'),
+            controller: _productName,
+            hintText: 'e.g. LED TV 55 inch',
+          ),
+          const SizedBox(height: 12),
+          AppTextField(
+            label: tr.x('fld.product_category'),
+            controller: _productCategory,
+            hintText: 'Electronics',
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: AppTextField(
+                  label: tr.x('fld.product_brand'),
+                  controller: _productBrand,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: AppTextField(
+                  label: tr.x('fld.product_model_no'),
+                  controller: _productModelNo,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          AppTextField(
+            label: tr.x('fld.product_serial_no'),
+            controller: _productSerialNo,
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: AppTextField(
+                  label: tr.x('fld.product_dealer'),
+                  controller: _productDealerName,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: AppTextField(
+                  label: tr.x('fld.product_invoice_no'),
+                  controller: _productInvoiceNo,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: AppTextField(
+                  label: tr.x('fld.product_invoice_amount'),
+                  controller: _productInvoiceAmount,
+                  keyboardType: TextInputType.number,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: AppTextField(
+                  label: tr.x('fld.product_down_payment'),
+                  controller: _productDownPayment,
+                  keyboardType: TextInputType.number,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
         ],
@@ -938,7 +1140,9 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
         SegmentedButton<String>(
           segments: [
             ButtonSegment(
-                value: 'upfront_fixed', label: Text(tr.x('plan.upfront')),),
+              value: 'upfront_fixed',
+              label: Text(tr.x('plan.upfront')),
+            ),
             ButtonSegment(value: 'emi_flat', label: Text(tr.x('plan.emi'))),
           ],
           selected: {
@@ -1158,9 +1362,11 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
                 setState(() => _gPhoto = File(x.path));
               },
               icon: const Icon(Icons.camera_alt_outlined, size: 16),
-              label: Text(_gPhoto == null
-                  ? tr.x('btn.choose_photo')
-                  : tr.x('btn.replace'),),
+              label: Text(
+                _gPhoto == null
+                    ? tr.x('btn.choose_photo')
+                    : tr.x('btn.replace'),
+              ),
             ),
           ],
         ),
@@ -1201,8 +1407,10 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
               _kv(tr.x('rev.deduction'), _deduction.text),
               _kv(tr.x('rev.tenure'), _tenure.text),
               _kv(tr.x('rev.frequency'), _frequency),
-              _kv(tr.x('rev.start'),
-                  DateFormat('dd MMM yyyy').format(_startDate),),
+              _kv(
+                tr.x('rev.start'),
+                DateFormat('dd MMM yyyy').format(_startDate),
+              ),
               _kv(tr.x('rev.penalty'), _penaltyRate.text),
               if (_loanType == 'cheque') ...[
                 if (_chequeBankName.text.isNotEmpty)
@@ -1222,25 +1430,56 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
                   _kv(tr.x('fld.property_value'), '₹${_propertyValue.text}'),
                 if (_propertyAddress.text.isNotEmpty)
                   _kv(tr.x('fld.property_address'), _propertyAddress.text),
+              ] else if (_loanType == 'other') ...[
+                if (_productName.text.isNotEmpty)
+                  _kv(tr.x('fld.product_name'), _productName.text),
+                if (_productCategory.text.isNotEmpty)
+                  _kv(tr.x('fld.product_category'), _productCategory.text),
+                if (_productBrand.text.isNotEmpty)
+                  _kv(tr.x('fld.product_brand'), _productBrand.text),
+                if (_productModelNo.text.isNotEmpty)
+                  _kv(tr.x('fld.product_model_no'), _productModelNo.text),
+                if (_productSerialNo.text.isNotEmpty)
+                  _kv(tr.x('fld.product_serial_no'), _productSerialNo.text),
+                if (_productDealerName.text.isNotEmpty)
+                  _kv(tr.x('fld.product_dealer'), _productDealerName.text),
+                if (_productInvoiceNo.text.isNotEmpty)
+                  _kv(tr.x('fld.product_invoice_no'), _productInvoiceNo.text),
+                if (_productInvoiceAmount.text.isNotEmpty)
+                  _kv(
+                    tr.x('fld.product_invoice_amount'),
+                    '₹${_productInvoiceAmount.text}',
+                  ),
+                if (_productDownPayment.text.isNotEmpty)
+                  _kv(
+                    tr.x('fld.product_down_payment'),
+                    '₹${_productDownPayment.text}',
+                  ),
               ],
               if (_calc != null) ...[
                 const Divider(),
-                _kv(tr.x('rev.per_instalment'),
-                    fmt.format(_calc!.perInstalment),),
+                _kv(
+                  tr.x('rev.per_instalment'),
+                  fmt.format(_calc!.perInstalment),
+                ),
                 _kv(
                   tr.x('rev.net_disbursed'),
                   fmt.format(_netDisbursed()),
                 ),
-                _kv(tr.x('rev.total_payable'),
-                    fmt.format(_calc!.totalRepayable),),
+                _kv(
+                  tr.x('rev.total_payable'),
+                  fmt.format(_calc!.totalRepayable),
+                ),
                 _kv(
                   tr.x('rev.end_date'),
                   DateFormat('dd MMM yyyy').format(_calc!.endDate),
                 ),
               ],
               if (_cheques.isNotEmpty)
-                _kv(tr.x('rev.cheques'),
-                    '${_cheques.length} ${tr.x('rev.cheques_attached_suffix')}',),
+                _kv(
+                  tr.x('rev.cheques'),
+                  '${_cheques.length} ${tr.x('rev.cheques_attached_suffix')}',
+                ),
               if (_gName.text.trim().isNotEmpty)
                 _kv(
                   tr.x('rev.guarantor'),
@@ -1377,7 +1616,8 @@ class _ChequeTile extends ConsumerWidget {
                 onPressed: onPick,
                 icon: const Icon(Icons.camera_alt_outlined, size: 16),
                 label: Text(
-                    entry.image == null ? t.x('btn.photo') : t.x('btn.change'),),
+                  entry.image == null ? t.x('btn.photo') : t.x('btn.change'),
+                ),
               ),
             ],
           ),
