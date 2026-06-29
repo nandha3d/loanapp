@@ -596,7 +596,7 @@ export default function LoanForm({
 
                   <div className="go-head">
                     <h4>💎 Ornament Details</h4>
-                    <a href={`/${appType || 'goldloan'}/settings/gold-master`} style={{ fontSize: '.8rem', color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>⚙ Manage ornaments / banks</a>
+                    <a href={`/${appType || 'goldloan'}/settings?tab=goldmaster`} style={{ fontSize: '.8rem', color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>⚙ Manage ornaments / banks</a>
                   </div>
 
                   <div className="go-meta">

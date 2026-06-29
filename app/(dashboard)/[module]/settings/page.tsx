@@ -7,6 +7,7 @@ import { getDictionary } from '@/lib/i18n';
 import { modulePath } from '@/types/modules';
 import { getSubscription } from '@/lib/subscription';
 import { getActiveBranchId } from '@/lib/branch';
+import { serverFetch } from '@/lib/api-client/server';
 
 export default async function SettingsPage() {
   const session = await auth();
@@ -125,10 +126,20 @@ export default async function SettingsPage() {
     };
   }
 
+  // Gold master data for the Gold Master settings tab (gold module only).
+  let goldMaster: any = null;
+  if (appType === 'goldloan') {
+    try {
+      const res = await serverFetch<any>('/gold/master');
+      goldMaster = res?.data ?? null;
+    } catch { goldMaster = null; }
+  }
+
   return (
-    <SettingsClient 
-      routes={routes} 
-      packages={packages} 
+    <SettingsClient
+      routes={routes}
+      packages={packages}
+      goldMaster={goldMaster}
       users={users} 
       settings={settings} 
       currencySymbol={settings.currency_symbol || '₹'}
