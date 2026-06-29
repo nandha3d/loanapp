@@ -567,14 +567,45 @@ export default function LoanForm({
               )}
 
               {(isGoldModule || loanType === 'gold') && (
-                <div>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label className="form-label">Packet No</label>
+                <div className="gold-orn">
+                  <style>{`
+                    .gold-orn .go-head { display:flex; align-items:center; justify-content:space-between; margin: 4px 0 12px; }
+                    .gold-orn .go-head h4 { margin:0; font-size:1rem; color:var(--primary-dark); display:flex; gap:8px; align-items:center; }
+                    .gold-orn .go-meta { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+                    .gold-orn .go-meta .fld { flex:1 1 180px; }
+                    .gold-orn .go-meta label { font-size:.72rem; color:var(--text-secondary); display:block; margin-bottom:4px; }
+                    .gold-orn .go-meta .form-control { height:38px; }
+                    .gold-orn .go-table-wrap { border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+                    .gold-orn table { width:100%; border-collapse:collapse; min-width:760px; }
+                    .gold-orn thead th { background:var(--primary-light); color:var(--primary-dark); font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:9px 8px; text-align:left; white-space:nowrap; }
+                    .gold-orn tbody td { padding:6px; border-top:1px solid var(--border); vertical-align:middle; }
+                    .gold-orn tbody tr:nth-child(even) { background:var(--bg, #fafafa); }
+                    .gold-orn .cell-input { width:100%; border:1px solid var(--border); border-radius:8px; padding:8px 8px; font-size:.88rem; background:var(--surface,#fff); }
+                    .gold-orn .cell-input:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 2px var(--primary-light); }
+                    .gold-orn .val-cell { font-weight:700; color:var(--primary-dark); white-space:nowrap; }
+                    .gold-orn .rm-btn { border:none; background:transparent; color:var(--danger); cursor:pointer; font-size:1rem; padding:6px 8px; border-radius:8px; }
+                    .gold-orn .rm-btn:hover:not(:disabled) { background:var(--danger-bg,#fee2e2); }
+                    .gold-orn .rm-btn:disabled { opacity:.3; cursor:not-allowed; }
+                    .gold-orn tfoot td { padding:10px 8px; border-top:2px solid var(--border); font-weight:700; background:var(--primary-light); }
+                    .gold-orn .go-foot { display:flex; justify-content:space-between; align-items:center; margin-top:12px; }
+                    .gold-orn .add-btn { display:inline-flex; align-items:center; gap:6px; border:1.5px dashed var(--primary); color:var(--primary-dark); background:var(--primary-light); border-radius:10px; padding:9px 16px; font-weight:600; cursor:pointer; }
+                    .gold-orn .add-btn:hover { background:var(--primary); color:#fff; }
+                    .gold-orn .num { width:84px; }
+                    .gold-orn .qty { width:58px; }
+                  `}</style>
+
+                  <div className="go-head">
+                    <h4>💎 Ornament Details</h4>
+                    <a href={`/${appType || 'goldloan'}/settings/gold-master`} style={{ fontSize: '.8rem', color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>⚙ Manage ornaments / banks</a>
+                  </div>
+
+                  <div className="go-meta">
+                    <div className="fld">
+                      <label>Packet No</label>
                       <input type="text" className="form-control" value={goldPacketNo} onChange={e=>setGoldPacketNo(e.target.value)} placeholder="e.g. P-001" />
                     </div>
-                    <div className="form-group">
-                      <label className="form-label">Storage / Bank</label>
+                    <div className="fld">
+                      <label>Storage / Bank</label>
                       {ornBanks.length > 0 ? (
                         <select className="form-control" value={goldStorage} onChange={e=>setGoldStorage(e.target.value)}>
                           <option value="">Select…</option>
@@ -586,72 +617,75 @@ export default function LoanForm({
                     </div>
                   </div>
 
-                  <label className="form-label" style={{ marginTop: 8 }}>Ornament Details</label>
-                  {ornamentRows.map((row, i) => {
-                    const line = resolveOrnamentLine({
-                      quantity: Number(row.quantity) || 1,
-                      grossWeightGrams: Number(row.grossWeightGrams) || 0,
-                      wastageGrams: Number(row.wastageGrams) || 0,
-                      netWeightGrams: row.netWeightGrams ? Number(row.netWeightGrams) : undefined,
-                      ratePerGram: Number(row.ratePerGram) || 0,
-                    });
-                    return (
-                      <div key={i} className="form-row" style={{ alignItems: 'flex-end', gap: 6, marginBottom: 6 }}>
-                        <div className="form-group" style={{ flex: '1 1 130px' }}>
-                          <label className="form-label">Ornament</label>
-                          {ornTypes.length > 0 ? (
-                            <select className="form-control" value={row.ornamentType} onChange={e=>updateRow(i,'ornamentType',e.target.value)}>
-                              <option value="">Select…</option>
-                              {ornTypes.map((t:any)=>(<option key={t.id} value={t.name}>{t.name}</option>))}
-                            </select>
-                          ) : (
-                            <input className="form-control" value={row.ornamentType} onChange={e=>updateRow(i,'ornamentType',e.target.value)} placeholder="CHAIN" />
-                          )}
-                        </div>
-                        <div className="form-group" style={{ flex: '1 1 110px' }}>
-                          <label className="form-label">Specification</label>
-                          {ornSpecs.length > 0 ? (
-                            <select className="form-control" value={row.specification} onChange={e=>{const s=ornSpecs.find((x:any)=>x.name===e.target.value); updateRow(i,'specification',e.target.value); if(s?.purityKarat) updateRow(i,'purityKarat',s.purityKarat);}}>
-                              <option value="">Select…</option>
-                              {ornSpecs.map((s:any)=>(<option key={s.id} value={s.name}>{s.name}</option>))}
-                            </select>
-                          ) : (
-                            <input className="form-control" value={row.specification} onChange={e=>updateRow(i,'specification',e.target.value)} placeholder="916 22K" />
-                          )}
-                        </div>
-                        <div className="form-group" style={{ flex: '0 1 60px' }}>
-                          <label className="form-label">Qty</label>
-                          <input type="number" className="form-control" value={row.quantity} onChange={e=>updateRow(i,'quantity',e.target.value)} />
-                        </div>
-                        <div className="form-group" style={{ flex: '0 1 80px' }}>
-                          <label className="form-label">Gross</label>
-                          <input type="number" step="0.001" className="form-control" value={row.grossWeightGrams} onChange={e=>updateRow(i,'grossWeightGrams',e.target.value)} />
-                        </div>
-                        <div className="form-group" style={{ flex: '0 1 80px' }}>
-                          <label className="form-label">Wastage</label>
-                          <input type="number" step="0.001" className="form-control" value={row.wastageGrams} onChange={e=>updateRow(i,'wastageGrams',e.target.value)} />
-                        </div>
-                        <div className="form-group" style={{ flex: '0 1 80px' }}>
-                          <label className="form-label">Net</label>
-                          <input type="number" step="0.001" className="form-control" value={row.netWeightGrams} onChange={e=>updateRow(i,'netWeightGrams',e.target.value)} placeholder={String(line.netWeightGrams || '')} />
-                        </div>
-                        <div className="form-group" style={{ flex: '0 1 90px' }}>
-                          <label className="form-label">Rate/g</label>
-                          <input type="number" step="0.01" className="form-control" value={row.ratePerGram} onChange={e=>updateRow(i,'ratePerGram',e.target.value)} />
-                        </div>
-                        <div className="form-group" style={{ flex: '0 1 100px' }}>
-                          <label className="form-label">Value</label>
-                          <input className="form-control" value={`${currencySymbol}${line.value.toLocaleString('en-IN')}`} readOnly />
-                        </div>
-                        <button type="button" className="btn btn-ghost" onClick={()=>removeRow(i)} disabled={ornamentRows.length<=1} title="Remove" style={{ padding: '8px 10px' }}>✕</button>
-                      </div>
-                    );
-                  })}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
-                    <button type="button" className="btn btn-ghost" onClick={addRow}>+ Add ornament</button>
-                    <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                      Qty {goldTotals.totalQuantity} · Net {goldTotals.totalNetWeight} g · Value {currencySymbol}{goldTotals.totalValue.toLocaleString('en-IN')}
-                    </span>
+                  <div className="go-table-wrap" style={{ overflowX: 'auto' }}>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th style={{ minWidth: 150 }}>Ornament</th>
+                          <th style={{ minWidth: 120 }}>Specification</th>
+                          <th>Qty</th><th>Gross</th><th>Wastage</th><th>Net</th><th>Rate/g</th>
+                          <th>Value</th><th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ornamentRows.map((row, i) => {
+                          const line = resolveOrnamentLine({
+                            quantity: Number(row.quantity) || 1,
+                            grossWeightGrams: Number(row.grossWeightGrams) || 0,
+                            wastageGrams: Number(row.wastageGrams) || 0,
+                            netWeightGrams: row.netWeightGrams ? Number(row.netWeightGrams) : undefined,
+                            ratePerGram: Number(row.ratePerGram) || 0,
+                          });
+                          return (
+                            <tr key={i}>
+                              <td>
+                                {ornTypes.length > 0 ? (
+                                  <select className="cell-input" value={row.ornamentType} onChange={e=>updateRow(i,'ornamentType',e.target.value)}>
+                                    <option value="">Select…</option>
+                                    {ornTypes.map((t:any)=>(<option key={t.id} value={t.name}>{t.name}</option>))}
+                                  </select>
+                                ) : (
+                                  <input className="cell-input" value={row.ornamentType} onChange={e=>updateRow(i,'ornamentType',e.target.value)} placeholder="CHAIN" />
+                                )}
+                              </td>
+                              <td>
+                                {ornSpecs.length > 0 ? (
+                                  <select className="cell-input" value={row.specification} onChange={e=>{const s=ornSpecs.find((x:any)=>x.name===e.target.value); updateRow(i,'specification',e.target.value); if(s?.purityKarat) updateRow(i,'purityKarat',s.purityKarat);}}>
+                                    <option value="">Select…</option>
+                                    {ornSpecs.map((s:any)=>(<option key={s.id} value={s.name}>{s.name}</option>))}
+                                  </select>
+                                ) : (
+                                  <input className="cell-input" value={row.specification} onChange={e=>updateRow(i,'specification',e.target.value)} placeholder="916 22K" />
+                                )}
+                              </td>
+                              <td><input type="number" className="cell-input qty" value={row.quantity} onChange={e=>updateRow(i,'quantity',e.target.value)} /></td>
+                              <td><input type="number" step="0.001" className="cell-input num" value={row.grossWeightGrams} onChange={e=>updateRow(i,'grossWeightGrams',e.target.value)} placeholder="0" /></td>
+                              <td><input type="number" step="0.001" className="cell-input num" value={row.wastageGrams} onChange={e=>updateRow(i,'wastageGrams',e.target.value)} placeholder="0" /></td>
+                              <td><input type="number" step="0.001" className="cell-input num" value={row.netWeightGrams} onChange={e=>updateRow(i,'netWeightGrams',e.target.value)} placeholder={String(line.netWeightGrams || '0')} /></td>
+                              <td><input type="number" step="0.01" className="cell-input num" value={row.ratePerGram} onChange={e=>updateRow(i,'ratePerGram',e.target.value)} /></td>
+                              <td className="val-cell">{currencySymbol}{line.value.toLocaleString('en-IN')}</td>
+                              <td><button type="button" className="rm-btn" onClick={()=>removeRow(i)} disabled={ornamentRows.length<=1} title="Remove">✕</button></td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr>
+                          <td colSpan={2}>Total</td>
+                          <td>{goldTotals.totalQuantity}</td>
+                          <td>{goldTotals.totalGrossWeight}</td>
+                          <td>{goldTotals.totalWastage}</td>
+                          <td>{goldTotals.totalNetWeight}</td>
+                          <td></td>
+                          <td className="val-cell">{currencySymbol}{goldTotals.totalValue.toLocaleString('en-IN')}</td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+
+                  <div className="go-foot">
+                    <button type="button" className="add-btn" onClick={addRow}><span style={{ fontSize: '1.1rem', lineHeight: 1 }}>＋</span> Add ornament</button>
                   </div>
                 </div>
               )}
