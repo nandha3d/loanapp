@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:loantrack/core/auth/auth_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
+import 'package:loantrack/data/models/user.dart';
 
 class NavItem {
   const NavItem({required this.icon, required this.label, required this.route});
@@ -14,24 +17,43 @@ class NavItem {
 const _items = <NavItem>[
   NavItem(icon: Icons.home_outlined, label: 'Home', route: '/dashboard'),
   NavItem(icon: Icons.people_outline, label: 'Customers', route: '/customers'),
-  NavItem(icon: Icons.account_balance_wallet_outlined, label: 'Loans', route: '/loans'),
-  NavItem(icon: Icons.payments_outlined, label: 'Collection', route: '/collection'),
+  NavItem(
+      icon: Icons.account_balance_wallet_outlined,
+      label: 'Loans',
+      route: '/loans'),
+  NavItem(
+      icon: Icons.payments_outlined, label: 'Collection', route: '/collection'),
   NavItem(icon: Icons.grid_view_rounded, label: 'More', route: '/more'),
 ];
 
-class AppBottomNav extends StatelessWidget {
+const _chitItems = <NavItem>[
+  NavItem(icon: Icons.home_outlined, label: 'Home', route: '/dashboard'),
+  NavItem(icon: Icons.people_outline, label: 'Members', route: '/customers'),
+  NavItem(icon: Icons.savings_outlined, label: 'Chits', route: '/chits'),
+  NavItem(
+      icon: Icons.account_balance_outlined,
+      label: 'Accounts',
+      route: '/accounting'),
+  NavItem(icon: Icons.grid_view_rounded, label: 'More', route: '/more'),
+];
+
+class AppBottomNav extends ConsumerWidget {
   const AppBottomNav({super.key, required this.currentRoute});
 
   final String currentRoute;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authControllerProvider).user;
+    final items = AppType.userIsChit(user) ? _chitItems : _items;
+
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.surface,
         border: Border(top: BorderSide(color: AppColors.border)),
         boxShadow: [
-          BoxShadow(color: Color(0x1A000000), offset: Offset(0, -4), blurRadius: 24),
+          BoxShadow(
+              color: Color(0x1A000000), offset: Offset(0, -4), blurRadius: 24),
         ],
       ),
       child: SafeArea(
@@ -40,7 +62,7 @@ class AppBottomNav extends StatelessWidget {
           height: 64,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: _items.map((item) {
+            children: items.map((item) {
               final active = currentRoute.startsWith(item.route);
               final color = active ? AppColors.primary : AppColors.textLight;
               return Expanded(

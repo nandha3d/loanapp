@@ -101,6 +101,14 @@ class _ModuleItem {
 // Not const: module tiles reference the runtime tenant theme (AppColors).
 final _allModules = <_ModuleItem>[
   _ModuleItem(
+    icon: Icons.payments_outlined,
+    label: 'Collection',
+    subtitle: 'Daily dues, route work, and chit contributions',
+    route: '/collection',
+    color: AppColors.success,
+    bgColor: AppColors.successBg,
+  ),
+  _ModuleItem(
     icon: Icons.warning_amber_rounded,
     label: 'Penalties',
     subtitle: 'Manage & settle overdue fines',
@@ -141,6 +149,15 @@ final _allModules = <_ModuleItem>[
     subtitle: 'Group savings management',
     route: '/chits',
     moduleKey: 'chitfunds',
+    color: AppColors.purple,
+    bgColor: AppColors.purpleBg,
+  ),
+  _ModuleItem(
+    icon: Icons.receipt_long_outlined,
+    label: 'Reports',
+    subtitle: 'Daily, agent, and overdue reports',
+    route: '/reports',
+    moduleKey: 'reports',
     color: AppColors.purple,
     bgColor: AppColors.purpleBg,
   ),
@@ -211,6 +228,7 @@ bool _canAccess(_ModuleItem item, User user) {
     case 'accounting':
     case 'npa':
     case 'settings':
+    case 'reports':
       return user.role != UserRole.agent;
   }
 
@@ -236,10 +254,12 @@ class MoreScreen extends ConsumerWidget {
         ? <_ModuleItem>[]
         : _allModules
             .where((m) => _canAccess(m, user))
-            .where((m) =>
-                !simpleMode ||
-                user.role != UserRole.agent ||
-                dailyWorkRoutes.contains(m.route),)
+            .where(
+              (m) =>
+                  !simpleMode ||
+                  user.role != UserRole.agent ||
+                  dailyWorkRoutes.contains(m.route),
+            )
             .toList();
     final pinsAsync = ref.watch(_mapPinsProvider);
 

@@ -108,7 +108,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // Authenticated redirect.
       final user = auth.user;
       if (user != null) {
-        if (atLogin || atRegister || atTotp || atLock || atSplash || loc == '/') {
+        if (atLogin ||
+            atRegister ||
+            atTotp ||
+            atLock ||
+            atSplash ||
+            loc == '/') {
           if (user.role == UserRole.developer) return '/admin';
           if (user.role == UserRole.superadmin || user.role == UserRole.admin) {
             return '/portal';
@@ -264,7 +269,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/collection',
-        builder: (_, __) => const CollectionScreen(),
+        builder: (_, __) {
+          final user = auth.user;
+          if (AppType.userIsChit(user)) return const ChitsScreen();
+          return const CollectionScreen();
+        },
         routes: [
           GoRoute(
             path: 'runs',
@@ -387,6 +396,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 });
 
 bool _moduleBlocked(String location, User user) {
+  if (AppType.userIsChit(user) && location.startsWith('/loans/new')) {
+    return true;
+  }
+
   // First, check administrative / developer routes.
   // /admin (root developer dashboard)
   if (location == '/admin') {

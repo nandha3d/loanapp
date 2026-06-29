@@ -45,9 +45,11 @@ class _AuthInterceptor extends Interceptor {
     final token = await _storage.readToken();
     final tenantSlug = await _storage.readTenantSlug();
     final branchId = await _storage.readBranchId();
+    final appType = await _storage.readAppType();
     if (token != null) options.headers['Authorization'] = 'Bearer $token';
     if (tenantSlug != null) options.headers['X-Tenant-Slug'] = tenantSlug;
     if (branchId != null) options.headers['X-Branch-Id'] = branchId;
+    if (appType != null) options.headers['X-App-Type'] = appType;
     handler.next(options);
   }
 
@@ -70,7 +72,8 @@ class _AuthInterceptor extends Interceptor {
           final newToken = body?['data']?['token'] as String?;
           final newRefresh = body?['data']?['refreshToken'] as String?;
           if (newToken != null && newRefresh != null) {
-            await _storage.updateTokens(token: newToken, refreshToken: newRefresh);
+            await _storage.updateTokens(
+                token: newToken, refreshToken: newRefresh);
             // Retry original request with new token
             final opts = err.requestOptions;
             opts.headers['Authorization'] = 'Bearer $newToken';

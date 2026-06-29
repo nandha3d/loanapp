@@ -108,16 +108,20 @@ class _KpiRow extends ConsumerWidget {
     return Row(
       children: [
         Expanded(
-            child: _KpiChip(
-                value: '$total',
-                label: t.x('ch.total_groups'),
-                color: AppColors.info,),),
+          child: _KpiChip(
+            value: '$total',
+            label: t.x('ch.total_groups'),
+            color: AppColors.info,
+          ),
+        ),
         const SizedBox(width: 10),
         Expanded(
-            child: _KpiChip(
-                value: '$active',
-                label: t.x('status.active'),
-                color: AppColors.success,),),
+          child: _KpiChip(
+            value: '$active',
+            label: t.x('status.active'),
+            color: AppColors.success,
+          ),
+        ),
         const SizedBox(width: 10),
         Expanded(
           child: _KpiChip(
@@ -132,8 +136,11 @@ class _KpiRow extends ConsumerWidget {
 }
 
 class _KpiChip extends StatelessWidget {
-  const _KpiChip(
-      {required this.value, required this.label, required this.color,});
+  const _KpiChip({
+    required this.value,
+    required this.label,
+    required this.color,
+  });
   final String value, label;
   final Color color;
 
@@ -290,7 +297,9 @@ class _GroupCard extends ConsumerWidget {
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4,),
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: _statusBg,
                         borderRadius:
@@ -435,84 +444,99 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
         bool busy = false;
         return StatefulBuilder(
           builder: (ctx, setLocal) {
-          return AlertDialog(
-            title: Text(t.x('ch.record_auction')),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (err != null) ...[
-                    Text(err!, style: const TextStyle(color: AppColors.danger, fontSize: 13)),
-                    const SizedBox(height: 8),
-                  ],
-                  TextField(
-                    controller: periodCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(labelText: t.x('ch.period_number')),
-                  ),
-                  const SizedBox(height: 10),
-                  DropdownButtonFormField<String>(
-                    initialValue: winnerId,
-                    isExpanded: true,
-                    decoration: InputDecoration(labelText: t.x('ch.winner')),
-                    items: members
-                        .map((m) => DropdownMenuItem(
+            return AlertDialog(
+              title: Text(t.x('ch.record_auction')),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (err != null) ...[
+                      Text(err!,
+                          style: const TextStyle(
+                              color: AppColors.danger, fontSize: 13)),
+                      const SizedBox(height: 8),
+                    ],
+                    TextField(
+                      controller: periodCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration:
+                          InputDecoration(labelText: t.x('ch.period_number')),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      initialValue: winnerId,
+                      isExpanded: true,
+                      decoration: InputDecoration(labelText: t.x('ch.winner')),
+                      items: members
+                          .map(
+                            (m) => DropdownMenuItem(
                               value: m.id,
-                              child: Text('#${m.memberNumber} ${m.customerName}',
-                                  overflow: TextOverflow.ellipsis,),
-                            ),)
-                        .toList(),
-                    onChanged: (v) => winnerId = v,
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: prizeCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(labelText: t.x('ch.prize_amount')),
-                  ),
-                ],
+                              child: Text(
+                                '#${m.memberNumber} ${m.customerName}',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) => winnerId = v,
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: prizeCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration:
+                          InputDecoration(labelText: t.x('ch.prize_amount')),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: busy ? null : () => Navigator.pop(ctx, false),
-                child: Text(t.x('common.cancel')),
-              ),
-              FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
-                onPressed: busy
-                    ? null
-                    : () async {
-                        final period = int.tryParse(periodCtrl.text.trim());
-                        if (period == null || period <= 0) {
-                          setLocal(() => err = t.x('ch.period_required'));
-                          return;
-                        }
-                        setLocal(() {
-                          busy = true;
-                          err = null;
-                        });
-                        try {
-                          await ref.read(chitServiceProvider).recordAuction(
-                                widget.group.id,
-                                periodNumber: period,
-                                winnerMemberId: winnerId,
-                                prizeAmount: double.tryParse(prizeCtrl.text.trim()),
-                              );
-                          if (ctx.mounted) Navigator.pop(ctx, true);
-                        } catch (e) {
+              actions: [
+                TextButton(
+                  onPressed: busy ? null : () => Navigator.pop(ctx, false),
+                  child: Text(t.x('common.cancel')),
+                ),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary),
+                  onPressed: busy
+                      ? null
+                      : () async {
+                          final period = int.tryParse(periodCtrl.text.trim());
+                          if (period == null || period <= 0) {
+                            setLocal(() => err = t.x('ch.period_required'));
+                            return;
+                          }
                           setLocal(() {
-                            busy = false;
-                            err = e.toString().replaceFirst('Exception: ', '');
+                            busy = true;
+                            err = null;
                           });
-                        }
-                      },
-                child: busy
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : Text(t.x('ch.save')),
-              ),
-            ],
-          );
+                          try {
+                            await ref.read(chitServiceProvider).recordAuction(
+                                  widget.group.id,
+                                  periodNumber: period,
+                                  winnerMemberId: winnerId,
+                                  prizeAmount:
+                                      double.tryParse(prizeCtrl.text.trim()),
+                                );
+                            if (ctx.mounted) Navigator.pop(ctx, true);
+                          } catch (e) {
+                            setLocal(() {
+                              busy = false;
+                              err =
+                                  e.toString().replaceFirst('Exception: ', '');
+                            });
+                          }
+                        },
+                  child: busy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2))
+                      : Text(t.x('ch.save')),
+                ),
+              ],
+            );
           },
         );
       },
@@ -522,7 +546,169 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
     if (saved == true && mounted) {
       _reload();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.x('ch.auction_saved')), backgroundColor: AppColors.success),
+        SnackBar(
+            content: Text(t.x('ch.auction_saved')),
+            backgroundColor: AppColors.success),
+      );
+    }
+  }
+
+  Future<void> _collectContribution() async {
+    final t = T.of(ref);
+    final members = await _membersFuture;
+    if (!mounted) return;
+    if (members.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.x('ch.no_members_yet'))),
+      );
+      return;
+    }
+
+    final amountCtrl = TextEditingController(
+      text: widget.group.monthlyContrib.round().toString(),
+    );
+    final noteCtrl = TextEditingController();
+    String memberId = members.first.id;
+    String paymentMode = 'cash';
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        String? err;
+        bool busy = false;
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            return AlertDialog(
+              title: const Text('Collect contribution'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (err != null) ...[
+                      Text(
+                        err!,
+                        style: const TextStyle(
+                          color: AppColors.danger,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    DropdownButtonFormField<String>(
+                      initialValue: memberId,
+                      isExpanded: true,
+                      decoration: const InputDecoration(labelText: 'Member'),
+                      items: members
+                          .map(
+                            (m) => DropdownMenuItem(
+                              value: m.id,
+                              child: Text(
+                                '#${m.memberNumber} ${m.customerName}',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) memberId = v;
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: amountCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Amount'),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      initialValue: paymentMode,
+                      decoration:
+                          const InputDecoration(labelText: 'Payment mode'),
+                      items: const [
+                        DropdownMenuItem(value: 'cash', child: Text('Cash')),
+                        DropdownMenuItem(value: 'upi', child: Text('UPI')),
+                        DropdownMenuItem(value: 'bank', child: Text('Bank')),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) paymentMode = v;
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: noteCtrl,
+                      decoration: const InputDecoration(labelText: 'Note'),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: busy ? null : () => Navigator.pop(ctx, false),
+                  child: Text(t.x('common.cancel')),
+                ),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                  ),
+                  onPressed: busy
+                      ? null
+                      : () async {
+                          final amount =
+                              double.tryParse(amountCtrl.text.trim());
+                          if (amount == null || amount <= 0) {
+                            setLocal(() => err = t.x('err.enter_valid_amount'));
+                            return;
+                          }
+                          setLocal(() {
+                            busy = true;
+                            err = null;
+                          });
+                          try {
+                            await ref
+                                .read(chitServiceProvider)
+                                .collectContribution(
+                                  widget.group.id,
+                                  memberId: memberId,
+                                  amount: amount,
+                                  paymentMode: paymentMode,
+                                  note: noteCtrl.text,
+                                );
+                            if (ctx.mounted) Navigator.pop(ctx, true);
+                          } catch (e) {
+                            setLocal(() {
+                              busy = false;
+                              err =
+                                  e.toString().replaceFirst('Exception: ', '');
+                            });
+                          }
+                        },
+                  child: busy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text('Collect'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    amountCtrl.dispose();
+    noteCtrl.dispose();
+
+    if (saved == true && mounted) {
+      _reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Contribution collected'),
+          backgroundColor: AppColors.success,
+        ),
       );
     }
   }
@@ -609,7 +795,9 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                               padding: const EdgeInsets.all(16),
                               itemCount: members.length,
                               separatorBuilder: (_, __) => const Divider(
-                                  color: AppColors.border, height: 16,),
+                                color: AppColors.border,
+                                height: 16,
+                              ),
                               itemBuilder: (_, i) {
                                 final m = members[i];
                                 return Row(
@@ -655,7 +843,8 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                                         child: Text(
                                           t.x('ch.won_badge'),
                                           style: AppTypography.tiny.copyWith(
-                                              color: AppColors.success,),
+                                            color: AppColors.success,
+                                          ),
                                         ),
                                       ),
                                   ],
@@ -693,7 +882,9 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                               padding: const EdgeInsets.all(16),
                               itemCount: auctions.length,
                               separatorBuilder: (_, __) => const Divider(
-                                  color: AppColors.border, height: 16,),
+                                color: AppColors.border,
+                                height: 16,
+                              ),
                               itemBuilder: (_, i) {
                                 final a = auctions[i];
                                 final dateFmt = DateFormat('d MMM yyyy');
@@ -753,7 +944,8 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                                             fmt.format(a.prizeAmount!),
                                             style: AppTypography.bodyLarge
                                                 .copyWith(
-                                                    color: AppColors.success,),
+                                              color: AppColors.success,
+                                            ),
                                           ),
                                         if (a.dividend != null)
                                           Text(
@@ -780,18 +972,33 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _recordAuction,
-                  icon: const Icon(Icons.gavel_rounded, size: 18),
-                  label: Text(t.x('ch.record_auction')),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primary,
-                    side: BorderSide(color: AppColors.primary),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _recordAuction,
+                      icon: const Icon(Icons.gavel_rounded, size: 18),
+                      label: Text(t.x('ch.record_auction')),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: BorderSide(color: AppColors.primary),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _collectContribution,
+                      icon: const Icon(Icons.payments_outlined, size: 18),
+                      label: const Text('Collect'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

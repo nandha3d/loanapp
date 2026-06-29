@@ -23,8 +23,9 @@ import 'package:loantrack/data/services/collection_service.dart';
 import 'package:loantrack/data/services/payment_service.dart';
 
 class QuickCollectSheet extends ConsumerStatefulWidget {
-  const QuickCollectSheet({super.key, required this.row});
+  const QuickCollectSheet({super.key, required this.row, this.scopeRows});
   final CollectionRow row;
+  final List<CollectionRow>? scopeRows;
 
   @override
   ConsumerState<QuickCollectSheet> createState() => _QuickCollectSheetState();
@@ -55,7 +56,9 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
 
   void _initCustomerDues() {
     try {
-      final rows = ref.read(collectionTodayProvider).value ?? [];
+      final rows = widget.scopeRows ??
+          ref.read(collectionTodayProvider).value ??
+          const <CollectionRow>[];
       // Scope to the tapped LOAN (not the whole customer) so a payment never
       // bleeds across a customer's separate loans — matches the web popup and
       // the server's loan-wide oldest-first distribution.
@@ -64,7 +67,8 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
           .toList();
 
       final todayRows = _customerRows.where((r) => r.daysOverdue <= 0).toList();
-      final overdueRows = _customerRows.where((r) => r.daysOverdue > 0).toList();
+      final overdueRows =
+          _customerRows.where((r) => r.daysOverdue > 0).toList();
 
       _todayDue = todayRows.fold<double>(0.0, (s, r) => s + r.outstanding);
       _overdueDue = overdueRows.fold<double>(0.0, (s, r) => s + r.outstanding);
@@ -300,7 +304,8 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${t.x('msg.collected_from')} ₹${appliedTotal.round()} — ${widget.row.customerName}'),
+          content: Text(
+              '${t.x('msg.collected_from')} ₹${appliedTotal.round()} — ${widget.row.customerName}'),
           backgroundColor: AppColors.success,
         ),
       );
@@ -374,7 +379,9 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
           );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.x('proof.photo_sent')), backgroundColor: AppColors.success),
+        SnackBar(
+            content: Text(t.x('proof.photo_sent')),
+            backgroundColor: AppColors.success),
       );
       Navigator.of(context).pop();
     } catch (e) {
@@ -393,7 +400,9 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
     );
     if (done == true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.x('proof.qr_done')), backgroundColor: AppColors.success),
+        SnackBar(
+            content: Text(t.x('proof.qr_done')),
+            backgroundColor: AppColors.success),
       );
       Navigator.of(context).pop();
     }
@@ -475,7 +484,8 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
               const SizedBox(height: 16),
               Text(
                 t.x('proof.label'),
-                style: AppTypography.label.copyWith(color: AppColors.textSecondary),
+                style: AppTypography.label
+                    .copyWith(color: AppColors.textSecondary),
               ),
               const SizedBox(height: 8),
               Row(
@@ -490,7 +500,9 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
                           onSelected: (_) => setState(() => _proofMode = m),
                           selectedColor: AppColors.primaryLight,
                           labelStyle: TextStyle(
-                            color: _proofMode == m ? AppColors.primaryDark : AppColors.textSecondary,
+                            color: _proofMode == m
+                                ? AppColors.primaryDark
+                                : AppColors.textSecondary,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -500,8 +512,11 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
               ),
               if (_proofMode == 'qr') ...[
                 const SizedBox(height: 8),
-                Text(t.x('proof.qr_help'),
-                    style: AppTypography.caption.copyWith(color: AppColors.textLight),),
+                Text(
+                  t.x('proof.qr_help'),
+                  style: AppTypography.caption
+                      .copyWith(color: AppColors.textLight),
+                ),
               ],
               if (_error != null) ...[
                 const SizedBox(height: 12),
@@ -616,9 +631,7 @@ class _HeaderRow extends ConsumerWidget {
           ),
           alignment: Alignment.center,
           child: Text(
-            row.customerName.isEmpty
-                ? '—'
-                : row.customerName[0].toUpperCase(),
+            row.customerName.isEmpty ? '—' : row.customerName[0].toUpperCase(),
             style: AppTypography.heroLabel.copyWith(
               color: AppColors.primaryDark,
               fontSize: 18,
@@ -677,7 +690,8 @@ class _AmountDisplay extends ConsumerWidget {
       hint = t.x('coll.settles_full');
     } else {
       color = AppColors.info;
-      hint = '${t.x('coll.partial_remaining')}: ${fmt.format(totalDue - value)}';
+      hint =
+          '${t.x('coll.partial_remaining')}: ${fmt.format(totalDue - value)}';
     }
 
     return Container(
@@ -991,13 +1005,16 @@ class _UpiQrSection extends ConsumerWidget {
       ),
       error: (_, __) => const SizedBox.shrink(),
       data: (qr) {
-        if (qr.qrUrl == null && qr.upiId == null) return const SizedBox.shrink();
+        if (qr.qrUrl == null && qr.upiId == null)
+          return const SizedBox.shrink();
         final baseOrigin = Uri.parse(kDefaultBaseUrl)
             .replace(path: '', query: '')
             .toString()
             .replaceAll(RegExp(r'/$'), '');
         final imageUrl = qr.qrUrl != null
-            ? (qr.qrUrl!.startsWith('http') ? qr.qrUrl! : '$baseOrigin${qr.qrUrl!}')
+            ? (qr.qrUrl!.startsWith('http')
+                ? qr.qrUrl!
+                : '$baseOrigin${qr.qrUrl!}')
             : null;
         return Container(
           padding: const EdgeInsets.all(16),
@@ -1158,7 +1175,8 @@ class _DueCard extends StatelessWidget {
                 fmt.format(amount),
                 style: AppTypography.bodyLarge.copyWith(
                   fontWeight: FontWeight.w800,
-                  color: amount > 0 ? AppColors.textPrimary : AppColors.textLight,
+                  color:
+                      amount > 0 ? AppColors.textPrimary : AppColors.textLight,
                   fontSize: 18,
                 ),
               ),

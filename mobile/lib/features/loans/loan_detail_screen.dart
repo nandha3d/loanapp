@@ -32,6 +32,19 @@ final _customerLoansProvider = FutureProvider.autoDispose
   return ref.watch(loanServiceProvider).list(customerId: customerId);
 });
 
+double _dueNowForLoan(Loan loan) {
+  final today = DateTime.now();
+  final todayStart = DateTime(today.year, today.month, today.day);
+  return loan.instalments.where((inst) {
+    final due =
+        DateTime(inst.dueDate.year, inst.dueDate.month, inst.dueDate.day);
+    return !due.isAfter(todayStart) && inst.dynamicStatus != 'paid';
+  }).fold<double>(0, (sum, inst) {
+    final outstanding = inst.dueAmount - inst.receivedAmount;
+    return sum + (outstanding > 0 ? outstanding : 0);
+  });
+}
+
 class LoanDetailScreen extends ConsumerWidget {
   const LoanDetailScreen({super.key, required this.id});
   final String id;
@@ -53,7 +66,8 @@ class LoanDetailScreen extends ConsumerWidget {
             IconButton(
               icon: const Icon(Icons.edit_outlined),
               tooltip: t.x('loan.edit_title'),
-              onPressed: () => context.push('/loans/${loaded.id}/edit', extra: loaded),
+              onPressed: () =>
+                  context.push('/loans/${loaded.id}/edit', extra: loaded),
             ),
         ],
       ),
@@ -73,7 +87,6 @@ class LoanDetailScreen extends ConsumerWidget {
     );
   }
 }
-
 
 class _LoanBody extends ConsumerStatefulWidget {
   const _LoanBody({required this.loan});
@@ -120,7 +133,8 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
   Widget build(BuildContext context) {
     final loan = widget.loan;
     final fmt = ref.watch(currencyFmtProvider);
-    final paid = loan.instalments.where((i) => i.dynamicStatus == 'paid').length;
+    final paid =
+        loan.instalments.where((i) => i.dynamicStatus == 'paid').length;
     final progress =
         loan.instalmentCount == 0 ? 0.0 : paid / loan.instalmentCount;
 
@@ -169,7 +183,8 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
               ),
               // Column headers
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: const BoxDecoration(
                   color: AppColors.background,
                   border: Border(
@@ -183,45 +198,59 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
                       children: [
                         SizedBox(
                           width: 30,
-                          child: Text('#',
-                              style: AppTypography.tiny
-                                  .copyWith(fontWeight: FontWeight.w700),),
+                          child: Text(
+                            '#',
+                            style: AppTypography.tiny
+                                .copyWith(fontWeight: FontWeight.w700),
+                          ),
                         ),
                         Expanded(
                           flex: 3,
-                          child: Text(t.x('loan.col_date'),
-                              style: AppTypography.tiny
-                                  .copyWith(fontWeight: FontWeight.w700),),
+                          child: Text(
+                            t.x('loan.col_date'),
+                            style: AppTypography.tiny
+                                .copyWith(fontWeight: FontWeight.w700),
+                          ),
                         ),
                         Expanded(
                           flex: 2,
-                          child: Text(t.x('loan.col_due'),
-                              style: AppTypography.tiny.copyWith(
-                                  fontWeight: FontWeight.w700,),
-                              textAlign: TextAlign.right,),
+                          child: Text(
+                            t.x('loan.col_due'),
+                            style: AppTypography.tiny.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                            textAlign: TextAlign.right,
+                          ),
                         ),
                         Expanded(
                           flex: 2,
-                          child: Text(t.x('loan.col_received'),
-                              style: AppTypography.tiny.copyWith(
-                                  fontWeight: FontWeight.w700,),
-                              textAlign: TextAlign.right,),
+                          child: Text(
+                            t.x('loan.col_received'),
+                            style: AppTypography.tiny.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                            textAlign: TextAlign.right,
+                          ),
                         ),
                         const SizedBox(width: 8),
                         SizedBox(
                           width: 70,
-                          child: Text(t.x('loan.col_status'),
-                              style: AppTypography.tiny
-                                  .copyWith(fontWeight: FontWeight.w700),
-                              textAlign: TextAlign.center,),
+                          child: Text(
+                            t.x('loan.col_status'),
+                            style: AppTypography.tiny
+                                .copyWith(fontWeight: FontWeight.w700),
+                            textAlign: TextAlign.center,
+                          ),
                         ),
                         const SizedBox(width: 4),
                         SizedBox(
                           width: 48,
-                          child: Text(t.x('loan.col_action'),
-                              style: AppTypography.tiny
-                                  .copyWith(fontWeight: FontWeight.w700),
-                              textAlign: TextAlign.center,),
+                          child: Text(
+                            t.x('loan.col_action'),
+                            style: AppTypography.tiny
+                                .copyWith(fontWeight: FontWeight.w700),
+                            textAlign: TextAlign.center,
+                          ),
                         ),
                         const Spacer(),
                       ],
@@ -255,7 +284,8 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
     if (_viewMode == 'actual') return loan.instalments;
 
     final dist = loan.instalments.map((i) => i.copyWith()).toList();
-    double remaining = loan.instalments.fold(0.0, (sum, i) => sum + i.receivedAmount);
+    double remaining =
+        loan.instalments.fold(0.0, (sum, i) => sum + i.receivedAmount);
     final today = DateTime.now();
     final todayStart = DateTime(today.year, today.month, today.day);
 
@@ -265,10 +295,12 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
         dist[i] = dist[i].copyWith(receivedAmount: due, status: 'paid');
         remaining -= due;
       } else if (remaining > 0) {
-        dist[i] = dist[i].copyWith(receivedAmount: remaining, status: 'partial');
+        dist[i] =
+            dist[i].copyWith(receivedAmount: remaining, status: 'partial');
         remaining = 0;
       } else {
-        final dDate = DateTime(dist[i].dueDate.year, dist[i].dueDate.month, dist[i].dueDate.day);
+        final dDate = DateTime(
+            dist[i].dueDate.year, dist[i].dueDate.month, dist[i].dueDate.day);
         dist[i] = dist[i].copyWith(
           receivedAmount: 0,
           status: dDate.isBefore(todayStart) ? 'missed' : 'upcoming',
@@ -295,7 +327,8 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
             children: [
               Checkbox(
                 value: _showRestructuredRates,
-                onChanged: (v) => setState(() => _showRestructuredRates = v ?? false),
+                onChanged: (v) =>
+                    setState(() => _showRestructuredRates = v ?? false),
                 activeColor: AppColors.primary,
                 visualDensity: VisualDensity.compact,
               ),
@@ -320,7 +353,9 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: active ? AppColors.primary.withValues(alpha: 0.1) : Colors.transparent,
+          color: active
+              ? AppColors.primary.withValues(alpha: 0.1)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: active ? AppColors.primary : AppColors.border,
@@ -338,7 +373,8 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
     );
   }
 
-  Widget _buildSummaryCards(Loan loan, NumberFormat fmt, double progress, int paid) {
+  Widget _buildSummaryCards(
+      Loan loan, NumberFormat fmt, double progress, int paid) {
     return Column(
       children: [
         SizedBox(
@@ -348,7 +384,8 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
             onPageChanged: (i) => setState(() => _currentSummaryPage = i),
             children: [
               _SummaryCardOverview(loan: loan, fmt: fmt, progress: progress),
-              _SummaryCardMetrics(loan: loan, fmt: fmt, progress: progress, paid: paid),
+              _SummaryCardMetrics(
+                  loan: loan, fmt: fmt, progress: progress, paid: paid),
             ],
           ),
         ),
@@ -420,7 +457,8 @@ class _SummaryCardOverview extends ConsumerWidget {
           const SizedBox(height: 16),
           Row(
             children: [
-              if (loan.customer?.photoUrl != null && loan.customer!.photoUrl!.isNotEmpty)
+              if (loan.customer?.photoUrl != null &&
+                  loan.customer!.photoUrl!.isNotEmpty)
                 CircleAvatar(
                   radius: 30,
                   backgroundImage: NetworkImage(loan.customer!.photoUrl!),
@@ -431,7 +469,8 @@ class _SummaryCardOverview extends ConsumerWidget {
                   backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                   child: Text(
                     loan.customer?.initials ?? '?',
-                    style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                        color: AppColors.primary, fontWeight: FontWeight.bold),
                   ),
                 ),
               const SizedBox(width: 16),
@@ -441,7 +480,8 @@ class _SummaryCardOverview extends ConsumerWidget {
                   children: [
                     Text(
                       loan.customer?.name ?? '—',
-                      style: AppTypography.body.copyWith(fontWeight: FontWeight.w700),
+                      style: AppTypography.body
+                          .copyWith(fontWeight: FontWeight.w700),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -488,8 +528,13 @@ class _SummaryCardOverview extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(t.x('loan.lbl_principal').toUpperCase(), style: AppTypography.tiny.copyWith(color: AppColors.textLight, fontWeight: FontWeight.w600)),
-                    Text(fmt.format(loan.principalAmount), style: AppTypography.bodyLarge.copyWith(color: AppColors.textPrimary)),
+                    Text(t.x('loan.lbl_principal').toUpperCase(),
+                        style: AppTypography.tiny.copyWith(
+                            color: AppColors.textLight,
+                            fontWeight: FontWeight.w600)),
+                    Text(fmt.format(loan.principalAmount),
+                        style: AppTypography.bodyLarge
+                            .copyWith(color: AppColors.textPrimary)),
                   ],
                 ),
               ),
@@ -497,8 +542,13 @@ class _SummaryCardOverview extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(t.x('loan.lbl_outstanding').toUpperCase(), style: AppTypography.tiny.copyWith(color: AppColors.textLight, fontWeight: FontWeight.w600)),
-                    Text(fmt.format(outstanding), style: AppTypography.bodyLarge.copyWith(color: AppColors.danger)),
+                    Text(t.x('loan.lbl_outstanding').toUpperCase(),
+                        style: AppTypography.tiny.copyWith(
+                            color: AppColors.textLight,
+                            fontWeight: FontWeight.w600)),
+                    Text(fmt.format(outstanding),
+                        style: AppTypography.bodyLarge
+                            .copyWith(color: AppColors.danger)),
                   ],
                 ),
               ),
@@ -529,9 +579,12 @@ class _SummaryCardMetrics extends ConsumerWidget {
     final perInstalment = loan.perInstalment;
     final totalRepayable = loan.totalPayable;
     final outstanding = totalRepayable - totalCollected;
+    final dueNow = _dueNowForLoan(loan);
 
-    final dynamicRemainingCount = perInstalment > 0 ? (outstanding / perInstalment).ceil() : 0;
-    final dynamicPaidCount = (loan.instalmentCount - dynamicRemainingCount).clamp(0, loan.instalmentCount);
+    final dynamicRemainingCount =
+        perInstalment > 0 ? (outstanding / perInstalment).ceil() : 0;
+    final dynamicPaidCount = (loan.instalmentCount - dynamicRemainingCount)
+        .clamp(0, loan.instalmentCount);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -551,17 +604,34 @@ class _SummaryCardMetrics extends ConsumerWidget {
                   spacing: 16,
                   runSpacing: 16,
                   children: [
-                    _StatBlock(t.x('loan.lbl_principal'), fmt.format(loan.principalAmount)),
-                    _StatBlock(t.x('loan.lbl_repayable'), fmt.format(totalRepayable), valueColor: AppColors.primaryDark),
-                    _StatBlock(t.x('loan.lbl_disbursed'), fmt.format(loan.disbursedAmount)),
+                    _StatBlock(t.x('loan.lbl_principal'),
+                        fmt.format(loan.principalAmount)),
+                    _StatBlock(
+                        t.x('loan.lbl_repayable'), fmt.format(totalRepayable),
+                        valueColor: AppColors.primaryDark),
+                    _StatBlock(t.x('loan.lbl_disbursed'),
+                        fmt.format(loan.disbursedAmount)),
                     _StatBlock(t.x('loan.lbl_frequency'), loan.frequency),
-                    _StatBlock(t.x('loan.lbl_tenure'), '${loan.instalmentCount} ${t.x('loan.val_days')}'),
-                    _StatBlock(t.x('loan.lbl_start_date'), DateFormat('dd MMM yyyy').format(loan.startDate)),
-                    _StatBlock(t.x('loan.lbl_per_inst'), fmt.format(perInstalment)),
-                    _StatBlock(t.x('loan.lbl_collected'), fmt.format(totalCollected), valueColor: AppColors.success),
-                    _StatBlock(t.x('loan.lbl_outstanding'), fmt.format(outstanding), valueColor: AppColors.danger),
-                    _StatBlock(t.x('loan.lbl_paid_period'), '$dynamicPaidCount ${t.x('loan.val_days')}', valueColor: AppColors.success),
-                    _StatBlock(t.x('loan.lbl_remaining'), '$dynamicRemainingCount ${t.x('loan.val_days')}', valueColor: AppColors.danger),
+                    _StatBlock(t.x('loan.lbl_tenure'),
+                        '${loan.instalmentCount} ${t.x('loan.val_days')}'),
+                    _StatBlock(t.x('loan.lbl_start_date'),
+                        DateFormat('dd MMM yyyy').format(loan.startDate)),
+                    _StatBlock(
+                        t.x('loan.lbl_per_inst'), fmt.format(perInstalment)),
+                    _StatBlock(
+                        t.x('loan.lbl_collected'), fmt.format(totalCollected),
+                        valueColor: AppColors.success),
+                    _StatBlock('Due now', fmt.format(dueNow),
+                        valueColor: AppColors.warning),
+                    _StatBlock(
+                        t.x('loan.lbl_outstanding'), fmt.format(outstanding),
+                        valueColor: AppColors.danger),
+                    _StatBlock(t.x('loan.lbl_paid_period'),
+                        '$dynamicPaidCount ${t.x('loan.val_days')}',
+                        valueColor: AppColors.success),
+                    _StatBlock(t.x('loan.lbl_remaining'),
+                        '$dynamicRemainingCount ${t.x('loan.val_days')}',
+                        valueColor: AppColors.danger),
                   ],
                 ),
               ),
@@ -582,7 +652,8 @@ class _StatBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: (MediaQuery.of(context).size.width - 32 - 16 - 70 - 16 - 16) / 2, // approximate half width minus paddings
+      width: (MediaQuery.of(context).size.width - 32 - 16 - 70 - 16 - 16) /
+          2, // approximate half width minus paddings
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -657,9 +728,8 @@ class _InstalmentRow extends ConsumerWidget {
     final dateFmt = DateFormat('dd MMM');
     final timeFmt = DateFormat('h:mm a');
     final isPaid = inst.receivedAmount > 0;
-    final collectedTime = inst.receivedAt != null
-        ? timeFmt.format(inst.receivedAt!)
-        : null;
+    final collectedTime =
+        inst.receivedAt != null ? timeFmt.format(inst.receivedAt!) : null;
 
     // Determine if Pay button should show
     final canPay = loan.status != 'closed' &&
@@ -673,7 +743,9 @@ class _InstalmentRow extends ConsumerWidget {
       decoration: BoxDecoration(
         color: highlighted
             ? AppColors.primaryLight
-            : (dynStatus == 'paid' ? AppColors.background.withAlpha(128) : Colors.transparent),
+            : (dynStatus == 'paid'
+                ? AppColors.background.withAlpha(128)
+                : Colors.transparent),
         border: const Border(
           bottom: BorderSide(color: AppColors.border),
         ),
@@ -697,8 +769,10 @@ class _InstalmentRow extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(dateFmt.format(inst.dueDate),
-                    style: AppTypography.body.copyWith(fontSize: 12.5),),
+                Text(
+                  dateFmt.format(inst.dueDate),
+                  style: AppTypography.body.copyWith(fontSize: 12.5),
+                ),
                 if (collectedTime != null)
                   Text(
                     collectedTime,
@@ -795,8 +869,11 @@ class _InstalmentRow extends ConsumerWidget {
                     },
                   )
                 : (isPaid
-                    ? Icon(Icons.check_circle,
-                        size: 20, color: AppColors.success.withAlpha(150),)
+                    ? Icon(
+                        Icons.check_circle,
+                        size: 20,
+                        color: AppColors.success.withAlpha(150),
+                      )
                     : const SizedBox.shrink()),
           ),
         ],
@@ -850,7 +927,39 @@ class _PayButton extends ConsumerWidget {
       defaultAmount = restructuredAmount;
     }
 
-    // Build a CollectionRow from the instalment data to reuse QuickCollectSheet
+    final today = DateTime.now();
+    final todayStart = DateTime(today.year, today.month, today.day);
+    CollectionRow rowFor(Instalment source, {double? dueAmount}) {
+      return CollectionRow(
+        instalmentId: source.id,
+        loanId: source.loanId,
+        loanCode: loan.loanCode,
+        customerId: loan.customerId,
+        customerName: loan.customer?.name ?? '-',
+        customerCode: loan.customer?.customerCode ?? '',
+        routeName: null,
+        dueAmount: dueAmount ?? source.dueAmount,
+        receivedAmount: source.receivedAmount,
+        dueDate: source.dueDate,
+        status: source.dynamicStatus,
+      );
+    }
+
+    final dueNowRows = loan.instalments
+        .where((source) {
+          final due = DateTime(
+            source.dueDate.year,
+            source.dueDate.month,
+            source.dueDate.day,
+          );
+          return !due.isAfter(todayStart) && source.dynamicStatus != 'paid';
+        })
+        .map(rowFor)
+        .toList(growable: false);
+
+    // Build a CollectionRow from the instalment data to reuse QuickCollectSheet.
+    // When opened from loan detail, seed every overdue/today row for this loan
+    // so "Total Due" is overdue + today, not full outstanding.
     final row = CollectionRow(
       instalmentId: inst.id,
       loanId: inst.loanId,
@@ -869,7 +978,10 @@ class _PayButton extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => QuickCollectSheet(row: row),
+      builder: (_) => QuickCollectSheet(
+        row: row,
+        scopeRows: dueNowRows.isEmpty ? [row] : dueNowRows,
+      ),
     ).then((_) {
       // Invalidate the loan detail to refetch after payment
       ref.invalidate(loanDetailProvider(loan.id));
@@ -1013,7 +1125,9 @@ class _LoanPill extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
-          color: active ? AppColors.primary.withValues(alpha: 0.10) : AppColors.surface,
+          color: active
+              ? AppColors.primary.withValues(alpha: 0.10)
+              : AppColors.surface,
           border: Border.all(
             color: active ? AppColors.primary : AppColors.border,
             width: 1.5,
@@ -1072,7 +1186,8 @@ class _LoanPillMore extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 4),
-            const Icon(Icons.chevron_right, size: 14, color: AppColors.textLight),
+            const Icon(Icons.chevron_right,
+                size: 14, color: AppColors.textLight),
           ],
         ),
       ),
@@ -1183,7 +1298,8 @@ class _LoanBottomBar extends ConsumerWidget {
                 ),
               ),
               ListTile(
-                leading: const Icon(Icons.check_circle_outline, color: AppColors.success),
+                leading: const Icon(Icons.check_circle_outline,
+                    color: AppColors.success),
                 title: const Text('Mark as Closed'),
                 subtitle: const Text('Settle all dues and close this loan'),
                 onTap: () {
@@ -1192,18 +1308,22 @@ class _LoanBottomBar extends ConsumerWidget {
                 },
               ),
               ListTile(
-                leading: Icon(Icons.autorenew_outlined, color: AppColors.primary),
+                leading:
+                    Icon(Icons.autorenew_outlined, color: AppColors.primary),
                 title: const Text('Renew Loan'),
-                subtitle: const Text('Create a renewal package for the customer'),
+                subtitle:
+                    const Text('Create a renewal package for the customer'),
                 onTap: () {
                   Navigator.pop(ctx);
                   _confirmAction(context, ref, 'renew');
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.offline_pin_outlined, color: AppColors.warning),
+                leading: const Icon(Icons.offline_pin_outlined,
+                    color: AppColors.warning),
                 title: const Text('Pre-close / Foreclosure'),
-                subtitle: const Text('Calculate pre-closure charges and settle'),
+                subtitle:
+                    const Text('Calculate pre-closure charges and settle'),
                 onTap: () {
                   Navigator.pop(ctx);
                   _confirmAction(context, ref, 'preclose');
@@ -1223,7 +1343,9 @@ class _LoanBottomBar extends ConsumerWidget {
     final outstanding = totalRepayable - totalCollected;
 
     if (action == 'close') {
-      final hasActiveCheques = loan.customer?.securityCheques.any((c) => c.status == 'active') ?? false;
+      final hasActiveCheques =
+          loan.customer?.securityCheques.any((c) => c.status == 'active') ??
+              false;
 
       showDialog<void>(
         context: context,
@@ -1237,11 +1359,13 @@ class _LoanBottomBar extends ConsumerWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Are you sure you want to close this loan? All pending balances must be settled.'),
+                    const Text(
+                        'Are you sure you want to close this loan? All pending balances must be settled.'),
                     if (hasActiveCheques) ...[
                       const SizedBox(height: 16),
                       CheckboxListTile(
-                        title: const Text('Mark active security cheques as returned'),
+                        title: const Text(
+                            'Mark active security cheques as returned'),
                         value: markChequesReturned,
                         onChanged: (val) {
                           setState(() {
@@ -1260,7 +1384,8 @@ class _LoanBottomBar extends ConsumerWidget {
                     child: const Text('Cancel'),
                   ),
                   FilledButton(
-                    style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+                    style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.primary),
                     onPressed: () async {
                       Navigator.pop(ctx);
                       try {
@@ -1272,13 +1397,17 @@ class _LoanBottomBar extends ConsumerWidget {
                         ref.invalidate(loanDetailProvider(loan.id));
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Loan closed successfully'), backgroundColor: AppColors.success),
+                            const SnackBar(
+                                content: Text('Loan closed successfully'),
+                                backgroundColor: AppColors.success),
                           );
                         }
                       } catch (e) {
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Failed: $e'), backgroundColor: AppColors.danger),
+                            SnackBar(
+                                content: Text('Failed: $e'),
+                                backgroundColor: AppColors.danger),
                           );
                         }
                       }
@@ -1296,8 +1425,10 @@ class _LoanBottomBar extends ConsumerWidget {
         context: context,
         builder: (ctx) {
           String paymentMode = 'cash';
-          final amountController = TextEditingController(text: outstanding.toStringAsFixed(2));
-          final remarksController = TextEditingController(text: 'Preclosure Full Settlement');
+          final amountController =
+              TextEditingController(text: outstanding.toStringAsFixed(2));
+          final remarksController =
+              TextEditingController(text: 'Preclosure Full Settlement');
           final formKey = GlobalKey<FormState>();
 
           return StatefulBuilder(
@@ -1318,7 +1449,8 @@ class _LoanBottomBar extends ConsumerWidget {
                         const SizedBox(height: 16),
                         TextFormField(
                           controller: amountController,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
                           decoration: InputDecoration(
                             labelText: 'Payoff Amount (${fmt.currencySymbol})',
                             border: const OutlineInputBorder(),
@@ -1326,7 +1458,8 @@ class _LoanBottomBar extends ConsumerWidget {
                           validator: (val) {
                             if (val == null || val.isEmpty) return 'Required';
                             final parsed = double.tryParse(val);
-                            if (parsed == null || parsed <= 0) return 'Enter a valid amount';
+                            if (parsed == null || parsed <= 0)
+                              return 'Enter a valid amount';
                             if (parsed < outstanding) {
                               return 'Must be at least the outstanding: ${fmt.format(outstanding)}';
                             }
@@ -1341,9 +1474,11 @@ class _LoanBottomBar extends ConsumerWidget {
                             border: OutlineInputBorder(),
                           ),
                           items: const [
-                            DropdownMenuItem(value: 'cash', child: Text('Cash')),
+                            DropdownMenuItem(
+                                value: 'cash', child: Text('Cash')),
                             DropdownMenuItem(value: 'upi', child: Text('UPI')),
-                            DropdownMenuItem(value: 'bank', child: Text('Bank Transfer')),
+                            DropdownMenuItem(
+                                value: 'bank', child: Text('Bank Transfer')),
                           ],
                           onChanged: (val) {
                             if (val != null) {
@@ -1371,7 +1506,8 @@ class _LoanBottomBar extends ConsumerWidget {
                     child: const Text('Cancel'),
                   ),
                   FilledButton(
-                    style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+                    style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.primary),
                     onPressed: () async {
                       if (!formKey.currentState!.validate()) return;
                       Navigator.pop(ctx);
@@ -1388,13 +1524,17 @@ class _LoanBottomBar extends ConsumerWidget {
                         ref.invalidate(loanDetailProvider(loan.id));
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Loan preclosed successfully'), backgroundColor: AppColors.success),
+                            const SnackBar(
+                                content: Text('Loan preclosed successfully'),
+                                backgroundColor: AppColors.success),
                           );
                         }
                       } catch (e) {
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Failed: $e'), backgroundColor: AppColors.danger),
+                            SnackBar(
+                                content: Text('Failed: $e'),
+                                backgroundColor: AppColors.danger),
                           );
                         }
                       }
@@ -1409,7 +1549,7 @@ class _LoanBottomBar extends ConsumerWidget {
       );
     } else {
       final title = action == 'renew' ? 'Renew Loan' : 'Confirm Action';
-      final desc = action == 'renew' 
+      final desc = action == 'renew'
           ? 'This will close the current loan and create a renewal package with the same terms starting today. Continue?'
           : 'Are you sure you want to perform this action?';
 
@@ -1428,17 +1568,24 @@ class _LoanBottomBar extends ConsumerWidget {
               onPressed: () async {
                 Navigator.pop(ctx);
                 try {
-                  await ref.read(loanServiceProvider).performAction(loan.id, action);
+                  await ref
+                      .read(loanServiceProvider)
+                      .performAction(loan.id, action);
                   ref.invalidate(loanDetailProvider(loan.id));
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Action "$title" processed successfully'), backgroundColor: AppColors.success),
+                      SnackBar(
+                          content:
+                              Text('Action "$title" processed successfully'),
+                          backgroundColor: AppColors.success),
                     );
                   }
                 } catch (e) {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Failed: $e'), backgroundColor: AppColors.danger),
+                      SnackBar(
+                          content: Text('Failed: $e'),
+                          backgroundColor: AppColors.danger),
                     );
                   }
                 }

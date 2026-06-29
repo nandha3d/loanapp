@@ -15,6 +15,22 @@ enum UserRole {
   String toJson() => name;
 }
 
+class AppType {
+  const AppType._();
+
+  static const microlending = 'microlending';
+  static const chitfunds = 'chitfunds';
+  static const legacyChit = 'chit';
+
+  static bool isChit(String? value) =>
+      value == chitfunds || value == legacyChit;
+
+  static bool userIsChit(User? user) => isChit(user?.appType);
+
+  static bool userHasChits(User? user) =>
+      userIsChit(user) || (user?.hasModule(chitfunds) ?? false);
+}
+
 class User {
   const User({
     required this.id,
@@ -72,8 +88,7 @@ class User {
               .map((dynamic e) => e as String)
               .toList(growable: false),
       tenantSlug: json['tenantSlug'] as String?,
-      biometricLockRequired:
-          (json['biometricLockRequired'] as bool?) ?? false,
+      biometricLockRequired: (json['biometricLockRequired'] as bool?) ?? false,
     );
   }
 

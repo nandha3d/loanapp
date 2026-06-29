@@ -39,6 +39,8 @@ class Endpoints {
   static const String collectionEntry = '/collection/entry';
   static const String collectionProofPhoto = '/collection/proof/photo';
   static const String collectionProofQr = '/collection/proof/qr';
+  static String customerCollectionReceipt(String customerId) =>
+      '/api/customers/$customerId/collection-receipt';
 
   // mCollect — route batch collection runs
   static const String runOpen = '/collection/run/open';
@@ -81,6 +83,7 @@ class Endpoints {
   static String chit(String id) => '/chits/$id';
   static String chitMembers(String id) => '/chits/$id/members';
   static String chitAuctions(String id) => '/chits/$id/auctions';
+  static String chitPayments(String id) => '/chits/$id/payments';
 
   // Settings
   static const String settings = '/settings';

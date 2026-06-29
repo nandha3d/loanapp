@@ -33,7 +33,8 @@ class ChitService {
   }
 
   Future<List<ChitAuction>> auctions(String id) async {
-    final res = await _dio.get<Map<String, dynamic>>(Endpoints.chitAuctions(id));
+    final res =
+        await _dio.get<Map<String, dynamic>>(Endpoints.chitAuctions(id));
     return unwrapEnvelope(res, (dynamic d) {
       return (d as List<dynamic>)
           .map((dynamic e) => ChitAuction.fromJson(e as Map<String, dynamic>))
@@ -57,6 +58,25 @@ class ChitService {
         if (winnerMemberId != null) 'winnerMemberId': winnerMemberId,
         if (prizeAmount != null) 'prizeAmount': prizeAmount,
         if (bidDiscount != null) 'bidDiscount': bidDiscount,
+      },
+    );
+    unwrapEnvelope(res, (_) => null);
+  }
+
+  Future<void> collectContribution(
+    String groupId, {
+    required String memberId,
+    required double amount,
+    required String paymentMode,
+    String? note,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.chitPayments(groupId),
+      data: {
+        'memberId': memberId,
+        'amount': amount,
+        'paymentMode': paymentMode,
+        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
       },
     );
     unwrapEnvelope(res, (_) => null);

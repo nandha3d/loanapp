@@ -1,11 +1,16 @@
+import 'dart:typed_data';
+
 import 'package:loantrack/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:printing/printing.dart';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
-import 'package:url_launcher/url_launcher.dart';import 'package:loantrack/core/l10n/language_controller.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
@@ -47,6 +52,7 @@ class _DetailBody extends ConsumerStatefulWidget {
 
 class _DetailBodyState extends ConsumerState<_DetailBody> {
   bool _suspending = false;
+  bool _printingReceipt = false;
 
   Future<void> _toggleSuspend() async {
     setState(() => _suspending = true);
@@ -66,6 +72,31 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
       );
     } finally {
       if (mounted) setState(() => _suspending = false);
+    }
+  }
+
+  Future<void> _openCollectionReceipt() async {
+    setState(() => _printingReceipt = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final bytes = await ref
+          .read(customerRepositoryProvider)
+          .collectionReceiptPdf(widget.customer.id);
+      if (bytes.isEmpty) throw Exception('Empty receipt');
+      await Printing.layoutPdf(
+        onLayout: (_) async => Uint8List.fromList(bytes),
+        name: 'passbook-${widget.customer.customerCode}.pdf',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Could not open passbook: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _printingReceipt = false);
     }
   }
 
@@ -120,36 +151,56 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
               border: Border(top: BorderSide(color: AppColors.border)),
               boxShadow: AppTokens.shadowLg,
             ),
-            child: Row(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: AppButton(
-                    label: c.status == 'suspended'
-                        ? t.x('cust.unsuspend')
-                        : t.x('cust.suspend'),
-                    variant: c.status == 'suspended'
-                        ? AppButtonVariant.secondary
-                        : AppButtonVariant.danger,
-                    expand: true,
-                    loading: _suspending,
-                    onPressed: _toggleSuspend,
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _printingReceipt ? null : _openCollectionReceipt,
+                    icon: _printingReceipt
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.picture_as_pdf_outlined),
+                    label: const Text('Collection passbook'),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: AppButton(
-                    label: t.x('cust.edit_profile'),
-                    expand: true,
-                    onPressed: () async {
-                      await context.push<Object?>(
-                        '/customers/${c.id}/edit',
-                        extra: c,
-                      );
-                      // Refresh the detail (and its score) after returning.
-                      ref.invalidate(customerDetailProvider(c.id));
-                    },
-                  ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: AppButton(
+                        label: c.status == 'suspended'
+                            ? t.x('cust.unsuspend')
+                            : t.x('cust.suspend'),
+                        variant: c.status == 'suspended'
+                            ? AppButtonVariant.secondary
+                            : AppButtonVariant.danger,
+                        expand: true,
+                        loading: _suspending,
+                        onPressed: _toggleSuspend,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: AppButton(
+                        label: t.x('cust.edit_profile'),
+                        expand: true,
+                        onPressed: () async {
+                          await context.push<Object?>(
+                            '/customers/${c.id}/edit',
+                            extra: c,
+                          );
+                          // Refresh the detail (and its score) after returning.
+                          ref.invalidate(customerDetailProvider(c.id));
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -469,7 +520,8 @@ class _RiskCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(t.x('cust.risk_score'), style: AppTypography.sectionTitle),
-              const Icon(Icons.info_outline, color: AppColors.textLight, size: 18),
+              const Icon(Icons.info_outline,
+                  color: AppColors.textLight, size: 18),
             ],
           ),
           const SizedBox(height: 32),
@@ -520,7 +572,8 @@ class _ScoreMeter extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             grade.toUpperCase(),
-            style: AppTypography.caption.copyWith(color: AppColors.textLight, fontWeight: FontWeight.w800),
+            style: AppTypography.caption.copyWith(
+                color: AppColors.textLight, fontWeight: FontWeight.w800),
           ),
         ],
       );
@@ -538,7 +591,8 @@ class _ScoreMeter extends StatelessWidget {
         const SizedBox(height: 16),
         Text(
           grade.toUpperCase(),
-          style: AppTypography.caption.copyWith(color: color, fontWeight: FontWeight.w800),
+          style: AppTypography.caption
+              .copyWith(color: color, fontWeight: FontWeight.w800),
         ),
       ],
     );
@@ -560,49 +614,77 @@ class _ScoreMeterPainter extends CustomPainter {
     // Draw arcs
     paint.color = AppColors.danger;
     canvas.drawArc(rect, math.pi, math.pi * 0.36, false, paint);
-    
+
     paint.color = AppColors.warning;
-    canvas.drawArc(rect, math.pi + (math.pi * 0.36), math.pi * 0.27, false, paint);
-    
+    canvas.drawArc(
+        rect, math.pi + (math.pi * 0.36), math.pi * 0.27, false, paint);
+
     paint.color = AppColors.success;
-    canvas.drawArc(rect, math.pi + (math.pi * 0.63), math.pi * 0.37, false, paint);
+    canvas.drawArc(
+        rect, math.pi + (math.pi * 0.63), math.pi * 0.37, false, paint);
 
     // Calc pct for indicator
     final double pct = ((score - 300) / (850 - 300)).clamp(0.0, 1.0);
     final angle = math.pi + (math.pi * pct);
     final radius = size.width / 2;
     final center = Offset(size.width / 2, size.height);
-    
+
     final indicatorX = center.dx + radius * math.cos(angle);
     final indicatorY = center.dy + radius * math.sin(angle);
 
     // Draw the white circle with colored border
-    final indicatorPaint = Paint()..color = Colors.white..style = PaintingStyle.fill;
+    final indicatorPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
     canvas.drawCircle(Offset(indicatorX, indicatorY), 10, indicatorPaint);
-    
-    final Color currentColor = pct < 0.36 ? AppColors.danger : (pct < 0.63 ? AppColors.warning : AppColors.success);
-    final borderPaint = Paint()..color = currentColor..style = PaintingStyle.stroke..strokeWidth = 4;
+
+    final Color currentColor = pct < 0.36
+        ? AppColors.danger
+        : (pct < 0.63 ? AppColors.warning : AppColors.success);
+    final borderPaint = Paint()
+      ..color = currentColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4;
     canvas.drawCircle(Offset(indicatorX, indicatorY), 10, borderPaint);
 
     // Texts
     final textPainter300 = TextPainter(
-      text: const TextSpan(text: '300', style: TextStyle(color: AppColors.textLight, fontSize: 11, fontWeight: FontWeight.bold)),
+      text: const TextSpan(
+          text: '300',
+          style: TextStyle(
+              color: AppColors.textLight,
+              fontSize: 11,
+              fontWeight: FontWeight.bold)),
       textDirection: ui.TextDirection.ltr,
     )..layout();
     textPainter300.paint(canvas, Offset(0, size.height + 8));
 
     final textPainter850 = TextPainter(
-      text: const TextSpan(text: '850', style: TextStyle(color: AppColors.textLight, fontSize: 11, fontWeight: FontWeight.bold)),
+      text: const TextSpan(
+          text: '850',
+          style: TextStyle(
+              color: AppColors.textLight,
+              fontSize: 11,
+              fontWeight: FontWeight.bold)),
       textDirection: ui.TextDirection.ltr,
     )..layout();
-    textPainter850.paint(canvas, Offset(size.width - textPainter850.width, size.height + 8));
+    textPainter850.paint(
+        canvas, Offset(size.width - textPainter850.width, size.height + 8));
 
     // Main Score
     final scorePainter = TextPainter(
-      text: TextSpan(text: '$score', style: const TextStyle(color: Color(0xFF111827), fontSize: 36, fontWeight: FontWeight.w900)),
+      text: TextSpan(
+          text: '$score',
+          style: const TextStyle(
+              color: Color(0xFF111827),
+              fontSize: 36,
+              fontWeight: FontWeight.w900)),
       textDirection: ui.TextDirection.ltr,
     )..layout();
-    scorePainter.paint(canvas, Offset(center.dx - scorePainter.width / 2, size.height - scorePainter.height + 6));
+    scorePainter.paint(
+        canvas,
+        Offset(center.dx - scorePainter.width / 2,
+            size.height - scorePainter.height + 6));
   }
 
   @override
@@ -724,7 +806,8 @@ class _LoansSection extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(vertical: 14),
           child: Row(
             children: [
-              const Icon(Icons.info_outline, color: AppColors.textLight, size: 18),
+              const Icon(Icons.info_outline,
+                  color: AppColors.textLight, size: 18),
               const SizedBox(width: 8),
               Text(
                 t.x('cust.no_loans_yet'),
@@ -989,8 +1072,11 @@ class _GuarantorsSection extends ConsumerWidget {
                       children: [
                         Text(g.name, style: AppTypography.bodyLarge),
                         Text(
-                          [g.phone, if (g.relation != null && g.relation!.isNotEmpty) g.relation]
-                              .join(' · '),
+                          [
+                            g.phone,
+                            if (g.relation != null && g.relation!.isNotEmpty)
+                              g.relation
+                          ].join(' · '),
                           style: AppTypography.caption,
                         ),
                       ],
@@ -1056,7 +1142,8 @@ class _CompanySection extends StatelessWidget {
                           customer.companyName ?? '',
                           style: AppTypography.nameLg.copyWith(fontSize: 16),
                         ),
-                        if (customer.designation != null && customer.designation!.isNotEmpty)
+                        if (customer.designation != null &&
+                            customer.designation!.isNotEmpty)
                           Text(
                             customer.designation!,
                             style: AppTypography.caption,
@@ -1073,7 +1160,8 @@ class _CompanySection extends StatelessWidget {
               label: 'Company',
               value: customer.companyName ?? '—',
             ),
-          if (customer.businessType != null && customer.businessType!.isNotEmpty)
+          if (customer.businessType != null &&
+              customer.businessType!.isNotEmpty)
             _IdRow(
               icon: Icons.category_outlined,
               label: 'Business Type',
@@ -1091,7 +1179,8 @@ class _CompanySection extends StatelessWidget {
               label: 'Income',
               value: '₹${customer.monthlyIncome!.toStringAsFixed(0)}',
             ),
-          if (customer.companyAddress != null && customer.companyAddress!.isNotEmpty)
+          if (customer.companyAddress != null &&
+              customer.companyAddress!.isNotEmpty)
             _IdRow(
               icon: Icons.location_on_outlined,
               label: 'Work Address',
@@ -1138,25 +1227,34 @@ class _SecurityChequesSection extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Cheque #${c.chequeNumber}', style: AppTypography.bodyLarge),
+                        Text('Cheque #${c.chequeNumber}',
+                            style: AppTypography.bodyLarge),
                         Text(
-                          [c.bankName, if (c.amount != null) '₹${c.amount!.toStringAsFixed(0)}']
-                              .join(' · '),
+                          [
+                            c.bankName,
+                            if (c.amount != null)
+                              '₹${c.amount!.toStringAsFixed(0)}'
+                          ].join(' · '),
                           style: AppTypography.caption,
                         ),
                       ],
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: c.status == 'active' ? AppColors.successBg : AppColors.border,
+                      color: c.status == 'active'
+                          ? AppColors.successBg
+                          : AppColors.border,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       c.status.toUpperCase(),
                       style: AppTypography.tiny.copyWith(
-                        color: c.status == 'active' ? AppColors.success : AppColors.textSecondary,
+                        color: c.status == 'active'
+                            ? AppColors.success
+                            : AppColors.textSecondary,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -1298,7 +1396,8 @@ class _ErrorDetail extends ConsumerWidget {
             children: [
               const Icon(Icons.cloud_off, size: 56, color: AppColors.textLight),
               const SizedBox(height: 12),
-              Text(t.x('err.could_not_load_customer'), style: AppTypography.sectionTitle),
+              Text(t.x('err.could_not_load_customer'),
+                  style: AppTypography.sectionTitle),
               const SizedBox(height: 6),
               Text(
                 message,

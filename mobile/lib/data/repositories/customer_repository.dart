@@ -33,6 +33,8 @@ class CustomerRepository {
       );
   Future<Customer> update(String id, Map<String, dynamic> patch) =>
       _service.update(id, patch);
+  Future<List<int>> collectionReceiptPdf(String id) =>
+      _service.collectionReceiptPdf(id);
 }
 
 final customerRepositoryProvider = Provider<CustomerRepository>(
