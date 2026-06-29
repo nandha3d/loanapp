@@ -11,11 +11,28 @@ export async function markInstalmentPaid(formData: FormData) {
   return submitCollectionEntry(formData);
 }
 
+// Record a bank repledge against a gold loan.
+export async function recordBankRepledge(loanId: string, data: Record<string, unknown>) {
+  try {
+    const apiContext = await getApiRequestContext();
+    const res = await apiFetch<any>(`/gold/loans/${loanId}/repledge`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      ...apiContext,
+    });
+    if (res?.error) return { error: res.error };
+    revalidatePath('/loans');
+    return { success: true, data: res?.data ?? res };
+  } catch (e: any) {
+    return { error: e?.message || 'Failed to record repledge' };
+  }
+}
+
 // Record a gold pledge servicing event (interest / part-payment / redemption)
 // via the servicing API, then refresh the loan detail.
 export async function recordGoldServicing(
   loanId: string,
-  action: 'interest' | 'part' | 'redeem',
+  action: 'interest' | 'part' | 'redeem' | 'takeover',
   amount: number,
   paymentMode: string = 'cash',
 ) {

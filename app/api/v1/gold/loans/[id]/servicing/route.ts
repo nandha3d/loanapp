@@ -78,8 +78,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const amount = Number(body.amount) || 0;
   const paymentMode = String(body.paymentMode || 'cash');
   const paidOn = body.paidOn ? new Date(body.paidOn) : new Date();
-  if (!['interest', 'part', 'redeem'].includes(action)) {
-    return fail('action must be interest | part | redeem', 400);
+  if (!['interest', 'part', 'redeem', 'takeover'].includes(action)) {
+    return fail('action must be interest | part | redeem | takeover', 400);
   }
 
   const pledge = await loadPledge(id, ctx);
@@ -134,6 +134,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await prisma.goldLoanCollateral.update({ where: { id: col.id }, data: { outstandingPrincipal: newOutstanding } });
     await writeAudit({ tenantId: ctx.tenantId, userId: ctx.userId, action: 'gold_part_payment', entityType: 'loan', entityId: loan.id, newValue: { amount, newOutstanding } });
     return ok({ recorded: 'part', amount, outstandingPrincipal: newOutstanding });
+  }
+
+  if (action === 'takeover') {
+    // Another financier/bank takes over the pledge: close it as taken-over and
+    // release the ornaments. No customer payment is recorded here.
+    const col = await ensureCollateral();
+    await prisma.$transaction([
+      prisma.goldLoanCollateral.update({
+        where: { id: col.id },
+        data: { releaseStatus: 'released', releasedAt: paidOn },
+      }),
+      prisma.loan.update({ where: { id: loan.id }, data: { status: 'closed', closureType: 'taken_over' } }),
+    ]);
+    await writeAudit({ tenantId: ctx.tenantId, userId: ctx.userId, action: 'gold_takeover', entityType: 'loan', entityId: loan.id, newValue: {} });
+    return ok({ recorded: 'takeover', status: 'closed' });
   }
 
   // redeem — pay outstanding + interest due, close the pledge, release ornaments

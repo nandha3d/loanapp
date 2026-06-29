@@ -509,6 +509,7 @@ model Loan {
   goldCollateral    GoldLoanCollateral?
   propertyCollateral PropertyCollateral?
   productFinanceItem ProductFinanceItem?
+  bankRepledges     BankRepledge[]
   nachMandate       NachMandate?
 
   @@unique([tenantId, loanCode])
@@ -1012,6 +1013,30 @@ model ProductFinanceItem {
   @@index([branchId])
   @@index([customerId])
   @@map("product_finance_items")
+}
+
+// Bank repledge — the pledged gold is re-pledged to a bank for liquidity.
+// One or more per loan. Additive; relates only to Loan.
+model BankRepledge {
+  id                String   @id @default(cuid())
+  tenantId          String   @map("tenant_id")
+  loanId            String   @map("loan_id")
+  bankName          String   @map("bank_name")
+  bankDate          DateTime @map("bank_date") @db.Date
+  referenceNo       String?  @map("reference_no")
+  amountGivenByBank Decimal  @default(0) @map("amount_given_by_bank") @db.Decimal(14, 2)
+  interestRate      Decimal? @map("interest_rate") @db.Decimal(5, 2)
+  processingFee     Decimal  @default(0) @map("processing_fee") @db.Decimal(12, 2)
+  staffName         String?  @map("staff_name")
+  status            String   @default("active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  loan Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([loanId])
+  @@map("bank_repledges")
 }
 
 // ── Gold/Silver master data — the no-hardcode source for pledge dropdowns ──────
