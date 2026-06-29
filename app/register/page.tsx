@@ -584,7 +584,7 @@ function RegisterForm() {
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                         <span className="material-icons-outlined" style={{ fontSize: '24px', color: isEnabled ? 'var(--primary)' : 'var(--text-light)' }}>
-                          {m.module === 'microlending' ? 'monetization_on' : m.module === 'autofinance' ? 'directions_car' : m.module === 'goldloan' ? 'account_balance' : 'groups'}
+                          {m.module === 'microlending' ? 'monetization_on' : m.module === 'autofinance' ? 'directions_car' : m.module === 'goldloan' ? 'account_balance' : m.module === 'property' ? 'home_work' : m.module === 'productfinance' ? 'shopping_bag' : 'groups'}
                         </span>
                         <div style={{ textAlign: 'left' }}>
                           <div style={{ fontWeight: 600, fontSize: '0.92rem' }}>{m.displayName}</div>

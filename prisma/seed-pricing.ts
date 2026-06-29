@@ -146,6 +146,20 @@ async function main() {
       description: 'Organize chit groups, auctions, dividend distribution, and member entries',
       monthlyPrice: 0,
       sortOrder: 3
+    },
+    {
+      module: 'property',
+      displayName: 'Property Loan',
+      description: 'Property-backed lending, mortgage documents, valuation, and release tracking',
+      monthlyPrice: 0,
+      sortOrder: 4
+    },
+    {
+      module: 'productfinance',
+      displayName: 'Product Finance',
+      description: 'Consumer-durable and product financing with dealer and EMI tracking',
+      monthlyPrice: 0,
+      sortOrder: 5
     }
   ];
 

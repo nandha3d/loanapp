@@ -18,7 +18,7 @@ export const PLAN_FEATURES: Record<string, PlanFeature> = {
   // Not a buyable/public plan; assigned manually to a specific tenant.
   lifetime: {
     loans: 999999, agents: 999, branches: 999,
-    modules: ['microlending', 'autofinance', 'chitfunds', 'goldloan'],
+    modules: ['microlending', 'autofinance', 'chitfunds', 'goldloan', 'property', 'productfinance'],
     gracePeriodDays: 999999, trialDays: 0,
   },
   // Internal — assigned on registration before user picks a plan.
@@ -47,12 +47,12 @@ export const PLAN_FEATURES: Record<string, PlanFeature> = {
   },
   business: {
     loans: 1500, agents: 60, branches: 6,
-    modules: ['microlending', 'autofinance', 'chitfunds', 'goldloan'],
+    modules: ['microlending', 'autofinance', 'chitfunds', 'goldloan', 'property', 'productfinance'],
     gracePeriodDays: 14, trialDays: 0,
   },
   enterprise: {
     loans: 999999, agents: 999, branches: 999,
-    modules: ['microlending', 'autofinance', 'chitfunds', 'goldloan'],
+    modules: ['microlending', 'autofinance', 'chitfunds', 'goldloan', 'property', 'productfinance'],
     gracePeriodDays: 30,
     // 15-day full-feature trial. During this window the tenant has enterprise
     // limits but no payment is collected. After 15 days they must subscribe

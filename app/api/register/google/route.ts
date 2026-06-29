@@ -115,7 +115,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const ALL_MODULES_LIST = ['microlending', 'autofinance', 'chitfunds', 'goldloan'];
+    const ALL_MODULES_LIST = ['microlending', 'autofinance', 'chitfunds', 'goldloan', 'property', 'productfinance'];
     const finalModules = standaloneClaim ? ALL_MODULES_LIST : normalizeSelectedModules(selectedModules);
 
     // Generate unique slug
