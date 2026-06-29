@@ -887,6 +887,10 @@ model GoldLoanCollateral {
   valuationDate       DateTime? @map("valuation_date") @db.Date
   releaseStatus       String    @default("pledged") @map("release_status")
   releasedAt          DateTime? @map("released_at")
+  // Pledge servicing state (additive). outstandingPrincipal tracks principal
+  // after part-payments; interestPaidUpto is the date interest is cleared to.
+  outstandingPrincipal Decimal? @map("outstanding_principal") @db.Decimal(12, 2)
+  interestPaidUpto    DateTime? @map("interest_paid_upto")
   photoPath           String?   @map("photo_path")
   documentPath        String?   @map("document_path")
   createdAt           DateTime  @default(now()) @map("created_at")
@@ -1270,6 +1274,9 @@ model Payment {
   referenceNumber String?             @map("reference_number")
   paymentDate     DateTime            @map("payment_date")
   status          String              @default("completed")
+  // Gold pledge servicing: 'general' (default, existing flows) | 'interest' |
+  // 'part' | 'redemption'. Additive, defaulted — existing rows unaffected.
+  paymentType     String              @default("general") @map("payment_type")
   createdAt       DateTime            @default(now()) @map("created_at")
   updatedAt       DateTime            @updatedAt @map("updated_at")
   allocations     PaymentAllocation[]
