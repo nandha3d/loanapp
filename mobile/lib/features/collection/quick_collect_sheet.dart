@@ -12,6 +12,7 @@ import 'package:loantrack/data/services/upload_service.dart';
 import 'package:loantrack/features/collection/qr_scan_screen.dart';
 import 'package:loantrack/core/gps/gps_service.dart';
 import 'package:loantrack/core/l10n/language_controller.dart';
+import 'package:loantrack/core/l10n/app_strings.dart';
 import 'package:loantrack/core/network/api_exception.dart';
 import 'package:loantrack/core/network/dio_client.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
@@ -21,6 +22,8 @@ import 'package:loantrack/data/local/collection_queue.dart';
 import 'package:loantrack/data/models/collection_entry.dart';
 import 'package:loantrack/data/services/collection_service.dart';
 import 'package:loantrack/data/services/payment_service.dart';
+import 'package:loantrack/features/collection/voice_entry_controller.dart';
+import 'package:loantrack/features/collection/voice_amount_parser.dart';
 
 class QuickCollectSheet extends ConsumerStatefulWidget {
   const QuickCollectSheet({super.key, required this.row});
@@ -142,6 +145,40 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
       _amount = v.round().toString();
     });
     ref.speak('${_speakAmount(v)} entered');
+  }
+
+  /// Voice entry: listen, parse the spoken amount + mode into the form, then
+  /// read it back for confirmation. Never auto-submits — the agent still taps
+  /// Confirm. Synonyms come from i18n so they are translatable, not hardcoded.
+  Future<void> _startVoiceEntry() async {
+    final t = T.of(ref);
+    final lang = ref.read(languageProvider).code;
+    final modeSynonyms = <String, List<String>>{
+      'cash': t.x('voice.kw.cash').split(','),
+      'upi': t.x('voice.kw.upi').split(','),
+      'bank': t.x('voice.kw.bank').split(','),
+    };
+    await ref.read(voiceEntryProvider.notifier).listen(
+      lang,
+      onFinal: (text) {
+        final res = parseVoiceEntry(text, modeSynonyms: modeSynonyms);
+        if (!mounted) return;
+        setState(() {
+          _error = null;
+          if (res.hasAmount) _amount = res.amount!.round().toString();
+          if (res.mode != null) _mode = res.mode!;
+        });
+        if (res.hasAmount) {
+          final modeSpoken = res.mode != null ? ', ${res.mode}' : '';
+          ref.speak('${_speakAmount(res.amount!)}$modeSpoken. ${t.x('voice.entry.confirm')}');
+        } else {
+          ref.speak(t.x('voice.entry.notUnderstood'));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(t.x('voice.entry.notUnderstood'))),
+          );
+        }
+      },
+    );
   }
 
   Future<void> _submit() async {
@@ -445,6 +482,13 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
               _AmountDisplay(
                 value: _value,
                 totalDue: _totalDue,
+                t: t,
+              ),
+              const SizedBox(height: 10),
+              _VoiceEntryButton(
+                listening: ref.watch(voiceEntryProvider).listening,
+                transcript: ref.watch(voiceEntryProvider).transcript,
+                onTap: _submitting ? null : _startVoiceEntry,
                 t: t,
               ),
               const SizedBox(height: 12),
@@ -1042,6 +1086,48 @@ class _UpiQrSection extends ConsumerWidget {
           ),
         );
       },
+    );
+  }
+}
+
+// ───────────────────────────── Voice entry button ───────────────────
+
+class _VoiceEntryButton extends StatelessWidget {
+  const _VoiceEntryButton({
+    required this.listening,
+    required this.transcript,
+    required this.onTap,
+    required this.t,
+  });
+  final bool listening;
+  final String transcript;
+  final VoidCallback? onTap;
+  final T t;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = listening ? AppColors.danger : AppColors.primary;
+    final label = listening
+        ? (transcript.isEmpty ? t.x('voice.entry.listening') : transcript)
+        : t.x('voice.entry.start');
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: color,
+          side: BorderSide(color: color),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        icon: Icon(listening ? Icons.mic : Icons.mic_none_rounded, color: color),
+        label: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTypography.bodyLarge.copyWith(color: color),
+        ),
+      ),
     );
   }
 }

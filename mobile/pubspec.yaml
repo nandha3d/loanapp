@@ -71,6 +71,9 @@ dependencies:
   # Accessibility - true TTS for low-literacy voice guidance (U2)
   flutter_tts: ^4.2.0
 
+  # Voice ENTRY - speech-to-text collection input (parity: Vasool voice entry)
+  speech_to_text: ^7.0.0
+
   # Utilities
   intl: ^0.19.0
   google_fonts: ^6.2.1
