@@ -19,6 +19,9 @@ model Tenant {
   updatedAt             DateTime               @updatedAt @map("updated_at")
   deletedAt             DateTime?              @map("deleted_at")
   settings              AppSetting[]
+  ornamentTypes         OrnamentType[]
+  ornamentSpecs         OrnamentSpecification[]
+  bankNames             BankName[]
   auditLogs             AuditLog[]
   deviceTokens          DeviceToken[]
   billingInvoices       BillingInvoice[]
@@ -899,6 +902,57 @@ model GoldLoanCollateral {
   @@index([branchId])
   @@index([customerId])
   @@map("gold_loan_collaterals")
+}
+
+// ── Gold/Silver master data — the no-hardcode source for pledge dropdowns ──────
+// Per-tenant, admin-editable. Ornament types/specs and bank names are NEVER
+// hardcoded in the UI; the pledge form reads these via /api/v1/gold/master.
+
+model OrnamentType {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id")
+  name      String
+  metal     String   @default("gold") // gold | silver
+  isActive  Boolean  @default(true) @map("is_active")
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+  @@index([tenantId, metal, isActive])
+  @@map("ornament_types")
+}
+
+model OrnamentSpecification {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  name        String
+  purityKarat String?  @map("purity_karat")
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+  @@index([tenantId, isActive])
+  @@map("ornament_specifications")
+}
+
+model BankName {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id")
+  name      String
+  isActive  Boolean  @default(true) @map("is_active")
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+  @@index([tenantId, isActive])
+  @@map("bank_names")
 }
 
 model ApprovalRequest {
