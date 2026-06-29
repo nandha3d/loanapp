@@ -158,7 +158,8 @@ export default function LoanForm({
   // In the dedicated gold-loan module every loan is a gold pledge — default to
   // 'gold' and (below) hide the cheque/property type selector.
   const isGoldModule = appType === 'goldloan';
-  const [loanType, setLoanType] = useState(isGoldModule ? 'gold' : 'cheque');
+  const isPropertyModule = appType === 'property';
+  const [loanType, setLoanType] = useState(isGoldModule ? 'gold' : isPropertyModule ? 'property' : 'cheque');
   const [isLoanTypeExpanded, setIsLoanTypeExpanded] = useState(true);
   
   // Dynamic Collateral State
@@ -209,6 +210,12 @@ export default function LoanForm({
     netWeightGrams: r.netWeightGrams ? Number(r.netWeightGrams) : undefined,
     ratePerGram: Number(r.ratePerGram) || 0,
   })));
+  const buildPropertyCollateralJson = () => JSON.stringify({
+    propertyType,
+    address: propertyAddress || null,
+    marketValue: propertyValue !== '' ? Number(propertyValue) : null,
+    eligibleLtvPercent: goldConfig?.defaultLtvPercent ?? null,
+  });
   const buildGoldCollateralJson = () => JSON.stringify({
     packetNo: goldPacketNo || null,
     storageLocation: goldStorage || null,
@@ -432,6 +439,7 @@ export default function LoanForm({
           fd.set('deductionType', interestType);
           fd.set('guarantorId', existingGuarantorId || '');
           if (isGoldModule || loanType === 'gold') fd.set('goldCollateralJson', buildGoldCollateralJson());
+          if (isPropertyModule || loanType === 'property') fd.set('propertyCollateralJson', buildPropertyCollateralJson());
           const result = await createLoan(fd);
           if (result && 'error' in result) {
             setLimitError(result.error);
@@ -504,8 +512,8 @@ export default function LoanForm({
             </h4>
           </div>
 
-          {/* Loan-type selector — hidden in the gold module (always a pledge) */}
-          {!isGoldModule && (
+          {/* Loan-type selector — hidden in single-product modules */}
+          {!isGoldModule && !isPropertyModule && (
           <div className="form-group" style={{ marginBottom: '16px' }}>
             <label className="form-label">{dict.loans.loanType} *</label>
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
@@ -725,7 +733,7 @@ export default function LoanForm({
                 </div>
               )}
 
-              {loanType === 'property' && (
+              {(isPropertyModule || loanType === 'property') && (
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label">Property Type</label>

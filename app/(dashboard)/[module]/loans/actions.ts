@@ -111,6 +111,14 @@ export async function createLoan(formData: FormData) {
       }
     }
 
+    // Property / product-finance collateral (additive; structured JSON from form).
+    let propertyCollateral: any = undefined;
+    const propJson = formData.get('propertyCollateralJson') as string | null;
+    if (propJson) { try { propertyCollateral = JSON.parse(propJson); } catch { propertyCollateral = undefined; } }
+    let productItem: any = undefined;
+    const prodJson = formData.get('productItemJson') as string | null;
+    if (prodJson) { try { productItem = JSON.parse(prodJson); } catch { productItem = undefined; } }
+
     const payload = {
       customerId: formData.get('customerId') as string,
       principal: Number(formData.get('principal')),
@@ -133,7 +141,9 @@ export async function createLoan(formData: FormData) {
         relation: formData.get('guarantorRelation') as string,
         photoUrl: guarantorPhotoUrl
       },
-      goldCollateral
+      goldCollateral,
+      propertyCollateral,
+      productItem
     };
 
     const res = await apiFetch<any>('/loans', {
