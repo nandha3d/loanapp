@@ -62,7 +62,12 @@ function GoldServicingPanel({ data, loanId, currencySymbol }: { data: any; loanI
 
   return (
     <div className="card" style={{ borderTop: '3px solid var(--primary)', marginBottom: 16 }}>
-      <div className="card-header"><h3>🏅 Gold Pledge Servicing</h3>{closed && <span className="badge" style={{ background: 'var(--success-bg,#dcfce7)', color: 'var(--success)' }}>Redeemed</span>}</div>
+      <div className="card-header"><h3>🏅 Gold Pledge Servicing</h3>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <a href={`/api/loans/${loanId}/gold-receipt`} target="_blank" rel="noreferrer" style={{ fontSize: '.82rem', color: 'var(--primary)', fontWeight: 600, textDecoration: 'none' }}>🧾 Receipt</a>
+          {closed && <span className="badge" style={{ background: 'var(--success-bg,#dcfce7)', color: 'var(--success)' }}>Redeemed</span>}
+        </div>
+      </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, padding: '4px 0 14px' }}>
         <div><div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>Outstanding</div><b>{fmt(data?.outstandingPrincipal)}</b></div>
         <div><div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>Monthly interest</div><b>{fmt(data?.monthlyInterest)}</b></div>
