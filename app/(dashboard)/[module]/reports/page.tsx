@@ -3,6 +3,8 @@ import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import ReportsClient from './ReportsClient';
+import GoldReportsPanel from './GoldReportsPanel';
+import { serverFetch } from '@/lib/api-client/server';
 import { getDictionary } from '@/lib/i18n';
 import { getActiveBranchId } from '@/lib/branch';
 import { modulePath } from '@/types/modules';
@@ -67,7 +69,26 @@ export default async function ReportsPage({
     where: { tenantId }
   });
 
+  // Gold pledge reports (summary / pending / ornaments) for the gold module.
+  let goldSummary: any = null, goldPending: any = null, goldOrnaments: any = null;
+  if (appType === 'goldloan') {
+    try {
+      const [s, p, o] = await Promise.all([
+        serverFetch<any>('/gold/reports?type=summary').catch(() => null),
+        serverFetch<any>('/gold/reports?type=pending').catch(() => null),
+        serverFetch<any>('/gold/reports?type=ornaments').catch(() => null),
+      ]);
+      goldSummary = s?.data ?? null;
+      goldPending = p?.data ?? null;
+      goldOrnaments = o?.data ?? null;
+    } catch { /* tolerate pre-migration */ }
+  }
+
   return (
+    <>
+    {appType === 'goldloan' && (
+      <GoldReportsPanel summary={goldSummary} pending={goldPending} ornaments={goldOrnaments} currencySymbol={currencySymbol} />
+    )}
     <ReportsClient
       collectionEfficiency={collectionEfficiency}
       agingBuckets={agingBuckets}
@@ -81,5 +102,6 @@ export default async function ReportsPage({
       dict={dict}
       subscription={subscription}
     />
+    </>
   );
 }
