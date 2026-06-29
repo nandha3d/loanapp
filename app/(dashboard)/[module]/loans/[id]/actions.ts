@@ -11,6 +11,29 @@ export async function markInstalmentPaid(formData: FormData) {
   return submitCollectionEntry(formData);
 }
 
+// Record a gold pledge servicing event (interest / part-payment / redemption)
+// via the servicing API, then refresh the loan detail.
+export async function recordGoldServicing(
+  loanId: string,
+  action: 'interest' | 'part' | 'redeem',
+  amount: number,
+  paymentMode: string = 'cash',
+) {
+  try {
+    const apiContext = await getApiRequestContext();
+    const res = await apiFetch<any>(`/gold/loans/${loanId}/servicing`, {
+      method: 'POST',
+      body: JSON.stringify({ action, amount, paymentMode }),
+      ...apiContext,
+    });
+    if (res?.error) return { error: res.error };
+    revalidatePath('/loans');
+    return { success: true, data: res?.data ?? res };
+  } catch (e: any) {
+    return { error: e?.message || 'Failed to record servicing' };
+  }
+}
+
 /**
  * Loan-wide collection from the loan page — same engine as the collection page
  * popup: spreads the amount across open instalments oldest-first, recorded today.
