@@ -412,6 +412,71 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Property collateral (mortgage). Additive, best-effort.
+    const propertyInput: any = body.propertyCollateral;
+    if (propertyInput && typeof propertyInput === 'object') {
+      try {
+        await prisma.propertyCollateral.create({
+          data: {
+            tenantId: ctx.tenantId,
+            branchId: loan.branchId,
+            loanId: loan.id,
+            customerId,
+            propertyType: propertyInput.propertyType ?? null,
+            address: propertyInput.address ?? null,
+            surveyNo: propertyInput.surveyNo ?? null,
+            extentValue: propertyInput.extentValue != null ? Number(propertyInput.extentValue) : null,
+            extentUnit: propertyInput.extentUnit ?? null,
+            marketValue: propertyInput.marketValue != null ? Number(propertyInput.marketValue) : null,
+            eligibleLtvPercent: propertyInput.eligibleLtvPercent != null ? Number(propertyInput.eligibleLtvPercent) : null,
+            eligibleAmount: propertyInput.eligibleAmount != null ? Number(propertyInput.eligibleAmount) : null,
+            encumbranceStatus: propertyInput.encumbranceStatus ?? null,
+            registrationNo: propertyInput.registrationNo ?? null,
+            valuerName: propertyInput.valuerName ?? null,
+            valuationDate: propertyInput.valuationDate ? new Date(propertyInput.valuationDate) : null,
+            titleDeedPath: propertyInput.titleDeedPath ?? null,
+            ecPath: propertyInput.ecPath ?? null,
+            taxReceiptPath: propertyInput.taxReceiptPath ?? null,
+            photoPath: propertyInput.photoPath ?? null,
+          },
+        });
+      } catch (e) {
+        console.error('[PROPERTY_COLLATERAL] persist failed for loan', loan.id, e);
+      }
+    }
+
+    // Product-finance item. Additive, best-effort.
+    const productInput: any = body.productItem ?? body.productFinanceItem;
+    if (productInput && typeof productInput === 'object') {
+      try {
+        await prisma.productFinanceItem.create({
+          data: {
+            tenantId: ctx.tenantId,
+            branchId: loan.branchId,
+            loanId: loan.id,
+            customerId,
+            category: productInput.category ?? null,
+            productName: productInput.productName ?? null,
+            brand: productInput.brand ?? null,
+            modelNo: productInput.modelNo ?? null,
+            serialNo: productInput.serialNo ?? null,
+            dealerName: productInput.dealerName ?? null,
+            dealerId: productInput.dealerId ?? null,
+            invoiceNo: productInput.invoiceNo ?? null,
+            invoiceAmount: productInput.invoiceAmount != null ? Number(productInput.invoiceAmount) : null,
+            downPayment: productInput.downPayment != null ? Number(productInput.downPayment) : null,
+            financedAmount: productInput.financedAmount != null ? Number(productInput.financedAmount) : null,
+            tenureMonths: productInput.tenureMonths != null ? Number(productInput.tenureMonths) : null,
+            warrantyExpiry: productInput.warrantyExpiry ? new Date(productInput.warrantyExpiry) : null,
+            invoicePath: productInput.invoicePath ?? null,
+            photoPath: productInput.photoPath ?? null,
+          },
+        });
+      } catch (e) {
+        console.error('[PRODUCT_ITEM] persist failed for loan', loan.id, e);
+      }
+    }
+
     if (status === 'pending_review') {
       const { notifyApprovers } = await import('@/lib/notify/approvers');
       const { modulePath } = await import('@/types/modules');
