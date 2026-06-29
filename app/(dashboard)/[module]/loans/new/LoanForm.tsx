@@ -154,7 +154,10 @@ export default function LoanForm({
   const [penalty, setPenalty] = useState<number>(defaultPenalty);
   const [packageId, setPackageId] = useState('');
 
-  const [loanType, setLoanType] = useState('cheque');
+  // In the dedicated gold-loan module every loan is a gold pledge — default to
+  // 'gold' and (below) hide the cheque/property type selector.
+  const isGoldModule = appType === 'goldloan';
+  const [loanType, setLoanType] = useState(isGoldModule ? 'gold' : 'cheque');
   const [isLoanTypeExpanded, setIsLoanTypeExpanded] = useState(true);
   
   // Dynamic Collateral State
@@ -409,7 +412,7 @@ export default function LoanForm({
           fd.set('collateralDetails', getCollateralDetailsJson());
           fd.set('deductionType', interestType);
           fd.set('guarantorId', existingGuarantorId || '');
-          if (loanType === 'gold') fd.set('goldCollateralJson', buildGoldCollateralJson());
+          if (isGoldModule || loanType === 'gold') fd.set('goldCollateralJson', buildGoldCollateralJson());
           const result = await createLoan(fd);
           if (result && 'error' in result) {
             setLimitError(result.error);
@@ -482,7 +485,8 @@ export default function LoanForm({
             </h4>
           </div>
 
-          {/* 3 Buttons (Always Visible) */}
+          {/* Loan-type selector — hidden in the gold module (always a pledge) */}
+          {!isGoldModule && (
           <div className="form-group" style={{ marginBottom: '16px' }}>
             <label className="form-label">{dict.loans.loanType} *</label>
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
@@ -506,6 +510,7 @@ export default function LoanForm({
               ))}
             </div>
           </div>
+          )}
 
           {/* Collapsible Accordion Details Trigger (Below the 3 Buttons) */}
           <div 
@@ -561,7 +566,7 @@ export default function LoanForm({
                 </div>
               )}
 
-              {loanType === 'gold' && (
+              {(isGoldModule || loanType === 'gold') && (
                 <div>
                   <div className="form-row">
                     <div className="form-group">
