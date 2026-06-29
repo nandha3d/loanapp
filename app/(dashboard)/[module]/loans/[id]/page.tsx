@@ -34,6 +34,17 @@ export default async function LoanDetailPage({
   // Serialize Decimal fields for client component
   const serializedLoan = JSON.parse(JSON.stringify(loan));
 
+  // Gold pledge servicing summary (outstanding / interest due / redemption).
+  let goldServicing: any = null;
+  if (serializedLoan.appType === 'goldloan') {
+    try {
+      const gs = await serverFetch<any>(`/gold/loans/${serializedLoan.id}/servicing`);
+      goldServicing = gs?.data ?? null;
+    } catch {
+      goldServicing = null;
+    }
+  }
+
   const sub = await getSubscription(tenantId);
   const isReceiptPdfAllowed = sub?.receiptPdfAllowed || false;
   const isReceiptPdfActive = await getSetting(tenantId, 'receipt_pdf_active', 'false') === 'true';
@@ -53,6 +64,7 @@ export default async function LoanDetailPage({
       receiptPdfEnabled={receiptPdfEnabled}
       upiId={upiId}
       payeeName={tenantName}
+      goldServicing={goldServicing}
     />
   );
 }

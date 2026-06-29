@@ -7,13 +7,14 @@ import Modal from '@/components/Modal';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { manageBranchAgent, setBranchAgentStatus } from '../../../admin/actions';
+import GoldMasterClient from './gold-master/GoldMasterClient';
 
 export default function SettingsClient({
   routes, packages, users, settings, currencySymbol, dict, currentUser, subscription, bureauCredential,
-  viewerRole, appType, branchAgents = [], manageBranchId = null, manageBranchName = null
+  viewerRole, appType, branchAgents = [], manageBranchId = null, manageBranchName = null, goldMaster = null, goldConfig = null
 }: {
   routes: any[], packages: any[], users: any[], settings: Record<string, string>, currencySymbol: string, dict: any, currentUser: any, subscription: any, bureauCredential: any,
-  viewerRole?: string, appType?: string, branchAgents?: any[], manageBranchId?: string | null, manageBranchName?: string | null
+  viewerRole?: string, appType?: string, branchAgents?: any[], manageBranchId?: string | null, manageBranchName?: string | null, goldMaster?: any, goldConfig?: any
 }) {
   const d = dict.settings;
   const searchParams = useSearchParams();
@@ -145,6 +146,9 @@ export default function SettingsClient({
         <div className={`tab ${activeTab === 'routes' ? 'active' : ''}`} onClick={() => setActiveTab('routes')}>{d.tabRoutes}</div>
         <div className={`tab ${activeTab === 'penalty' ? 'active' : ''}`} onClick={() => setActiveTab('penalty')}>{d.tabPenalty}</div>
         <div className={`tab ${activeTab === 'packages' ? 'active' : ''}`} onClick={() => setActiveTab('packages')}>{d.tabPackages}</div>
+        {effAppType === 'goldloan' && (
+          <div className={`tab ${activeTab === 'goldmaster' ? 'active' : ''}`} onClick={() => setActiveTab('goldmaster')}>Gold Master</div>
+        )}
         <div className={`tab ${activeTab === 'payment' ? 'active' : ''}`} onClick={() => setActiveTab('payment')}>{d.tabPayment}</div>
         {subscription?.whatsappSmsEnabled && (
           <div className={`tab ${activeTab === 'notifications' ? 'active' : ''}`} onClick={() => setActiveTab('notifications')}>Notifications</div>
@@ -596,6 +600,13 @@ export default function SettingsClient({
       )}
 
       {/* Bulk Tools Tab */}
+
+      {/* Gold Master Tab */}
+      {effAppType === 'goldloan' && (
+        <div className={`tab-content ${activeTab === 'goldmaster' ? 'active' : ''}`}>
+          <GoldMasterClient master={goldMaster || { ornamentTypes: [], ornamentSpecs: [], bankNames: [] }} config={goldConfig} />
+        </div>
+      )}
 
       {/* Payment / UPI Tab */}
       <div className={`tab-content ${activeTab === 'payment' ? 'active' : ''}`}>

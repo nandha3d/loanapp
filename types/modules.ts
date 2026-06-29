@@ -3,6 +3,8 @@ export const ALL_MODULES = [
   'autofinance',
   'chitfunds',
   'goldloan',
+  'property',
+  'productfinance',
 ] as const;
 
 export type ModuleKey = (typeof ALL_MODULES)[number];
@@ -12,6 +14,8 @@ export const MODULE_SLUGS: Record<ModuleKey, string> = {
   autofinance: 'autofinance',
   chitfunds: 'chitfunds',
   goldloan: 'goldloan',
+  property: 'property',
+  productfinance: 'productfinance',
 };
 
 export const MODULE_LABELS: Record<ModuleKey, string> = {
@@ -19,6 +23,8 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
   autofinance: 'Auto Finance',
   chitfunds: 'Chit Funds',
   goldloan: 'Gold Loan',
+  property: 'Property Loan',
+  productfinance: 'Product Finance',
 };
 
 export const MODULE_ROUTES: Record<ModuleKey, string[]> = {
@@ -26,6 +32,11 @@ export const MODULE_ROUTES: Record<ModuleKey, string[]> = {
   autofinance: ['/vehicles', '/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard'],
   chitfunds: ['/chits', '/customers', '/collection', '/accounting', '/reports', '/analytics', '/notifications'],
   goldloan: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard'],
+  // Property + product finance reuse the generic loan lifecycle. Their
+  // collateral-specific pages (/property, /products) ship with the gated
+  // collateral migration — see docs/parity/migrations.
+  property: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard'],
+  productfinance: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard'],
 };
 
 const MODULE_SHARED_ROUTES = ['/dashboard', '/settings', '/subscription', '/branch-requests', '/affiliate', '/kyc-review', '/module-requests', '/wallet'];

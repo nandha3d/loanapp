@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import { formatCurrency, formatDate, getBadgeClass, calcPercentage } from '@/lib/utils';
-import { markInstalmentPaid, markLoanCollection, requestCollectionEdit, waiveLoanPenalty, settleLoanPenalty, closeLoan, renewLoan, precloseLoanAdmin } from './actions';
+import { markInstalmentPaid, markLoanCollection, requestCollectionEdit, waiveLoanPenalty, settleLoanPenalty, closeLoan, renewLoan, precloseLoanAdmin, recordGoldServicing, recordBankRepledge } from './actions';
 import { createSelfPayLinkAction } from '../../collection/runActions';
 import Link from '@/components/layout/DashboardLink';
 import { useRouter } from 'next/navigation';
@@ -41,6 +41,115 @@ const CreditScoreGauge = ({ score, grade }: { score: number, grade: string }) =>
   );
 };
 
+// Gold pledge servicing panel — outstanding, interest due, redemption + actions.
+function GoldServicingPanel({ data, loanId, currencySymbol }: { data: any; loanId: string; currencySymbol: string }) {
+  const [interestAmt, setInterestAmt] = useState<number>(Math.round(Number(data?.interestDue) || Number(data?.monthlyInterest) || 0));
+  const [partAmt, setPartAmt] = useState<number>(0);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [repledgeOpen, setRepledgeOpen] = useState(false);
+  const fmt = (n: number) => `${currencySymbol}${Math.round(Number(n) || 0).toLocaleString('en-IN')}`;
+  const closed = data?.status === 'closed';
+
+  const run = async (action: 'interest' | 'part' | 'redeem' | 'takeover', amount: number) => {
+    if (busy) return;
+    if ((action === 'interest' || action === 'part') && (!amount || amount <= 0)) return;
+    if (action === 'redeem' && !window.confirm(`Redeem this pledge for ${fmt(data?.redemptionAmount)}? This closes the loan and releases the ornaments.`)) return;
+    setBusy(action);
+    const res = await recordGoldServicing(loanId, action, amount);
+    setBusy(null);
+    if (res && 'error' in res && res.error) { alert(res.error); return; }
+    window.location.reload();
+  };
+
+  return (
+    <div className="card" style={{ borderTop: '3px solid var(--primary)', marginBottom: 16 }}>
+      <div className="card-header"><h3>🏅 Gold Pledge Servicing</h3>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <a href={`/api/loans/${loanId}/gold-receipt`} target="_blank" rel="noreferrer" style={{ fontSize: '.82rem', color: 'var(--primary)', fontWeight: 600, textDecoration: 'none' }}>🧾 Receipt</a>
+          {closed && <span className="badge" style={{ background: 'var(--success-bg,#dcfce7)', color: 'var(--success)' }}>Redeemed</span>}
+        </div>
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, padding: '4px 0 14px' }}>
+        <div><div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>Outstanding</div><b>{fmt(data?.outstandingPrincipal)}</b></div>
+        <div><div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>Monthly interest</div><b>{fmt(data?.monthlyInterest)}</b></div>
+        <div><div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>Interest due ({data?.monthsDue} mo)</div><b>{fmt(data?.interestDue)}</b></div>
+        <div><div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>Redemption</div><b>{fmt(data?.redemptionAmount)}</b></div>
+      </div>
+      {!closed && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
+          <div className="form-group" style={{ flex: '0 1 160px' }}>
+            <label className="form-label">Pay interest</label>
+            <input type="number" className="form-control" value={interestAmt} onChange={e => setInterestAmt(Number(e.target.value))} />
+          </div>
+          <button type="button" className="btn btn-primary" disabled={!!busy} onClick={() => run('interest', interestAmt)}>{busy === 'interest' ? '…' : 'Pay Interest'}</button>
+          <div className="form-group" style={{ flex: '0 1 160px' }}>
+            <label className="form-label">Part payment</label>
+            <input type="number" className="form-control" value={partAmt || ''} onChange={e => setPartAmt(Number(e.target.value))} placeholder="0" />
+          </div>
+          <button type="button" className="btn btn-ghost" disabled={!!busy} onClick={() => run('part', partAmt)}>{busy === 'part' ? '…' : 'Part Pay'}</button>
+          <button type="button" className="btn btn-ghost" style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }} disabled={!!busy} onClick={() => run('redeem', Number(data?.redemptionAmount) || 0)}>{busy === 'redeem' ? '…' : 'Redeem / Close'}</button>
+          <button type="button" className="btn btn-ghost" disabled={!!busy} onClick={() => { if (window.confirm('Mark this pledge taken over by another financier? This closes the loan and releases the ornaments.')) run('takeover', 0); }}>{busy === 'takeover' ? '…' : 'Take Over'}</button>
+          <button type="button" className="btn btn-ghost" onClick={() => setRepledgeOpen(o => !o)}>🏦 Bank Repledge</button>
+        </div>
+      )}
+      {!closed && repledgeOpen && <RepledgePanel loanId={loanId} fmt={fmt} />}
+      {Array.isArray(data?.payments) && data.payments.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}>History</div>
+          {data.payments.slice(0, 6).map((p: any) => (
+            <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.85rem', padding: '3px 0', borderTop: '1px solid var(--border)' }}>
+              <span>{p.paymentType} · {new Date(p.paymentDate).toLocaleDateString('en-IN')}</span>
+              <span>{fmt(p.amount)} · {p.paymentMode}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Bank repledge form — record re-pledging the gold to a bank for liquidity.
+function RepledgePanel({ loanId, fmt }: { loanId: string; fmt: (n: number) => string }) {
+  const [f, setF] = useState<any>({ bankName: '', bankDate: new Date().toISOString().slice(0, 10), referenceNo: '', amountGivenByBank: '', interestRate: '', processingFee: '', staffName: '' });
+  const [busy, setBusy] = useState(false);
+  const [ok, setOk] = useState(false);
+  const set = (k: string, v: string) => { setF((p: any) => ({ ...p, [k]: v })); setOk(false); };
+  const save = async () => {
+    if (!f.bankName.trim() || busy) return;
+    setBusy(true);
+    const res = await recordBankRepledge(loanId, {
+      bankName: f.bankName, bankDate: f.bankDate, referenceNo: f.referenceNo || null,
+      amountGivenByBank: Number(f.amountGivenByBank) || 0,
+      interestRate: f.interestRate ? Number(f.interestRate) : null,
+      processingFee: Number(f.processingFee) || 0, staffName: f.staffName || null,
+    });
+    setBusy(false);
+    if (res && 'error' in res && res.error) { alert(res.error); return; }
+    setOk(true);
+  };
+  const inp = (k: string, ph: string, type = 'text') => (
+    <input type={type} className="form-control" value={f[k]} onChange={e => set(k, e.target.value)} placeholder={ph} style={{ flex: '1 1 130px' }} />
+  );
+  return (
+    <div style={{ marginTop: 12, padding: 12, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg,#fafafa)' }}>
+      <div style={{ fontWeight: 600, marginBottom: 8 }}>🏦 Bank Repledge</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {inp('bankName', 'Bank name *')}
+        {inp('bankDate', '', 'date')}
+        {inp('referenceNo', 'Reference no')}
+        {inp('amountGivenByBank', 'Amount by bank', 'number')}
+        {inp('interestRate', 'Interest %', 'number')}
+        {inp('processingFee', 'Processing fee', 'number')}
+        {inp('staffName', 'Staff')}
+      </div>
+      <div style={{ marginTop: 10, display: 'flex', gap: 12, alignItems: 'center' }}>
+        <button type="button" className="btn btn-primary" disabled={busy || !f.bankName.trim()} onClick={save}>{busy ? 'Saving…' : 'Save Repledge'}</button>
+        {ok && <span style={{ color: 'var(--success)', fontSize: '.85rem' }}>✓ Recorded</span>}
+      </div>
+    </div>
+  );
+}
+
 export default function LoanDetailClient({
   loan,
   currencySymbol,
@@ -50,6 +159,7 @@ export default function LoanDetailClient({
   receiptPdfEnabled = false,
   upiId = '',
   payeeName = 'LoanTrack',
+  goldServicing = null,
 }: {
   loan: any;
   currencySymbol: string;
@@ -59,6 +169,7 @@ export default function LoanDetailClient({
   receiptPdfEnabled?: boolean;
   upiId?: string;
   payeeName?: string;
+  goldServicing?: any;
 }) {
   const d = dict.loanDetail;
   const router = useRouter();
@@ -541,6 +652,7 @@ export default function LoanDetailClient({
 
   return (
     <>
+      {goldServicing && <GoldServicingPanel data={goldServicing} loanId={loan.id} currencySymbol={currencySymbol} />}
       <style>{`
         .loan-top-card { display: flex; flex-direction: column; gap: 16px; }
         .loan-top-header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 4px; }

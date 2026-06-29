@@ -28,6 +28,7 @@ import 'package:loantrack/features/customers/customers_screen.dart';
 import 'package:loantrack/features/customers/new_customer_screen.dart';
 import 'package:loantrack/features/dashboard/dashboard_screen.dart';
 import 'package:loantrack/features/loans/edit_loan_screen.dart';
+import 'package:loantrack/features/loans/gold_reports_screen.dart';
 import 'package:loantrack/features/loans/loan_detail_screen.dart';
 import 'package:loantrack/features/loans/loans_screen.dart';
 import 'package:loantrack/features/loans/new_loan_screen.dart';
@@ -164,6 +165,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),
       GoRoute(path: '/lock', builder: (_, __) => const BiometricLockScreen()),
       GoRoute(path: '/dashboard', builder: (_, __) => const DashboardScreen()),
+      GoRoute(
+        path: '/gold-reports',
+        builder: (_, __) => const GoldReportsScreen(),
+      ),
       GoRoute(path: '/admin', builder: (_, __) => const DeveloperAdminScreen()),
       GoRoute(path: '/portal', builder: (_, __) => const PortalScreen()),
       GoRoute(

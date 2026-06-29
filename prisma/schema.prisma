@@ -19,6 +19,9 @@ model Tenant {
   updatedAt             DateTime               @updatedAt @map("updated_at")
   deletedAt             DateTime?              @map("deleted_at")
   settings              AppSetting[]
+  ornamentTypes         OrnamentType[]
+  ornamentSpecs         OrnamentSpecification[]
+  bankNames             BankName[]
   auditLogs             AuditLog[]
   deviceTokens          DeviceToken[]
   billingInvoices       BillingInvoice[]
@@ -504,6 +507,9 @@ model Loan {
   npaHistory        NpaHistory[]
   loanProvisioning  LoanProvisioning[]
   goldCollateral    GoldLoanCollateral?
+  propertyCollateral PropertyCollateral?
+  productFinanceItem ProductFinanceItem?
+  bankRepledges     BankRepledge[]
   nachMandate       NachMandate?
 
   @@unique([tenantId, loanCode])
@@ -884,6 +890,10 @@ model GoldLoanCollateral {
   valuationDate       DateTime? @map("valuation_date") @db.Date
   releaseStatus       String    @default("pledged") @map("release_status")
   releasedAt          DateTime? @map("released_at")
+  // Pledge servicing state (additive). outstandingPrincipal tracks principal
+  // after part-payments; interestPaidUpto is the date interest is cleared to.
+  outstandingPrincipal Decimal? @map("outstanding_principal") @db.Decimal(12, 2)
+  interestPaidUpto    DateTime? @map("interest_paid_upto")
   photoPath           String?   @map("photo_path")
   documentPath        String?   @map("document_path")
   createdAt           DateTime  @default(now()) @map("created_at")
@@ -893,12 +903,191 @@ model GoldLoanCollateral {
   branch   Branch?   @relation(fields: [branchId], references: [id])
   loan     Loan      @relation(fields: [loanId], references: [id])
   customer Customer  @relation(fields: [customerId], references: [id])
+  items    GoldOrnamentItem[]
 
   @@index([tenantId, releaseStatus])
   @@index([tenantId, packetNo])
   @@index([branchId])
   @@index([customerId])
   @@map("gold_loan_collaterals")
+}
+
+// Per-ornament line item of a pledge (competitor parity: a pledge holds many
+// ornaments, each with its own weights/rate/value). The collateral row remains
+// the pledge header (packet, storage, valuer, aggregate totals).
+model GoldOrnamentItem {
+  id               String   @id @default(cuid())
+  tenantId         String   @map("tenant_id")
+  collateralId     String   @map("collateral_id")
+  ornamentType     String   @map("ornament_type")
+  specification    String?
+  purityKarat      String?  @map("purity_karat")
+  quantity         Int      @default(1)
+  grossWeightGrams Decimal  @default(0) @map("gross_weight_grams") @db.Decimal(12, 3)
+  wastageGrams     Decimal  @default(0) @map("wastage_grams") @db.Decimal(12, 3)
+  netWeightGrams   Decimal  @default(0) @map("net_weight_grams") @db.Decimal(12, 3)
+  ratePerGram      Decimal  @default(0) @map("rate_per_gram") @db.Decimal(12, 2)
+  value            Decimal  @default(0) @db.Decimal(14, 2)
+  bankName         String?  @map("bank_name")
+  refNo            String?  @map("ref_no")
+  photoPath        String?  @map("photo_path")
+  sortOrder        Int      @default(0) @map("sort_order")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  collateral GoldLoanCollateral @relation(fields: [collateralId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([collateralId])
+  @@map("gold_ornament_items")
+}
+
+// Property-loan collateral (mortgage). One per loan. Relates only to Loan;
+// tenant/branch/customer kept as scalars for direct appScope filtering.
+model PropertyCollateral {
+  id                 String    @id @default(cuid())
+  tenantId           String    @map("tenant_id")
+  branchId           String?   @map("branch_id")
+  loanId             String    @unique @map("loan_id")
+  customerId         String    @map("customer_id")
+  propertyType       String?   @map("property_type")
+  address            String?   @db.Text
+  surveyNo           String?   @map("survey_no")
+  extentValue        Decimal?  @map("extent_value") @db.Decimal(14, 2)
+  extentUnit         String?   @map("extent_unit")
+  marketValue        Decimal?  @map("market_value") @db.Decimal(14, 2)
+  eligibleLtvPercent Decimal?  @map("eligible_ltv_percent") @db.Decimal(5, 2)
+  eligibleAmount     Decimal?  @map("eligible_amount") @db.Decimal(14, 2)
+  encumbranceStatus  String?   @map("encumbrance_status")
+  registrationNo     String?   @map("registration_no")
+  valuerName         String?   @map("valuer_name")
+  valuationDate      DateTime? @map("valuation_date") @db.Date
+  mortgageStatus     String    @default("mortgaged") @map("mortgage_status")
+  releasedAt         DateTime? @map("released_at")
+  releasedBy         String?   @map("released_by")
+  titleDeedPath      String?   @map("title_deed_path")
+  ecPath             String?   @map("ec_path")
+  taxReceiptPath     String?   @map("tax_receipt_path")
+  photoPath          String?   @map("photo_path")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  loan Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, mortgageStatus])
+  @@index([branchId])
+  @@index([customerId])
+  @@map("property_collaterals")
+}
+
+// Product-finance item (consumer durable). One per loan.
+model ProductFinanceItem {
+  id                 String    @id @default(cuid())
+  tenantId           String    @map("tenant_id")
+  branchId           String?   @map("branch_id")
+  loanId             String    @unique @map("loan_id")
+  customerId         String    @map("customer_id")
+  category           String?
+  productName        String?   @map("product_name")
+  brand              String?
+  modelNo            String?   @map("model_no")
+  serialNo           String?   @map("serial_no")
+  dealerName         String?   @map("dealer_name")
+  dealerId           String?   @map("dealer_id")
+  invoiceNo          String?   @map("invoice_no")
+  invoiceAmount      Decimal?  @map("invoice_amount") @db.Decimal(14, 2)
+  downPayment        Decimal?  @map("down_payment") @db.Decimal(14, 2)
+  financedAmount     Decimal?  @map("financed_amount") @db.Decimal(14, 2)
+  tenureMonths       Int?      @map("tenure_months")
+  warrantyExpiry     DateTime? @map("warranty_expiry") @db.Date
+  repossessionStatus String    @default("active") @map("repossession_status")
+  repossessedAt      DateTime? @map("repossessed_at")
+  invoicePath        String?   @map("invoice_path")
+  photoPath          String?   @map("photo_path")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  loan Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, repossessionStatus])
+  @@index([branchId])
+  @@index([customerId])
+  @@map("product_finance_items")
+}
+
+// Bank repledge — the pledged gold is re-pledged to a bank for liquidity.
+// One or more per loan. Additive; relates only to Loan.
+model BankRepledge {
+  id                String   @id @default(cuid())
+  tenantId          String   @map("tenant_id")
+  loanId            String   @map("loan_id")
+  bankName          String   @map("bank_name")
+  bankDate          DateTime @map("bank_date") @db.Date
+  referenceNo       String?  @map("reference_no")
+  amountGivenByBank Decimal  @default(0) @map("amount_given_by_bank") @db.Decimal(14, 2)
+  interestRate      Decimal? @map("interest_rate") @db.Decimal(5, 2)
+  processingFee     Decimal  @default(0) @map("processing_fee") @db.Decimal(12, 2)
+  staffName         String?  @map("staff_name")
+  status            String   @default("active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  loan Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([loanId])
+  @@map("bank_repledges")
+}
+
+// ── Gold/Silver master data — the no-hardcode source for pledge dropdowns ──────
+// Per-tenant, admin-editable. Ornament types/specs and bank names are NEVER
+// hardcoded in the UI; the pledge form reads these via /api/v1/gold/master.
+
+model OrnamentType {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id")
+  name      String
+  metal     String   @default("gold") // gold | silver
+  isActive  Boolean  @default(true) @map("is_active")
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+  @@index([tenantId, metal, isActive])
+  @@map("ornament_types")
+}
+
+model OrnamentSpecification {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  name        String
+  purityKarat String?  @map("purity_karat")
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+  @@index([tenantId, isActive])
+  @@map("ornament_specifications")
+}
+
+model BankName {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id")
+  name      String
+  isActive  Boolean  @default(true) @map("is_active")
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+  @@index([tenantId, isActive])
+  @@map("bank_names")
 }
 
 model ApprovalRequest {
@@ -1185,6 +1374,9 @@ model Payment {
   referenceNumber String?             @map("reference_number")
   paymentDate     DateTime            @map("payment_date")
   status          String              @default("completed")
+  // Gold pledge servicing: 'general' (default, existing flows) | 'interest' |
+  // 'part' | 'redemption'. Additive, defaulted — existing rows unaffected.
+  paymentType     String              @default("general") @map("payment_type")
   createdAt       DateTime            @default(now()) @map("created_at")
   updatedAt       DateTime            @updatedAt @map("updated_at")
   allocations     PaymentAllocation[]

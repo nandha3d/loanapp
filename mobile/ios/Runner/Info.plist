@@ -53,6 +53,10 @@
 	<string>LoanTrack needs camera access for KYC document capture</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>LoanTrack needs photo access to upload KYC documents</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>LoanTrack uses the microphone for voice entry of collection amounts</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>LoanTrack uses speech recognition to let you record collections by voice</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

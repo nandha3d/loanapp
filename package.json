@@ -36,9 +36,12 @@
     "db:deploy": "npx prisma migrate deploy",
     "db:push": "npx prisma db push",
     "db:seed": "npx tsx prisma/seed.ts",
+    "db:seed-gold-master": "npx tsx prisma/seed_gold_master.ts",
+    "db:seed-gold-demo": "npx tsx prisma/seed_gold_demo.ts",
     "db:studio": "npx prisma studio",
     "db:reset": "npx prisma migrate reset",
-    "test:loan-calculator": "tsx tests/loanCalculator.test.ts"
+    "test:loan-calculator": "tsx tests/loanCalculator.test.ts",
+    "test:gold": "tsx tests/goldValuation.test.ts && tsx tests/goldOrnaments.test.ts && tsx tests/pledgeInterest.test.ts && tsx tests/goldServicing.test.ts"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"

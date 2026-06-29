@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { verifyRazorpayWebhookSignature } from '@/lib/razorpay';
 import { normalizeRazorpaySubscriptionStatus } from '@/lib/subscription';
-import { PLAN_FEATURES, PLAN_PRICING } from '@/lib/plans';
+import { getPlanLimits } from '@/lib/planCatalog';
+import { PLAN_PRICING } from '@/lib/plans';
 import { checkRateLimit, getClientIp, routeKey } from '@/lib/rateLimit';
 import crypto from 'node:crypto';
 
@@ -117,7 +118,7 @@ export async function POST(request: NextRequest) {
     
     let graceDays = 7;
     if (existingSub && existingSub.plan) {
-      graceDays = PLAN_FEATURES[existingSub.plan]?.gracePeriodDays || 7;
+      graceDays = (await getPlanLimits(existingSub.plan)).gracePeriodDays || 7;
     }
     
     const graceEnd = new Date();
@@ -136,14 +137,18 @@ export async function POST(request: NextRequest) {
       where: { razorpaySubId },
     });
     
-    if (existingSub && existingSub.plan && PLAN_FEATURES[existingSub.plan]) {
-      const features = PLAN_FEATURES[existingSub.plan];
+    if (existingSub && existingSub.plan) {
+      // Catalog-first: numeric limits come from SubscriptionPlanCatalog;
+      // modules/grace fall back to lib/plans.ts until the gated catalog
+      // migration adds those columns. See lib/planCatalog.ts.
+      const limits = await getPlanLimits(existingSub.plan);
       await prisma.tenantSubscription.update({
         where: { id: existingSub.id },
         data: {
-          maxActiveLoans: features.loans,
-          maxAgents: features.agents,
-          enabledModules: JSON.stringify(features.modules),
+          maxActiveLoans: limits.maxActiveLoans,
+          maxAgents: limits.maxAgents,
+          maxBranches: limits.maxBranches,
+          enabledModules: JSON.stringify(limits.enabledModules),
         }
       });
     }
@@ -168,16 +173,22 @@ export async function POST(request: NextRequest) {
       where: { razorpaySubId },
     });
     if (tenantSub) {
-      // Create invoice record
+      // Create invoice record. Source of truth for the amount, in order:
+      //   1. the actual Razorpay payment (paise → rupees)
+      //   2. the catalog monthlyPrice for the plan (DB-driven)
+      //   3. lib/plans.ts PLAN_PRICING (last-resort fallback)
       const paymentEntity = payload.payload?.payment?.entity;
+      const catalogRow = await prisma.subscriptionPlanCatalog
+        .findUnique({ where: { plan: tenantSub.plan ?? '' } })
+        .catch(() => null);
       const planPricing = PLAN_PRICING[tenantSub.plan ?? ''] ?? PLAN_PRICING['basic'];
-      // Razorpay amounts are in paise (1/100 rupee); fall back to plan pricing config
+      const baseAmount = catalogRow?.monthlyPrice ?? planPricing.amount;
       const invoiceAmount = paymentEntity?.amount != null
         ? Math.round(paymentEntity.amount / 100)
-        : planPricing.amount;
+        : baseAmount;
       const invoiceTax = paymentEntity?.tax != null
         ? Math.round(paymentEntity.tax / 100)
-        : planPricing.tax;
+        : Math.round(baseAmount * 0.18);
       const invoiceTotal = invoiceAmount + invoiceTax;
       await prisma.billingInvoice.create({
         data: {
