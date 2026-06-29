@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createLoan } from '../actions';
 import { resolveOrnamentLine, ornamentTotals } from '@/lib/gold/ornaments';
+import { addGoldMaster } from '../../settings/gold-master/actions';
 import { calculateEndDate, formatDateISO } from '@/lib/utils';
 import { getCreditScoreGaugePresentation } from '@/lib/creditScoreGauge';
 import Link from '@/components/layout/DashboardLink';
@@ -171,9 +172,27 @@ export default function LoanForm({
 
   // Multi-ornament pledge: line items + header. Dropdowns come from goldMaster
   // (DB-driven, no hardcode); rate/LTV defaults come from goldConfig.
-  const ornTypes = goldMaster?.ornamentTypes ?? [];
-  const ornSpecs = goldMaster?.ornamentSpecs ?? [];
-  const ornBanks = goldMaster?.bankNames ?? [];
+  // Master lists are stateful so a new type/spec/bank added inline appears in the
+  // dropdowns immediately (also written to the master via the server action).
+  const [ornTypes, setOrnTypes] = useState<any[]>(goldMaster?.ornamentTypes ?? []);
+  const [ornSpecs, setOrnSpecs] = useState<any[]>(goldMaster?.ornamentSpecs ?? []);
+  const [ornBanks, setOrnBanks] = useState<any[]>(goldMaster?.bankNames ?? []);
+  const [quickAddKind, setQuickAddKind] = useState<'type' | 'spec' | 'bank'>('type');
+  const [quickAddName, setQuickAddName] = useState('');
+  const [quickAddBusy, setQuickAddBusy] = useState(false);
+  const addMasterInline = async () => {
+    const name = quickAddName.trim();
+    if (!name || quickAddBusy) return;
+    setQuickAddBusy(true);
+    const res = await addGoldMaster(quickAddKind, name, quickAddKind === 'spec' ? { purityKarat: '' } : {});
+    setQuickAddBusy(false);
+    if (res && 'error' in res && res.error) { alert(res.error); return; }
+    const row = { id: `new-${Date.now()}`, name };
+    if (quickAddKind === 'type') setOrnTypes((l) => [...l, row]);
+    else if (quickAddKind === 'spec') setOrnSpecs((l) => [...l, row]);
+    else setOrnBanks((l) => [...l, row]);
+    setQuickAddName('');
+  };
   const defaultRate = goldConfig?.goldPureRatePerGram ?? '';
   const blankRow = () => ({ ornamentType: '', specification: '', purityKarat: '22K', quantity: 1, grossWeightGrams: '', wastageGrams: '', netWeightGrams: '', ratePerGram: defaultRate, bankName: '', refNo: '' });
   const [ornamentRows, setOrnamentRows] = useState<any[]>([blankRow()]);
@@ -592,11 +611,27 @@ export default function LoanForm({
                     .gold-orn .add-btn:hover { background:var(--primary); color:#fff; }
                     .gold-orn .num { width:84px; }
                     .gold-orn .qty { width:58px; }
+                    .gold-orn .go-quickadd { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; align-items:center; }
+                    .gold-orn .go-quickadd select, .gold-orn .go-quickadd input { border:1px solid var(--border); border-radius:9px; padding:8px 10px; font-size:.85rem; }
+                    .gold-orn .go-quickadd input { flex:1 1 160px; }
+                    .gold-orn .go-quickadd button { border:none; background:var(--primary-dark); color:#fff; border-radius:9px; padding:8px 16px; font-weight:600; cursor:pointer; }
+                    .gold-orn .go-quickadd button:disabled { opacity:.5; cursor:not-allowed; }
                   `}</style>
 
                   <div className="go-head">
                     <h4>💎 Ornament Details</h4>
-                    <a href={`/${appType || 'goldloan'}/settings?tab=goldmaster`} style={{ fontSize: '.8rem', color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>⚙ Manage ornaments / banks</a>
+                    <a href={`/${appType || 'goldloan'}/settings?tab=goldmaster`} style={{ fontSize: '.8rem', color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>⚙ Manage all</a>
+                  </div>
+
+                  {/* Quick-add a new ornament type / spec / bank without leaving the form */}
+                  <div className="go-quickadd">
+                    <select value={quickAddKind} onChange={e=>setQuickAddKind(e.target.value as any)}>
+                      <option value="type">+ Ornament type</option>
+                      <option value="spec">+ Specification</option>
+                      <option value="bank">+ Bank / storage</option>
+                    </select>
+                    <input value={quickAddName} onChange={e=>setQuickAddName(e.target.value)} placeholder="New name…" onKeyDown={e=>{ if(e.key==='Enter'){ e.preventDefault(); addMasterInline(); } }} />
+                    <button type="button" onClick={addMasterInline} disabled={quickAddBusy || !quickAddName.trim()}>{quickAddBusy ? '…' : 'Add'}</button>
                   </div>
 
                   <div className="go-meta">

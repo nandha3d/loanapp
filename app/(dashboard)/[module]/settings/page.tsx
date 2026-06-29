@@ -126,13 +126,19 @@ export default async function SettingsPage() {
     };
   }
 
-  // Gold master data for the Gold Master settings tab (gold module only).
+  // Gold master data + config for the Gold Master settings tab (gold module only).
   let goldMaster: any = null;
+  let goldConfig: any = null;
   if (appType === 'goldloan') {
     try {
-      const res = await serverFetch<any>('/gold/master');
-      goldMaster = res?.data ?? null;
-    } catch { goldMaster = null; }
+      const { getGoldConfig } = await import('@/lib/gold/settings');
+      const [m, cfg] = await Promise.all([
+        serverFetch<any>('/gold/master').catch(() => null),
+        getGoldConfig(tenantId).catch(() => null),
+      ]);
+      goldMaster = m?.data ?? null;
+      goldConfig = cfg;
+    } catch { goldMaster = null; goldConfig = null; }
   }
 
   return (
@@ -140,6 +146,7 @@ export default async function SettingsPage() {
       routes={routes}
       packages={packages}
       goldMaster={goldMaster}
+      goldConfig={goldConfig}
       users={users} 
       settings={settings} 
       currencySymbol={settings.currency_symbol || '₹'}

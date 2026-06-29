@@ -11,10 +11,10 @@ import GoldMasterClient from './gold-master/GoldMasterClient';
 
 export default function SettingsClient({
   routes, packages, users, settings, currencySymbol, dict, currentUser, subscription, bureauCredential,
-  viewerRole, appType, branchAgents = [], manageBranchId = null, manageBranchName = null, goldMaster = null
+  viewerRole, appType, branchAgents = [], manageBranchId = null, manageBranchName = null, goldMaster = null, goldConfig = null
 }: {
   routes: any[], packages: any[], users: any[], settings: Record<string, string>, currencySymbol: string, dict: any, currentUser: any, subscription: any, bureauCredential: any,
-  viewerRole?: string, appType?: string, branchAgents?: any[], manageBranchId?: string | null, manageBranchName?: string | null, goldMaster?: any
+  viewerRole?: string, appType?: string, branchAgents?: any[], manageBranchId?: string | null, manageBranchName?: string | null, goldMaster?: any, goldConfig?: any
 }) {
   const d = dict.settings;
   const searchParams = useSearchParams();
@@ -604,7 +604,7 @@ export default function SettingsClient({
       {/* Gold Master Tab */}
       {effAppType === 'goldloan' && (
         <div className={`tab-content ${activeTab === 'goldmaster' ? 'active' : ''}`}>
-          <GoldMasterClient master={goldMaster || { ornamentTypes: [], ornamentSpecs: [], bankNames: [] }} />
+          <GoldMasterClient master={goldMaster || { ornamentTypes: [], ornamentSpecs: [], bankNames: [] }} config={goldConfig} />
         </div>
       )}
 
