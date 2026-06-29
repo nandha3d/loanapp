@@ -9,6 +9,29 @@ import { getUserAppType } from '@/lib/tenant';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { modulePath } from '@/types/modules';
+import { computeGoldValuation } from '@/lib/gold/valuation';
+
+/**
+ * Assessed value of the pledged gold. Uses the appraiser's entered value when
+ * present; otherwise auto-computes from net weight × market rate × purity
+ * fineness so the LTV is never guessed. The market rate should be prefilled in
+ * the form from the tenant's AppSetting gold rate (never hardcoded).
+ */
+function resolveAssessedValue(formData: FormData): number | null {
+  const provided = formData.get('assessedValue');
+  if (provided) return Number(provided);
+  const rate = Number(formData.get('marketRatePerGram')) || 0;
+  const weight = Number(formData.get('netWeightGrams')) || 0;
+  if (rate > 0 && weight > 0) {
+    return computeGoldValuation({
+      netWeightGrams: weight,
+      purityKarat: (formData.get('purityKarat') as string) || '22K',
+      ratePerGram: rate,
+      ltvPercent: 100,
+    }).assessedValue;
+  }
+  return null;
+}
 
 async function uploadFileHelper(file: File, context: ApiRequestContext): Promise<string | null> {
   if (!file || file.size === 0) return null;
@@ -71,7 +94,7 @@ export async function createLoan(formData: FormData) {
         netWeightGrams: Number(formData.get('netWeightGrams')) || 0,
         purityKarat: formData.get('purityKarat') as string || '22K',
         marketRatePerGram: formData.get('marketRatePerGram') ? Number(formData.get('marketRatePerGram')) : null,
-        assessedValue: formData.get('assessedValue') ? Number(formData.get('assessedValue')) : null,
+        assessedValue: resolveAssessedValue(formData),
         eligibleLtvPercent: formData.get('eligibleLtvPercent') ? Number(formData.get('eligibleLtvPercent')) : null,
         storageLocation: formData.get('storageLocation') as string || null,
         valuerName: formData.get('valuerName') as string || null,
@@ -164,7 +187,7 @@ export async function updateLoan(formData: FormData) {
         netWeightGrams: Number(formData.get('netWeightGrams')) || 0,
         purityKarat: formData.get('purityKarat') as string || '22K',
         marketRatePerGram: formData.get('marketRatePerGram') ? Number(formData.get('marketRatePerGram')) : null,
-        assessedValue: formData.get('assessedValue') ? Number(formData.get('assessedValue')) : null,
+        assessedValue: resolveAssessedValue(formData),
         eligibleLtvPercent: formData.get('eligibleLtvPercent') ? Number(formData.get('eligibleLtvPercent')) : null,
         storageLocation: formData.get('storageLocation') as string || null,
         valuerName: formData.get('valuerName') as string || null,
