@@ -89,17 +89,21 @@ mobile/.vscode/
 *.log
 *.yml
 *.zip
-*.sql
-# Prisma migration SQL must be committed — exclude them from the *.sql ignore above.
-!prisma/migrations/**/*.sql
 # GitHub Actions workflows must be committed — exclude them from the *.yml ignore above.
 !.github/workflows/*.yml
 *.apk
 *.html
-*.html
-*.dart
 loantrack_marketing_page_en.html
+
+# Flutter: ignore GENERATED dart only — hand-written *.dart source IS committed.
+mobile/**/*.g.dart
+mobile/**/*.freezed.dart
+mobile/**/*.mocks.dart
+mobile/**/*.config.dart
 mobile/lib/data/services/fcm_service.dart
 mobile/pubspec.lock
 mobile/windows/flutter/generated_plugin_registrant.cc
 mobile/windows/flutter/generated_plugins.cmake
+
+# SQL: ignore DB DUMPS only (loantrack_export*.sql / *backup*.sql above).
+# Prisma migrations and docs/*.sql ARE committed.
