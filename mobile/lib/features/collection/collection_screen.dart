@@ -25,6 +25,7 @@ import 'package:loantrack/data/models/collection_entry.dart';
 import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/data/services/collection_service.dart';
 import 'package:loantrack/features/collection/quick_collect_sheet.dart';
+import 'package:loantrack/features/collection/offline_banner.dart';
 import 'package:loantrack/shared/widgets/help_sheet.dart';
 import 'package:loantrack/shared/widgets/bottom_nav.dart';
 import 'package:loantrack/shared/widgets/empty_state.dart';
@@ -192,7 +193,11 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
           ),
         ],
       ),
-      body: async.when(
+      body: Column(
+        children: [
+          const OfflineBanner(),
+          Expanded(
+            child: async.when(
         loading: () => ListView.separated(
           padding: const EdgeInsets.all(16),
           itemCount: 6,
@@ -295,6 +300,9 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
             ),
           );
         },
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: const AppBottomNav(currentRoute: '/collection'),
     );
