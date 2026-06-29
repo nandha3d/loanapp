@@ -30,41 +30,64 @@ async function main() {
       sortOrder: 0
     },
     {
+      // Collector — answers Vasool's ₹699 flat / unlimited-staff offer. Same
+      // headline price, unlimited agents, single vertical. Our free tier sits
+      // above it and voice/offline/bureau add-ons sit below.
+      plan: 'collector',
+      displayName: 'Collector',
+      description: 'Unlimited field agents for a single-product collection business',
+      monthlyPrice: 699,
+      maxBranches: 1,
+      maxAgents: 999,
+      maxActiveLoans: 500,
+      features: JSON.stringify([
+        'Unlimited agents',
+        'Single branch',
+        '500 active loans',
+        'Any one lending vertical',
+        'Voice entry & offline collection',
+        'GPS collection & receipts'
+      ]),
+      sortOrder: 1
+    },
+    {
       plan: 'basic',
       displayName: 'Basic',
       description: 'Essential tools for small lending businesses',
       monthlyPrice: 999,
       maxBranches: 2,
-      maxAgents: 10,
-      maxActiveLoans: 200,
+      maxAgents: 15,
+      maxActiveLoans: 500,
       features: JSON.stringify([
         'Up to 2 branches',
-        'Up to 10 agents',
-        '200 active loans',
+        'Up to 15 agents',
+        '500 active loans',
+        'Two lending verticals',
         'Standard reporting',
         'WhatsApp notifications',
         'Basic accounting'
       ]),
-      sortOrder: 1
+      sortOrder: 2
     },
     {
       plan: 'business',
       displayName: 'Business',
       description: 'Advanced capabilities for growing operations',
       monthlyPrice: 2999,
-      maxBranches: 5,
-      maxAgents: 50,
-      maxActiveLoans: 1000,
+      maxBranches: 6,
+      maxAgents: 60,
+      maxActiveLoans: 1500,
       features: JSON.stringify([
-        'Up to 5 branches',
-        'Up to 50 agents',
-        '1000 active loans',
+        'Up to 6 branches',
+        'Up to 60 agents',
+        '1500 active loans',
+        'All lending verticals',
+        'Premium accounting & KYC',
         'Advanced reporting',
         'Priority support',
-        'MFA security',
         'Custom branding'
       ]),
-      sortOrder: 2
+      sortOrder: 3
     },
     {
       plan: 'enterprise',
@@ -79,12 +102,13 @@ async function main() {
         'Unlimited branches',
         'Unlimited agents',
         'Unlimited loans',
+        'Credit bureau & NPA engine',
         '24/7 Dedicated Support',
         'Custom integrations',
         'MFA enforcement',
         'Dedicated server options'
       ]),
-      sortOrder: 3
+      sortOrder: 4
     }
   ];
 
