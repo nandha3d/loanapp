@@ -36,6 +36,11 @@ final collectionTodayProvider =
   return ref.watch(collectionServiceProvider).today();
 });
 
+final _selfPayQueueProvider =
+    FutureProvider.autoDispose<List<SelfPayQueueItem>>((ref) {
+  return ref.watch(collectionServiceProvider).selfPayQueue();
+});
+
 final _filterProvider = StateProvider.autoDispose<String>((_) => 'pending');
 
 class CollectionScreen extends ConsumerStatefulWidget {
@@ -98,6 +103,15 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     }
   }
 
+  void _showSelfPayQueue(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _SelfPayQueueSheet(),
+    ).then((_) => ref.invalidate(collectionTodayProvider));
+  }
+
   @override
   void initState() {
     super.initState();
@@ -123,6 +137,10 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     final filter = ref.watch(_filterProvider);
     final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
+    final user = ref.watch(authControllerProvider).user;
+    final canReviewSelfPay = user?.role == UserRole.admin ||
+        user?.role == UserRole.superadmin ||
+        user?.role == UserRole.developer;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -144,6 +162,12 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
             onPressed: () => context.push('/collection/runs'),
             icon: const Icon(Icons.route_rounded),
           ),
+          if (canReviewSelfPay)
+            IconButton(
+              tooltip: 'Self-pay verification',
+              onPressed: () => _showSelfPayQueue(context),
+              icon: const Icon(Icons.verified_outlined),
+            ),
           IconButton(
             tooltip: _showMap ? t.x('coll.view_list') : t.x('coll.view_map'),
             onPressed: () => setState(() => _showMap = !_showMap),
@@ -219,10 +243,12 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
           final allGroups = _groupByCustomer(rows);
           final filteredGroups = _applyGroupFilter(allGroups, filter);
           final todaysRows = rows.where((r) => r.daysOverdue <= 0).toList();
-          final totalDue = todaysRows.fold<double>(0, (s, r) => s + r.dueAmount);
+          final totalDue =
+              todaysRows.fold<double>(0, (s, r) => s + r.dueAmount);
           final totalCollected =
               todaysRows.fold<double>(0, (s, r) => s + r.receivedAmount);
-          final pendingCount = todaysRows.where((r) => r.status != 'paid').length;
+          final pendingCount =
+              todaysRows.where((r) => r.status != 'paid').length;
 
           // ── Map view ────────────────────────────────────────────────────────
           if (_showMap) {
@@ -308,15 +334,26 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     );
   }
 
-  List<_CustomerGroup> _applyGroupFilter(List<_CustomerGroup> groups, String filter) {
+  List<_CustomerGroup> _applyGroupFilter(
+    List<_CustomerGroup> groups,
+    String filter,
+  ) {
     switch (filter) {
       case 'pending':
-        return groups.where((g) => g.rows.any((r) => r.daysOverdue <= 0)).toList();
+        return groups
+            .where((g) => g.rows.any((r) => r.daysOverdue <= 0))
+            .toList();
       case 'paid':
-        return groups.where((g) => g.rows.any((r) => r.status == 'paid')).toList();
+        return groups
+            .where((g) => g.rows.any((r) => r.status == 'paid'))
+            .toList();
       case 'overdue':
         return groups
-            .where((g) => g.rows.any((r) => r.daysOverdue > 0 && r.status != 'paid'))
+            .where(
+              (g) => g.rows.any(
+                (r) => r.daysOverdue > 0 && r.status != 'paid',
+              ),
+            )
             .toList();
       default:
         return groups;
@@ -354,7 +391,9 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     for (final g in groups) {
       m
           .putIfAbsent(
-              g.primary.routeName ?? unassigned, () => <_CustomerGroup>[],)
+            g.primary.routeName ?? unassigned,
+            () => <_CustomerGroup>[],
+          )
           .add(g);
     }
     return m;
@@ -376,6 +415,345 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
 }
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Collection Map â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+class _SelfPayQueueSheet extends ConsumerWidget {
+  const _SelfPayQueueSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(_selfPayQueueProvider);
+    final height = MediaQuery.of(context).size.height * 0.86;
+
+    return Container(
+      height: height,
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 8, 10),
+              child: Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryLight,
+                      borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                    ),
+                    child: Icon(
+                      Icons.verified_outlined,
+                      color: AppColors.primary,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Self-pay verification',
+                          style: AppTypography.sectionTitle,
+                        ),
+                        Text(
+                          'Confirm borrower UPI claims after bank receipt.',
+                          style: AppTypography.caption,
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1, color: AppColors.border),
+            Expanded(
+              child: async.when(
+                loading: () => ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: 4,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (_, __) =>
+                      const Skeleton(height: 104, borderRadius: 12),
+                ),
+                error: (e, _) => EmptyState(
+                  icon: Icons.cloud_off,
+                  title: 'Could not load self-pay queue',
+                  subtitle: e.toString(),
+                ),
+                data: (items) {
+                  final claimed =
+                      items.where((i) => i.status == 'claimed').toList();
+                  final open =
+                      items.where((i) => i.status != 'claimed').toList();
+
+                  if (items.isEmpty) {
+                    return const EmptyState(
+                      icon: Icons.check_circle_outline,
+                      title: 'No self-pay items',
+                      subtitle: 'There are no borrower UPI links to review.',
+                    );
+                  }
+
+                  return RefreshIndicator(
+                    color: AppColors.primary,
+                    onRefresh: () async =>
+                        ref.invalidate(_selfPayQueueProvider),
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
+                      children: [
+                        _SelfPaySection(
+                          title: 'Reported by borrower (${claimed.length})',
+                          items: claimed,
+                          highlighted: true,
+                        ),
+                        const SizedBox(height: 14),
+                        _SelfPaySection(
+                          title: 'Open links (${open.length})',
+                          items: open,
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SelfPaySection extends StatelessWidget {
+  const _SelfPaySection({
+    required this.title,
+    required this.items,
+    this.highlighted = false,
+  });
+
+  final String title;
+  final List<SelfPayQueueItem> items;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppTokens.radius),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+            child: Text(title, style: AppTypography.label),
+          ),
+          if (items.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+              child: Text('Nothing here.', style: AppTypography.caption),
+            )
+          else
+            ...items.map(
+              (item) => _SelfPayCard(
+                item: item,
+                highlighted: highlighted,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SelfPayCard extends ConsumerStatefulWidget {
+  const _SelfPayCard({required this.item, required this.highlighted});
+
+  final SelfPayQueueItem item;
+  final bool highlighted;
+
+  @override
+  ConsumerState<_SelfPayCard> createState() => _SelfPayCardState();
+}
+
+class _SelfPayCardState extends ConsumerState<_SelfPayCard> {
+  bool _busy = false;
+
+  Future<void> _review(String action) async {
+    setState(() => _busy = true);
+    try {
+      await ref.read(collectionServiceProvider).reviewSelfPay(
+            token: widget.item.token,
+            action: action,
+          );
+      ref.invalidate(_selfPayQueueProvider);
+      ref.invalidate(collectionTodayProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            action == 'confirm' ? 'Self-pay confirmed' : 'Self-pay rejected',
+          ),
+          backgroundColor:
+              action == 'confirm' ? AppColors.success : AppColors.danger,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fmt = ref.watch(currencyFmtProvider);
+    final item = widget.item;
+    final created = DateFormat('dd MMM, h:mm a').format(item.createdAt);
+    final expires = DateFormat('dd MMM').format(item.expiresAt);
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: widget.highlighted ? AppColors.warningBg : AppColors.background,
+        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        border: Border.all(
+          color: widget.highlighted ? AppColors.warning : AppColors.border,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.customerName,
+                      style: AppTypography.bodyLarge,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      '${item.customerCode} - ${item.loanCode}',
+                      style: AppTypography.caption,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                fmt.format(item.amount),
+                style: AppTypography.bodyLarge.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              _MiniChip(label: item.status.toUpperCase()),
+              _MiniChip(label: item.channel.toUpperCase()),
+              _MiniChip(label: 'Created $created'),
+              _MiniChip(label: 'Expires $expires'),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _busy ? null : () => _review('reject'),
+                  icon: const Icon(Icons.close_rounded, size: 16),
+                  label: const Text('Reject'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.danger,
+                    side: const BorderSide(color: AppColors.danger),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: _busy ? null : () => _review('confirm'),
+                  icon: _busy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.check_rounded, size: 16),
+                  label: const Text('Confirm'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniChip extends StatelessWidget {
+  const _MiniChip({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppTokens.radiusBadge),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Text(label, style: AppTypography.tiny),
+    );
+  }
+}
 
 class _CollectionMap extends StatelessWidget {
   const _CollectionMap({
@@ -1023,7 +1401,8 @@ class _CollectionCard extends ConsumerWidget {
                 child: ListView.separated(
                   shrinkWrap: true,
                   itemCount: overdueList.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.border),
+                  separatorBuilder: (_, __) =>
+                      const Divider(height: 1, color: AppColors.border),
                   itemBuilder: (context, idx) {
                     final row = overdueList[idx];
                     return Padding(
@@ -1041,7 +1420,8 @@ class _CollectionCard extends ConsumerWidget {
                                 const SizedBox(height: 2),
                                 Text(
                                   '${row.daysOverdue} days overdue',
-                                  style: AppTypography.caption.copyWith(color: AppColors.danger),
+                                  style: AppTypography.caption
+                                      .copyWith(color: AppColors.danger),
                                 ),
                               ],
                             ),
@@ -1051,7 +1431,8 @@ class _CollectionCard extends ConsumerWidget {
                             children: [
                               Text(
                                 fmt.format(row.outstanding),
-                                style: AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.w700),
+                                style: AppTypography.bodyLarge
+                                    .copyWith(fontWeight: FontWeight.w700),
                               ),
                               const SizedBox(height: 4),
                               GestureDetector(
@@ -1060,7 +1441,10 @@ class _CollectionCard extends ConsumerWidget {
                                   _collect(context, ref, row);
                                 },
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: AppColors.primary,
                                     borderRadius: BorderRadius.circular(6),
@@ -1138,7 +1522,8 @@ class _CollectionCard extends ConsumerWidget {
         displayAmount = group.totalDue;
         displayLabel = t.x('coll.amount_due');
         chipColor = AppColors.danger;
-        chipLabel = '${group.maxDaysOverdue}d ${t.x('coll.status_overdue_days')}';
+        chipLabel =
+            '${group.maxDaysOverdue}d ${t.x('coll.status_overdue_days')}';
       } else {
         displayAmount = group.todayDue;
         displayLabel = t.x('coll.amount_due');

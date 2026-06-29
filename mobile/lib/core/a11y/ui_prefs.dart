@@ -4,6 +4,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 const _kPrefsBox = 'prefs';
 const _kTextScaleKey = 'ui_text_scale';
 const _kSimpleModeKey = 'ui_simple_mode';
+const _kDarkModeKey = 'ui_dark_mode';
+const _kApiBaseUrlKey = 'api_base_url_override';
 
 /// Allowed text-scale steps (U6). Applied app-wide via MediaQuery in app.dart.
 const kTextScaleSteps = <double>[0.9, 1.0, 1.15, 1.3];
@@ -61,4 +63,53 @@ class SimpleModeController extends StateNotifier<bool> {
 final simpleModeProvider =
     StateNotifierProvider<SimpleModeController, bool>((ref) {
   return SimpleModeController();
+});
+
+class DarkModeController extends StateNotifier<bool> {
+  DarkModeController() : super(false) {
+    _hydrate();
+  }
+
+  Future<void> _hydrate() async {
+    final box = await _openBox();
+    state = (box.get(_kDarkModeKey) as bool?) ?? false;
+  }
+
+  Future<void> set(bool v) async {
+    state = v;
+    final box = await _openBox();
+    await box.put(_kDarkModeKey, v);
+  }
+}
+
+final darkModeProvider = StateNotifierProvider<DarkModeController, bool>((ref) {
+  return DarkModeController();
+});
+
+class ApiBaseUrlController extends StateNotifier<String?> {
+  ApiBaseUrlController() : super(null) {
+    _hydrate();
+  }
+
+  Future<void> _hydrate() async {
+    final box = await _openBox();
+    final value = (box.get(_kApiBaseUrlKey) as String?)?.trim();
+    state = value == null || value.isEmpty ? null : value;
+  }
+
+  Future<void> set(String? value) async {
+    final cleaned = value?.trim();
+    state = cleaned == null || cleaned.isEmpty ? null : cleaned;
+    final box = await _openBox();
+    if (state == null) {
+      await box.delete(_kApiBaseUrlKey);
+    } else {
+      await box.put(_kApiBaseUrlKey, state);
+    }
+  }
+}
+
+final apiBaseUrlProvider =
+    StateNotifierProvider<ApiBaseUrlController, String?>((ref) {
+  return ApiBaseUrlController();
 });

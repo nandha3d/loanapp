@@ -56,6 +56,7 @@ class Endpoints {
   static String runClose(String id) => '/collection/run/$id/close';
   static String runReconcile(String id) => '/collection/run/$id/reconcile';
   // mCollect — digital self-pay
+  static const String selfPayQueue = '/collection/self-pay';
   static const String selfPayLink = '/collection/self-pay/link';
   // Per-tenant payment gateway config
   static const String paymentGateway = '/settings/payment-gateway';

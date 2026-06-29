@@ -97,3 +97,47 @@ class CollectionRow {
     );
   }
 }
+
+class SelfPayQueueItem {
+  const SelfPayQueueItem({
+    required this.token,
+    required this.amount,
+    required this.status,
+    required this.channel,
+    required this.createdAt,
+    required this.expiresAt,
+    required this.loanCode,
+    required this.customerName,
+    required this.customerCode,
+    required this.phone,
+  });
+
+  final String token;
+  final double amount;
+  final String status;
+  final String channel;
+  final DateTime createdAt;
+  final DateTime expiresAt;
+  final String loanCode;
+  final String customerName;
+  final String customerCode;
+  final String phone;
+
+  factory SelfPayQueueItem.fromJson(Map<String, dynamic> json) {
+    double n(dynamic v) => v == null
+        ? 0
+        : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
+    return SelfPayQueueItem(
+      token: (json['token'] as String?) ?? '',
+      amount: n(json['amount']),
+      status: (json['status'] as String?) ?? 'active',
+      channel: (json['channel'] as String?) ?? 'upi',
+      createdAt: DateTime.parse(json['createdAt'] as String).toLocal(),
+      expiresAt: DateTime.parse(json['expiresAt'] as String).toLocal(),
+      loanCode: (json['loanCode'] as String?) ?? '',
+      customerName: (json['customerName'] as String?) ?? '-',
+      customerCode: (json['customerCode'] as String?) ?? '',
+      phone: (json['phone'] as String?) ?? '',
+    );
+  }
+}

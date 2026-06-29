@@ -20,8 +20,11 @@ class AuthRepository {
       await _storage.savePendingTotpUser(username);
       return null;
     }
-    await _persist(result.token!, result.user!,
-        refreshToken: result.refreshToken);
+    await _persist(
+      result.token!,
+      result.user!,
+      refreshToken: result.refreshToken,
+    );
     return result.user;
   }
 
@@ -31,8 +34,11 @@ class AuthRepository {
       throw StateError('No pending TOTP user');
     }
     final result = await _service.verify2fa(username: username, code: code);
-    await _persist(result.token!, result.user!,
-        refreshToken: result.refreshToken);
+    await _persist(
+      result.token!,
+      result.user!,
+      refreshToken: result.refreshToken,
+    );
     await _storage.clearPendingTotpUser();
     return result.user!;
   }
@@ -56,6 +62,10 @@ class AuthRepository {
       // ignore — clear local state regardless
     }
     await _storage.clear();
+  }
+
+  Future<void> setActiveAppType(String appType) {
+    return _storage.saveActiveAppType(appType);
   }
 
   Future<User> registerWithEmail({

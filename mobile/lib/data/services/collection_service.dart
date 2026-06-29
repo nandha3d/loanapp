@@ -18,6 +18,30 @@ class CollectionService {
     });
   }
 
+  Future<List<SelfPayQueueItem>> selfPayQueue() async {
+    final res = await _dio.get<Map<String, dynamic>>(Endpoints.selfPayQueue);
+    return unwrapEnvelope(res, (dynamic d) {
+      final map = d as Map<String, dynamic>;
+      final rows = map['data'] as List<dynamic>? ?? const <dynamic>[];
+      return rows
+          .map(
+            (dynamic e) => SelfPayQueueItem.fromJson(e as Map<String, dynamic>),
+          )
+          .toList(growable: false);
+    });
+  }
+
+  Future<void> reviewSelfPay({
+    required String token,
+    required String action,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.selfPayQueue,
+      data: {'token': token, 'action': action},
+    );
+    unwrapEnvelope(res, (_) => null);
+  }
+
   /// Submits a collection. Idempotent via `idempotencyKey`.
   Future<CollectionEntry> submit({
     required String instalmentId,
@@ -67,7 +91,10 @@ class CollectionService {
         if (photoUrl != null) 'photoUrl': photoUrl,
       },
     );
-    return unwrapEnvelope(res, (dynamic d) => (d as Map<String, dynamic>)['id'] as String);
+    return unwrapEnvelope(
+      res,
+      (dynamic d) => (d as Map<String, dynamic>)['id'] as String,
+    );
   }
 
   /// Receipt PDF: returns raw PDF bytes for a collection entry.

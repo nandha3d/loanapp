@@ -13,12 +13,15 @@ class App extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
     final textScale = ref.watch(textScaleProvider);
+    final darkMode = ref.watch(darkModeProvider);
     // Rebuild the ThemeData when the tenant theme changes (see ThemeController).
     ref.watch(themeControllerProvider);
     return MaterialApp.router(
       title: 'LoanTrack',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: darkMode ? ThemeMode.dark : ThemeMode.light,
       routerConfig: router,
       builder: (context, child) {
         // App-wide text-size preference (U6). Multiplies on top of the OS

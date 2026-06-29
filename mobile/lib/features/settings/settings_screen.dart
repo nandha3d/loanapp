@@ -8,6 +8,7 @@ import 'package:loantrack/core/a11y/voice_assist.dart';
 import 'package:loantrack/core/auth/auth_controller.dart';
 import 'package:loantrack/core/l10n/app_strings.dart';
 import 'package:loantrack/core/l10n/language_controller.dart';
+import 'package:loantrack/core/network/dio_client.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
@@ -80,44 +81,102 @@ class SettingsScreen extends ConsumerWidget {
                       color: AppColors.primaryLight,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(Icons.format_size,
-                        size: 20, color: AppColors.primary,),
+                    child: Icon(
+                      Icons.format_size,
+                      size: 20,
+                      color: AppColors.primary,
+                    ),
                   ),
                   title: const Text('Text size'),
-                  trailing: Consumer(builder: (context, ref, _) {
-                    final scale = ref.watch(textScaleProvider);
-                    return DropdownButton<double>(
-                      value: scale,
-                      underline: const SizedBox.shrink(),
-                      items: const [
-                        DropdownMenuItem(value: 0.9, child: Text('Small')),
-                        DropdownMenuItem(value: 1.0, child: Text('Normal')),
-                        DropdownMenuItem(value: 1.15, child: Text('Large')),
-                        DropdownMenuItem(value: 1.3, child: Text('Extra large')),
-                      ],
-                      onChanged: (v) {
-                        if (v != null) {
-                          ref.read(textScaleProvider.notifier).set(v);
-                        }
-                      },
-                    );
-                  },),
+                  trailing: Consumer(
+                    builder: (context, ref, _) {
+                      final scale = ref.watch(textScaleProvider);
+                      return DropdownButton<double>(
+                        value: scale,
+                        underline: const SizedBox.shrink(),
+                        items: const [
+                          DropdownMenuItem(value: 0.9, child: Text('Small')),
+                          DropdownMenuItem(value: 1.0, child: Text('Normal')),
+                          DropdownMenuItem(value: 1.15, child: Text('Large')),
+                          DropdownMenuItem(
+                            value: 1.3,
+                            child: Text('Extra large'),
+                          ),
+                        ],
+                        onChanged: (v) {
+                          if (v != null) {
+                            ref.read(textScaleProvider.notifier).set(v);
+                          }
+                        },
+                      );
+                    },
+                  ),
                 ),
                 const Divider(height: 1, color: AppColors.border),
                 // Simple mode (U4) - reduced More menu for daily field work.
-                Consumer(builder: (context, ref, _) {
-                  final simple = ref.watch(simpleModeProvider);
-                  return _PrefSwitchRow(
-                    icon: Icons.dashboard_customize_outlined,
-                    iconColor: AppColors.primary,
-                    iconBg: AppColors.primaryLight,
-                    label: 'Simple mode',
-                    subtitle: 'Show only daily-work items in the More menu',
-                    value: simple,
-                    onChanged: (bool v) =>
-                        ref.read(simpleModeProvider.notifier).set(v),
-                  );
-                },),
+                Consumer(
+                  builder: (context, ref, _) {
+                    final simple = ref.watch(simpleModeProvider);
+                    return _PrefSwitchRow(
+                      icon: Icons.dashboard_customize_outlined,
+                      iconColor: AppColors.primary,
+                      iconBg: AppColors.primaryLight,
+                      label: 'Simple mode',
+                      subtitle: 'Show only daily-work items in the More menu',
+                      value: simple,
+                      onChanged: (bool v) =>
+                          ref.read(simpleModeProvider.notifier).set(v),
+                    );
+                  },
+                ),
+                const Divider(height: 1, color: AppColors.border),
+                Consumer(
+                  builder: (context, ref, _) {
+                    final darkMode = ref.watch(darkModeProvider);
+                    return _PrefSwitchRow(
+                      icon: Icons.dark_mode_outlined,
+                      iconColor: AppColors.info,
+                      iconBg: AppColors.infoBg,
+                      label: 'Dark mode',
+                      subtitle: 'Use the dark shell and tenant accent colour',
+                      value: darkMode,
+                      onChanged: (bool v) =>
+                          ref.read(darkModeProvider.notifier).set(v),
+                    );
+                  },
+                ),
+                const Divider(height: 1, color: AppColors.border),
+                Consumer(
+                  builder: (context, ref, _) {
+                    final apiUrl = ref.watch(apiBaseUrlProvider);
+                    return _PrefRow(
+                      icon: Icons.dns_outlined,
+                      iconColor: AppColors.warning,
+                      iconBg: AppColors.warningBg,
+                      label: 'API server',
+                      trailing: Flexible(
+                        child: Text(
+                          apiUrl ?? 'Default',
+                          style: AppTypography.caption.copyWith(
+                            color: AppColors.primary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.right,
+                        ),
+                      ),
+                      onTap: () => _editApiBaseUrl(context, ref),
+                    );
+                  },
+                ),
+                if (_moduleOptions(user).length > 1) ...[
+                  const Divider(height: 1, color: AppColors.border),
+                  _ModuleSwitcherRow(
+                    user: user!,
+                    onChanged: (appType) =>
+                        _switchModule(context, ref, appType),
+                  ),
+                ],
               ],
             ),
           ),
@@ -511,6 +570,125 @@ class SettingsScreen extends ConsumerWidget {
     }
   }
 
+  List<String> _moduleOptions(User? user) {
+    if (user == null) return const <String>[];
+    final options = <String>{user.appType, ...user.enabledModules};
+    if (options.contains(AppType.legacyChit)) {
+      options
+        ..remove(AppType.legacyChit)
+        ..add(AppType.chitfunds);
+    }
+    return options
+        .where((m) => m == AppType.microlending || m == AppType.chitfunds)
+        .toList(growable: false);
+  }
+
+  String _moduleLabel(String module) {
+    if (AppType.isChit(module)) return 'Chit Funds';
+    if (module == AppType.microlending) return 'Microlending';
+    return module;
+  }
+
+  Future<void> _switchModule(
+    BuildContext context,
+    WidgetRef ref,
+    String appType,
+  ) async {
+    await ref.read(authControllerProvider.notifier).setActiveAppType(appType);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Switched to ${_moduleLabel(appType)}')),
+    );
+    context.go(AppType.isChit(appType) ? '/chits' : '/dashboard');
+  }
+
+  Future<void> _editApiBaseUrl(BuildContext context, WidgetRef ref) async {
+    final current = ref.read(apiBaseUrlProvider) ?? kDefaultBaseUrl;
+    final ctrl = TextEditingController(text: current);
+    String? error;
+    final picked = await showDialog<String?>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppTokens.radius),
+          ),
+          title: const Text('API server'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: ctrl,
+                keyboardType: TextInputType.url,
+                decoration: InputDecoration(
+                  labelText: 'Base URL',
+                  hintText: kDefaultBaseUrl,
+                  errorText: error,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Use a full URL ending with /api/v1. Leave empty to restore default.',
+                style: AppTypography.caption,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, ''),
+              child: const Text('Use default'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                ),
+              ),
+              onPressed: () {
+                final value = ctrl.text.trim();
+                if (value.isEmpty) {
+                  Navigator.pop(ctx, '');
+                  return;
+                }
+                final uri = Uri.tryParse(value);
+                if (uri == null ||
+                    !uri.hasScheme ||
+                    (uri.scheme != 'http' && uri.scheme != 'https') ||
+                    uri.host.isEmpty ||
+                    !value.endsWith('/api/v1')) {
+                  setLocal(() {
+                    error = 'Enter a valid http(s) URL ending with /api/v1';
+                  });
+                  return;
+                }
+                Navigator.pop(ctx, value);
+              },
+              child: const Text('Save', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
+    ctrl.dispose();
+    if (picked == null) return;
+    await ref
+        .read(apiBaseUrlProvider.notifier)
+        .set(picked.isEmpty ? null : picked);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('API server updated')),
+    );
+  }
+
   Future<void> _confirmLogout(BuildContext context, WidgetRef ref) async {
     final t = T.of(ref);
     final ok = await showDialog<bool>(
@@ -660,6 +838,92 @@ class _RouteRow extends StatelessWidget {
           Text(
             '${route.customerCount} ${t.x('set.customers_suffix')}',
             style: AppTypography.caption,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModuleSwitcherRow extends StatelessWidget {
+  const _ModuleSwitcherRow({
+    required this.user,
+    required this.onChanged,
+  });
+
+  final User user;
+  final ValueChanged<String> onChanged;
+
+  List<String> get _options {
+    final values = <String>{user.appType, ...user.enabledModules};
+    if (values.contains(AppType.legacyChit)) {
+      values
+        ..remove(AppType.legacyChit)
+        ..add(AppType.chitfunds);
+    }
+    return values
+        .where((m) => m == AppType.microlending || m == AppType.chitfunds)
+        .toList(growable: false);
+  }
+
+  String _label(String module) {
+    if (AppType.isChit(module)) return 'Chit Funds';
+    if (module == AppType.microlending) return 'Microlending';
+    return module;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final current =
+        AppType.isChit(user.appType) ? AppType.chitfunds : user.appType;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.successBg,
+              borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+            ),
+            child: const Icon(
+              Icons.swap_horiz_rounded,
+              color: AppColors.success,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Active module', style: AppTypography.bodyLarge),
+                const SizedBox(height: 2),
+                Text(
+                  'Switch the API and navigation context',
+                  style: AppTypography.caption,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _options.contains(current) ? current : _options.first,
+              borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+              items: [
+                for (final option in _options)
+                  DropdownMenuItem(
+                    value: option,
+                    child: Text(_label(option), style: AppTypography.body),
+                  ),
+              ],
+              onChanged: (value) {
+                if (value != null && value != current) onChanged(value);
+              },
+            ),
           ),
         ],
       ),

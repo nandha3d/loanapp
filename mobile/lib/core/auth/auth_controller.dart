@@ -51,8 +51,7 @@ class AuthController extends StateNotifier<AuthState> {
     } else {
       // Lock screen is opt-in: the tenant must enable it (Settings →
       // Security) AND the device must be able to show a biometric prompt.
-      final canLock =
-          user.biometricLockRequired && await _canUseBiometrics();
+      final canLock = user.biometricLockRequired && await _canUseBiometrics();
       state = AuthState(
         stage: canLock ? AuthStage.locked : AuthStage.authenticated,
         user: user,
@@ -181,6 +180,29 @@ class AuthController extends StateNotifier<AuthState> {
         await _canUseBiometrics()) {
       state = state.copyWith(stage: AuthStage.locked);
     }
+  }
+
+  Future<void> setActiveAppType(String appType) async {
+    final user = state.user;
+    if (user == null || user.appType == appType) return;
+    await _repo.setActiveAppType(appType);
+    state = state.copyWith(
+      user: User(
+        id: user.id,
+        name: user.name,
+        phone: user.phone,
+        username: user.username,
+        role: user.role,
+        appType: appType,
+        status: user.status,
+        totpEnabled: user.totpEnabled,
+        enabledModules: user.enabledModules,
+        email: user.email,
+        branchId: user.branchId,
+        tenantSlug: user.tenantSlug,
+        biometricLockRequired: user.biometricLockRequired,
+      ),
+    );
   }
 
   Future<bool> unlockWithBiometrics() async {

@@ -104,5 +104,9 @@ mobile/pubspec.lock
 mobile/windows/flutter/generated_plugin_registrant.cc
 mobile/windows/flutter/generated_plugins.cmake
 
+# executables
+mobile/nuget.exe
+*.exe
+
 # SQL: ignore DB DUMPS only (loantrack_export*.sql / *backup*.sql above).
 # Prisma migrations and docs/*.sql ARE committed.

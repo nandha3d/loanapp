@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pretty_dio_logger/pretty_dio_logger.dart';
 
 import 'package:loantrack/core/auth/auth_storage.dart';
+import 'package:loantrack/core/a11y/ui_prefs.dart';
 import 'package:loantrack/core/network/api_exception.dart';
 
 /// Base URL — override via --dart-define=API_BASE_URL=...
@@ -73,7 +74,9 @@ class _AuthInterceptor extends Interceptor {
           final newRefresh = body?['data']?['refreshToken'] as String?;
           if (newToken != null && newRefresh != null) {
             await _storage.updateTokens(
-                token: newToken, refreshToken: newRefresh);
+              token: newToken,
+              refreshToken: newRefresh,
+            );
             // Retry original request with new token
             final opts = err.requestOptions;
             opts.headers['Authorization'] = 'Bearer $newToken';
@@ -96,10 +99,11 @@ class _AuthInterceptor extends Interceptor {
 final dioProvider = Provider<Dio>((ref) {
   final storage = ref.watch(authStorageProvider);
   final ctrl = ref.watch(_unauthorizedControllerProvider);
+  final baseUrl = ref.watch(apiBaseUrlProvider) ?? kDefaultBaseUrl;
 
   final dio = Dio(
     BaseOptions(
-      baseUrl: kDefaultBaseUrl,
+      baseUrl: baseUrl,
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 20),
       sendTimeout: const Duration(seconds: 15),
