@@ -159,7 +159,17 @@ export default function LoanForm({
   // 'gold' and (below) hide the cheque/property type selector.
   const isGoldModule = appType === 'goldloan';
   const isPropertyModule = appType === 'property';
-  const [loanType, setLoanType] = useState(isGoldModule ? 'gold' : isPropertyModule ? 'property' : 'cheque');
+  const isProductModule = appType === 'productfinance';
+  const [loanType, setLoanType] = useState(isGoldModule ? 'gold' : isPropertyModule ? 'property' : isProductModule ? 'other' : 'cheque');
+  const [pf, setPf] = useState({ category: '', productName: '', brand: '', modelNo: '', serialNo: '', dealerName: '', invoiceNo: '', invoiceAmount: '', downPayment: '' });
+  const setPfField = (k: string, v: string) => setPf(p => ({ ...p, [k]: v }));
+  const buildProductItemJson = () => JSON.stringify({
+    category: pf.category || null, productName: pf.productName || null, brand: pf.brand || null,
+    modelNo: pf.modelNo || null, serialNo: pf.serialNo || null, dealerName: pf.dealerName || null,
+    invoiceNo: pf.invoiceNo || null,
+    invoiceAmount: pf.invoiceAmount ? Number(pf.invoiceAmount) : null,
+    downPayment: pf.downPayment ? Number(pf.downPayment) : null,
+  });
   const [isLoanTypeExpanded, setIsLoanTypeExpanded] = useState(true);
   
   // Dynamic Collateral State
@@ -440,6 +450,7 @@ export default function LoanForm({
           fd.set('guarantorId', existingGuarantorId || '');
           if (isGoldModule || loanType === 'gold') fd.set('goldCollateralJson', buildGoldCollateralJson());
           if (isPropertyModule || loanType === 'property') fd.set('propertyCollateralJson', buildPropertyCollateralJson());
+          if (isProductModule) fd.set('productItemJson', buildProductItemJson());
           const result = await createLoan(fd);
           if (result && 'error' in result) {
             setLimitError(result.error);
@@ -513,7 +524,7 @@ export default function LoanForm({
           </div>
 
           {/* Loan-type selector — hidden in single-product modules */}
-          {!isGoldModule && !isPropertyModule && (
+          {!isGoldModule && !isPropertyModule && !isProductModule && (
           <div className="form-group" style={{ marginBottom: '16px' }}>
             <label className="form-label">{dict.loans.loanType} *</label>
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
@@ -750,6 +761,55 @@ export default function LoanForm({
                   <div className="form-group" style={{ flex: '1 1 100%' }}>
                     <label className="form-label">Property Address</label>
                     <textarea className="form-control" rows={2} value={propertyAddress} onChange={e=>setPropertyAddress(e.target.value)} placeholder="Full address" />
+                  </div>
+                </div>
+              )}
+
+              {isProductModule && (
+                <div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">Product Name</label>
+                      <input className="form-control" value={pf.productName} onChange={e=>setPfField('productName', e.target.value)} placeholder="e.g. LED TV 55 inch" />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Category</label>
+                      <input className="form-control" value={pf.category} onChange={e=>setPfField('category', e.target.value)} placeholder="Electronics" />
+                    </div>
+                  </div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">Brand</label>
+                      <input className="form-control" value={pf.brand} onChange={e=>setPfField('brand', e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Model No</label>
+                      <input className="form-control" value={pf.modelNo} onChange={e=>setPfField('modelNo', e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Serial / IMEI</label>
+                      <input className="form-control" value={pf.serialNo} onChange={e=>setPfField('serialNo', e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">Dealer</label>
+                      <input className="form-control" value={pf.dealerName} onChange={e=>setPfField('dealerName', e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Invoice No</label>
+                      <input className="form-control" value={pf.invoiceNo} onChange={e=>setPfField('invoiceNo', e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">Invoice Amount ({currencySymbol})</label>
+                      <input type="number" className="form-control" value={pf.invoiceAmount} onChange={e=>setPfField('invoiceAmount', e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Down Payment ({currencySymbol})</label>
+                      <input type="number" className="form-control" value={pf.downPayment} onChange={e=>setPfField('downPayment', e.target.value)} />
+                    </div>
                   </div>
                 </div>
               )}
