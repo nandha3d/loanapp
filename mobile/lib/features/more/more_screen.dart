@@ -100,7 +100,7 @@ class _ModuleItem {
 
 // Not const: module tiles reference the runtime tenant theme (AppColors).
 final _allModules = <_ModuleItem>[
-  _ModuleItem(
+  const _ModuleItem(
     icon: Icons.warning_amber_rounded,
     label: 'Penalties',
     subtitle: 'Manage & settle overdue fines',
@@ -108,7 +108,7 @@ final _allModules = <_ModuleItem>[
     color: AppColors.danger,
     bgColor: AppColors.dangerBg,
   ),
-  _ModuleItem(
+  const _ModuleItem(
     icon: Icons.fact_check_outlined,
     label: 'Approvals',
     subtitle: 'Review pending requests',
@@ -117,7 +117,7 @@ final _allModules = <_ModuleItem>[
     color: AppColors.success,
     bgColor: AppColors.successBg,
   ),
-  _ModuleItem(
+  const _ModuleItem(
     icon: Icons.verified_user_outlined,
     label: 'KYC Review',
     subtitle: 'Verify pending customer KYC',
@@ -126,7 +126,7 @@ final _allModules = <_ModuleItem>[
     bgColor: AppColors.warningBg,
     minRole: UserRole.admin,
   ),
-  _ModuleItem(
+  const _ModuleItem(
     icon: Icons.bar_chart_rounded,
     label: 'Reports & Analytics',
     subtitle: 'Collection trends & agent performance',
@@ -135,7 +135,7 @@ final _allModules = <_ModuleItem>[
     color: AppColors.info,
     bgColor: AppColors.infoBg,
   ),
-  _ModuleItem(
+  const _ModuleItem(
     icon: Icons.savings_outlined,
     label: 'Chit Funds',
     subtitle: 'Group savings management',
@@ -144,7 +144,16 @@ final _allModules = <_ModuleItem>[
     color: AppColors.purple,
     bgColor: AppColors.purpleBg,
   ),
-  _ModuleItem(
+  const _ModuleItem(
+    icon: Icons.workspace_premium_outlined,
+    label: 'Gold Pledge Report',
+    subtitle: 'Pending interests & pledged weight',
+    route: '/gold-reports',
+    moduleKey: 'goldloan',
+    color: AppColors.warning,
+    bgColor: AppColors.warningBg,
+  ),
+  const _ModuleItem(
     icon: Icons.account_balance_outlined,
     label: 'Accounting & P&L',
     subtitle: 'Daily financials, capital & overdue',
@@ -153,7 +162,7 @@ final _allModules = <_ModuleItem>[
     color: AppColors.info,
     bgColor: AppColors.infoBg,
   ),
-  _ModuleItem(
+  const _ModuleItem(
     icon: Icons.health_and_safety_outlined,
     label: 'NPA Monitoring',
     subtitle: 'Portfolio risk, provisioning & upgrades',
@@ -171,7 +180,7 @@ final _allModules = <_ModuleItem>[
     color: AppColors.primary,
     bgColor: AppColors.primaryLight,
   ),
-  _ModuleItem(
+  const _ModuleItem(
     icon: Icons.account_balance_rounded,
     label: 'Payment Gateway',
     subtitle: 'UPI & Razorpay for borrower self-pay',
@@ -180,7 +189,7 @@ final _allModules = <_ModuleItem>[
     bgColor: AppColors.infoBg,
     minRole: UserRole.admin,
   ),
-  _ModuleItem(
+  const _ModuleItem(
     icon: Icons.settings_outlined,
     label: 'Settings',
     subtitle: 'Routes, account & app preferences',
