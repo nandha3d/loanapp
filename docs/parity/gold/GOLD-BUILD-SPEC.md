@@ -124,6 +124,57 @@ new seed script, new mobile screens. The `GoldLoanCollateral` model already exis
 
 ---
 
+---
+
+## 10. REFINED PLAN — approved decisions (supersedes §3 where conflicting)
+
+Decisions from the user (2026-06-29):
+
+### 10.1 Repayment engine — REUSE, don't replace
+- **No new engine, no structural change.** Use the existing loan + interest engine (`lib/loanCalculator.ts`,
+  interest types `upfront_fixed | upfront_percentage | emi_flat | emi_floating`, plus existing collection /
+  foreclosure / renewal). The competitor's "monthly interest-only pledge" is represented **within** this engine as a
+  configured interest scheme, not a parallel system.
+- Gold-specific capabilities (pay-interest cycle, part-payment, redemption, take-over/renewal, bank repledge) are
+  added as **features layered on the existing loan**, reusing existing payment/collection/accounting records where
+  they already exist — not a new ledger.
+- **Settings drive behaviour:** admin can set the default interest scheme/rate/processing fee per metal and
+  **hide / show / set-default** any gold field or feature. Everything configurable, nothing hardcoded.
+
+### 10.2 Gold + Silver
+- Category selector **GOLD / SILVER** on pledge entry. Per-metal **rate/gram** and **interest %** come from
+  settings/master (`AppSetting`: `gold_rate_per_gram_*`, `silver_rate_per_gram`, interest per metal). Same engine,
+  metal is a config dimension — additive.
+
+### 10.3 Structure impact — strictly additive (no restructure)
+- **New child/master tables only** (gated migrations, unapplied until reviewed):
+  - `GoldOrnamentItem` (child of `GoldLoanCollateral`): type, spec, qty, gross/wastage/net wt, rate/gram, value,
+    bank, refNo.
+  - Master: `OrnamentType`, `OrnamentSpecification`, `BankName` — the **no-hardcode source** for every dropdown.
+- **Reuse existing** for servicing: collection/payment records for pay-interest + part-payment; foreclosure for
+  redemption; renewal for take-over; audit log for deleted/modified/restored; expenses for expense entry.
+- **No** changes to the loan/instalment engine, no column renames/drops. New settings = new `AppSetting` keys.
+
+### 10.4 Build slices (tracer-bullet, each: build → typecheck/test → commit; migrations stay gated)
+1. **Master data + settings** — `OrnamentType`/`OrnamentSpecification`/`BankName` tables + admin CRUD; gold/silver
+   rate + interest + scheme + processing-fee + field show/hide settings. *(unblocks no-hardcode dropdowns)*
+2. **Multi-ornament line items** — `GoldOrnamentItem` model + structured capture (web `LoanForm`, mobile
+   `new_loan_screen`) feeding `GoldLoanCollateral` + items; value auto-calc via `lib/gold/valuation.ts`.
+3. **Pledge servicing** — pay-interest, part-payment, redemption/close, take-over/renewal, bank repledge — as
+   features on the existing loan, settings-gated.
+4. **Gold reports** — recent/closed pledges, pending interests, paid interests, bank report, ornaments report,
+   daily summary, notices, audit tabs.
+5. **Gold dashboard** — ornament weights (active/closed), bank-wise, store rate, profit, cash balance, pending
+   interest.
+6. **Receipts** (EN + TA, from templates/settings) — loan, closing, part-payment, interest-bill.
+7. **Mobile** — slices 2–6 on mobile (NO accounting), reuse Riverpod + `T.x` + offline queue.
+8. **Seed** — 15 customers (lat/lng) + 15 gold/silver pledges with ornament items, for GPS testing.
+9. **i18n** — all new strings EN + 6 langs; backfill mobile English-only keys touched.
+
+### 10.5 No-hardcode (enforced every slice)
+Ornament types/specs/banks/proof-types/rates/interest/scheme/processing-fee/receipt-T&C → **DB master + AppSetting,
+served via `/api/v1`**. Web + mobile read identical data. Valuation only via `lib/gold/valuation.ts`.
+
 ### Next step
-User pastes/exports the competitor screens → I fill §4, finalize field lists, and present the completed plan for
-approval. No code until then.
+Plan refined per decisions above. **Awaiting final go** to start **Slice 1 (master data + settings)**. No code
+until approved.
