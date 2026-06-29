@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createLoan } from '../actions';
+import { resolveOrnamentLine, ornamentTotals } from '@/lib/gold/ornaments';
 import { calculateEndDate, formatDateISO } from '@/lib/utils';
 import { getCreditScoreGaugePresentation } from '@/lib/creditScoreGauge';
 import Link from '@/components/layout/DashboardLink';
@@ -50,7 +51,9 @@ export default function LoanForm({
   agents,
   dict,
   appType,
-  viewerRole
+  viewerRole,
+  goldMaster,
+  goldConfig
 }: {
   customers: any[];
   packages: any[];
@@ -62,6 +65,8 @@ export default function LoanForm({
   dict: any;
   appType?: string;
   viewerRole?: string;
+  goldMaster?: { ornamentTypes: any[]; ornamentSpecs: any[]; bankNames: any[] };
+  goldConfig?: any;
 }) {
   const [loading, setLoading] = useState(false);
   const [limitError, setLimitError] = useState<string | null>(null);
@@ -160,6 +165,48 @@ export default function LoanForm({
   const [goldGrams, setGoldGrams] = useState<number | ''>('');
   const [goldCarat, setGoldCarat] = useState('22K');
   const [goldItems, setGoldItems] = useState('');
+
+  // Multi-ornament pledge: line items + header. Dropdowns come from goldMaster
+  // (DB-driven, no hardcode); rate/LTV defaults come from goldConfig.
+  const ornTypes = goldMaster?.ornamentTypes ?? [];
+  const ornSpecs = goldMaster?.ornamentSpecs ?? [];
+  const ornBanks = goldMaster?.bankNames ?? [];
+  const defaultRate = goldConfig?.goldPureRatePerGram ?? '';
+  const blankRow = () => ({ ornamentType: '', specification: '', purityKarat: '22K', quantity: 1, grossWeightGrams: '', wastageGrams: '', netWeightGrams: '', ratePerGram: defaultRate, bankName: '', refNo: '' });
+  const [ornamentRows, setOrnamentRows] = useState<any[]>([blankRow()]);
+  const [goldPacketNo, setGoldPacketNo] = useState('');
+  const [goldStorage, setGoldStorage] = useState('');
+  const updateRow = (i: number, field: string, val: any) =>
+    setOrnamentRows(rows => rows.map((r, idx) => (idx === i ? { ...r, [field]: val } : r)));
+  const addRow = () => setOrnamentRows(rows => [...rows, blankRow()]);
+  const removeRow = (i: number) => setOrnamentRows(rows => (rows.length > 1 ? rows.filter((_, idx) => idx !== i) : rows));
+  const goldTotals = ornamentTotals(ornamentRows.map((r: any) => ({
+    quantity: Number(r.quantity) || 1,
+    grossWeightGrams: Number(r.grossWeightGrams) || 0,
+    wastageGrams: Number(r.wastageGrams) || 0,
+    netWeightGrams: r.netWeightGrams ? Number(r.netWeightGrams) : undefined,
+    ratePerGram: Number(r.ratePerGram) || 0,
+  })));
+  const buildGoldCollateralJson = () => JSON.stringify({
+    packetNo: goldPacketNo || null,
+    storageLocation: goldStorage || null,
+    marketRatePerGram: defaultRate !== '' ? Number(defaultRate) : null,
+    eligibleLtvPercent: goldConfig?.defaultLtvPercent ?? null,
+    items: ornamentRows
+      .filter((r: any) => r.ornamentType || r.grossWeightGrams || r.netWeightGrams)
+      .map((r: any) => ({
+        ornamentType: r.ornamentType,
+        specification: r.specification || null,
+        purityKarat: r.purityKarat || null,
+        quantity: Number(r.quantity) || 1,
+        grossWeightGrams: Number(r.grossWeightGrams) || 0,
+        wastageGrams: Number(r.wastageGrams) || 0,
+        netWeightGrams: r.netWeightGrams ? Number(r.netWeightGrams) : undefined,
+        ratePerGram: Number(r.ratePerGram) || 0,
+        bankName: r.bankName || null,
+        refNo: r.refNo || null,
+      })),
+  });
   
   const [propertyType, setPropertyType] = useState('residential');
   const [propertyValue, setPropertyValue] = useState<number | ''>('');
@@ -362,6 +409,7 @@ export default function LoanForm({
           fd.set('collateralDetails', getCollateralDetailsJson());
           fd.set('deductionType', interestType);
           fd.set('guarantorId', existingGuarantorId || '');
+          if (loanType === 'gold') fd.set('goldCollateralJson', buildGoldCollateralJson());
           const result = await createLoan(fd);
           if (result && 'error' in result) {
             setLimitError(result.error);
@@ -514,23 +562,91 @@ export default function LoanForm({
               )}
 
               {loanType === 'gold' && (
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">Total Weight (Grams)</label>
-                    <input type="number" className="form-control" value={goldGrams} onChange={e=>setGoldGrams(e.target.value ? Number(e.target.value) : '')} placeholder="e.g. 24.5" />
+                <div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">Packet No</label>
+                      <input type="text" className="form-control" value={goldPacketNo} onChange={e=>setGoldPacketNo(e.target.value)} placeholder="e.g. P-001" />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Storage / Bank</label>
+                      {ornBanks.length > 0 ? (
+                        <select className="form-control" value={goldStorage} onChange={e=>setGoldStorage(e.target.value)}>
+                          <option value="">Select…</option>
+                          {ornBanks.map((b:any)=>(<option key={b.id} value={b.name}>{b.name}</option>))}
+                        </select>
+                      ) : (
+                        <input type="text" className="form-control" value={goldStorage} onChange={e=>setGoldStorage(e.target.value)} placeholder="SELF LOCKER" />
+                      )}
+                    </div>
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">Purity (Carat)</label>
-                    <select className="form-control" value={goldCarat} onChange={e=>setGoldCarat(e.target.value)}>
-                      <option value="18K">18K</option>
-                      <option value="20K">20K</option>
-                      <option value="22K">22K</option>
-                      <option value="24K">24K</option>
-                    </select>
-                  </div>
-                  <div className="form-group" style={{ flex: '1 1 100%' }}>
-                    <label className="form-label">Items Description</label>
-                    <input type="text" className="form-control" value={goldItems} onChange={e=>setGoldItems(e.target.value)} placeholder="e.g. 2 Bangles, 1 Chain" />
+
+                  <label className="form-label" style={{ marginTop: 8 }}>Ornament Details</label>
+                  {ornamentRows.map((row, i) => {
+                    const line = resolveOrnamentLine({
+                      quantity: Number(row.quantity) || 1,
+                      grossWeightGrams: Number(row.grossWeightGrams) || 0,
+                      wastageGrams: Number(row.wastageGrams) || 0,
+                      netWeightGrams: row.netWeightGrams ? Number(row.netWeightGrams) : undefined,
+                      ratePerGram: Number(row.ratePerGram) || 0,
+                    });
+                    return (
+                      <div key={i} className="form-row" style={{ alignItems: 'flex-end', gap: 6, marginBottom: 6 }}>
+                        <div className="form-group" style={{ flex: '1 1 130px' }}>
+                          <label className="form-label">Ornament</label>
+                          {ornTypes.length > 0 ? (
+                            <select className="form-control" value={row.ornamentType} onChange={e=>updateRow(i,'ornamentType',e.target.value)}>
+                              <option value="">Select…</option>
+                              {ornTypes.map((t:any)=>(<option key={t.id} value={t.name}>{t.name}</option>))}
+                            </select>
+                          ) : (
+                            <input className="form-control" value={row.ornamentType} onChange={e=>updateRow(i,'ornamentType',e.target.value)} placeholder="CHAIN" />
+                          )}
+                        </div>
+                        <div className="form-group" style={{ flex: '1 1 110px' }}>
+                          <label className="form-label">Specification</label>
+                          {ornSpecs.length > 0 ? (
+                            <select className="form-control" value={row.specification} onChange={e=>{const s=ornSpecs.find((x:any)=>x.name===e.target.value); updateRow(i,'specification',e.target.value); if(s?.purityKarat) updateRow(i,'purityKarat',s.purityKarat);}}>
+                              <option value="">Select…</option>
+                              {ornSpecs.map((s:any)=>(<option key={s.id} value={s.name}>{s.name}</option>))}
+                            </select>
+                          ) : (
+                            <input className="form-control" value={row.specification} onChange={e=>updateRow(i,'specification',e.target.value)} placeholder="916 22K" />
+                          )}
+                        </div>
+                        <div className="form-group" style={{ flex: '0 1 60px' }}>
+                          <label className="form-label">Qty</label>
+                          <input type="number" className="form-control" value={row.quantity} onChange={e=>updateRow(i,'quantity',e.target.value)} />
+                        </div>
+                        <div className="form-group" style={{ flex: '0 1 80px' }}>
+                          <label className="form-label">Gross</label>
+                          <input type="number" step="0.001" className="form-control" value={row.grossWeightGrams} onChange={e=>updateRow(i,'grossWeightGrams',e.target.value)} />
+                        </div>
+                        <div className="form-group" style={{ flex: '0 1 80px' }}>
+                          <label className="form-label">Wastage</label>
+                          <input type="number" step="0.001" className="form-control" value={row.wastageGrams} onChange={e=>updateRow(i,'wastageGrams',e.target.value)} />
+                        </div>
+                        <div className="form-group" style={{ flex: '0 1 80px' }}>
+                          <label className="form-label">Net</label>
+                          <input type="number" step="0.001" className="form-control" value={row.netWeightGrams} onChange={e=>updateRow(i,'netWeightGrams',e.target.value)} placeholder={String(line.netWeightGrams || '')} />
+                        </div>
+                        <div className="form-group" style={{ flex: '0 1 90px' }}>
+                          <label className="form-label">Rate/g</label>
+                          <input type="number" step="0.01" className="form-control" value={row.ratePerGram} onChange={e=>updateRow(i,'ratePerGram',e.target.value)} />
+                        </div>
+                        <div className="form-group" style={{ flex: '0 1 100px' }}>
+                          <label className="form-label">Value</label>
+                          <input className="form-control" value={`${currencySymbol}${line.value.toLocaleString('en-IN')}`} readOnly />
+                        </div>
+                        <button type="button" className="btn btn-ghost" onClick={()=>removeRow(i)} disabled={ornamentRows.length<=1} title="Remove" style={{ padding: '8px 10px' }}>✕</button>
+                      </div>
+                    );
+                  })}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                    <button type="button" className="btn btn-ghost" onClick={addRow}>+ Add ornament</button>
+                    <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                      Qty {goldTotals.totalQuantity} · Net {goldTotals.totalNetWeight} g · Value {currencySymbol}{goldTotals.totalValue.toLocaleString('en-IN')}
+                    </span>
                   </div>
                 </div>
               )}

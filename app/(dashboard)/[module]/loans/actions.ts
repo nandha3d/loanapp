@@ -74,34 +74,41 @@ export async function createLoan(formData: FormData) {
       i++;
     }
 
-    let goldCollateral = undefined;
+    let goldCollateral: any = undefined;
     if (appType === 'goldloan') {
-      const goldPhoto = formData.get('goldPhoto') as File | null;
-      const goldValuationDoc = formData.get('goldValuationDoc') as File | null;
-      let photoPath = null;
-      let documentPath = null;
-      if (goldPhoto && goldPhoto.size > 0) {
-        photoPath = await uploadFileHelper(goldPhoto, apiContext);
+      // Preferred: structured multi-ornament payload from the pledge form.
+      const goldJson = formData.get('goldCollateralJson') as string | null;
+      if (goldJson) {
+        try { goldCollateral = JSON.parse(goldJson); } catch { goldCollateral = undefined; }
       }
-      if (goldValuationDoc && goldValuationDoc.size > 0) {
-        documentPath = await uploadFileHelper(goldValuationDoc, apiContext);
+      // Legacy single-field fallback (pre multi-ornament).
+      if (!goldCollateral) {
+        const goldPhoto = formData.get('goldPhoto') as File | null;
+        const goldValuationDoc = formData.get('goldValuationDoc') as File | null;
+        let photoPath = null;
+        let documentPath = null;
+        if (goldPhoto && goldPhoto.size > 0) {
+          photoPath = await uploadFileHelper(goldPhoto, apiContext);
+        }
+        if (goldValuationDoc && goldValuationDoc.size > 0) {
+          documentPath = await uploadFileHelper(goldValuationDoc, apiContext);
+        }
+        goldCollateral = {
+          packetNo: formData.get('packetNo') as string || null,
+          ornamentDescription: formData.get('ornamentDescription') as string || null,
+          grossWeightGrams: Number(formData.get('grossWeightGrams')) || 0,
+          netWeightGrams: Number(formData.get('netWeightGrams')) || 0,
+          purityKarat: formData.get('purityKarat') as string || '22K',
+          marketRatePerGram: formData.get('marketRatePerGram') ? Number(formData.get('marketRatePerGram')) : null,
+          assessedValue: resolveAssessedValue(formData),
+          eligibleLtvPercent: formData.get('eligibleLtvPercent') ? Number(formData.get('eligibleLtvPercent')) : null,
+          storageLocation: formData.get('storageLocation') as string || null,
+          valuerName: formData.get('valuerName') as string || null,
+          valuationDate: formData.get('valuationDate') as string || null,
+          photoPath,
+          documentPath
+        };
       }
-
-      goldCollateral = {
-        packetNo: formData.get('packetNo') as string || null,
-        ornamentDescription: formData.get('ornamentDescription') as string || null,
-        grossWeightGrams: Number(formData.get('grossWeightGrams')) || 0,
-        netWeightGrams: Number(formData.get('netWeightGrams')) || 0,
-        purityKarat: formData.get('purityKarat') as string || '22K',
-        marketRatePerGram: formData.get('marketRatePerGram') ? Number(formData.get('marketRatePerGram')) : null,
-        assessedValue: resolveAssessedValue(formData),
-        eligibleLtvPercent: formData.get('eligibleLtvPercent') ? Number(formData.get('eligibleLtvPercent')) : null,
-        storageLocation: formData.get('storageLocation') as string || null,
-        valuerName: formData.get('valuerName') as string || null,
-        valuationDate: formData.get('valuationDate') as string || null,
-        photoPath,
-        documentPath
-      };
     }
 
     const payload = {
@@ -167,34 +174,41 @@ export async function updateLoan(formData: FormData) {
       guarantorPhotoUrl = await uploadFileHelper(guarantorPhotoFile, apiContext);
     }
 
-    let goldCollateral = undefined;
+    let goldCollateral: any = undefined;
     if (appType === 'goldloan') {
-      const goldPhoto = formData.get('goldPhoto') as File | null;
-      const goldValuationDoc = formData.get('goldValuationDoc') as File | null;
-      let photoPath = null;
-      let documentPath = null;
-      if (goldPhoto && goldPhoto.size > 0) {
-        photoPath = await uploadFileHelper(goldPhoto, apiContext);
+      // Preferred: structured multi-ornament payload from the pledge form.
+      const goldJson = formData.get('goldCollateralJson') as string | null;
+      if (goldJson) {
+        try { goldCollateral = JSON.parse(goldJson); } catch { goldCollateral = undefined; }
       }
-      if (goldValuationDoc && goldValuationDoc.size > 0) {
-        documentPath = await uploadFileHelper(goldValuationDoc, apiContext);
+      // Legacy single-field fallback (pre multi-ornament).
+      if (!goldCollateral) {
+        const goldPhoto = formData.get('goldPhoto') as File | null;
+        const goldValuationDoc = formData.get('goldValuationDoc') as File | null;
+        let photoPath = null;
+        let documentPath = null;
+        if (goldPhoto && goldPhoto.size > 0) {
+          photoPath = await uploadFileHelper(goldPhoto, apiContext);
+        }
+        if (goldValuationDoc && goldValuationDoc.size > 0) {
+          documentPath = await uploadFileHelper(goldValuationDoc, apiContext);
+        }
+        goldCollateral = {
+          packetNo: formData.get('packetNo') as string || null,
+          ornamentDescription: formData.get('ornamentDescription') as string || null,
+          grossWeightGrams: Number(formData.get('grossWeightGrams')) || 0,
+          netWeightGrams: Number(formData.get('netWeightGrams')) || 0,
+          purityKarat: formData.get('purityKarat') as string || '22K',
+          marketRatePerGram: formData.get('marketRatePerGram') ? Number(formData.get('marketRatePerGram')) : null,
+          assessedValue: resolveAssessedValue(formData),
+          eligibleLtvPercent: formData.get('eligibleLtvPercent') ? Number(formData.get('eligibleLtvPercent')) : null,
+          storageLocation: formData.get('storageLocation') as string || null,
+          valuerName: formData.get('valuerName') as string || null,
+          valuationDate: formData.get('valuationDate') as string || null,
+          photoPath,
+          documentPath
+        };
       }
-
-      goldCollateral = {
-        packetNo: formData.get('packetNo') as string || null,
-        ornamentDescription: formData.get('ornamentDescription') as string || null,
-        grossWeightGrams: Number(formData.get('grossWeightGrams')) || 0,
-        netWeightGrams: Number(formData.get('netWeightGrams')) || 0,
-        purityKarat: formData.get('purityKarat') as string || '22K',
-        marketRatePerGram: formData.get('marketRatePerGram') ? Number(formData.get('marketRatePerGram')) : null,
-        assessedValue: resolveAssessedValue(formData),
-        eligibleLtvPercent: formData.get('eligibleLtvPercent') ? Number(formData.get('eligibleLtvPercent')) : null,
-        storageLocation: formData.get('storageLocation') as string || null,
-        valuerName: formData.get('valuerName') as string || null,
-        valuationDate: formData.get('valuationDate') as string || null,
-        photoPath,
-        documentPath
-      };
     }
 
     const payload = {
