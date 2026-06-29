@@ -114,6 +114,7 @@ class LoanService {
     int? dueDay,
     Map<String, dynamic>? guarantor,
     List<Map<String, dynamic>>? securityCheques,
+    Map<String, dynamic>? goldCollateral,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.loans,
@@ -132,6 +133,7 @@ class LoanService {
         if (dueDay != null) 'dueDay': dueDay,
         if (guarantor != null) 'guarantor': guarantor,
         if (securityCheques != null) 'securityCheques': securityCheques,
+        if (goldCollateral != null) 'goldCollateral': goldCollateral,
       },
     );
     return unwrapEnvelope(

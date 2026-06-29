@@ -15,6 +15,7 @@ import 'package:loantrack/data/models/customer.dart';
 import 'package:loantrack/data/models/loan_calc.dart';
 import 'package:loantrack/data/repositories/customer_repository.dart';
 import 'package:loantrack/data/services/loan_service.dart';
+import 'package:loantrack/data/services/gold_service.dart';
 import 'package:loantrack/data/services/upload_service.dart';
 import 'package:loantrack/shared/widgets/app_button.dart';
 import 'package:loantrack/shared/widgets/app_text_field.dart';
@@ -66,10 +67,79 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
   final _chequeNumber = TextEditingController();
   final _chequeAmount = TextEditingController();
 
-  // Gold loan fields
+  // Gold loan fields (legacy single-field — kept for fallback)
   final _goldGrams = TextEditingController();
-  String _goldCarat = '22K';
+  final String _goldCarat = '22K';
   final _goldItems = TextEditingController();
+
+  // Gold pledge: master data + multi-ornament rows.
+  final _goldPacket = TextEditingController();
+  List<Map<String, dynamic>> _ornTypes = [];
+  List<Map<String, dynamic>> _ornSpecs = [];
+  double? _goldRate;
+  final List<Map<String, String>> _ornaments = [_blankOrnament()];
+
+  static Map<String, String> _blankOrnament() => {
+        'type': '',
+        'spec': '',
+        'qty': '1',
+        'gross': '',
+        'wastage': '',
+        'net': '',
+        'rate': '',
+      };
+
+  Future<void> _loadGoldMaster() async {
+    try {
+      final svc = ref.read(goldServiceProvider);
+      final m = await svc.master();
+      final cfg = await svc.config();
+      if (!mounted) return;
+      setState(() {
+        _ornTypes = m.ornamentTypes;
+        _ornSpecs = m.ornamentSpecs;
+        final r = cfg['goldPureRatePerGram'];
+        _goldRate = r is num ? r.toDouble() : null;
+        if (_goldRate != null) {
+          for (final o in _ornaments) {
+            o['rate'] =
+                o['rate']!.isEmpty ? _goldRate!.toStringAsFixed(0) : o['rate']!;
+          }
+        }
+      });
+    } catch (_) {/* tolerate pre-migration */}
+  }
+
+  double _ornValue(Map<String, String> o) {
+    final gross = double.tryParse(o['gross'] ?? '') ?? 0;
+    final wastage = double.tryParse(o['wastage'] ?? '') ?? 0;
+    final netEntered = double.tryParse(o['net'] ?? '') ?? 0;
+    final net = netEntered > 0
+        ? netEntered
+        : (gross - wastage > 0 ? gross - wastage : 0);
+    final rate = double.tryParse(o['rate'] ?? '') ?? 0;
+    return (net * rate).roundToDouble();
+  }
+
+  Map<String, dynamic> _goldCollateralMap() => {
+        'packetNo':
+            _goldPacket.text.trim().isEmpty ? null : _goldPacket.text.trim(),
+        'marketRatePerGram': _goldRate,
+        'items': [
+          for (final o in _ornaments)
+            if ((o['type'] ?? '').isNotEmpty || (o['gross'] ?? '').isNotEmpty)
+              {
+                'ornamentType': o['type'],
+                'specification': (o['spec'] ?? '').isEmpty ? null : o['spec'],
+                'quantity': int.tryParse(o['qty'] ?? '1') ?? 1,
+                'grossWeightGrams': double.tryParse(o['gross'] ?? '') ?? 0,
+                'wastageGrams': double.tryParse(o['wastage'] ?? '') ?? 0,
+                if ((o['net'] ?? '').isNotEmpty)
+                  'netWeightGrams': double.tryParse(o['net'] ?? ''),
+                'ratePerGram': double.tryParse(o['rate'] ?? '') ?? 0,
+              },
+        ],
+      };
 
   // Property loan fields
   String _propertyType = 'residential';
@@ -104,8 +174,144 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
   String? _error;
   final _picker = ImagePicker();
 
+  List<Widget> _buildOrnamentRows(T tr) {
+    final rows = <Widget>[];
+    for (var i = 0; i < _ornaments.length; i++) {
+      final o = _ornaments[i];
+      rows.add(
+        Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            border: Border.all(color: AppColors.border),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(child: _ornTypeField(o)),
+                  const SizedBox(width: 8),
+                  Expanded(child: _ornSpecField(o)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(child: _ornNum(o, 'gross', 'Gross')),
+                  const SizedBox(width: 8),
+                  Expanded(child: _ornNum(o, 'wastage', 'Wastage')),
+                  const SizedBox(width: 8),
+                  Expanded(child: _ornNum(o, 'rate', 'Rate/g')),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Text(
+                    'Value: ₹${_ornValue(o).toStringAsFixed(0)}',
+                    style: AppTypography.bodyLarge.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primaryDark,),
+                  ),
+                  const Spacer(),
+                  if (_ornaments.length > 1)
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline,
+                          color: AppColors.danger,),
+                      onPressed: () => setState(() => _ornaments.removeAt(i)),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    rows.add(
+      OutlinedButton.icon(
+        onPressed: () => setState(
+          () => _ornaments.add(
+            _blankOrnament()..['rate'] = _goldRate?.toStringAsFixed(0) ?? '',
+          ),
+        ),
+        icon: const Icon(Icons.add),
+        label: const Text('Add ornament'),
+      ),
+    );
+    return rows;
+  }
+
+  Widget _ornTypeField(Map<String, String> o) {
+    if (_ornTypes.isEmpty) {
+      return TextFormField(
+        initialValue: o['type'],
+        decoration: const InputDecoration(
+            labelText: 'Ornament', isDense: true, border: OutlineInputBorder(),),
+        onChanged: (v) => o['type'] = v,
+      );
+    }
+    return DropdownButtonFormField<String>(
+      initialValue: (o['type'] ?? '').isEmpty ? null : o['type'],
+      isExpanded: true,
+      decoration: const InputDecoration(
+          labelText: 'Ornament', isDense: true, border: OutlineInputBorder(),),
+      items: [
+        for (final t in _ornTypes)
+          DropdownMenuItem(
+              value: t['name'] as String,
+              child:
+                  Text(t['name'] as String, overflow: TextOverflow.ellipsis),),
+      ],
+      onChanged: (v) => setState(() => o['type'] = v ?? ''),
+    );
+  }
+
+  Widget _ornSpecField(Map<String, String> o) {
+    if (_ornSpecs.isEmpty) {
+      return TextFormField(
+        initialValue: o['spec'],
+        decoration: const InputDecoration(
+            labelText: 'Spec', isDense: true, border: OutlineInputBorder(),),
+        onChanged: (v) => o['spec'] = v,
+      );
+    }
+    return DropdownButtonFormField<String>(
+      initialValue: (o['spec'] ?? '').isEmpty ? null : o['spec'],
+      isExpanded: true,
+      decoration: const InputDecoration(
+          labelText: 'Spec', isDense: true, border: OutlineInputBorder(),),
+      items: [
+        for (final s in _ornSpecs)
+          DropdownMenuItem(
+              value: s['name'] as String,
+              child:
+                  Text(s['name'] as String, overflow: TextOverflow.ellipsis),),
+      ],
+      onChanged: (v) => setState(() => o['spec'] = v ?? ''),
+    );
+  }
+
+  Widget _ornNum(Map<String, String> o, String key, String label) =>
+      TextFormField(
+        initialValue: o[key],
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: InputDecoration(
+            labelText: label,
+            isDense: true,
+            border: const OutlineInputBorder(),),
+        onChanged: (v) => setState(() => o[key] = v),
+      );
+
+  @override
+  void initState() {
+    super.initState();
+    _loadGoldMaster();
+  }
+
   @override
   void dispose() {
+    _goldPacket.dispose();
     _searchCtrl.dispose();
     for (final c in _cheques) {
       c.dispose();
@@ -167,7 +373,13 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
   }
 
   static const _weekdays = [
-    'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
   ];
   String _weekdayLabel(int d) => _weekdays[(d - 1).clamp(0, 6)];
 
@@ -258,11 +470,13 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
                 : _voucherRef.text.trim(),
             guarantor: guarantorPayload,
             securityCheques: cheques.isEmpty ? null : cheques,
+            goldCollateral: _loanType == 'gold' ? _goldCollateralMap() : null,
           );
       if (!mounted) return;
       final t = T.of(ref);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${t.x('msg.created_prefix')} ${loan.loanCode}')),
+        SnackBar(
+            content: Text('${t.x('msg.created_prefix')} ${loan.loanCode}'),),
       );
       context.go('/loans');
     } catch (e) {
@@ -286,7 +500,8 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
         actions: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-            child: Text('${t.x('step.label')} ${_step + 1}/5', style: AppTypography.caption),
+            child: Text('${t.x('step.label')} ${_step + 1}/5',
+                style: AppTypography.caption,),
           ),
         ],
         bottom: PreferredSize(
@@ -458,9 +673,8 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
                   return Container(
                     margin: const EdgeInsets.only(bottom: 8),
                     child: Material(
-                      color: selected
-                          ? AppColors.primaryLight
-                          : AppColors.surface,
+                      color:
+                          selected ? AppColors.primaryLight : AppColors.surface,
                       borderRadius: BorderRadius.circular(AppTokens.radius),
                       child: InkWell(
                         borderRadius: BorderRadius.circular(AppTokens.radius),
@@ -482,18 +696,18 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
                                 backgroundColor: AppColors.primary,
                                 child: Text(
                                   c.initials,
-                                  style:
-                                      const TextStyle(color: Colors.white),
+                                  style: const TextStyle(color: Colors.white),
                                 ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(c.name,
-                                        style: AppTypography.bodyLarge,),
+                                    Text(
+                                      c.name,
+                                      style: AppTypography.bodyLarge,
+                                    ),
                                     Text(
                                       '${c.customerCode} • ${c.phone}',
                                       style: AppTypography.caption.copyWith(
@@ -524,8 +738,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
   }
 
   Future<void> _openNewCustomer() async {
-    final result =
-        await context.push<Object?>('/customers/new?returnTo=loan');
+    final result = await context.push<Object?>('/customers/new?returnTo=loan');
     if (!mounted) return;
     ref.invalidate(customerListProvider);
     if (result is Customer) {
@@ -547,7 +760,11 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
           runSpacing: 8,
           children: [
             for (final lt in [
-              ('cheque', tr.x('lt.cheque'), Icons.account_balance_wallet_outlined),
+              (
+                'cheque',
+                tr.x('lt.cheque'),
+                Icons.account_balance_wallet_outlined
+              ),
               ('gold', tr.x('lt.gold'), Icons.diamond_outlined),
               ('property', tr.x('lt.property'), Icons.home_work_outlined),
             ])
@@ -586,33 +803,12 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
           const SizedBox(height: 16),
         ] else if (_loanType == 'gold') ...[
           AppTextField(
-            label: tr.x('fld.gold_weight'),
-            controller: _goldGrams,
-            keyboardType: TextInputType.number,
+            label: 'Packet No',
+            controller: _goldPacket,
+            hintText: 'e.g. P-001',
           ),
           const SizedBox(height: 12),
-          Text(tr.x('fld.gold_purity'), style: AppTypography.label),
-          const SizedBox(height: 6),
-          DropdownButtonFormField<String>(
-            initialValue: _goldCarat,
-            decoration: InputDecoration(
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-              ),
-              isDense: true,
-            ),
-            items: [
-              for (final c in ['18K', '20K', '22K', '24K'])
-                DropdownMenuItem(value: c, child: Text(c)),
-            ],
-            onChanged: (v) => setState(() => _goldCarat = v ?? '22K'),
-          ),
-          const SizedBox(height: 12),
-          AppTextField(
-            label: tr.x('fld.gold_items'),
-            controller: _goldItems,
-            hintText: 'e.g. 2 Bangles, 1 Chain',
-          ),
+          ..._buildOrnamentRows(tr),
           const SizedBox(height: 16),
         ] else if (_loanType == 'property') ...[
           Text(tr.x('fld.property_type'), style: AppTypography.label),
@@ -626,11 +822,17 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
               isDense: true,
             ),
             items: [
-              DropdownMenuItem(value: 'residential', child: Text(tr.x('fld.property_type_residential'))),
-              DropdownMenuItem(value: 'commercial', child: Text(tr.x('fld.property_type_commercial'))),
-              DropdownMenuItem(value: 'land', child: Text(tr.x('fld.property_type_land'))),
+              DropdownMenuItem(
+                  value: 'residential',
+                  child: Text(tr.x('fld.property_type_residential')),),
+              DropdownMenuItem(
+                  value: 'commercial',
+                  child: Text(tr.x('fld.property_type_commercial')),),
+              DropdownMenuItem(
+                  value: 'land', child: Text(tr.x('fld.property_type_land')),),
             ],
-            onChanged: (v) => setState(() => _propertyType = v ?? 'residential'),
+            onChanged: (v) =>
+                setState(() => _propertyType = v ?? 'residential'),
           ),
           const SizedBox(height: 12),
           AppTextField(
@@ -735,7 +937,8 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
         const SizedBox(height: 6),
         SegmentedButton<String>(
           segments: [
-            ButtonSegment(value: 'upfront_fixed', label: Text(tr.x('plan.upfront'))),
+            ButtonSegment(
+                value: 'upfront_fixed', label: Text(tr.x('plan.upfront')),),
             ButtonSegment(value: 'emi_flat', label: Text(tr.x('plan.emi'))),
           ],
           selected: {
@@ -955,8 +1158,9 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
                 setState(() => _gPhoto = File(x.path));
               },
               icon: const Icon(Icons.camera_alt_outlined, size: 16),
-              label:
-                  Text(_gPhoto == null ? tr.x('btn.choose_photo') : tr.x('btn.replace')),
+              label: Text(_gPhoto == null
+                  ? tr.x('btn.choose_photo')
+                  : tr.x('btn.replace'),),
             ),
           ],
         ),
@@ -997,50 +1201,51 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
               _kv(tr.x('rev.deduction'), _deduction.text),
               _kv(tr.x('rev.tenure'), _tenure.text),
               _kv(tr.x('rev.frequency'), _frequency),
-              _kv(tr.x('rev.start'), DateFormat('dd MMM yyyy').format(_startDate)),
+              _kv(tr.x('rev.start'),
+                  DateFormat('dd MMM yyyy').format(_startDate),),
               _kv(tr.x('rev.penalty'), _penaltyRate.text),
-              if (_loanType == 'cheque')
-                ...[
-                  if (_chequeBankName.text.isNotEmpty)
-                    _kv(tr.x('fld.bank_name'), _chequeBankName.text),
-                  if (_chequeNumber.text.isNotEmpty)
-                    _kv(tr.x('fld.cheque_no'), _chequeNumber.text),
-                  if (_chequeAmount.text.isNotEmpty)
-                    _kv(tr.x('fld.amount'), '₹${_chequeAmount.text}'),
-                ]
-              else if (_loanType == 'gold')
-                ...[
-                  _kv(tr.x('fld.gold_weight'), '${_goldGrams.text} g'),
-                  _kv(tr.x('fld.gold_purity'), _goldCarat),
-                  if (_goldItems.text.isNotEmpty)
-                    _kv(tr.x('fld.gold_items'), _goldItems.text),
-                ]
-              else if (_loanType == 'property')
-                ...[
-                  _kv(tr.x('fld.property_type'), _propertyType),
-                  if (_propertyValue.text.isNotEmpty)
-                    _kv(tr.x('fld.property_value'), '₹${_propertyValue.text}'),
-                  if (_propertyAddress.text.isNotEmpty)
-                    _kv(tr.x('fld.property_address'), _propertyAddress.text),
-                ],
+              if (_loanType == 'cheque') ...[
+                if (_chequeBankName.text.isNotEmpty)
+                  _kv(tr.x('fld.bank_name'), _chequeBankName.text),
+                if (_chequeNumber.text.isNotEmpty)
+                  _kv(tr.x('fld.cheque_no'), _chequeNumber.text),
+                if (_chequeAmount.text.isNotEmpty)
+                  _kv(tr.x('fld.amount'), '₹${_chequeAmount.text}'),
+              ] else if (_loanType == 'gold') ...[
+                _kv(tr.x('fld.gold_weight'), '${_goldGrams.text} g'),
+                _kv(tr.x('fld.gold_purity'), _goldCarat),
+                if (_goldItems.text.isNotEmpty)
+                  _kv(tr.x('fld.gold_items'), _goldItems.text),
+              ] else if (_loanType == 'property') ...[
+                _kv(tr.x('fld.property_type'), _propertyType),
+                if (_propertyValue.text.isNotEmpty)
+                  _kv(tr.x('fld.property_value'), '₹${_propertyValue.text}'),
+                if (_propertyAddress.text.isNotEmpty)
+                  _kv(tr.x('fld.property_address'), _propertyAddress.text),
+              ],
               if (_calc != null) ...[
                 const Divider(),
-                _kv(tr.x('rev.per_instalment'), fmt.format(_calc!.perInstalment)),
+                _kv(tr.x('rev.per_instalment'),
+                    fmt.format(_calc!.perInstalment),),
                 _kv(
                   tr.x('rev.net_disbursed'),
                   fmt.format(_netDisbursed()),
                 ),
-                _kv(tr.x('rev.total_payable'), fmt.format(_calc!.totalRepayable)),
+                _kv(tr.x('rev.total_payable'),
+                    fmt.format(_calc!.totalRepayable),),
                 _kv(
                   tr.x('rev.end_date'),
                   DateFormat('dd MMM yyyy').format(_calc!.endDate),
                 ),
               ],
               if (_cheques.isNotEmpty)
-                _kv(tr.x('rev.cheques'), '${_cheques.length} ${tr.x('rev.cheques_attached_suffix')}'),
+                _kv(tr.x('rev.cheques'),
+                    '${_cheques.length} ${tr.x('rev.cheques_attached_suffix')}',),
               if (_gName.text.trim().isNotEmpty)
-                _kv(tr.x('rev.guarantor'),
-                    '${_gName.text.trim()} • ${_gPhone.text.trim()}',),
+                _kv(
+                  tr.x('rev.guarantor'),
+                  '${_gName.text.trim()} • ${_gPhone.text.trim()}',
+                ),
               if (_voucherRef.text.trim().isNotEmpty)
                 _kv(tr.x('rev.voucher'), _voucherRef.text.trim()),
             ],
@@ -1171,7 +1376,8 @@ class _ChequeTile extends ConsumerWidget {
               OutlinedButton.icon(
                 onPressed: onPick,
                 icon: const Icon(Icons.camera_alt_outlined, size: 16),
-                label: Text(entry.image == null ? t.x('btn.photo') : t.x('btn.change')),
+                label: Text(
+                    entry.image == null ? t.x('btn.photo') : t.x('btn.change'),),
               ),
             ],
           ),
