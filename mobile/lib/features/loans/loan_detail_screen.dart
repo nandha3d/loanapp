@@ -13,6 +13,7 @@ import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/data/models/instalment.dart';
 import 'package:loantrack/data/models/loan.dart';
+import 'package:loantrack/features/loans/gold_servicing_sheet.dart';
 import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/data/models/collection_entry.dart';
 import 'package:loantrack/data/services/loan_service.dart';
@@ -47,6 +48,17 @@ class LoanDetailScreen extends ConsumerWidget {
         title: Text(t.x('title.loan_details')),
         centerTitle: true,
         actions: [
+          if (loaded != null && loaded.loanType == 'gold')
+            IconButton(
+              icon: const Icon(Icons.workspace_premium_outlined),
+              tooltip: 'Gold servicing',
+              onPressed: () => showModalBottomSheet<void>(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => GoldServicingSheet(loanId: loaded.id),
+              ),
+            ),
           if (loaded != null &&
               loaded.status != 'closed' &&
               ref.read(authControllerProvider).user?.role != UserRole.agent)

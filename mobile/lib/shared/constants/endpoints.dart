@@ -33,6 +33,13 @@ class Endpoints {
   static String loanInstalments(String id) => '/loans/$id/instalments';
   static const String newLoan = '/loans/new';
 
+  // Gold pledge module
+  static const String goldMaster = '/gold/master';
+  static const String goldConfig = '/gold/config';
+  static const String goldRate = '/gold/rate';
+  static const String goldReports = '/gold/reports';
+  static String goldServicing(String loanId) => '/gold/loans/$loanId/servicing';
+
   // Collection
   static const String collectionToday = '/collection/today';
   static String collectionByDate(String date) => '/collection/$date';
