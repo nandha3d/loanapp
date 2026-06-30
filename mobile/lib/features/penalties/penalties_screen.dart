@@ -45,10 +45,11 @@ class PenaltiesScreen extends ConsumerWidget {
     final status = ref.watch(_statusFilter);
     final routeFilter = ref.watch(_routeFilter);
     final async = ref.watch(_penaltiesProvider);
+    final t = T.of(ref);
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Penalties'), centerTitle: true),
+      appBar: AppBar(title: Text(t.x('penalty.title')), centerTitle: true),
       body: async.when(
         loading: () => _buildLoading(),
         error: (e, _) => _ErrorState(message: e.toString()),
@@ -85,6 +86,7 @@ class _PenaltiesBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final status = ref.watch(_statusFilter);
+    final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
 
     final routeMap = <String, String>{};
@@ -124,7 +126,7 @@ class _PenaltiesBody extends ConsumerWidget {
             children: [
               Expanded(
                 child: _SummaryCard(
-                  label: 'Total Gross',
+                  label: t.x('pen.total_gross'),
                   value: fmt.format(totalGross),
                   color: AppColors.danger,
                   bgColor: AppColors.dangerBg,
@@ -133,7 +135,7 @@ class _PenaltiesBody extends ConsumerWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: _SummaryCard(
-                  label: 'Settled',
+                  label: t.x('pen.settled'),
                   value: fmt.format(totalSettled),
                   color: AppColors.success,
                   bgColor: AppColors.successBg,
@@ -146,7 +148,7 @@ class _PenaltiesBody extends ConsumerWidget {
             children: [
               Expanded(
                 child: _SummaryCard(
-                  label: 'Waived',
+                  label: t.x('pen.waived'),
                   value: fmt.format(totalWaived),
                   color: AppColors.purple,
                   bgColor: AppColors.purpleBg,
@@ -155,7 +157,7 @@ class _PenaltiesBody extends ConsumerWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: _SummaryCard(
-                  label: 'Net Outstanding',
+                  label: t.x('pen.net_outstanding'),
                   value: fmt.format(netOutstanding),
                   color: AppColors.warning,
                   bgColor: AppColors.warningBg,
@@ -176,7 +178,9 @@ class _PenaltiesBody extends ConsumerWidget {
                     child: AnimatedContainer(
                       duration: AppTokens.transition,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8,),
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: active ? AppColors.primary : AppColors.surface,
                         borderRadius:
@@ -213,13 +217,19 @@ class _PenaltiesBody extends ConsumerWidget {
                   value: ref.watch(_routeFilter),
                   hint: Text(T.of(ref).x('pen.filter_route')),
                   isExpanded: true,
-                  icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.textLight),
+                  icon: const Icon(Icons.keyboard_arrow_down,
+                      color: AppColors.textLight),
                   items: [
-                    DropdownMenuItem(value: null, child: Text('All Routes', style: AppTypography.body)),
-                    ...routeMap.entries.map((e) => DropdownMenuItem(
-                      value: e.key,
-                      child: Text(e.value, style: AppTypography.body),
-                    ),),
+                    DropdownMenuItem(
+                        value: null,
+                        child: Text(t.x('coll.filter_all'),
+                            style: AppTypography.body)),
+                    ...routeMap.entries.map(
+                      (e) => DropdownMenuItem(
+                        value: e.key,
+                        child: Text(e.value, style: AppTypography.body),
+                      ),
+                    ),
                   ],
                   onChanged: (v) => ref.read(_routeFilter.notifier).state = v,
                 ),
@@ -233,9 +243,9 @@ class _PenaltiesBody extends ConsumerWidget {
               child: EmptyState(
                 icon: Icons.check_circle_outline,
                 title: status == 'all'
-                    ? 'No penalties recorded'
+                    ? t.x('pen.no_recorded')
                     : 'No $status penalties',
-                subtitle: 'Clean slate!',
+                subtitle: t.x('pen.clean_slate'),
               ),
             )
           else
@@ -378,13 +388,16 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
             child: Row(
               children: [
                 Expanded(
-                  child: Text(loans.first.customerName,
-                      style: AppTypography.bodyLarge,),
+                  child: Text(
+                    loans.first.customerName,
+                    style: AppTypography.bodyLarge,
+                  ),
                 ),
                 if (multi)
                   Row(
                     children: [
-                      const Icon(Icons.swipe, size: 14, color: AppColors.textLight),
+                      const Icon(Icons.swipe,
+                          size: 14, color: AppColors.textLight),
                       const SizedBox(width: 4),
                       Text(
                         '${_page + 1}/${loans.length} ${t.x('pen.loans')}',
@@ -444,74 +457,87 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
     return InkWell(
       onTap: () => _showSkippedDays(g),
       child: Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                g.loanCode,
-                style: AppTypography.caption.copyWith(color: AppColors.primary),
-              ),
-              if (g.skippedDays > 0) ...[
-                const SizedBox(width: 8),
-                _SkippedChip(days: g.skippedDays),
-              ],
-              const Spacer(),
-              AppBadge(label: g.status.toUpperCase(), kind: badgeKind),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              _AmountCol(label: 'Gross', value: fmt.format(g.gross), color: AppColors.danger),
-              _AmountCol(label: 'Settled', value: fmt.format(g.settled), color: AppColors.success),
-              _AmountCol(label: 'Waived', value: fmt.format(g.waived), color: AppColors.purple),
-              _AmountCol(label: 'Net Due', value: fmt.format(g.net), color: AppColors.warning),
-            ],
-          ),
-          const Spacer(),
-          if (g.hasPending)
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Row(
               children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: () => _showSettleSheet(g),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: AppColors.onPrimary,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    icon: const Icon(Icons.payments_outlined, size: 18),
-                    label: const Text('Settle'),
-                  ),
+                Text(
+                  g.loanCode,
+                  style:
+                      AppTypography.caption.copyWith(color: AppColors.primary),
                 ),
-                if (isAdmin) ...[
-                  const SizedBox(width: 10),
+                if (g.skippedDays > 0) ...[
+                  const SizedBox(width: 8),
+                  _SkippedChip(days: g.skippedDays),
+                ],
+                const Spacer(),
+                AppBadge(label: g.status.toUpperCase(), kind: badgeKind),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _AmountCol(
+                    label: t.x('pen.gross'),
+                    value: fmt.format(g.gross),
+                    color: AppColors.danger),
+                _AmountCol(
+                    label: t.x('pen.settled'),
+                    value: fmt.format(g.settled),
+                    color: AppColors.success),
+                _AmountCol(
+                    label: t.x('pen.waived'),
+                    value: fmt.format(g.waived),
+                    color: AppColors.purple),
+                _AmountCol(
+                    label: t.x('pen.net_due'),
+                    value: fmt.format(g.net),
+                    color: AppColors.warning),
+              ],
+            ),
+            const Spacer(),
+            if (g.hasPending)
+              Row(
+                children: [
                   Expanded(
                     child: FilledButton.icon(
-                      onPressed: () => _confirmWaive(g),
+                      onPressed: () => _showSettleSheet(g),
                       style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.ink,
-                        foregroundColor: AppColors.onInk,
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: AppColors.onPrimary,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      icon: const Icon(Icons.block_outlined, size: 18),
-                      label: const Text('Waive'),
+                      icon: const Icon(Icons.payments_outlined, size: 18),
+                      label: Text(t.x('btn.settle')),
                     ),
                   ),
+                  if (isAdmin) ...[
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: () => _confirmWaive(g),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.ink,
+                          foregroundColor: AppColors.onInk,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon: const Icon(Icons.block_outlined, size: 18),
+                        label: Text(t.x('btn.waive')),
+                      ),
+                    ),
+                  ],
                 ],
-              ],
-            ),
-        ],
-      ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -549,13 +575,15 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
                 ),
               ),
               const SizedBox(height: 16),
-              Text('${g.customerName} · ${g.loanCode}',
-                  style: AppTypography.sectionTitle,),
+              Text(
+                '${g.customerName} · ${g.loanCode}',
+                style: AppTypography.sectionTitle,
+              ),
               const SizedBox(height: 4),
               Text(
                 '${g.skippedDays} ${t.x('pen.days_skipped')}',
-                style: AppTypography.caption
-                    .copyWith(color: AppColors.danger, fontWeight: FontWeight.w700),
+                style: AppTypography.caption.copyWith(
+                    color: AppColors.danger, fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 16),
               FutureBuilder<Loan>(
@@ -570,8 +598,10 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
                   if (snap.hasError || snap.data == null) {
                     return Padding(
                       padding: const EdgeInsets.all(16),
-                      child: Text(t.x('pen.heatmap_failed'),
-                          style: AppTypography.caption,),
+                      child: Text(
+                        t.x('pen.heatmap_failed'),
+                        style: AppTypography.caption,
+                      ),
                     );
                   }
                   return LoanHeatmap(
@@ -590,7 +620,8 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
   /// Settles [amount] across the loan's pending penalties, oldest first.
   Future<void> _settleGroup(_LoanPenaltyGroup g, double amount) async {
     final svc = ref.read(penaltyServiceProvider);
-    final pend = [...g.pending]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    final pend = [...g.pending]
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
     var remaining = amount;
     for (final p in pend) {
       if (remaining <= 0) break;
@@ -684,7 +715,9 @@ class _CustomerPenaltyCardState extends ConsumerState<_CustomerPenaltyCard> {
                 child: Text(
                   t.x('pen.confirm_settle'),
                   style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.w600,),
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
@@ -726,8 +759,10 @@ class _SkippedChip extends StatelessWidget {
         children: [
           const Icon(Icons.event_busy, size: 12, color: AppColors.danger),
           const SizedBox(width: 4),
-          Text('${days}d',
-              style: AppTypography.tiny.copyWith(color: AppColors.danger),),
+          Text(
+            '${days}d',
+            style: AppTypography.tiny.copyWith(color: AppColors.danger),
+          ),
         ],
       ),
     );
@@ -763,12 +798,12 @@ class _AmountCol extends StatelessWidget {
   }
 }
 
-class _ErrorState extends StatelessWidget {
+class _ErrorState extends ConsumerWidget {
   const _ErrorState({required this.message});
   final String message;
 
   @override
-  Widget build(BuildContext context) => Center(
+  Widget build(BuildContext context, WidgetRef ref) => Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -776,7 +811,8 @@ class _ErrorState extends StatelessWidget {
             children: [
               const Icon(Icons.cloud_off, size: 48, color: AppColors.textLight),
               const SizedBox(height: 12),
-              Text('Failed to load', style: AppTypography.sectionTitle),
+              Text(T.of(ref).x('pen.failed_to_load'),
+                  style: AppTypography.sectionTitle),
               const SizedBox(height: 6),
               Text(
                 message,
@@ -820,7 +856,9 @@ class _WaiveDialogState extends ConsumerState<_WaiveDialog> {
     final reason = _reasonController.text.trim();
     if (reason.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.x('pen.reason_required')), backgroundColor: AppColors.warning),
+        SnackBar(
+            content: Text(t.x('pen.reason_required')),
+            backgroundColor: AppColors.warning),
       );
       return;
     }
@@ -833,7 +871,9 @@ class _WaiveDialogState extends ConsumerState<_WaiveDialog> {
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(t.x('pen.waived')), backgroundColor: AppColors.success),
+          SnackBar(
+              content: Text(t.x('pen.waived')),
+              backgroundColor: AppColors.success),
         );
         Navigator.pop(context, true);
       }
@@ -847,7 +887,8 @@ class _WaiveDialogState extends ConsumerState<_WaiveDialog> {
     final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
     return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radius)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTokens.radius)),
       title: Text('Waive Penalty - ${widget.customerName}'),
       content: SingleChildScrollView(
         child: Column(
@@ -873,18 +914,24 @@ class _WaiveDialogState extends ConsumerState<_WaiveDialog> {
       actions: [
         TextButton(
           onPressed: _submitting ? null : () => Navigator.pop(context, false),
-          child: const Text('Cancel'),
+          child: Text(t.x('common.cancel')),
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.ink,
             foregroundColor: AppColors.onInk,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radiusSm)),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppTokens.radiusSm)),
           ),
           onPressed: _submitting ? null : _submit,
           child: _submitting
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Text('Waive', style: TextStyle(color: AppColors.onInk)),
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white))
+              : Text(t.x('btn.waive'),
+                  style: const TextStyle(color: AppColors.onInk)),
         ),
       ],
     );

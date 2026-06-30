@@ -148,6 +148,9 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
   String _propertyType = 'residential';
   final _propertyValue = TextEditingController();
   final _propertyAddress = TextEditingController();
+  File? _propertyTitleDeedImage;
+  File? _propertyEcImage;
+  File? _propertyTaxReceiptImage;
 
   // Product finance fields
   final _productName = TextEditingController();
@@ -159,6 +162,91 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
   final _productInvoiceNo = TextEditingController();
   final _productInvoiceAmount = TextEditingController();
   final _productDownPayment = TextEditingController();
+  File? _productInvoiceImage;
+  File? _productPhotoImage;
+
+  Future<void> _pickPropertyDoc(String type) async {
+    final src = await _showImagePickerSheet();
+    if (src == null) return;
+    final x = await _picker.pickImage(
+      source: src,
+      maxWidth: 1200,
+      maxHeight: 1200,
+      imageQuality: 80,
+    );
+    if (x == null) return;
+    setState(() {
+      if (type == 'titleDeed') _propertyTitleDeedImage = File(x.path);
+      if (type == 'ec') _propertyEcImage = File(x.path);
+      if (type == 'tax') _propertyTaxReceiptImage = File(x.path);
+    });
+  }
+
+  Future<void> _pickProductDoc(String type) async {
+    final src = await _showImagePickerSheet();
+    if (src == null) return;
+    final x = await _picker.pickImage(
+      source: src,
+      maxWidth: 1200,
+      maxHeight: 1200,
+      imageQuality: 80,
+    );
+    if (x == null) return;
+    setState(() {
+      if (type == 'invoice') _productInvoiceImage = File(x.path);
+      if (type == 'photo') _productPhotoImage = File(x.path);
+    });
+  }
+
+  Widget _buildDocUploadTile({
+    required String label,
+    required File? file,
+    required VoidCallback onPick,
+    required VoidCallback onClear,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: AppTypography.caption.copyWith(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text(
+                  file != null ? file.path.split(Platform.isWindows ? '\\' : '/').last : 'No file selected',
+                  style: AppTypography.caption.copyWith(color: AppColors.textLight),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          if (file != null) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: Image.file(file, width: 40, height: 40, fit: BoxFit.cover),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: AppColors.danger),
+              onPressed: onClear,
+            ),
+          ] else
+            IconButton(
+              icon: Icon(Icons.camera_alt_outlined, color: AppColors.primary),
+              onPressed: onPick,
+            ),
+        ],
+      ),
+    );
+  }
 
   // Step 2 — principal/terms
   final _principal = TextEditingController(text: '30000');
@@ -428,7 +516,11 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
     return '';
   }
 
-  Map<String, dynamic> _propertyCollateralMap() => {
+  Map<String, dynamic> _propertyCollateralMap({
+    String? titleDeedPath,
+    String? ecPath,
+    String? taxReceiptPath,
+  }) => {
         'propertyType': _propertyType,
         'address': _propertyAddress.text.trim().isEmpty
             ? null
@@ -436,9 +528,15 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
         'marketValue': _propertyValue.text.trim().isEmpty
             ? null
             : double.tryParse(_propertyValue.text),
+        'titleDeedPath': titleDeedPath,
+        'ecPath': ecPath,
+        'taxReceiptPath': taxReceiptPath,
       };
 
-  Map<String, dynamic> _productItemMap() => {
+  Map<String, dynamic> _productItemMap({
+    String? invoicePath,
+    String? photoPath,
+  }) => {
         'category': _productCategory.text.trim().isEmpty
             ? null
             : _productCategory.text.trim(),
@@ -465,6 +563,8 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
         'downPayment': _productDownPayment.text.trim().isEmpty
             ? null
             : double.tryParse(_productDownPayment.text),
+        'invoicePath': invoicePath,
+        'photoPath': photoPath,
       };
 
   double _netDisbursed() {
@@ -559,6 +659,33 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
         };
       }
 
+      String? propertyTitleDeedUrl;
+      if (_propertyTitleDeedImage != null) {
+        final r = await uploader.uploadFile(_propertyTitleDeedImage!);
+        propertyTitleDeedUrl = r.url;
+      }
+      String? propertyEcUrl;
+      if (_propertyEcImage != null) {
+        final r = await uploader.uploadFile(_propertyEcImage!);
+        propertyEcUrl = r.url;
+      }
+      String? propertyTaxReceiptUrl;
+      if (_propertyTaxReceiptImage != null) {
+        final r = await uploader.uploadFile(_propertyTaxReceiptImage!);
+        propertyTaxReceiptUrl = r.url;
+      }
+
+      String? productInvoiceUrl;
+      if (_productInvoiceImage != null) {
+        final r = await uploader.uploadFile(_productInvoiceImage!);
+        productInvoiceUrl = r.url;
+      }
+      String? productPhotoUrl;
+      if (_productPhotoImage != null) {
+        final r = await uploader.uploadFile(_productPhotoImage!);
+        productPhotoUrl = r.url;
+      }
+
       final loan = await ref.read(loanServiceProvider).create(
             customerId: _customer!.id,
             principal: _principalNum,
@@ -577,9 +704,19 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
             guarantor: guarantorPayload,
             securityCheques: cheques.isEmpty ? null : cheques,
             goldCollateral: _loanType == 'gold' ? _goldCollateralMap() : null,
-            propertyCollateral:
-                _loanType == 'property' ? _propertyCollateralMap() : null,
-            productItem: _loanType == 'other' ? _productItemMap() : null,
+            propertyCollateral: _loanType == 'property'
+                ? _propertyCollateralMap(
+                    titleDeedPath: propertyTitleDeedUrl,
+                    ecPath: propertyEcUrl,
+                    taxReceiptPath: propertyTaxReceiptUrl,
+                  )
+                : null,
+            productItem: _loanType == 'other'
+                ? _productItemMap(
+                    invoicePath: productInvoiceUrl,
+                    photoPath: productPhotoUrl,
+                  )
+                : null,
           );
       if (!mounted) return;
       final t = T.of(ref);
@@ -975,6 +1112,27 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
             controller: _propertyAddress,
             hintText: tr.x('fld.address'),
           ),
+          const SizedBox(height: 12),
+          Text('Collateral Documents', style: AppTypography.sectionTitle),
+          const SizedBox(height: 8),
+          _buildDocUploadTile(
+            label: 'Title Deed',
+            file: _propertyTitleDeedImage,
+            onPick: () => _pickPropertyDoc('titleDeed'),
+            onClear: () => setState(() => _propertyTitleDeedImage = null),
+          ),
+          _buildDocUploadTile(
+            label: 'Encumbrance Certificate (EC)',
+            file: _propertyEcImage,
+            onPick: () => _pickPropertyDoc('ec'),
+            onClear: () => setState(() => _propertyEcImage = null),
+          ),
+          _buildDocUploadTile(
+            label: 'Tax Receipt',
+            file: _propertyTaxReceiptImage,
+            onPick: () => _pickPropertyDoc('tax'),
+            onClear: () => setState(() => _propertyTaxReceiptImage = null),
+          ),
           const SizedBox(height: 16),
         ] else if (_loanType == 'other') ...[
           AppTextField(
@@ -1048,6 +1206,21 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 12),
+          Text('Collateral Documents', style: AppTypography.sectionTitle),
+          const SizedBox(height: 8),
+          _buildDocUploadTile(
+            label: 'Invoice / Bill',
+            file: _productInvoiceImage,
+            onPick: () => _pickProductDoc('invoice'),
+            onClear: () => setState(() => _productInvoiceImage = null),
+          ),
+          _buildDocUploadTile(
+            label: 'Product Verification Photo',
+            file: _productPhotoImage,
+            onPick: () => _pickProductDoc('photo'),
+            onClear: () => setState(() => _productPhotoImage = null),
           ),
           const SizedBox(height: 16),
         ],

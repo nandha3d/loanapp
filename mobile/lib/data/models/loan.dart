@@ -25,6 +25,8 @@ class Loan {
     this.loanType,
     this.collateralDetails,
     this.dueDay,
+    this.propertyCollateral,
+    this.productFinanceItem,
   });
 
   final String id;
@@ -48,6 +50,8 @@ class Loan {
   final double totalPayable;
   final double totalCollected;
   final double perInstalment;
+  final Map<String, dynamic>? propertyCollateral;
+  final Map<String, dynamic>? productFinanceItem;
 
   factory Loan.fromJson(Map<String, dynamic> json) {
     double num$(dynamic v) {
@@ -83,6 +87,8 @@ class Loan {
       totalPayable: num$(json['totalPayable']),
       totalCollected: num$(json['totalCollected']),
       perInstalment: num$(json['perInstalment']),
+      propertyCollateral: json['propertyCollateral'] as Map<String, dynamic>?,
+      productFinanceItem: json['productFinanceItem'] as Map<String, dynamic>?,
       instalments: (json['instalments'] as List<dynamic>? ?? const [])
           .map((dynamic e) => Instalment.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),

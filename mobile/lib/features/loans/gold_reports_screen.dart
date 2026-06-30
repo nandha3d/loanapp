@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/data/services/gold_service.dart';
@@ -57,8 +58,9 @@ class _GoldReportsScreenState extends ConsumerState<GoldReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = T.of(ref);
     return Scaffold(
-      appBar: AppBar(title: const Text('Gold Pledge Report'), centerTitle: true),
+      appBar: AppBar(title: Text(t.x('gold.pledge_report')), centerTitle: true),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -68,6 +70,7 @@ class _GoldReportsScreenState extends ConsumerState<GoldReportsScreen> {
   }
 
   Widget _body() {
+    final t = T.of(ref);
     final s = _summary ?? {};
     final rows = (_pending?['rows'] as List<dynamic>? ?? []);
     return ListView(
@@ -79,7 +82,8 @@ class _GoldReportsScreenState extends ConsumerState<GoldReportsScreen> {
           children: [
             _kpi('Active pledges', '${s['activePledges'] ?? 0}'),
             _kpi('Total loan', _fmt.format(s['totalLoanAmount'] ?? 0)),
-            _kpi('Pending interest', _fmt.format(s['totalPendingInterest'] ?? 0)),
+            _kpi('Pending interest',
+                _fmt.format(s['totalPendingInterest'] ?? 0)),
             _kpi(
               'Active net wt',
               '${((s['activeOrnamentWeight'] as Map?)?['net'] ?? 0)} g',
@@ -93,9 +97,9 @@ class _GoldReportsScreenState extends ConsumerState<GoldReportsScreen> {
         ),
         const SizedBox(height: 8),
         if (rows.isEmpty)
-          const Padding(
+          Padding(
             padding: EdgeInsets.all(20),
-            child: Center(child: Text('No active pledges')),
+            child: Center(child: Text(t.x('gold.no_active_pledges'))),
           )
         else
           ...rows.map((r) {
@@ -161,8 +165,8 @@ class _GoldReportsScreenState extends ConsumerState<GoldReportsScreen> {
             const SizedBox(height: 4),
             Text(
               value,
-              style: AppTypography.bodyLarge
-                  .copyWith(fontWeight: FontWeight.w800),
+              style:
+                  AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.w800),
             ),
           ],
         ),

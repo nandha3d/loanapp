@@ -14,6 +14,8 @@ import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/data/models/instalment.dart';
 import 'package:loantrack/data/models/loan.dart';
 import 'package:loantrack/features/loans/gold_servicing_sheet.dart';
+import 'package:loantrack/features/loans/property_servicing_sheet.dart';
+import 'package:loantrack/features/loans/product_servicing_sheet.dart';
 import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/data/models/collection_entry.dart';
 import 'package:loantrack/data/services/loan_service.dart';
@@ -64,12 +66,34 @@ class LoanDetailScreen extends ConsumerWidget {
           if (loaded != null && loaded.loanType == 'gold')
             IconButton(
               icon: const Icon(Icons.workspace_premium_outlined),
-              tooltip: 'Gold servicing',
+              tooltip: t.x('gold.servicing'),
               onPressed: () => showModalBottomSheet<void>(
                 context: context,
                 isScrollControlled: true,
                 backgroundColor: Colors.transparent,
                 builder: (_) => GoldServicingSheet(loanId: loaded.id),
+              ),
+            ),
+          if (loaded != null && loaded.loanType == 'property')
+            IconButton(
+              icon: const Icon(Icons.home_work_outlined),
+              tooltip: 'Property servicing',
+              onPressed: () => showModalBottomSheet<void>(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => PropertyServicingSheet(loan: loaded),
+              ),
+            ),
+          if (loaded != null && loaded.loanType == 'other')
+            IconButton(
+              icon: const Icon(Icons.shopping_bag_outlined),
+              tooltip: 'Product servicing',
+              onPressed: () => showModalBottomSheet<void>(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => ProductServicingSheet(loan: loaded),
               ),
             ),
           if (loaded != null &&
@@ -161,6 +185,12 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
         _LoanPillRow(loan: loan),
         const SizedBox(height: 14),
         _buildSummaryCards(loan, fmt, progress, paid),
+        if (loan.loanType == 'gold' ||
+            loan.loanType == 'property' ||
+            loan.loanType == 'other') ...[
+          const SizedBox(height: 14),
+          _buildCollateralDetailsCard(loan, fmt),
+        ],
         const SizedBox(height: 14),
         LoanHeatmap(
           instalments: displayInstalments,
@@ -289,6 +319,187 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildCollateralDetailsCard(Loan loan, NumberFormat fmt) {
+    if (loan.loanType == 'property') {
+      final pc = loan.propertyCollateral;
+      if (pc == null) return const SizedBox();
+      final isReleased = (pc['mortgageStatus'] ?? 'mortgaged') == 'released';
+
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppTokens.radius),
+          boxShadow: AppTokens.shadow,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('🏡 Property Collateral', style: AppTypography.bodyLarge),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isReleased
+                        ? AppColors.success.withAlpha(28)
+                        : AppColors.danger.withAlpha(28),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    isReleased ? 'Released' : 'Mortgaged',
+                    style: AppTypography.caption.copyWith(
+                      color: isReleased ? AppColors.success : AppColors.danger,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            _detailRow('Type',
+                (pc['propertyType'] ?? 'residential').toString().toUpperCase()),
+            _detailRow('Value', '₹ ${pc['marketValue'] ?? '—'}'),
+            _detailRow('Address', (pc['address'] ?? '—').toString()),
+            if (pc['titleDeedPath'] != null ||
+                pc['ecPath'] != null ||
+                pc['taxReceiptPath'] != null) ...[
+              const SizedBox(height: 12),
+              Text('Documents',
+                  style: AppTypography.caption
+                      .copyWith(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  if (pc['titleDeedPath'] != null)
+                    _docPill('Title Deed', pc['titleDeedPath'].toString()),
+                  if (pc['ecPath'] != null)
+                    _docPill('EC', pc['ecPath'].toString()),
+                  if (pc['taxReceiptPath'] != null)
+                    _docPill('Tax Receipt', pc['taxReceiptPath'].toString()),
+                ],
+              ),
+            ],
+          ],
+        ),
+      );
+    } else if (loan.loanType == 'other') {
+      final pi = loan.productFinanceItem;
+      if (pi == null) return const SizedBox();
+      final isRepossessed =
+          (pi['repossessionStatus'] ?? 'active') == 'repossessed';
+
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppTokens.radius),
+          boxShadow: AppTokens.shadow,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('📱 Product Financing', style: AppTypography.bodyLarge),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isRepossessed
+                        ? AppColors.danger.withAlpha(28)
+                        : AppColors.success.withAlpha(28),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    isRepossessed ? 'Repossessed' : 'Active',
+                    style: AppTypography.caption.copyWith(
+                      color:
+                          isRepossessed ? AppColors.danger : AppColors.success,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            _detailRow(
+                'Product', '${pi['brand'] ?? ''} ${pi['productName'] ?? ''}'),
+            _detailRow('Model / Serial',
+                '${pi['modelNo'] ?? '—'} / ${pi['serialNo'] ?? '—'}'),
+            _detailRow('Invoice Amount', '₹ ${pi['invoiceAmount'] ?? '—'}'),
+            _detailRow('Dealer', (pi['dealerName'] ?? '—').toString()),
+            if (pi['invoicePath'] != null || pi['photoPath'] != null) ...[
+              const SizedBox(height: 12),
+              Text('Documents',
+                  style: AppTypography.caption
+                      .copyWith(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  if (pi['invoicePath'] != null)
+                    _docPill('Invoice', pi['invoicePath'].toString()),
+                  if (pi['photoPath'] != null)
+                    _docPill('Photo Verification', pi['photoPath'].toString()),
+                ],
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+    return const SizedBox();
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(label,
+                style:
+                    AppTypography.caption.copyWith(color: AppColors.textLight)),
+          ),
+          Expanded(
+              child: Text(value,
+                  style: AppTypography.caption
+                      .copyWith(color: AppColors.textPrimary))),
+        ],
+      ),
+    );
+  }
+
+  Widget _docPill(String label, String url) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withAlpha(15),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primary.withAlpha(40)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.description_outlined, size: 14, color: AppColors.primary),
+          const SizedBox(width: 4),
+          Text(label,
+              style: AppTypography.tiny.copyWith(
+                  color: AppColors.primary, fontWeight: FontWeight.bold)),
+        ],
+      ),
     );
   }
 
@@ -1214,6 +1425,7 @@ class _LoanBottomBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isClosed = loan.status == 'closed';
+    final t = T.of(ref);
 
     return SafeArea(
       top: false,
@@ -1230,7 +1442,7 @@ class _LoanBottomBar extends ConsumerWidget {
               child: OutlinedButton.icon(
                 onPressed: () => _exportStatement(context, ref),
                 icon: const Icon(Icons.picture_as_pdf_outlined),
-                label: const Text('Statement'),
+                label: Text(t.x('loan.statement')),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
@@ -1245,7 +1457,7 @@ class _LoanBottomBar extends ConsumerWidget {
                 child: FilledButton.icon(
                   onPressed: () => _showActionSheet(context, ref),
                   icon: const Icon(Icons.tune_outlined),
-                  label: const Text('Actions'),
+                  label: Text(t.x('loan.actions')),
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
@@ -1289,6 +1501,7 @@ class _LoanBottomBar extends ConsumerWidget {
   }
 
   void _showActionSheet(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     showModalBottomSheet<void>(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -1312,7 +1525,7 @@ class _LoanBottomBar extends ConsumerWidget {
               ListTile(
                 leading: const Icon(Icons.check_circle_outline,
                     color: AppColors.success),
-                title: const Text('Mark as Closed'),
+                title: Text(t.x('loan.mark_closed')),
                 subtitle: const Text('Settle all dues and close this loan'),
                 onTap: () {
                   Navigator.pop(ctx);
@@ -1322,7 +1535,7 @@ class _LoanBottomBar extends ConsumerWidget {
               ListTile(
                 leading:
                     Icon(Icons.autorenew_outlined, color: AppColors.primary),
-                title: const Text('Renew Loan'),
+                title: Text(t.x('loan.renew')),
                 subtitle:
                     const Text('Create a renewal package for the customer'),
                 onTap: () {
@@ -1333,7 +1546,7 @@ class _LoanBottomBar extends ConsumerWidget {
               ListTile(
                 leading: const Icon(Icons.offline_pin_outlined,
                     color: AppColors.warning),
-                title: const Text('Pre-close / Foreclosure'),
+                title: Text(t.x('loan.preclose')),
                 subtitle:
                     const Text('Calculate pre-closure charges and settle'),
                 onTap: () {
@@ -1349,6 +1562,7 @@ class _LoanBottomBar extends ConsumerWidget {
   }
 
   void _confirmAction(BuildContext context, WidgetRef ref, String action) {
+    final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
     final totalCollected = loan.totalCollected;
     final totalRepayable = loan.totalPayable;
@@ -1366,7 +1580,7 @@ class _LoanBottomBar extends ConsumerWidget {
           return StatefulBuilder(
             builder: (context, setState) {
               return AlertDialog(
-                title: const Text('Close Loan'),
+                title: Text(t.x('loan.close_loan')),
                 content: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1393,7 +1607,7 @@ class _LoanBottomBar extends ConsumerWidget {
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(ctx),
-                    child: const Text('Cancel'),
+                    child: Text(t.x('common.cancel')),
                   ),
                   FilledButton(
                     style: FilledButton.styleFrom(
@@ -1424,7 +1638,7 @@ class _LoanBottomBar extends ConsumerWidget {
                         }
                       }
                     },
-                    child: const Text('Confirm'),
+                    child: Text(t.x('coll.confirm')),
                   ),
                 ],
               );
@@ -1446,7 +1660,7 @@ class _LoanBottomBar extends ConsumerWidget {
           return StatefulBuilder(
             builder: (context, setState) {
               return AlertDialog(
-                title: const Text('Preclose Loan'),
+                title: Text(t.x('loan.preclose')),
                 content: SingleChildScrollView(
                   child: Form(
                     key: formKey,
@@ -1481,16 +1695,18 @@ class _LoanBottomBar extends ConsumerWidget {
                         const SizedBox(height: 16),
                         DropdownButtonFormField<String>(
                           initialValue: paymentMode,
-                          decoration: const InputDecoration(
-                            labelText: 'Payment Mode',
-                            border: OutlineInputBorder(),
+                          decoration: InputDecoration(
+                            labelText: t.x('loan.payment_mode'),
+                            border: const OutlineInputBorder(),
                           ),
-                          items: const [
+                          items: [
                             DropdownMenuItem(
-                                value: 'cash', child: Text('Cash')),
-                            DropdownMenuItem(value: 'upi', child: Text('UPI')),
+                                value: 'cash', child: Text(t.x('coll.cash'))),
                             DropdownMenuItem(
-                                value: 'bank', child: Text('Bank Transfer')),
+                                value: 'upi', child: Text(t.x('coll.upi'))),
+                            DropdownMenuItem(
+                                value: 'bank',
+                                child: Text(t.x('loan.bank_transfer'))),
                           ],
                           onChanged: (val) {
                             if (val != null) {
@@ -1503,9 +1719,9 @@ class _LoanBottomBar extends ConsumerWidget {
                         const SizedBox(height: 16),
                         TextFormField(
                           controller: remarksController,
-                          decoration: const InputDecoration(
-                            labelText: 'Remarks',
-                            border: OutlineInputBorder(),
+                          decoration: InputDecoration(
+                            labelText: t.x('loan.remarks'),
+                            border: const OutlineInputBorder(),
                           ),
                         ),
                       ],
@@ -1515,7 +1731,7 @@ class _LoanBottomBar extends ConsumerWidget {
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(ctx),
-                    child: const Text('Cancel'),
+                    child: Text(t.x('common.cancel')),
                   ),
                   FilledButton(
                     style: FilledButton.styleFrom(
@@ -1551,7 +1767,7 @@ class _LoanBottomBar extends ConsumerWidget {
                         }
                       }
                     },
-                    child: const Text('Confirm'),
+                    child: Text(t.x('coll.confirm')),
                   ),
                 ],
               );
@@ -1573,7 +1789,7 @@ class _LoanBottomBar extends ConsumerWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
+              child: Text(t.x('common.cancel')),
             ),
             FilledButton(
               style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
@@ -1602,7 +1818,7 @@ class _LoanBottomBar extends ConsumerWidget {
                   }
                 }
               },
-              child: const Text('Confirm'),
+              child: Text(t.x('coll.confirm')),
             ),
           ],
         ),
