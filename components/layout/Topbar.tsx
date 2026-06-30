@@ -46,7 +46,8 @@ export default function Topbar({
       '/loans': dict.sidebar.loans,
       '/loans/new': dict.loans.newLoan,
       '/penalties': dict.sidebar.penalties,
-      '/reports': dict.sidebar.reports,
+      '/analytics': dict.sidebar.analytics || dict.sidebar.reports || 'Reports & Analytics',
+      '/reports': dict.sidebar.reports || 'Reports',
       '/notifications': dict.sidebar.notifications,
       '/settings': dict.sidebar.settings,
     };
