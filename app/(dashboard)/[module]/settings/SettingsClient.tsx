@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { saveSystemSettings, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, deleteLoanPackage, assignAgentToRoute, removeAgentFromRoute, setPrimaryAgent, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections, saveUpiQrCode, saveNotificationSettings, saveBureauSettings, saveThemeSettings } from './actions';
+import { saveSystemSettings, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, deleteLoanPackage, assignAgentToRoute, removeAgentFromRoute, setPrimaryAgent, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections, saveUpiQrCode, saveNotificationSettings, saveBureauSettings, saveThemeSettings, saveNotificationTemplate } from './actions';
 import { THEME_PRESETS, THEME_SETTING_KEY } from '@/lib/themes';
 import Modal from '@/components/Modal';
 import Link from 'next/link';
@@ -11,15 +11,19 @@ import GoldMasterClient from './gold-master/GoldMasterClient';
 
 export default function SettingsClient({
   routes, packages, users, settings, currencySymbol, dict, currentUser, subscription, bureauCredential,
-  viewerRole, appType, branchAgents = [], manageBranchId = null, manageBranchName = null, goldMaster = null, goldConfig = null
+  viewerRole, appType, branchAgents = [], manageBranchId = null, manageBranchName = null, goldMaster = null, goldConfig = null,
+  notificationTemplates = []
 }: {
   routes: any[], packages: any[], users: any[], settings: Record<string, string>, currencySymbol: string, dict: any, currentUser: any, subscription: any, bureauCredential: any,
-  viewerRole?: string, appType?: string, branchAgents?: any[], manageBranchId?: string | null, manageBranchName?: string | null, goldMaster?: any, goldConfig?: any
+  viewerRole?: string, appType?: string, branchAgents?: any[], manageBranchId?: string | null, manageBranchName?: string | null, goldMaster?: any, goldConfig?: any,
+  notificationTemplates?: any[]
 }) {
   const d = dict.settings;
   const searchParams = useSearchParams();
   // Tab survives reloads via ?tab= (history.replaceState avoids a server round-trip).
   const [activeTab, setActiveTabState] = useState(searchParams.get('tab') || 'routes');
+  const [selectedEvent, setSelectedEvent] = useState('payment_received');
+  const [selectedLang, setSelectedLang] = useState('en');
   const setActiveTab = (tab: string) => {
     setActiveTabState(tab);
     const params = new URLSearchParams(window.location.search);
@@ -874,6 +878,235 @@ export default function SettingsClient({
             <span className="material-icons-outlined" style={{ fontSize: '16px' }}>save</span> {loading ? 'Saving...' : 'Save Settings'}
           </button>
         </form>
+
+        {/* Custom Notification Templates Editor */}
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: '24px', marginTop: '30px' }}>
+          <div style={{ marginBottom: '16px' }}>
+            <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--primary-dark)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="material-icons-outlined">edit_note</span>
+              Custom Messages & Templates Editor
+            </h4>
+            <p style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+              Select a trigger event and target language to edit message bodies for SMS, WhatsApp, and Push channels.
+            </p>
+          </div>
+
+          {/* Selector Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+            <div className="form-group">
+              <label className="form-label" style={{ fontSize: '.8rem', fontWeight: 600 }}>Trigger Event</label>
+              <select 
+                className="form-control" 
+                value={selectedEvent} 
+                onChange={(e) => setSelectedEvent(e.target.value)}
+              >
+                <option value="payment_received">Payment Received</option>
+                <option value="payment_due_reminder">Due Date Reminder</option>
+                <option value="loan_disbursed">Loan Disbursed</option>
+                <option value="loan_overdue">Loan Overdue</option>
+                <option value="loan_closed">Loan Closed</option>
+                <option value="penalty_accrued">Penalty Accrued</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" style={{ fontSize: '.8rem', fontWeight: 600 }}>Language</label>
+              <select 
+                className="form-control" 
+                value={selectedLang} 
+                onChange={(e) => setSelectedLang(e.target.value)}
+              >
+                <option value="en">English (EN)</option>
+                <option value="ta">Tamil (TA)</option>
+                <option value="hi">Hindi (HI)</option>
+                <option value="te">Telugu (TE)</option>
+                <option value="kn">Kannada (KN)</option>
+                <option value="ml">Malayalam (ML)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Template Form */}
+          {(() => {
+            const smsTemp = notificationTemplates.find(t => t.name === selectedEvent && t.lang === selectedLang && t.channel === 'sms');
+            const waTemp = notificationTemplates.find(t => t.name === selectedEvent && t.lang === selectedLang && t.channel === 'whatsapp');
+            const pushTemp = notificationTemplates.find(t => t.name === selectedEvent && t.lang === selectedLang && t.channel === 'push');
+
+            return (
+              <form action={async (fd) => {
+                setLoading(true);
+                const smsActive = fd.get('sms_active') === 'true';
+                const waActive = fd.get('whatsapp_active') === 'true';
+                const pushActive = fd.get('push_active') === 'true';
+
+                const [resSms, resWa, resPush] = await Promise.all([
+                  saveNotificationTemplate({
+                    name: selectedEvent,
+                    lang: selectedLang,
+                    channel: 'sms',
+                    body: fd.get('sms_body') as string,
+                    isActive: smsActive,
+                  }),
+                  saveNotificationTemplate({
+                    name: selectedEvent,
+                    lang: selectedLang,
+                    channel: 'whatsapp',
+                    body: fd.get('whatsapp_body') as string,
+                    isActive: waActive,
+                  }),
+                  saveNotificationTemplate({
+                    name: selectedEvent,
+                    lang: selectedLang,
+                    channel: 'push',
+                    subject: fd.get('push_subject') as string,
+                    body: fd.get('push_body') as string,
+                    isActive: pushActive,
+                  })
+                ]);
+
+                setLoading(false);
+                if (resSms.success && resWa.success && resPush.success) {
+                  showToast('Notification templates saved successfully!');
+                  router.refresh();
+                } else {
+                  alert('Failed to save templates. Please check auth / input values.');
+                }
+              }} style={{ background: 'var(--bg-alt)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '20px', display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px' }}>
+                
+                {/* Channels Editor Inputs */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  
+                  {/* SMS */}
+                  <div style={{ paddingBottom: '16px', borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <strong style={{ fontSize: '.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span className="material-icons-outlined" style={{ fontSize: '18px', color: 'var(--primary)' }}>sms</span>
+                        SMS Message Template
+                      </strong>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '.8rem' }}>
+                        <input type="checkbox" name="sms_active" value="true" defaultChecked={smsTemp ? smsTemp.isActive : true} key={`${selectedEvent}-${selectedLang}-sms-active`} />
+                        Active
+                      </label>
+                    </div>
+                    <textarea 
+                      name="sms_body" 
+                      className="form-control" 
+                      rows={3} 
+                      defaultValue={smsTemp?.body || ''} 
+                      placeholder={`e.g. Hi {customer}, we received {amount} for loan {loan_code}.`}
+                      key={`${selectedEvent}-${selectedLang}-sms-body`}
+                      required
+                    />
+                  </div>
+
+                  {/* WhatsApp */}
+                  <div style={{ paddingBottom: '16px', borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <strong style={{ fontSize: '.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span className="material-icons-outlined" style={{ fontSize: '18px', color: '#25D366' }}>whatsapp</span>
+                        WhatsApp Message Template
+                      </strong>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '.8rem' }}>
+                        <input type="checkbox" name="whatsapp_active" value="true" defaultChecked={waTemp ? waTemp.isActive : true} key={`${selectedEvent}-${selectedLang}-wa-active`} />
+                        Active
+                      </label>
+                    </div>
+                    <textarea 
+                      name="whatsapp_body" 
+                      className="form-control" 
+                      rows={3} 
+                      defaultValue={waTemp?.body || ''} 
+                      placeholder={`e.g. 👋 Hi {customer}, ₹{amount} has been received for loan {loan_code}.`}
+                      key={`${selectedEvent}-${selectedLang}-wa-body`}
+                      required
+                    />
+                  </div>
+
+                  {/* Push Notification */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <strong style={{ fontSize: '.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span className="material-icons-outlined" style={{ fontSize: '18px', color: '#FF9900' }}>notifications_active</span>
+                        Push Notification Template
+                      </strong>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '.8rem' }}>
+                        <input type="checkbox" name="push_active" value="true" defaultChecked={pushTemp ? pushTemp.isActive : true} key={`${selectedEvent}-${selectedLang}-push-active`} />
+                        Active
+                      </label>
+                    </div>
+                    <div className="form-group" style={{ marginBottom: '8px' }}>
+                      <label className="form-label" style={{ fontSize: '.75rem' }}>Push Title / Subject</label>
+                      <input 
+                        type="text" 
+                        name="push_subject" 
+                        className="form-control" 
+                        defaultValue={pushTemp?.subject || ''} 
+                        placeholder="e.g. Payment Confirmation"
+                        key={`${selectedEvent}-${selectedLang}-push-subject`}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '.75rem' }}>Push Body</label>
+                      <textarea 
+                        name="push_body" 
+                        className="form-control" 
+                        rows={3} 
+                        defaultValue={pushTemp?.body || ''} 
+                        placeholder={`e.g. Hi {customer}, ₹{amount} has been received for loan {loan_code}.`}
+                        key={`${selectedEvent}-${selectedLang}-push-body`}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: '10px' }}>
+                    <button type="submit" className="btn btn-primary" disabled={loading}>
+                      <span className="material-icons-outlined" style={{ fontSize: '16px' }}>save</span>
+                      {loading ? 'Saving Templates...' : 'Save Selected Templates'}
+                    </button>
+                  </div>
+
+                </div>
+
+                {/* Placeholder Cheatsheet */}
+                <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: '20px', fontSize: '.8rem', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <h5 style={{ margin: 0, fontWeight: 700, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span className="material-icons-outlined" style={{ fontSize: '16px' }}>info</span>
+                    Placeholders Key
+                  </h5>
+                  <p style={{ color: 'var(--text-light)', margin: 0 }}>
+                    Copy and paste these placeholder tags in your template bodies. They resolve dynamically upon notification dispatch:
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {[
+                      { token: '{customer}', desc: 'Customer name' },
+                      { token: '{amount}', desc: 'Transaction/Due amount' },
+                      { token: '{due_date}', desc: 'Instalment due date' },
+                      { token: '{loan_code}', desc: 'Unique loan number' },
+                      { token: '{days}', desc: 'Days overdue' },
+                      { token: '{penalty}', desc: 'Accrued penalty charge' },
+                      { token: '{balance}', desc: 'Remaining loan balance' },
+                      { token: '{orgName}', desc: 'Tenant organization name' },
+                      { token: '{firstDue}', desc: 'First instalment due date' }
+                    ].map(({ token, desc }) => (
+                      <div key={token} style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '4px', padding: '6px 8px' }}>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--primary-dark)', cursor: 'pointer' }} onClick={() => {
+                          if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                            navigator.clipboard.writeText(token);
+                            showToast(`Copied ${token} to clipboard!`);
+                          }
+                        }} title="Click to copy">{token}</span>
+                        <span style={{ color: 'var(--text-light)', fontSize: '.72rem', marginTop: '2px' }}>{desc}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+              </form>
+            );
+          })()}
+
+        </div>
       </div>
 
       {/* Bulk Tools Tab */}

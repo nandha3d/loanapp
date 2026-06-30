@@ -39,7 +39,7 @@ export const MODULE_ROUTES: Record<ModuleKey, string[]> = {
   productfinance: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard'],
 };
 
-const MODULE_SHARED_ROUTES = ['/dashboard', '/settings', '/subscription', '/branch-requests', '/affiliate', '/kyc-review', '/module-requests', '/wallet'];
+const MODULE_SHARED_ROUTES = ['/dashboard', '/settings', '/subscription', '/profile', '/branch-requests', '/affiliate', '/kyc-review', '/module-requests', '/wallet'];
 const DASHBOARD_EXTERNAL_PREFIXES = [
   '/admin',
   '/api',
@@ -107,9 +107,9 @@ export function normalizeModuleList(value: unknown): ModuleKey[] {
 
 export function moduleForRoute(path: string): ModuleKey | null {
   const { page } = parseModulePath(path);
-  for (const module of ALL_MODULES) {
-    if (MODULE_ROUTES[module].some((route) => page === route || page.startsWith(`${route}/`))) {
-      return module;
+  for (const moduleKey of ALL_MODULES) {
+    if (MODULE_ROUTES[moduleKey].some((route) => page === route || page.startsWith(`${route}/`))) {
+      return moduleKey;
     }
   }
   return null;
@@ -123,8 +123,8 @@ export function isRouteEnabledForModules(path: string, modules: readonly string[
   }
 
   // Check if at least one enabled module supports this route
-  for (const module of activeModules) {
-    if (MODULE_ROUTES[module]?.some((route) => page === route || page.startsWith(`${route}/`))) {
+  for (const moduleKey of activeModules) {
+    if (MODULE_ROUTES[moduleKey]?.some((route) => page === route || page.startsWith(`${route}/`))) {
       return true;
     }
   }

@@ -49,6 +49,7 @@ export default function Topbar({
       '/reports': dict.sidebar.reports,
       '/notifications': dict.sidebar.notifications,
       '/settings': dict.sidebar.settings,
+      '/profile': (dict.sidebar as any).profile || 'Profile',
     };
     if (map[pathname]) return map[pathname];
     if (pathname.startsWith('/customers/')) return dict.customers.title;

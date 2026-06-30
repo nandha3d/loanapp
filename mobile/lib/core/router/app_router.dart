@@ -36,6 +36,7 @@ import 'package:loantrack/features/more/more_screen.dart';
 import 'package:loantrack/features/notifications/notifications_screen.dart';
 import 'package:loantrack/features/npa/npa_screen.dart';
 import 'package:loantrack/features/penalties/penalties_screen.dart';
+import 'package:loantrack/features/profile/superadmin_profile_screen.dart';
 import 'package:loantrack/features/reports/reports_screen.dart';
 import 'package:loantrack/features/wallet/wallet_screen.dart';
 import 'package:loantrack/features/settings/settings_screen.dart';
@@ -170,6 +171,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, __) => const GoldReportsScreen(),
       ),
       GoRoute(path: '/admin', builder: (_, __) => const DeveloperAdminScreen()),
+      GoRoute(
+        path: '/profile',
+        builder: (_, __) => const SuperadminProfileScreen(),
+      ),
       GoRoute(path: '/portal', builder: (_, __) => const PortalScreen()),
       GoRoute(
         path: '/admin/team',
@@ -447,6 +452,11 @@ bool _moduleBlocked(String location, User user) {
   // /portal (app selector/hub)
   if (location == '/portal') {
     return user.role != UserRole.superadmin && user.role != UserRole.admin;
+  }
+
+  // /profile (superadmin account/subscription/security profile)
+  if (location == '/profile') {
+    return user.role != UserRole.superadmin;
   }
 
   // /portal/billing

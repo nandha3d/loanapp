@@ -21,6 +21,9 @@ class Endpoints {
   static const String refreshToken = '/auth/refresh';
   static const String googleAuth = '/auth/google';
   static const String pricing = '/pricing';
+  static const String profile = '/profile';
+  static const String profilePasswordOtp = '/profile/password/otp';
+  static const String profilePasswordChange = '/profile/password/change';
 
   // Customers
   static const String customers = '/customers';

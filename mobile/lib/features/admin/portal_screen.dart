@@ -153,6 +153,21 @@ class PortalScreen extends ConsumerWidget {
                     style:
                         AppTypography.caption.copyWith(color: Colors.white70),
                   ),
+                  if (user?.role == UserRole.superadmin) ...[
+                    const SizedBox(height: 14),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          padding: EdgeInsets.zero,
+                        ),
+                        icon: const Icon(Icons.account_circle_outlined),
+                        label: const Text('View profile'),
+                        onPressed: () => context.push('/profile'),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -256,7 +271,9 @@ class PortalScreen extends ConsumerWidget {
                 AppColors.purpleText,
                 'My Subscription',
                 'View plan details and usage',
-                '/admin/billing',
+                user?.role == UserRole.developer
+                    ? '/admin/billing'
+                    : '/portal/billing',
               ),
             ],
           ],

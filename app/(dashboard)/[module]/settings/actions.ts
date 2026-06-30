@@ -845,3 +845,58 @@ export async function saveBureauSettings(formData: FormData) {
   return { success: true };
 }
 
+export async function saveNotificationTemplate(data: {
+  name: string;
+  channel: string;
+  lang: string;
+  subject?: string | null;
+  body: string;
+  isActive?: boolean;
+}) {
+  const session = await auth();
+  const role = (session?.user as any)?.role;
+  const userId = session?.user?.id;
+  if (!userId || !['admin', 'superadmin', 'developer'].includes(role)) {
+    return { success: false, error: 'Unauthorized' };
+  }
+  const tenantId = await getDefaultTenantId();
+
+  await prisma.notificationTemplate.upsert({
+    where: {
+      tenantId_name_channel_lang: {
+        tenantId,
+        name: data.name,
+        channel: data.channel,
+        lang: data.lang,
+      },
+    },
+    update: {
+      subject: data.subject || null,
+      body: data.body,
+      isActive: data.isActive ?? true,
+    },
+    create: {
+      tenantId,
+      name: data.name,
+      channel: data.channel,
+      lang: data.lang,
+      subject: data.subject || null,
+      body: data.body,
+      isActive: data.isActive ?? true,
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId,
+      userId,
+      action: 'update',
+      entityType: 'notification_template',
+      newValue: JSON.stringify({ name: data.name, channel: data.channel, lang: data.lang }),
+    },
+  });
+
+  revalidatePath('/settings');
+  return { success: true };
+}
+

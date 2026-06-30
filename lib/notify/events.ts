@@ -3,6 +3,7 @@ import { getSetting } from '../tenant';
 import { sendSms } from './channels/sms';
 import { sendWhatsApp } from './channels/whatsapp';
 import { sendEmail } from './channels/email';
+import { sendPushToUsers } from './channels/push';
 
 // ── Message templates (EN / TA / HI) ─────────────────────────────────────────
 
@@ -57,6 +58,70 @@ const WA_TEMPLATES: Record<EventKey, string> = {
   penalty_accrued:      'lt_penalty_accrued',
 };
 
+function interpolateTemplate(template: string, d: Record<string, string>): string {
+  let result = template;
+  const replacements: Record<string, string> = {
+    '{customer}': d.name || '',
+    '{amount}': d.amount || '',
+    '{due_date}': d.date || '',
+    '{loan_code}': d.loanCode || '',
+    '{firstDue}': d.firstDue || '',
+    '{days}': d.days || '',
+    '{penalty}': d.penalty || '',
+    '{balance}': d.balance || '',
+    '{orgName}': d.orgName || '',
+    '{start_date}': d.start_date || d.startDate || '',
+    '{per_instalment}': d.per_instalment || d.perInstalment || '',
+    '{principal}': d.principal || '',
+
+    '{{customer_name}}': d.name || '',
+    '{{amount}}': d.amount || '',
+    '{{due_date}}': d.date || '',
+    '{{loan_code}}': d.loanCode || '',
+    '{{days}}': d.days || '',
+    '{{penalty}}': d.penalty || '',
+    '{{balance}}': d.balance || '',
+    '{{currency_symbol}}': '₹',
+    '{{principal}}': d.principal || '',
+    '{{start_date}}': d.start_date || d.startDate || '',
+    '{{per_instalment}}': d.per_instalment || d.perInstalment || '',
+  };
+
+  for (const [key, value] of Object.entries(replacements)) {
+    result = result.replaceAll(key, value);
+  }
+  return result;
+}
+
+function extractPlaceholders(template: string, d: Record<string, string>): string[] {
+  const regex = /\{([^}]+)\}|\{\{([^}]+)\}\}/g;
+  const variables: string[] = [];
+  let match;
+
+  const replacements: Record<string, string> = {
+    'customer': d.name || '',
+    'customer_name': d.name || '',
+    'amount': d.amount || '',
+    'due_date': d.date || '',
+    'loan_code': d.loanCode || '',
+    'firstDue': d.firstDue || '',
+    'days': d.days || '',
+    'penalty': d.penalty || '',
+    'balance': d.balance || '',
+    'orgName': d.orgName || '',
+    'start_date': d.start_date || d.startDate || '',
+    'per_instalment': d.per_instalment || d.perInstalment || '',
+    'principal': d.principal || '',
+    'currency_symbol': '₹',
+  };
+
+  while ((match = regex.exec(template)) !== null) {
+    const key = match[1] || match[2];
+    variables.push(replacements[key] ?? '');
+  }
+  return variables;
+}
+
 // ── Core dispatcher ───────────────────────────────────────────────────────────
 
 interface NotifyParams {
@@ -96,19 +161,61 @@ export async function notify(params: NotifyParams): Promise<void> {
     const notificationsActive = await getSetting(tenantId, 'whatsapp_sms_active', 'true');
     if (notificationsActive === 'false') return;
 
-    const l = ['en', 'ta', 'hi'].includes(lang) ? lang : 'en';
+    const languages = ['en', 'ta', 'hi', 'te', 'kn', 'ml'];
+    const l = languages.includes(lang) ? lang : 'en';
     const appName = await getSetting(tenantId, 'app_name', 'LoanTrack');
     const enrichedData = { orgName: appName, ...data };
-    const message = MESSAGES[event]?.[l]?.(enrichedData) ?? MESSAGES[event]?.en?.(enrichedData) ?? '';
+
+    // Fetch database templates for this event
+    const dbTemplates = await prisma.notificationTemplate.findMany({
+      where: {
+        tenantId,
+        name: event,
+        lang: { in: [l, 'en'] },
+      },
+    });
+
+    const getTemplate = (channel: string): string | null => {
+      const t = dbTemplates.find((temp) => temp.channel === channel && temp.lang === l)
+        || dbTemplates.find((temp) => temp.channel === channel && temp.lang === 'en');
+      return t?.isActive ? t.body : null;
+    };
+
+    const getTemplateSubject = (channel: string): string | null => {
+      const t = dbTemplates.find((temp) => temp.channel === channel && temp.lang === l)
+        || dbTemplates.find((temp) => temp.channel === channel && temp.lang === 'en');
+      return t?.isActive ? t.subject : null;
+    };
+
+    const smsBodyTemplate = getTemplate('sms');
+    const waBodyTemplate = getTemplate('whatsapp');
+    const pushBodyTemplate = getTemplate('push');
+
+    const defaultSmsMessage = MESSAGES[event]?.[l]?.(enrichedData)
+      || MESSAGES[event]?.en?.(enrichedData)
+      || '';
+
+    const message = smsBodyTemplate
+      ? interpolateTemplate(smsBodyTemplate, enrichedData)
+      : defaultSmsMessage;
 
     const notifyMeta = { ...meta, event };
 
     // Try WhatsApp & SMS if allowed by subscription
     if (sub?.whatsappSmsEnabled) {
-      const waVarsToSend = waVars ?? Object.values(data);
-      const waSent = await sendWhatsApp(
-        tenantId, phone, WA_TEMPLATES[event], waVarsToSend, notifyMeta
-      );
+      let waSent = { success: false };
+
+      if (waBodyTemplate) {
+        const parsedWaVars = extractPlaceholders(waBodyTemplate, enrichedData);
+        waSent = await sendWhatsApp(
+          tenantId, phone, WA_TEMPLATES[event], parsedWaVars.length > 0 ? parsedWaVars : (waVars ?? Object.values(data)), notifyMeta
+        );
+      } else {
+        const waVarsToSend = waVars ?? Object.values(data);
+        waSent = await sendWhatsApp(
+          tenantId, phone, WA_TEMPLATES[event], waVarsToSend, notifyMeta
+        );
+      }
 
       if (!waSent.success) {
         // WhatsApp failed or not configured — try SMS
@@ -116,6 +223,47 @@ export async function notify(params: NotifyParams): Promise<void> {
       }
     } else {
       console.log(`[Notification Shield] WhatsApp/SMS disabled by subscription for tenant: ${tenantId}`);
+    }
+
+    // Try push notifications if configured and customer has active device tokens
+    let customerUserId: string | null = null;
+    if (meta?.entityType === 'customer' && meta?.entityId) {
+      const cust = await prisma.customer.findUnique({
+        where: { id: meta.entityId },
+        select: { userId: true },
+      });
+      customerUserId = cust?.userId || null;
+    } else if (meta?.entityType === 'loan' && meta?.entityId) {
+      const ln = await prisma.loan.findUnique({
+        where: { id: meta.entityId },
+        select: { customer: { select: { userId: true } } },
+      });
+      customerUserId = ln?.customer?.userId || null;
+    } else {
+      const cust = await prisma.customer.findFirst({
+        where: { tenantId, phone },
+        select: { userId: true },
+      });
+      customerUserId = cust?.userId || null;
+    }
+
+    if (customerUserId && pushBodyTemplate) {
+      const pushBody = interpolateTemplate(pushBodyTemplate, enrichedData);
+      const customSubject = getTemplateSubject('push');
+      const pushSubject = customSubject
+        ? interpolateTemplate(customSubject, enrichedData)
+        : 'LoanTrack Alert';
+
+      await sendPushToUsers([customerUserId], {
+        title: pushSubject,
+        body: pushBody,
+        data: {
+          event,
+          click_action: `/loans/${meta?.entityId || ''}`,
+        },
+      }).catch((err) => {
+        console.error('Failed to send push notification:', err);
+      });
     }
 
     // Email (independent of SMS/WA — send if configured and email provided)

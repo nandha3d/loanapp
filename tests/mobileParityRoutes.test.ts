@@ -31,6 +31,9 @@ const mobileV1Routes = [
   'app/api/v1/notifications/route.ts',
   'app/api/v1/settings/route.ts',
   'app/api/v1/settings/payment-gateway/route.ts',
+  'app/api/v1/profile/route.ts',
+  'app/api/v1/profile/password/otp/route.ts',
+  'app/api/v1/profile/password/change/route.ts',
 ];
 
 for (const route of mobileV1Routes) {
