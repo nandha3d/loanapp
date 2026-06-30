@@ -16,6 +16,7 @@ import {
   isRouteEnabledForModules,
   modulePath,
   normalizeModuleList,
+  parseModulePath,
   type ModuleKey,
 } from '@/types/modules';
 import { getSubscription, isTenantSubscriptionExpired } from '@/lib/subscription';
@@ -38,7 +39,7 @@ export default async function DashboardLayout({
     redirect('/login');
   }
 
-  const user = session.user as any;
+  const user = session.user as { id?: string; name?: string | null; role?: string };
   const role = user.role as string;
   const userId = user.id as string;
   const { module } = await params;
@@ -66,7 +67,12 @@ export default async function DashboardLayout({
     enabledModules = await getActiveModules();
   }
 
-  if (!enabledModules.includes(requestedModule)) {
+  const headerStore = await headers();
+  const pathname = headerStore.get('x-loantrack-path') || '';
+  const pagePath = pathname ? parseModulePath(pathname).page : '';
+  const isSharedProfileRoute = pagePath === '/profile';
+
+  if (!enabledModules.includes(requestedModule) && !isSharedProfileRoute) {
     const fallback = enabledModules[0];
     if (fallback) {
       redirect(modulePath(fallback, '/dashboard'));
@@ -74,8 +80,6 @@ export default async function DashboardLayout({
     redirect('/portal');
   }
 
-  const headerStore = await headers();
-  const pathname = headerStore.get('x-loantrack-path') || '';
   if (pathname && !isRouteEnabledForModules(pathname, [requestedModule])) {
     notFound();
   }

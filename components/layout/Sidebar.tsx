@@ -79,6 +79,7 @@ export default function Sidebar({
     { id: 'settings', icon: 'settings', label: dict.sidebar.settings, href: '/settings', adminOnly: true },
     { id: 'payment-gateway', icon: 'account_balance', label: 'Payments Gateway', href: '/settings/payment-gateway', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan', 'property', 'productfinance'] },
     { section: dict.sidebar.sections.account },
+    { id: 'profile', icon: 'account_circle', label: (dict.sidebar as any).profile || 'Profile', href: '/profile', superadminOnly: true },
     { id: 'branch-requests', icon: 'account_tree', label: dict.sidebar.branchRequests, href: '/branch-requests', superadminOnly: true },
     { id: 'subscription', icon: 'credit_card', label: dict.sidebar.subscription, href: '/subscription', superadminOnly: true },
     { id: 'affiliate', icon: 'handshake', label: dict.sidebar.affiliate || 'Affiliate Program', href: '/affiliate', superadminOnly: true },
@@ -110,7 +111,7 @@ export default function Sidebar({
 
     // Check if the route is enabled for the active app module
     if (item.href) {
-      const alwaysVisible = ['/dashboard', '/agent-dashboard', '/collection', '/approvals', '/settings', '/notifications', '/subscription', '/affiliate', '/portal', '/admin', '/kyc-review', '/wallet'];
+      const alwaysVisible = ['/dashboard', '/agent-dashboard', '/collection', '/approvals', '/settings', '/notifications', '/subscription', '/profile', '/affiliate', '/portal', '/admin', '/kyc-review', '/wallet'];
       if (!alwaysVisible.some((path) => item.href!.startsWith(path))) {
         const routeEnabled = MODULE_ROUTES[userAppType as ModuleKey]?.some((route: string) =>
           item.href!.startsWith(route)

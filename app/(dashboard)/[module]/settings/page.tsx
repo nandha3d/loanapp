@@ -20,7 +20,7 @@ export default async function SettingsPage() {
   const tenantId = await getDefaultTenantId();
   const dict = await getDictionary(tenantId);
   
-  const [routes, rawPackages, users, settings, currentUser, subscription, bureauCredential] = await Promise.all([
+  const [routes, rawPackages, users, settings, currentUser, subscription, bureauCredential, notificationTemplates] = await Promise.all([
     prisma.route.findMany({ 
       where: { tenantId, appType },
       include: { 
@@ -35,6 +35,7 @@ export default async function SettingsPage() {
     prisma.user.findUnique({ where: { id: session?.user?.id } }),
     getSubscription(tenantId),
     prisma.bureauCredential.findUnique({ where: { tenantId } }),
+    prisma.notificationTemplate.findMany({ where: { tenantId } }),
   ]);
 
   const packages = rawPackages.map(p => ({
@@ -159,6 +160,7 @@ export default async function SettingsPage() {
       branchAgents={branchAgents}
       manageBranchId={manageBranchId}
       manageBranchName={manageBranchName}
+      notificationTemplates={notificationTemplates}
     />
   );
 }

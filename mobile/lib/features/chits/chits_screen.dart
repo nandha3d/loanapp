@@ -579,7 +579,7 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
         return StatefulBuilder(
           builder: (ctx, setLocal) {
             return AlertDialog(
-              title: const Text('Collect contribution'),
+              title: Text(t.x('ch.collect_contribution')),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -597,7 +597,7 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                     DropdownButtonFormField<String>(
                       initialValue: memberId,
                       isExpanded: true,
-                      decoration: const InputDecoration(labelText: 'Member'),
+                      decoration: InputDecoration(labelText: t.x('ch.member')),
                       items: members
                           .map(
                             (m) => DropdownMenuItem(
@@ -617,17 +617,20 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                     TextField(
                       controller: amountCtrl,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Amount'),
+                      decoration: InputDecoration(labelText: t.x('fld.amount')),
                     ),
                     const SizedBox(height: 10),
                     DropdownButtonFormField<String>(
                       initialValue: paymentMode,
                       decoration:
-                          const InputDecoration(labelText: 'Payment mode'),
-                      items: const [
-                        DropdownMenuItem(value: 'cash', child: Text('Cash')),
-                        DropdownMenuItem(value: 'upi', child: Text('UPI')),
-                        DropdownMenuItem(value: 'bank', child: Text('Bank')),
+                          InputDecoration(labelText: t.x('ch.payment_mode')),
+                      items: [
+                        DropdownMenuItem(
+                            value: 'cash', child: Text(t.x('coll.cash'))),
+                        DropdownMenuItem(
+                            value: 'upi', child: Text(t.x('coll.upi'))),
+                        DropdownMenuItem(
+                            value: 'bank', child: Text(t.x('coll.bank'))),
                       ],
                       onChanged: (v) {
                         if (v != null) paymentMode = v;
@@ -636,7 +639,7 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                     const SizedBox(height: 10),
                     TextField(
                       controller: noteCtrl,
-                      decoration: const InputDecoration(labelText: 'Note'),
+                      decoration: InputDecoration(labelText: t.x('ch.note')),
                     ),
                   ],
                 ),
@@ -691,7 +694,7 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                             strokeWidth: 2,
                           ),
                         )
-                      : const Text('Collect'),
+                      : Text(t.x('btn.collect')),
                 ),
               ],
             );
@@ -705,8 +708,8 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
     if (saved == true && mounted) {
       _reload();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Contribution collected'),
+        SnackBar(
+          content: Text(t.x('ch.contribution_collected')),
           backgroundColor: AppColors.success,
         ),
       );
@@ -991,7 +994,7 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                     child: FilledButton.icon(
                       onPressed: _collectContribution,
                       icon: const Icon(Icons.payments_outlined, size: 18),
-                      label: const Text('Collect'),
+                      label: Text(t.x('btn.collect')),
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         padding: const EdgeInsets.symmetric(vertical: 12),

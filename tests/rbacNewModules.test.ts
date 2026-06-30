@@ -25,6 +25,9 @@ const adminRoutes = [
   ['admin users', 'app/api/v1/admin/users/route.ts'],
   ['admin branches', 'app/api/v1/admin/branches/route.ts'],
   ['admin billing', 'app/api/v1/admin/billing/route.ts'],
+  ['superadmin profile', 'app/api/v1/profile/route.ts'],
+  ['superadmin profile OTP', 'app/api/v1/profile/password/otp/route.ts'],
+  ['superadmin profile password', 'app/api/v1/profile/password/change/route.ts'],
   ['developer pricing plans', 'app/api/developer/pricing/plans/route.ts'],
 ] as const;
 

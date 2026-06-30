@@ -56,6 +56,9 @@ export async function GET(
       penalties: { orderBy: { createdAt: 'desc' } },
       collaterals: true,
       guarantor: true,
+      goldCollateral: true,
+      propertyCollateral: true,
+      productFinanceItem: true,
       payments: {
         orderBy: { paymentDate: 'asc' }
       }

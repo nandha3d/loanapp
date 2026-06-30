@@ -24,6 +24,7 @@ class TextScaleController extends StateNotifier<double> {
   Future<void> _hydrate() async {
     final box = await _openBox();
     final v = (box.get(_kTextScaleKey) as num?)?.toDouble();
+    if (!mounted) return;
     if (v != null && kTextScaleSteps.contains(v)) state = v;
   }
 
@@ -50,6 +51,7 @@ class SimpleModeController extends StateNotifier<bool> {
 
   Future<void> _hydrate() async {
     final box = await _openBox();
+    if (!mounted) return;
     state = (box.get(_kSimpleModeKey) as bool?) ?? false;
   }
 
@@ -72,6 +74,7 @@ class DarkModeController extends StateNotifier<bool> {
 
   Future<void> _hydrate() async {
     final box = await _openBox();
+    if (!mounted) return;
     state = (box.get(_kDarkModeKey) as bool?) ?? false;
   }
 
@@ -94,6 +97,7 @@ class ApiBaseUrlController extends StateNotifier<String?> {
   Future<void> _hydrate() async {
     final box = await _openBox();
     final value = (box.get(_kApiBaseUrlKey) as String?)?.trim();
+    if (!mounted) return;
     state = value == null || value.isEmpty ? null : value;
   }
 

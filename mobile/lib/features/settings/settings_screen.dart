@@ -221,6 +221,29 @@ class SettingsScreen extends ConsumerWidget {
                 if (user?.role == UserRole.admin ||
                     user?.role == UserRole.superadmin ||
                     user?.role == UserRole.developer) ...[
+                  if (user?.role == UserRole.superadmin) ...[
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        Icons.account_circle_outlined,
+                        color: AppColors.primary,
+                      ),
+                      title: Text(
+                        'Superadmin Profile',
+                        style: AppTypography.bodyLarge,
+                      ),
+                      subtitle: Text(
+                        'Profile, password, plan, and invoices',
+                        style: AppTypography.caption,
+                      ),
+                      trailing: const Icon(
+                        Icons.chevron_right,
+                        color: AppColors.textLight,
+                      ),
+                      onTap: () => context.push('/profile'),
+                    ),
+                    const Divider(height: 1, color: AppColors.border),
+                  ],
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(

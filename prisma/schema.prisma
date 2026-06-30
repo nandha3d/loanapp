@@ -783,6 +783,7 @@ model NotificationTemplate {
   tenantId  String   @map("tenant_id")
   name      String
   channel   String
+  lang      String   @default("en")
   subject   String?
   body      String   @db.Text
   isActive  Boolean  @default(true) @map("is_active")
@@ -790,7 +791,8 @@ model NotificationTemplate {
   updatedAt DateTime @updatedAt @map("updated_at")
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  @@unique([tenantId, name, channel])
+  @@index([tenantId])
+  @@unique([tenantId, name, channel, lang])
   @@map("notification_templates")
 }
 
