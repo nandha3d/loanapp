@@ -147,7 +147,7 @@ export async function GET(
   // Restructured rate — computed server-side (single source of truth). Each
   // instalment gets a `restructuredAmount`; the loan carries the loan-level
   // figures. Clients render these directly and never recompute.
-  const restructure = computeRestructure(preMappedInstalments);
+  const restructure = computeRestructure(preMappedInstalments, loan.frequency, loan.endDate);
   const instalments = preMappedInstalments.map((inst) => ({
     ...inst,
     restructuredAmount: restructuredAmountFor(inst, restructure.restructuredRate),

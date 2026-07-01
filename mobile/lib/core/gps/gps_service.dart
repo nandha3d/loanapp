@@ -39,6 +39,24 @@ class GpsService {
     }
   }
 
+  /// Best-effort location for capture-at-creation flows: try a live fix
+  /// first, then fall back to the device's last cached fix (works even with
+  /// GPS off / indoors — the OS keeps a network-based last-known location)
+  /// so a customer's location still gets saved instead of staying blank.
+  Future<Position?> currentOrLastKnown({
+    LocationAccuracy accuracy = LocationAccuracy.high,
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    final live = await currentPosition(accuracy: accuracy, timeout: timeout);
+    if (live != null) return live;
+    if (!await ensurePermission()) return null;
+    try {
+      return await Geolocator.getLastKnownPosition();
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// GPS-05: stream during active collection session only.
   /// `distanceFilter` reduces ping count (m).
   Stream<Position> trackStream({

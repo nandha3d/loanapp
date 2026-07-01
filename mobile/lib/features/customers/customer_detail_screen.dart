@@ -910,6 +910,17 @@ class _LoanRow extends StatelessWidget {
 
 // ───────────────────────────── Identity / KYC ───────────────────────
 
+/// The customer's stored location — captured (or last-known-fallback) at
+/// creation time — regardless of whether the viewer's device has a live GPS
+/// fix right now. Prefers the primary collection point, else the first one
+/// with coordinates.
+CustomerCollectionPoint? _primaryGpsPoint(Customer customer) {
+  final withGps =
+      customer.collectionPoints.where((p) => p.latitude != null && p.longitude != null);
+  if (withGps.isEmpty) return null;
+  return withGps.firstWhere((p) => p.isPrimary, orElse: () => withGps.first);
+}
+
 class _IdentitySection extends StatelessWidget {
   const _IdentitySection({required this.customer, required this.t});
   final Customer customer;
@@ -931,6 +942,23 @@ class _IdentitySection extends StatelessWidget {
               icon: Icons.location_on_outlined,
               label: t.x('fld.address_label'),
               value: customer.address!,
+            ),
+          if (_primaryGpsPoint(customer) != null)
+            Builder(
+              builder: (context) {
+                final p = _primaryGpsPoint(customer)!;
+                return _IdRow(
+                  icon: Icons.my_location_outlined,
+                  label: 'GPS location',
+                  value: 'View on map',
+                  valueColor: AppColors.primary,
+                  onTap: () => launchUrl(
+                    Uri.parse(
+                        'https://www.google.com/maps/search/?api=1&query=${p.latitude},${p.longitude}',),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                );
+              },
             ),
           if (customer.aadharNumberMasked != null)
             _IdRow(
@@ -983,14 +1011,16 @@ class _IdRow extends StatelessWidget {
     required this.label,
     required this.value,
     this.valueColor,
+    this.onTap,
   });
   final IconData icon;
   final String label, value;
   final Color? valueColor;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         children: [
@@ -1021,6 +1051,7 @@ class _IdRow extends StatelessWidget {
         ],
       ),
     );
+    return onTap != null ? GestureDetector(onTap: onTap, child: row) : row;
   }
 }
 

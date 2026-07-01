@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
@@ -268,10 +269,15 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
         return;
       }
 
-      // Best-effort device location capture
+      // Best-effort device location capture. Short timeout + medium accuracy —
+      // this blocks payment submission, and a full high-accuracy fix can take
+      // 10s+ indoors; a coarse fix tagged on the entry is good enough.
       Map<String, dynamic>? gps;
       try {
-        final pos = await ref.read(gpsServiceProvider).currentPosition();
+        final pos = await ref.read(gpsServiceProvider).currentPosition(
+              accuracy: LocationAccuracy.medium,
+              timeout: const Duration(seconds: 4),
+            );
         if (pos != null) {
           gps = {
             'status': 'captured',
@@ -289,52 +295,55 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
         gps = {'status': 'not_captured'};
       }
 
-      int succeededCount = 0;
-      try {
-        for (int i = 0; i < payments.length; i++) {
-          final p = payments[i];
-          final inst = p.key;
-          final pAmt = p.value;
+      // Fire all instalment submits in parallel — each is an independent
+      // row/amount, so there's no reason to wait 2-5s per instalment
+      // sequentially (this is what made multi-instalment backlog payments
+      // take 30-40s). One round trip time for the whole batch instead of N.
+      final results = await Future.wait(payments.map((p) async {
+        try {
           await svc.submit(
-            instalmentId: inst.instalmentId,
-            receivedAmount: pAmt,
+            instalmentId: p.key.instalmentId,
+            receivedAmount: p.value,
             paymentMode: _mode,
-            idempotencyKey: _idempotencyKey(inst.instalmentId, pAmt),
+            idempotencyKey: _idempotencyKey(p.key.instalmentId, p.value),
             gps: gps,
           );
-          succeededCount++;
+          return (p, null as Object?);
+        } catch (e) {
+          return (p, e);
         }
-      } catch (e) {
-        final isServerReject = e is ApiException &&
-            e.statusCode != null &&
-            e.statusCode! >= 400 &&
-            e.statusCode! < 500;
-        if (isServerReject) {
-          rethrow;
-        } else {
-          // Network error midway: queue the remaining payments offline
-          for (int i = succeededCount; i < payments.length; i++) {
-            final p = payments[i];
-            final inst = p.key;
-            final pAmt = p.value;
-            await queue.add(
-              QueuedCollection(
-                idempotencyKey: _idempotencyKey(inst.instalmentId, pAmt),
-                instalmentId: inst.instalmentId,
-                receivedAmount: pAmt,
-                paymentMode: _mode,
-                collectionDate: today,
-                status: 'pending',
-                customerName: widget.row.customerName,
-                loanCode: widget.row.loanCode,
-              ),
-            );
-          }
-          await ref.read(collectionSyncProvider.notifier).refresh();
-          if (!mounted) return;
-          setState(() => _error = '${t.x('sync.saved_offline_err')}: $e');
-          return;
+      }));
+      final failed = results.where((r) => r.$2 != null).toList();
+
+      if (failed.isNotEmpty) {
+        final serverRejects =
+            failed.where((r) => r.$2 is ApiException).toList();
+        if (serverRejects.isNotEmpty) {
+          throw serverRejects.first.$2!;
         }
+        // Network errors: queue the failed payments offline.
+        for (final r in failed) {
+          final p = r.$1;
+          final inst = p.key;
+          final pAmt = p.value;
+          await queue.add(
+            QueuedCollection(
+              idempotencyKey: _idempotencyKey(inst.instalmentId, pAmt),
+              instalmentId: inst.instalmentId,
+              receivedAmount: pAmt,
+              paymentMode: _mode,
+              collectionDate: today,
+              status: 'pending',
+              customerName: widget.row.customerName,
+              loanCode: widget.row.loanCode,
+            ),
+          );
+        }
+        await ref.read(collectionSyncProvider.notifier).refresh();
+        if (!mounted) return;
+        setState(() =>
+            _error = '${t.x('sync.saved_offline_err')}: ${failed.first.$2}');
+        return;
       }
 
       ref.speak('Collected ${_speakAmount(appliedTotal)}');

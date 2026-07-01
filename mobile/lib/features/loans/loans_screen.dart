@@ -15,7 +15,7 @@ import 'package:loantrack/shared/widgets/empty_state.dart';
 import 'package:loantrack/shared/widgets/fab_extended.dart';
 import 'package:loantrack/shared/widgets/skeleton.dart';
 
-final _loansProvider =
+final loansProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
   return ref.watch(loanServiceProvider).list();
 });
@@ -34,7 +34,7 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final async = ref.watch(_loansProvider);
+    final async = ref.watch(loansProvider);
     final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
 
@@ -80,7 +80,7 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
               Expanded(
                 child: RefreshIndicator(
                   color: AppColors.primary,
-                  onRefresh: () async => ref.refresh(_loansProvider.future),
+                  onRefresh: () async => ref.refresh(loansProvider.future),
                   child: visible.isEmpty
                       ? ListView(
                           // Keep it scrollable so pull-to-refresh still works.

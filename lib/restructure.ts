@@ -2,15 +2,15 @@
  * Restructured-rate calculation — single server-side source of truth so every
  * client shows identical figures (no client recomputation).
  *
- * Model: keep paying the normal per-period instalment, and spread ONLY the
- * backlog (dues pending up to today) evenly across the remaining periods:
+ * Model: spread the ENTIRE outstanding balance evenly across the actual
+ * remaining periods left until the loan's original end date:
  *
- *     rate = perInstalment + (overdueTillDate / remainingPeriods)
+ *     rate = outstanding / actualRemainingCount
  *
- *   • Paid on schedule → overdueTillDate = 0 → rate = perInstalment (no change).
- *   • Fell behind      → rate slightly above the normal due, so the borrower
- *                        clears the backlog by the original end date.
- * Frequency-agnostic: "periods" are days/weeks/months per the schedule.
+ * where actualRemainingCount is derived from calendar days to loan.endDate,
+ * bucketed by frequency (daily = days, weekly = ceil(days/7), monthly =
+ * ceil(days/30)). Matches the web loan-detail page's "keep tenure, higher
+ * rate" calculation exactly.
  */
 
 export type RInstalment = {
@@ -25,45 +25,40 @@ function startOfDay(value: Date): Date {
   return d;
 }
 
-export function computeRestructure(instalments: RInstalment[], now = new Date()) {
+export function computeRestructure(
+  instalments: RInstalment[],
+  frequency: string,
+  endDate: Date | string | null,
+  now = new Date(),
+) {
   const today = startOfDay(now);
-  let overdueTillDate = 0; // outstanding on instalments due ON/BEFORE today
-  let remainingPeriods = 0; // unpaid instalments due AFTER today (the days left)
-  let perInstalment = 0; // representative normal due (a future unpaid instalment)
-  let outstanding = 0;
 
+  let outstanding = 0;
   for (const i of instalments) {
     const due = Number(i.dueAmount);
     const received = Number(i.receivedAmount ?? 0);
-    const out = Math.max(0, due - received);
-    if (out <= 0) continue;
-    outstanding += out;
-    const dueDay = startOfDay(new Date(i.dueDate));
-    if (dueDay.getTime() < today.getTime()) {
-      // Strictly BEFORE today = backlog (dues pending). Today itself is a
-      // remaining day the borrower still pays.
-      overdueTillDate += out;
+    outstanding += Math.max(0, due - received);
+  }
+
+  // Matches the web page's own fallback when a loan has no endDate.
+  const end = startOfDay(endDate ? new Date(endDate) : now);
+  const calendarDays = Math.ceil((end.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+
+  let actualRemainingCount = 0;
+  if (calendarDays > 0) {
+    if (frequency === 'weekly') {
+      actualRemainingCount = Math.max(1, Math.ceil(calendarDays / 7));
+    } else if (frequency === 'monthly') {
+      actualRemainingCount = Math.max(1, Math.ceil(calendarDays / 30));
     } else {
-      remainingPeriods += 1;
-      if (perInstalment === 0) perInstalment = due;
+      actualRemainingCount = Math.max(1, calendarDays);
     }
   }
 
-  // No future periods left (term elapsed): nothing to spread into — fall back to
-  // an even split of whatever is still outstanding.
-  if (remainingPeriods === 0) {
-    const rate = overdueTillDate > 0 ? overdueTillDate : 0;
-    return {
-      restructuredRate: Math.round(rate * 100) / 100,
-      outstanding,
-      remainingPeriods: overdueTillDate > 0 ? 1 : 0,
-      overdueTillDate,
-    };
-  }
+  const divisor = actualRemainingCount || 1;
+  const restructuredRate = Math.round((outstanding / divisor) * 100) / 100;
 
-  const restructuredRate =
-    Math.round((perInstalment + overdueTillDate / remainingPeriods) * 100) / 100;
-  return { restructuredRate, outstanding, remainingPeriods, overdueTillDate };
+  return { restructuredRate, outstanding, remainingPeriods: actualRemainingCount };
 }
 
 /**

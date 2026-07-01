@@ -482,12 +482,18 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
           final r = await uploader.uploadFile(_companyLogo!, contentType: 'image/jpeg');
           logoUrl = r.url;
         }
+        String? editedPhotoUrl;
+        if (_photo != null) {
+          final r = await uploader.uploadFile(_photo!, contentType: 'image/jpeg');
+          editedPhotoUrl = r.url;
+        }
         final patch = <String, dynamic>{
           'name': _nameCtrl.text.trim(),
           'phone': _phoneCtrl.text.trim(),
           'address': _addressCtrl.text.trim().isEmpty
               ? null
               : _addressCtrl.text.trim(),
+          if (editedPhotoUrl != null) 'profilePhoto': editedPhotoUrl,
           ..._extendedFields(logoUrl, guarantorPayloads),
         };
         if (_aadharCtrl.text.trim().isNotEmpty) {
@@ -818,14 +824,13 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (!_isEdit) ...[
-                        _PhotoAvatar(
-                          photo: _photo,
-                          label: t.x('btn.add_photo'),
-                          onTap: _showPhotoSourcePicker,
-                        ),
-                        const SizedBox(width: 16),
-                      ],
+                      _PhotoAvatar(
+                        photo: _photo,
+                        existingUrl: widget.editCustomer?.photoUrl,
+                        label: t.x('btn.add_photo'),
+                        onTap: _showPhotoSourcePicker,
+                      ),
+                      const SizedBox(width: 16),
                       Expanded(
                         child: Column(
                           children: [
@@ -1189,7 +1194,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
   }
 
   Future<void> _fillGpsForPoint(_CollectionPointEntry cp) async {
-    final pos = await ref.read(gpsServiceProvider).currentPosition();
+    final pos = await ref.read(gpsServiceProvider).currentOrLastKnown();
     if (pos == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1503,13 +1508,22 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
 // ── Photo avatar ────────────────────────────────────────────────────────────
 
 class _PhotoAvatar extends StatelessWidget {
-  const _PhotoAvatar({required this.photo, required this.label, required this.onTap});
+  const _PhotoAvatar({
+    required this.photo,
+    required this.label,
+    required this.onTap,
+    this.existingUrl,
+  });
   final File? photo;
+  final String? existingUrl;
   final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final hasExisting = photo == null &&
+        existingUrl != null &&
+        existingUrl!.isNotEmpty;
     return GestureDetector(
       onTap: onTap,
       child: Column(
@@ -1526,9 +1540,14 @@ class _PhotoAvatar extends StatelessWidget {
                       image: FileImage(photo!),
                       fit: BoxFit.cover,
                     )
-                  : null,
+                  : hasExisting
+                      ? DecorationImage(
+                          image: NetworkImage(existingUrl!),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
             ),
-            child: photo == null
+            child: (photo == null && !hasExisting)
                 ? const Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [

@@ -50,7 +50,7 @@ class Endpoints {
   static const String collectionProofPhoto = '/collection/proof/photo';
   static const String collectionProofQr = '/collection/proof/qr';
   static String customerCollectionReceipt(String customerId) =>
-      '/api/customers/$customerId/collection-receipt';
+      '/customers/$customerId/collection-receipt';
 
   // mCollect — route batch collection runs
   static const String runOpen = '/collection/run/open';

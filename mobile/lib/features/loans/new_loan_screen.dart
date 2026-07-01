@@ -19,6 +19,7 @@ import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/data/repositories/customer_repository.dart';
 import 'package:loantrack/data/services/loan_service.dart';
 import 'package:loantrack/data/services/gold_service.dart';
+import 'package:loantrack/features/loans/loans_screen.dart' show loansProvider;
 import 'package:loantrack/data/services/upload_service.dart';
 import 'package:loantrack/shared/widgets/app_button.dart';
 import 'package:loantrack/shared/widgets/app_text_field.dart';
@@ -265,7 +266,31 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
   final _gAddress = TextEditingController();
   String? _gRelation;
   File? _gPhoto;
+  String? _existingGuarantorPhotoUrl;
+  String? _selectedExistingGuarantorId;
   final _voucherRef = TextEditingController();
+
+  void _applyExistingGuarantor(Guarantor? g) {
+    setState(() {
+      _selectedExistingGuarantorId = g?.id;
+      _gPhoto = null;
+      if (g == null) {
+        _gName.clear();
+        _gPhone.clear();
+        _gAadhar.clear();
+        _gAddress.clear();
+        _gRelation = null;
+        _existingGuarantorPhotoUrl = null;
+        return;
+      }
+      _gName.text = g.name;
+      _gPhone.text = g.phone;
+      _gAadhar.text = g.aadharNumber ?? '';
+      _gAddress.text = g.address ?? '';
+      _gRelation = g.relation;
+      _existingGuarantorPhotoUrl = g.photoUrl;
+    });
+  }
 
   // Wizard / submit
   final _page = PageController();
@@ -655,7 +680,10 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
           if (_gAddress.text.trim().isNotEmpty)
             'address': _gAddress.text.trim(),
           if (_gRelation != null) 'relation': _gRelation,
-          if (guarantorPhotoUrl != null) 'photoUrl': guarantorPhotoUrl,
+          if (guarantorPhotoUrl != null)
+            'photoUrl': guarantorPhotoUrl
+          else if (_existingGuarantorPhotoUrl != null)
+            'photoUrl': _existingGuarantorPhotoUrl,
         };
       }
 
@@ -719,6 +747,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
                 : null,
           );
       if (!mounted) return;
+      ref.invalidate(loansProvider);
       final t = T.of(ref);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1458,10 +1487,33 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
   // ─────────────────────── Step 3: Guarantor ───────────────────────────
   Widget _stepGuarantor() {
     final tr = T.of(ref);
+    final existing = _customer?.guarantors ?? const <Guarantor>[];
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         Text(tr.x('sec.guarantor'), style: AppTypography.sectionTitle),
+        if (existing.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text('Reuse an existing guarantor', style: AppTypography.label),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final g in existing)
+                ChoiceChip(
+                  label: Text('${g.name} (${g.phone})'),
+                  selected: _selectedExistingGuarantorId == g.id,
+                  onSelected: (_) => _applyExistingGuarantor(g),
+                ),
+              ChoiceChip(
+                label: const Text('New guarantor'),
+                selected: _selectedExistingGuarantorId == null,
+                onSelected: (_) => _applyExistingGuarantor(null),
+              ),
+            ],
+          ),
+        ],
         const SizedBox(height: 12),
         AppTextField(label: '${tr.x('fld.full_name')} *', controller: _gName),
         const SizedBox(height: 12),
@@ -1515,10 +1567,13 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
               clipBehavior: Clip.antiAlias,
               child: _gPhoto != null
                   ? Image.file(_gPhoto!, fit: BoxFit.cover)
-                  : const Icon(
-                      Icons.add_a_photo_outlined,
-                      color: AppColors.textLight,
-                    ),
+                  : (_existingGuarantorPhotoUrl != null
+                      ? Image.network(_existingGuarantorPhotoUrl!,
+                          fit: BoxFit.cover,)
+                      : const Icon(
+                          Icons.add_a_photo_outlined,
+                          color: AppColors.textLight,
+                        )),
             ),
             const SizedBox(width: 12),
             OutlinedButton.icon(
