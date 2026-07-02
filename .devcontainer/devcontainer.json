@@ -1,0 +1,20 @@
+{
+  "name": "LoanTrack",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/loanapp",
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": { "label": "LoanTrack web", "onAutoForward": "notify" }
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "Prisma.prisma",
+        "dbaeumer.vscode-eslint",
+        "Anthropic.claude-code"
+      ]
+    }
+  }
+}
