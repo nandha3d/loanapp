@@ -91,7 +91,7 @@ class CustomerService {
       Endpoints.customerCollectionReceipt(id),
       options: Options(responseType: ResponseType.bytes),
     );
-    return res.data ?? const <int>[];
+    return unwrapPdfBytes(res);
   }
 }
 

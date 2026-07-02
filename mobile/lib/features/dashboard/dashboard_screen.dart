@@ -46,6 +46,8 @@ class DashboardScreen extends ConsumerWidget {
         if (!context.mounted) return;
         await maybeShowOnboarding(context, role: user.role.name);
         if (!context.mounted) return;
+        await maybeRequestCorePermissions(context);
+        if (!context.mounted) return;
         await maybeRequestAlwaysLocation(context, ref, role: user.role.name);
       });
     }
@@ -57,21 +59,21 @@ class DashboardScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(t.x('dash.title')),
         centerTitle: true,
-        leading: Builder(
-          builder: (ctx) => IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => Scaffold.of(ctx).openDrawer(),
-          ),
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          // One menu, not two: this used to open a separate drawer that
+          // duplicated most of what the "More" tab already lists. Point both
+          // at the same screen instead of maintaining two overlapping menus.
+          onPressed: () => context.push('/more'),
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {},
+            onPressed: () => context.push('/notifications'),
           ),
           const SizedBox(width: 4),
         ],
       ),
-      drawer: _SideDrawer(userName: user?.name ?? '-'),
       body: RefreshIndicator(
         color: AppColors.primary,
         onRefresh: () async => ref.refresh(dashboardSummaryProvider.future),
@@ -339,10 +341,18 @@ class _HeroBalance extends ConsumerWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  fmt.format(collected),
-                  style: AppTypography.heroNumber.copyWith(color: Colors.white),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      fmt.format(collected),
+                      style:
+                          AppTypography.heroNumber.copyWith(color: Colors.white),
+                    ),
+                  ),
                 ),
+                const SizedBox(width: 8),
                 const Spacer(),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -569,9 +579,16 @@ class _OverdueBalance extends ConsumerWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  fmt.format(total),
-                  style: AppTypography.heroNumber.copyWith(color: Colors.white),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      fmt.format(total),
+                      style:
+                          AppTypography.heroNumber.copyWith(color: Colors.white),
+                    ),
+                  ),
                 ),
                 const Spacer(),
                 Container(
@@ -642,15 +659,17 @@ class _MoneyStat extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(
-          value,
-          style: AppTypography.bodyLarge.copyWith(
-            color: tone ?? Colors.white,
-            fontWeight: FontWeight.w800,
-            fontSize: 15,
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            value,
+            style: AppTypography.bodyLarge.copyWith(
+              color: tone ?? Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 15,
+            ),
+            maxLines: 1,
           ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: 2),
         Text(
@@ -676,15 +695,17 @@ class _MoneyStatLarge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(
-          value,
-          style: AppTypography.bodyLarge.copyWith(
-            color: tone ?? Colors.white,
-            fontWeight: FontWeight.w800,
-            fontSize: 17,
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            value,
+            style: AppTypography.bodyLarge.copyWith(
+              color: tone ?? Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 17,
+            ),
+            maxLines: 1,
           ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: 3),
         Text(
@@ -1825,216 +1846,6 @@ class _ErrorState extends ConsumerWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _SideDrawer extends ConsumerWidget {
-  const _SideDrawer({required this.userName});
-  final String userName;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = T.of(ref);
-    final user = ref.watch(authControllerProvider).user;
-
-    final privileged = user?.role == UserRole.admin ||
-        user?.role == UserRole.superadmin ||
-        user?.role == UserRole.developer;
-
-    bool can(String? moduleKey, {bool adminOnly = false}) {
-      if (adminOnly && !privileged) return false;
-      if (moduleKey == null) return true;
-      if (user?.role == UserRole.developer) return true;
-      if (user == null) return false;
-
-      // Core features are role-gated, not subscription-gated.
-      switch (moduleKey) {
-        case 'approvals':
-        case 'analytics':
-        case 'accounting':
-        case 'settings':
-          return user.role != UserRole.agent;
-      }
-
-      // Everything else is subscription-gated.
-      if (user.enabledModules.isNotEmpty) return user.hasModule(moduleKey);
-      // Fallback when enabledModules not loaded yet.
-      return privileged;
-    }
-
-    return Drawer(
-      backgroundColor: AppColors.sidebarBg,
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: EdgeInsets.fromLTRB(24, 20, 24, 20),
-              child: Text.rich(
-                TextSpan(
-                  children: [
-                    TextSpan(
-                      text: 'Loan',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16.1,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    TextSpan(
-                      text: 'Track',
-                      style: TextStyle(
-                        color: AppColors.primary,
-                        fontSize: 16.1,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const Divider(color: Colors.white12, height: 1),
-            _DrawerLink(
-              icon: Icons.dashboard_outlined,
-              label: t.x('drawer.dashboard'),
-              onTap: () => context.go('/dashboard'),
-            ),
-            _DrawerLink(
-              icon: Icons.payments_outlined,
-              label: t.x('drawer.collection_entry'),
-              onTap: () => context.go('/collection'),
-            ),
-            _DrawerSection(label: t.x('drawer.section_management')),
-            _DrawerLink(
-              icon: Icons.people_outline,
-              label: t.x('nav.customers'),
-              onTap: () => context.go('/customers'),
-            ),
-            _DrawerLink(
-              icon: Icons.account_balance_wallet_outlined,
-              label: t.x('nav.loans'),
-              onTap: () => context.go('/loans'),
-            ),
-            _DrawerLink(
-              icon: Icons.warning_amber_outlined,
-              label: t.x('title.penalties'),
-              onTap: () => context.go('/penalties'),
-            ),
-            if (can('approvals'))
-              _DrawerLink(
-                icon: Icons.fact_check_outlined,
-                label: t.x('title.approvals'),
-                onTap: () => context.go('/approvals'),
-              ),
-            if (can(null, adminOnly: true))
-              _DrawerLink(
-                icon: Icons.verified_user_outlined,
-                label: t.x('kyc.title'),
-                onTap: () => context.go('/kyc-review'),
-              ),
-            if (can('chitfunds'))
-              _DrawerLink(
-                icon: Icons.savings_outlined,
-                label: t.x('title.chits'),
-                onTap: () => context.go('/chits'),
-              ),
-            if (privileged || can('analytics') || can('accounting')) ...[
-              _DrawerSection(label: t.x('drawer.section_insights')),
-              if (privileged)
-                _DrawerLink(
-                  icon: Icons.map_outlined,
-                  label: t.x('admin.agent_tracking'),
-                  onTap: () => context.go('/tracking'),
-                ),
-              if (can('analytics'))
-                _DrawerLink(
-                  icon: Icons.bar_chart_rounded,
-                  label: t.x('title.analytics'),
-                  onTap: () => context.go('/analytics'),
-                ),
-              if (can('accounting'))
-                _DrawerLink(
-                  icon: Icons.account_balance_outlined,
-                  label: t.x('title.accounting'),
-                  onTap: () => context.go('/accounting'),
-                ),
-            ],
-            if (can('settings')) ...[
-              _DrawerSection(label: t.x('drawer.section_account')),
-              _DrawerLink(
-                icon: Icons.settings_outlined,
-                label: t.x('set.title'),
-                onTap: () => context.go('/settings'),
-              ),
-            ],
-            const Spacer(),
-            const Divider(color: Colors.white12, height: 1),
-            ListTile(
-              leading: CircleAvatar(
-                backgroundColor: AppColors.primary,
-                child: Icon(Icons.person, color: Colors.white, size: 18),
-              ),
-              title: Text(
-                userName,
-                style: AppTypography.body.copyWith(color: Colors.white),
-              ),
-              trailing: IconButton(
-                icon: const Icon(
-                  Icons.logout,
-                  color: Colors.white70,
-                  size: 18,
-                ),
-                onPressed: () =>
-                    ref.read(authControllerProvider.notifier).logout(),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DrawerSection extends StatelessWidget {
-  const _DrawerSection({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 4),
-      child: Text(
-        label,
-        style: AppTypography.tiny.copyWith(
-          color: Colors.white38,
-          letterSpacing: 0.8,
-        ),
-      ),
-    );
-  }
-}
-
-class _DrawerLink extends StatelessWidget {
-  const _DrawerLink({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(icon, color: Colors.white70, size: 20),
-      title: Text(
-        label,
-        style: AppTypography.body.copyWith(color: Colors.white),
-      ),
-      onTap: onTap,
-      dense: true,
     );
   }
 }

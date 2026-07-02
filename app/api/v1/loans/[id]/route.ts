@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
-import { computeRestructure, restructuredAmountFor } from '@/lib/restructure';
+import { computeRestructure, restructuredAmountFor, computeExtendedSchedule } from '@/lib/restructure';
 import { calculateEndDate } from '@/lib/utils';
 import { calculateLoanPreview } from '@/lib/loanCalculator';
 import { validateGuarantorPhone } from '@/lib/guarantorPolicy';
@@ -153,7 +153,16 @@ export async function GET(
     restructuredAmount: restructuredAmountFor(inst, restructure.restructuredRate),
   }));
 
-  return ok({ ...loan, instalments, restructure });
+  // Default "extend term" projection — same server-side source of truth the
+  // web page uses for its heatmap tail cells, so mobile can render the
+  // identical projected extra days without re-deriving the math.
+  const extendedSchedule = computeExtendedSchedule(
+    preMappedInstalments,
+    Number(loan.perInstalment),
+    loan.frequency,
+  );
+
+  return ok({ ...loan, instalments, restructure, extendedSchedule });
 }
 
 /**

@@ -161,7 +161,10 @@ Future<void> showHelpSheet(
                     Icon(Icons.support_agent, color: AppColors.primary),
                 title: const Text('Contact support'),
                 subtitle: Text(supportPhone),
-                onTap: () => launchUrl(Uri.parse('tel:$supportPhone')),
+                onTap: () => launchUrl(
+                  Uri.parse('tel:$supportPhone'),
+                  mode: LaunchMode.externalApplication,
+                ),
               ),
             ],
           ],

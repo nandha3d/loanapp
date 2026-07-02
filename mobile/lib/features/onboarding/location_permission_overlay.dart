@@ -2,12 +2,58 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'package:loantrack/core/gps/gps_service.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 
 const _kPrefsBox = 'prefs';
 const _kAskedKey = 'location_always_prompt_seen_v1';
+const _kCoreAskedKey = 'core_permissions_prompt_seen_v1';
+
+/// One-time, every-role prompt (shown once after first login) that requests
+/// the app's other runtime permissions up front — camera (customer/KYC photo
+/// capture) and notifications — instead of only asking contextually the
+/// first time each feature is used. Declining any of them doesn't block the
+/// app; those features just re-prompt (or silently no-op) when used later.
+Future<void> maybeRequestCorePermissions(BuildContext context) async {
+  final box = Hive.isBoxOpen(_kPrefsBox)
+      ? Hive.box<dynamic>(_kPrefsBox)
+      : await Hive.openBox<dynamic>(_kPrefsBox);
+  final asked = (box.get(_kCoreAskedKey) as bool?) ?? false;
+  if (asked) return;
+  await box.put(_kCoreAskedKey, true);
+  if (!context.mounted) return;
+
+  final proceed = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          icon: Icon(Icons.verified_user_outlined, color: AppColors.primary),
+          title: const Text('App permissions'),
+          content: const Text(
+            'LoanTrack needs camera access to capture customer photos and KYC '
+            'documents, and notification access for payment and approval '
+            'alerts. You can grant these now instead of one at a time.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Not now'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Continue'),
+            ),
+          ],
+        ),
+      ) ??
+      false;
+  if (!proceed) return;
+
+  await Permission.camera.request();
+  await Permission.notification.request();
+}
 
 /// One-time, agent-only prompt (shown once after first login, like the
 /// onboarding tour) explaining why the app wants "Allow all the time"

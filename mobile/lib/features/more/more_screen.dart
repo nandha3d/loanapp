@@ -284,6 +284,24 @@ class MoreScreen extends ConsumerWidget {
             tenantSlug: user?.tenantSlug ?? '',
           ),
           const SizedBox(height: 16),
+          // Module switcher — the portal hub is where superadmin/admin move
+          // between business modules (microlending, auto finance, gold loan,
+          // chits, …). They land there at login, but once inside a module
+          // the only way back used to be re-logging in.
+          if (user?.role == UserRole.superadmin ||
+              user?.role == UserRole.admin) ...[
+            _ModuleTile(
+              item: _ModuleItem(
+                icon: Icons.apps_rounded,
+                label: 'Portal · Switch Module',
+                subtitle: 'Auto finance, gold loan, chits and more',
+                route: '/portal',
+                color: AppColors.primary,
+                bgColor: AppColors.primaryLight,
+              ),
+            ),
+            const SizedBox(height: 4),
+          ],
           // Map hub
           _MapSection(
             pinsAsync: pinsAsync,
@@ -292,10 +310,49 @@ class MoreScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 4),
           for (final m in visible) _ModuleTile(item: m),
+          const SizedBox(height: 4),
+          // Always visible regardless of role/module gating — this used to
+          // only exist in the (now removed) side drawer, which was the only
+          // sign-out path for agents since Settings hides it from them and
+          // Portal is admin/superadmin-only.
+          _ModuleTile(
+            item: _ModuleItem(
+              icon: Icons.logout_outlined,
+              label: 'Log out',
+              subtitle: 'Sign out of this account',
+              route: '',
+              color: AppColors.danger,
+              bgColor: AppColors.dangerBg,
+            ),
+            onTap: () => _confirmLogout(context, ref),
+          ),
         ],
       ),
       bottomNavigationBar: const AppBottomNav(currentRoute: '/more'),
     );
+  }
+
+  Future<void> _confirmLogout(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Log out'),
+        content: const Text('Log out of this account?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Log out'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      ref.read(authControllerProvider.notifier).logout();
+    }
   }
 
   void _showPinSheet(BuildContext context, T t, _MapPin pin) {
@@ -623,7 +680,10 @@ class _ProfileHeader extends StatelessWidget {
     final subtitle = [roleLabel, if (tenantSlug.isNotEmpty) tenantSlug]
         .where((s) => s.isNotEmpty)
         .join(' · ');
-    return Container(
+    return InkWell(
+      borderRadius: BorderRadius.circular(22),
+      onTap: () => context.push('/profile'),
+      child: Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -658,16 +718,25 @@ class _ProfileHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.2,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.2,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Icon(Icons.edit_outlined,
+                        size: 14, color: Colors.white.withAlpha(140),),
+                  ],
                 ),
                 if (subtitle.isNotEmpty) ...[
                   const SizedBox(height: 4),
@@ -716,6 +785,7 @@ class _ProfileHeader extends StatelessWidget {
           ),
         ],
       ),
+      ),
     );
   }
 }
@@ -723,8 +793,9 @@ class _ProfileHeader extends StatelessWidget {
 // ── Module tile ───────────────────────────────────────────────────────────────
 
 class _ModuleTile extends StatelessWidget {
-  const _ModuleTile({required this.item});
+  const _ModuleTile({required this.item, this.onTap});
   final _ModuleItem item;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -735,7 +806,7 @@ class _ModuleTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppTokens.radius),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: () => context.go(item.route),
+          onTap: onTap ?? () => context.go(item.route),
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: const BoxDecoration(boxShadow: AppTokens.shadow),

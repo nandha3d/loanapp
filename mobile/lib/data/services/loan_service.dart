@@ -167,7 +167,7 @@ class LoanService {
       '${Endpoints.loans}/$loanId/statement',
       options: Options(responseType: ResponseType.bytes),
     );
-    return res.data ?? const <int>[];
+    return unwrapPdfBytes(res);
   }
 }
 

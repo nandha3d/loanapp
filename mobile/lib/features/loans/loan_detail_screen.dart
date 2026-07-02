@@ -195,6 +195,8 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
         LoanHeatmap(
           instalments: displayInstalments,
           onJump: _jumpTo,
+          extraPeriods: loan.extendedSchedule?.extraPeriods ?? 0,
+          projectedEndDate: loan.extendedSchedule?.projectedEndDate,
         ),
         const SizedBox(height: 14),
         _OverdueSummaryCard(loan: loan, fmt: fmt),

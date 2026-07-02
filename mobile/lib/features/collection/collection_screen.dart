@@ -1599,7 +1599,7 @@ class _CollectionCard extends ConsumerWidget {
                       if (p.customerPhone.isEmpty) return;
                       final uri = Uri(scheme: 'tel', path: p.customerPhone);
                       if (await canLaunchUrl(uri)) {
-                        await launchUrl(uri);
+                        await launchUrl(uri, mode: LaunchMode.externalApplication);
                       }
                     },
                   ),

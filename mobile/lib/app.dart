@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -48,6 +47,15 @@ class App extends ConsumerWidget {
 /// a tab switch and would exit the app straight away. This intercepts that:
 /// pop within the route stack if possible, else return to the dashboard tab,
 /// else require a second back press within 2s to actually exit.
+///
+/// This MUST be a `WidgetsBindingObserver.didPopRoute()` override, not
+/// `PopScope` — `PopScope` only registers with the nearest `ModalRoute`
+/// ancestor, and there isn't one here: `MaterialApp.router`'s `builder`
+/// wraps the `Router` widget itself, which is *above* GoRouter's internal
+/// Navigator where `ModalRoute`s actually get created. A `PopScope` placed
+/// here silently never attaches to anything and the system back button
+/// falls straight through to the OS (this is what shipped last time and
+/// still exited the app despite looking correct).
 class _BackButtonGuard extends StatefulWidget {
   const _BackButtonGuard({required this.router, required this.child});
   final GoRouter router;
@@ -57,40 +65,53 @@ class _BackButtonGuard extends StatefulWidget {
   State<_BackButtonGuard> createState() => _BackButtonGuardState();
 }
 
-class _BackButtonGuardState extends State<_BackButtonGuard> {
+class _BackButtonGuardState extends State<_BackButtonGuard>
+    with WidgetsBindingObserver {
   DateTime? _lastBackPress;
 
   @override
-  Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        if (widget.router.canPop()) {
-          widget.router.pop();
-          return;
-        }
-        final loc =
-            widget.router.routerDelegate.currentConfiguration.uri.toString();
-        if (loc != '/dashboard') {
-          widget.router.go('/dashboard');
-          return;
-        }
-        final now = DateTime.now();
-        if (_lastBackPress != null &&
-            now.difference(_lastBackPress!) < const Duration(seconds: 2)) {
-          SystemNavigator.pop();
-          return;
-        }
-        _lastBackPress = now;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Press back again to exit'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      },
-      child: widget.child,
-    );
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
   }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Future<bool> didPopRoute() async {
+    if (widget.router.canPop()) {
+      widget.router.pop();
+      return true;
+    }
+    final loc =
+        widget.router.routerDelegate.currentConfiguration.uri.toString();
+    if (loc != '/dashboard') {
+      widget.router.go('/dashboard');
+      return true;
+    }
+    final now = DateTime.now();
+    if (_lastBackPress != null &&
+        now.difference(_lastBackPress!) < const Duration(seconds: 2)) {
+      // Let the platform handle it (actually exits) — this is the second
+      // back press within the window.
+      return false;
+    }
+    _lastBackPress = now;
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Press back again to exit'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+    return true;
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

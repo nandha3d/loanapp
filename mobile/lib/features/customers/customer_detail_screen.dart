@@ -443,7 +443,7 @@ class _QuickContact extends ConsumerWidget {
 
   Future<void> _launch(Uri uri) async {
     if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
   }
 
@@ -1204,7 +1204,7 @@ class _GuarantorsSection extends ConsumerWidget {
                     onPressed: () async {
                       final uri = Uri(scheme: 'tel', path: g.phone);
                       if (await canLaunchUrl(uri)) {
-                        await launchUrl(uri);
+                        await launchUrl(uri, mode: LaunchMode.externalApplication);
                       }
                     },
                     icon: const Icon(
@@ -1388,9 +1388,63 @@ class _SecurityChequesSection extends ConsumerWidget {
 
 // ───────────────────────────── KYC docs ─────────────────────────────
 
+bool _looksLikeImage(String url) {
+  final lower = url.toLowerCase();
+  return lower.endsWith('.jpg') ||
+      lower.endsWith('.jpeg') ||
+      lower.endsWith('.png') ||
+      lower.endsWith('.webp') ||
+      lower.endsWith('.heic');
+}
+
 class _KycDocsSection extends ConsumerWidget {
   const _KycDocsSection({required this.docs});
   final List<KycDocument> docs;
+
+  void _openDoc(BuildContext context, KycDocument d) {
+    if (_looksLikeImage(d.url)) {
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => Dialog(
+          backgroundColor: Colors.black,
+          insetPadding: const EdgeInsets.all(12),
+          child: Stack(
+            children: [
+              InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 4,
+                child: Center(
+                  child: Image.network(
+                    d.url,
+                    errorBuilder: (_, __, ___) => const Padding(
+                      padding: EdgeInsets.all(32),
+                      child: Icon(Icons.broken_image_outlined,
+                          color: Colors.white54, size: 48,),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 6,
+                right: 6,
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      return;
+    }
+    () async {
+      final uri = Uri.parse(d.url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    }();
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1404,35 +1458,56 @@ class _KycDocsSection extends ConsumerWidget {
         children: [
           for (final d in docs)
             InkWell(
-              onTap: () async {
-                final uri = Uri.parse(d.url);
-                if (await canLaunchUrl(uri)) {
-                  await launchUrl(uri, mode: LaunchMode.externalApplication);
-                }
-              },
+              onTap: () => _openDoc(context, d),
               borderRadius: BorderRadius.circular(10),
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
+                width: 92,
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: AppColors.background,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: AppColors.border),
                 ),
-                child: Row(
+                child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
-                      Icons.attach_file_rounded,
-                      size: 14,
-                      color: AppColors.textSecondary,
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: _looksLikeImage(d.url)
+                          ? Image.network(
+                              d.url,
+                              width: 76,
+                              height: 76,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                width: 76,
+                                height: 76,
+                                color: AppColors.surface,
+                                alignment: Alignment.center,
+                                child: const Icon(
+                                  Icons.insert_drive_file_outlined,
+                                  color: AppColors.textLight,
+                                ),
+                              ),
+                            )
+                          : Container(
+                              width: 76,
+                              height: 76,
+                              color: AppColors.surface,
+                              alignment: Alignment.center,
+                              child: const Icon(
+                                Icons.picture_as_pdf_outlined,
+                                color: AppColors.textLight,
+                                size: 28,
+                              ),
+                            ),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(height: 6),
                     Text(
                       d.type.toUpperCase(),
-                      style: AppTypography.caption,
+                      style: AppTypography.tiny,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),

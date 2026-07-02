@@ -104,7 +104,7 @@ class CollectionService {
       Endpoints.receipt(entryId),
       options: Options(responseType: ResponseType.bytes),
     );
-    return res.data ?? const <int>[];
+    return unwrapPdfBytes(res);
   }
 
   /// QR proof: scanned token auto-confirms. Returns the applied amount.

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -148,4 +149,29 @@ T unwrapEnvelope<T>(Response<dynamic> res, T Function(dynamic) parse) {
     );
   }
   return parse(body['data']);
+}
+
+/// Helper: unwrap a raw-bytes PDF/file download. `validateStatus` treats
+/// everything under 500 (except 401) as a normal response, so a 403/404 gate
+/// on a `responseType: bytes` request comes back as `Response.data = <bytes
+/// of the JSON error body>` instead of throwing — without this check, that
+/// gets silently handed to a PDF viewer as if it were the real file, which
+/// fails with a cryptic renderer error instead of the server's actual reason
+/// (e.g. "disabled by administrator").
+List<int> unwrapPdfBytes(Response<List<int>> res) {
+  final bytes = res.data ?? const <int>[];
+  final contentType = res.headers.value('content-type') ?? '';
+  if (res.statusCode != 200 || !contentType.contains('pdf')) {
+    String message = 'Could not generate the document (${res.statusCode})';
+    try {
+      final decoded = jsonDecode(utf8.decode(bytes));
+      if (decoded is Map && decoded['error'] != null) {
+        message = decoded['error'].toString();
+      }
+    } catch (_) {
+      // Body wasn't JSON either — keep the generic message.
+    }
+    throw ApiException(message, statusCode: res.statusCode);
+  }
+  return bytes;
 }
