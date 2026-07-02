@@ -1,5 +1,6 @@
 import 'package:loantrack/data/models/customer.dart';
 import 'package:loantrack/data/models/instalment.dart';
+import 'package:loantrack/data/models/penalty.dart';
 
 /// Loan model — spec §3.3.
 class Loan {
@@ -19,6 +20,7 @@ class Loan {
     required this.totalPayable,
     required this.totalCollected,
     required this.perInstalment,
+    this.penalties = const [],
     this.customer,
     this.endDate,
     this.voucherRef,
@@ -42,6 +44,7 @@ class Loan {
   final int instalmentCount;
   final double penaltyRate;
   final List<Instalment> instalments;
+  final List<Penalty> penalties;
   final Customer? customer;
   final String? voucherRef;
   final String? loanType; // cheque | gold | property | other
@@ -91,6 +94,9 @@ class Loan {
       productFinanceItem: json['productFinanceItem'] as Map<String, dynamic>?,
       instalments: (json['instalments'] as List<dynamic>? ?? const [])
           .map((dynamic e) => Instalment.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+      penalties: (json['penalties'] as List<dynamic>? ?? const [])
+          .map((dynamic e) => Penalty.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),
       customer: json['customer'] is Map<String, dynamic>
           ? Customer.fromJson(json['customer'] as Map<String, dynamic>)

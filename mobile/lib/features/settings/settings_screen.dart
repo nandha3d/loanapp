@@ -243,6 +243,28 @@ class SettingsScreen extends ConsumerWidget {
                       onTap: () => context.push('/profile'),
                     ),
                     const Divider(height: 1, color: AppColors.border),
+                  ] else ...[
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        Icons.account_circle_outlined,
+                        color: AppColors.primary,
+                      ),
+                      title: Text(
+                        'My Profile',
+                        style: AppTypography.bodyLarge,
+                      ),
+                      subtitle: Text(
+                        'Edit details, change password',
+                        style: AppTypography.caption,
+                      ),
+                      trailing: const Icon(
+                        Icons.chevron_right,
+                        color: AppColors.textLight,
+                      ),
+                      onTap: () => context.push('/profile'),
+                    ),
+                    const Divider(height: 1, color: AppColors.border),
                   ],
                   ListTile(
                     contentPadding: EdgeInsets.zero,
@@ -748,7 +770,10 @@ class _ProfileCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppTokens.radius),
+      onTap: () => context.push('/profile'),
+      child: Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -778,10 +803,20 @@ class _ProfileCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  name,
-                  style:
-                      AppTypography.sectionTitle.copyWith(color: Colors.white),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        name,
+                        style: AppTypography.sectionTitle
+                            .copyWith(color: Colors.white),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Icon(Icons.edit_outlined,
+                        color: Colors.white70, size: 16,),
+                  ],
                 ),
                 if (email.isNotEmpty) ...[
                   const SizedBox(height: 2),
@@ -807,6 +842,7 @@ class _ProfileCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }

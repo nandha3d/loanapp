@@ -196,13 +196,21 @@ export default function Sidebar({
         </nav>
 
         <div className="sidebar-footer">
-          <div className="user-info">
+          <Link
+            href={prefixDashboardHref('/profile', hrefModule)}
+            onClick={() => document.getElementById('sidebar')?.classList.remove('open')}
+            className="user-info user-info-link"
+            title="Edit profile"
+          >
             <div className="avatar">{getInitials(userName)}</div>
-            <div>
-              <div className="user-name">{userName}</div>
+            <div style={{ minWidth: 0 }}>
+              <div className="user-name">
+                {userName}
+                <span className="material-icons-outlined user-name-edit-icon">edit</span>
+              </div>
               <div className="user-role">{getRoleName(role)}</div>
             </div>
-          </div>
+          </Link>
           {role !== 'developer' && (role === 'superadmin' || (role === 'admin' && enabledModules.length > 1)) && (
             <Link 
               href="/portal" 

@@ -10,11 +10,9 @@ import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/models/analytics.dart';
 import 'package:loantrack/data/models/customer.dart';
 import 'package:loantrack/data/models/route_model.dart';
 import 'package:loantrack/data/repositories/customer_repository.dart';
-import 'package:loantrack/data/services/analytics_service.dart';
 import 'package:loantrack/data/services/customer_service.dart';
 import 'package:loantrack/data/services/settings_service.dart';
 import 'package:loantrack/core/gps/gps_service.dart';
@@ -24,11 +22,6 @@ import 'package:loantrack/data/services/upload_service.dart';
 
 final _routeListProvider = FutureProvider.autoDispose<List<AppRoute>>((ref) {
   return ref.watch(settingsServiceProvider).routes();
-});
-
-final _agentListProvider =
-    FutureProvider.autoDispose<List<AgentPerformance>>((ref) {
-  return ref.watch(analyticsServiceProvider).agents();
 });
 
 // ── Local models ───────────────────────────────────────────────────────────
@@ -122,7 +115,6 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
       _phoneCtrl.text = c.phone;
       _addressCtrl.text = c.address ?? '';
       _routeId = c.routeId;
-      _agentId = c.agentId;
       _panCtrl.text = c.pan ?? '';
       _emailCtrl.text = c.email ?? '';
       _companyNameCtrl.text = c.companyName ?? '';
@@ -173,7 +165,6 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
   final List<_GuarantorEntry> _guarantors = [];
   final List<_CollectionPointEntry> _collectionPoints = [];
   String? _routeId;
-  String? _agentId;
   bool _submitting = false;
   String? _error;
   final Map<String, String?> _fieldErrors = {};
@@ -442,7 +433,6 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
     if (guarantorPayloads.isNotEmpty) m['guarantors'] = guarantorPayloads;
     if (_kycStatus != null) m['kycStatus'] = _kycStatus;
     if (_routeId != null) m['routeId'] = _routeId;
-    if (_agentId != null) m['agentId'] = _agentId;
     return m;
   }
 
@@ -546,7 +536,6 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                 ? null
                 : _aadharCtrl.text.trim(),
             routeId: _routeId,
-            agentId: _agentId,
             photoUrl: photoUrl,
             kycDocs: kycInputs,
             extra: _extendedFields(logoUrl, guarantorPayloads),
@@ -606,142 +595,6 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
     }
   }
 
-  // ── New agent dialog ──────────────────────────────────────────────────
-
-  Future<void> _showNewAgentDialog() async {
-    final t = T.of(ref);
-    final nameCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
-    final emailCtrl = TextEditingController();
-    final passCtrl = TextEditingController();
-
-    final created = await showDialog<AgentPerformance>(
-      context: context,
-      builder: (ctx) {
-        String? err;
-        bool creating = false;
-        bool obscurePassword = true;
-        return StatefulBuilder(
-          builder: (ctx, setLocal) => AlertDialog(
-            title: Text(t.x('dlg.add_agent')),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (err != null) ...[
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.dangerBg,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(err!,
-                          style: const TextStyle(
-                              color: AppColors.danger, fontSize: 13,),),
-                    ),
-                    const SizedBox(height: 10),
-                  ],
-                  TextField(
-                    controller: nameCtrl,
-                    textCapitalization: TextCapitalization.words,
-                    decoration: InputDecoration(labelText: t.x('fld.agent_name')),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: phoneCtrl,
-                    keyboardType: TextInputType.phone,
-                    decoration: InputDecoration(labelText: t.x('fld.phone')),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: emailCtrl,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: InputDecoration(labelText: t.x('fld.email')),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: passCtrl,
-                    obscureText: obscurePassword,
-                    decoration: InputDecoration(
-                      labelText: t.x('fld.password_label'),
-                      suffixIcon: IconButton(
-                        tooltip: obscurePassword ? 'Show password' : 'Hide password',
-                        icon: Icon(obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                        onPressed: () => setLocal(() => obscurePassword = !obscurePassword),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: Text(t.x('common.cancel')),
-              ),
-              FilledButton(
-                style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primary,),
-                onPressed: creating
-                    ? null
-                    : () async {
-                        if (nameCtrl.text.trim().isEmpty ||
-                            phoneCtrl.text.trim().isEmpty ||
-                            emailCtrl.text.trim().isEmpty ||
-                            passCtrl.text.isEmpty) {
-                          setLocal(() => err = t.x('err.all_fields_required'));
-                          return;
-                        }
-                        setLocal(() {
-                          creating = true;
-                          err = null;
-                        });
-                        try {
-                          final agent = await ref
-                              .read(settingsServiceProvider)
-                              .createAgent(
-                                name: nameCtrl.text.trim(),
-                                email: emailCtrl.text.trim(),
-                                phone: phoneCtrl.text.trim(),
-                                password: passCtrl.text,
-                              );
-                          if (ctx.mounted) Navigator.pop(ctx, agent);
-                        } catch (e) {
-                          setLocal(() {
-                            creating = false;
-                            err = e
-                                .toString()
-                                .replaceFirst('Exception: ', '');
-                          });
-                        }
-                      },
-                child: creating
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2,),
-                      )
-                    : Text(t.x('btn.create_agent')),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-
-    nameCtrl.dispose();
-    phoneCtrl.dispose();
-    emailCtrl.dispose();
-    passCtrl.dispose();
-
-    if (created != null) {
-      ref.invalidate(_agentListProvider);
-      setState(() => _agentId = created.id);
-    }
-  }
-
   // ── New route dialog ──────────────────────────────────────────────────
 
   Future<void> _showNewRouteDialog() async {
@@ -791,7 +644,6 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
   Widget build(BuildContext context) {
     final t = T.of(ref);
     final routesAsync = ref.watch(_routeListProvider);
-    final agentsAsync = ref.watch(_agentListProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -957,94 +809,50 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
 
                   const SizedBox(height: 20),
 
-                  // ── Route + Agent ──────────────────────────────────────────
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: _LabeledField(
-                          label: t.x('fld.route_line'),
-                          required: true,
-                          trailing: TextButton(
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            onPressed: _showNewRouteDialog,
-                            child: Text(
-                              t.x('btn.new_route'),
-                              style: AppTypography.caption
-                                  .copyWith(color: AppColors.primary),
-                            ),
-                          ),
-                          child: routesAsync.when(
-                            loading: () => _dropdownSkeleton(),
-                            error: (_, __) => _dropdownError(t.x('err.routes_unavail')),
-                            data: (routes) => _AppDropdown<String>(
-                              value: _routeId,
-                              hint: t.x('fld.select_route'),
-                              error: _fieldErrors['route'],
-                              items: routes
-                                  .map(
-                                    (r) => DropdownMenuItem(
-                                      value: r.id,
-                                      child: Text(
-                                        r.name,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: (v) => setState(() {
-                                _routeId = v;
-                                _fieldErrors.remove('route');
-                              }),
-                            ),
-                          ),
-                        ),
+                  // ── Route (the route's assigned agent becomes this
+                  // customer's collecting agent — no separate agent picker;
+                  // agent↔route assignment lives in Settings → Routes, same
+                  // as web). ────────────────────────────────────────────────
+                  _LabeledField(
+                    label: t.x('fld.route_line'),
+                    required: true,
+                    trailing: TextButton(
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _LabeledField(
-                          label: t.x('fld.assigned_agent'),
-                          trailing: TextButton(
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            onPressed: _showNewAgentDialog,
-                            child: Text(
-                              t.x('btn.new_agent'),
-                              style: AppTypography.caption
-                                  .copyWith(color: AppColors.primary),
-                            ),
-                          ),
-                          child: agentsAsync.when(
-                            loading: () => _dropdownSkeleton(),
-                            error: (_, __) => _dropdownError(t.x('err.agents_unavail')),
-                            data: (agents) => _AppDropdown<String>(
-                              value: _agentId,
-                              hint: t.x('fld.select_agent'),
-                              items: agents
-                                  .map(
-                                    (a) => DropdownMenuItem(
-                                      value: a.id,
-                                      child: Text(
-                                        a.name,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: (v) =>
-                                  setState(() => _agentId = v),
-                            ),
-                          ),
-                        ),
+                      onPressed: _showNewRouteDialog,
+                      child: Text(
+                        t.x('btn.new_route'),
+                        style: AppTypography.caption
+                            .copyWith(color: AppColors.primary),
                       ),
-                    ],
+                    ),
+                    child: routesAsync.when(
+                      loading: () => _dropdownSkeleton(),
+                      error: (_, __) => _dropdownError(t.x('err.routes_unavail')),
+                      data: (routes) => _AppDropdown<String>(
+                        value: _routeId,
+                        hint: t.x('fld.select_route'),
+                        error: _fieldErrors['route'],
+                        items: routes
+                            .map(
+                              (r) => DropdownMenuItem(
+                                value: r.id,
+                                child: Text(
+                                  r.name,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (v) => setState(() {
+                          _routeId = v;
+                          _fieldErrors.remove('route');
+                        }),
+                      ),
+                    ),
                   ),
                 ],
               ),

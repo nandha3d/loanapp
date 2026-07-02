@@ -72,8 +72,12 @@ a:hover { text-decoration: underline; }
 .sidebar-footer { padding: 16px 24px; border-top: 1px solid rgba(255,255,255,.08); flex-shrink: 0; }
 .sidebar-footer .user-info { display: flex; align-items: center; gap: 10px; }
 .sidebar-footer .avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .85rem; }
-.sidebar-footer .user-name { font-size: .85rem; font-weight: 600; }
+.sidebar-footer .user-name { font-size: .85rem; font-weight: 600; display: flex; align-items: center; gap: 6px; }
 .sidebar-footer .user-role { font-size: .7rem; color: rgba(255,255,255,.5); }
+.sidebar-footer .user-info-link { text-decoration: none; color: inherit; border-radius: var(--radius-sm); padding: 6px; margin: -6px; transition: background var(--transition); }
+.sidebar-footer .user-info-link:hover { background: rgba(255,255,255,.08); text-decoration: none; }
+.sidebar-footer .user-name-edit-icon { font-size: 13px; color: rgba(255,255,255,.4); }
+.sidebar-footer .user-info-link:hover .user-name-edit-icon { color: rgba(255,255,255,.85); }
 
 .main-content { margin-left: var(--sidebar-w); flex: 1; min-height: 100vh; }
 .topbar { height: var(--topbar-h); background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 28px; position: sticky; top: 0; z-index: 40; }

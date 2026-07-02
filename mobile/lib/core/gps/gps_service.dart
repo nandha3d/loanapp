@@ -22,6 +22,22 @@ class GpsService {
         perm == LocationPermission.always;
   }
 
+  /// Requests foreground location first, then follows up with the
+  /// "Allow all the time" (background) prompt — Android only shows the
+  /// always-allow option as a separate, second request after while-in-use is
+  /// already granted. Returns true only if background ("always") was granted.
+  Future<bool> requestAlwaysPermission() async {
+    if (!await Geolocator.isLocationServiceEnabled()) return false;
+    final whileInUse = await Permission.locationWhenInUse.request();
+    if (!whileInUse.isGranted) return false;
+    final always = await Permission.locationAlways.request();
+    return always.isGranted;
+  }
+
+  /// Current permission tier, for banners/status checks — does not prompt.
+  Future<LocationPermission> currentPermission() =>
+      Geolocator.checkPermission();
+
   Future<Position?> currentPosition({
     LocationAccuracy accuracy = LocationAccuracy.high,
     Duration timeout = const Duration(seconds: 10),

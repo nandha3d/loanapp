@@ -41,7 +41,11 @@
     "db:studio": "npx prisma studio",
     "db:reset": "npx prisma migrate reset",
     "test:loan-calculator": "tsx tests/loanCalculator.test.ts",
-    "test:gold": "tsx tests/goldValuation.test.ts && tsx tests/goldOrnaments.test.ts && tsx tests/pledgeInterest.test.ts && tsx tests/goldServicing.test.ts"
+    "test:gold": "tsx tests/goldValuation.test.ts && tsx tests/goldOrnaments.test.ts && tsx tests/pledgeInterest.test.ts && tsx tests/goldServicing.test.ts",
+    "self-heal": "node scripts/self-heal/healer.mjs",
+    "hooks:install": "git config core.hooksPath .githooks",
+    "gen:tests": "node scripts/self-heal/generate-tests.mjs",
+    "test:links": "npx playwright test e2e/link-check.spec.ts"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
@@ -52,6 +56,7 @@
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.107.0",
     "bcryptjs": "^3.0.3",
+    "exceljs": "^4.4.0",
     "firebase-admin": "^14.0.0",
     "jose": "^5.9.6",
     "mysql2": "^3.22.3",
@@ -66,11 +71,10 @@
     "recharts": "^3.8.1",
     "sharp": "^0.34.5",
     "socks-proxy-agent": "^10.0.0",
-    "exceljs": "^4.4.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.60.0",
+    "@playwright/test": "^1.61.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/nodemailer": "^8.0.0",

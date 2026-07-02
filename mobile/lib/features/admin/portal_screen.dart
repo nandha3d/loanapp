@@ -153,7 +153,8 @@ class PortalScreen extends ConsumerWidget {
                     style:
                         AppTypography.caption.copyWith(color: Colors.white70),
                   ),
-                  if (user?.role == UserRole.superadmin) ...[
+                  if (user?.role == UserRole.superadmin ||
+                      user?.role == UserRole.admin) ...[
                     const SizedBox(height: 14),
                     Align(
                       alignment: Alignment.centerLeft,

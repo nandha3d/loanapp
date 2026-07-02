@@ -64,6 +64,9 @@ export async function GET(req: NextRequest) {
                 lat: true,
                 lng: true,
                 route: { select: { id: true, name: true } },
+                collectionPoints: {
+                  select: { latitude: true, longitude: true, isPrimary: true },
+                },
               },
             },
           },
@@ -73,6 +76,23 @@ export async function GET(req: NextRequest) {
       take: limit + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
+
+    // Customer.lat/lng are legacy scalars that are never actually written —
+    // the real GPS capture lives on CustomerCollectionPoint (set at customer
+    // create/edit). Resolve the primary point (or first with coordinates) as
+    // the customer's effective location so the collection list/map/sort all
+    // get real data.
+    for (const r of rows) {
+      const points = r.loan.customer.collectionPoints;
+      const point =
+        points.find((p) => p.isPrimary && p.latitude != null && p.longitude != null) ??
+        points.find((p) => p.latitude != null && p.longitude != null);
+      if (point) {
+        r.loan.customer.lat = point.latitude;
+        r.loan.customer.lng = point.longitude;
+      }
+      delete (r.loan.customer as any).collectionPoints;
+    }
 
     // Frequency-aware: a non-daily loan's overdue rows only surface on its
     // cadence day, so agents aren't sent to weekly/monthly customers every day.

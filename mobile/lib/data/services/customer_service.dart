@@ -81,6 +81,11 @@ class CustomerService {
     );
   }
 
+  Future<void> delete(String id) async {
+    final res = await _dio.delete<Map<String, dynamic>>(Endpoints.customer(id));
+    unwrapEnvelope(res, (_) => null);
+  }
+
   Future<List<int>> collectionReceiptPdf(String id) async {
     final res = await _dio.get<List<int>>(
       Endpoints.customerCollectionReceipt(id),

@@ -239,3 +239,50 @@ export async function PATCH(
     return fail(e?.message ?? 'Customer update failed', 500);
   }
 }
+
+/**
+ * DELETE /api/v1/customers/[id] — soft-delete (sets deletedAt + status
+ * 'inactive'), same convention every read query already filters on
+ * (`deletedAt: null`). Blocked while the customer has any non-closed loan —
+ * a customer with money still outstanding must be settled first, not erased.
+ */
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const auth = await requireMobileContext(req);
+  if (auth.response) return auth.response;
+  const ctx = auth.context;
+
+  if (!['admin', 'superadmin', 'developer'].includes(ctx.role)) {
+    return fail('Forbidden', 403);
+  }
+
+  const { id } = await params;
+  const existing = await findScopedCustomer(id, ctx);
+  if (!existing) return fail('Customer not found', 404);
+
+  const hasOpenLoan = existing.loans.some(
+    (l) => l.status !== 'closed' && l.status !== 'rejected',
+  );
+  if (hasOpenLoan) {
+    return fail('This customer has an open loan — close or settle it before deleting.', 409);
+  }
+
+  await prisma.customer.update({
+    where: { id: existing.id },
+    data: { deletedAt: new Date(), status: 'inactive' },
+  });
+
+  await writeAudit({
+    tenantId: ctx.tenantId,
+    userId: ctx.userId,
+    action: 'delete',
+    entityType: 'customer',
+    entityId: existing.id,
+    oldValue: { status: existing.status },
+    newValue: { deletedAt: true, status: 'inactive' },
+  });
+
+  return ok({ deleted: true });
+}

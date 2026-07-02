@@ -37,6 +37,7 @@ import 'package:loantrack/features/notifications/notifications_screen.dart';
 import 'package:loantrack/features/npa/npa_screen.dart';
 import 'package:loantrack/features/penalties/penalties_screen.dart';
 import 'package:loantrack/features/profile/superadmin_profile_screen.dart';
+import 'package:loantrack/features/profile/account_profile_screen.dart';
 import 'package:loantrack/features/reports/reports_screen.dart';
 import 'package:loantrack/features/wallet/wallet_screen.dart';
 import 'package:loantrack/features/settings/settings_screen.dart';
@@ -173,7 +174,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/admin', builder: (_, __) => const DeveloperAdminScreen()),
       GoRoute(
         path: '/profile',
-        builder: (_, __) => const SuperadminProfileScreen(),
+        builder: (_, __) {
+          final user = auth.user;
+          if (user?.role == UserRole.superadmin) {
+            return const SuperadminProfileScreen();
+          }
+          return const AccountProfileScreen();
+        },
       ),
       GoRoute(path: '/portal', builder: (_, __) => const PortalScreen()),
       GoRoute(
@@ -454,10 +461,9 @@ bool _moduleBlocked(String location, User user) {
     return user.role != UserRole.superadmin && user.role != UserRole.admin;
   }
 
-  // /profile (superadmin account/subscription/security profile)
-  if (location == '/profile') {
-    return user.role != UserRole.superadmin;
-  }
+  // /profile — superadmin gets the richer account/subscription/security
+  // screen; every other authenticated role gets the generic account
+  // profile (see the GoRoute builder below). No role block here.
 
   // /portal/billing
   if (location == '/portal/billing') {

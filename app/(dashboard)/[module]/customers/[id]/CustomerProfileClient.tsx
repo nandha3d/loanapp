@@ -250,7 +250,28 @@ export default function CustomerProfileClient({
               </div>
             </div>
             <div className="profile-meta" style={{ display: 'flex', gap: '20px', fontSize: '.9rem', color: 'var(--text-secondary)' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span className="material-icons-outlined" style={{ fontSize: '16px' }}>phone</span> {customer.phone}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>phone</span> {customer.phone}
+                {customer.phone && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '2px', marginLeft: '4px' }}>
+                    <a href={`tel:${customer.phone}`} title="Call" style={{ display: 'flex', color: 'var(--success, #16a34a)' }}>
+                      <span className="material-icons-outlined" style={{ fontSize: '18px' }}>call</span>
+                    </a>
+                    <a href={`sms:${customer.phone}`} title="Message" style={{ display: 'flex', color: 'var(--info, #2563eb)' }}>
+                      <span className="material-icons-outlined" style={{ fontSize: '18px' }}>sms</span>
+                    </a>
+                    <a
+                      href={`https://wa.me/${String(customer.phone).replace(/\D/g, '').replace(/^(\d{10})$/, '91$1')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="WhatsApp"
+                      style={{ display: 'flex', color: '#25D366' }}
+                    >
+                      <span className="material-icons-outlined" style={{ fontSize: '18px' }}>chat</span>
+                    </a>
+                  </span>
+                )}
+              </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span className="material-icons-outlined" style={{ fontSize: '16px' }}>location_on</span> {customer.route?.name || d.noRoute}</span>
               <span><span className={getBadgeClass(customer.kycStatus)} style={{textTransform:'capitalize', padding: '2px 10px', borderRadius: '4px'}}>{customer.kycStatus}</span></span>
             </div>

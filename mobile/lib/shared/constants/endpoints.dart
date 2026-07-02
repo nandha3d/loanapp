@@ -24,6 +24,11 @@ class Endpoints {
   static const String profile = '/profile';
   static const String profilePasswordOtp = '/profile/password/otp';
   static const String profilePasswordChange = '/profile/password/change';
+  // Generic self-service account (non-superadmin roles) — separate from the
+  // superadmin-only /profile endpoints above.
+  static const String account = '/account';
+  static const String accountPasswordOtp = '/account/password/otp';
+  static const String accountPasswordChange = '/account/password/change';
 
   // Customers
   static const String customers = '/customers';

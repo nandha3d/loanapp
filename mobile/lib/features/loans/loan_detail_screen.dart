@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import 'package:loantrack/core/l10n/language_controller.dart';
-import 'package:loantrack/core/auth/auth_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
@@ -16,8 +15,8 @@ import 'package:loantrack/data/models/loan.dart';
 import 'package:loantrack/features/loans/gold_servicing_sheet.dart';
 import 'package:loantrack/features/loans/property_servicing_sheet.dart';
 import 'package:loantrack/features/loans/product_servicing_sheet.dart';
-import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/data/models/collection_entry.dart';
+import 'package:loantrack/data/services/approval_service.dart';
 import 'package:loantrack/data/services/loan_service.dart';
 import 'package:loantrack/features/collection/quick_collect_sheet.dart';
 import 'package:loantrack/features/loans/widgets/loan_heatmap.dart';
@@ -96,11 +95,12 @@ class LoanDetailScreen extends ConsumerWidget {
                 builder: (_) => ProductServicingSheet(loan: loaded),
               ),
             ),
-          if (loaded != null &&
-              loaded.status != 'closed' &&
-              ref.read(authControllerProvider).user?.role != UserRole.agent)
+          if (loaded != null && loaded.status != 'closed')
             IconButton(
               icon: const Icon(Icons.edit_outlined),
+              // The edit screen always files a reviewed request (requestEdit /
+              // PATCH) regardless of role — safe to show to agents too; it
+              // was previously hidden from them for no functional reason.
               tooltip: t.x('loan.edit_title'),
               onPressed: () =>
                   context.push('/loans/${loaded.id}/edit', extra: loaded),
@@ -196,6 +196,10 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
           instalments: displayInstalments,
           onJump: _jumpTo,
         ),
+        const SizedBox(height: 14),
+        _OverdueSummaryCard(loan: loan, fmt: fmt),
+        const SizedBox(height: 14),
+        _PenaltySummaryCard(loan: loan, fmt: fmt),
         const SizedBox(height: 14),
         Container(
           padding: const EdgeInsets.symmetric(vertical: 6),
@@ -630,6 +634,192 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
           }),
         ),
       ],
+    );
+  }
+}
+
+/// Missed instalments + overdue amount (strictly before today — does not
+/// include today's due). Matches the web loan-detail "Overdues" card so both
+/// platforms agree on the figure.
+class _OverdueSummaryCard extends StatelessWidget {
+  const _OverdueSummaryCard({required this.loan, required this.fmt});
+  final Loan loan;
+  final NumberFormat fmt;
+
+  @override
+  Widget build(BuildContext context) {
+    final todayStart = DateTime.now();
+    final today = DateTime(todayStart.year, todayStart.month, todayStart.day);
+    final missedCount =
+        loan.instalments.where((i) => i.dynamicStatus == 'missed').length;
+    final overdueAmount = loan.instalments.where((i) {
+      final due = DateTime(i.dueDate.year, i.dueDate.month, i.dueDate.day);
+      return due.isBefore(today);
+    }).fold<double>(0, (sum, i) {
+      final out = i.dueAmount - i.receivedAmount;
+      return sum + (out > 0 ? out : 0);
+    });
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppTokens.radius),
+        boxShadow: AppTokens.shadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.report_problem_outlined,
+                  size: 18, color: AppColors.danger,),
+              const SizedBox(width: 6),
+              Text('Overdues', style: AppTypography.sectionTitle),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _MiniStat(
+                  label: 'Missed Days',
+                  value: '$missedCount',
+                  color: AppColors.danger,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _MiniStat(
+                  label: 'Overdue Amount',
+                  value: fmt.format(overdueAmount),
+                  color: AppColors.danger,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Total / settled+waived / net-due penalty snapshot, matching the web
+/// loan-detail Penalty Summary card. `netPenalty = totalPenalty -
+/// settledPenalty - waivedPenalty`, where totalPenalty is the greater of
+/// recorded penalty rows or (missedCount * penaltyRate) — same server-side
+/// convention the web page already uses, replicated client-side here since
+/// both read from the same `loan.penalties` + `loan.penaltyRate` fields.
+class _PenaltySummaryCard extends StatelessWidget {
+  const _PenaltySummaryCard({required this.loan, required this.fmt});
+  final Loan loan;
+  final NumberFormat fmt;
+
+  @override
+  Widget build(BuildContext context) {
+    final missedCount =
+        loan.instalments.where((i) => i.dynamicStatus == 'missed').length;
+    final recordedPenalty =
+        loan.penalties.fold<double>(0, (s, p) => s + p.grossPenalty);
+    final potentialPenalty = missedCount * loan.penaltyRate;
+    final totalPenalty =
+        recordedPenalty > potentialPenalty ? recordedPenalty : potentialPenalty;
+    final settledPenalty =
+        loan.penalties.fold<double>(0, (s, p) => s + p.settledAmount);
+    final waivedPenalty =
+        loan.penalties.fold<double>(0, (s, p) => s + p.waivedAmount);
+    final netPenalty = totalPenalty - settledPenalty - waivedPenalty;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppTokens.radius),
+        boxShadow: AppTokens.shadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.gavel_outlined, size: 18, color: AppColors.primary),
+              const SizedBox(width: 6),
+              Text('Penalty Summary', style: AppTypography.sectionTitle),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _MiniStat(
+                  label: 'Total',
+                  value: fmt.format(totalPenalty),
+                  color: AppColors.danger,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _MiniStat(
+                  label: 'Settled + Waived',
+                  value: fmt.format(settledPenalty + waivedPenalty),
+                  color: AppColors.success,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _MiniStat(
+                  label: 'Net Due',
+                  value: fmt.format(netPenalty),
+                  color: AppColors.primaryDark,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniStat extends StatelessWidget {
+  const _MiniStat({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: AppTypography.tiny.copyWith(color: AppColors.textLight),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: AppTypography.bodyLarge.copyWith(
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1092,16 +1282,103 @@ class _InstalmentRow extends ConsumerWidget {
                     },
                   )
                 : (isPaid
-                    ? Icon(
-                        Icons.check_circle,
-                        size: 20,
-                        color: AppColors.success.withAlpha(150),
+                    ? IconButton(
+                        icon: Icon(
+                          Icons.check_circle,
+                          size: 20,
+                          color: AppColors.success.withAlpha(150),
+                        ),
+                        tooltip: 'Request correction',
+                        padding: EdgeInsets.zero,
+                        onPressed: () =>
+                            _requestCollectionEdit(context, ref, inst),
                       )
                     : const SizedBox.shrink()),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _requestCollectionEdit(
+    BuildContext context,
+    WidgetRef ref,
+    Instalment inst,
+  ) async {
+    final amountCtrl =
+        TextEditingController(text: inst.receivedAmount.toStringAsFixed(2));
+    final reasonCtrl = TextEditingController();
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Request correction'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'This won\'t apply immediately — an admin reviews and approves it.',
+              style: AppTypography.caption,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: amountCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Correct amount',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Reason *',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Submit'),
+          ),
+        ],
+      ),
+    );
+    if (result != true) return;
+    final amount = double.tryParse(amountCtrl.text.trim());
+    final reason = reasonCtrl.text.trim();
+    if (amount == null || reason.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Enter a valid amount and reason')),
+        );
+      }
+      return;
+    }
+    try {
+      await ref.read(approvalServiceProvider).request(
+            requestType: 'edit_collection',
+            entityType: 'instalment',
+            entityId: inst.id,
+            requestedChanges: {'requestedAmount': amount},
+            reason: reason,
+          );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Correction request sent for review')),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
   }
 }
 
@@ -1160,6 +1437,7 @@ class _PayButton extends ConsumerWidget {
         customerId: loan.customerId,
         customerName: loan.customer?.name ?? '-',
         customerCode: loan.customer?.customerCode ?? '',
+        customerPhone: loan.customer?.phone ?? '',
         routeName: null,
         dueAmount: dueAmount ?? source.dueAmount,
         receivedAmount: source.receivedAmount,
@@ -1190,6 +1468,7 @@ class _PayButton extends ConsumerWidget {
       customerId: loan.customerId,
       customerName: loan.customer?.name ?? '—',
       customerCode: loan.customer?.customerCode ?? '',
+      customerPhone: loan.customer?.phone ?? '',
       routeName: null,
       dueAmount: defaultAmount,
       receivedAmount: inst.receivedAmount,

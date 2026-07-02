@@ -18,6 +18,7 @@ import 'package:loantrack/data/services/collection_service.dart';
 import 'package:loantrack/features/collection/quick_collect_sheet.dart';
 import 'package:loantrack/features/dashboard/widgets/collection_trend_card.dart';
 import 'package:loantrack/features/onboarding/onboarding_overlay.dart';
+import 'package:loantrack/features/onboarding/location_permission_overlay.dart';
 import 'package:loantrack/shared/widgets/bottom_nav.dart';
 import 'package:loantrack/shared/widgets/empty_state.dart';
 import 'package:loantrack/shared/widgets/skeleton.dart';
@@ -41,10 +42,11 @@ class DashboardScreen extends ConsumerWidget {
     // First-run tour (U1) - no-ops once the seen flag is stored.
     if (!_onboardingRequested && user != null) {
       _onboardingRequested = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (context.mounted) {
-          maybeShowOnboarding(context, role: user.role.name);
-        }
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!context.mounted) return;
+        await maybeShowOnboarding(context, role: user.role.name);
+        if (!context.mounted) return;
+        await maybeRequestAlwaysLocation(context, ref, role: user.role.name);
       });
     }
     final t = T.of(ref);

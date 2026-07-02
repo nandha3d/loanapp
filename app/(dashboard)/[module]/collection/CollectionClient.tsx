@@ -30,6 +30,7 @@ type CollectionRow = {
       id: string;
       name: string;
       customerCode: string;
+      phone?: string | null;
       preferredCollectionTime?: string | null;
       route?: { id: string; name: string } | null;
       collectionPoints?: { id: string; name: string; address: string; latitude: number | null; longitude: number | null; isPrimary: boolean }[];
@@ -47,6 +48,7 @@ type UnifiedGroup = {
   customerId: string;
   customerName: string;
   customerCode: string;
+  customerPhone?: string | null;
   routeName: string;
   preferredCollectionTime?: string | null;
   instalments: CollectionRow[];
@@ -54,6 +56,8 @@ type UnifiedGroup = {
   collectionPoints: { id: string; name: string; address: string; latitude: number | null; longitude: number | null; isPrimary: boolean }[];
   distanceToAgent?: number;
   nearestPointName?: string;
+  mapLat?: number;
+  mapLng?: number;
 };
 
 type CustomerOverdueGroup = {
@@ -324,6 +328,7 @@ export default function CollectionClient({
           customerId: cid,
           customerName: row.loan.customer.name,
           customerCode: row.loan.customer.customerCode,
+          customerPhone: row.loan.customer.phone || null,
           routeName: row.loan.customer.route?.name || '-',
           preferredCollectionTime: row.loan.customer.preferredCollectionTime || null,
           instalments: [],
@@ -342,6 +347,15 @@ export default function CollectionClient({
     }
     
     const groups = Array.from(map.values()).sort((a, b) => a.customerName.localeCompare(b.customerName));
+
+    for (const g of groups) {
+      const withGps = g.collectionPoints.filter((cp) => cp.latitude != null && cp.longitude != null);
+      const point = withGps.find((cp) => cp.isPrimary) || withGps[0];
+      if (point) {
+        g.mapLat = point.latitude!;
+        g.mapLng = point.longitude!;
+      }
+    }
 
     if (isSortedByNearest && agentLocation) {
       groups.forEach(g => {
@@ -670,6 +684,28 @@ export default function CollectionClient({
                   {group.loanCodes.join(', ')} · {group.routeName}
                 </div>
               </div>
+              {group.customerPhone && (
+                <a
+                  href={`tel:${group.customerPhone}`}
+                  onClick={(e) => e.stopPropagation()}
+                  title="Call"
+                  style={{ display: 'flex', color: 'var(--success, #16a34a)', flexShrink: 0 }}
+                >
+                  <span className="material-icons-outlined" style={{ fontSize: '20px' }}>call</span>
+                </a>
+              )}
+              {group.mapLat != null && group.mapLng != null && (
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${group.mapLat},${group.mapLng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  title="Open location in Maps"
+                  style={{ display: 'flex', color: 'var(--primary-dark, #b45309)', flexShrink: 0 }}
+                >
+                  <span className="material-icons-outlined" style={{ fontSize: '20px' }}>location_on</span>
+                </a>
+              )}
               <span className={getBadgeClass(m.displayStatus.toLowerCase())} style={{ textTransform: 'capitalize', flexShrink: 0 }}>
                 {m.displayStatus}
               </span>
@@ -758,9 +794,33 @@ export default function CollectionClient({
                         {getInitials(group.customerName)}
                       </div>
                       <div>
-                        <Link href={`/customers/${group.customerCode}`} onClick={(e) => e.stopPropagation()}>
-                          <strong>{group.customerName}</strong>
-                        </Link>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <Link href={`/customers/${group.customerCode}`} onClick={(e) => e.stopPropagation()}>
+                            <strong>{group.customerName}</strong>
+                          </Link>
+                          {group.customerPhone && (
+                            <a
+                              href={`tel:${group.customerPhone}`}
+                              onClick={(e) => e.stopPropagation()}
+                              title="Call"
+                              style={{ display: 'flex', color: 'var(--success, #16a34a)' }}
+                            >
+                              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>call</span>
+                            </a>
+                          )}
+                          {group.mapLat != null && group.mapLng != null && (
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${group.mapLat},${group.mapLng}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              title="Open location in Maps"
+                              style={{ display: 'flex', color: 'var(--primary-dark, #b45309)' }}
+                            >
+                              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>location_on</span>
+                            </a>
+                          )}
+                        </span>
                         {group.distanceToAgent !== undefined && group.distanceToAgent !== Infinity && (
                           <div style={{ fontSize: '.75rem', color: 'var(--text-light)', marginTop: '2px' }}>
                             <span className="material-icons-outlined" style={{ fontSize: '12px', verticalAlign: 'middle', marginRight: '2px' }}>location_on</span>

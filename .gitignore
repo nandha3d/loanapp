@@ -110,3 +110,14 @@ mobile/nuget.exe
 
 # SQL: ignore DB DUMPS only (loantrack_export*.sql / *backup*.sql above).
 # Prisma migrations and docs/*.sql ARE committed.
+
+# Playwright
+node_modules/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+
+# self-healing SDLC loop state/artifacts
+/e2e-results/
+scripts/self-heal/.state/

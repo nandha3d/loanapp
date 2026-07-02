@@ -26,6 +26,7 @@ import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/data/services/collection_service.dart';
 import 'package:loantrack/features/collection/quick_collect_sheet.dart';
 import 'package:loantrack/features/collection/offline_banner.dart';
+import 'package:loantrack/features/onboarding/location_permission_overlay.dart';
 import 'package:loantrack/shared/widgets/help_sheet.dart';
 import 'package:loantrack/shared/widgets/bottom_nav.dart';
 import 'package:loantrack/shared/widgets/empty_state.dart';
@@ -220,6 +221,8 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
       body: Column(
         children: [
           const OfflineBanner(),
+          if (ref.watch(authControllerProvider).user?.role == UserRole.agent)
+            const LocationStatusBanner(),
           Expanded(
             child: async.when(
         loading: () => ListView.separated(
@@ -340,21 +343,16 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
   ) {
     switch (filter) {
       case 'pending':
-        return groups
-            .where((g) => g.rows.any((r) => r.daysOverdue <= 0))
-            .toList();
+        return groups.where((g) => g.todayDue > 0).toList();
       case 'paid':
-        return groups
-            .where((g) => g.rows.any((r) => r.status == 'paid'))
-            .toList();
+        // A group is "paid" only when every collectible row is fully
+        // resolved — a customer with one paid row and one still-overdue row
+        // is NOT paid (previously matched on ANY paid row, which wrongly
+        // included customers who still owe money).
+        return groups.where((g) => g.allCollected).toList();
       case 'overdue':
-        return groups
-            .where(
-              (g) => g.rows.any(
-                (r) => r.daysOverdue > 0 && r.status != 'paid',
-              ),
-            )
-            .toList();
+        return groups.where((g) => g.overdueDue > 0).toList();
+      case 'all':
       default:
         return groups;
     }
@@ -1598,7 +1596,8 @@ class _CollectionCard extends ConsumerWidget {
                       color: AppColors.success,
                     ),
                     onPressed: () async {
-                      final uri = Uri(scheme: 'tel', path: p.customerCode);
+                      if (p.customerPhone.isEmpty) return;
+                      final uri = Uri(scheme: 'tel', path: p.customerPhone);
                       if (await canLaunchUrl(uri)) {
                         await launchUrl(uri);
                       }

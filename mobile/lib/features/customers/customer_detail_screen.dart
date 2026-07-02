@@ -10,11 +10,13 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:loantrack/core/auth/auth_controller.dart';
 import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/data/models/customer.dart';
+import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/data/repositories/customer_repository.dart';
 import 'package:loantrack/shared/widgets/app_badge.dart';
 import 'package:loantrack/shared/widgets/app_button.dart';
@@ -248,9 +250,47 @@ class _Header extends ConsumerWidget {
                       letterSpacing: 0.5,
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.more_vert, color: Colors.white),
-                    onPressed: () {},
+                  Builder(
+                    builder: (context) {
+                      final role = ref.read(authControllerProvider).user?.role;
+                      final canDelete = role == UserRole.admin ||
+                          role == UserRole.superadmin ||
+                          role == UserRole.developer;
+                      return PopupMenuButton<String>(
+                        icon: const Icon(Icons.more_vert, color: Colors.white),
+                        onSelected: (value) {
+                          if (value == 'edit') {
+                            context.push(
+                              '/customers/${customer.id}/edit',
+                              extra: customer,
+                            );
+                          } else if (value == 'delete') {
+                            _confirmDelete(context, ref, customer);
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'edit',
+                            child: ListTile(
+                              leading: Icon(Icons.edit_outlined),
+                              title: Text('Edit Profile'),
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ),
+                          if (canDelete)
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: ListTile(
+                                leading:
+                                    Icon(Icons.delete_outline, color: AppColors.danger),
+                                title: Text('Delete Customer',
+                                    style: TextStyle(color: AppColors.danger),),
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                        ],
+                      );
+                    },
                   ),
                 ],
               ),
@@ -287,6 +327,53 @@ class _Header extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _confirmDelete(
+    BuildContext context,
+    WidgetRef ref,
+    Customer customer,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Customer'),
+        content: Text(
+          'Delete ${customer.name}? This cannot be undone from the app. '
+          'Customers with an open loan cannot be deleted.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await ref.read(customerRepositoryProvider).delete(customer.id);
+      ref.invalidate(customerListProvider);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Customer deleted')),
+      );
+      context.go('/customers');
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
   }
 
   BadgeKind _badgeForStatus(String s) {
