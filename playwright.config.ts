@@ -44,10 +44,11 @@ export default defineConfig({
       use: { ...devices['Desktop Firefox'] },
     },
 
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
+    /* Webkit often times out on Windows local dev environments */
+    // {
+    //   name: 'webkit',
+    //   use: { ...devices['Desktop Safari'] },
+    // },
 
     /* Test against mobile viewports. */
     // {
