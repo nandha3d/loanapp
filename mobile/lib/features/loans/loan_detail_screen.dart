@@ -15,6 +15,7 @@ import 'package:loantrack/data/models/loan.dart';
 import 'package:loantrack/features/loans/gold_servicing_sheet.dart';
 import 'package:loantrack/features/loans/property_servicing_sheet.dart';
 import 'package:loantrack/features/loans/product_servicing_sheet.dart';
+import 'package:loantrack/core/network/authed_image.dart';
 import 'package:loantrack/core/network/dio_client.dart';
 import 'package:loantrack/data/models/collection_entry.dart';
 import 'package:loantrack/data/services/approval_service.dart';
@@ -877,9 +878,7 @@ class _SummaryCardOverview extends ConsumerWidget {
                   loan.customer!.photoUrl!.isNotEmpty)
                 CircleAvatar(
                   radius: 30,
-                  backgroundImage: NetworkImage(absoluteMediaUrl(
-                      ref.watch(mediaBaseUrlProvider),
-                      loan.customer!.photoUrl,),),
+                  backgroundImage: authedImage(ref, loan.customer!.photoUrl!),
                 )
               else
                 CircleAvatar(
@@ -1523,7 +1522,7 @@ class _BorrowerHeader extends ConsumerWidget {
       child: Column(
         children: [
           if (photo.isNotEmpty)
-            CircleAvatar(radius: 36, backgroundImage: NetworkImage(photo))
+            CircleAvatar(radius: 36, backgroundImage: authedImage(ref, photo))
           else
             CircleAvatar(
               radius: 36,

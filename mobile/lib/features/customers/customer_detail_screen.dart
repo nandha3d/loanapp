@@ -12,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:loantrack/core/auth/auth_controller.dart';
 import 'package:loantrack/core/l10n/language_controller.dart';
+import 'package:loantrack/core/network/authed_image.dart';
 import 'package:loantrack/core/network/dio_client.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
@@ -400,10 +401,9 @@ class _PhotoOrInitials extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Server returns a relative /api/files/... path — absolutize or the
-    // image silently never loads on mobile.
-    final url =
-        absoluteMediaUrl(ref.watch(mediaBaseUrlProvider), customer.photoUrl);
+    // Server returns a relative /api/files/... path — authedImage absolutizes
+    // it and attaches the Bearer token the /api/files route requires.
+    final url = customer.photoUrl ?? '';
     if (url.isNotEmpty) {
       return Container(
         width: size,
@@ -412,7 +412,7 @@ class _PhotoOrInitials extends ConsumerWidget {
           shape: BoxShape.circle,
           border: Border.all(color: Colors.white24, width: 2),
           image: DecorationImage(
-            image: NetworkImage(url),
+            image: authedImage(ref, url),
             fit: BoxFit.cover,
           ),
         ),
@@ -1173,9 +1173,7 @@ class _GuarantorsSection extends ConsumerWidget {
                       shape: BoxShape.circle,
                       image: g.photoUrl != null && g.photoUrl!.isNotEmpty
                           ? DecorationImage(
-                              image: NetworkImage(absoluteMediaUrl(
-                                  ref.watch(mediaBaseUrlProvider),
-                                  g.photoUrl,),),
+                              image: authedImage(ref, g.photoUrl!),
                               fit: BoxFit.cover,
                             )
                           : null,
@@ -1244,9 +1242,8 @@ class _CompanySection extends ConsumerWidget {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      absoluteMediaUrl(
-                          ref.watch(mediaBaseUrlProvider), customer.companyLogo,),
+                    child: Image(
+                      image: authedImage(ref, customer.companyLogo!),
                       width: 48,
                       height: 48,
                       fit: BoxFit.cover,
@@ -1408,7 +1405,8 @@ class _KycDocsSection extends ConsumerWidget {
   const _KycDocsSection({required this.docs});
   final List<KycDocument> docs;
 
-  void _openDoc(BuildContext context, KycDocument d, String url) {
+  void _openDoc(
+      BuildContext context, WidgetRef ref, KycDocument d, String url,) {
     if (_looksLikeImage(d.url)) {
       showDialog<void>(
         context: context,
@@ -1421,8 +1419,8 @@ class _KycDocsSection extends ConsumerWidget {
                 minScale: 0.5,
                 maxScale: 4,
                 child: Center(
-                  child: Image.network(
-                    url,
+                  child: Image(
+                    image: authedImage(ref, d.url),
                     errorBuilder: (_, __, ___) => const Padding(
                       padding: EdgeInsets.all(32),
                       child: Icon(Icons.broken_image_outlined,
@@ -1467,7 +1465,7 @@ class _KycDocsSection extends ConsumerWidget {
           for (final d in docs)
             InkWell(
               onTap: () =>
-                  _openDoc(context, d, absoluteMediaUrl(mediaBase, d.url)),
+                  _openDoc(context, ref, d, absoluteMediaUrl(mediaBase, d.url)),
               borderRadius: BorderRadius.circular(10),
               child: Container(
                 width: 92,
@@ -1483,8 +1481,8 @@ class _KycDocsSection extends ConsumerWidget {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(6),
                       child: _looksLikeImage(d.url)
-                          ? Image.network(
-                              absoluteMediaUrl(mediaBase, d.url),
+                          ? Image(
+                              image: authedImage(ref, d.url),
                               width: 76,
                               height: 76,
                               fit: BoxFit.cover,

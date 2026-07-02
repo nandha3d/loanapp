@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:loantrack/core/network/api_exception.dart';
+import 'package:loantrack/core/network/authed_image.dart';
 import 'package:loantrack/core/network/dio_client.dart';
 
 import 'package:loantrack/core/l10n/language_controller.dart';
@@ -1318,7 +1319,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
 
 // ── Photo avatar ────────────────────────────────────────────────────────────
 
-class _PhotoAvatar extends StatelessWidget {
+class _PhotoAvatar extends ConsumerWidget {
   const _PhotoAvatar({
     required this.photo,
     required this.label,
@@ -1331,7 +1332,7 @@ class _PhotoAvatar extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final hasExisting = photo == null &&
         existingUrl != null &&
         existingUrl!.isNotEmpty;
@@ -1353,7 +1354,7 @@ class _PhotoAvatar extends StatelessWidget {
                     )
                   : hasExisting
                       ? DecorationImage(
-                          image: NetworkImage(existingUrl!),
+                          image: authedImage(ref, existingUrl!),
                           fit: BoxFit.cover,
                         )
                       : null,

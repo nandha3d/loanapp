@@ -15,6 +15,7 @@ import 'package:loantrack/core/gps/gps_service.dart';
 import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/l10n/app_strings.dart';
 import 'package:loantrack/core/network/api_exception.dart';
+import 'package:loantrack/core/network/authed_image.dart';
 import 'package:loantrack/core/network/dio_client.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
@@ -1075,8 +1076,8 @@ class _UpiQrSection extends ConsumerWidget {
           child: Column(
             children: [
               if (imageUrl != null)
-                Image.network(
-                  imageUrl,
+                Image(
+                  image: authedImage(ref, imageUrl),
                   width: 180,
                   height: 180,
                   fit: BoxFit.contain,
