@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import 'package:loantrack/core/auth/auth_controller.dart';
+import 'package:loantrack/core/network/dio_client.dart';
 import 'package:loantrack/core/currency/currency_controller.dart';
 import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
@@ -1568,7 +1569,9 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
               child: _gPhoto != null
                   ? Image.file(_gPhoto!, fit: BoxFit.cover)
                   : (_existingGuarantorPhotoUrl != null
-                      ? Image.network(_existingGuarantorPhotoUrl!,
+                      ? Image.network(
+                          absoluteMediaUrl(ref.watch(mediaBaseUrlProvider),
+                              _existingGuarantorPhotoUrl,),
                           fit: BoxFit.cover,)
                       : const Icon(
                           Icons.add_a_photo_outlined,

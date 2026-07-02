@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:loantrack/core/network/api_exception.dart';
+import 'package:loantrack/core/network/dio_client.dart';
 
 import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
@@ -678,7 +679,9 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                     children: [
                       _PhotoAvatar(
                         photo: _photo,
-                        existingUrl: widget.editCustomer?.photoUrl,
+                        existingUrl: absoluteMediaUrl(
+                            ref.watch(mediaBaseUrlProvider),
+                            widget.editCustomer?.photoUrl,),
                         label: t.x('btn.add_photo'),
                         onTap: _showPhotoSourcePicker,
                       ),

@@ -14,9 +14,10 @@ class NavItem {
   final String route;
 }
 
+// 4 tabs — 2 each side of the center "+" button. Customers moved to the
+// More screen so the FAB no longer overlaps a tab.
 const _items = <NavItem>[
   NavItem(icon: Icons.home_outlined, label: 'Home', route: '/dashboard'),
-  NavItem(icon: Icons.people_outline, label: 'Customers', route: '/customers'),
   NavItem(
       icon: Icons.account_balance_wallet_outlined,
       label: 'Loans',
@@ -28,7 +29,6 @@ const _items = <NavItem>[
 
 const _chitItems = <NavItem>[
   NavItem(icon: Icons.home_outlined, label: 'Home', route: '/dashboard'),
-  NavItem(icon: Icons.people_outline, label: 'Members', route: '/customers'),
   NavItem(icon: Icons.savings_outlined, label: 'Chits', route: '/chits'),
   NavItem(
       icon: Icons.account_balance_outlined,
@@ -66,31 +66,18 @@ class AppBottomNav extends ConsumerWidget {
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: items.map((item) {
-                  final active = currentRoute.startsWith(item.route);
-                  final color =
-                      active ? AppColors.primary : AppColors.textLight;
-                  return Expanded(
-                    child: InkWell(
-                      onTap: () => context.go(item.route),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(item.icon, color: color, size: 22),
-                          const SizedBox(height: 4),
-                          Text(
-                            item.label,
-                            style: AppTypography.caption.copyWith(
-                              color: color,
-                              fontWeight:
-                                  active ? FontWeight.w600 : FontWeight.w400,
-                            ),
-                          ),
-                        ],
-                      ),
+                children: [
+                  // 2 tabs — center gap for the "+" button — 2 tabs, so the
+                  // FAB never overlaps a tappable tab.
+                  for (var i = 0; i < items.length; i++) ...[
+                    if (i == items.length ~/ 2)
+                      const SizedBox(width: 64),
+                    _NavTab(
+                      item: items[i],
+                      active: currentRoute.startsWith(items[i].route),
                     ),
-                  );
-                }).toList(),
+                  ],
+                ],
               ),
               Positioned(
                 top: -20,
@@ -106,16 +93,47 @@ class AppBottomNav extends ConsumerWidget {
   }
 }
 
-/// Center "create" button — one entry point for every kind of activity the
-/// app can start (new customer, new loan, collection run), instead of
-/// hunting for the right screen's own FAB first.
-class _CreateFab extends StatelessWidget {
-  const _CreateFab();
+class _NavTab extends StatelessWidget {
+  const _NavTab({required this.item, required this.active});
+  final NavItem item;
+  final bool active;
 
   @override
   Widget build(BuildContext context) {
+    final color = active ? AppColors.primary : AppColors.textLight;
+    return Expanded(
+      child: InkWell(
+        onTap: () => context.go(item.route),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(item.icon, color: color, size: 22),
+            const SizedBox(height: 4),
+            Text(
+              item.label,
+              style: AppTypography.caption.copyWith(
+                color: color,
+                fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Center "create" button — one entry point for every kind of activity the
+/// app can start, instead of hunting for the right screen's own FAB first.
+/// Admin-only actions (agents, routes, wallet release, accounting entries)
+/// are hidden from field agents.
+class _CreateFab extends ConsumerWidget {
+  const _CreateFab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     return GestureDetector(
-      onTap: () => _showCreateSheet(context),
+      onTap: () => _showCreateSheet(context, ref),
       child: Container(
         width: 52,
         height: 52,
@@ -133,52 +151,108 @@ class _CreateFab extends StatelessWidget {
     );
   }
 
-  void _showCreateSheet(BuildContext context) {
+  void _showCreateSheet(BuildContext context, WidgetRef ref) {
+    final role = ref.read(authControllerProvider).user?.role;
+    final privileged = role == UserRole.admin ||
+        role == UserRole.superadmin ||
+        role == UserRole.developer;
+
+    void go(BuildContext ctx, String route) {
+      Navigator.pop(ctx);
+      context.push(route);
+    }
+
     showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 36,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: AppColors.border,
-                  borderRadius: BorderRadius.circular(2),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-              ),
-              _CreateOption(
-                icon: Icons.person_add_alt_1_outlined,
-                label: 'New Customer',
-                onTap: () {
-                  Navigator.pop(ctx);
-                  context.push('/customers/new');
-                },
-              ),
-              _CreateOption(
-                icon: Icons.request_quote_outlined,
-                label: 'New Loan',
-                onTap: () {
-                  Navigator.pop(ctx);
-                  context.push('/loans/new');
-                },
-              ),
-              _CreateOption(
-                icon: Icons.route_outlined,
-                label: 'Collection Run',
-                onTap: () {
-                  Navigator.pop(ctx);
-                  context.push('/collection/runs');
-                },
-              ),
-            ],
+                _CreateOption(
+                  icon: Icons.person_add_alt_1_outlined,
+                  label: 'New Customer',
+                  onTap: () => go(ctx, '/customers/new'),
+                ),
+                _CreateOption(
+                  icon: Icons.request_quote_outlined,
+                  label: 'New Loan',
+                  onTap: () => go(ctx, '/loans/new'),
+                ),
+                _CreateOption(
+                  icon: Icons.route_outlined,
+                  label: 'Collection Run',
+                  onTap: () => go(ctx, '/collection/runs'),
+                ),
+                if (privileged) ...[
+                  const _CreateSectionLabel('Account'),
+                  _CreateOption(
+                    icon: Icons.savings_outlined,
+                    label: 'Add Capital',
+                    onTap: () => go(ctx, '/accounting'),
+                  ),
+                  _CreateOption(
+                    icon: Icons.receipt_long_outlined,
+                    label: 'Add Expense',
+                    onTap: () => go(ctx, '/accounting'),
+                  ),
+                  const _CreateSectionLabel('Team'),
+                  _CreateOption(
+                    icon: Icons.badge_outlined,
+                    label: 'Create Agent',
+                    onTap: () => go(ctx, '/admin/team'),
+                  ),
+                  _CreateOption(
+                    icon: Icons.alt_route_outlined,
+                    label: 'Create Route',
+                    onTap: () => go(ctx, '/settings'),
+                  ),
+                  _CreateOption(
+                    icon: Icons.account_balance_wallet_outlined,
+                    label: 'Release Agent Wallet',
+                    onTap: () => go(ctx, '/wallet'),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CreateSectionLabel extends StatelessWidget {
+  const _CreateSectionLabel(this.label);
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          label.toUpperCase(),
+          style: AppTypography.tiny.copyWith(
+            color: AppColors.textLight,
+            letterSpacing: 0.8,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),

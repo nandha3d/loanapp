@@ -15,6 +15,7 @@ import 'package:loantrack/data/models/loan.dart';
 import 'package:loantrack/features/loans/gold_servicing_sheet.dart';
 import 'package:loantrack/features/loans/property_servicing_sheet.dart';
 import 'package:loantrack/features/loans/product_servicing_sheet.dart';
+import 'package:loantrack/core/network/dio_client.dart';
 import 'package:loantrack/data/models/collection_entry.dart';
 import 'package:loantrack/data/services/approval_service.dart';
 import 'package:loantrack/data/services/loan_service.dart';
@@ -876,7 +877,9 @@ class _SummaryCardOverview extends ConsumerWidget {
                   loan.customer!.photoUrl!.isNotEmpty)
                 CircleAvatar(
                   radius: 30,
-                  backgroundImage: NetworkImage(loan.customer!.photoUrl!),
+                  backgroundImage: NetworkImage(absoluteMediaUrl(
+                      ref.watch(mediaBaseUrlProvider),
+                      loan.customer!.photoUrl,),),
                 )
               else
                 CircleAvatar(
@@ -1510,7 +1513,8 @@ class _BorrowerHeader extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final name = loan.customer?.name ?? '—';
     final code = loan.customer?.customerCode ?? '';
-    final photo = loan.customer?.photoUrl;
+    final photo = absoluteMediaUrl(
+        ref.watch(mediaBaseUrlProvider), loan.customer?.photoUrl,);
     final initials = loan.customer?.initials ?? '?';
 
     return GestureDetector(
@@ -1518,7 +1522,7 @@ class _BorrowerHeader extends ConsumerWidget {
       behavior: HitTestBehavior.opaque,
       child: Column(
         children: [
-          if (photo != null && photo.isNotEmpty)
+          if (photo.isNotEmpty)
             CircleAvatar(radius: 36, backgroundImage: NetworkImage(photo))
           else
             CircleAvatar(

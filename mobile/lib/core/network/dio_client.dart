@@ -133,6 +133,22 @@ final dioProvider = Provider<Dio>((ref) {
   return dio;
 });
 
+/// Server media (photos, KYC docs) is stored as a RELATIVE url like
+/// `/api/files/<tenant>/<name>` — the web resolves it against the page host,
+/// but `NetworkImage` needs an absolute URL, so on mobile every photo
+/// silently failed to load. This is the host root (api base minus /api/v1).
+final mediaBaseUrlProvider = Provider<String>((ref) {
+  final api = ref.watch(apiBaseUrlProvider) ?? kDefaultBaseUrl;
+  return api.replaceFirst(RegExp(r'/api/v1/?$'), '');
+});
+
+/// Absolutize a server media url. Passes through http(s) urls untouched.
+String absoluteMediaUrl(String base, String? url) {
+  if (url == null || url.isEmpty) return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  return url.startsWith('/') ? '$base$url' : '$base/$url';
+}
+
 /// Helper: unwrap `{data, error, pagination}` envelope.
 T unwrapEnvelope<T>(Response<dynamic> res, T Function(dynamic) parse) {
   final body = res.data;

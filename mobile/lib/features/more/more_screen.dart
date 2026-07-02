@@ -100,6 +100,16 @@ class _ModuleItem {
 
 // Not const: module tiles reference the runtime tenant theme (AppColors).
 final _allModules = <_ModuleItem>[
+  // Customers lives here now — its bottom-nav tab was removed so the
+  // center "+" button has a clear gap instead of overlapping a tab.
+  _ModuleItem(
+    icon: Icons.people_outline,
+    label: 'Customers',
+    subtitle: 'Profiles, KYC, and loan history',
+    route: '/customers',
+    color: AppColors.primary,
+    bgColor: AppColors.primaryLight,
+  ),
   _ModuleItem(
     icon: Icons.payments_outlined,
     label: 'Collection',
@@ -258,7 +268,8 @@ class MoreScreen extends ConsumerWidget {
     final simpleMode = ref.watch(simpleModeProvider);
     // Simple mode (U4): field agents see only daily-work items. Admin roles
     // keep the full grid regardless of the toggle - never hides capability.
-    const dailyWorkRoutes = {'/penalties', '/wallet', '/settings'};
+    // '/customers' counts as daily work — it moved here from the bottom nav.
+    const dailyWorkRoutes = {'/customers', '/penalties', '/wallet', '/settings'};
     final visible = user == null
         ? <_ModuleItem>[]
         : _allModules

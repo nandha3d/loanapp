@@ -209,6 +209,18 @@ class _CollectionPager extends StatefulWidget {
   State<_CollectionPager> createState() => _CollectionPagerState();
 }
 
+/// Continuous red → amber → green accent for collection progress: 0% fully
+/// red, 50% amber (mid), 100% fully green — replaces the old 3-step bands.
+Color _progressColor(double pct) {
+  const red = Color(0xFFFF8674);
+  const amber = Color(0xFFFBBF24);
+  const green = Color(0xFF34D399);
+  final p = pct.clamp(0.0, 1.0);
+  return p < 0.5
+      ? Color.lerp(red, amber, p * 2)!
+      : Color.lerp(amber, green, (p - 0.5) * 2)!;
+}
+
 class _CollectionPagerState extends State<_CollectionPager> {
   final _ctrl = PageController();
   int _idx = 0;
@@ -225,10 +237,16 @@ class _CollectionPagerState extends State<_CollectionPager> {
       _HeroBalance(summary: widget.summary, fmt: widget.fmt, t: widget.t),
       _OverdueBalance(summary: widget.summary, fmt: widget.fmt, t: widget.t),
     ];
+    // Tight fit to the hero card's actual content height — the old 380 left
+    // a dead band under the card inside the PageView. Text is the only thing
+    // that grows, so scale the height with the effective text scale (which
+    // the app clamps to 0.8–1.6) instead of hard-coding headroom for it.
+    final textScale = MediaQuery.textScalerOf(context).scale(1.0);
+    final pagerHeight = 342 * (1 + (textScale - 1) * 0.75);
     return Column(
       children: [
         SizedBox(
-          height: 380,
+          height: pagerHeight,
           child: PageView(
             controller: _ctrl,
             onPageChanged: (i) => setState(() => _idx = i),
@@ -287,12 +305,7 @@ class _HeroBalance extends ConsumerWidget {
         .length;
     final pctInt = (pct * 100).round();
 
-    // Color shifts: red → orange → green as collection improves
-    final barColor = pct >= 0.75
-        ? const Color(0xFF34D399)
-        : pct >= 0.4
-            ? const Color(0xFFFBBF24)
-            : const Color(0xFFFF8674);
+    final barColor = _progressColor(pct);
 
     return GestureDetector(
       onTap: () => ref.speak(
@@ -519,11 +532,13 @@ class _OverdueBalance extends ConsumerWidget {
     final pct = total <= 0 ? 0.0 : (collected / total).clamp(0.0, 1.0);
     final pctInt = (pct * 100).round();
 
-    final barColor = pct >= 0.75
-        ? const Color(0xFF34D399)
-        : pct >= 0.4
-            ? const Color(0xFFFBBF24)
-            : const Color(0xFFFF8674);
+    final barColor = _progressColor(pct);
+    // Whole-card colour tracks recovery: fully red when nothing of the
+    // overdue backlog is collected, blending to fully green when cleared.
+    final cardTop = Color.lerp(
+        const Color(0xFFB91C1C), const Color(0xFF15803D), pct,)!;
+    final cardBottom = Color.lerp(
+        const Color(0xFF7F1D1D), const Color(0xFF14532D), pct,)!;
 
     return GestureDetector(
       onTap: () => ref.speak(
@@ -533,10 +548,10 @@ class _OverdueBalance extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
-          gradient: const LinearGradient(
+          gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFFB91C1C), Color(0xFF7F1D1D)],
+            colors: [cardTop, cardBottom],
           ),
           boxShadow: AppTokens.shadowLg,
         ),

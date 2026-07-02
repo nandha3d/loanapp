@@ -1060,14 +1060,10 @@ class _UpiQrSection extends ConsumerWidget {
       data: (qr) {
         if (qr.qrUrl == null && qr.upiId == null)
           return const SizedBox.shrink();
-        final baseOrigin = Uri.parse(kDefaultBaseUrl)
-            .replace(path: '', query: '')
-            .toString()
-            .replaceAll(RegExp(r'/$'), '');
+        // mediaBaseUrlProvider respects the runtime server-URL override;
+        // kDefaultBaseUrl is only the compile-time fallback.
         final imageUrl = qr.qrUrl != null
-            ? (qr.qrUrl!.startsWith('http')
-                ? qr.qrUrl!
-                : '$baseOrigin${qr.qrUrl!}')
+            ? absoluteMediaUrl(ref.watch(mediaBaseUrlProvider), qr.qrUrl)
             : null;
         return Container(
           padding: const EdgeInsets.all(16),
