@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
@@ -45,18 +46,23 @@ class AuthController extends StateNotifier<AuthState> {
   late final StreamSubscription<void> _unauthorizedSub;
 
   Future<void> _bootstrap() async {
-    final user = await _repo.currentUser();
-    if (user == null) {
+    try {
+      final user = await _repo.currentUser().timeout(const Duration(seconds: 4));
+      if (user == null) {
+        state = const AuthState(stage: AuthStage.unauthenticated);
+      } else {
+        // Lock screen is opt-in: the tenant must enable it (Settings →
+        // Security) AND the device must be able to show a biometric prompt.
+        final canLock = user.biometricLockRequired && await _canUseBiometrics();
+        state = AuthState(
+          stage: canLock ? AuthStage.locked : AuthStage.authenticated,
+          user: user,
+        );
+        _fcm.startTokenSync();
+      }
+    } on Object catch (e) {
+      debugPrint('Bootstrap error or timeout: $e');
       state = const AuthState(stage: AuthStage.unauthenticated);
-    } else {
-      // Lock screen is opt-in: the tenant must enable it (Settings →
-      // Security) AND the device must be able to show a biometric prompt.
-      final canLock = user.biometricLockRequired && await _canUseBiometrics();
-      state = AuthState(
-        stage: canLock ? AuthStage.locked : AuthStage.authenticated,
-        user: user,
-      );
-      _fcm.startTokenSync();
     }
   }
 

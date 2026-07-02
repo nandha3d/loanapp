@@ -44,10 +44,10 @@ class AuthRepository {
   }
 
   Future<User?> currentUser() async {
-    final token = await _storage.readToken();
-    if (token == null) return null;
     try {
-      final user = await _service.me();
+      final token = await _storage.readToken();
+      if (token == null) return null;
+      final user = await _service.me().timeout(const Duration(seconds: 3));
       await _storage.saveActiveAppType(user.appType);
       return user;
     } on Object {

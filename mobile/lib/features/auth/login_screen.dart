@@ -8,6 +8,8 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import 'package:loantrack/core/auth/auth_controller.dart';
 import 'package:loantrack/core/l10n/language_controller.dart';
+import 'package:loantrack/core/a11y/ui_prefs.dart';
+import 'package:loantrack/core/network/dio_client.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
@@ -105,15 +107,56 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     }
   }
 
+  void _showServerConfigDialog() {
+    final currentUrl = ref.read(apiBaseUrlProvider) ?? kDefaultBaseUrl;
+    final controller = TextEditingController(text: currentUrl);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Server API URL'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Specify backend API URL (e.g. http://192.168.1.100:3000/api/v1):',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                hintText: 'http://...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              ref.read(apiBaseUrlProvider.notifier).set(null);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Reset Default'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              ref.read(apiBaseUrlProvider.notifier).set(controller.text.trim());
+              Navigator.pop(ctx);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authControllerProvider);
-    // Spinner while the login request is in flight (or session bootstrap).
-    // stage==authenticated means we're about to be redirected away — keep
-    // spinning instead of flashing an idle login form.
-    final loading = _submitting ||
-        auth.stage == AuthStage.unknown ||
-        auth.stage == AuthStage.authenticated;
+    // Only spin if submitting or already authenticated and redirecting.
+    final loading = _submitting || auth.stage == AuthStage.authenticated;
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -161,39 +204,52 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               ),
             ),
             SafeArea(
-              child: Center(
-                child: SingleChildScrollView(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-                  child: FadeTransition(
-                    opacity: _fade,
-                    child: SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0, 0.05),
-                        end: Offset.zero,
-                      ).animate(
-                        CurvedAnimation(
-                          parent: _fade,
-                          curve: Curves.easeOut,
-                        ),
-                      ),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 420),
-                        child: _LoginCard(
-                          username: _username,
-                          password: _password,
-                          obscure: _obscure,
-                          onToggleObscure: () =>
-                              setState(() => _obscure = !_obscure),
-                          error: auth.error,
-                          loading: loading,
-                          onSubmit: _submit,
-                          onGoogleSignIn: _handleGoogleSignIn,
+              child: Stack(
+                children: [
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: IconButton(
+                      icon: const Icon(Icons.settings_outlined, color: Colors.white70),
+                      tooltip: 'Server Configuration',
+                      onPressed: _showServerConfigDialog,
+                    ),
+                  ),
+                  Center(
+                    child: SingleChildScrollView(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                      child: FadeTransition(
+                        opacity: _fade,
+                        child: SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(0, 0.05),
+                            end: Offset.zero,
+                          ).animate(
+                            CurvedAnimation(
+                              parent: _fade,
+                              curve: Curves.easeOut,
+                            ),
+                          ),
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 420),
+                            child: _LoginCard(
+                              username: _username,
+                              password: _password,
+                              obscure: _obscure,
+                              onToggleObscure: () =>
+                                  setState(() => _obscure = !_obscure),
+                              error: auth.error,
+                              loading: loading,
+                              onSubmit: _submit,
+                              onGoogleSignIn: _handleGoogleSignIn,
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
+                ],
               ),
             ),
           ],
