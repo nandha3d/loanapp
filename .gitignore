@@ -94,3 +94,5 @@ mobile/.vscode/
 !prisma/migrations/**/*.sql
 # GitHub Actions workflows must be committed — exclude them from the *.yml ignore above.
 !.github/workflows/*.yml
+# Devcontainer compose file must be committed — exclude it from the *.yml ignore above.
+!.devcontainer/*.yml
