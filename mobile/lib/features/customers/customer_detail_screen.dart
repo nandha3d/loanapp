@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';import 'package:loantrack/core/l
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
+import 'package:loantrack/core/network/authed_image.dart';
 import 'package:loantrack/data/models/customer.dart';
 import 'package:loantrack/data/repositories/customer_repository.dart';
 import 'package:loantrack/shared/widgets/app_badge.dart';
@@ -254,13 +255,13 @@ class _Header extends ConsumerWidget {
   }
 }
 
-class _PhotoOrInitials extends StatelessWidget {
+class _PhotoOrInitials extends ConsumerWidget {
   const _PhotoOrInitials({required this.customer, this.size = 80});
   final Customer customer;
   final double size;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final url = customer.photoUrl;
     if (url != null && url.isNotEmpty) {
       return Container(
@@ -270,7 +271,7 @@ class _PhotoOrInitials extends StatelessWidget {
           shape: BoxShape.circle,
           border: Border.all(color: Colors.white24, width: 2),
           image: DecorationImage(
-            image: NetworkImage(url),
+            image: authedImage(ref, url),
             fit: BoxFit.cover,
           ),
         ),
@@ -968,7 +969,7 @@ class _GuarantorsSection extends ConsumerWidget {
                       shape: BoxShape.circle,
                       image: g.photoUrl != null && g.photoUrl!.isNotEmpty
                           ? DecorationImage(
-                              image: NetworkImage(g.photoUrl!),
+                              image: authedImage(ref, g.photoUrl!),
                               fit: BoxFit.cover,
                             )
                           : null,
@@ -1017,12 +1018,12 @@ class _GuarantorsSection extends ConsumerWidget {
   }
 }
 
-class _CompanySection extends StatelessWidget {
+class _CompanySection extends ConsumerWidget {
   const _CompanySection({required this.customer});
   final Customer customer;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return _Card(
       title: 'Business & Employment',
       child: Column(
@@ -1034,8 +1035,8 @@ class _CompanySection extends StatelessWidget {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      customer.companyLogo!,
+                    child: Image(
+                      image: authedImage(ref, customer.companyLogo!),
                       width: 48,
                       height: 48,
                       fit: BoxFit.cover,

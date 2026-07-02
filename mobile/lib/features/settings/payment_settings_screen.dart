@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:loantrack/core/l10n/language_controller.dart';
+import 'package:loantrack/core/network/authed_image.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
@@ -177,8 +178,8 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
                     borderRadius: BorderRadius.circular(AppTokens.radiusSm),
                     color: Colors.white,
                   ),
-                  child: Image.network(
-                    _qrUrl!,
+                  child: Image(
+                    image: authedImage(ref, _qrUrl!),
                     width: 160,
                     height: 160,
                     fit: BoxFit.contain,

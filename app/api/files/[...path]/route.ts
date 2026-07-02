@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { getBorrowerSession } from '@/lib/borrowerAuth';
+import { verifyMobileToken } from '@/lib/api/v1-auth';
 import fs from 'fs';
 import path from 'path';
 import prisma from '@/lib/db';
@@ -18,7 +19,7 @@ const MIME_MAP: Record<string, string> = {
 };
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   let sessionTenantId: string;
@@ -26,10 +27,21 @@ export async function GET(
   let userId: string;
 
   const session = await auth();
+  const bearerHeader = request.headers.get('authorization');
   if (session?.user?.id) {
     sessionTenantId = (session.user as any).tenantId as string;
     role = (session.user as any).role as string;
     userId = session.user.id;
+  } else if (bearerHeader?.startsWith('Bearer ')) {
+    // Mobile app — same JWT as the /api/v1 routes
+    try {
+      const claims = await verifyMobileToken(bearerHeader.slice('Bearer '.length).trim());
+      sessionTenantId = claims.tenantId;
+      role = claims.role;
+      userId = claims.userId;
+    } catch {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   } else {
     const borrowerSession = await getBorrowerSession();
     if (borrowerSession) {

@@ -12,7 +12,7 @@ import 'package:loantrack/features/collection/qr_scan_screen.dart';
 import 'package:loantrack/core/gps/gps_service.dart';
 import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/network/api_exception.dart';
-import 'package:loantrack/core/network/dio_client.dart';
+import 'package:loantrack/core/network/authed_image.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
@@ -840,13 +840,7 @@ class _UpiQrSection extends ConsumerWidget {
       error: (_, __) => const SizedBox.shrink(),
       data: (qr) {
         if (qr.qrUrl == null && qr.upiId == null) return const SizedBox.shrink();
-        final baseOrigin = Uri.parse(kDefaultBaseUrl)
-            .replace(path: '', query: '')
-            .toString()
-            .replaceAll(RegExp(r'/$'), '');
-        final imageUrl = qr.qrUrl != null
-            ? (qr.qrUrl!.startsWith('http') ? qr.qrUrl! : '$baseOrigin${qr.qrUrl!}')
-            : null;
+        final imageUrl = qr.qrUrl;
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -857,8 +851,8 @@ class _UpiQrSection extends ConsumerWidget {
           child: Column(
             children: [
               if (imageUrl != null)
-                Image.network(
-                  imageUrl,
+                Image(
+                  image: authedImage(ref, imageUrl),
                   width: 180,
                   height: 180,
                   fit: BoxFit.contain,
