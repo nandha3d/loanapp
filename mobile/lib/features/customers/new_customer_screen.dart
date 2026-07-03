@@ -9,6 +9,7 @@ import 'package:loantrack/core/network/authed_image.dart';
 import 'package:loantrack/core/network/dio_client.dart';
 
 import 'package:loantrack/core/l10n/language_controller.dart';
+import 'package:loantrack/shared/utils/photo_crop.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
@@ -348,7 +349,9 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
       imageQuality: 80,
     );
     if (x == null) return;
-    setState(() => _guarantors[index].photo = File(x.path));
+    final cropped = await cropSquarePhoto(x.path);
+    if (cropped == null) return;
+    setState(() => _guarantors[index].photo = cropped);
   }
 
   Future<void> _pickImage(ImageSource source, {required bool isPhoto}) async {
@@ -360,11 +363,12 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
       imageQuality: isPhoto ? 80 : 75,
     );
     if (x == null) return;
-    final file = File(x.path);
     if (isPhoto) {
-      setState(() => _photo = file);
+      final cropped = await cropSquarePhoto(x.path);
+      if (cropped == null) return;
+      setState(() => _photo = cropped);
     } else {
-      setState(() => _docs.add(_DocEntry(file: file)));
+      setState(() => _docs.add(_DocEntry(file: File(x.path))));
     }
   }
 
@@ -1082,7 +1086,9 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
       imageQuality: 80,
     );
     if (x == null) return;
-    setState(() => _companyLogo = File(x.path));
+    final cropped = await cropSquarePhoto(x.path);
+    if (cropped == null) return;
+    setState(() => _companyLogo = cropped);
   }
 
   Widget _companyField(

@@ -11,6 +11,7 @@ import 'package:loantrack/core/auth/auth_controller.dart';
 import 'package:loantrack/core/network/authed_image.dart';
 import 'package:loantrack/core/currency/currency_controller.dart';
 import 'package:loantrack/core/l10n/language_controller.dart';
+import 'package:loantrack/shared/utils/photo_crop.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
@@ -1590,7 +1591,9 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
                   imageQuality: 80,
                 );
                 if (x == null) return;
-                setState(() => _gPhoto = File(x.path));
+                final cropped = await cropSquarePhoto(x.path);
+                if (cropped == null) return;
+                setState(() => _gPhoto = cropped);
               },
               icon: const Icon(Icons.camera_alt_outlined, size: 16),
               label: Text(

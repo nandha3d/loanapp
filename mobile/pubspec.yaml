@@ -38,6 +38,7 @@ dependencies:
   # plugin that loaded broken native code at startup (crashing the app before
   # the UI rendered) and forced fragile AGP-9 build patches in CI.
   path_provider: ^2.1.5
+  crypto: ^3.0.3
 
   # Connectivity & auth
   connectivity_plus: ^6.1.0
@@ -62,6 +63,7 @@ dependencies:
   # Charts / media
   fl_chart: ^0.69.2
   image_picker: ^1.1.2
+  image_cropper: ^8.1.0
   url_launcher: ^6.3.1
 
   # PDF
