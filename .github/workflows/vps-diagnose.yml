@@ -1,0 +1,76 @@
+name: VPS diagnose photos
+
+# Read-only diagnostic: checks whether customer photo files exist on the VPS
+# disk, what URLs are stored in the DB, and how /api/files responds locally.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH into VPS and inspect photo pipeline
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "$VPS_PORT" "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh -i ~/.ssh/id_ed25519 -p "$VPS_PORT" \
+            -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
+            "$VPS_USER@$VPS_HOST" 'bash -s' <<'REMOTE'
+          set -u
+          cd /home/loantrack/app
+          echo "=== deployed code ==="
+          git log --oneline -1
+          echo
+          echo "=== uploads directory ==="
+          if [ -d private/uploads ]; then
+            find private/uploads -type f | wc -l | xargs echo "total files:"
+            find private/uploads -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -10 | cut -d' ' -f2-
+          else
+            echo "private/uploads DOES NOT EXIST"
+          fi
+          echo
+          echo "=== DB photo URLs vs files on disk ==="
+          cat > /tmp/diag-photos.js <<'EOF'
+          const { PrismaClient } = require('@prisma/client');
+          const fs = require('fs');
+          const path = require('path');
+          const p = new PrismaClient();
+          (async () => {
+            const rows = await p.customer.findMany({
+              select: { customerCode: true, tenantId: true, profilePhoto: true },
+              orderBy: { createdAt: 'desc' },
+              take: 20,
+            });
+            for (const r of rows) {
+              let status = 'no photo set';
+              if (r.profilePhoto) {
+                const m = r.profilePhoto.match(/^\/api\/files\/(.+)$/);
+                if (m) {
+                  const f = path.join(process.cwd(), 'private', 'uploads', ...m[1].split('/'));
+                  status = fs.existsSync(f) ? 'FILE OK  ' + r.profilePhoto : 'FILE MISSING  ' + r.profilePhoto;
+                } else {
+                  status = 'UNEXPECTED URL FORMAT  ' + r.profilePhoto;
+                }
+              }
+              console.log(r.customerCode, '| tenant', r.tenantId, '|', status);
+            }
+            await p.$disconnect();
+          })().catch((e) => { console.error('ERR', e.message); process.exit(1); });
+          EOF
+          node /tmp/diag-photos.js
+          rm -f /tmp/diag-photos.js
+          echo
+          echo "=== local API responses ==="
+          curl -s -o /dev/null -w "files route, no auth (expect 401): %{http_code}\n" http://127.0.0.1:3000/api/files/x/y.jpg
+          curl -s -o /dev/null -w "files route, bad bearer (expect 401): %{http_code}\n" -H "Authorization: Bearer garbage" http://127.0.0.1:3000/api/files/x/y.jpg
+          echo
+          echo "=== pm2 ==="
+          pm2 ls || true
+          REMOTE
