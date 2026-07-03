@@ -66,7 +66,14 @@ class AuthStorage {
 final authStorageProvider = Provider<AuthStorage>((ref) {
   return AuthStorage(
     const FlutterSecureStorage(
-      aOptions: AndroidOptions(encryptedSharedPreferences: true),
+      // resetOnError: after a reinstall, Android may restore the encrypted
+      // prefs file via auto-backup while the Keystore key is gone, so reads
+      // throw and the FIRST login silently fails until the user clears app
+      // data. resetOnError wipes the corrupt store and retries automatically.
+      aOptions: AndroidOptions(
+        encryptedSharedPreferences: true,
+        resetOnError: true,
+      ),
       iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
     ),
   );

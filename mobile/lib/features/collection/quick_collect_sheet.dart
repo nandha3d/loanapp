@@ -682,15 +682,25 @@ class _HeaderRow extends ConsumerWidget {
           decoration: BoxDecoration(
             color: AppColors.primaryLight,
             shape: BoxShape.circle,
+            image: row.customerPhoto != null && row.customerPhoto!.isNotEmpty
+                ? DecorationImage(
+                    image: authedImage(ref, row.customerPhoto!),
+                    fit: BoxFit.cover,
+                  )
+                : null,
           ),
           alignment: Alignment.center,
-          child: Text(
-            row.customerName.isEmpty ? '—' : row.customerName[0].toUpperCase(),
-            style: AppTypography.heroLabel.copyWith(
-              color: AppColors.primaryDark,
-              fontSize: 18,
-            ),
-          ),
+          child: row.customerPhoto != null && row.customerPhoto!.isNotEmpty
+              ? null
+              : Text(
+                  row.customerName.isEmpty
+                      ? '—'
+                      : row.customerName[0].toUpperCase(),
+                  style: AppTypography.heroLabel.copyWith(
+                    color: AppColors.primaryDark,
+                    fontSize: 18,
+                  ),
+                ),
         ),
         const SizedBox(width: 12),
         Expanded(
