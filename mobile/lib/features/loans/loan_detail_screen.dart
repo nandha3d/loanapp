@@ -886,7 +886,7 @@ class _SummaryCardOverview extends ConsumerWidget {
                     strokeWidth: 7,
                     backgroundColor: AppColors.border,
                     valueColor:
-                        const AlwaysStoppedAnimation(AppColors.primary),
+                        AlwaysStoppedAnimation(AppColors.primary),
                   ),
                   Center(
                     child: Column(
