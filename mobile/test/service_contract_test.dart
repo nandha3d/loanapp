@@ -8,8 +8,11 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:loantrack/data/services/auth_service.dart';
+import 'package:loantrack/data/services/borrower_service.dart';
+import 'package:loantrack/data/services/chit_service.dart';
 import 'package:loantrack/data/services/collection_run_service.dart';
 import 'package:loantrack/data/services/loan_service.dart';
+import 'package:loantrack/data/services/nach_service.dart';
 import 'package:loantrack/data/services/vehicles_service.dart';
 import 'package:loantrack/data/services/wallet_service.dart';
 import 'package:loantrack/shared/constants/endpoints.dart';
@@ -63,6 +66,43 @@ class _ContractAdapter implements HttpClientAdapter {
         };
       case Endpoints.walletMe:
         return {'balance': 2500, 'transactions': []};
+      case Endpoints.borrowerLogin:
+        return {'challengeToken': 'challenge'};
+      case Endpoints.borrowerVerify:
+        return {
+          'token': 'borrower-token',
+          'tenantSlug': 'qa',
+          'customerId': 'cust1',
+        };
+      case Endpoints.borrowerLoans:
+        return [
+          {
+            'id': 'loan1',
+            'loanCode': 'DL-001',
+            'status': 'active',
+            'principalAmount': 10000,
+            'totalPayable': 12000,
+            'interestRate': 12,
+            'tenure': 12,
+            'frequency': 'monthly',
+            'instalments': [],
+          }
+        ];
+      case Endpoints.borrowerPay:
+        return {'success': true};
+      case Endpoints.nachMandate:
+        return {
+          'id': 'mandate1',
+          'status': 'pending_auth',
+          'accountHolderName': 'QA Borrower',
+          'accountNumber': '1234567890',
+          'ifscCode': 'HDFC0001234',
+          'maxAmount': 1000,
+          'authType': 'netbanking',
+          'razorpayOrderId': 'order_1',
+          'razorpayKeyId': 'rzp_test_1',
+          'presentations': [],
+        };
       case Endpoints.loans:
         if (options.method == 'POST') {
           return {
@@ -106,6 +146,43 @@ class _ContractAdapter implements HttpClientAdapter {
           }
         ];
       default:
+        if (options.path == Endpoints.nachLoan('loan1')) {
+          return null;
+        }
+        if (options.path == Endpoints.nachMandateCancel('mandate1')) {
+          return {'id': 'mandate1', 'status': 'cancelled'};
+        }
+        if (options.path == Endpoints.chit('chit1')) {
+          return {'id': 'chit1', 'status': 'active'};
+        }
+        if (options.path == Endpoints.chitCancel('chit1')) {
+          return {'id': 'chit1', 'status': 'cancelled'};
+        }
+        if (options.path == Endpoints.chitSubscriptions('chit1')) {
+          return [
+            {
+              'id': 'sub1',
+              'periodNumber': 1,
+              'dueDate': '2026-07-01T00:00:00.000Z',
+              'dueAmount': 500,
+              'paidAmount': 0,
+              'status': 'upcoming',
+              'member': {
+                'id': 'member1',
+                'customer': {'name': 'QA Member'}
+              },
+            }
+          ];
+        }
+        if (options.path == Endpoints.chitSubscriptionMiss('sub1')) {
+          return {'id': 'sub1', 'status': 'missed'};
+        }
+        if (options.path == Endpoints.chitPayments('chit1')) {
+          return {'id': 'sub1', 'status': 'paid'};
+        }
+        if (options.path == Endpoints.dashboardVerifyUpi) {
+          return {'success': true};
+        }
         if (options.path == Endpoints.runSheet('run1')) {
           return {
             'run': {
@@ -258,6 +335,118 @@ void main() {
         adapter.requestBodies.last['productItem'],
         containsPair('downPayment', 5000),
       );
+    });
+
+    test('MOB-SVC-005 borrower portal uses v1 OTP and bearer endpoints',
+        () async {
+      final adapter = _ContractAdapter();
+      final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'));
+      dio.httpClientAdapter = adapter;
+      final service = BorrowerService(dio);
+
+      await service.login('9000000001');
+      await service.verifyOtp('9000000001', '123456');
+      final loans = await service.getLoans();
+      await service.submitPayment(
+        loanId: 'loan1',
+        amount: 500,
+        paymentMode: 'upi',
+        referenceNumber: 'UPI123',
+      );
+
+      expect(loans.single.loanCode, 'DL-001');
+      expect(adapter.requests, contains('POST /borrower/auth/login'));
+      expect(adapter.requests, contains('POST /borrower/auth/verify'));
+      expect(adapter.requests, contains('GET /borrower/loans'));
+      expect(adapter.requests, contains('POST /borrower/pay'));
+      expect(
+        adapter.requestBodies.last,
+        containsPair('referenceNumber', 'UPI123'),
+      );
+    });
+
+    test('MOB-SVC-006 chit actions match backend payment contracts', () async {
+      final adapter = _ContractAdapter();
+      final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'));
+      dio.httpClientAdapter = adapter;
+      final service = ChitService(dio);
+
+      await service.update('chit1', name: 'July Chit');
+      final subscriptions = await service.subscriptions('chit1');
+      await service.collectContribution(
+        'chit1',
+        memberId: 'member1',
+        periodNumber: 1,
+        amount: 500,
+        paymentMode: 'cash',
+      );
+      await service.markMissed('sub1');
+      await service.cancel('chit1');
+
+      expect(subscriptions.single.memberName, 'QA Member');
+      expect(adapter.requests, contains('PUT /chits/chit1'));
+      expect(adapter.requests, contains('GET /chits/chit1/subscriptions'));
+      expect(adapter.requests, contains('POST /chits/chit1/payments'));
+      expect(adapter.requests, contains('POST /chits/subscriptions/sub1/miss'));
+      expect(adapter.requests, contains('POST /chits/chit1/cancel'));
+      expect(
+        adapter.requestBodies.any(
+          (body) =>
+              body['memberId'] == 'member1' &&
+              body['periodNumber'] == 1 &&
+              body['paidAmount'] == 500,
+        ),
+        isTrue,
+      );
+    });
+
+    test('MOB-SVC-007 dashboard verification uses action-based endpoint',
+        () async {
+      final adapter = _ContractAdapter();
+      final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'));
+      dio.httpClientAdapter = adapter;
+
+      await dio.post<Map<String, dynamic>>(
+        Endpoints.dashboardVerifyUpi,
+        data: {'action': 'bulk-upi', 'entryIds': ['entry1', 'entry2']},
+      );
+      await dio.post<Map<String, dynamic>>(
+        Endpoints.dashboardCollectCash,
+        data: {'action': 'collect-cash', 'routeId': 'route1', 'agentId': 'u1'},
+      );
+
+      expect(
+        adapter.requests.where((r) => r == 'POST /collection/verify').length,
+        2,
+      );
+      expect(adapter.requestBodies.first, containsPair('action', 'bulk-upi'));
+      expect(adapter.requestBodies.last, containsPair('agentId', 'u1'));
+    });
+
+    test('MOB-SVC-008 NACH create/cancel routes unwrap mandate data', () async {
+      final adapter = _ContractAdapter();
+      final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'));
+      dio.httpClientAdapter = adapter;
+      final service = NachService(dio);
+
+      final current = await service.getMandate('loan1');
+      final created = await service.createMandate(
+        loanId: 'loan1',
+        customerId: 'cust1',
+        accountHolderName: 'QA Borrower',
+        accountNumber: '1234567890',
+        ifscCode: 'HDFC0001234',
+        accountType: 'savings',
+        authType: 'netbanking',
+        maxAmount: 1000,
+      );
+      await service.cancelMandate('mandate1', reason: 'customer request');
+
+      expect(current, isNull);
+      expect(created.razorpayOrderId, 'order_1');
+      expect(adapter.requests, contains('GET /nach/loan/loan1'));
+      expect(adapter.requests, contains('POST /nach/mandate'));
+      expect(adapter.requests, contains('DELETE /nach/mandate/mandate1'));
     });
   });
 }

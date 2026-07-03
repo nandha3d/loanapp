@@ -20,6 +20,13 @@ class DashboardSummary {
     required this.routePerformance,
     required this.recentActivity,
     required this.todayActivity,
+    required this.totalDisbursed,
+    required this.totalCollectedAllTime,
+    this.bestPayer,
+    this.highestBorrower,
+    this.pendingUpiCollections = const [],
+    this.pendingCashCollections = const [],
+    this.todayByMode = const {},
   });
 
   final int activeLoans;
@@ -44,6 +51,15 @@ class DashboardSummary {
   final List<RoutePerformance> routePerformance;
   final List<RecentActivity> recentActivity;
   final List<TodayActivity> todayActivity;
+
+  // Web dashboard parity additions
+  final double totalDisbursed;
+  final double totalCollectedAllTime;
+  final String? bestPayer;
+  final String? highestBorrower;
+  final List<TodayActivity> pendingUpiCollections;
+  final List<TodayActivity> pendingCashCollections;
+  final Map<String, double> todayByMode;
 
   factory DashboardSummary.fromJson(Map<String, dynamic> json) {
     double toNum(dynamic v) => v == null
@@ -92,6 +108,18 @@ class DashboardSummary {
             (dynamic e) => TodayActivity.fromJson(e as Map<String, dynamic>),
           )
           .toList(growable: false),
+      totalDisbursed: toNum(json['totalDisbursed']),
+      totalCollectedAllTime: toNum(json['totalCollectedAllTime']),
+      bestPayer: json['bestPayer'] as String?,
+      highestBorrower: json['highestBorrower'] as String?,
+      pendingUpiCollections: (json['pendingUpiCollections'] as List<dynamic>? ?? const [])
+          .map((dynamic e) => TodayActivity.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+      pendingCashCollections: (json['pendingCashCollections'] as List<dynamic>? ?? const [])
+          .map((dynamic e) => TodayActivity.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+      todayByMode: (json['todayByMode'] as Map<String, dynamic>? ?? const {})
+          .map((k, dynamic v) => MapEntry(k, toNum(v))),
     );
   }
 }
@@ -189,6 +217,7 @@ class RoutePerformance {
     required this.id,
     required this.name,
     required this.agent,
+    this.agentId,
     required this.customers,
     required this.overdue,
   });
@@ -196,6 +225,7 @@ class RoutePerformance {
   final String id;
   final String name;
   final String agent;
+  final String? agentId;
   final int customers;
   final double overdue;
 
@@ -207,6 +237,7 @@ class RoutePerformance {
       id: json['id'] as String,
       name: json['name'] as String? ?? '',
       agent: json['agent'] as String? ?? '—',
+      agentId: json['agentId'] as String?,
       customers: (json['customers'] as num?)?.toInt() ?? 0,
       overdue: toNum(json['overdue']),
     );

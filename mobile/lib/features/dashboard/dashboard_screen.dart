@@ -23,6 +23,8 @@ import 'package:loantrack/features/onboarding/location_permission_overlay.dart';
 import 'package:loantrack/shared/widgets/bottom_nav.dart';
 import 'package:loantrack/shared/widgets/empty_state.dart';
 import 'package:loantrack/shared/widgets/skeleton.dart';
+import 'package:loantrack/features/dashboard/widgets/collect_cash_sheet.dart';
+import 'package:loantrack/features/dashboard/widgets/verify_upi_sheet.dart';
 
 // Process-lifetime guard so rebuilds can't queue duplicate onboarding dialogs.
 bool _onboardingRequested = false;
@@ -115,11 +117,19 @@ class _DashboardBody extends ConsumerWidget {
         if (isAgent)
           _AgentMetricsRow(summary: summary, fmt: fmt, t: t)
         else
-          _MoneyFlowRow(summary: summary, t: t),
+          _MoneyFlowRow(summary: summary, fmt: fmt, t: t),
         const SizedBox(height: 14),
         _AlertsRow(summary: summary, t: t),
         const SizedBox(height: 18),
         if (!isAgent) ...[
+          _SpotlightCards(summary: summary, fmt: fmt),
+          const SizedBox(height: 18),
+          _ModeSplitCard(summary: summary, fmt: fmt),
+          const SizedBox(height: 18),
+          if (summary.pendingUpiCollections.isNotEmpty) ...[
+            _PendingUpiList(summary: summary, fmt: fmt),
+            const SizedBox(height: 18),
+          ],
           const CollectionTrendCard(),
           const SizedBox(height: 18),
         ],
@@ -763,34 +773,69 @@ class _HeroStat extends StatelessWidget {
 }
 
 class _MoneyFlowRow extends StatelessWidget {
-  const _MoneyFlowRow({required this.summary, required this.t});
+  const _MoneyFlowRow({
+    required this.summary,
+    required this.fmt,
+    required this.t,
+  });
   final DashboardSummary summary;
+  final NumberFormat fmt;
   final T t;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: _StatTile(
-            icon: Icons.account_balance_wallet_rounded,
-            iconColor: AppColors.success,
-            iconBg: AppColors.successBg,
-            label: t.x('dash.active_loans'),
-            value: '${summary.activeLoans}',
-            sub: '${summary.totalCustomers} ${t.x('dash.customers_suffix')}',
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: _StatTile(
+                icon: Icons.account_balance_wallet_rounded,
+                iconColor: AppColors.success,
+                iconBg: AppColors.successBg,
+                label: t.x('dash.active_loans'),
+                value: '${summary.activeLoans}',
+                sub: '${summary.totalCustomers} ${t.x('dash.customers_suffix')}',
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _StatTile(
+                icon: Icons.groups_2_outlined,
+                iconColor: AppColors.info,
+                iconBg: AppColors.infoBg,
+                label: t.x('dash.agents'),
+                value: '${summary.activeAgents}',
+                sub: t.x('dash.on_field'),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _StatTile(
-            icon: Icons.groups_2_outlined,
-            iconColor: AppColors.info,
-            iconBg: AppColors.infoBg,
-            label: t.x('dash.agents'),
-            value: '${summary.activeAgents}',
-            sub: t.x('dash.on_field'),
-          ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _StatTile(
+                icon: Icons.trending_up,
+                iconColor: AppColors.primary,
+                iconBg: AppColors.primaryLight,
+                label: 'Disbursed',
+                value: fmt.format(summary.totalDisbursed),
+                sub: 'Total value',
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _StatTile(
+                icon: Icons.assignment_turned_in_outlined,
+                iconColor: AppColors.warning,
+                iconBg: AppColors.warningBg,
+                label: 'Recovered',
+                value: fmt.format(summary.totalCollectedAllTime),
+                sub: 'All-time total',
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -1807,15 +1852,20 @@ class _DefaulterAlerts extends ConsumerWidget {
   }
 }
 
-class _RoutePerformanceList extends StatelessWidget {
+class _RoutePerformanceList extends ConsumerWidget {
   const _RoutePerformanceList({required this.summary, required this.fmt, required this.t});
   final DashboardSummary summary;
   final NumberFormat fmt;
   final T t;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (summary.routePerformance.isEmpty) return const SizedBox.shrink();
+    final user = ref.watch(authControllerProvider).user;
+    final isAdmin = user != null &&
+        (user.role == UserRole.admin ||
+            user.role == UserRole.superadmin ||
+            user.role == UserRole.developer);
 
     return _Section(
       title: t.x('dash.route_performance'),
@@ -1868,9 +1918,280 @@ class _RoutePerformanceList extends StatelessWidget {
                       ),
                     ],
                   ),
+                  if (isAdmin) ...[
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: rp.agentId == null
+                          ? null
+                          : () {
+                        showModalBottomSheet<bool>(
+                          context: context,
+                          isScrollControlled: true,
+                          builder: (_) => CollectCashSheet(
+                            routeId: rp.id,
+                            routeName: rp.name,
+                            agentId: rp.agentId!,
+                            fmt: fmt,
+                          ),
+                        ).then((success) {
+                          if (success == true) {
+                            ref.refresh(dashboardSummaryProvider.future);
+                          }
+                        });
+                      },
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.success,
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                      ),
+                      child: const Text('Collect'),
+                    ),
+                  ],
                 ],
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SpotlightCards extends StatelessWidget {
+  const _SpotlightCards({required this.summary, required this.fmt});
+  final DashboardSummary summary;
+  final NumberFormat fmt;
+
+  @override
+  Widget build(BuildContext context) {
+    if (summary.bestPayer == null && summary.highestBorrower == null) {
+      return const SizedBox.shrink();
+    }
+    return Row(
+      children: [
+        if (summary.bestPayer != null)
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF10B981), Color(0xFF059669)],
+                ),
+                borderRadius: BorderRadius.circular(AppTokens.radius),
+                boxShadow: AppTokens.shadow,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.star, color: Colors.white, size: 20),
+                  const SizedBox(height: 8),
+                  Text(
+                    summary.bestPayer!,
+                    style: AppTypography.bodyLarge.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Best Payer',
+                    style: AppTypography.caption.copyWith(color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        if (summary.bestPayer != null && summary.highestBorrower != null)
+          const SizedBox(width: 12),
+        if (summary.highestBorrower != null)
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
+                ),
+                borderRadius: BorderRadius.circular(AppTokens.radius),
+                boxShadow: AppTokens.shadow,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.trending_up_rounded, color: Colors.white, size: 20),
+                  const SizedBox(height: 8),
+                  Text(
+                    summary.highestBorrower!,
+                    style: AppTypography.bodyLarge.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Highest Borrower',
+                    style: AppTypography.caption.copyWith(color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ModeSplitCard extends StatelessWidget {
+  const _ModeSplitCard({required this.summary, required this.fmt});
+  final DashboardSummary summary;
+  final NumberFormat fmt;
+
+  @override
+  Widget build(BuildContext context) {
+    if (summary.todayByMode.isEmpty) return const SizedBox.shrink();
+
+    final maxVal = summary.todayByMode.values.fold<double>(
+      1.0,
+      (max, v) => v > max ? v : max,
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppTokens.radius),
+        boxShadow: AppTokens.shadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Collection Split by Mode', style: AppTypography.sectionTitle),
+          const SizedBox(height: 12),
+          for (final entry in summary.todayByMode.entries) ...[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        entry.key.toUpperCase(),
+                        style: AppTypography.body.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      Text(fmt.format(entry.value), style: AppTypography.caption),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Stack(
+                    children: [
+                      Container(
+                        height: 8,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: AppColors.border,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      FractionallySizedBox(
+                        widthFactor: (entry.value / maxVal).clamp(0.02, 1.0),
+                        child: Container(
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: AppColors.primary,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PendingUpiList extends ConsumerWidget {
+  const _PendingUpiList({required this.summary, required this.fmt});
+  final DashboardSummary summary;
+  final NumberFormat fmt;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pending = summary.pendingUpiCollections;
+    if (pending.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppTokens.radius),
+        boxShadow: AppTokens.shadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Pending UPI Verifications (${pending.length})',
+                style: AppTypography.sectionTitle,
+              ),
+              TextButton(
+                onPressed: () {
+                  showModalBottomSheet<bool>(
+                    context: context,
+                    isScrollControlled: true,
+                    builder: (_) => VerifyUpiSheet(pending: pending, fmt: fmt),
+                  ).then((success) {
+                    if (success == true) {
+                      ref.refresh(dashboardSummaryProvider.future);
+                    }
+                  });
+                },
+                child: const Text('Verify All'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: pending.length.clamp(0, 5),
+            itemBuilder: (_, i) {
+              final p = pending[i];
+              return ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                  '${p.customerName} — ${fmt.format(p.amount)}',
+                  style: AppTypography.body.copyWith(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Text('${p.loanCode} · ${p.agentName}'),
+                trailing: TextButton(
+                  onPressed: () {
+                    showModalBottomSheet<bool>(
+                      context: context,
+                      isScrollControlled: true,
+                      builder: (_) => VerifyUpiSheet(pending: [p], fmt: fmt),
+                    ).then((success) {
+                      if (success == true) {
+                        ref.refresh(dashboardSummaryProvider.future);
+                      }
+                    });
+                  },
+                  child: const Text('Verify'),
+                ),
+              );
+            },
+          ),
         ],
       ),
     );

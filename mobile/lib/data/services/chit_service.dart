@@ -66,6 +66,7 @@ class ChitService {
   Future<void> collectContribution(
     String groupId, {
     required String memberId,
+    required int periodNumber,
     required double amount,
     required String paymentMode,
     String? note,
@@ -74,10 +75,89 @@ class ChitService {
       Endpoints.chitPayments(groupId),
       data: {
         'memberId': memberId,
-        'amount': amount,
+        'periodNumber': periodNumber,
+        'paidAmount': amount,
         'paymentMode': paymentMode,
         if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
       },
+    );
+    unwrapEnvelope(res, (_) => null);
+  }
+
+  /// Create a new chit group.
+  Future<Map<String, dynamic>> create({
+    required String name,
+    required double chitValue,
+    required double monthlyContrib,
+    required int totalMembers,
+    required double commissionPct,
+    required String startDate,
+    required List<String> memberIds,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.chits,
+      data: {
+        'name': name,
+        'chitValue': chitValue,
+        'monthlyContrib': monthlyContrib,
+        'totalMembers': totalMembers,
+        'commissionPct': commissionPct,
+        'startDate': startDate,
+        'memberIds': memberIds,
+      },
+    );
+    return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
+  }
+
+  /// Update an existing chit group.
+  Future<void> update(
+    String id, {
+    String? name,
+    double? chitValue,
+    double? monthlyContrib,
+    int? totalMembers,
+    double? commissionPct,
+    String? startDate,
+  }) async {
+    final res = await _dio.put<Map<String, dynamic>>(
+      Endpoints.chit(id),
+      data: {
+        if (name != null) 'name': name,
+        if (chitValue != null) 'chitValue': chitValue,
+        if (monthlyContrib != null) 'monthlyContrib': monthlyContrib,
+        if (totalMembers != null) 'totalMembers': totalMembers,
+        if (commissionPct != null) 'commissionPct': commissionPct,
+        if (startDate != null) 'startDate': startDate,
+      },
+    );
+    unwrapEnvelope(res, (_) => null);
+  }
+
+  /// Cancel a chit group.
+  Future<void> cancel(String id) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.chitCancel(id),
+    );
+    unwrapEnvelope(res, (_) => null);
+  }
+
+  /// Fetch subscription payments for a group.
+  Future<List<ChitSubscription>> subscriptions(String groupId) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.chitSubscriptions(groupId),
+    );
+    return unwrapEnvelope(res, (dynamic d) {
+      return (d as List<dynamic>)
+          .map((dynamic e) =>
+              ChitSubscription.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false);
+    });
+  }
+
+  /// Mark a subscription period as missed.
+  Future<void> markMissed(String subscriptionId) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.chitSubscriptionMiss(subscriptionId),
     );
     unwrapEnvelope(res, (_) => null);
   }

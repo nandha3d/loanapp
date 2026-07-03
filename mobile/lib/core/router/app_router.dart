@@ -18,6 +18,11 @@ import 'package:loantrack/features/auth/registration_screen.dart';
 import 'package:loantrack/features/auth/splash_screen.dart';
 import 'package:loantrack/features/auth/totp_screen.dart';
 import 'package:loantrack/features/chits/chits_screen.dart';
+import 'package:loantrack/features/chits/chit_detail_screen.dart';
+import 'package:loantrack/features/chits/chit_form_screen.dart';
+import 'package:loantrack/features/borrower/borrower_login_screen.dart';
+import 'package:loantrack/features/borrower/borrower_dashboard_screen.dart';
+import 'package:loantrack/features/borrower/borrower_pay_screen.dart';
 import 'package:loantrack/features/collection/collection_screen.dart';
 import 'package:loantrack/features/collection/collection_runs_screen.dart';
 import 'package:loantrack/features/collection/run_sheet_screen.dart';
@@ -96,12 +101,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       final atLogin = loc == '/login';
       final atRegister = loc == '/register';
+      final atBorrower = loc.startsWith('/borrower');
       final atTotp = loc == '/2fa';
       final atLock = loc == '/lock';
       final atSplash = loc == '/splash';
 
       if (stage == AuthStage.unauthenticated) {
-        if (atRegister) return null;
+        if (atRegister || atBorrower) return null;
         return atLogin ? null : '/login';
       }
       if (stage == AuthStage.pendingTotp) {
@@ -310,7 +316,41 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/approvals', builder: (_, __) => const ApprovalsScreen()),
       GoRoute(path: '/kyc-review', builder: (_, __) => const KycReviewScreen()),
       GoRoute(path: '/analytics', builder: (_, __) => const AnalyticsScreen()),
-      GoRoute(path: '/chits', builder: (_, __) => const ChitsScreen()),
+      GoRoute(
+        path: '/chits',
+        builder: (_, __) => const ChitsScreen(),
+        routes: [
+          GoRoute(
+            path: 'new',
+            builder: (_, __) => const ChitGroupFormScreen(),
+          ),
+          GoRoute(
+            path: ':id',
+            builder: (_, state) =>
+                ChitDetailScreen(id: state.pathParameters['id']!),
+            routes: [
+              GoRoute(
+                path: 'edit',
+                builder: (_, state) => ChitGroupFormScreen(
+                  editData: state.extra as Map<String, dynamic>?,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/borrower/login',
+        builder: (_, __) => const BorrowerLoginScreen(),
+      ),
+      GoRoute(
+        path: '/borrower/dashboard',
+        builder: (_, __) => const BorrowerDashboardScreen(),
+      ),
+      GoRoute(
+        path: '/borrower/pay',
+        builder: (_, __) => const BorrowerPayScreen(),
+      ),
       GoRoute(path: '/npa', builder: (_, __) => const NpaScreen()),
       GoRoute(
         path: '/accounting',

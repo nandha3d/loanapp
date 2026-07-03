@@ -163,4 +163,29 @@ class Endpoints {
   static const String npaLoans = '/npa/loans';
   static const String npaHistory = '/npa/history';
   static const String npaUpgrade = '/npa/upgrade';
+
+  // NACH (e-mandate auto-debit)
+  static String nachLoan(String loanId) => '/nach/loan/$loanId';
+  static const String nachMandate = '/nach/mandate';
+  static String nachMandateCancel(String id) => '/nach/mandate/$id';
+
+  // Full analytics (consolidated endpoint for mobile)
+  static const String analyticsFull = '/analytics/full';
+
+  // Chit CRUD extensions
+  static String chitCancel(String id) => '/chits/$id/cancel';
+  static String chitSubscriptions(String id) => '/chits/$id/subscriptions';
+  static String chitSubscriptionMiss(String subId) =>
+      '/chits/subscriptions/$subId/miss';
+
+  // Dashboard extended fields
+  static const String dashboardVerifyUpi = '/collection/verify';
+  static const String dashboardCollectCash = '/collection/verify';
+
+  // Borrower portal
+  static const String borrowerLogin = '/borrower/auth/login';
+  static const String borrowerVerify = '/borrower/auth/verify';
+  static const String borrowerLoans = '/borrower/loans';
+  static const String borrowerPay = '/borrower/pay';
+  static const String borrowerLogout = '/borrower/auth/logout';
 }

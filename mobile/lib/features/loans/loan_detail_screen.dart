@@ -5,7 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-
+import 'package:loantrack/core/auth/auth_controller.dart';
+import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
@@ -15,6 +16,7 @@ import 'package:loantrack/data/models/loan.dart';
 import 'package:loantrack/features/loans/gold_servicing_sheet.dart';
 import 'package:loantrack/features/loans/property_servicing_sheet.dart';
 import 'package:loantrack/features/loans/product_servicing_sheet.dart';
+import 'package:loantrack/features/loans/widgets/nach_panel.dart';
 import 'package:loantrack/core/network/authed_image.dart';
 import 'package:loantrack/data/models/collection_entry.dart';
 import 'package:loantrack/data/services/approval_service.dart';
@@ -201,6 +203,25 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
         _OverdueSummaryCard(loan: loan, fmt: fmt),
         const SizedBox(height: 14),
         _PenaltySummaryCard(loan: loan, fmt: fmt),
+        const SizedBox(height: 14),
+        Consumer(
+          builder: (ctx, ref, _) {
+            final user = ref.watch(authControllerProvider).user;
+            final isAdmin = user != null &&
+                (user.role == UserRole.admin ||
+                    user.role == UserRole.superadmin ||
+                    user.role == UserRole.developer);
+            return NachPanel(
+              loanId: loan.id,
+              customerId: loan.customerId,
+              customerName: loan.customer?.name,
+              customerPhone: loan.customer?.phone,
+              customerEmail: loan.customer?.email,
+              defaultMaxAmount: loan.perInstalment * 1.5,
+              isAdmin: isAdmin,
+            );
+          },
+        ),
         const SizedBox(height: 14),
         Container(
           padding: const EdgeInsets.symmetric(vertical: 6),

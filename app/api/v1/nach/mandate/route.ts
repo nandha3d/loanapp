@@ -77,7 +77,21 @@ export async function POST(req: NextRequest) {
       customerPhone: data.customerPhone,
       customerEmail: data.customerEmail || undefined,
     });
-    return NextResponse.json({ ok: true, data: result }, { status: 201 });
+    return NextResponse.json({
+      ok: true,
+      data: {
+        ...result,
+        id: result.mandateId,
+        status: 'pending_auth',
+        accountHolderName: data.accountHolderName,
+        accountNumber: data.accountNumber,
+        accountType: data.accountType,
+        ifscCode: data.ifscCode,
+        bankName: data.bankName ?? null,
+        maxAmount: data.maxAmount,
+        authType: data.authType,
+      },
+    }, { status: 201 });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Failed to create mandate';
     return NextResponse.json({ error: msg }, { status: 500 });
