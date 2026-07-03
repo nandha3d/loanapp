@@ -36,6 +36,7 @@ class CollectionRow {
     required this.customerId,
     required this.customerName,
     required this.customerCode,
+    this.customerPhoto,
     required this.customerPhone,
     required this.routeName,
     required this.dueAmount,
@@ -54,6 +55,7 @@ class CollectionRow {
   final String customerId;
   final String customerName;
   final String customerCode;
+  final String? customerPhoto;
   final String customerPhone;
   final String? routeName;
   final double dueAmount;
@@ -87,6 +89,7 @@ class CollectionRow {
       customerId: (customer['id'] as String?) ?? '',
       customerName: (customer['name'] as String?) ?? '—',
       customerCode: (customer['customerCode'] as String?) ?? '',
+      customerPhoto: customer['profilePhoto'] as String?,
       customerPhone: (customer['phone'] as String?) ?? '',
       routeName: route?['name'] as String?,
       dueAmount: n(json['dueAmount']),

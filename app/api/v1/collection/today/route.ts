@@ -60,6 +60,7 @@ export async function GET(req: NextRequest) {
                 customerCode: true,
                 name: true,
                 phone: true,
+                profilePhoto: true,
                 routeId: true,
                 lat: true,
                 lng: true,
