@@ -59,7 +59,7 @@ final customerFilterProvider =
     StateProvider<CustomerListFilter>((ref) => const CustomerListFilter());
 
 final customerListProvider =
-    FutureProvider.autoDispose<List<Customer>>((ref) async {
+    FutureProvider<List<Customer>>((ref) async {
   final filter = ref.watch(customerFilterProvider);
   final all = await ref.watch(customerRepositoryProvider).list(
         query: filter.query.isEmpty ? null : filter.query,

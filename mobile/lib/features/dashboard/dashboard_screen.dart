@@ -15,7 +15,7 @@ import 'package:loantrack/data/models/collection_entry.dart';
 import 'package:loantrack/data/models/dashboard_summary.dart';
 import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/data/repositories/dashboard_repository.dart';
-import 'package:loantrack/data/services/collection_service.dart';
+import 'package:loantrack/features/collection/collection_screen.dart' show collectionTodayProvider;
 import 'package:loantrack/features/collection/quick_collect_sheet.dart';
 import 'package:loantrack/features/dashboard/widgets/collection_trend_card.dart';
 import 'package:loantrack/features/onboarding/onboarding_overlay.dart';
@@ -23,11 +23,6 @@ import 'package:loantrack/features/onboarding/location_permission_overlay.dart';
 import 'package:loantrack/shared/widgets/bottom_nav.dart';
 import 'package:loantrack/shared/widgets/empty_state.dart';
 import 'package:loantrack/shared/widgets/skeleton.dart';
-
-final _collectionTodayProvider =
-    FutureProvider.autoDispose<List<CollectionRow>>((ref) {
-  return ref.watch(collectionServiceProvider).today();
-});
 
 // Process-lifetime guard so rebuilds can't queue duplicate onboarding dialogs.
 bool _onboardingRequested = false;
@@ -1080,7 +1075,7 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
   @override
   Widget build(BuildContext context) {
     final t = widget.t;
-    final async = ref.watch(_collectionTodayProvider);
+    final async = ref.watch(collectionTodayProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1419,7 +1414,7 @@ class _UpNextCard extends ConsumerWidget {
       backgroundColor: Colors.transparent,
       builder: (_) => QuickCollectSheet(row: row),
     ).then((_) {
-      ref.invalidate(_collectionTodayProvider);
+      ref.invalidate(collectionTodayProvider);
       ref.invalidate(dashboardSummaryProvider);
     });
   }

@@ -17,7 +17,7 @@ import 'package:loantrack/shared/widgets/fab_extended.dart';
 import 'package:loantrack/shared/widgets/skeleton.dart';
 
 final loansProvider =
-    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
+    FutureProvider<List<Map<String, dynamic>>>((ref) {
   return ref.watch(loanServiceProvider).list();
 });
 

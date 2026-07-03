@@ -26,6 +26,8 @@ import 'package:loantrack/features/settings/settings_detail_screen.dart';
 import 'package:loantrack/features/customers/customer_detail_screen.dart';
 import 'package:loantrack/features/customers/customers_screen.dart';
 import 'package:loantrack/features/customers/new_customer_screen.dart';
+import 'package:loantrack/data/repositories/dashboard_repository.dart';
+import 'package:loantrack/data/repositories/customer_repository.dart';
 import 'package:loantrack/features/dashboard/dashboard_screen.dart';
 import 'package:loantrack/features/loans/edit_loan_screen.dart';
 import 'package:loantrack/features/loans/gold_reports_screen.dart';
@@ -530,7 +532,19 @@ class _AuthListenable extends ChangeNotifier {
   _AuthListenable(this._ref) {
     _ref.listen<AuthState>(
       authControllerProvider,
-      (_, __) => notifyListeners(),
+      (prev, next) {
+        // The main list/dashboard providers are cached (no autoDispose) for
+        // instant navigation. Clear them when the session ends so the next
+        // user never sees the previous user's cached data.
+        if (prev?.stage == AuthStage.authenticated &&
+            next.stage != AuthStage.authenticated) {
+          _ref.invalidate(dashboardSummaryProvider);
+          _ref.invalidate(customerListProvider);
+          _ref.invalidate(loansProvider);
+          _ref.invalidate(collectionTodayProvider);
+        }
+        notifyListeners();
+      },
     );
   }
   final Ref _ref;

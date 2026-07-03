@@ -33,12 +33,12 @@ import 'package:loantrack/shared/widgets/empty_state.dart';
 import 'package:loantrack/shared/widgets/skeleton.dart';
 
 final collectionTodayProvider =
-    FutureProvider.autoDispose<List<CollectionRow>>((ref) {
+    FutureProvider<List<CollectionRow>>((ref) {
   return ref.watch(collectionServiceProvider).today();
 });
 
 final _selfPayQueueProvider =
-    FutureProvider.autoDispose<List<SelfPayQueueItem>>((ref) {
+    FutureProvider<List<SelfPayQueueItem>>((ref) {
   return ref.watch(collectionServiceProvider).selfPayQueue();
 });
 
