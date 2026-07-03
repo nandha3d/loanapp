@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { hash } from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
+import { uploadBaseDir } from '../lib/fileUpload';
 import zlib from 'zlib';
 
 const prisma = new PrismaClient();
@@ -136,7 +137,7 @@ async function main() {
   console.log('✅ Tenant:', tenant.id);
 
   // ── Write avatar images to upload directory ───────────────────────────────
-  const uploadDir = path.join(process.cwd(), 'private', 'uploads', tenant.id, 'profiles');
+  const uploadDir = path.join(uploadBaseDir(), tenant.id, 'profiles');
   fs.mkdirSync(uploadDir, { recursive: true });
   const avatarFilenames: string[] = [];
   for (let i = 0; i < 5; i++) {

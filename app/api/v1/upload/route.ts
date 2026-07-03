@@ -11,6 +11,7 @@ import {
 import {
   ALLOWED_UPLOAD_MIME_TYPES,
   MAX_UPLOAD_SIZE_BYTES,
+  uploadBaseDir,
   validateFileBytes,
 } from '@/lib/fileUpload';
 
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
     path.extname(file.name).replace(/[^a-zA-Z0-9.]/g, '').toLowerCase() ||
     '.bin';
   const safeName = `${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`;
-  const uploadDir = path.join(process.cwd(), 'private', 'uploads', ctx.tenantId);
+  const uploadDir = path.join(uploadBaseDir(), ctx.tenantId);
   await mkdir(uploadDir, { recursive: true });
 
   const buffer = Buffer.from(await file.arrayBuffer());
