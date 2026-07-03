@@ -871,72 +871,45 @@ class _SummaryCardOverview extends ConsumerWidget {
               AppBadge(label: loan.status, kind: _badge(loan.status)),
             ],
           ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              if (loan.customer?.photoUrl != null &&
-                  loan.customer!.photoUrl!.isNotEmpty)
-                CircleAvatar(
-                  radius: 30,
-                  backgroundImage: authedImage(ref, loan.customer!.photoUrl!),
-                )
-              else
-                CircleAvatar(
-                  radius: 30,
-                  backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                  child: Text(
-                    loan.customer?.initials ?? '?',
-                    style: TextStyle(
-                        color: AppColors.primary, fontWeight: FontWeight.bold),
+          const Spacer(),
+          // Customer identity is already shown in the page header above, so the
+          // card focuses on the loan: a large repayment-progress ring.
+          Center(
+            child: SizedBox(
+              width: 92,
+              height: 92,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  CircularProgressIndicator(
+                    value: progress.clamp(0.0, 1.0),
+                    strokeWidth: 7,
+                    backgroundColor: AppColors.border,
+                    valueColor:
+                        const AlwaysStoppedAnimation(AppColors.primary),
                   ),
-                ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      loan.customer?.name ?? '—',
-                      style: AppTypography.body
-                          .copyWith(fontWeight: FontWeight.w700),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      loan.customer?.customerCode ?? '',
-                      style: AppTypography.caption,
-                    ),
-                  ],
-                ),
-              ),
-              // Circular progress
-              Container(
-                width: 60,
-                height: 60,
-                decoration: const BoxDecoration(shape: BoxShape.circle),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    CircularProgressIndicator(
-                      value: progress.clamp(0.0, 1.0),
-                      strokeWidth: 5,
-                      backgroundColor: AppColors.border,
-                      valueColor: AlwaysStoppedAnimation(AppColors.primary),
-                    ),
-                    Center(
-                      child: Text(
-                        '$pct%',
-                        style: AppTypography.body.copyWith(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
+                  Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '$pct%',
+                          style: AppTypography.heroLabel.copyWith(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 22,
+                          ),
                         ),
-                      ),
+                        Text(
+                          t.x('loan.lbl_paid_period'),
+                          style: AppTypography.tiny
+                              .copyWith(color: AppColors.textLight),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
           const Spacer(),
           Row(
