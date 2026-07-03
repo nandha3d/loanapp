@@ -235,7 +235,7 @@ class _Header extends ConsumerWidget {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 22),
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
           child: Column(
             children: [
               Row(
@@ -296,31 +296,45 @@ class _Header extends ConsumerWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 6),
-              _PhotoOrInitials(customer: customer, size: 86),
-              const SizedBox(height: 12),
-              Text(
-                customer.name,
-                style: AppTypography.heroLabel.copyWith(
-                  color: Colors.white,
-                  fontSize: 20,
-                ),
-              ),
               const SizedBox(height: 4),
+              // Compact header: big photo on the left, identity on the right —
+              // fills the card width instead of a small centered circle.
               Row(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    customer.customerCode,
-                    style: AppTypography.body.copyWith(
-                      color: Colors.white60,
-                      fontFamily: 'monospace',
+                  const SizedBox(width: 4),
+                  _PhotoOrInitials(customer: customer, size: 104),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          customer.name,
+                          style: AppTypography.heroLabel.copyWith(
+                            color: Colors.white,
+                            fontSize: 22,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          customer.customerCode,
+                          style: AppTypography.body.copyWith(
+                            color: Colors.white60,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: AppBadge(
+                            label: customer.status,
+                            kind: _badgeForStatus(customer.status),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  AppBadge(
-                    label: customer.status,
-                    kind: _badgeForStatus(customer.status),
                   ),
                 ],
               ),
