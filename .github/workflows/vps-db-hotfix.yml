@@ -1,0 +1,41 @@
+name: VPS DB hotfix + redeploy
+
+# One-time fix for: "Cannot drop index
+# 'notification_templates_tenant_id_name_channel_key': needed in a foreign
+# key constraint". MySQL needs a standalone tenant_id index in place BEFORE
+# prisma db push drops the old composite unique. Adds the index (idempotent
+# — re-runs are harmless), then re-runs the normal deploy.
+on:
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  hotfix-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH into VPS, add index, redeploy
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "$VPS_PORT" "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh -i ~/.ssh/id_ed25519 -p "$VPS_PORT" \
+            -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
+            "$VPS_USER@$VPS_HOST" 'bash -s' <<'REMOTE'
+          set -uo pipefail
+          cd /home/loantrack/app
+          echo "[hotfix] adding standalone tenant_id index so the FK no longer depends on the old unique"
+          echo "ALTER TABLE notification_templates ADD INDEX notification_templates_tenant_id_idx (tenant_id);" \
+            | npx prisma db execute --stdin --schema prisma/schema.prisma \
+            || echo "[hotfix] index already exists (or add failed) — continuing to deploy"
+          echo "[hotfix] running normal deploy"
+          bash /home/loantrack/app/deploy.sh
+          REMOTE
