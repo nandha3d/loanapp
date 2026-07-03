@@ -2,7 +2,7 @@ import 'package:loantrack/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-
+import 'package:go_router/go_router.dart';
 import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
@@ -85,6 +85,12 @@ class ChitsScreen extends ConsumerWidget {
             ),
           );
         },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => context.push('/chits/new'),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        child: const Icon(Icons.add),
       ),
       bottomNavigationBar: const AppBottomNav(currentRoute: '/chits'),
     );
@@ -375,12 +381,7 @@ class _GroupCard extends ConsumerWidget {
   }
 
   void _showDetail(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _GroupDetailSheet(group: group),
-    );
+    context.push('/chits/${group.id}');
   }
 }
 
@@ -563,6 +564,13 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
       );
       return;
     }
+    final now = DateTime.now();
+    final elapsedMonths =
+        (now.year - widget.group.startDate.year) * 12 +
+        now.month -
+        widget.group.startDate.month;
+    final currentPeriod =
+        (elapsedMonths + 1).clamp(1, widget.group.durationMonths).toInt();
 
     final amountCtrl = TextEditingController(
       text: widget.group.monthlyContrib.round().toString(),
@@ -672,6 +680,7 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                                 .collectContribution(
                                   widget.group.id,
                                   memberId: memberId,
+                                  periodNumber: currentPeriod,
                                   amount: amount,
                                   paymentMode: paymentMode,
                                   note: noteCtrl.text,

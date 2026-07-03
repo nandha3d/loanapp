@@ -439,6 +439,21 @@ class _LoginCard extends ConsumerWidget {
               ],
             ),
           ),
+          const SizedBox(height: 16),
+          Center(
+            child: GestureDetector(
+              onTap: () => context.push('/borrower/login'),
+              child: Text(
+                'Are you a Borrower? Access Borrower Portal',
+                style: TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
