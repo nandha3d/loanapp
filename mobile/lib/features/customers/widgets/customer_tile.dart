@@ -175,7 +175,7 @@ class _Avatar extends StatelessWidget {
       height: 52,
       decoration: BoxDecoration(
         gradient: image == null
-            ? const LinearGradient(
+            ? LinearGradient(
                 colors: [AppColors.primary, AppColors.primaryDark],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
