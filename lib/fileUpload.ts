@@ -5,6 +5,20 @@
  * attacker renames a malicious file to .jpg and sets Content-Type: image/jpeg.
  */
 
+import path from 'path';
+
+/**
+ * Base directory for uploaded files (profile photos, KYC docs, QR codes…).
+ * Set UPLOAD_DIR to an ABSOLUTE path outside the app checkout in production —
+ * the default lives inside the repo folder and is wiped by deploys that
+ * reset/clean the working tree.
+ */
+export function uploadBaseDir(): string {
+  const dir = process.env.UPLOAD_DIR;
+  if (dir && dir.trim()) return path.resolve(dir.trim());
+  return path.join(process.cwd(), 'private', 'uploads');
+}
+
 export const ALLOWED_UPLOAD_MIME_TYPES: string[] = [
   'image/jpeg',
   'image/png',

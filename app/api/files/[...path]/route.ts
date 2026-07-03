@@ -7,7 +7,9 @@ import path from 'path';
 import prisma from '@/lib/db';
 import { isTenantFileAccessAllowed } from '@/lib/fileAccessPolicy';
 
-const PRIVATE_DIR = path.join(process.cwd(), 'private', 'uploads');
+import { uploadBaseDir } from '@/lib/fileUpload';
+
+const PRIVATE_DIR = uploadBaseDir();
 
 const MIME_MAP: Record<string, string> = {
   '.jpg': 'image/jpeg',

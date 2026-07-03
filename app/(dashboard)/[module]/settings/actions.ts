@@ -13,8 +13,9 @@ import path from 'path';
 import { getRouteDeletionBlockReason } from '@/lib/routePolicy';
 import { getActiveBranchId, getBranchEnabledModules } from '@/lib/branch';
 import { findUserUniqueConflicts } from '@/lib/userUniqueness';
+import { uploadBaseDir } from '@/lib/fileUpload';
 
-const UPLOAD_DIR = path.join(process.cwd(), 'private', 'uploads');
+const UPLOAD_DIR = uploadBaseDir();
 
 export async function saveUpiQrCode(formData: FormData) {
   const session = await auth();

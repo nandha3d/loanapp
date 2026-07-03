@@ -1,0 +1,51 @@
+name: VPS setup persistent uploads + redeploy
+
+# Creates /home/loantrack/uploads OUTSIDE the app checkout, points the app at
+# it via UPLOAD_DIR in .env, migrates any surviving files, then redeploys.
+# Fixes photos being wiped by every deploy (private/uploads lived inside the
+# git working tree that deploy.sh resets).
+on:
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  setup-uploads:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH into VPS, provision uploads dir, redeploy
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "$VPS_PORT" "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh -i ~/.ssh/id_ed25519 -p "$VPS_PORT" \
+            -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
+            "$VPS_USER@$VPS_HOST" 'bash -s' <<'REMOTE'
+          set -uo pipefail
+          UPLOADS=/home/loantrack/uploads
+          echo "[uploads] ensuring $UPLOADS exists"
+          mkdir -p "$UPLOADS"
+          chown -R loantrack:loantrack "$UPLOADS" 2>/dev/null || true
+          cd /home/loantrack/app
+          if [ -d private/uploads ]; then
+            echo "[uploads] migrating surviving files from private/uploads"
+            cp -rn private/uploads/. "$UPLOADS"/ || true
+          fi
+          if grep -q '^UPLOAD_DIR=' .env; then
+            echo "[uploads] UPLOAD_DIR already set in .env:"
+            grep '^UPLOAD_DIR=' .env
+          else
+            printf '\n# Uploaded files live outside the app checkout so deploys cannot wipe them.\nUPLOAD_DIR=%s\n' "$UPLOADS" >> .env
+            echo "[uploads] UPLOAD_DIR=$UPLOADS added to .env"
+          fi
+          echo "[uploads] redeploying so the app picks up the new code + env"
+          bash /home/loantrack/app/deploy.sh
+          REMOTE

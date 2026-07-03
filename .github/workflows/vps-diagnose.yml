@@ -29,15 +29,18 @@ jobs:
           git log --oneline -1
           echo
           echo "=== uploads directory ==="
-          if [ -d private/uploads ]; then
-            find private/uploads -type f | wc -l | xargs echo "total files:"
-            find private/uploads -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -10 | cut -d' ' -f2-
+          UP=$(grep -E '^UPLOAD_DIR=' .env | cut -d= -f2- || true)
+          UP=${UP:-private/uploads}
+          echo "upload dir: $UP"
+          if [ -d "$UP" ]; then
+            find "$UP" -type f | wc -l | xargs echo "total files:"
+            find "$UP" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -10 | cut -d' ' -f2-
           else
-            echo "private/uploads DOES NOT EXIST"
+            echo "$UP DOES NOT EXIST"
           fi
           echo
           echo "=== DB photo URLs vs files on disk ==="
-          cat > /tmp/diag-photos.js <<'EOF'
+          cat > diag-photos.cjs <<'EOF'
           const { PrismaClient } = require('@prisma/client');
           const fs = require('fs');
           const path = require('path');
@@ -53,7 +56,8 @@ jobs:
               if (r.profilePhoto) {
                 const m = r.profilePhoto.match(/^\/api\/files\/(.+)$/);
                 if (m) {
-                  const f = path.join(process.cwd(), 'private', 'uploads', ...m[1].split('/'));
+                  const base = process.env.UPLOAD_DIR || path.join(process.cwd(), 'private', 'uploads');
+                  const f = path.join(base, ...m[1].split('/'));
                   status = fs.existsSync(f) ? 'FILE OK  ' + r.profilePhoto : 'FILE MISSING  ' + r.profilePhoto;
                 } else {
                   status = 'UNEXPECTED URL FORMAT  ' + r.profilePhoto;
@@ -64,8 +68,8 @@ jobs:
             await p.$disconnect();
           })().catch((e) => { console.error('ERR', e.message); process.exit(1); });
           EOF
-          node /tmp/diag-photos.js
-          rm -f /tmp/diag-photos.js
+          UPLOAD_DIR="$UP" node diag-photos.cjs
+          rm -f diag-photos.cjs
           echo
           echo "=== local API responses ==="
           curl -s -o /dev/null -w "files route, no auth (expect 401): %{http_code}\n" http://127.0.0.1:3000/api/files/x/y.jpg
