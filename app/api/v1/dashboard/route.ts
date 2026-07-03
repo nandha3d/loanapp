@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
       prisma.customer.count({ where: { ...baseCustomer, status: { not: 'blacklisted' } } }),
       prisma.instalment.findMany({
         where: { loan: baseLoan, dueDate: { gte: today, lt: tomorrow } },
-        include: { loan: { include: { customer: { select: { id: true, name: true, customerCode: true } } } } },
+        include: { loan: { include: { customer: { select: { id: true, name: true, customerCode: true, profilePhoto: true } } } } },
         orderBy: { dueDate: 'asc' },
       }),
       prisma.penalty.count({ where: { loan: baseLoan, status: 'pending' } }),
@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
       }),
       prisma.loan.findMany({
         where: baseLoan,
-        include: { customer: { select: { id: true, customerCode: true, name: true } } },
+        include: { customer: { select: { id: true, customerCode: true, name: true, profilePhoto: true } } },
         orderBy: { createdAt: 'desc' },
         take: 5,
       }),
@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
         where: { loan: baseLoan, dueDate: { lt: today }, status: { in: ['upcoming', 'missed', 'partial'] } },
         select: {
           id: true, dueDate: true, dueAmount: true, receivedAmount: true,
-          loan: { select: { id: true, loanCode: true, customer: { select: { id: true, name: true, customerCode: true } } } },
+          loan: { select: { id: true, loanCode: true, customer: { select: { id: true, name: true, customerCode: true, profilePhoto: true } } } },
         },
         orderBy: { dueDate: 'asc' },
         take: 10,
@@ -156,7 +156,7 @@ export async function GET(req: NextRequest) {
           submittedAt: true,
           verificationStatus: true,
           source: true,
-          customer: { select: { id: true, name: true, customerCode: true } },
+          customer: { select: { id: true, name: true, customerCode: true, profilePhoto: true } },
           agent: { select: { id: true, name: true } },
           loan: { select: { loanCode: true } },
         },
@@ -260,6 +260,7 @@ export async function GET(req: NextRequest) {
               source: e.source,
               customerName: e.customer?.name ?? '—',
               customerCode: e.customer?.customerCode ?? '',
+              customerPhoto: e.customer?.profilePhoto ?? null,
               customerId: e.customer?.id ?? '',
               agentName: e.agent?.name ?? '—',
               loanCode: e.loan?.loanCode ?? '',

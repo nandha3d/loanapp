@@ -71,6 +71,45 @@ jobs:
           UPLOAD_DIR="$UP" node diag-photos.cjs
           rm -f diag-photos.cjs
           echo
+          echo "=== overdue loan consistency check ==="
+          cat > diag-loans.cjs <<'EOF2'
+          const { PrismaClient } = require('@prisma/client');
+          const p = new PrismaClient();
+          const day = (d) => new Date(d).toISOString().slice(0, 10);
+          (async () => {
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            const loans = await p.loan.findMany({
+              where: { status: { in: ['active', 'overdue'] } },
+              select: {
+                id: true, loanCode: true, status: true, totalCollected: true,
+                instalments: { select: { status: true, dueAmount: true, receivedAmount: true, dueDate: true } },
+              },
+              take: 15,
+            });
+            for (const l of loans) {
+              const past = l.instalments.filter((i) => new Date(i.dueDate) < today);
+              const pastUnpaid = past.filter((i) => Number(i.receivedAmount) < Number(i.dueAmount));
+              const sumReceived = l.instalments.reduce((s, i) => s + Number(i.receivedAmount), 0);
+              const byStatus = {};
+              for (const i of l.instalments) byStatus[i.status] = (byStatus[i.status] || 0) + 1;
+              const overdueAmt = pastUnpaid.reduce((s, i) => s + (Number(i.dueAmount) - Number(i.receivedAmount)), 0);
+              console.log(
+                l.loanCode, '| loan.status:', l.status,
+                '| totalCollected:', Number(l.totalCollected),
+                '| sum(inst.received):', sumReceived,
+                '| inst by status:', JSON.stringify(byStatus),
+                '| past-due unpaid:', pastUnpaid.length, 'amt:', overdueAmt,
+                pastUnpaid.length ? '| first unpaid due ' + day(pastUnpaid[0].dueDate) : '',
+              );
+              const pays = await p.payment.aggregate({ where: { loanId: l.id }, _sum: { amount: true }, _count: true }).catch(() => null);
+              if (pays) console.log('   payments:', pays._count, 'sum:', Number(pays._sum.amount || 0));
+            }
+            await p.$disconnect();
+          })().catch((e) => { console.error('ERR', e.message); process.exit(1); });
+          EOF2
+          node diag-loans.cjs
+          rm -f diag-loans.cjs
+          echo
           echo "=== local API responses ==="
           curl -s -o /dev/null -w "files route, no auth (expect 401): %{http_code}\n" http://127.0.0.1:3000/api/files/x/y.jpg
           curl -s -o /dev/null -w "files route, bad bearer (expect 401): %{http_code}\n" -H "Authorization: Bearer garbage" http://127.0.0.1:3000/api/files/x/y.jpg

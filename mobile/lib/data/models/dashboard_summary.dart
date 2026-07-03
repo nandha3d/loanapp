@@ -110,6 +110,7 @@ class TodayActivity {
     required this.agentName,
     required this.loanCode,
     required this.verificationStatus,
+    this.customerPhoto,
   });
 
   final String id;
@@ -124,6 +125,7 @@ class TodayActivity {
   final String agentName;
   final String loanCode;
   final String verificationStatus;
+  final String? customerPhoto;
 
   factory TodayActivity.fromJson(Map<String, dynamic> json) {
     double toNum(dynamic v) => v == null
@@ -143,6 +145,7 @@ class TodayActivity {
       agentName: (json['agentName'] as String?) ?? '—',
       loanCode: (json['loanCode'] as String?) ?? '',
       verificationStatus: (json['verificationStatus'] as String?) ?? 'pending',
+      customerPhoto: json['customerPhoto'] as String?,
     );
   }
 }
@@ -154,6 +157,7 @@ class DefaulterAlert {
     required this.overdueAmount,
     required this.customerName,
     required this.customerCode,
+    this.customerPhoto,
   });
 
   final String id;
@@ -161,6 +165,7 @@ class DefaulterAlert {
   final double overdueAmount;
   final String customerName;
   final String customerCode;
+  final String? customerPhoto;
 
   factory DefaulterAlert.fromJson(Map<String, dynamic> json) {
     double toNum(dynamic v) => v == null
@@ -174,6 +179,7 @@ class DefaulterAlert {
       overdueAmount: toNum(json['overdueAmount']),
       customerName: (customer['name'] as String?) ?? '—',
       customerCode: (customer['customerCode'] as String?) ?? '',
+      customerPhoto: customer['profilePhoto'] as String?,
     );
   }
 }
@@ -241,6 +247,7 @@ class RecentLoan {
     required this.createdAt,
     required this.customerName,
     required this.customerCode,
+    this.customerPhoto,
   });
 
   final String id;
@@ -248,6 +255,7 @@ class RecentLoan {
   final DateTime createdAt;
   final String customerName;
   final String customerCode;
+  final String? customerPhoto;
 
   factory RecentLoan.fromJson(Map<String, dynamic> json) {
     final c = (json['customer'] as Map<String, dynamic>?) ?? const {};
@@ -257,6 +265,7 @@ class RecentLoan {
       createdAt: DateTime.parse(json['createdAt'] as String),
       customerName: (c['name'] as String?) ?? '—',
       customerCode: (c['customerCode'] as String?) ?? '',
+      customerPhoto: c['profilePhoto'] as String?,
     );
   }
 }
@@ -269,6 +278,7 @@ class TodayInstalment {
     required this.status,
     required this.customerName,
     required this.loanCode,
+    this.customerPhoto,
   });
 
   final String id;
@@ -277,6 +287,7 @@ class TodayInstalment {
   final String status;
   final String customerName;
   final String loanCode;
+  final String? customerPhoto;
 
   factory TodayInstalment.fromJson(Map<String, dynamic> json) {
     double toNum(dynamic v) => v == null
@@ -291,6 +302,7 @@ class TodayInstalment {
       status: (json['status'] as String?) ?? 'upcoming',
       customerName: (customer['name'] as String?) ?? '—',
       loanCode: (loan['loanCode'] as String?) ?? '',
+      customerPhoto: customer['profilePhoto'] as String?,
     );
   }
 }

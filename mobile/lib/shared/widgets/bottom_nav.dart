@@ -14,8 +14,9 @@ class NavItem {
   final String route;
 }
 
-// 4 tabs — 2 each side of the center "+" button. Customers moved to the
-// More screen so the FAB no longer overlaps a tab.
+// 4 tabs — 2 each side of the center "+" button. The full menu lives behind
+// the dashboard hamburger (/more); the tab bar carries the daily-work
+// screens: Home, Loans, Collection, Customers.
 const _items = <NavItem>[
   NavItem(icon: Icons.home_outlined, label: 'Home', route: '/dashboard'),
   NavItem(
@@ -24,7 +25,8 @@ const _items = <NavItem>[
       route: '/loans'),
   NavItem(
       icon: Icons.payments_outlined, label: 'Collection', route: '/collection'),
-  NavItem(icon: Icons.grid_view_rounded, label: 'More', route: '/more'),
+  NavItem(
+      icon: Icons.people_alt_outlined, label: 'Customers', route: '/customers'),
 ];
 
 const _chitItems = <NavItem>[

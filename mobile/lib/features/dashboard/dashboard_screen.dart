@@ -1,3 +1,4 @@
+import 'package:loantrack/core/network/authed_image.dart';
 import 'package:loantrack/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -1234,7 +1235,13 @@ class _UpNextCard extends ConsumerWidget {
         children: [
           Row(
             children: [
-              _Avatar(name: row.customerName, size: 44),
+              _Avatar(
+                name: row.customerName,
+                size: 44,
+                image: row.customerPhoto != null && row.customerPhoto!.isNotEmpty
+                    ? authedImage(ref, row.customerPhoto!)
+                    : null,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -1448,7 +1455,7 @@ String _relTime(DateTime dt, T t) {
 /// Today's Activity — every collection recorded today, newest first, with the
 /// time, customer collected from, the agent who collected, and the amount. Lets
 /// the user see "what was done today" without leaving the dashboard.
-class _TodayActivitySection extends StatelessWidget {
+class _TodayActivitySection extends ConsumerWidget {
   const _TodayActivitySection({
     required this.summary,
     required this.fmt,
@@ -1459,7 +1466,7 @@ class _TodayActivitySection extends StatelessWidget {
   final T t;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final items = summary.todayActivity;
     final total = items.fold<double>(0, (s, a) => s + a.amount);
     return _Section(
@@ -1497,7 +1504,14 @@ class _TodayActivitySection extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 6),
-                          _Avatar(name: a.customerName, size: 34),
+                          _Avatar(
+                            name: a.customerName,
+                            size: 34,
+                            image: a.customerPhoto != null &&
+                                    a.customerPhoto!.isNotEmpty
+                                ? authedImage(ref, a.customerPhoto!)
+                                : null,
+                          ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Column(
@@ -1575,9 +1589,10 @@ class _Section extends StatelessWidget {
 }
 
 class _Avatar extends StatelessWidget {
-  const _Avatar({required this.name, this.size = 40});
+  const _Avatar({required this.name, this.size = 40, this.image});
   final String name;
   final double size;
+  final ImageProvider? image;
 
   Color _color() {
     final palette = [
@@ -1610,16 +1625,21 @@ class _Avatar extends StatelessWidget {
       decoration: BoxDecoration(
         color: c.withAlpha(40),
         borderRadius: BorderRadius.circular(size / 2),
+        image: image != null
+            ? DecorationImage(image: image!, fit: BoxFit.cover)
+            : null,
       ),
       alignment: Alignment.center,
-      child: Text(
-        _initials(),
-        style: TextStyle(
-          color: c,
-          fontWeight: FontWeight.w800,
-          fontSize: size * 0.36,
-        ),
-      ),
+      child: image != null
+          ? null
+          : Text(
+              _initials(),
+              style: TextStyle(
+                color: c,
+                fontWeight: FontWeight.w800,
+                fontSize: size * 0.36,
+              ),
+            ),
     );
   }
 }
@@ -1678,14 +1698,14 @@ class _AgentMetricsRow extends StatelessWidget {
   }
 }
 
-class _DefaulterAlerts extends StatelessWidget {
+class _DefaulterAlerts extends ConsumerWidget {
   const _DefaulterAlerts({required this.summary, required this.fmt, required this.t});
   final DashboardSummary summary;
   final NumberFormat fmt;
   final T t;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (summary.defaulterAlerts.isEmpty) return const SizedBox.shrink();
 
     return _Section(
@@ -1697,7 +1717,14 @@ class _DefaulterAlerts extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 10),
               child: Row(
                 children: [
-                  _Avatar(name: alert.customerName, size: 36),
+                  _Avatar(
+                    name: alert.customerName,
+                    size: 36,
+                    image: alert.customerPhoto != null &&
+                            alert.customerPhoto!.isNotEmpty
+                        ? authedImage(ref, alert.customerPhoto!)
+                        : null,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
