@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import 'package:loantrack/core/l10n/language_controller.dart';
+import 'package:loantrack/core/network/authed_image.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
@@ -189,7 +190,7 @@ class _ClosedToggle extends StatelessWidget {
   }
 }
 
-class _LoanTile extends StatelessWidget {
+class _LoanTile extends ConsumerWidget {
   const _LoanTile({required this.loan, required this.fmt, required this.onTap});
   final Map<String, dynamic> loan;
   final NumberFormat fmt;
@@ -200,9 +201,10 @@ class _LoanTile extends StatelessWidget {
       : double.tryParse(v?.toString() ?? '') ?? 0;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final customer = (loan['customer'] as Map<String, dynamic>?) ?? const {};
     final customerName = customer['name']?.toString() ?? '—';
+    final customerPhoto = customer['profilePhoto']?.toString();
     final principal = _toDouble(loan['principal']);
     final status = (loan['status'] as String?) ?? 'pending_review';
 
@@ -241,7 +243,13 @@ class _LoanTile extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
                   child: Row(
                     children: [
-                      _Avatar(name: customerName, size: 44),
+                      _Avatar(
+                        name: customerName,
+                        size: 44,
+                        image: customerPhoto != null && customerPhoto.isNotEmpty
+                            ? authedImage(ref, customerPhoto)
+                            : null,
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -310,13 +318,13 @@ class _LoanTile extends StatelessWidget {
   }
 }
 
-/// Colored initials avatar (consistent with the dashboard). Server-side profile
-/// photos aren't loaded here: the file endpoint is cookie-authenticated and the
-/// web build can't attach the Bearer token to image requests.
+/// Customer avatar — profile photo when available (fetched with the Bearer
+/// token via [authedImage]), colored initials otherwise.
 class _Avatar extends StatelessWidget {
-  const _Avatar({required this.name, this.size = 40});
+  const _Avatar({required this.name, this.size = 40, this.image});
   final String name;
   final double size;
+  final ImageProvider? image;
 
   Color _color() {
     const palette = [
@@ -349,16 +357,21 @@ class _Avatar extends StatelessWidget {
       decoration: BoxDecoration(
         color: c.withAlpha(40),
         borderRadius: BorderRadius.circular(size / 2),
+        image: image != null
+            ? DecorationImage(image: image!, fit: BoxFit.cover)
+            : null,
       ),
       alignment: Alignment.center,
-      child: Text(
-        _initials(),
-        style: TextStyle(
-          color: c,
-          fontWeight: FontWeight.w800,
-          fontSize: size * 0.34,
-        ),
-      ),
+      child: image != null
+          ? null
+          : Text(
+              _initials(),
+              style: TextStyle(
+                color: c,
+                fontWeight: FontWeight.w800,
+                fontSize: size * 0.34,
+              ),
+            ),
     );
   }
 }

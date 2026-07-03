@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:loantrack/core/network/authed_image.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/data/models/customer.dart';
@@ -48,7 +49,13 @@ class CustomerTile extends ConsumerWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _Avatar(initials: customer.initials),
+                    _Avatar(
+                      initials: customer.initials,
+                      image: (customer.photoUrl != null &&
+                              customer.photoUrl!.isNotEmpty)
+                          ? authedImage(ref, customer.photoUrl!)
+                          : null,
+                    ),
                     const SizedBox(width: 14),
                     Expanded(
                       child: Column(
@@ -157,8 +164,9 @@ class CustomerTile extends ConsumerWidget {
 }
 
 class _Avatar extends StatelessWidget {
-  const _Avatar({required this.initials});
+  const _Avatar({required this.initials, this.image});
   final String initials;
+  final ImageProvider? image;
 
   @override
   Widget build(BuildContext context) {
@@ -166,11 +174,16 @@ class _Avatar extends StatelessWidget {
       width: 52,
       height: 52,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.primary, AppColors.primaryDark],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: image == null
+            ? const LinearGradient(
+                colors: [AppColors.primary, AppColors.primaryDark],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : null,
+        image: image != null
+            ? DecorationImage(image: image!, fit: BoxFit.cover)
+            : null,
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
@@ -181,14 +194,16 @@ class _Avatar extends StatelessWidget {
         ],
       ),
       alignment: Alignment.center,
-      child: Text(
-        initials.isEmpty ? '?' : initials,
-        style: AppTypography.bodyLarge.copyWith(
-          color: Colors.white,
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
+      child: image != null
+          ? null
+          : Text(
+              initials.isEmpty ? '?' : initials,
+              style: AppTypography.bodyLarge.copyWith(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
     );
   }
 }
