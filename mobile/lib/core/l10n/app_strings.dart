@@ -352,6 +352,10 @@ const Map<String, Map<String, String>> kStrings = {
     'en': 'Up next', 'ta': 'அடுத்து', 'hi': 'अगला',
     'te': 'తరువాత', 'kn': 'ಮುಂದೆ', 'ml': 'അടുത്തത്',
   },
+  'dash.dues': {
+    'en': 'dues', 'ta': 'தவணைகள்', 'hi': 'बकाया',
+    'te': 'బకాయిలు', 'kn': 'ಬಾಕಿಗಳು', 'ml': 'കുടിശ്ശികകൾ',
+  },
   'dash.all_done_title': {
     'en': 'All collections done', 'ta': 'அனைத்து வசூலும் முடிந்தது',
     'hi': 'सभी वसूली पूरी', 'te': 'అన్ని వసూళ్లు పూర్తి',

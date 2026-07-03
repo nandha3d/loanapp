@@ -1122,9 +1122,28 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
             ),
           ),
           data: (rows) {
-            final pending = rows
-                .where((r) => r.status != 'paid')
-                .toList(growable: false);
+            // One card per CUSTOMER — a customer with several dues today
+            // (multiple instalments / loans) collapses into a single entry
+            // showing the combined amount, instead of repeating the card.
+            final pendingRows =
+                rows.where((r) => r.status != 'paid').toList(growable: false);
+            final byCustomer = <String, _UpNextEntry>{};
+            for (final r in pendingRows) {
+              final due = r.outstanding > 0 ? r.outstanding : r.dueAmount;
+              final existing = byCustomer[r.customerId];
+              if (existing == null) {
+                byCustomer[r.customerId] =
+                    _UpNextEntry(row: r, total: due, count: 1);
+              } else {
+                existing.total += due;
+                existing.count += 1;
+                // Keep the earliest-due instalment as the collect target.
+                if (r.dueDate.isBefore(existing.row.dueDate)) {
+                  existing.row = r;
+                }
+              }
+            }
+            final pending = byCustomer.values.toList(growable: false);
             if (pending.isEmpty) {
               return Container(
                 padding: const EdgeInsets.all(18),
@@ -1174,7 +1193,12 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
                     onPageChanged: (i) => setState(() => _idx = i),
                     itemBuilder: (_, i) => Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: _UpNextCard(row: pending[i], fmt: widget.fmt),
+                      child: _UpNextCard(
+                        row: pending[i].row,
+                        fmt: widget.fmt,
+                        totalDue: pending[i].total,
+                        dueCount: pending[i].count,
+                      ),
                     ),
                   ),
                 ),
@@ -1211,17 +1235,35 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
   }
 }
 
+/// Aggregation of one customer's dues for the Up Next section.
+class _UpNextEntry {
+  _UpNextEntry({required this.row, required this.total, required this.count});
+  CollectionRow row;
+  double total;
+  int count;
+}
+
 class _UpNextCard extends ConsumerWidget {
-  const _UpNextCard({required this.row, required this.fmt});
+  const _UpNextCard({
+    required this.row,
+    required this.fmt,
+    double? totalDue,
+    this.dueCount = 1,
+  }) : _totalDue = totalDue;
   final CollectionRow row;
   final NumberFormat fmt;
+  final double? _totalDue;
+
+  /// How many separate dues (instalments/loans) this customer has today.
+  final int dueCount;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
     final time = TimeOfDay.fromDateTime(row.dueDate).format(context);
     final route = row.routeName;
-    final due = row.outstanding > 0 ? row.outstanding : row.dueAmount;
+    final due =
+        _totalDue ?? (row.outstanding > 0 ? row.outstanding : row.dueAmount);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1267,8 +1309,11 @@ class _UpNextCard extends ConsumerWidget {
                         const SizedBox(width: 4),
                         Flexible(
                           child: Text(
-                            [time, if (route != null && route.isNotEmpty) route]
-                                .join(' \u00b7 '),
+                            [
+                              time,
+                              if (route != null && route.isNotEmpty) route,
+                              if (dueCount > 1) '$dueCount ${t.x('dash.dues')}',
+                            ].join(' \u00b7 '),
                             style: AppTypography.caption,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,

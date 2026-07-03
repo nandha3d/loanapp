@@ -16,7 +16,6 @@ import 'package:loantrack/features/loans/gold_servicing_sheet.dart';
 import 'package:loantrack/features/loans/property_servicing_sheet.dart';
 import 'package:loantrack/features/loans/product_servicing_sheet.dart';
 import 'package:loantrack/core/network/authed_image.dart';
-import 'package:loantrack/core/network/dio_client.dart';
 import 'package:loantrack/data/models/collection_entry.dart';
 import 'package:loantrack/data/services/approval_service.dart';
 import 'package:loantrack/data/services/loan_service.dart';
@@ -182,11 +181,9 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
       controller: _scrollCtrl,
       padding: const EdgeInsets.all(16),
       children: [
-        _BorrowerHeader(loan: loan),
-        const SizedBox(height: 12),
-        _LoanPillRow(loan: loan),
-        const SizedBox(height: 14),
         _buildSummaryCards(loan, fmt, progress, paid),
+        const SizedBox(height: 10),
+        _LoanPillRow(loan: loan),
         if (loan.loanType == 'gold' ||
             loan.loanType == 'property' ||
             loan.loanType == 'other') ...[
@@ -854,6 +851,11 @@ class _SummaryCardOverview extends ConsumerWidget {
     final totalRepayable = loan.totalPayable;
     final outstanding = totalRepayable - totalCollected;
 
+    final name = loan.customer?.name ?? '—';
+    final code = loan.customer?.customerCode ?? '';
+    final photo = loan.customer?.photoUrl;
+    final hasPhoto = photo != null && photo.isNotEmpty;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -864,83 +866,106 @@ class _SummaryCardOverview extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(loan.loanCode, style: AppTypography.bodyLarge),
-              AppBadge(label: loan.status, kind: _badge(loan.status)),
-            ],
-          ),
-          const Spacer(),
-          // Customer identity is already shown in the page header above, so the
-          // card focuses on the loan: a large repayment-progress ring.
-          Center(
-            child: SizedBox(
-              width: 92,
-              height: 92,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  CircularProgressIndicator(
-                    value: progress.clamp(0.0, 1.0),
-                    strokeWidth: 7,
-                    backgroundColor: AppColors.border,
-                    valueColor:
-                        AlwaysStoppedAnimation(AppColors.primary),
-                  ),
-                  Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '$pct%',
-                          style: AppTypography.heroLabel.copyWith(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 22,
-                          ),
-                        ),
-                        Text(
-                          t.x('loan.lbl_paid_period'),
-                          style: AppTypography.tiny
-                              .copyWith(color: AppColors.textLight),
-                        ),
-                      ],
+          // Combined customer identity + loan header.
+          GestureDetector(
+            onTap: () => context.push('/customers/${loan.customerId}'),
+            behavior: HitTestBehavior.opaque,
+            child: Row(
+              children: [
+                if (hasPhoto)
+                  CircleAvatar(
+                    radius: 34, backgroundImage: authedImage(ref, photo))
+                else
+                  CircleAvatar(
+                    radius: 34,
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+                    child: Text(
+                      loan.customer?.initials ?? '?',
+                      style: TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 22),
                     ),
                   ),
-                ],
-              ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: AppTypography.sectionTitle
+                            .copyWith(fontSize: 18, letterSpacing: -0.3),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          if (code.isNotEmpty) ...[
+                            Text(code, style: AppTypography.caption),
+                            const SizedBox(width: 8),
+                          ],
+                          AppBadge(
+                              label: loan.status, kind: _badge(loan.status)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
-          const Spacer(),
+          const SizedBox(height: 14),
+          const Divider(height: 1, color: AppColors.border),
+          const SizedBox(height: 14),
+          // Loan figures + progress ring.
           Row(
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              SizedBox(
+                width: 72,
+                height: 72,
+                child: Stack(
+                  fit: StackFit.expand,
                   children: [
-                    Text(t.x('loan.lbl_principal').toUpperCase(),
-                        style: AppTypography.tiny.copyWith(
-                            color: AppColors.textLight,
-                            fontWeight: FontWeight.w600)),
-                    Text(fmt.format(loan.principalAmount),
-                        style: AppTypography.bodyLarge
-                            .copyWith(color: AppColors.textPrimary)),
+                    CircularProgressIndicator(
+                      value: progress.clamp(0.0, 1.0),
+                      strokeWidth: 6,
+                      backgroundColor: AppColors.border,
+                      valueColor: AlwaysStoppedAnimation(AppColors.primary),
+                    ),
+                    Center(
+                      child: Text(
+                        '$pct%',
+                        style: AppTypography.bodyLarge.copyWith(
+                            fontWeight: FontWeight.w800, fontSize: 15),
+                      ),
+                    ),
                   ],
                 ),
               ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(t.x('loan.lbl_outstanding').toUpperCase(),
-                        style: AppTypography.tiny.copyWith(
-                            color: AppColors.textLight,
-                            fontWeight: FontWeight.w600)),
-                    Text(fmt.format(outstanding),
-                        style: AppTypography.bodyLarge
-                            .copyWith(color: AppColors.danger)),
-                  ],
-                ),
+              const SizedBox(width: 8),
+              Text(loan.loanCode, style: AppTypography.caption),
+              const Spacer(),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(t.x('loan.lbl_principal').toUpperCase(),
+                      style: AppTypography.tiny.copyWith(
+                          color: AppColors.textLight,
+                          fontWeight: FontWeight.w600)),
+                  Text(fmt.format(loan.principalAmount),
+                      style: AppTypography.bodyLarge
+                          .copyWith(color: AppColors.textPrimary)),
+                  const SizedBox(height: 8),
+                  Text(t.x('loan.lbl_outstanding').toUpperCase(),
+                      style: AppTypography.tiny.copyWith(
+                          color: AppColors.textLight,
+                          fontWeight: FontWeight.w600)),
+                  Text(fmt.format(outstanding),
+                      style: AppTypography.bodyLarge
+                          .copyWith(color: AppColors.danger)),
+                ],
               ),
             ],
           ),
@@ -1466,73 +1491,6 @@ class _PayButton extends ConsumerWidget {
       ref.invalidate(loanDetailProvider(loan.id));
       onCompleted?.call();
     });
-  }
-}
-
-class _BorrowerHeader extends ConsumerWidget {
-  const _BorrowerHeader({required this.loan});
-  final Loan loan;
-
-  BadgeKind _badge(String s) => switch (s) {
-        'active' => BadgeKind.active,
-        'overdue' => BadgeKind.overdue,
-        'closed' => BadgeKind.closed,
-        'pending_review' || 'pending' => BadgeKind.pending,
-        _ => BadgeKind.info,
-      };
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final name = loan.customer?.name ?? '—';
-    final code = loan.customer?.customerCode ?? '';
-    final photo = absoluteMediaUrl(
-        ref.watch(mediaBaseUrlProvider), loan.customer?.photoUrl,);
-    final initials = loan.customer?.initials ?? '?';
-
-    return GestureDetector(
-      onTap: () => context.push('/customers/${loan.customerId}'),
-      behavior: HitTestBehavior.opaque,
-      child: Column(
-        children: [
-          if (photo.isNotEmpty)
-            CircleAvatar(radius: 36, backgroundImage: authedImage(ref, photo))
-          else
-            CircleAvatar(
-              radius: 36,
-              backgroundColor: AppColors.primary.withValues(alpha: 0.12),
-              child: Text(
-                initials,
-                style: TextStyle(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 22,
-                ),
-              ),
-            ),
-          const SizedBox(height: 10),
-          Text(
-            name,
-            style: AppTypography.sectionTitle.copyWith(
-              fontSize: 18,
-              letterSpacing: -0.3,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (code.isNotEmpty) ...[
-                Text(code, style: AppTypography.caption),
-                const SizedBox(width: 8),
-              ],
-              AppBadge(label: loan.status, kind: _badge(loan.status)),
-            ],
-          ),
-        ],
-      ),
-    );
   }
 }
 
