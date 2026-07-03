@@ -17,6 +17,7 @@ import 'package:loantrack/core/auth/auth_controller.dart';
 import 'package:loantrack/core/gps/gps_pinger.dart';
 import 'package:loantrack/core/gps/gps_service.dart';
 import 'package:loantrack/core/l10n/language_controller.dart';
+import 'package:loantrack/core/network/authed_image.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
@@ -826,22 +827,12 @@ class _CollectionMap extends StatelessWidget {
                 for (final r in pinned)
                   Marker(
                     point: LatLng(r.lat!, r.lng!),
-                    width: 44,
-                    height: 44,
+                    width: 46,
+                    height: 54,
+                    alignment: Alignment.topCenter,
                     child: GestureDetector(
                       onTap: () => _showPinSheet(context, r),
-                      child: Icon(
-                        Icons.location_on_rounded,
-                        size: 40,
-                        color: _pinColor(r),
-                        shadows: const [
-                          Shadow(
-                            color: Colors.black38,
-                            blurRadius: 4,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
-                      ),
+                      child: _PhotoPin(row: r, color: _pinColor(r)),
                     ),
                   ),
               ],
@@ -1005,6 +996,59 @@ class _CollectionMap extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Map marker showing the customer's photo (falls back to a coloured dot),
+/// ringed in the status colour, with a little pointer tail.
+class _PhotoPin extends ConsumerWidget {
+  const _PhotoPin({required this.row, required this.color});
+  final CollectionRow row;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hasPhoto =
+        row.customerPhoto != null && row.customerPhoto!.isNotEmpty;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: color,
+            border: Border.all(color: Colors.white, width: 2),
+            boxShadow: const [
+              BoxShadow(
+                  color: Colors.black38, blurRadius: 4, offset: Offset(0, 2)),
+            ],
+            image: hasPhoto
+                ? DecorationImage(
+                    image: authedImage(ref, row.customerPhoto!),
+                    fit: BoxFit.cover,
+                  )
+                : null,
+          ),
+          alignment: Alignment.center,
+          child: hasPhoto
+              ? null
+              : Text(
+                  row.customerName.isEmpty
+                      ? '?'
+                      : row.customerName[0].toUpperCase(),
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+        ),
+        // Small pointer tail under the avatar.
+        Transform.translate(
+          offset: const Offset(0, -3),
+          child: Icon(Icons.arrow_drop_down, color: color, size: 20),
+        ),
+      ],
     );
   }
 }

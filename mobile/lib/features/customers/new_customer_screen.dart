@@ -9,6 +9,7 @@ import 'package:loantrack/core/network/authed_image.dart';
 import 'package:loantrack/core/network/dio_client.dart';
 
 import 'package:loantrack/core/l10n/language_controller.dart';
+import 'package:loantrack/features/location/location_picker_screen.dart';
 import 'package:loantrack/shared/utils/photo_crop.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
@@ -1025,6 +1026,30 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
     });
   }
 
+  Future<void> _pickMapForPoint(_CollectionPointEntry cp) async {
+    final picked = await Navigator.of(context).push<PickedLocation>(
+      MaterialPageRoute(
+        builder: (_) => LocationPickerScreen(
+          initialLat: cp.lat,
+          initialLng: cp.lng,
+          title: T.of(ref).x('btn.pin_on_map'),
+        ),
+      ),
+    );
+    if (picked == null) return;
+    setState(() {
+      cp.lat = picked.lat;
+      cp.lng = picked.lng;
+      // Auto-fill the address from the map only when the field is still empty,
+      // so a manually typed address is never overwritten.
+      if (cp.address.text.trim().isEmpty &&
+          picked.address != null &&
+          picked.address!.isNotEmpty) {
+        cp.address.text = picked.address!;
+      }
+    });
+  }
+
   Widget _buildCollectionPointsSection(T t) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1060,6 +1085,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                 }
               }),
               onUseGps: () => _fillGpsForPoint(_collectionPoints[i]),
+              onPickMap: () => _pickMapForPoint(_collectionPoints[i]),
             ),
             const SizedBox(height: 10),
           ],
@@ -1657,6 +1683,7 @@ class _CollectionPointTile extends ConsumerWidget {
     required this.onChanged,
     required this.onMarkPrimary,
     required this.onUseGps,
+    required this.onPickMap,
   });
 
   final _CollectionPointEntry entry;
@@ -1665,6 +1692,7 @@ class _CollectionPointTile extends ConsumerWidget {
   final VoidCallback onChanged;
   final VoidCallback onMarkPrimary;
   final VoidCallback onUseGps;
+  final VoidCallback onPickMap;
 
   static InputDecoration _dec(String hint) => InputDecoration(
         hintText: hint,
@@ -1791,15 +1819,22 @@ class _CollectionPointTile extends ConsumerWidget {
                 ),
               ),
               OutlinedButton.icon(
-                onPressed: onUseGps,
-                icon: const Icon(Icons.my_location, size: 16),
-                label: Text(t.x('btn.use_my_gps')),
+                onPressed: onPickMap,
+                icon: const Icon(Icons.map_outlined, size: 16),
+                label: Text(t.x('btn.pin_on_map')),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.primary,
                   side: BorderSide(color: AppColors.primary),
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: onUseGps,
+                tooltip: t.x('btn.use_my_gps'),
+                icon: const Icon(Icons.my_location, size: 20),
+                color: AppColors.primary,
               ),
             ],
           ),
