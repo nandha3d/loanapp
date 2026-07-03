@@ -1,11 +1,15 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'package:loantrack/core/network/dio_client.dart';
 
@@ -45,21 +49,62 @@ class AuthedImageProvider extends ImageProvider<AuthedImageProvider> {
     );
   }
 
+  // Uploaded files have unique generated names and never change, so cached
+  // bytes stay valid forever — no expiry needed.
+  static Directory? _diskCacheDir;
+
+  static Future<File?> _diskCacheFileFor(String url) async {
+    try {
+      var dir = _diskCacheDir;
+      if (dir == null) {
+        final tmp = await getTemporaryDirectory();
+        dir = Directory('${tmp.path}/authed_images');
+        await dir.create(recursive: true);
+        _diskCacheDir = dir;
+      }
+      final name = sha1.convert(utf8.encode(url)).toString();
+      return File('${dir.path}/$name');
+    } catch (_) {
+      return null; // cache unavailable — fall back to network only
+    }
+  }
+
   Future<ui.Codec> _load(
     AuthedImageProvider key,
     ImageDecoderCallback decode,
   ) async {
-    final res = await _dio.get<List<int>>(
-      key.url,
-      options: Options(responseType: ResponseType.bytes),
-    );
-    final status = res.statusCode ?? 0;
-    final data = res.data;
-    if (status != 200 || data == null || data.isEmpty) {
-      throw Exception('Image request failed ($status): ${key.url}');
+    Uint8List? bytes;
+    final cacheFile = await _diskCacheFileFor(key.url);
+    if (cacheFile != null) {
+      try {
+        if (await cacheFile.exists()) {
+          bytes = await cacheFile.readAsBytes();
+          if (bytes.isEmpty) bytes = null;
+        }
+      } catch (_) {
+        bytes = null;
+      }
     }
-    final buffer =
-        await ui.ImmutableBuffer.fromUint8List(Uint8List.fromList(data));
+    if (bytes == null) {
+      final res = await _dio.get<List<int>>(
+        key.url,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      final status = res.statusCode ?? 0;
+      final data = res.data;
+      if (status != 200 || data == null || data.isEmpty) {
+        throw Exception('Image request failed ($status): ${key.url}');
+      }
+      bytes = Uint8List.fromList(data);
+      if (cacheFile != null) {
+        try {
+          await cacheFile.writeAsBytes(bytes);
+        } catch (_) {
+          // best-effort cache write
+        }
+      }
+    }
+    final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
     return decode(buffer);
   }
 
