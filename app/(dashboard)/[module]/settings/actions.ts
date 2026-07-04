@@ -726,14 +726,14 @@ export async function saveNotificationSettings(formData: FormData) {
   const notifyEventLoanClosed = formData.get('notify_event_loan_closed') === 'true' ? 'true' : 'false';
   const notifyEventPenaltyAccrued = formData.get('notify_event_penalty_accrued') === 'true' ? 'true' : 'false';
 
-  const msg91AuthKey = (formData.get('msg91_auth_key') as string) || '';
+  const msg91AuthKey = ((formData.get('msg91_auth_key') as string) || '').trim();
   const msg91SenderId = (formData.get('msg91_sender_id') as string) || 'LNTRCK';
   const msg91WhatsappNumber = (formData.get('msg91_whatsapp_number') as string) || '';
 
   const smtpHost = (formData.get('smtp_host') as string) || '';
   const smtpPort = (formData.get('smtp_port') as string) || '587';
   const smtpUser = (formData.get('smtp_user') as string) || '';
-  const smtpPass = (formData.get('smtp_pass') as string) || '';
+  const smtpPass = ((formData.get('smtp_pass') as string) || '').trim();
   const smtpFromName = (formData.get('smtp_from_name') as string) || '';
 
   await Promise.all([
@@ -747,15 +747,20 @@ export async function saveNotificationSettings(formData: FormData) {
     setSetting(tenantId, 'notify_event_loan_overdue', notifyEventLoanOverdue, 'notification'),
     setSetting(tenantId, 'notify_event_loan_closed', notifyEventLoanClosed, 'notification'),
     setSetting(tenantId, 'notify_event_penalty_accrued', notifyEventPenaltyAccrued, 'notification'),
-    setSetting(tenantId, 'msg91_auth_key', msg91AuthKey, 'notification'),
     setSetting(tenantId, 'msg91_sender_id', msg91SenderId, 'notification'),
     setSetting(tenantId, 'msg91_whatsapp_number', msg91WhatsappNumber, 'notification'),
     setSetting(tenantId, 'smtp_host', smtpHost, 'notification'),
     setSetting(tenantId, 'smtp_port', smtpPort, 'notification'),
     setSetting(tenantId, 'smtp_user', smtpUser, 'notification'),
-    setSetting(tenantId, 'smtp_pass', smtpPass, 'notification'),
     setSetting(tenantId, 'smtp_from_name', smtpFromName, 'notification'),
   ]);
+
+  if (msg91AuthKey) {
+    await setSetting(tenantId, 'msg91_auth_key', encryptField(msg91AuthKey) || '', 'notification');
+  }
+  if (smtpPass) {
+    await setSetting(tenantId, 'smtp_pass', encryptField(smtpPass) || '', 'notification');
+  }
 
   await prisma.auditLog.create({
     data: {

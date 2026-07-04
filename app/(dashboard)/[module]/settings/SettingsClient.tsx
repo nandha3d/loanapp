@@ -154,6 +154,7 @@ export default function SettingsClient({
           <div className={`tab ${activeTab === 'goldmaster' ? 'active' : ''}`} onClick={() => setActiveTab('goldmaster')}>Gold Master</div>
         )}
         <div className={`tab ${activeTab === 'payment' ? 'active' : ''}`} onClick={() => setActiveTab('payment')}>{d.tabPayment}</div>
+        <div className={`tab ${activeTab === 'integrations' ? 'active' : ''}`} onClick={() => setActiveTab('integrations')}>Integrations</div>
         {subscription?.whatsappSmsEnabled && (
           <div className={`tab ${activeTab === 'notifications' ? 'active' : ''}`} onClick={() => setActiveTab('notifications')}>Notifications</div>
         )}
@@ -177,6 +178,36 @@ export default function SettingsClient({
           <div className={`tab ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>Agents</div>
         )}
         <div className={`tab ${activeTab === 'security' ? 'active' : ''}`} onClick={() => setActiveTab('security')}>{d.tabSecurity}</div>
+      </div>
+
+      {/* Integrations Tab */}
+      <div className={`tab-content ${activeTab === 'integrations' ? 'active' : ''}`}>
+        <div className="card-header">
+          <div>
+            <h3>Third-party Add-on Integrations</h3>
+            <p style={{ fontSize: '.82rem', color: 'var(--text-secondary)', margin: '4px 0 0' }}>
+              Configure e-NACH, Razorpay, MSG91, SMTP, Digio KYC, and bureau connection status from one secure screen.
+            </p>
+          </div>
+          <Link href={`/${effAppType}/settings/integrations`} className="btn btn-primary btn-sm">
+            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>hub</span>
+            Open Integrations
+          </Link>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+          {[
+            ['account_balance', 'e-NACH Auto-Debit', 'Mandate timing, retries, and Razorpay readiness'],
+            ['payments', 'Razorpay Gateway', 'Tenant-owned payment links and webhook setup'],
+            ['sms', 'MSG91 Notifications', 'SMS and WhatsApp API credentials'],
+            ['assignment_ind', 'KYC and Bureau', 'Digio KYC and credit bureau connection status'],
+          ].map(([icon, title, body]) => (
+            <div key={title} className="card" style={{ padding: 16, boxShadow: 'none', border: '1px solid var(--border)' }}>
+              <span className="material-icons-outlined" style={{ color: 'var(--primary)', fontSize: 22 }}>{icon}</span>
+              <h4 style={{ margin: '8px 0 4px' }}>{title}</h4>
+              <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '.82rem' }}>{body}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Users (scoped agent management) Tab */}

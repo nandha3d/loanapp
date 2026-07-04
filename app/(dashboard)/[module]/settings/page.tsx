@@ -46,6 +46,12 @@ export default async function SettingsPage() {
     penaltyRate: p.penaltyRate.toString(),
   }));
 
+  const safeSettings = {
+    ...settings,
+    msg91_auth_key: '',
+    smtp_pass: '',
+  };
+
   // ── Scoped agent management (Users tab): resolve the ONE branch this actor
   // manages for the current module, then list its agents. ──
   let manageBranchId: string | null = null;
@@ -149,7 +155,7 @@ export default async function SettingsPage() {
       goldMaster={goldMaster}
       goldConfig={goldConfig}
       users={users} 
-      settings={settings} 
+      settings={safeSettings}
       currencySymbol={settings.currency_symbol || '₹'}
       dict={dict}
       currentUser={currentUser}

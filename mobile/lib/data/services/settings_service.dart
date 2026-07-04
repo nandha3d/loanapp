@@ -89,6 +89,21 @@ class SettingsService {
     await _dio.post<Map<String, dynamic>>(Endpoints.paymentGateway,
         data: patch,);
   }
+
+  Future<Map<String, dynamic>> integrations() async {
+    final res = await _dio.get<Map<String, dynamic>>(Endpoints.integrations);
+    return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
+  }
+
+  Future<Map<String, dynamic>> saveIntegrations(
+    Map<String, dynamic> patch,
+  ) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.integrations,
+      data: patch,
+    );
+    return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
+  }
 }
 
 final settingsServiceProvider = Provider<SettingsService>(

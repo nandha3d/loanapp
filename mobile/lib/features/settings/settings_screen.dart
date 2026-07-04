@@ -336,6 +336,27 @@ class SettingsScreen extends ConsumerWidget {
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(
+                      Icons.hub_outlined,
+                      color: AppColors.primary,
+                    ),
+                    title: Text(
+                      'Add-on Integrations',
+                      style: AppTypography.bodyLarge,
+                    ),
+                    subtitle: Text(
+                      'Configure NACH, Razorpay, MSG91, SMTP, and KYC',
+                      style: AppTypography.caption,
+                    ),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      color: AppColors.textLight,
+                    ),
+                    onTap: () => context.push('/settings/integrations'),
+                  ),
+                  const Divider(height: 1, color: AppColors.border),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
                       Icons.notifications_active_outlined,
                       color: AppColors.primary,
                     ),

@@ -27,6 +27,7 @@ import 'package:loantrack/features/collection/collection_screen.dart';
 import 'package:loantrack/features/collection/collection_runs_screen.dart';
 import 'package:loantrack/features/collection/run_sheet_screen.dart';
 import 'package:loantrack/features/settings/payment_gateway_screen.dart';
+import 'package:loantrack/features/settings/integrations_settings_screen.dart';
 import 'package:loantrack/features/settings/settings_detail_screen.dart';
 import 'package:loantrack/features/customers/customer_detail_screen.dart';
 import 'package:loantrack/features/customers/customers_screen.dart';
@@ -379,6 +380,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'payment-gateway',
             builder: (_, __) => const PaymentGatewayScreen(),
+          ),
+          GoRoute(
+            path: 'integrations',
+            builder: (_, __) => const IntegrationsSettingsScreen(),
           ),
           GoRoute(
             path: 'notifications',
