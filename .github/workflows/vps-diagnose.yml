@@ -128,7 +128,10 @@ jobs:
           echo "nginx server_name(s):"; grep -rhoE 'server_name[^;]+;' /etc/nginx/sites-enabled/ /etc/nginx/conf.d/ 2>/dev/null | sort -u || echo "  none"
           echo -n "NEXT_PUBLIC_APP_URL: "; grep -E '^NEXT_PUBLIC_APP_URL=' /home/loantrack/app/.env 2>/dev/null | cut -d= -f2- || echo "  unset"
           echo -n "NEXT_PUBLIC_ROOT_DOMAIN: "; grep -E '^NEXT_PUBLIC_ROOT_DOMAIN=' /home/loantrack/app/.env 2>/dev/null | cut -d= -f2- || echo "  unset"
-          echo -n "HTTPS domain login path (expect 400/401/405): "
-          DOM=$(grep -E '^NEXT_PUBLIC_ROOT_DOMAIN=' /home/loantrack/app/.env 2>/dev/null | cut -d= -f2- | tr -d '"')
-          if [ -n "$DOM" ]; then curl -s -o /dev/null -w "%{http_code}\n" -m 10 -X POST "https://$DOM/api/v1/auth/login" || echo "FAILED"; else echo "no domain"; fi
+          for d in trade.animazon.in app.animazon.in; do
+            echo -n "https://$d/api/v1/auth/login (expect 400/401/405): "
+            curl -s -o /dev/null -w "%{http_code}" -m 12 -X POST "https://$d/api/v1/auth/login" 2>/dev/null || echo -n "FAIL"
+            echo -n "  | cert: "
+            echo | timeout 10 openssl s_client -servername "$d" -connect "$d:443" 2>/dev/null | openssl x509 -noout -subject 2>/dev/null || echo "no cert"
+          done
           REMOTE
