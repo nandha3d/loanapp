@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -245,6 +246,23 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   String _readable(Object e) {
+    // Turn raw Dio network failures into a short, actionable message instead
+    // of the developer-facing "DioException [connection timeout]: ..." dump.
+    if (e is DioException) {
+      switch (e.type) {
+        case DioExceptionType.connectionTimeout:
+        case DioExceptionType.sendTimeout:
+        case DioExceptionType.receiveTimeout:
+          return 'Could not reach the server. Check your internet and try again.';
+        case DioExceptionType.connectionError:
+          return 'No connection to the server. Check your internet and try again.';
+        default:
+          final msg = e.response?.data is Map
+              ? (e.response?.data['error']?.toString())
+              : null;
+          return msg ?? 'Login failed. Please try again.';
+      }
+    }
     final s = e.toString();
     return s.startsWith('Exception: ') ? s.substring(11) : s;
   }

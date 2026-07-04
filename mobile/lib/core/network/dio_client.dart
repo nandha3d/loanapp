@@ -105,9 +105,11 @@ final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(
     BaseOptions(
       baseUrl: baseUrl,
-      connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 20),
-      sendTimeout: const Duration(seconds: 15),
+      // Generous timeouts so a brief server restart or a slow mobile network
+      // doesn't abort login with a scary timeout error.
+      connectTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(seconds: 30),
+      sendTimeout: const Duration(seconds: 30),
       headers: {'Accept': 'application/json'},
       validateStatus: (s) => s != null && s < 500 && s != 401,
     ),

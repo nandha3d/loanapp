@@ -3,6 +3,11 @@ name: Deploy to VPS
 on:
   push:
     branches: [merged-all-branches]
+    # Mobile-only changes don't affect the server — skip the redeploy so a
+    # Flutter tweak never restarts the API (and never opens a login-timeout
+    # window). A push touching any non-mobile file still deploys.
+    paths-ignore:
+      - 'mobile/**'
   workflow_dispatch: {}
 
 # Never run two deploys at once; let an in-flight one finish.
