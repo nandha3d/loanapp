@@ -116,4 +116,13 @@ jobs:
           echo
           echo "=== pm2 ==="
           pm2 ls || true
+          echo
+          echo "=== network reachability (why the phone can't connect) ==="
+          echo -n "server public IP: "; curl -s -m 10 https://api.ipify.org || curl -s -m 10 https://ifconfig.me || echo "unknown"
+          echo
+          echo "APK is baked to reach: 187.127.177.121"
+          echo -n "node on :3000 (expect 401/200): "; curl -s -o /dev/null -w "%{http_code}\n" -m 8 http://127.0.0.1:3000/api/v1/pricing || echo "DOWN"
+          echo -n "nginx :80 -> API (login path, expect 400/401/405): "; curl -s -o /dev/null -w "%{http_code}\n" -m 8 -X POST http://127.0.0.1/api/v1/auth/login || echo "DOWN"
+          echo "listening sockets on :80 / :443 / :3000:"; (ss -ltnp 2>/dev/null || netstat -ltnp 2>/dev/null) | grep -E ':80 |:443 |:3000 ' || echo "  (none found)"
+          echo "nginx service:"; systemctl is-active nginx 2>/dev/null || echo "  unknown"
           REMOTE

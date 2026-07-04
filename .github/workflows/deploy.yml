@@ -8,6 +8,7 @@ on:
     # window). A push touching any non-mobile file still deploys.
     paths-ignore:
       - 'mobile/**'
+      - '.github/**'
   workflow_dispatch: {}
 
 # Never run two deploys at once; let an in-flight one finish.
