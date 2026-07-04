@@ -45,7 +45,15 @@
     "self-heal": "node scripts/self-heal/healer.mjs",
     "hooks:install": "git config core.hooksPath .githooks",
     "gen:tests": "node scripts/self-heal/generate-tests.mjs",
-    "test:links": "npx playwright test e2e/link-check.spec.ts"
+    "test:links": "npx playwright test e2e/link-check.spec.ts",
+    "test:e2e-auth-rbac": "tsx tests/e2e-business/authRbacTenantIsolation.test.ts",
+    "test:e2e-customers": "tsx tests/e2e-business/customerKycApproval.test.ts",
+    "test:e2e-loans": "tsx tests/e2e-business/loanPackageCreationApproval.test.ts",
+    "test:e2e-business-core-phase1": "npm run test:e2e-auth-rbac && npm run test:e2e-customers && npm run test:e2e-loans",
+    "test:e2e-money-core": "tsx tests/e2e-business/moneyMovementCore.test.ts",
+    "test:e2e-reports": "tsx tests/e2e-business/reportsExports.test.ts",
+    "test:e2e-security-abuse": "tsx tests/e2e-business/securityAbuse.test.ts",
+    "test:e2e-business-core-phase4": "npm run test:e2e-reports && npm run test:e2e-security-abuse"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
