@@ -31,6 +31,7 @@ type RequestOptions = {
   branchId?: string | null;
   appType?: string | null;
   body?: unknown;
+  rawBody?: string;
   params?: Record<string, string | string[]>;
   headers?: Record<string, string>;
 };
@@ -43,7 +44,9 @@ function buildRequest(options: RequestOptions) {
   if (options.appType) headers.set('x-app-type', options.appType);
 
   let body: BodyInit | undefined;
-  if (options.body instanceof FormData) {
+  if (options.rawBody !== undefined) {
+    body = options.rawBody;
+  } else if (options.body instanceof FormData) {
     body = options.body;
   } else if (options.body !== undefined) {
     body = JSON.stringify(options.body);
@@ -88,9 +91,10 @@ export type Envelope<T> = {
 };
 
 export function expectOk<T>(response: ApiResponse<Envelope<T>>, message?: string): T {
-  assert.equal(response.status >= 200 && response.status < 300, true, message ?? response.text);
-  assert.equal(response.body.error, null, message ?? response.text);
-  assert.notEqual(response.body.data, null, message ?? response.text);
+  const label = message ? `${message}: ${response.text}` : response.text;
+  assert.equal(response.status >= 200 && response.status < 300, true, label);
+  assert.equal(response.body.error, null, label);
+  assert.notEqual(response.body.data, null, label);
   return response.body.data as T;
 }
 
@@ -106,6 +110,7 @@ export function expectError(response: ApiResponse<Envelope<unknown>>, statuses: 
 export const routes = {
   authLogin: '../../../app/api/v1/auth/login/route.ts',
   authMe: '../../../app/api/v1/auth/me/route.ts',
+  authLogout: '../../../app/api/v1/auth/logout/route.ts',
   adminUsers: '../../../app/api/v1/admin/users/route.ts',
   borrowerLogin: '../../../app/api/v1/borrower/auth/login/route.ts',
   borrowerVerify: '../../../app/api/v1/borrower/auth/verify/route.ts',
@@ -125,6 +130,7 @@ export const routes = {
   loanInstalments: '../../../app/api/v1/loans/[id]/instalments/route.ts',
   loanStatement: '../../../app/api/v1/loans/[id]/statement/route.ts',
   collectionCollect: '../../../app/api/v1/collection/collect/route.ts',
+  collectionEntry: '../../../app/api/v1/collection/entry/route.ts',
   collectionHandover: '../../../app/api/v1/collection/handover/route.ts',
   collectionDashboard: '../../../app/api/v1/collection/dashboard/route.ts',
   dailyReport: '../../../app/api/v1/reports/daily/route.ts',
@@ -137,4 +143,51 @@ export const routes = {
   files: '../../../app/api/files/[...path]/route.ts',
   forgotPassword: '../../../app/api/v1/auth/forgot-password/route.ts',
   resetPassword: '../../../app/api/v1/auth/reset-password/route.ts',
+  dashboard: '../../../app/api/v1/dashboard/route.ts',
+  penalties: '../../../app/api/v1/penalties/route.ts',
+  penaltyWaive: '../../../app/api/v1/penalties/[id]/waive/route.ts',
+  penaltySettle: '../../../app/api/v1/penalties/[id]/settle/route.ts',
+  loanPreclose: '../../../app/api/v1/loans/[id]/preclose/route.ts',
+  loanClose: '../../../app/api/v1/loans/[id]/close/route.ts',
+  foreclosureCalc: '../../../app/api/loans/[id]/foreclosure-calc/route.ts',
+  cronAccruePenalties: '../../../app/api/cron/accrue-penalties/route.ts',
+  cronNpaClassify: '../../../app/api/cron/npa-classify/route.ts',
+  cronSendReminders: '../../../app/api/cron/send-reminders/route.ts',
+  cronReports: '../../../app/api/cron/reports/route.ts',
+  cronSubscriptionReminders: '../../../app/api/cron/subscription-reminders/route.ts',
+  cronGpsPurge: '../../../app/api/cron/gps-purge/route.ts',
+  cronNachPresent: '../../../app/api/cron/nach-present/route.ts',
+  cronRecomputeBalances: '../../../app/api/cron/recompute-balances/route.ts',
+  npaSummary: '../../../app/api/v1/npa/summary/route.ts',
+  npaLoans: '../../../app/api/v1/npa/loans/route.ts',
+  npaHistory: '../../../app/api/v1/npa/history/route.ts',
+  goldMaster: '../../../app/api/v1/gold/master/route.ts',
+  goldRate: '../../../app/api/v1/gold/rate/route.ts',
+  goldConfig: '../../../app/api/v1/gold/config/route.ts',
+  goldReports: '../../../app/api/v1/gold/reports/route.ts',
+  goldServicing: '../../../app/api/v1/gold/loans/[id]/servicing/route.ts',
+  goldRepledge: '../../../app/api/v1/gold/loans/[id]/repledge/route.ts',
+  goldReceipt: '../../../app/api/loans/[id]/gold-receipt/route.ts',
+  borrowerPay: '../../../app/api/v1/borrower/pay/route.ts',
+  collectionSelfPay: '../../../app/api/v1/collection/self-pay/route.ts',
+  collectionSelfPayLink: '../../../app/api/v1/collection/self-pay/link/route.ts',
+  webhookRazorpayCollections: '../../../app/api/webhooks/razorpay/collections/route.ts',
+  webhookRazorpayNach: '../../../app/api/webhooks/razorpay/nach/route.ts',
+  nachMandate: '../../../app/api/v1/nach/mandate/route.ts',
+  nachMandateById: '../../../app/api/v1/nach/mandate/[id]/route.ts',
+  nachPresent: '../../../app/api/v1/nach/present/route.ts',
+  nachLoan: '../../../app/api/v1/nach/loan/[loanId]/route.ts',
+  gpsPing: '../../../app/api/v1/gps/ping/route.ts',
+  walletMe: '../../../app/api/v1/wallet/me/route.ts',
+  vehicles: '../../../app/api/v1/vehicles/route.ts',
+  vehicleById: '../../../app/api/v1/vehicles/[id]/route.ts',
+  productRepossession: '../../../app/api/v1/loans/[id]/product-repossession/route.ts',
+  chits: '../../../app/api/v1/chits/route.ts',
+  chitById: '../../../app/api/v1/chits/[id]/route.ts',
+  chitMembers: '../../../app/api/v1/chits/[id]/members/route.ts',
+  chitAuctions: '../../../app/api/v1/chits/[id]/auctions/route.ts',
+  chitPayments: '../../../app/api/v1/chits/[id]/payments/route.ts',
+  chitCancel: '../../../app/api/v1/chits/[id]/cancel/route.ts',
+  chitSubscriptions: '../../../app/api/v1/chits/[id]/subscriptions/route.ts',
+  chitMiss: '../../../app/api/v1/chits/subscriptions/[id]/miss/route.ts',
 };

@@ -1,6 +1,15 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { KnownGapResult, RunSummary } from './harness';
+
+type StoredKnownGap = KnownGapResult & { source: string };
+type StoredSuiteSummary = Omit<RunSummary, 'knownGapResults'> & { source: string };
+
+const GAP_CLASSIFICATIONS = ['P0', 'P1', 'P2', 'optional', 'provider-only', 'manual/device-only'] as const;
+
+function gapClassification(gap: KnownGapResult) {
+  return gap.classification ?? 'P1';
+}
 
 export function writeKnownGapsReport(input: {
   runId: string;
@@ -10,6 +19,43 @@ export function writeKnownGapsReport(input: {
 }) {
   const evidenceDir = path.join(process.cwd(), 'Testing', 'qa_evidence', input.runId);
   mkdirSync(evidenceDir, { recursive: true });
+  const jsonPath = path.join(evidenceDir, 'known-gaps.json');
+  const existing: StoredKnownGap[] = existsSync(jsonPath)
+    ? JSON.parse(readFileSync(jsonPath, 'utf8'))
+    : [];
+  const byKey = new Map(existing.map((gap) => [`${gap.id}:${gap.name}`, gap]));
+  for (const gap of input.knownGaps) {
+    byKey.set(`${gap.id}:${gap.name}`, { ...gap, source: input.source });
+  }
+  const allKnownGaps = Array.from(byKey.values()).sort((a, b) => a.id.localeCompare(b.id));
+  writeFileSync(jsonPath, `${JSON.stringify(allKnownGaps, null, 2)}\n`, 'utf8');
+
+  const summaryPath = path.join(evidenceDir, 'known-gaps-summary.json');
+  const existingSummaries: StoredSuiteSummary[] = existsSync(summaryPath)
+    ? JSON.parse(readFileSync(summaryPath, 'utf8'))
+    : [];
+  const summariesBySource = new Map(existingSummaries.map((summary) => [summary.source, summary]));
+  if (input.summary) {
+    const { knownGapResults: _knownGapResults, ...summary } = input.summary;
+    summariesBySource.set(input.source, { ...summary, source: input.source });
+  }
+  const suiteSummaries = Array.from(summariesBySource.values()).sort((a, b) => a.source.localeCompare(b.source));
+  writeFileSync(summaryPath, `${JSON.stringify(suiteSummaries, null, 2)}\n`, 'utf8');
+
+  const aggregate = suiteSummaries.reduce(
+    (totals, summary) => ({
+      passed: totals.passed + summary.passed,
+      skipped: totals.skipped + summary.skipped,
+      manualProviderDeviceOnly: totals.manualProviderDeviceOnly + summary.manualProviderDeviceOnly,
+      failed: totals.failed + summary.failed,
+      total: totals.total + summary.total,
+    }),
+    { passed: 0, skipped: 0, manualProviderDeviceOnly: 0, failed: 0, total: 0 },
+  );
+  const gapCounts = GAP_CLASSIFICATIONS.map((classification) => ({
+    classification,
+    count: allKnownGaps.filter((gap) => gapClassification(gap) === classification).length,
+  }));
 
   const lines = [
     '# LoanTrack E2E Business Known Gaps',
@@ -23,22 +69,37 @@ export function writeKnownGapsReport(input: {
     '',
     '## Automation Report Separation',
     '',
-    `- Passing automated cases: ${input.summary?.passed ?? 'see test console summary'}`,
-    `- Manual/provider/device-only cases: ${input.summary?.manualProviderDeviceOnly ?? 0}`,
-    `- Known current-code gaps: ${input.knownGaps.length}`,
+    `- Passing automated cases: ${suiteSummaries.length > 0 ? aggregate.passed : 'see test console summary'}`,
+    `- Manual/provider/device-only cases: ${aggregate.manualProviderDeviceOnly}`,
+    `- Known current-code gaps: ${allKnownGaps.length}`,
+    ...gapCounts.map((item) => `- ${item.classification} known gaps: ${item.count}`),
+    `- Skipped unsupported cases: ${aggregate.skipped}`,
+    `- Failed normal cases: ${aggregate.failed}`,
+    '',
+    '## Suite Summaries',
+    '',
+    ...(
+      suiteSummaries.length > 0
+        ? suiteSummaries.map((summary) => (
+          `- ${summary.source}: passed ${summary.passed}, known gaps ${summary.knownGaps}, skipped ${summary.skipped}, failed ${summary.failed}`
+        ))
+        : ['- See test console summary.']
+    ),
     '',
     '## Known Current-Code Gaps',
     '',
   ];
 
-  if (input.knownGaps.length === 0) {
+  if (allKnownGaps.length === 0) {
     lines.push('No known gaps were observed by this run.', '');
   }
 
-  for (const gap of input.knownGaps) {
+  for (const gap of allKnownGaps) {
     lines.push(
       `### ${gap.id}: ${gap.name}`,
       '',
+      `- Source suite: ${gap.source}`,
+      `- Classification: ${gapClassification(gap)}`,
       `- Current behavior: ${gap.currentBehavior}`,
       `- Expected behavior: ${gap.expectedBehavior}`,
       `- Evidence source: ${gap.evidenceSource}`,
@@ -50,4 +111,13 @@ export function writeKnownGapsReport(input: {
   }
 
   writeFileSync(path.join(evidenceDir, 'known-gaps.md'), `${lines.join('\n')}\n`, 'utf8');
+}
+
+export function writeKnownGapEvidence(runId: string, summary: RunSummary, source = 'tests/e2e-business') {
+  writeKnownGapsReport({
+    runId,
+    source,
+    knownGaps: summary.knownGapResults,
+    summary,
+  });
 }

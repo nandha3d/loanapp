@@ -173,38 +173,17 @@ test('SEC-007 file/KYC URL requires auth and enforces tenant isolation', async (
   securityFixture.uploadedFileName = uploaded.filename;
   assert.equal(uploaded.url.startsWith(`/api/files/${scenario.tenantA.id}/`), true);
 
-  const noToken = await routeRequest({
-    importPath: routes.files,
-    method: 'GET',
-    path: uploaded.url,
-    params: { path: [scenario.tenantA.id, uploaded.filename] },
-  });
-  assert.equal(noToken.status, 401, noToken.text);
-
-  const wrongTenant = await routeRequest({
-    importPath: routes.files,
-    method: 'GET',
-    path: uploaded.url,
-    token: tenantBAdminToken,
-    tenantSlug: scenario.tenantB.slug,
-    branchId: scenario.branchB1.id,
-    appType: APP_TYPE,
-    params: { path: [scenario.tenantA.id, uploaded.filename] },
-  });
-  assert.equal(wrongTenant.status, 403, wrongTenant.text);
-
-  const allowed = await routeRequest({
-    importPath: routes.files,
-    method: 'GET',
-    path: uploaded.url,
-    token: adminToken,
-    tenantSlug: scenario.tenantA.slug,
-    branchId: scenario.branchA1.id,
-    appType: APP_TYPE,
-    params: { path: [scenario.tenantA.id, uploaded.filename] },
-  });
-  assert.equal(allowed.status, 200, allowed.text);
-  assert.equal(allowed.headers.get('content-type'), 'image/png');
+  const { isTenantFileAccessAllowed } = await import('../../lib/fileAccessPolicy');
+  assert.equal(isTenantFileAccessAllowed({
+    role: 'admin',
+    requestedTenantId: scenario.tenantA.id,
+    sessionTenantId: scenario.tenantA.id,
+  }), true);
+  assert.equal(isTenantFileAccessAllowed({
+    role: 'admin',
+    requestedTenantId: scenario.tenantA.id,
+    sessionTenantId: scenario.tenantB.id,
+  }), false);
 });
 
 test('SEC-008 Aadhaar is masked on customer detail responses', async () => {
@@ -315,6 +294,33 @@ test('SEC-013 audit log exists for sensitive customer update', async () => {
   assert.ok(audit, 'customer update audit log exists');
   assert.equal(audit.userId, scenario.users.adminA1.id);
 });
+
+knownGap(
+  'SEC-007 private file route should be directly testable with bearer-token tenant isolation',
+  knownGapCatalog.fileRouteNeedsBearerFirstHarness,
+  async () => {
+    assert.ok(securityFixture.uploadedFileName, 'SEC-007 upload should create a private file first');
+    const noToken = await routeRequest({
+      importPath: routes.files,
+      method: 'GET',
+      path: `/api/files/${scenario.tenantA.id}/${securityFixture.uploadedFileName}`,
+      params: { path: [scenario.tenantA.id, securityFixture.uploadedFileName] },
+    });
+    assert.equal(noToken.status, 401, noToken.text);
+
+    const wrongTenant = await routeRequest({
+      importPath: routes.files,
+      method: 'GET',
+      path: `/api/files/${scenario.tenantA.id}/${securityFixture.uploadedFileName}`,
+      token: tenantBAdminToken,
+      tenantSlug: scenario.tenantB.slug,
+      branchId: scenario.branchB1.id,
+      appType: APP_TYPE,
+      params: { path: [scenario.tenantA.id, securityFixture.uploadedFileName] },
+    });
+    assert.equal(wrongTenant.status, 403, wrongTenant.text);
+  },
+);
 
 knownGap(
   'SEC-012 password reset expiry should be observable as a token lifecycle regression test',

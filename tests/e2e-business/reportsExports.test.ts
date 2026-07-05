@@ -663,8 +663,16 @@ knownGap(
   'duplicate loan-level collection replay should be idempotent and not double-count money',
   knownGapCatalog.duplicateCollectionReplayDoubleCounts,
   async () => {
-    const customer = await createCustomerViaApi('gap-duplicate-collection', 1102);
-    const loan = await createLoanViaApi(customer.id, 'gap-duplicate-collection', 5000);
+    const customer = await createCustomerFixture(scenario, {
+      key: 'rep-gap-duplicate-collection',
+      phoneOffset: 1102,
+    });
+    const loan = await createLoanFixture(scenario, {
+      key: 'rep-gap-duplicate-collection',
+      customerId: customer.id,
+      principal: 6000,
+      tenure: 6,
+    });
     const key = `${scenario.runId}-REP-GAP-DUPLICATE-COLLECT`;
     const first = await routeRequest<Envelope<any>>({
       importPath: routes.collectionCollect,

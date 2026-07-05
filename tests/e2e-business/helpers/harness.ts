@@ -2,6 +2,7 @@ type TestFn = () => Promise<void> | void;
 
 export type KnownGapDetails = {
   id: string;
+  classification?: 'P0' | 'P1' | 'P2' | 'optional' | 'provider-only' | 'manual/device-only';
   currentBehavior: string;
   expectedBehavior: string;
   evidenceSource: string;

@@ -127,16 +127,51 @@ async function createTenantWithSubscription(runId: string, suffix: string) {
     VALUES (${tenant.id}, ${tenant.name}, ${tenant.slug}, 'active', NOW(), NOW())
   `;
 
-  // Some local QA databases intentionally lag optional pricing columns in the
-  // Prisma model. Insert only the columns needed by v1 APIs under test.
-  await prisma.$executeRaw`
-    INSERT INTO tenant_subscriptions
-      (id, tenant_id, plan, status, max_active_loans, max_agents, max_branches,
-       enabled_modules, receipt_pdf_allowed, kyc_enabled, created_at, updated_at)
-    VALUES
-      (${`${runId}-sub-${suffix}`}, ${tenant.id}, 'growth', 'active', 500, 50, 20,
-       ${JSON.stringify([APP_TYPE])}, true, true, NOW(), NOW())
-  `;
+  // The checked-in Prisma model can be ahead of older migration-created QA
+  // schemas, so insert only columns that actually exist in the test database.
+  const columns = await prisma.$queryRaw<Array<{ Field: string }>>`SHOW COLUMNS FROM tenant_subscriptions`;
+  const existingColumns = new Set(columns.map((column) => column.Field));
+  const subscriptionValues: Record<string, unknown> = {
+    id: `${runId}-sub-${suffix}`,
+    tenant_id: tenant.id,
+    plan: 'growth',
+    status: 'active',
+    max_active_loans: 500,
+    max_agents: 50,
+    max_branches: 20,
+    enabled_modules: JSON.stringify([APP_TYPE]),
+    receipt_pdf_allowed: true,
+    kyc_enabled: true,
+    premium_accounting_enabled: true,
+    gps_tracking_enabled: true,
+    base_plan_price: 0,
+    modules_price: 0,
+    addons_price: 0,
+    total_monthly_price: 0,
+    created_at: new Date(),
+    updated_at: new Date(),
+  };
+  const insertColumns = Object.keys(subscriptionValues).filter((column) => existingColumns.has(column));
+  const placeholders = insertColumns.map(() => '?').join(', ');
+  const quotedColumns = insertColumns.map((column) => `\`${column}\``).join(', ');
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO tenant_subscriptions (${quotedColumns}) VALUES (${placeholders})`,
+    ...insertColumns.map((column) => subscriptionValues[column]),
+  );
+  const enabledFlags = [
+    'npa_enabled',
+    'foreclosure_enabled',
+    'kyc_enabled',
+    'gps_tracking_enabled',
+    'premium_accounting_enabled',
+    'receipt_pdf_allowed',
+  ].filter((column) => existingColumns.has(column));
+  if (enabledFlags.length > 0) {
+    await prisma.$executeRawUnsafe(
+      `UPDATE tenant_subscriptions SET ${enabledFlags.map((column) => `\`${column}\` = 1`).join(', ')} WHERE tenant_id = ?`,
+      tenant.id,
+    );
+  }
 
   await prisma.appSetting.createMany({
     data: [
@@ -339,25 +374,54 @@ export async function createCustomerFixture(
     tenantId?: string;
     status?: string;
     phoneOffset: number;
+    appType?: string;
   },
 ) {
   const prisma = getPrisma();
-  return prisma.customer.create({
-    data: {
-      tenantId: input.tenantId ?? scenario.tenantA.id,
-      branchId: input.branchId ?? scenario.branchA1.id,
-      routeId: input.routeId ?? scenario.routeA1.id,
-      agentId: input.agentId ?? scenario.users.agentA1.id,
-      customerCode: `${scenario.runId}-CUS-${input.key}`,
-      name: `${scenario.runId} Customer ${input.key}`,
-      phone: phone(scenario.runId, input.phoneOffset),
-      address: `${scenario.runId} Address ${input.key}`,
-      status: input.status ?? 'active',
-      appType: APP_TYPE,
-      kycStatus: 'pending',
-      pan: `${scenario.runId}-${input.key}-PAN`.toUpperCase().slice(0, 20),
-    },
-  });
+  const customer = {
+    id: `${scenario.runId}-customer-${input.key}`,
+    tenantId: input.tenantId ?? scenario.tenantA.id,
+    branchId: input.branchId ?? scenario.branchA1.id,
+    routeId: input.routeId ?? scenario.routeA1.id,
+    agentId: input.agentId ?? scenario.users.agentA1.id,
+    customerCode: `${scenario.runId}-CUS-${input.key}`,
+    name: `${scenario.runId} Customer ${input.key}`,
+    phone: phone(scenario.runId, input.phoneOffset),
+    address: `${scenario.runId} Address ${input.key}`,
+    status: input.status ?? 'active',
+    appType: input.appType ?? APP_TYPE,
+    kycStatus: 'pending',
+    pan: `${scenario.runId}-${input.key}-PAN`.toUpperCase().slice(0, 20),
+  };
+
+  const columns = await prisma.$queryRaw<Array<{ Field: string }>>`SHOW COLUMNS FROM customers`;
+  const existingColumns = new Set(columns.map((column) => column.Field));
+  const values: Record<string, unknown> = {
+    id: customer.id,
+    tenant_id: customer.tenantId,
+    branch_id: customer.branchId,
+    route_id: customer.routeId,
+    agent_id: customer.agentId,
+    customer_code: customer.customerCode,
+    name: customer.name,
+    phone: customer.phone,
+    address: customer.address,
+    status: customer.status,
+    app_type: customer.appType,
+    kyc_status: customer.kycStatus,
+    pan: customer.pan,
+    created_at: new Date(),
+    updated_at: new Date(),
+  };
+  const insertColumns = Object.keys(values).filter((column) => existingColumns.has(column));
+  const placeholders = insertColumns.map(() => '?').join(', ');
+  const quotedColumns = insertColumns.map((column) => `\`${column}\``).join(', ');
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO customers (${quotedColumns}) VALUES (${placeholders})`,
+    ...insertColumns.map((column) => values[column]),
+  );
+
+  return customer;
 }
 
 export async function createLoanFixture(

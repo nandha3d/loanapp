@@ -49,11 +49,22 @@
     "test:e2e-auth-rbac": "tsx tests/e2e-business/authRbacTenantIsolation.test.ts",
     "test:e2e-customers": "tsx tests/e2e-business/customerKycApproval.test.ts",
     "test:e2e-loans": "tsx tests/e2e-business/loanPackageCreationApproval.test.ts",
+    "test:e2e-business-core": "npm run test:e2e-business-core-phase1",
     "test:e2e-business-core-phase1": "npm run test:e2e-auth-rbac && npm run test:e2e-customers && npm run test:e2e-loans",
     "test:e2e-money-core": "tsx tests/e2e-business/moneyMovementCore.test.ts",
     "test:e2e-reports": "tsx tests/e2e-business/reportsExports.test.ts",
     "test:e2e-security-abuse": "tsx tests/e2e-business/securityAbuse.test.ts",
-    "test:e2e-business-core-phase4": "npm run test:e2e-reports && npm run test:e2e-security-abuse"
+    "test:e2e-business-core-phase4": "npm run test:e2e-reports && npm run test:e2e-security-abuse",
+    "test:e2e-risk": "tsx tests/e2e-business/penaltyOverdueNpaForeclosure.test.ts",
+    "test:e2e-cron": "tsx tests/e2e-business/cronJobsIdempotency.test.ts",
+    "test:e2e-gold": "tsx tests/e2e-business/goldLoanAutomation.test.ts",
+    "test:e2e-payments-nach": "tsx tests/e2e-business/borrowerPaymentsNach.test.ts",
+    "test:e2e-mobile-api": "tsx tests/e2e-business/mobileAgentApiParity.test.ts",
+    "test:e2e-special-modules": "tsx tests/e2e-business/chitsVehicleSpecialModules.test.ts",
+    "test:e2e-business-phase5": "npm run test:e2e-risk && npm run test:e2e-cron && npm run test:e2e-gold && npm run test:e2e-payments-nach && npm run test:e2e-mobile-api && npm run test:e2e-special-modules",
+    "test:e2e-ui-critical": "node scripts/run-loantrack-ui-e2e.mjs",
+    "test:e2e-ui-critical-headed": "node scripts/run-loantrack-ui-e2e.mjs --headed",
+    "test:e2e-final": "npm run test:e2e-business-core && npm run test:e2e-business-core-phase4 && npm run test:e2e-business-phase5 && npm run test:e2e-ui-critical"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
