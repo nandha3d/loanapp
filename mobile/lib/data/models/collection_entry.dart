@@ -67,13 +67,28 @@ class CollectionRow {
   final String? collectionEntryId;
   final String? frequency;
 
-  double get outstanding => dueAmount - receivedAmount;
+  double get outstanding {
+    final value = dueAmount - receivedAmount;
+    return value > 0 ? value : 0;
+  }
+
+  bool get isResolved => status == 'paid' || outstanding <= 0;
+
   int get daysOverdue {
     final today = DateTime.now();
     final due = DateTime(dueDate.year, dueDate.month, dueDate.day);
     final t = DateTime(today.year, today.month, today.day);
     return t.difference(due).inDays;
   }
+
+  bool get isTodayBucket => daysOverdue <= 0;
+
+  bool get isOverdueBucket => daysOverdue > 0;
+
+  double get todayOutstanding => !isResolved && isTodayBucket ? outstanding : 0;
+
+  double get overdueOutstanding =>
+      !isResolved && isOverdueBucket ? outstanding : 0;
 
   factory CollectionRow.fromJson(Map<String, dynamic> json) {
     double n(dynamic v) => v == null

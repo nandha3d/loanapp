@@ -2,7 +2,17 @@
 
 import { apiFetch } from '@/lib/api-client/index';
 import { getApiRequestContext } from '@/lib/api-client/server';
+import { getUserAppType } from '@/lib/tenant';
+import { modulePath } from '@/types/modules';
 import { revalidatePath } from 'next/cache';
+
+async function revalidateCollectionSurfaces() {
+  const appType = await getUserAppType();
+  revalidatePath('/collection');
+  revalidatePath('/dashboard');
+  revalidatePath(modulePath(appType, '/collection'));
+  revalidatePath(modulePath(appType, '/dashboard'));
+}
 
 export async function submitCollectionEntry(formData: FormData) {
   const instalmentId = formData.get('instalmentId') as string;
@@ -41,8 +51,7 @@ export async function submitCollectionEntry(formData: FormData) {
       return { success: false, error: res.error };
     }
 
-    revalidatePath('/collection');
-    revalidatePath('/dashboard');
+    await revalidateCollectionSurfaces();
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message || 'Failed to submit collection entry' };
@@ -90,8 +99,7 @@ export async function submitLoanCollection(formData: FormData) {
       return { success: false, error: res.error };
     }
 
-    revalidatePath('/collection');
-    revalidatePath('/dashboard');
+    await revalidateCollectionSurfaces();
     return { success: true, data: res.data };
   } catch (e: any) {
     return { success: false, error: e.message || 'Failed to submit collection' };
@@ -141,7 +149,7 @@ export async function requestCashHandover() {
       return { success: false, error: res.error };
     }
 
-    revalidatePath('/collection');
+    await revalidateCollectionSurfaces();
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message || 'Failed to request cash handover' };
@@ -161,8 +169,7 @@ export async function verifyUpiPayment(entryId: string) {
       return { success: false, error: res.error };
     }
 
-    revalidatePath('/dashboard');
-    revalidatePath('/collection');
+    await revalidateCollectionSurfaces();
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message || 'Failed to verify UPI payment' };
@@ -182,8 +189,7 @@ export async function collectAgentCash(routeId: string, agentId: string) {
       return { success: false, error: res.error };
     }
 
-    revalidatePath('/dashboard');
-    revalidatePath('/collection');
+    await revalidateCollectionSurfaces();
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message || 'Failed to collect agent cash' };
@@ -203,8 +209,7 @@ export async function bulkVerifyUpiPayments(entryIds: string[]) {
       return { success: false, error: res.error };
     }
 
-    revalidatePath('/dashboard');
-    revalidatePath('/collection');
+    await revalidateCollectionSurfaces();
     return { success: true, count: res.data?.count };
   } catch (e: any) {
     return { success: false, error: e.message || 'Failed to verify UPI payments' };

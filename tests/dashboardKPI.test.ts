@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { summarizeCollectionWorklist } from '../lib/collectionSummary';
 import { formatCurrency } from '../lib/utils';
 
 // ============================================================
@@ -207,6 +208,52 @@ function balanceDue(expected: number, collected: number) {
 
 assert.equal(balanceDue(2750, 2050), 700, 'CF-D-007 balance due = 2750-2050 = 700');
 assert.equal(balanceDue(1000, 1200), 0, 'CF-D-008 overpayment → balance = 0 (not -200)');
+
+// --- Collection Summary Contract (ML-D-040 to ML-D-043) ---
+
+const collectionSummary = summarizeCollectionWorklist({
+  todayRows: [
+    {
+      dueDate: '2026-07-05T09:00:00.000Z',
+      dueAmount: 1000,
+      receivedAmount: 400,
+      status: 'partial',
+    },
+  ],
+  overdueRows: [
+    {
+      dueDate: '2026-07-04T09:00:00.000Z',
+      dueAmount: 800,
+      receivedAmount: 300,
+      status: 'partial',
+    },
+  ],
+  overdueCollectedToday: 300,
+});
+
+assert.equal(collectionSummary.todayExpected, 1000, 'ML-D-040 today expected excludes overdue dues');
+assert.equal(collectionSummary.todayCollected, 400, 'ML-D-040 today collected is capped to today scheduled dues');
+assert.equal(collectionSummary.todayOutstanding, 600, 'ML-D-040 today outstanding reflects partial payment');
+assert.equal(collectionSummary.overdueCollectedToday, 300, 'ML-D-041 overdue paid today tracked separately');
+assert.equal(collectionSummary.overdueOutstanding, 500, 'ML-D-042 overdue remaining after partial recovery');
+assert.equal(collectionSummary.overdueTotalTillToday, 800, 'ML-D-042 overdue total includes recovered today plus remaining');
+
+const fullyRecoveredOverdue = summarizeCollectionWorklist({
+  todayRows: [],
+  overdueRows: [
+    {
+      dueDate: '2026-07-03T09:00:00.000Z',
+      dueAmount: 500,
+      receivedAmount: 500,
+      status: 'paid',
+    },
+  ],
+  overdueCollectedToday: 500,
+});
+
+assert.equal(fullyRecoveredOverdue.overdueOutstanding, 0, 'ML-D-043 fully recovered overdue no longer outstanding');
+assert.equal(fullyRecoveredOverdue.overdueTotalTillToday, 500, 'ML-D-043 fully recovered overdue remains in audit total');
+assert.equal(fullyRecoveredOverdue.overduePendingCount, 0, 'ML-D-043 fully recovered overdue is not pending');
 
 // --- Date Formatting (XM-D-012) ---
 

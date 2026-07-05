@@ -68,12 +68,12 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
       // bleeds across a customer's separate loans — matches the web popup and
       // the server's loan-wide oldest-first distribution.
       _customerRows = rows
-          .where((r) => r.loanId == widget.row.loanId && r.status != 'paid')
+          .where((r) => r.loanId == widget.row.loanId && !r.isResolved)
           .toList();
 
-      final todayRows = _customerRows.where((r) => r.daysOverdue <= 0).toList();
+      final todayRows = _customerRows.where((r) => r.isTodayBucket).toList();
       final overdueRows =
-          _customerRows.where((r) => r.daysOverdue > 0).toList();
+          _customerRows.where((r) => r.isOverdueBucket).toList();
 
       _todayDue = todayRows.fold<double>(0.0, (s, r) => s + r.outstanding);
       _overdueDue = overdueRows.fold<double>(0.0, (s, r) => s + r.outstanding);
@@ -87,7 +87,7 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
     } catch (_) {}
 
     if (_todayDue == 0 && _overdueDue == 0) {
-      if (widget.row.daysOverdue <= 0) {
+      if (widget.row.isTodayBucket) {
         _todayDue = widget.row.outstanding;
         _todayInstalment = widget.row;
       } else {
@@ -176,7 +176,8 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
         });
         if (res.hasAmount) {
           final modeSpoken = res.mode != null ? ', ${res.mode}' : '';
-          ref.speak('${_speakAmount(res.amount!)}$modeSpoken. ${t.x('voice.entry.confirm')}');
+          ref.speak(
+              '${_speakAmount(res.amount!)}$modeSpoken. ${t.x('voice.entry.confirm')}');
         } else {
           ref.speak(t.x('voice.entry.notUnderstood'));
           ScaffoldMessenger.of(context).showSnackBar(
@@ -266,7 +267,8 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(t.x('sync.saved_offline'))),
         );
-        Navigator.of(context).pop();
+        refreshCollectionViews(ref);
+        Navigator.of(context).pop(true);
         return;
       }
 
@@ -356,7 +358,8 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
           backgroundColor: AppColors.success,
         ),
       );
-      Navigator.of(context).pop();
+      refreshCollectionViews(ref);
+      Navigator.of(context).pop(true);
     } catch (e) {
       final isServerReject = e is ApiException &&
           e.statusCode != null &&
@@ -430,7 +433,8 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
             content: Text(t.x('proof.photo_sent')),
             backgroundColor: AppColors.success),
       );
-      Navigator.of(context).pop();
+      refreshCollectionViews(ref);
+      Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
@@ -451,7 +455,8 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
             content: Text(t.x('proof.qr_done')),
             backgroundColor: AppColors.success),
       );
-      Navigator.of(context).pop();
+      refreshCollectionViews(ref);
+      Navigator.of(context).pop(true);
     }
   }
 
@@ -1151,9 +1156,11 @@ class _VoiceEntryButton extends StatelessWidget {
           foregroundColor: color,
           side: BorderSide(color: color),
           padding: const EdgeInsets.symmetric(vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
-        icon: Icon(listening ? Icons.mic : Icons.mic_none_rounded, color: color),
+        icon:
+            Icon(listening ? Icons.mic : Icons.mic_none_rounded, color: color),
         label: Text(
           label,
           maxLines: 1,

@@ -24,6 +24,7 @@ import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/data/local/collection_queue.dart';
 import 'package:loantrack/data/models/collection_entry.dart';
 import 'package:loantrack/data/models/user.dart';
+import 'package:loantrack/data/repositories/dashboard_repository.dart';
 import 'package:loantrack/data/services/collection_service.dart';
 import 'package:loantrack/features/collection/quick_collect_sheet.dart';
 import 'package:loantrack/features/collection/offline_banner.dart';
@@ -33,17 +34,20 @@ import 'package:loantrack/shared/widgets/bottom_nav.dart';
 import 'package:loantrack/shared/widgets/empty_state.dart';
 import 'package:loantrack/shared/widgets/skeleton.dart';
 
-final collectionTodayProvider =
-    FutureProvider<List<CollectionRow>>((ref) {
+final collectionTodayProvider = FutureProvider<List<CollectionRow>>((ref) {
   return ref.watch(collectionServiceProvider).today();
 });
 
-final _selfPayQueueProvider =
-    FutureProvider<List<SelfPayQueueItem>>((ref) {
+final _selfPayQueueProvider = FutureProvider<List<SelfPayQueueItem>>((ref) {
   return ref.watch(collectionServiceProvider).selfPayQueue();
 });
 
 final _filterProvider = StateProvider.autoDispose<String>((_) => 'pending');
+
+void refreshCollectionViews(WidgetRef ref) {
+  ref.invalidate(collectionTodayProvider);
+  ref.invalidate(dashboardSummaryProvider);
+}
 
 class CollectionScreen extends ConsumerStatefulWidget {
   const CollectionScreen({super.key});
@@ -111,7 +115,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => const _SelfPayQueueSheet(),
-    ).then((_) => ref.invalidate(collectionTodayProvider));
+    ).then((_) => refreshCollectionViews(ref));
   }
 
   @override
@@ -226,110 +230,129 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
             const LocationStatusBanner(),
           Expanded(
             child: async.when(
-        loading: () => ListView.separated(
-          padding: const EdgeInsets.all(16),
-          itemCount: 6,
-          separatorBuilder: (_, __) => const SizedBox(height: 10),
-          itemBuilder: (_, __) => const Skeleton(height: 110, borderRadius: 16),
-        ),
-        error: (e, _) => EmptyState(
-          icon: Icons.cloud_off,
-          title: t.x('err.could_not_load'),
-          subtitle: e.toString(),
-        ),
-        data: (rows) {
-          if (rows.isEmpty) {
-            return EmptyState(
-              icon: Icons.calendar_today_outlined,
-              title: t.x('dash.no_schedule'),
-            );
-          }
-          final allGroups = _groupByCustomer(rows);
-          final filteredGroups = _applyGroupFilter(allGroups, filter);
-          final todaysRows = rows.where((r) => r.daysOverdue <= 0).toList();
-          final totalDue =
-              todaysRows.fold<double>(0, (s, r) => s + r.dueAmount);
-          final totalCollected =
-              todaysRows.fold<double>(0, (s, r) => s + r.receivedAmount);
-          final pendingCount =
-              todaysRows.where((r) => r.status != 'paid').length;
+              loading: () => ListView.separated(
+                padding: const EdgeInsets.all(16),
+                itemCount: 6,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (_, __) =>
+                    const Skeleton(height: 110, borderRadius: 16),
+              ),
+              error: (e, _) => EmptyState(
+                icon: Icons.cloud_off,
+                title: t.x('err.could_not_load'),
+                subtitle: e.toString(),
+              ),
+              data: (rows) {
+                if (rows.isEmpty) {
+                  return EmptyState(
+                    icon: Icons.calendar_today_outlined,
+                    title: t.x('dash.no_schedule'),
+                  );
+                }
+                final allGroups = _groupByCustomer(rows);
+                final filteredGroups = _applyGroupFilter(allGroups, filter);
+                final todaysRows = rows.where((r) => r.isTodayBucket).toList();
+                final overdueRows =
+                    rows.where((r) => r.isOverdueBucket).toList();
+                final totalDue =
+                    todaysRows.fold<double>(0, (s, r) => s + r.dueAmount);
+                final totalCollected = todaysRows.fold<double>(
+                  0,
+                  (s, r) => s + math.min(r.receivedAmount, r.dueAmount),
+                );
+                final pendingCount =
+                    todaysRows.where((r) => !r.isResolved).length;
+                final overdueOutstanding = overdueRows.fold<double>(
+                  0,
+                  (s, r) => s + r.overdueOutstanding,
+                );
+                final overdueCount =
+                    overdueRows.where((r) => !r.isResolved).length;
 
-          // ── Map view ────────────────────────────────────────────────────────
-          if (_showMap) {
-            return _CollectionMap(
-              rows: filteredGroups.expand((g) => g.rows).toList(),
-              agentLat: _agentLat,
-              agentLng: _agentLng,
-              fmt: fmt,
-              t: t,
-              onCollect: (CollectionRow row) =>
-                  _openQuickCollect(context, row, rows),
-            );
-          }
+                // ── Map view ────────────────────────────────────────────────────────
+                if (_showMap) {
+                  return _CollectionMap(
+                    rows: filteredGroups.expand((g) => g.rows).toList(),
+                    agentLat: _agentLat,
+                    agentLng: _agentLng,
+                    fmt: fmt,
+                    t: t,
+                    onCollect: (CollectionRow row) =>
+                        _openQuickCollect(context, row, rows),
+                  );
+                }
 
-          // ── List view ───────────────────────────────────────────────────────
-          return RefreshIndicator(
-            color: AppColors.primary,
-            onRefresh: () async => ref.refresh(collectionTodayProvider.future),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-              children: [
-                _ProgressHero(
-                  totalDue: totalDue,
-                  totalCollected: totalCollected,
-                  pendingCount: pendingCount,
-                  fmt: fmt,
-                  t: t,
-                ),
-                const SizedBox(height: 14),
-                _FilterPills(
-                  current: filter,
-                  rows: rows,
-                  onTap: (k) => ref.read(_filterProvider.notifier).state = k,
-                  t: t,
-                ),
-                const SizedBox(height: 12),
-                if (_nearest && _agentLat != null)
-                  ..._sortGroupsByDistance(filteredGroups).expand(
-                    (g) => [
-                      _CollectionCard(
-                        group: g,
+                // ── List view ───────────────────────────────────────────────────────
+                return RefreshIndicator(
+                  color: AppColors.primary,
+                  onRefresh: () async {
+                    refreshCollectionViews(ref);
+                    await ref.refresh(collectionTodayProvider.future);
+                  },
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+                    children: [
+                      _CollectionSummaryHeader(
+                        totalDue: totalDue,
+                        totalCollected: totalCollected,
+                        pendingCount: pendingCount,
+                        overdueOutstanding: overdueOutstanding,
+                        overdueCount: overdueCount,
                         fmt: fmt,
-                        filter: filter,
-                        distanceLabel: _distanceLabel(_distTo(g.primary)),
+                        t: t,
                       ),
-                      const SizedBox(height: 10),
-                    ],
-                  )
-                else
-                  ..._groupGroupsByRoute(
-                    filteredGroups,
-                    t.x('coll.unassigned'),
-                  ).entries.expand(
-                        (e) => [
-                          _RouteHeader(routeName: e.key, count: e.value.length),
-                          const SizedBox(height: 8),
-                          for (final g in e.value) ...[
-                            _CollectionCard(group: g, fmt: fmt, filter: filter),
+                      const SizedBox(height: 14),
+                      _FilterPills(
+                        current: filter,
+                        rows: rows,
+                        onTap: (k) =>
+                            ref.read(_filterProvider.notifier).state = k,
+                        t: t,
+                      ),
+                      const SizedBox(height: 12),
+                      if (_nearest && _agentLat != null)
+                        ..._sortGroupsByDistance(filteredGroups).expand(
+                          (g) => [
+                            _CollectionCard(
+                              group: g,
+                              fmt: fmt,
+                              filter: filter,
+                              distanceLabel: _distanceLabel(_distTo(g.primary)),
+                            ),
                             const SizedBox(height: 10),
                           ],
-                          const SizedBox(height: 6),
-                        ],
-                      ),
-                if (filteredGroups.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 40),
-                    child: Center(
-                      child: Text(
-                        t.x('coll.nothing_filter'),
-                        style: AppTypography.caption,
-                      ),
-                    ),
+                        )
+                      else
+                        ..._groupGroupsByRoute(
+                          filteredGroups,
+                          t.x('coll.unassigned'),
+                        ).entries.expand(
+                              (e) => [
+                                _RouteHeader(
+                                    routeName: e.key, count: e.value.length),
+                                const SizedBox(height: 8),
+                                for (final g in e.value) ...[
+                                  _CollectionCard(
+                                      group: g, fmt: fmt, filter: filter),
+                                  const SizedBox(height: 10),
+                                ],
+                                const SizedBox(height: 6),
+                              ],
+                            ),
+                      if (filteredGroups.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 40),
+                          child: Center(
+                            child: Text(
+                              t.x('coll.nothing_filter'),
+                              style: AppTypography.caption,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
-              ],
-            ),
-          );
-        },
+                );
+              },
             ),
           ),
         ],
@@ -403,13 +426,13 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     CollectionRow row,
     List<CollectionRow> all,
   ) {
-    if (row.status == 'paid') return;
+    if (row.isResolved) return;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => QuickCollectSheet(row: row),
-    ).then((_) => ref.invalidate(collectionTodayProvider));
+      builder: (_) => QuickCollectSheet(row: row, scopeRows: all),
+    ).then((_) => refreshCollectionViews(ref));
   }
 }
 
@@ -606,7 +629,7 @@ class _SelfPayCardState extends ConsumerState<_SelfPayCard> {
             action: action,
           );
       ref.invalidate(_selfPayQueueProvider);
-      ref.invalidate(collectionTodayProvider);
+      refreshCollectionViews(ref);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -772,8 +795,8 @@ class _CollectionMap extends StatelessWidget {
   final double? agentLng;
 
   Color _pinColor(CollectionRow r) {
-    if (r.status == 'paid') return AppColors.success;
-    if (r.daysOverdue > 0) return AppColors.danger;
+    if (r.isResolved) return AppColors.success;
+    if (r.isOverdueBucket) return AppColors.danger;
     return AppColors.warning;
   }
 
@@ -909,7 +932,7 @@ class _CollectionMap extends StatelessWidget {
       );
 
   void _showPinSheet(BuildContext context, CollectionRow row) {
-    final isPaid = row.status == 'paid';
+    final isPaid = row.isResolved;
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: AppColors.surface,
@@ -1009,8 +1032,7 @@ class _PhotoPin extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final hasPhoto =
-        row.customerPhoto != null && row.customerPhoto!.isNotEmpty;
+    final hasPhoto = row.customerPhoto != null && row.customerPhoto!.isNotEmpty;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1055,16 +1077,20 @@ class _PhotoPin extends ConsumerWidget {
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Hero â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-class _ProgressHero extends StatelessWidget {
-  const _ProgressHero({
+class _CollectionSummaryHeader extends StatelessWidget {
+  const _CollectionSummaryHeader({
     required this.totalDue,
     required this.totalCollected,
     required this.pendingCount,
+    required this.overdueOutstanding,
+    required this.overdueCount,
     required this.fmt,
     required this.t,
   });
   final double totalDue, totalCollected;
+  final double overdueOutstanding;
   final int pendingCount;
+  final int overdueCount;
   final NumberFormat fmt;
   final T t;
 
@@ -1096,7 +1122,7 @@ class _ProgressHero extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               Text(
-                t.x('coll.today'),
+                'Today scheduled',
                 style: AppTypography.heroLabel.copyWith(color: Colors.white),
               ),
               const Spacer(),
@@ -1118,11 +1144,11 @@ class _ProgressHero extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            fmt.format(totalCollected),
+            fmt.format(totalDue),
             style: AppTypography.heroNumber.copyWith(color: Colors.white),
           ),
           Text(
-            '${t.x('coll.of_due')} ${fmt.format(totalDue)} ${t.x('coll.due_suffix')}',
+            '${fmt.format(totalCollected)} ${t.x('coll.collected_label')}',
             style: AppTypography.heroMeta.copyWith(color: Colors.white70),
           ),
           const SizedBox(height: 14),
@@ -1152,6 +1178,49 @@ class _ProgressHero extends StatelessWidget {
             '${(pct * 100).round()}% ${t.x('coll.collected_pct')}',
             style: AppTypography.caption.copyWith(color: Colors.white70),
           ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(18),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white24),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.history_rounded,
+                  color: AppColors.danger,
+                  size: 18,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Still overdue',
+                    style: AppTypography.body.copyWith(color: Colors.white),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      fmt.format(overdueOutstanding),
+                      style: AppTypography.bodyLarge.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      '$overdueCount ${t.x('coll.pending_suffix')}',
+                      style: AppTypography.tiny.copyWith(color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -1174,10 +1243,10 @@ class _FilterPills extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pendingC = rows.where((r) => r.daysOverdue <= 0).length;
+    final pendingC = rows.where((r) => r.isTodayBucket && !r.isResolved).length;
     final overdueC =
-        rows.where((r) => r.daysOverdue > 0 && r.status != 'paid').length;
-    final paidC = rows.where((r) => r.status == 'paid').length;
+        rows.where((r) => r.isOverdueBucket && !r.isResolved).length;
+    final paidC = rows.where((r) => r.isResolved).length;
 
     return SizedBox(
       height: 38,
@@ -1336,15 +1405,13 @@ class _CustomerGroup {
   CollectionRow get primary => rows.first;
 
   List<CollectionRow> get _collectible =>
-      rows.where((r) => r.status != 'paid' && r.outstanding > 0).toList();
+      rows.where((r) => !r.isResolved && r.outstanding > 0).toList();
 
-  /// Due today or earlier-but-not-yet-overdue (daysOverdue <= 0).
   List<CollectionRow> get _todayCollectible =>
-      _collectible.where((r) => r.daysOverdue <= 0).toList();
+      _collectible.where((r) => r.isTodayBucket).toList();
 
-  /// Past due and unpaid (daysOverdue > 0).
   List<CollectionRow> get _overdueCollectible =>
-      _collectible.where((r) => r.daysOverdue > 0).toList();
+      _collectible.where((r) => r.isOverdueBucket).toList();
 
   double get todayDue =>
       _todayCollectible.fold(0.0, (s, r) => s + r.outstanding);
@@ -1397,8 +1464,8 @@ class _CollectionCard extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => QuickCollectSheet(row: row),
-    ).then((_) => ref.invalidate(collectionTodayProvider));
+      builder: (_) => QuickCollectSheet(row: row, scopeRows: group.rows),
+    ).then((_) => refreshCollectionViews(ref));
   }
 
   void _showOverdueDetails(BuildContext context, WidgetRef ref) {
@@ -1643,7 +1710,8 @@ class _CollectionCard extends ConsumerWidget {
                       if (p.customerPhone.isEmpty) return;
                       final uri = Uri(scheme: 'tel', path: p.customerPhone);
                       if (await canLaunchUrl(uri)) {
-                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                        await launchUrl(uri,
+                            mode: LaunchMode.externalApplication);
                       }
                     },
                   ),

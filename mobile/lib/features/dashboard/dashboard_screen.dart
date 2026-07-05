@@ -15,7 +15,8 @@ import 'package:loantrack/data/models/collection_entry.dart';
 import 'package:loantrack/data/models/dashboard_summary.dart';
 import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/data/repositories/dashboard_repository.dart';
-import 'package:loantrack/features/collection/collection_screen.dart' show collectionTodayProvider;
+import 'package:loantrack/features/collection/collection_screen.dart'
+    show collectionTodayProvider, refreshCollectionViews;
 import 'package:loantrack/features/collection/quick_collect_sheet.dart';
 import 'package:loantrack/features/dashboard/widgets/collection_trend_card.dart';
 import 'package:loantrack/features/onboarding/onboarding_overlay.dart';
@@ -105,7 +106,8 @@ class _DashboardBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isAgent = ref.read(authControllerProvider).user?.role == UserRole.agent;
+    final isAgent =
+        ref.read(authControllerProvider).user?.role == UserRole.agent;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -302,7 +304,8 @@ class _HeroBalance extends ConsumerWidget {
     final expected = summary.todayExpected;
     final remaining = (expected - collected).clamp(0.0, double.infinity);
     final pct = expected <= 0 ? 0.0 : (collected / expected).clamp(0.0, 1.0);
-    final paid = summary.todayInstalments.where((i) => i.status == 'paid').length;
+    final paid =
+        summary.todayInstalments.where((i) => i.status == 'paid').length;
     final pending = summary.todayInstalments
         .where((i) => i.status == 'upcoming' || i.status == 'partial')
         .length;
@@ -335,7 +338,8 @@ class _HeroBalance extends ConsumerWidget {
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
                     color: AppColors.primary.withAlpha(48),
                     borderRadius: BorderRadius.circular(20),
@@ -343,16 +347,23 @@ class _HeroBalance extends ConsumerWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.bolt_rounded, color: AppColors.primary, size: 14),
+                      Icon(Icons.bolt_rounded,
+                          color: AppColors.primary, size: 14),
                       const SizedBox(width: 4),
-                      Text(t.x('dash.live'),
-                          style: AppTypography.tiny.copyWith(color: AppColors.primary),),
+                      Text(
+                        t.x('dash.live'),
+                        style: AppTypography.tiny
+                            .copyWith(color: AppColors.primary),
+                      ),
                     ],
                   ),
                 ),
                 const Spacer(),
-                Text(t.x('dash.today_collected'),
-                    style: AppTypography.heroLabel.copyWith(color: Colors.white70),),
+                Text(
+                  'Today scheduled',
+                  style:
+                      AppTypography.heroLabel.copyWith(color: Colors.white70),
+                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -366,15 +377,16 @@ class _HeroBalance extends ConsumerWidget {
                     alignment: Alignment.centerLeft,
                     child: Text(
                       fmt.format(collected),
-                      style:
-                          AppTypography.heroNumber.copyWith(color: Colors.white),
+                      style: AppTypography.heroNumber
+                          .copyWith(color: Colors.white),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: barColor.withAlpha(36),
                     borderRadius: BorderRadius.circular(20),
@@ -385,7 +397,7 @@ class _HeroBalance extends ConsumerWidget {
                     style: AppTypography.tiny.copyWith(
                       color: barColor,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 0.4,
+                      letterSpacing: 0,
                     ),
                   ),
                 ),
@@ -406,23 +418,25 @@ class _HeroBalance extends ConsumerWidget {
                 children: [
                   Expanded(
                     child: _MoneyStatLarge(
-                      label: t.x('dash.collected_today'),
+                      label: 'Collected today',
                       value: fmt.format(collected),
                       tone: const Color(0xFF34D399),
                     ),
                   ),
-                  Container(width: 1, height: 36, color: Colors.white.withAlpha(20)),
+                  Container(
+                      width: 1, height: 36, color: Colors.white.withAlpha(20)),
                   Expanded(
                     child: _MoneyStatLarge(
-                      label: t.x('dash.collectable'),
+                      label: 'Today scheduled',
                       value: fmt.format(expected),
                       tone: Colors.white,
                     ),
                   ),
-                  Container(width: 1, height: 36, color: Colors.white.withAlpha(20)),
+                  Container(
+                      width: 1, height: 36, color: Colors.white.withAlpha(20)),
                   Expanded(
                     child: _MoneyStatLarge(
-                      label: t.x('dash.remaining'),
+                      label: 'Today outstanding',
                       value: fmt.format(remaining),
                       tone: const Color(0xFFFF8674),
                     ),
@@ -436,10 +450,15 @@ class _HeroBalance extends ConsumerWidget {
             // ── Secondary count stats: Paid / Pending / Overdue ──
             Row(
               children: [
-                Expanded(child: _HeroStat(n: paid, label: t.x('coll.filter_paid'))),
-                Container(width: 1, height: 28, color: Colors.white.withAlpha(20)),
-                Expanded(child: _HeroStat(n: pending, label: t.x('coll.filter_pending'))),
-                Container(width: 1, height: 28, color: Colors.white.withAlpha(20)),
+                Expanded(
+                    child: _HeroStat(n: paid, label: t.x('coll.filter_paid'))),
+                Container(
+                    width: 1, height: 28, color: Colors.white.withAlpha(20)),
+                Expanded(
+                    child: _HeroStat(
+                        n: pending, label: t.x('coll.filter_pending'))),
+                Container(
+                    width: 1, height: 28, color: Colors.white.withAlpha(20)),
                 Expanded(
                   child: _HeroStat(
                     n: overdue,
@@ -542,13 +561,19 @@ class _OverdueBalance extends ConsumerWidget {
     // Whole-card colour tracks recovery: fully red when nothing of the
     // overdue backlog is collected, blending to fully green when cleared.
     final cardTop = Color.lerp(
-        const Color(0xFFB91C1C), const Color(0xFF15803D), pct,)!;
+      const Color(0xFFB91C1C),
+      const Color(0xFF15803D),
+      pct,
+    )!;
     final cardBottom = Color.lerp(
-        const Color(0xFF7F1D1D), const Color(0xFF14532D), pct,)!;
+      const Color(0xFF7F1D1D),
+      const Color(0xFF14532D),
+      pct,
+    )!;
 
     return GestureDetector(
       onTap: () => ref.speak(
-        '${t.x('dash.overdue_collection')} ${_speakAmount(collected)}',
+        'Recovered overdue today ${_speakAmount(collected)}',
       ),
       child: Container(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
@@ -567,7 +592,8 @@ class _OverdueBalance extends ConsumerWidget {
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
                     color: Colors.white.withAlpha(36),
                     borderRadius: BorderRadius.circular(20),
@@ -575,10 +601,11 @@ class _OverdueBalance extends ConsumerWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.history_rounded, color: Colors.white, size: 14),
+                      const Icon(Icons.history_rounded,
+                          color: Colors.white, size: 14),
                       const SizedBox(width: 4),
                       Text(
-                        t.x('dash.overdue_collection'),
+                        'Recovered overdue today',
                         style: AppTypography.tiny.copyWith(color: Colors.white),
                       ),
                     ],
@@ -586,14 +613,15 @@ class _OverdueBalance extends ConsumerWidget {
                 ),
                 const Spacer(),
                 Text(
-                  t.x('dash.total_overdue'),
-                  style: AppTypography.heroLabel.copyWith(color: Colors.white70),
+                  'Still overdue',
+                  style:
+                      AppTypography.heroLabel.copyWith(color: Colors.white70),
                 ),
               ],
             ),
             const SizedBox(height: 4),
             Text(
-              t.x('dash.overdue_hint'),
+              'Daily overdue recovery',
               style: AppTypography.extraTiny.copyWith(color: Colors.white54),
             ),
             const SizedBox(height: 12),
@@ -606,14 +634,15 @@ class _OverdueBalance extends ConsumerWidget {
                     alignment: Alignment.centerLeft,
                     child: Text(
                       fmt.format(total),
-                      style:
-                          AppTypography.heroNumber.copyWith(color: Colors.white),
+                      style: AppTypography.heroNumber
+                          .copyWith(color: Colors.white),
                     ),
                   ),
                 ),
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: barColor.withAlpha(36),
                     borderRadius: BorderRadius.circular(20),
@@ -624,7 +653,7 @@ class _OverdueBalance extends ConsumerWidget {
                     style: AppTypography.tiny.copyWith(
                       color: barColor,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 0.4,
+                      letterSpacing: 0,
                     ),
                   ),
                 ),
@@ -635,14 +664,16 @@ class _OverdueBalance extends ConsumerWidget {
             const SizedBox(height: 8),
             Row(
               children: [
-                const Icon(Icons.check_circle_outline, size: 12, color: Colors.white38),
+                const Icon(Icons.check_circle_outline,
+                    size: 12, color: Colors.white38),
                 const SizedBox(width: 4),
                 Text(
-                  '${fmt.format(collected)} ${t.x('dash.collected_today_suffix')}',
+                  '${fmt.format(collected)} recovered overdue today',
                   style: AppTypography.tiny.copyWith(color: Colors.white54),
                 ),
                 const Spacer(),
-                const Icon(Icons.flag_outlined, size: 12, color: Colors.white38),
+                const Icon(Icons.flag_outlined,
+                    size: 12, color: Colors.white38),
                 const SizedBox(width: 4),
                 Text(
                   fmt.format(total),
@@ -655,11 +686,24 @@ class _OverdueBalance extends ConsumerWidget {
             const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(child: _MoneyStat(label: t.x('dash.collected_today'), value: fmt.format(collected), tone: const Color(0xFF34D399))),
-                Container(width: 1, height: 28, color: Colors.white.withAlpha(20)),
-                Expanded(child: _MoneyStat(label: t.x('dash.remaining'), value: fmt.format(remaining), tone: const Color(0xFFFF8674))),
-                Container(width: 1, height: 28, color: Colors.white.withAlpha(20)),
-                Expanded(child: _MoneyStat(label: t.x('dash.overdue_loans'), value: '${summary.overdueLoans}')),
+                Expanded(
+                    child: _MoneyStat(
+                        label: 'Recovered overdue today',
+                        value: fmt.format(collected),
+                        tone: const Color(0xFF34D399))),
+                Container(
+                    width: 1, height: 28, color: Colors.white.withAlpha(20)),
+                Expanded(
+                    child: _MoneyStat(
+                        label: 'Still overdue',
+                        value: fmt.format(remaining),
+                        tone: const Color(0xFFFF8674))),
+                Container(
+                    width: 1, height: 28, color: Colors.white.withAlpha(20)),
+                Expanded(
+                    child: _MoneyStat(
+                        label: t.x('dash.overdue_loans'),
+                        value: '${summary.overdueLoans}')),
               ],
             ),
           ],
@@ -795,7 +839,8 @@ class _MoneyFlowRow extends StatelessWidget {
                 iconBg: AppColors.successBg,
                 label: t.x('dash.active_loans'),
                 value: '${summary.activeLoans}',
-                sub: '${summary.totalCustomers} ${t.x('dash.customers_suffix')}',
+                sub:
+                    '${summary.totalCustomers} ${t.x('dash.customers_suffix')}',
               ),
             ),
             const SizedBox(width: 12),
@@ -1165,17 +1210,28 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
             // One card per CUSTOMER — a customer with several dues today
             // (multiple instalments / loans) collapses into a single entry
             // showing the combined amount, instead of repeating the card.
-            final pendingRows =
-                rows.where((r) => r.status != 'paid').toList(growable: false);
+            final pendingRows = rows
+                .where((r) => !r.isResolved && r.outstanding > 0)
+                .toList(growable: false);
             final byCustomer = <String, _UpNextEntry>{};
             for (final r in pendingRows) {
-              final due = r.outstanding > 0 ? r.outstanding : r.dueAmount;
+              final todayDue = r.todayOutstanding;
+              final overdueDue = r.overdueOutstanding;
+              final due = todayDue + overdueDue;
+              if (due <= 0) continue;
               final existing = byCustomer[r.customerId];
               if (existing == null) {
-                byCustomer[r.customerId] =
-                    _UpNextEntry(row: r, total: due, count: 1);
+                byCustomer[r.customerId] = _UpNextEntry(
+                  row: r,
+                  rows: [r],
+                  todayTotal: todayDue,
+                  overdueTotal: overdueDue,
+                  count: 1,
+                );
               } else {
-                existing.total += due;
+                existing.rows.add(r);
+                existing.todayTotal += todayDue;
+                existing.overdueTotal += overdueDue;
                 existing.count += 1;
                 // Keep the earliest-due instalment as the collect target.
                 if (r.dueDate.isBefore(existing.row.dueDate)) {
@@ -1211,11 +1267,15 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(t.x('dash.all_done_title'),
-                              style: AppTypography.bodyLarge,),
+                          Text(
+                            t.x('dash.all_done_title'),
+                            style: AppTypography.bodyLarge,
+                          ),
                           const SizedBox(height: 2),
-                          Text(t.x('dash.all_done_sub'),
-                              style: AppTypography.caption,),
+                          Text(
+                            t.x('dash.all_done_sub'),
+                            style: AppTypography.caption,
+                          ),
                         ],
                       ),
                     ),
@@ -1226,7 +1286,7 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
             return Column(
               children: [
                 SizedBox(
-                  height: 156,
+                  height: 188,
                   child: PageView.builder(
                     controller: _ctrl,
                     itemCount: pending.length,
@@ -1235,8 +1295,10 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       child: _UpNextCard(
                         row: pending[i].row,
+                        scopeRows: pending[i].rows,
                         fmt: widget.fmt,
-                        totalDue: pending[i].total,
+                        todayDue: pending[i].todayTotal,
+                        overdueDue: pending[i].overdueTotal,
                         dueCount: pending[i].count,
                       ),
                     ),
@@ -1277,22 +1339,34 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
 
 /// Aggregation of one customer's dues for the Up Next section.
 class _UpNextEntry {
-  _UpNextEntry({required this.row, required this.total, required this.count});
+  _UpNextEntry({
+    required this.row,
+    required this.rows,
+    required this.todayTotal,
+    required this.overdueTotal,
+    required this.count,
+  });
   CollectionRow row;
-  double total;
+  final List<CollectionRow> rows;
+  double todayTotal;
+  double overdueTotal;
   int count;
 }
 
 class _UpNextCard extends ConsumerWidget {
   const _UpNextCard({
     required this.row,
+    required this.scopeRows,
     required this.fmt,
-    double? totalDue,
+    required this.todayDue,
+    required this.overdueDue,
     this.dueCount = 1,
-  }) : _totalDue = totalDue;
+  });
   final CollectionRow row;
+  final List<CollectionRow> scopeRows;
   final NumberFormat fmt;
-  final double? _totalDue;
+  final double todayDue;
+  final double overdueDue;
 
   /// How many separate dues (instalments/loans) this customer has today.
   final int dueCount;
@@ -1302,8 +1376,12 @@ class _UpNextCard extends ConsumerWidget {
     final t = T.of(ref);
     final time = TimeOfDay.fromDateTime(row.dueDate).format(context);
     final route = row.routeName;
-    final due =
-        _totalDue ?? (row.outstanding > 0 ? row.outstanding : row.dueAmount);
+    final due = todayDue + overdueDue;
+    final statusLabel = overdueDue > 0 && todayDue > 0
+        ? 'MIXED DUES'
+        : overdueDue > 0
+            ? t.x('coll.filter_overdue').toUpperCase()
+            : 'TODAY SCHEDULED';
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1320,9 +1398,10 @@ class _UpNextCard extends ConsumerWidget {
               _Avatar(
                 name: row.customerName,
                 size: 44,
-                image: row.customerPhoto != null && row.customerPhoto!.isNotEmpty
-                    ? authedImage(ref, row.customerPhoto!)
-                    : null,
+                image:
+                    row.customerPhoto != null && row.customerPhoto!.isNotEmpty
+                        ? authedImage(ref, row.customerPhoto!)
+                        : null,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1368,10 +1447,12 @@ class _UpNextCard extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    t.x('coll.status_due_today').toUpperCase(),
+                    statusLabel,
                     style: AppTypography.extraTiny.copyWith(
-                      color: AppColors.textLight,
-                      letterSpacing: 0.5,
+                      color: overdueDue > 0
+                          ? AppColors.danger
+                          : AppColors.textLight,
+                      letterSpacing: 0,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -1387,6 +1468,29 @@ class _UpNextCard extends ConsumerWidget {
               ),
             ],
           ),
+          if (todayDue > 0 || overdueDue > 0) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                if (todayDue > 0)
+                  _DueChip(
+                    icon: Icons.today_rounded,
+                    label: 'Today scheduled',
+                    value: fmt.format(todayDue),
+                    color: AppColors.primary,
+                  ),
+                if (overdueDue > 0)
+                  _DueChip(
+                    icon: Icons.history_rounded,
+                    label: 'Still overdue',
+                    value: fmt.format(overdueDue),
+                    color: AppColors.danger,
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: 14),
           Row(
             children: [
@@ -1457,16 +1561,55 @@ class _UpNextCard extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => QuickCollectSheet(row: row),
-    ).then((_) {
-      ref.invalidate(collectionTodayProvider);
-      ref.invalidate(dashboardSummaryProvider);
-    });
+      builder: (_) => QuickCollectSheet(row: row, scopeRows: scopeRows),
+    ).then((_) => refreshCollectionViews(ref));
   }
 
   void _callCustomer(WidgetRef ref, String customerId) {
     final ctx = ref.context;
     if (ctx.mounted) ctx.push('/customers/$customerId');
+  }
+}
+
+class _DueChip extends StatelessWidget {
+  const _DueChip({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withAlpha(24),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withAlpha(48)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 5),
+          Text(
+            '$label $value',
+            style: AppTypography.extraTiny.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -1695,10 +1838,7 @@ class _Avatar extends StatelessWidget {
   String _initials() {
     final parts = name.trim().split(RegExp(r'\s+'));
     if (parts.isEmpty || parts.first.isEmpty) return '-';
-    return parts
-        .take(2)
-        .map((p) => p.isEmpty ? '' : p[0].toUpperCase())
-        .join();
+    return parts.take(2).map((p) => p.isEmpty ? '' : p[0].toUpperCase()).join();
   }
 
   @override
@@ -1748,7 +1888,8 @@ String _speakAmount(double amount) {
 }
 
 class _AgentMetricsRow extends StatelessWidget {
-  const _AgentMetricsRow({required this.summary, required this.fmt, required this.t});
+  const _AgentMetricsRow(
+      {required this.summary, required this.fmt, required this.t});
   final DashboardSummary summary;
   final NumberFormat fmt;
   final T t;
@@ -1784,7 +1925,8 @@ class _AgentMetricsRow extends StatelessWidget {
 }
 
 class _DefaulterAlerts extends ConsumerWidget {
-  const _DefaulterAlerts({required this.summary, required this.fmt, required this.t});
+  const _DefaulterAlerts(
+      {required this.summary, required this.fmt, required this.t});
   final DashboardSummary summary;
   final NumberFormat fmt;
   final T t;
@@ -1835,7 +1977,8 @@ class _DefaulterAlerts extends ConsumerWidget {
                     children: [
                       Text(
                         fmt.format(alert.overdueAmount),
-                        style: AppTypography.label.copyWith(color: AppColors.danger),
+                        style: AppTypography.label
+                            .copyWith(color: AppColors.danger),
                       ),
                       Text(
                         t.x('dash.overdue_loans'),
@@ -1853,7 +1996,8 @@ class _DefaulterAlerts extends ConsumerWidget {
 }
 
 class _RoutePerformanceList extends ConsumerWidget {
-  const _RoutePerformanceList({required this.summary, required this.fmt, required this.t});
+  const _RoutePerformanceList(
+      {required this.summary, required this.fmt, required this.t});
   final DashboardSummary summary;
   final NumberFormat fmt;
   final T t;
@@ -1883,7 +2027,8 @@ class _RoutePerformanceList extends ConsumerWidget {
                       color: AppColors.primaryLight,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Icon(Icons.route, color: AppColors.primaryDark, size: 20),
+                    child: Icon(Icons.route,
+                        color: AppColors.primaryDark, size: 20),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -1910,7 +2055,8 @@ class _RoutePerformanceList extends ConsumerWidget {
                     children: [
                       Text(
                         fmt.format(rp.overdue),
-                        style: AppTypography.label.copyWith(color: AppColors.danger),
+                        style: AppTypography.label
+                            .copyWith(color: AppColors.danger),
                       ),
                       Text(
                         t.x('status.overdue'),
@@ -1924,21 +2070,21 @@ class _RoutePerformanceList extends ConsumerWidget {
                       onPressed: rp.agentId == null
                           ? null
                           : () {
-                        showModalBottomSheet<bool>(
-                          context: context,
-                          isScrollControlled: true,
-                          builder: (_) => CollectCashSheet(
-                            routeId: rp.id,
-                            routeName: rp.name,
-                            agentId: rp.agentId!,
-                            fmt: fmt,
-                          ),
-                        ).then((success) {
-                          if (success == true) {
-                            ref.refresh(dashboardSummaryProvider.future);
-                          }
-                        });
-                      },
+                              showModalBottomSheet<bool>(
+                                context: context,
+                                isScrollControlled: true,
+                                builder: (_) => CollectCashSheet(
+                                  routeId: rp.id,
+                                  routeName: rp.name,
+                                  agentId: rp.agentId!,
+                                  fmt: fmt,
+                                ),
+                              ).then((success) {
+                                if (success == true) {
+                                  ref.refresh(dashboardSummaryProvider.future);
+                                }
+                              });
+                            },
                       style: TextButton.styleFrom(
                         foregroundColor: AppColors.success,
                         padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -1995,7 +2141,8 @@ class _SpotlightCards extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     'Best Payer',
-                    style: AppTypography.caption.copyWith(color: Colors.white70),
+                    style:
+                        AppTypography.caption.copyWith(color: Colors.white70),
                   ),
                 ],
               ),
@@ -2017,7 +2164,8 @@ class _SpotlightCards extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.trending_up_rounded, color: Colors.white, size: 20),
+                  const Icon(Icons.trending_up_rounded,
+                      color: Colors.white, size: 20),
                   const SizedBox(height: 8),
                   Text(
                     summary.highestBorrower!,
@@ -2031,7 +2179,8 @@ class _SpotlightCards extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     'Highest Borrower',
-                    style: AppTypography.caption.copyWith(color: Colors.white70),
+                    style:
+                        AppTypography.caption.copyWith(color: Colors.white70),
                   ),
                 ],
               ),
@@ -2079,9 +2228,11 @@ class _ModeSplitCard extends StatelessWidget {
                     children: [
                       Text(
                         entry.key.toUpperCase(),
-                        style: AppTypography.body.copyWith(fontWeight: FontWeight.bold),
+                        style: AppTypography.body
+                            .copyWith(fontWeight: FontWeight.bold),
                       ),
-                      Text(fmt.format(entry.value), style: AppTypography.caption),
+                      Text(fmt.format(entry.value),
+                          style: AppTypography.caption),
                     ],
                   ),
                   const SizedBox(height: 4),
@@ -2172,7 +2323,8 @@ class _PendingUpiList extends ConsumerWidget {
                 contentPadding: EdgeInsets.zero,
                 title: Text(
                   '${p.customerName} — ${fmt.format(p.amount)}',
-                  style: AppTypography.body.copyWith(fontWeight: FontWeight.bold),
+                  style:
+                      AppTypography.body.copyWith(fontWeight: FontWeight.bold),
                 ),
                 subtitle: Text('${p.loanCode} · ${p.agentName}'),
                 trailing: TextButton(

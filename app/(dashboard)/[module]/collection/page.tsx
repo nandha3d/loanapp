@@ -14,6 +14,7 @@ import { getDictionary } from '@/lib/i18n';
 import { getActiveBranchId } from '@/lib/branch';
 import { COLLECTIBLE_LOAN_STATUSES } from '@/lib/collectionPolicy';
 import { startOfBusinessToday } from '@/lib/businessTime';
+import { summarizeCollectionWorklist } from '@/lib/collectionSummary';
 
 function startOfToday() {
   // IST day boundary (server runs UTC) so overdue/today classification matches
@@ -79,6 +80,14 @@ export default async function CollectionPage() {
   const payload = res?.data ?? res ?? {};
   const todayInstalments = payload.todayInstalments || [];
   const overdueInstalments = payload.overdueInstalments || [];
+  const collectionSummary = payload.collectionSummary || summarizeCollectionWorklist({
+    todayRows: todayInstalments.filter((item: any) => {
+      const due = new Date(item.dueDate);
+      return due >= today && due < tomorrow;
+    }),
+    overdueRows: overdueInstalments,
+    overdueCollectedToday: 0,
+  });
   const agentRoutes = payload.routes || [];
   const dailyCollection = payload.dailyCollection || null;
   const receiptPdfEnabled = payload.receiptPdfEnabled || false;
@@ -109,6 +118,7 @@ export default async function CollectionPage() {
         status: dailyCollection.status,
         totalCollected: Number(dailyCollection.totalCollected)
       } : null}
+      collectionSummary={collectionSummary}
       receiptPdfEnabled={receiptPdfEnabled}
       gpsTrackingEnabled={gpsTrackingEnabled}
     />

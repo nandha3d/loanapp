@@ -7,6 +7,7 @@ import { COLLECTIBLE_LOAN_STATUSES, isCollectionDay } from '@/lib/collectionPoli
 import { getSetting } from '@/lib/tenant';
 import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 import { startOfBusinessToday, startOfBusinessTomorrow } from '@/lib/businessTime';
+import { summarizeCollectionWorklist } from '@/lib/collectionSummary';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -77,7 +78,13 @@ export async function GET(req: NextRequest) {
       },
     };
 
-    const [todayDueInstalments, overdueInstalments, paidTodayInstalments, agentRoutes] = await Promise.all([
+    const [
+      todayDueInstalments,
+      overdueInstalments,
+      paidTodayInstalments,
+      agentRoutes,
+      overduePaidTodayAllocations,
+    ] = await Promise.all([
       prisma.instalment.findMany({
         where: {
           loan: baseLoanWhere,
@@ -123,6 +130,17 @@ export async function GET(req: NextRequest) {
         },
         orderBy: { name: 'asc' },
       }),
+      prisma.paymentAllocation.findMany({
+        where: {
+          payment: {
+            tenantId: ctx.tenantId,
+            paymentDate: { gte: today, lt: tomorrow },
+            loan: baseLoanWhere,
+          },
+          instalment: { dueDate: { lt: today } },
+        },
+        select: { amount: true },
+      }),
     ]);
 
     const dailyCollectionRaw = await prisma.dailyCollection.findFirst({
@@ -157,10 +175,19 @@ export async function GET(req: NextRequest) {
       ...todayDueInstalments,
       ...paidTodayInstalments.filter((i) => !seen.has(i.id)),
     ];
+    const collectionSummary = summarizeCollectionWorklist({
+      todayRows: todayDueInstalments,
+      overdueRows: overdueVisible,
+      overdueCollectedToday: overduePaidTodayAllocations.reduce(
+        (sum, row) => sum + Number(row.amount),
+        0,
+      ),
+    });
 
     return ok({
       todayInstalments,
       overdueInstalments: overdueVisible,
+      collectionSummary,
       routes: agentRoutes,
       dailyCollection: dailyCollectionRaw ? {
         id: dailyCollectionRaw.id,

@@ -22,6 +22,8 @@ const criticalUiServerEnv = {
   NEXTAUTH_URL: process.env.NEXTAUTH_URL || BASE_URL,
   NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL || BASE_URL,
   NEXT_PUBLIC_ROOT_DOMAIN: process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localhost',
+  LOGIN_MAX_ATTEMPTS: process.env.LOGIN_MAX_ATTEMPTS || '1000',
+  LOGIN_IP_MAX: process.env.LOGIN_IP_MAX || '1000',
 };
 
 /**

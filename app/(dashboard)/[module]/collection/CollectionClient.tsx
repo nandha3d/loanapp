@@ -44,6 +44,18 @@ type RouteOption = {
   name: string;
 };
 
+type CollectionSummary = {
+  todayExpected: number;
+  todayCollected: number;
+  todayOutstanding: number;
+  todayPendingCount: number;
+  todayPaidCount: number;
+  overdueTotalTillToday: number;
+  overdueCollectedToday: number;
+  overdueOutstanding: number;
+  overduePendingCount: number;
+};
+
 type UnifiedGroup = {
   customerId: string;
   customerName: string;
@@ -122,6 +134,7 @@ export default function CollectionClient({
   currencySymbol,
   dict,
   dailyCollection,
+  collectionSummary,
   receiptPdfEnabled = false,
   gpsTrackingEnabled = false,
 }: {
@@ -134,6 +147,7 @@ export default function CollectionClient({
   currencySymbol: string;
   dict: any;
   dailyCollection: { id: string; status: string; totalCollected: number } | null;
+  collectionSummary: CollectionSummary;
   receiptPdfEnabled?: boolean;
   gpsTrackingEnabled?: boolean;
 }) {
@@ -282,27 +296,20 @@ export default function CollectionClient({
     });
   }, [allInstalments, typeFilter, customerFilter, dateFilter, routeFilter, statusFilter, frequencyFilter, sessionFilter, overdueMinDays, overdueMaxDays, todayISO]);
 
-  const todayTotals = useMemo(() => {
-    return {
-      due: todayInstalments.reduce((sum, row) => sum + row.dueAmount, 0),
-      collected: todayInstalments.reduce((sum, row) => sum + Math.min(row.receivedAmount, row.dueAmount), 0),
-      outstanding: todayInstalments.reduce((sum, row) => sum + row.outstandingAmount, 0),
-    };
-  }, [todayInstalments]);
+  const todayTotals = useMemo(() => ({
+    due: collectionSummary.todayExpected,
+    collected: collectionSummary.todayCollected,
+    outstanding: collectionSummary.todayOutstanding,
+    pendingCount: collectionSummary.todayPendingCount,
+  }), [collectionSummary]);
 
-  const overdueTotals = useMemo(() => {
-    // dueTotal = the full scheduled amount on overdue instalments; recovered =
-    // what's already been paid against them; amount = still outstanding.
-    const dueTotal = overdueInstalments.reduce((sum, row) => sum + row.dueAmount, 0);
-    const recovered = overdueInstalments.reduce((sum, row) => sum + Math.min(row.receivedAmount, row.dueAmount), 0);
-    return {
-      amount: overdueInstalments.reduce((sum, row) => sum + row.overdueAmount, 0),
-      dueTotal,
-      recovered,
-      count: overdueInstalments.length,
-      maxDays: overdueInstalments.reduce((max, row) => Math.max(max, row.daysOverdue), 0),
-    };
-  }, [overdueInstalments]);
+  const overdueTotals = useMemo(() => ({
+    amount: collectionSummary.overdueOutstanding,
+    dueTotal: collectionSummary.overdueTotalTillToday,
+    recovered: collectionSummary.overdueCollectedToday,
+    count: collectionSummary.overduePendingCount,
+    maxDays: overdueInstalments.reduce((max, row) => Math.max(max, row.daysOverdue), 0),
+  }), [collectionSummary, overdueInstalments]);
 
   // Customer worklist progress for today: how many distinct customers due today
   // have had something collected. Drives the "Customers" completion bar.
@@ -310,12 +317,13 @@ export default function CollectionClient({
     const dueSet = new Set<string>();
     const doneSet = new Set<string>();
     for (const row of todayInstalments) {
+      if (row.dueDate.slice(0, 10) !== todayISO) continue;
       const cid = row.loan.customer.id;
       dueSet.add(cid);
-      if (row.receivedAmount > 0) doneSet.add(cid);
+      if (row.outstandingAmount <= 0) doneSet.add(cid);
     }
     return { total: dueSet.size, done: doneSet.size };
-  }, [todayInstalments]);
+  }, [todayInstalments, todayISO]);
 
   const pct = (num: number, den: number) => (den > 0 ? Math.min(100, Math.round((num / den) * 100)) : 0);
 

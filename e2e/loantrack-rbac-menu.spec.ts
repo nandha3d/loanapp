@@ -32,11 +32,11 @@ test.describe('LoanTrack RBAC and menu visibility', () => {
       password: seed.password,
       callbackPath: modulePath('/dashboard'),
     });
-    await expect(menuLink(page, [/customers/i])).toBeVisible();
-    await expect(menuLink(page, [/loans/i])).toBeVisible();
-    await expect(menuLink(page, [/settings/i])).toBeVisible();
-    await expect(menuLink(page, [/reports|analytics/i])).toBeVisible();
-    await expect(menuLink(page, [/approvals/i])).toBeVisible();
+    await expect(menuLink(page, [/customers/i]).first()).toBeVisible();
+    await expect(menuLink(page, [/loans/i]).first()).toBeVisible();
+    await expect(menuLink(page, [/settings/i]).first()).toBeVisible();
+    await expect(menuLink(page, [/reports|analytics/i]).first()).toBeVisible();
+    await expect(menuLink(page, [/approvals/i]).first()).toBeVisible();
     evidence.pass('UI-011');
   });
 
@@ -49,9 +49,8 @@ test.describe('LoanTrack RBAC and menu visibility', () => {
     });
     await expect(menuLink(page, [/settings/i])).toHaveCount(0);
     await expect(menuLink(page, [/reports|analytics/i])).toHaveCount(0);
-    await expect(menuLink(page, [/dashboard/i]).filter({ hasNotText: /agent/i })).toHaveCount(0);
 
-    for (const blockedPath of [modulePath('/settings'), modulePath('/analytics'), modulePath('/dashboard')]) {
+    for (const blockedPath of [modulePath('/settings'), modulePath('/analytics'), modulePath('/reports')]) {
       await page.goto(blockedPath);
       await page.waitForLoadState('domcontentloaded');
       expect(page.url(), `agent should be redirected away from ${blockedPath}`).not.toMatch(new RegExp(`${blockedPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`));

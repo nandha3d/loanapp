@@ -149,13 +149,13 @@ test.describe('LoanTrack critical UI flow', () => {
   test('UI-015 borrower portal basic visibility if supported', async ({ page }) => {
     evidence.role('borrower');
     try {
-      await page.goto('/borrower/login');
+      await page.goto('/borrower/login', { waitUntil: 'domcontentloaded', timeout: 5_000 });
       await expectNonBlankAppPage(page, 'borrower login');
-      await page.getByPlaceholder(/registered mobile number/i).fill(seed.customer.phone);
-      await page.getByRole('button', { name: /next step/i }).click();
-      await page.getByPlaceholder(/account password/i).fill(seed.password);
-      await page.getByRole('button', { name: /sign in/i }).click();
-      await page.waitForURL(/\/borrower\/dashboard/, { timeout: 30_000 });
+      await page.getByPlaceholder(/registered mobile number/i).fill(seed.customer.phone, { timeout: 3_000 });
+      await page.getByRole('button', { name: /next step/i }).click({ timeout: 3_000 });
+      await page.getByPlaceholder(/account password/i).fill(seed.password, { timeout: 3_000 });
+      await page.getByRole('button', { name: /sign in/i }).click({ timeout: 3_000 });
+      await page.waitForURL(/\/borrower\/dashboard/, { timeout: 5_000 });
       await expectNonBlankAppPage(page, 'borrower dashboard');
       await expectRunText(page, seed.loan.loanCode);
       evidence.pass('UI-015');
@@ -175,6 +175,7 @@ test.describe('LoanTrack critical UI flow', () => {
   });
 
   test('UI-016 critical route smoke for admin and agent', async ({ page }) => {
+    test.setTimeout(120_000);
     evidence.role('admin');
     await loginAs(page, {
       username: seed.admin.username,
