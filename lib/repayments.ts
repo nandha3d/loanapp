@@ -181,10 +181,9 @@ export async function reallocateLoanRepayments(
 
   // Preserve ACTUAL per-instalment payments — money stays on the row it was
   // recorded against (the loan page's "Actual" view and the DB agree; the
-  // "Distributed" toggle remains a display-only projection). The fill ORDER
-  // of a loan-level collection (today's due first, then overdue oldest-first)
-  // is decided at write time in distributeCollectionAcrossLoan via
-  // orderInstalmentsForCollectionFill; this function only recomputes statuses,
+  // "Distributed" toggle remains a display-only projection). Loan-level
+  // collection writes now preserve that actual row amount; this function only
+  // recomputes statuses,
   // overdue figures and the loan status from what each row actually holds.
   const today = startOfDay(now);
   const waived = instalments.filter((i) => i.status === 'waived');

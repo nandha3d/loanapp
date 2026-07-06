@@ -29,8 +29,8 @@ export type CollectionEntryInput = z.infer<typeof CollectionEntrySchema>;
 
 /**
  * Body schema for loan-level collection (`/api/v1/collection/collect` POST).
- * One payment spread across the loan's open instalments today-first
- * (today's due → overdue oldest-first → future).
+ * One payment recorded on the collection-date row for Actual; Distributed
+ * remains a display-only projection.
  */
 export const CollectLoanSchema = z
   .object({

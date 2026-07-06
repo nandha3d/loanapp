@@ -52,8 +52,9 @@ export function isCollectionDay(
 
 /**
  * Loan-level collectibility — does the loan's status permit any collection?
- * Used by the loan-distribution path, which spreads one payment across many
- * instalments, so the per-instalment "already collected" check doesn't apply.
+ * Used by the loan-level actual-date path, where one payment can exceed the
+ * selected row's scheduled due, so the per-instalment "already collected"
+ * check doesn't apply.
  */
 export function getLoanCollectionBlockReason(status: string | null | undefined): string | null {
   if (status === 'pending_review') {

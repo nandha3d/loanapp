@@ -5,7 +5,7 @@ import {
   isGpsTrackingEnabled,
   normalizeGpsBody,
 } from '@/lib/gps/locationVerifier';
-import { distributeCollectionAcrossLoan } from '@/lib/collectionWrite';
+import { recordActualLoanCollection } from '@/lib/collectionWrite';
 import { CollectLoanSchema } from '@/lib/schemas/collectionEntry';
 
 function errorMessage(error: unknown): string {
@@ -20,10 +20,9 @@ function errorCode(error: unknown): string | undefined {
 
 /**
  * Loan-level collection submit. Body: `{loanId, amount, paymentMode, remarks?,
- * collectionDate?, idempotencyKey?, gps...}`. The amount is spread across the
- * loan's open instalments TODAY-FIRST (today's due → overdue oldest-first →
- * future), each filled to its remaining due only. Shared by the web popup and
- * (online) mobile sheet.
+ * collectionDate?, idempotencyKey?, gps...}`. The amount is recorded on the
+ * collection-date instalment for Actual; Distributed remains a display-only
+ * projection. Shared by the web popup and online mobile sheet.
  */
 export async function POST(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -40,7 +39,7 @@ export async function POST(req: NextRequest) {
     const gpsTrackingEnabled = await isGpsTrackingEnabled(ctx.tenantId);
     const gpsCapture = normalizeGpsBody(body, gpsTrackingEnabled);
 
-    const result = await distributeCollectionAcrossLoan(
+    const result = await recordActualLoanCollection(
       {
         tenantId: ctx.tenantId,
         appType: ctx.appType,

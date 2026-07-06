@@ -65,8 +65,7 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
           ref.read(collectionTodayProvider).value ??
           const <CollectionRow>[];
       // Scope to the tapped LOAN (not the whole customer) so a payment never
-      // bleeds across a customer's separate loans — matches the web popup and
-      // the server's loan-wide oldest-first distribution.
+      // bleeds across a customer's separate loans — matches the web popup.
       _customerRows = rows
           .where((r) => r.loanId == widget.row.loanId && !r.isResolved)
           .toList();
@@ -98,9 +97,8 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
     }
 
     // Default selection: today's due if there is one, else the full total
-    // (pure overdue catch-up). The chosen card just presets the amount — the
-    // payment is always distributed today-first (today's due → overdue
-    // oldest-first → future) by the server.
+    // (pure overdue catch-up). The chosen card just presets the amount; Actual
+    // still records the final payment on the collection-date row.
     _selectedToday = _todayDue > 0;
     final defaultAmt = _selectedToday ? _todayDue : _totalDue;
     _amount = defaultAmt.round().toString();
@@ -209,40 +207,22 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
     try {
       final customerRows = _customerRows.isEmpty ? [widget.row] : _customerRows;
 
-      // TODAY-FIRST allocation: today's due → overdue (oldest first) → future.
-      // The server (`/collection/collect`) is the single source of truth for
-      // this order; the same ordering here is used only to preset the OFFLINE
-      // queue (per-instalment entries replayed when back online) and to cap
-      // the amount at the total outstanding.
-      final allocationOrder = [...customerRows]
-        ..sort((a, b) {
-          int bucket(CollectionRow r) =>
-              r.daysOverdue == 0 ? 0 : (r.daysOverdue > 0 ? 1 : 2);
-          final d = bucket(a) - bucket(b);
-          if (d != 0) return d;
-          return a.dueDate.compareTo(b.dueDate);
-        });
+      // Actual collection: keep the entered money on the collection-date row.
+      // Distributed schedule is only a projection, so the offline queue also
+      // stores one actual payment instead of splitting it across due rows.
+      final targetInst = _todayInstalment ??
+          (widget.row.isTodayBucket
+              ? widget.row
+              : (_overdueInstalment ?? widget.row));
 
       // Never collect more than the total outstanding across the loaded dues.
-      final totalRoom = allocationOrder.fold<double>(
+      final totalRoom = customerRows.fold<double>(
         0,
         (s, r) => s + (r.outstanding > 0 ? r.outstanding : 0),
       );
-      double remaining = amt > totalRoom ? totalRoom : amt;
+      final appliedTotal = amt > totalRoom ? totalRoom : amt;
 
-      final payments = <MapEntry<CollectionRow, double>>[];
-      for (final inst in allocationOrder) {
-        if (remaining <= 0) break;
-        final outstandingAmt = inst.outstanding;
-        if (outstandingAmt <= 0) continue;
-        final toPay = remaining < outstandingAmt ? remaining : outstandingAmt;
-        if (toPay > 0) {
-          payments.add(MapEntry(inst, toPay));
-          remaining -= toPay;
-        }
-      }
-
-      if (payments.isEmpty) {
+      if (appliedTotal <= 0) {
         setState(() {
           _submitting = false;
           _error = t.x('err.enter_valid_amount');
@@ -250,26 +230,22 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
         return;
       }
 
-      // Actual total applied (input is capped at total outstanding above).
-      final appliedTotal = payments.fold<double>(0, (s, p) => s + p.value);
-
       if (!sync.online) {
-        for (final p in payments) {
-          final inst = p.key;
-          final pAmt = p.value;
-          await queue.add(
-            QueuedCollection(
-              idempotencyKey: _idempotencyKey(inst.instalmentId, pAmt),
-              instalmentId: inst.instalmentId,
-              receivedAmount: pAmt,
-              paymentMode: _mode,
-              collectionDate: today,
-              status: 'pending',
-              customerName: widget.row.customerName,
-              loanCode: widget.row.loanCode,
+        await queue.add(
+          QueuedCollection(
+            idempotencyKey: _idempotencyKey(
+              targetInst.instalmentId,
+              appliedTotal,
             ),
-          );
-        }
+            instalmentId: targetInst.instalmentId,
+            receivedAmount: appliedTotal,
+            paymentMode: _mode,
+            collectionDate: today,
+            status: 'pending',
+            customerName: widget.row.customerName,
+            loanCode: widget.row.loanCode,
+          ),
+        );
         await ref.read(collectionSyncProvider.notifier).refresh();
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -306,11 +282,10 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
         gps = {'status': 'not_captured'};
       }
 
-      // ONE loan-level submit — the server allocates today-first (today's due
-      // → overdue oldest-first → future) inside a single transaction, so web
-      // and mobile always record identical figures. No client-side splitting.
+      // ONE loan-level submit — the server records the amount on the
+      // collection-date row for Actual. No client-side splitting.
       try {
-        // No client key — the server derives stable per-instalment keys from
+        // No client key — the server derives a stable date-row key from
         // (agent, instalment, amount, day), exactly like the web popup.
         await svc.collectLoan(
           loanId: widget.row.loanId,
@@ -320,22 +295,22 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
         );
       } catch (e) {
         if (e is ApiException) rethrow;
-        // Network error: queue the allocation offline (per-instalment entries,
-        // same today-first order) to replay when back online.
-        for (final p in payments) {
-          await queue.add(
-            QueuedCollection(
-              idempotencyKey: _idempotencyKey(p.key.instalmentId, p.value),
-              instalmentId: p.key.instalmentId,
-              receivedAmount: p.value,
-              paymentMode: _mode,
-              collectionDate: today,
-              status: 'pending',
-              customerName: widget.row.customerName,
-              loanCode: widget.row.loanCode,
+        // Network error: queue the same actual-date payment to replay online.
+        await queue.add(
+          QueuedCollection(
+            idempotencyKey: _idempotencyKey(
+              targetInst.instalmentId,
+              appliedTotal,
             ),
-          );
-        }
+            instalmentId: targetInst.instalmentId,
+            receivedAmount: appliedTotal,
+            paymentMode: _mode,
+            collectionDate: today,
+            status: 'pending',
+            customerName: widget.row.customerName,
+            loanCode: widget.row.loanCode,
+          ),
+        );
         await ref.read(collectionSyncProvider.notifier).refresh();
         if (!mounted) return;
         setState(() => _error = '${t.x('sync.saved_offline_err')}: $e');
@@ -742,8 +717,8 @@ class _AmountDisplay extends ConsumerWidget {
     final Color color;
     final String hint;
 
-    // Amount is always applied today-first (today's due → overdue oldest-first
-    // → future), so the only thing that matters is how much of the total it clears.
+    // Actual stores the payment on the collection-date row; this hint only
+    // explains how much of the loaded due total the entered amount clears.
     if (value <= 0) {
       color = AppColors.textPrimary;
       hint = '${t.x('coll.outstanding_label')} ${fmt.format(totalDue)}';

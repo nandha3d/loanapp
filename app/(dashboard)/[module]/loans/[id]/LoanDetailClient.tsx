@@ -358,7 +358,7 @@ export default function LoanDetailClient({
   const [qrCodeUrl, setQrCodeUrl] = useState('');
 
   // Loan-wide collect popup (same UX as the collection page): two preset cards
-  // (today's due / total due), editable amount, spread oldest-first server-side.
+  // (today's due / total due), editable amount, recorded on the date row.
   const [collectOpen, setCollectOpen] = useState(false);
   const [collectAmount, setCollectAmount] = useState(0);
   const [collectCard, setCollectCard] = useState<'today' | 'total'>('today');
@@ -976,8 +976,8 @@ export default function LoanDetailClient({
                   const isHighlighted = highlightedInstalmentNo === inst.instalmentNo;
                   // Overdue = past-due and not fully paid. These rows are shown
                   // dull red and read-only (no per-row Pay) — collection happens
-                  // via the single "Record Payment" popup, which clears the
-                  // backlog oldest-first. Admin keeps an Edit to correct a date.
+                  // via the single "Record Payment" popup, which records on
+                  // the collection-date row. Admin keeps an Edit to correct a date.
                   const isOverdue = inst.status === 'missed';
                   return (
                     <tr
@@ -1316,8 +1316,8 @@ export default function LoanDetailClient({
       </div>
 
       {/* Loan-wide collect popup — same UX as the collection page. Pick a preset
-          (today's due / total due), edit if needed; the server spreads it across
-          open instalments oldest-first and records it today. */}
+          (today's due / total due), edit if needed; the server records it on
+          the collection-date row for Actual. */}
       {collectOpen && (
         <div className="modal-overlay show" onClick={(e) => { if (e.target === e.currentTarget) setCollectOpen(false); }}>
           <div className="modal">

@@ -53,7 +53,7 @@ export async function recordGoldServicing(
 
 /**
  * Loan-wide collection from the loan page — same engine as the collection page
- * popup: spreads the amount across open instalments oldest-first, recorded today.
+ * popup: records the amount on the collection-date row for Actual.
  */
 export async function markLoanCollection(formData: FormData) {
   return submitLoanCollection(formData);

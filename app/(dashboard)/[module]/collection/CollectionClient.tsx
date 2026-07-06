@@ -455,8 +455,8 @@ export default function CollectionClient({
       setAmount(instalment.receivedAmount);
     } else {
       // New collection: default to today's due; if nothing is due today (pure
-      // overdue catch-up) default to the full outstanding. Recorded loan-wide,
-      // distributed oldest-first by the server.
+      // overdue catch-up) default to the full outstanding. Actual keeps the
+      // payment on the collection-date row; Distributed is display-only.
       const fig = loanFiguresFor(instalment);
       const defaultAmt = fig.todayDue > 0 ? fig.todayDue : fig.totalOutstanding;
       setSelectedCard(fig.todayDue > 0 ? 'today' : 'total');
@@ -548,9 +548,9 @@ export default function CollectionClient({
         if (gps.altitude !== undefined && gps.altitude !== null) fd.set('gpsAltitude', String(gps.altitude));
         if (gps.timestamp) fd.set('gpsTimestamp', gps.timestamp);
 
-        // New collection (instalment never paid) → record loan-wide, spread
-        // today-first (today's due → overdue oldest-first). Admin correction of
-        // an already-paid instalment stays a single-instalment write.
+        // New collection (instalment never paid) records loan-wide on the
+        // collection-date row for Actual. Admin correction of an already-paid
+        // instalment stays a single-instalment write.
         let result;
         if (modal.receivedAmount === 0) {
           fd.set('loanId', modal.loan.id);
@@ -1294,7 +1294,7 @@ export default function CollectionClient({
             <div className="modal-footer" style={{ flexWrap: 'wrap', gap: '8px' }}>
               {(() => {
                 // One Collect button per distinct loan with something unpaid. Each
-                // opens the loan-wide collect popup (oldest-first distribution).
+                // opens the loan-wide collect popup.
                 const loanMap = new Map<string, { code: string; inst: CollectionRow; outstanding: number }>();
                 for (const inst of overdueCustomerGroup.instalments) {
                   if (inst.outstandingAmount <= 0) continue;
@@ -1358,7 +1358,7 @@ export default function CollectionClient({
               {isNewCollect && (
                 <>
                   {/* Two preset amount cards. Pick one to fill the amount, then
-                      edit freely. Payment is spread oldest-first server-side. */}
+                      edit freely. Actual stores it on the collection-date row. */}
                   <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
                     <button
                       type="button"

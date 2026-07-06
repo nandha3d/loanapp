@@ -74,11 +74,10 @@ class CollectionService {
     );
   }
 
-  /// Loan-level collection: the server spreads the amount across the loan's
-  /// open instalments TODAY-FIRST (today's due → overdue oldest-first →
-  /// future). Single source of truth — the app never allocates client-side.
-  /// When `idempotencyKey` is omitted the server derives stable per-instalment
-  /// keys (same behaviour as the web popup). Returns the applied amount.
+  /// Loan-level collection: the server records the amount on the date row for
+  /// Actual. Distributed remains a display-only projection.
+  /// When `idempotencyKey` is omitted the server derives a stable key from the
+  /// date-row instalment. Returns the applied amount.
   Future<double> collectLoan({
     required String loanId,
     required double amount,
