@@ -507,8 +507,8 @@ export default function CollectionClient({
         if (gps.timestamp) fd.set('gpsTimestamp', gps.timestamp);
 
         // New collection (instalment never paid) → record loan-wide, spread
-        // oldest-first. Admin correction of an already-paid instalment stays a
-        // single-instalment write.
+        // today-first (today's due → overdue oldest-first). Admin correction of
+        // an already-paid instalment stays a single-instalment write.
         let result;
         if (modal.receivedAmount === 0) {
           fd.set('loanId', modal.loan.id);

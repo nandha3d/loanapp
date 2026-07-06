@@ -4,7 +4,7 @@ import { getAgentRouteIds } from '@/lib/access';
 import { canAgentAccessCustomer } from '@/lib/loanPolicy';
 import { buildCollectionIdempotencyKey, getCollectionSubmissionBlockReason, getLoanCollectionBlockReason } from '@/lib/collectionPolicy';
 import { recordPaymentLedger } from '@/lib/paymentService';
-import { reallocateLoanRepayments } from '@/lib/repayments';
+import { orderInstalmentsForCollectionFill, reallocateLoanRepayments } from '@/lib/repayments';
 import { creditCollection } from '@/lib/wallet';
 
 type Tx = Prisma.TransactionClient;
@@ -377,13 +377,14 @@ export type DistributeCollectionResult = {
 
 /**
  * Collects ONE payment and spreads it across a loan's open instalments,
- * OLDEST-FIRST (overdue before today before future). Each instalment is filled
- * up to its remaining room only — so the recorded "actual" allocation matches
- * the chronological "distributed" view shown on the loan page, and no single
- * instalment is ever over-credited.
+ * TODAY'S DUE FIRST, then overdue oldest-first, then future. Each instalment
+ * is filled up to its remaining room only — today's due is always settled
+ * before any excess starts clearing the arrears, and no single instalment is
+ * ever over-credited. All entries are dated the collection day.
  *
- * Example: customer owes 10×₹100 overdue + ₹100 today and pays ₹1100 → the 11
- * instalments are each settled ₹100 in date order, all dated today.
+ * Example: customer owes ₹800 overdue (8×₹100) + ₹100 today and pays ₹200 →
+ * today's ₹100 row is settled first, the remaining ₹100 clears the oldest
+ * overdue row; overdue drops to ₹700 and today shows no pending due.
  *
  * Runs in ONE transaction. Reuses `recordCollection` per instalment, so ledger,
  * daily rollup, wallet float, and loan reallocation behave exactly as a single
@@ -437,13 +438,16 @@ export async function distributeCollectionAcrossLoan(
         orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
       });
 
+      // Fill order: today's due first, then overdue oldest-first, then future.
+      const fillOrder = orderInstalmentsForCollectionFill(instalments, collectionDate);
+
       const posted: DistributeCollectionResult['posted'] = [];
       let remaining = amount;
       let dailyId: string | null = null;
       let firstEntryId: string | null = null;
       let cashApplied = 0;
 
-      for (const inst of instalments) {
+      for (const inst of fillOrder) {
         if (remaining <= 0) break;
         if (inst.status === 'waived') continue;
         const room = Number(inst.dueAmount) - Number(inst.receivedAmount ?? 0);

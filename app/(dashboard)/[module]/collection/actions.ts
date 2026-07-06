@@ -51,8 +51,8 @@ export async function submitCollectionEntry(formData: FormData) {
 
 /**
  * Loan-level collection: one payment spread across the loan's open instalments
- * oldest-first (overdue → today → future). The amount is recorded today and
- * each instalment is filled only up to its remaining due.
+ * today-first (today's due → overdue oldest-first → future). The amount is
+ * recorded today and each instalment is filled only up to its remaining due.
  */
 export async function submitLoanCollection(formData: FormData) {
   const loanId = formData.get('loanId') as string;

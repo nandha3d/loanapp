@@ -66,71 +66,42 @@ export async function GET(
   });
   if (!loan) return fail('Loan not found', 404);
 
-  // Helper to get local date string YYYY-MM-DD
+  // Date string YYYY-MM-DD in UTC — instalment dueDates are stored at UTC
+  // midnight, so UTC getters keep the calendar date stable on any server TZ.
   const toDateStr = (dateInput: Date | string) => {
     const d = new Date(dateInput);
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
+    const yyyy = d.getUTCFullYear();
+    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(d.getUTCDate()).padStart(2, '0');
     return `${yyyy}-${mm}-${dd}`;
   };
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // Anchor "today" to the IST business day (matches /api/v1/collection/today
+  // and the web client running in the user's browser) so statuses and the
+  // restructured rate don't drift when the server runs in UTC.
+  const IST_OFFSET_MS = 330 * 60 * 1000;
+  const istNow = new Date(Date.now() + IST_OFFSET_MS);
+  const today = new Date(
+    Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()),
+  );
 
-  const payments = loan.payments || [];
-
-  // Match each payment to the closest installment by dueDate
-  const instMap = new Map<string, number>();
-  for (const payment of payments) {
-    const pDate = new Date(payment.paymentDate);
-    pDate.setHours(0, 0, 0, 0);
-    
-    let closestInst = loan.instalments[0];
-    let minDiff = Infinity;
-    for (const inst of loan.instalments) {
-      const iDate = new Date(inst.dueDate);
-      iDate.setHours(0, 0, 0, 0);
-      const diff = Math.abs(pDate.getTime() - iDate.getTime());
-      if (diff < minDiff) {
-        minDiff = diff;
-        closestInst = inst;
-      }
-    }
-    
-    if (closestInst) {
-      const current = instMap.get(closestInst.id) || 0;
-      instMap.set(closestInst.id, current + Number(payment.amount));
-    }
-  }
-
-  // Pre-map instalments with actual receivedAmount and computed status
+  // Per-instalment receivedAmount comes straight from the DB — it is the
+  // actual money recorded on each row (no redistribution, no payment-to-row
+  // guessing), so web, mobile and reports all read identical figures.
   const preMappedInstalments = loan.instalments.map((inst) => {
-    const actualAmount = instMap.get(inst.id) || 0;
+    const actualAmount = Number(inst.receivedAmount ?? 0);
     const isPaid = actualAmount >= Number(inst.dueAmount);
     const isPartial = actualAmount > 0 && actualAmount < Number(inst.dueAmount);
 
     let computedStatus = inst.status;
-    const instDateStr = toDateStr(inst.dueDate);
-
-    if (inst.status !== 'paid' && inst.status !== 'partial') {
+    if (inst.status !== 'waived') {
       if (isPaid) {
         computedStatus = 'paid';
       } else if (isPartial) {
         computedStatus = 'partial';
       } else if (new Date(inst.dueDate) < today) {
         computedStatus = 'missed';
-      } else if (instDateStr === toDateStr(today)) {
-        computedStatus = 'due today';
-      }
-    } else {
-      if (isPaid) {
-        computedStatus = 'paid';
-      } else if (isPartial) {
-        computedStatus = 'partial';
-      } else if (new Date(inst.dueDate) < today) {
-        computedStatus = 'missed';
-      } else if (instDateStr === toDateStr(today)) {
+      } else if (toDateStr(inst.dueDate) === toDateStr(today)) {
         computedStatus = 'due today';
       } else {
         computedStatus = 'upcoming';
@@ -147,10 +118,10 @@ export async function GET(
   // Restructured rate — computed server-side (single source of truth). Each
   // instalment gets a `restructuredAmount`; the loan carries the loan-level
   // figures. Clients render these directly and never recompute.
-  const restructure = computeRestructure(preMappedInstalments, loan.frequency, loan.endDate);
+  const restructure = computeRestructure(preMappedInstalments, loan.frequency, loan.endDate, today);
   const instalments = preMappedInstalments.map((inst) => ({
     ...inst,
-    restructuredAmount: restructuredAmountFor(inst, restructure.restructuredRate),
+    restructuredAmount: restructuredAmountFor(inst, restructure.restructuredRate, today),
   }));
 
   // Default "extend term" projection — same server-side source of truth the
@@ -160,6 +131,7 @@ export async function GET(
     preMappedInstalments,
     Number(loan.perInstalment),
     loan.frequency,
+    today,
   );
 
   return ok({ ...loan, instalments, restructure, extendedSchedule });
