@@ -72,6 +72,7 @@ class Endpoints {
   static String receipt(String entryId) => '/receipts/$entryId';
   static String agentCollections(String agentId) =>
       '/gps/agent/$agentId/collections';
+  static String gpsHistory(String agentId) => '/gps/history/$agentId';
 
   // Wallet (agent cash float)
   static const String walletMe = '/wallet/me';

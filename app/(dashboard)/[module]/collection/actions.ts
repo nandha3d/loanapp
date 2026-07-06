@@ -98,6 +98,35 @@ export async function submitLoanCollection(formData: FormData) {
   }
 }
 
+/**
+ * Browser-agent location pings. Agents working from the mobile-browser view
+ * (instead of the APK) post their position here while the collection page is
+ * open, so they appear on the same Agent Tracking map/log as app users.
+ * Proxies to /api/v1/gps/ping with the session's API token.
+ */
+export async function pingAgentLocation(
+  pings: {
+    lat: number;
+    lng: number;
+    accuracyM?: number;
+    speedMps?: number;
+    capturedAt?: string;
+  }[],
+) {
+  try {
+    const apiContext = await getApiRequestContext();
+    const res = await apiFetch<any>('/gps/ping', {
+      method: 'POST',
+      body: JSON.stringify({ pings }),
+      ...apiContext,
+    });
+    if (res.error) return { success: false, error: res.error };
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || 'Ping failed' };
+  }
+}
+
 export async function requestCollectionEdit(formData: FormData) {
   const instalmentId = formData.get('instalmentId') as string;
   const requestedAmount = Number(formData.get('requestedAmount'));
