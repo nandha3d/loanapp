@@ -1,11 +1,11 @@
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
-import { getDefaultTenantId, getBranding, getUserAppType } from '@/lib/tenant';
+import { getDefaultTenantId, getBranding, getUserAppType, getSetting } from '@/lib/tenant';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import Link from '@/components/layout/DashboardLink';
 import { redirect } from 'next/navigation';
 import { getActiveBranchId } from '@/lib/branch';
-import { CollectCashButton, VerifyUpiButton, BulkVerifyUpiButton } from './DashboardActions';
+import { VerifyUpiButton, BulkVerifyUpiButton } from './DashboardActions';
 import CollectionTrendChart from './CollectionTrendChart';
 import { ensurePendingPenaltiesForMissedLoans } from '@/lib/penalties';
 import { getDictionary } from '@/lib/i18n';
@@ -771,6 +771,12 @@ export default async function DashboardPage() {
 
   const activeBranchId = await getActiveBranchId();
 
+  // Manual UPI verification is OFF by default — UPI collections auto-verify
+  // and credit the account at collection time, so the pending panel is only
+  // shown when the tenant explicitly opts into manual review (Settings).
+  const upiManualVerify =
+    (await getSetting(tenantId, 'upi_manual_verification', 'false')) === 'true';
+
   if (appType === 'chitfunds') {
     const chitData = await getChitFundsDashboardData(tenantId, activeBranchId);
     return (
@@ -1513,16 +1519,13 @@ export default async function DashboardPage() {
                     <th>{dict.sidebar.customers}</th>
                     <th>{d.collectedToday}</th>
                     <th>{dict.loansList.overdue}</th>
-                    <th>{dict.customersList.action}</th>
                   </tr>
                 </thead>
                 <tbody>
+                  {/* Field cash settlement moved to Agent Wallet (handover flow) —
+                      no per-route Collect Cash action here anymore. */}
                   {data.routePerformance.map((route) => {
                     const routeCol = data.routeCollections?.find((rc: any) => rc.routeId === route.id);
-                    const agentId = data.pendingCashCollections?.find((p: any) => p.customer?.routeId === route.id)?.agentId;
-                    const pendingCash = data.pendingCashCollections
-                      ?.filter((p: any) => p.customer?.routeId === route.id)
-                      .reduce((sum: number, p: any) => sum + Number(p.receivedAmount), 0) || 0;
 
                     return (
                       <tr key={route.id}>
@@ -1534,18 +1537,6 @@ export default async function DashboardPage() {
                         </td>
                         <td style={{ color: route.overdue > 0 ? 'var(--danger)' : 'var(--success)', fontWeight: 700 }}>
                           {formatCurrency(route.overdue, branding.currencySymbol)}
-                        </td>
-                        <td>
-                          {agentId && pendingCash > 0 ? (
-                            <CollectCashButton
-                              routeId={route.id}
-                              agentId={agentId}
-                              pendingAmount={pendingCash}
-                              currencySymbol={branding.currencySymbol}
-                            />
-                          ) : (
-                            <span style={{ color: 'var(--text-light)', fontSize: '.8rem' }}>—</span>
-                          )}
                         </td>
                       </tr>
                     );
@@ -1567,7 +1558,7 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid-60-40" style={{ marginTop: '20px' }}>
+      <div className={upiManualVerify ? 'grid-60-40' : ''} style={{ marginTop: '20px' }}>
         <div className="card">
           <div className="card-header">
             <h3>{d.overdueAlerts}</h3>
@@ -1610,6 +1601,7 @@ export default async function DashboardPage() {
           )}
         </div>
 
+        {upiManualVerify && (
         <div className="card">
           <div className="card-header">
             <h3>{d.pendingUpiVerifications}</h3>
@@ -1657,6 +1649,7 @@ export default async function DashboardPage() {
             </div>
           )}
         </div>
+        )}
       </div>
 
       <div className="card" style={{ marginTop: '20px' }}>

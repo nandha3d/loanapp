@@ -3,6 +3,7 @@ import prisma from '@/lib/db';
 import { getAgentRouteIds } from '@/lib/access';
 import { canAgentAccessCustomer } from '@/lib/loanPolicy';
 import { buildCollectionIdempotencyKey, getCollectionSubmissionBlockReason, getLoanCollectionBlockReason } from '@/lib/collectionPolicy';
+import { getSetting } from '@/lib/tenant';
 import { recordPaymentLedger } from '@/lib/paymentService';
 import { orderInstalmentsForCollectionFill, reallocateLoanRepayments } from '@/lib/repayments';
 import { creditCollection } from '@/lib/wallet';
@@ -83,6 +84,13 @@ export type RecordCollectionInput = {
    * confirmation (agent-only). When provided, skips the per-call user lookup.
    */
   forceConfirmation?: boolean;
+  /**
+   * Prefetched tenant setting `upi_manual_verification` ('true' = admin must
+   * verify UPI by hand). When undefined, looked up per call. Manual mode is
+   * OFF by default — UPI/online entries auto-verify and credit the account
+   * immediately, exactly like the admin "Credited to Account" button.
+   */
+  upiManualVerification?: boolean;
 };
 
 /**
@@ -162,6 +170,23 @@ export async function recordCollection(
     verificationStatus = 'pending_confirmation';
   }
 
+  // UPI/online auto-verify: unless the tenant opted into manual verification,
+  // a digital payment is verified at collection time and credited to the
+  // account ledger right away (same as the dashboard verify button). Only
+  // applies when the caller didn't already decide the status (QR proof etc.
+  // pass 'verified' explicitly and handle their own posting).
+  let autoVerifiedUpi = false;
+  if ((paymentMode === 'upi' || paymentMode === 'online') && verificationStatus === 'pending') {
+    let manual = input.upiManualVerification;
+    if (manual === undefined) {
+      manual = (await getSetting(tenantId, 'upi_manual_verification', 'false')) === 'true';
+    }
+    if (!manual) {
+      verificationStatus = 'verified';
+      autoVerifiedUpi = true;
+    }
+  }
+
   const entry = await tx.collectionEntry.create({
     data: {
       tenantId,
@@ -194,6 +219,26 @@ export async function recordCollection(
     amount: applied,
     paymentMode,
   });
+
+  // Credit the account for auto-verified digital payments — byte-for-byte what
+  // the manual "Credited to Account" verification writes.
+  if (autoVerifiedUpi) {
+    await tx.accountEntry.create({
+      data: {
+        tenantId,
+        appType,
+        entryDate: new Date(),
+        type: 'collection',
+        category: 'upi',
+        amount: applied,
+        description: `Auto-verified UPI collection (entry ${entry.id})`,
+        referenceId: entry.id,
+        referenceType: 'payment',
+        createdBy: agentId,
+        branchId: instalment.loan.branchId,
+      },
+    });
+  }
 
   await tx.instalment.update({
     where: { id: instalment.id },
@@ -430,6 +475,10 @@ export async function distributeCollectionAcrossLoan(
   });
   const forceConfirmation = collector?.role === 'agent' && !!collector?.feeConfirmationMandatory;
 
+  // Prefetch the UPI manual-verification setting once for the whole batch.
+  const upiManualVerification =
+    (await getSetting(actor.tenantId, 'upi_manual_verification', 'false')) === 'true';
+
   return prisma.$transaction(
     async (tx) => {
       const instalments = await tx.instalment.findMany({
@@ -479,6 +528,7 @@ export async function distributeCollectionAcrossLoan(
           remarks: input.remarks ?? null,
           creditFloat: false,
           forceConfirmation,
+          upiManualVerification,
           skipReallocate: true,
           skipRollup: true,
           gps: input.gps ?? null,

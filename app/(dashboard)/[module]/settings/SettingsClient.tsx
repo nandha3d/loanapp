@@ -662,6 +662,23 @@ export default function SettingsClient({
             <input type="file" name="upiQrCode" accept="image/*" className="form-control" />
             <span style={{fontSize:'.75rem', color:'var(--text-light)', marginTop:'4px', display:'block'}}>{d.upiQrHelper}</span>
           </div>
+          <div style={{ marginTop: '24px', borderTop: '1px solid var(--border)', paddingTop: '20px', marginBottom: '20px' }}>
+            <h4 style={{ marginBottom: '8px' }}>✅ UPI Verification</h4>
+            <p style={{ fontSize: '.8rem', color: 'var(--text-light)', marginBottom: '12px' }}>
+              By default UPI/online collections are verified automatically and credited to the
+              account the moment they are recorded. Turn this on only if an admin must review
+              each UPI payment by hand (shows the Pending UPI panel on the dashboard).
+            </p>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                name="upi_manual_verification"
+                value="true"
+                defaultChecked={settings.upi_manual_verification === 'true'}
+              />
+              <strong>Require manual UPI verification</strong>
+            </label>
+          </div>
           {subscription?.receiptPdfAllowed && (
             <div style={{ marginTop: '24px', borderTop: '1px solid var(--border)', paddingTop: '20px', marginBottom: '20px' }}>
               <h4 style={{ marginBottom: '8px' }}>📄 Payment Receipt PDF</h4>

@@ -340,8 +340,24 @@ function AgentRow({ agent, currencySymbol }: { agent: Agent; currencySymbol: str
         if (!confirm(`${collect ? 'Collect' : 'Release'} ${fmt(currencySymbol, amt)} ${collect ? 'from' : 'to'} ${agent.name}?`)) return;
         setBusy(true);
         try {
-          if (collect) await collectFromAgentAction(fd);
-          else await releaseFundsAction(fd);
+          if (collect) {
+            await collectFromAgentAction(fd);
+          } else {
+            const res = await releaseFundsAction(fd);
+            // Branch pool can't cover the release — offer a one-tap capital
+            // top-up for the shortfall, then release in the same flow.
+            if (res && 'lowCapital' in res && res.lowCapital) {
+              const ok = confirm(
+                `⚠ Low capital: the branch pool holds only ${fmt(currencySymbol, res.balance)}, ` +
+                `but this release needs ${fmt(currencySymbol, amt)}.\n\n` +
+                `Add ${fmt(currencySymbol, res.shortfall)} as capital now and release?`,
+              );
+              if (ok) {
+                fd.set('autoTopUp', '1');
+                await releaseFundsAction(fd);
+              }
+            }
+          }
         } finally {
           setBusy(false);
         }

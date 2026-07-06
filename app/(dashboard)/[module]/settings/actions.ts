@@ -38,6 +38,11 @@ export async function saveUpiQrCode(formData: FormData) {
   const receiptPdfActive = formData.get('receipt_pdf_active') === 'true' ? 'true' : 'false';
   await setSetting(tenantId, 'receipt_pdf_active', receiptPdfActive, 'payment');
 
+  // Manual UPI verification (default off — UPI auto-verifies and credits the
+  // account at collection time; on = admin reviews each UPI payment by hand).
+  const upiManualVerification = formData.get('upi_manual_verification') === 'true' ? 'true' : 'false';
+  await setSetting(tenantId, 'upi_manual_verification', upiManualVerification, 'payment');
+
   // Save QR code image
   if (qrFile && qrFile.size > 0) {
     const dir = path.join(UPLOAD_DIR, tenantId, 'settings');

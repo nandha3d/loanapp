@@ -4,7 +4,8 @@ import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
-import { releaseToAgent, injectBranchCash, collectFromAgent, getAgentBalance } from '@/lib/wallet';
+import { releaseToAgent, injectBranchCash, collectFromAgent, getAgentBalance, applyAccountingCashToBranch } from '@/lib/wallet';
+import { autoPostCapitalAdd } from '@/lib/accounting/autoPost';
 import { writeAudit } from '@/lib/audit';
 import { modulePath } from '@/types/modules';
 
@@ -35,6 +36,9 @@ export async function releaseFundsAction(formData: FormData) {
   const agentId = String(formData.get('agentId') || '');
   const amount = Number(formData.get('amount'));
   const note = (String(formData.get('note') || '') || null) as string | null;
+  // '1' = the admin confirmed the low-capital prompt: post a capital_add for
+  // the shortfall first, then release — capital is topped up in the same flow.
+  const autoTopUp = String(formData.get('autoTopUp') || '') === '1';
   if (!agentId || !(amount > 0)) throw new Error('agentId and a positive amount are required');
 
   const agent = await prisma.user.findFirst({
@@ -42,6 +46,61 @@ export async function releaseFundsAction(formData: FormData) {
     select: { id: true, branchId: true },
   });
   if (!agent) throw new Error('Agent not found');
+
+  // Low-capital guard: releasing debits the branch pool. If the pool can't
+  // cover the release, surface it to the client instead of silently driving
+  // the pool negative — the client offers a one-tap capital top-up.
+  if (agent.branchId) {
+    const pool = await prisma.branchCashAccount.findUnique({
+      where: { tenantId_appType_branchId: { tenantId, appType, branchId: agent.branchId } },
+      select: { balance: true },
+    });
+    const balance = Number(pool?.balance ?? 0);
+    if (amount > balance) {
+      const shortfall = Math.round((amount - balance) * 100) / 100;
+      if (!autoTopUp) {
+        return { lowCapital: true as const, balance, shortfall };
+      }
+      // Post the shortfall as capital added to this branch (same writes as the
+      // accounting "Capital Add" quick action), then proceed with the release.
+      const entry = await prisma.$transaction(async (tx) => {
+        const accountEntry = await tx.accountEntry.create({
+          data: {
+            tenantId,
+            appType,
+            entryDate: new Date(),
+            type: 'capital_add',
+            category: 'cash',
+            amount: shortfall,
+            description: note ? `Capital top-up for agent release — ${note}` : 'Capital top-up for agent release',
+            createdBy: userId,
+            branchId: agent.branchId,
+          },
+        });
+        await applyAccountingCashToBranch(tx, {
+          tenantId,
+          appType,
+          branchId: agent.branchId!,
+          amount: shortfall,
+          entryType: 'capital_add',
+          accountEntryId: accountEntry.id,
+          byUserId: userId,
+          note: 'Capital top-up for agent release',
+        });
+        return accountEntry;
+      });
+      await autoPostCapitalAdd({
+        tenantId,
+        entryId: entry.id,
+        description: 'Capital top-up for agent release',
+        amount: shortfall,
+        date: new Date(),
+        branchId: agent.branchId,
+        createdById: userId,
+        category: 'cash',
+      });
+    }
+  }
 
   await releaseToAgent({
     tenantId,
@@ -62,6 +121,7 @@ export async function releaseFundsAction(formData: FormData) {
   });
 
   revalidatePath(modulePath(appType, '/wallet'));
+  return { success: true as const };
 }
 
 export async function injectBranchAction(formData: FormData) {
