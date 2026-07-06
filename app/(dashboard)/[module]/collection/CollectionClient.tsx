@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { formatCurrency, formatDate, getBadgeClass, getInitials, getPaginationPages } from '@/lib/utils';
-import { submitCollectionEntry, submitLoanCollection, requestCollectionEdit, requestCashHandover } from './actions';
+import { submitCollectionEntry, submitLoanCollection, requestCollectionEdit, requestCashHandover, pingAgentLocation } from './actions';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from '@/components/layout/DashboardLink';
 
@@ -200,6 +200,40 @@ export default function CollectionClient({
   const isAdmin = agentRole === 'admin' || agentRole === 'superadmin';
   const modalRef = useRef<HTMLDivElement>(null);
   const todayISO = new Date().toISOString().slice(0, 10);
+
+  // Browser-agent tracking: agents using the mobile-browser view (not the APK)
+  // stream location pings while this page is open, so they show up on the
+  // Agent Tracking map/log exactly like app users. Batched and flushed every
+  // 30s — same cadence as the app's GpsPinger.
+  useEffect(() => {
+    if (agentRole !== 'agent' || typeof navigator === 'undefined' || !navigator.geolocation) return;
+    const buffer: { lat: number; lng: number; accuracyM?: number; speedMps?: number; capturedAt?: string }[] = [];
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        buffer.push({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracyM: pos.coords.accuracy ?? undefined,
+          speedMps: pos.coords.speed ?? undefined,
+          capturedAt: new Date(pos.timestamp).toISOString(),
+        });
+        if (buffer.length > 100) buffer.splice(0, buffer.length - 100);
+      },
+      () => {}, // denied/unavailable — entry-level GPS capture still applies
+      { enableHighAccuracy: false, maximumAge: 15000 },
+    );
+    const flush = setInterval(() => {
+      if (buffer.length === 0) return;
+      const batch = buffer.splice(0, buffer.length);
+      pingAgentLocation(batch).catch(() => {
+        buffer.unshift(...batch.slice(-100));
+      });
+    }, 30_000);
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+      clearInterval(flush);
+    };
+  }, [agentRole]);
 
   // DEF-031 / DEF-032: Trap focus within modal and close on Escape
   useEffect(() => {
@@ -515,8 +549,8 @@ export default function CollectionClient({
         if (gps.timestamp) fd.set('gpsTimestamp', gps.timestamp);
 
         // New collection (instalment never paid) → record loan-wide, spread
-        // oldest-first. Admin correction of an already-paid instalment stays a
-        // single-instalment write.
+        // today-first (today's due → overdue oldest-first). Admin correction of
+        // an already-paid instalment stays a single-instalment write.
         let result;
         if (modal.receivedAmount === 0) {
           fd.set('loanId', modal.loan.id);

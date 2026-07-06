@@ -48,7 +48,10 @@ class AuthController extends StateNotifier<AuthState> {
 
   Future<void> _bootstrap() async {
     try {
-      final user = await _repo.currentUser().timeout(const Duration(seconds: 4));
+      // The repo resolves fast even offline (cached-user fallback); this outer
+      // timeout is only a last-resort guard against secure-storage hangs.
+      final user =
+          await _repo.currentUser().timeout(const Duration(seconds: 12));
       if (user == null) {
         state = const AuthState(stage: AuthStage.unauthenticated);
       } else {

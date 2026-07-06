@@ -23,8 +23,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    // If we stay on splash screen for > 4 seconds, show a fallback continue button
-    _timer = Timer(const Duration(seconds: 4), () {
+    // Fallback escape hatch only AFTER the auth bootstrap guard (12s) has had
+    // its chance — showing it earlier tempted users into "Proceed to Login",
+    // which wipes the stored session and looked like "login not remembered".
+    _timer = Timer(const Duration(seconds: 15), () {
       if (mounted) setState(() => _showFallback = true);
     });
   }

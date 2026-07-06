@@ -74,6 +74,40 @@ class CollectionService {
     );
   }
 
+  /// Loan-level collection: the server spreads the amount across the loan's
+  /// open instalments TODAY-FIRST (today's due → overdue oldest-first →
+  /// future). Single source of truth — the app never allocates client-side.
+  /// When `idempotencyKey` is omitted the server derives stable per-instalment
+  /// keys (same behaviour as the web popup). Returns the applied amount.
+  Future<double> collectLoan({
+    required String loanId,
+    required double amount,
+    required String paymentMode,
+    String? idempotencyKey,
+    String? remarks,
+    DateTime? collectionDate,
+    Map<String, dynamic>? gps,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.collectionCollect,
+      data: {
+        'loanId': loanId,
+        'amount': amount,
+        'paymentMode': paymentMode,
+        if (idempotencyKey != null) 'idempotencyKey': idempotencyKey,
+        if (remarks != null) 'remarks': remarks,
+        if (collectionDate != null)
+          'collectionDate': collectionDate.toIso8601String(),
+        if (gps != null) 'gps': gps,
+      },
+    );
+    return unwrapEnvelope(res, (dynamic d) {
+      final m = d as Map<String, dynamic>;
+      final v = m['applied'];
+      return v is num ? v.toDouble() : double.tryParse('${v ?? 0}') ?? 0;
+    });
+  }
+
   /// Photo proof: files a pending request that the client must approve.
   /// Returns the approval id.
   Future<String> submitPhotoProof({

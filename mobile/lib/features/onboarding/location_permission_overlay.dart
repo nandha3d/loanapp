@@ -9,13 +9,16 @@ import 'package:loantrack/core/theme/app_colors.dart';
 
 const _kPrefsBox = 'prefs';
 const _kAskedKey = 'location_always_prompt_seen_v1';
-const _kCoreAskedKey = 'core_permissions_prompt_seen_v1';
+// v2: expanded from camera+notifications to the FULL permission set, so
+// existing installs get one re-prompt with the complete list.
+const _kCoreAskedKey = 'core_permissions_prompt_seen_v2';
 
 /// One-time, every-role prompt (shown once after first login) that requests
-/// the app's other runtime permissions up front — camera (customer/KYC photo
-/// capture) and notifications — instead of only asking contextually the
-/// first time each feature is used. Declining any of them doesn't block the
-/// app; those features just re-prompt (or silently no-op) when used later.
+/// ALL the app's runtime permissions up front — location, camera, photos/
+/// storage, phone, SMS, microphone (voice entry) and notifications — instead
+/// of asking contextually the first time each feature is used. Declining any
+/// of them doesn't block the app; those features just re-prompt (or silently
+/// no-op) when used later.
 Future<void> maybeRequestCorePermissions(BuildContext context) async {
   final box = Hive.isBoxOpen(_kPrefsBox)
       ? Hive.box<dynamic>(_kPrefsBox)
@@ -32,9 +35,13 @@ Future<void> maybeRequestCorePermissions(BuildContext context) async {
           icon: Icon(Icons.verified_user_outlined, color: AppColors.primary),
           title: const Text('App permissions'),
           content: const Text(
-            'LoanTrack needs camera access to capture customer photos and KYC '
-            'documents, and notification access for payment and approval '
-            'alerts. You can grant these now instead of one at a time.',
+            'LoanTrack needs a few permissions to work in the field:\n\n'
+            '• Location — collection visits and route tracking\n'
+            '• Camera & Photos — customer photos and KYC documents\n'
+            '• Phone & SMS — call or message customers in one tap\n'
+            '• Microphone — voice entry of amounts\n'
+            '• Notifications — payment and approval alerts\n\n'
+            'Grant them now so nothing interrupts you during collection.',
           ),
           actions: [
             TextButton(
@@ -51,7 +58,17 @@ Future<void> maybeRequestCorePermissions(BuildContext context) async {
       false;
   if (!proceed) return;
 
+  // Sequential — Android shows one system sheet per permission group.
+  // While-in-use location first (agents get the separate "all the time"
+  // upgrade flow right after this, see maybeRequestAlwaysLocation).
+  await Permission.locationWhenInUse.request();
   await Permission.camera.request();
+  // Android 13+ scoped photos; older versions fall back to storage.
+  await Permission.photos.request();
+  await Permission.storage.request();
+  await Permission.phone.request();
+  await Permission.sms.request();
+  await Permission.microphone.request();
   await Permission.notification.request();
 }
 

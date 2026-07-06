@@ -21,8 +21,9 @@ function errorCode(error: unknown): string | undefined {
 /**
  * Loan-level collection submit. Body: `{loanId, amount, paymentMode, remarks?,
  * collectionDate?, idempotencyKey?, gps...}`. The amount is spread across the
- * loan's open instalments oldest-first (overdue → today → future), each filled
- * to its remaining due only. Shared by the web popup and (online) mobile sheet.
+ * loan's open instalments TODAY-FIRST (today's due → overdue oldest-first →
+ * future), each filled to its remaining due only. Shared by the web popup and
+ * (online) mobile sheet.
  */
 export async function POST(req: NextRequest) {
   const auth = await requireMobileContext(req);

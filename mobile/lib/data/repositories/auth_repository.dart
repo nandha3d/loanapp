@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:loantrack/core/auth/auth_storage.dart';
+import 'package:loantrack/core/network/api_exception.dart';
 import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/data/services/auth_service.dart';
 
@@ -43,13 +46,32 @@ class AuthRepository {
     return result.user!;
   }
 
+  /// Session bootstrap. A stored token + cached profile mean the user IS
+  /// logged in — a slow or dead network must never bounce them to the login
+  /// screen. Only an explicit server rejection (401/403 after the dio
+  /// interceptor's refresh attempt failed) ends the session.
   Future<User?> currentUser() async {
+    final token = await _storage.readToken();
+    if (token == null) return null;
     try {
-      final token = await _storage.readToken();
-      if (token == null) return null;
-      final user = await _service.me().timeout(const Duration(seconds: 3));
+      final user = await _service.me().timeout(const Duration(seconds: 8));
       await _storage.saveActiveAppType(user.appType);
+      await _storage.saveUserJson(jsonEncode(user.toJson()));
       return user;
+    } on ApiException catch (e) {
+      if (e.statusCode == 401 || e.statusCode == 403) return null;
+      return _cachedUser();
+    } on Object {
+      // Network error / timeout — trust the stored session, refresh later.
+      return _cachedUser();
+    }
+  }
+
+  Future<User?> _cachedUser() async {
+    try {
+      final json = await _storage.readUserJson();
+      if (json == null) return null;
+      return User.fromJson(jsonDecode(json) as Map<String, dynamic>);
     } on Object {
       return null;
     }
@@ -128,6 +150,7 @@ class AuthRepository {
       branchId: user.branchId,
       refreshToken: refreshToken,
     );
+    await _storage.saveUserJson(jsonEncode(user.toJson()));
   }
 }
 

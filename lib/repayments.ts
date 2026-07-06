@@ -72,6 +72,32 @@ export function getInstalmentOutstanding(instalment: Pick<AllocatedInstalment, '
   return Math.max(0, Number(instalment.dueAmount) - Number(instalment.receivedAmount));
 }
 
+/**
+ * Fill order for a loan-level collection: TODAY'S DUE FIRST, then overdue
+ * (oldest first), then future (soonest first). A payment always settles the
+ * current day's instalment before any excess starts reducing the arrears —
+ * so paying today's amount keeps today clean even when a backlog exists.
+ * `now` is the collection's business day.
+ */
+export function orderInstalmentsForCollectionFill<
+  T extends { dueDate: Date | string; instalmentNo: number },
+>(instalments: T[], now = new Date()): T[] {
+  const today = startOfDay(now).getTime();
+  const bucket = (item: T): number => {
+    const day = startOfDay(new Date(item.dueDate)).getTime();
+    if (day === today) return 0; // today's due
+    if (day < today) return 1;   // overdue backlog
+    return 2;                    // future (advance payment)
+  };
+  return [...instalments].sort((a, b) => {
+    const delta = bucket(a) - bucket(b);
+    if (delta !== 0) return delta;
+    const dueDelta = new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+    if (dueDelta !== 0) return dueDelta;
+    return a.instalmentNo - b.instalmentNo;
+  });
+}
+
 export function allocatePaymentsAcrossInstalments(
   instalments: AllocationInputInstalment[],
   totalCollected: number,
@@ -153,15 +179,44 @@ export async function reallocateLoanRepayments(
     }),
   ]);
 
-  // Waived instalments keep their state; collected money is spread across
-  // the remaining instalments OLDEST-FIRST (arrears cleared before today's
-  // due) so every screen — loans list, detail, calendar, overdues card,
-  // penalties, dashboard — reads the same numbers. This matches the daily
-  // collection convention and tests/repaymentAllocation.test.ts.
+  // Preserve ACTUAL per-instalment payments — money stays on the row it was
+  // recorded against (the loan page's "Actual" view and the DB agree; the
+  // "Distributed" toggle remains a display-only projection). The fill ORDER
+  // of a loan-level collection (today's due first, then overdue oldest-first)
+  // is decided at write time in distributeCollectionAcrossLoan via
+  // orderInstalmentsForCollectionFill; this function only recomputes statuses,
+  // overdue figures and the loan status from what each row actually holds.
+  const today = startOfDay(now);
   const waived = instalments.filter((i) => i.status === 'waived');
   const payable = instalments.filter((i) => i.status !== 'waived');
-  const totalCollected = payable.reduce((sum, inst) => sum + asNumber(inst.receivedAmount), 0);
-  const allocations = allocatePaymentsAcrossInstalments(payable, totalCollected, now);
+  const allocations: AllocatedInstalment[] = payable.map((inst) => {
+    const dueAmount = asNumber(inst.dueAmount);
+    const receivedAmount = asNumber(inst.receivedAmount);
+    const outstandingAmount = Math.max(0, dueAmount - receivedAmount);
+    const dueDate = startOfDay(new Date(inst.dueDate));
+    const daysOverdue = Math.max(
+      0,
+      Math.floor((today.getTime() - dueDate.getTime()) / (24 * 60 * 60 * 1000)),
+    );
+    const isPastDue = dueDate.getTime() < today.getTime();
+    const status = receivedAmount >= dueAmount
+      ? 'paid'
+      : receivedAmount > 0
+        ? 'partial'
+        : isPastDue
+          ? 'missed'
+          : 'upcoming';
+
+    return {
+      ...inst,
+      dueAmount,
+      receivedAmount,
+      outstandingAmount,
+      overdueAmount: isPastDue ? outstandingAmount : 0,
+      daysOverdue,
+      status,
+    };
+  });
 
   const summary = {
     paidCount: 0,

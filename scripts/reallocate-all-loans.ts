@@ -1,7 +1,7 @@
 /**
- * One-time repair: re-run oldest-first repayment allocation for every open
- * loan so instalment statuses, loan status, overdue figures and the calendar
- * all agree. Run on the server with:  npx tsx scripts/reallocate-all-loans.ts
+ * One-time repair: recompute instalment statuses, loan status and overdue
+ * figures for every open loan from each row's ACTUAL recorded payments (no
+ * redistribution). Run on the server with:  npx tsx scripts/reallocate-all-loans.ts
  */
 import prisma from '../lib/db';
 import { reallocateLoanRepayments } from '../lib/repayments';

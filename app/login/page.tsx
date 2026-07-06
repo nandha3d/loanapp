@@ -16,6 +16,7 @@ function LoginForm() {
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   // Registration is hidden on a client's standalone domain.
@@ -77,6 +78,9 @@ function LoginForm() {
       const result = await signIn('credentials', {
         username,
         password,
+        // The authorize() callback reads this to pick the JWT lifetime:
+        // 30 days when remembered, 24h otherwise (lib/auth.ts).
+        rememberMe: String(rememberMe),
         redirect: false,
       });
 
@@ -203,7 +207,11 @@ function LoginForm() {
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
             <label className="checkbox-label">
-              <input type="checkbox" defaultChecked /> Remember me
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+              /> Remember me
             </label>
             <a href={withBasePath('/forgot-password')} style={{ color: 'var(--primary)', fontWeight: 600, fontSize: '.82rem' }}>
               Forgot password?

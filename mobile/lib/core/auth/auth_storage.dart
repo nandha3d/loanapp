@@ -11,6 +11,7 @@ class AuthStorage {
   static const _kBranchId = 'branch_id';
   static const _kAppType = 'app_type';
   static const _kPendingTotpUser = 'pending_totp_user';
+  static const _kUserJson = 'user_json';
 
   final FlutterSecureStorage _storage;
 
@@ -50,6 +51,13 @@ class AuthStorage {
 
   Future<void> saveActiveAppType(String appType) =>
       _storage.write(key: _kAppType, value: appType);
+
+  /// Cached profile of the signed-in user (JSON) — lets the app boot to the
+  /// dashboard offline / on a slow network instead of bouncing to login while
+  /// a valid token + refresh token still exist.
+  Future<void> saveUserJson(String json) =>
+      _storage.write(key: _kUserJson, value: json);
+  Future<String?> readUserJson() => _storage.read(key: _kUserJson);
 
   Future<void> savePendingTotpUser(String username) =>
       _storage.write(key: _kPendingTotpUser, value: username);
