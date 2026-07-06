@@ -8,6 +8,22 @@
     <!-- Voice entry (speech_to_text) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- Direct call / SMS from customer rows (requested up front on first
+         run). NOTE: if the app is ever published on Google Play, SEND_SMS /
+         CALL_PHONE fall under the SMS & Call Log policy and must be removed —
+         the DIAL/SENDTO intents below keep working without them. -->
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+
+    <!-- Photos/storage: scoped media on 13+, legacy storage below that
+         (customer photo picking, receipt/PDF saving). -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
+
     <!-- Android 11+ package visibility so speech_to_text can find the
          on-device recognizer service. -->
     <queries>
