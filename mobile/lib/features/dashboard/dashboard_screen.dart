@@ -298,9 +298,9 @@ class _HeroBalance extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Use todayCollected (money applied to today's scheduled dues only).
-    // cashCollectedToday includes overdue recovery and should NOT appear here.
-    final collected = summary.todayCollected;
+    // Actual cash submitted today, regardless of whether it cleared today's
+    // scheduled dues or older overdue rows.
+    final collected = summary.cashCollectedToday;
     final expected = summary.todayExpected;
     final remaining = (expected - collected).clamp(0.0, double.infinity);
     final pct = expected <= 0 ? 0.0 : (collected / expected).clamp(0.0, 1.0);

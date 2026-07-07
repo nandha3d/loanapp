@@ -34,6 +34,7 @@ class DashboardSummary {
   final int totalCustomers;
   final double todayExpected;
   final double todayCollected;
+
   /// Actual cash collected today across all instalments (today/overdue/future).
   final double cashCollectedToday;
   final double todayGap;
@@ -65,13 +66,16 @@ class DashboardSummary {
     double toNum(dynamic v) => v == null
         ? 0
         : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
+    final todayCollectedValue = toNum(json['todayCollected']);
+    final cashCollectedTodayValue =
+        toNum(json['cashCollectedToday'] ?? json['todayCollected']);
     return DashboardSummary(
       activeLoans: (json['activeLoans'] as num?)?.toInt() ?? 0,
       overdueLoans: (json['overdueLoans'] as num?)?.toInt() ?? 0,
       totalCustomers: (json['totalCustomers'] as num?)?.toInt() ?? 0,
       todayExpected: toNum(json['todayExpected']),
-      todayCollected: toNum(json['todayCollected']),
-      cashCollectedToday: toNum(json['cashCollectedToday']),
+      todayCollected: todayCollectedValue,
+      cashCollectedToday: cashCollectedTodayValue,
       todayGap: toNum(json['todayGap']),
       hitRate: toNum(json['hitRate']),
       todayPending: toNum(json['todayPending']),
@@ -112,10 +116,13 @@ class DashboardSummary {
       totalCollectedAllTime: toNum(json['totalCollectedAllTime']),
       bestPayer: json['bestPayer'] as String?,
       highestBorrower: json['highestBorrower'] as String?,
-      pendingUpiCollections: (json['pendingUpiCollections'] as List<dynamic>? ?? const [])
+      pendingUpiCollections: (json['pendingUpiCollections'] as List<dynamic>? ??
+              const [])
           .map((dynamic e) => TodayActivity.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),
-      pendingCashCollections: (json['pendingCashCollections'] as List<dynamic>? ?? const [])
+      pendingCashCollections: (json['pendingCashCollections']
+                  as List<dynamic>? ??
+              const [])
           .map((dynamic e) => TodayActivity.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),
       todayByMode: (json['todayByMode'] as Map<String, dynamic>? ?? const {})
@@ -143,6 +150,7 @@ class TodayActivity {
 
   final String id;
   final double amount;
+
   /// Number of instalments this single payment was distributed across.
   final int count;
   final String paymentMode;
@@ -266,7 +274,8 @@ class RecentActivity {
       action: json['action'] as String? ?? '',
       resource: json['resource'] as String? ?? '',
       userName: user['name'] as String? ?? '—',
-      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.now(),
     );
   }
 }

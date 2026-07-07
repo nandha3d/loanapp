@@ -262,16 +262,18 @@ export async function GET(req: NextRequest) {
       (sum, item) => sum + Number(item.dueAmount),
       0,
     );
-    // Today's Collected = money applied to TODAY's instalments only (matches the
-    // web dashboard). Overdue recovery is reported separately below — never merged.
-    const todayCollected = todayInstalments.reduce(
+    // Scheduled-row progress stays available for detailed due-state views.
+    // The dashboard hero's "Collected today" is actual cash submitted today.
+    const todayScheduledCollected = todayInstalments.reduce(
       (sum, item) => sum + Math.min(Number(item.receivedAmount || 0), Number(item.dueAmount)),
       0,
     );
     // Actual cash taken today across all instalments (see query note above).
     const cashCollectedToday = Number(cashCollectedAgg._sum.receivedAmount ?? 0);
-    const todayGap = Math.max(0, todayExpected - todayCollected);
-    const hitRate = todayExpected > 0 ? Math.round((todayCollected / todayExpected) * 100) : 0;
+    const todayCollected = cashCollectedToday;
+    const todayProgressCollected = Math.min(cashCollectedToday, todayExpected);
+    const todayGap = Math.max(0, todayExpected - todayProgressCollected);
+    const hitRate = todayExpected > 0 ? Math.round((todayProgressCollected / todayExpected) * 100) : 0;
     const todayPending = todayGap;
 
     const outstanding = (item: any) => Math.max(0, Number(item.dueAmount) - Number(item.receivedAmount || 0));
@@ -312,6 +314,7 @@ export async function GET(req: NextRequest) {
       totalCustomers,
       todayExpected,
       todayCollected,
+      todayScheduledCollected,
       cashCollectedToday,
       todayGap,
       hitRate,
