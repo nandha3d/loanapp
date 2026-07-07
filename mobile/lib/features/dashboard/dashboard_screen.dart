@@ -1207,21 +1207,21 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
             ),
           ),
           data: (rows) {
-            // One card per CUSTOMER — a customer with several dues today
-            // (multiple instalments / loans) collapses into a single entry
-            // showing the combined amount, instead of repeating the card.
+            // One card per loan. A customer can have separate active loans, and
+            // collection must not merge those amounts on the dashboard.
             final pendingRows = rows
                 .where((r) => !r.isResolved && r.outstanding > 0)
                 .toList(growable: false);
-            final byCustomer = <String, _UpNextEntry>{};
+            final byLoan = <String, _UpNextEntry>{};
             for (final r in pendingRows) {
               final todayDue = r.todayOutstanding;
               final overdueDue = r.overdueOutstanding;
               final due = todayDue + overdueDue;
               if (due <= 0) continue;
-              final existing = byCustomer[r.customerId];
+              final loanKey = r.loanId.isNotEmpty ? r.loanId : r.instalmentId;
+              final existing = byLoan[loanKey];
               if (existing == null) {
-                byCustomer[r.customerId] = _UpNextEntry(
+                byLoan[loanKey] = _UpNextEntry(
                   row: r,
                   rows: [r],
                   todayTotal: todayDue,
@@ -1239,7 +1239,7 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
                 }
               }
             }
-            final pending = byCustomer.values.toList(growable: false);
+            final pending = byLoan.values.toList(growable: false);
             if (pending.isEmpty) {
               return Container(
                 padding: const EdgeInsets.all(18),
@@ -1337,7 +1337,7 @@ class _UpNextPagerState extends ConsumerState<_UpNextPager> {
   }
 }
 
-/// Aggregation of one customer's dues for the Up Next section.
+/// Aggregation of one loan's dues for the Up Next section.
 class _UpNextEntry {
   _UpNextEntry({
     required this.row,
@@ -1368,7 +1368,7 @@ class _UpNextCard extends ConsumerWidget {
   final double todayDue;
   final double overdueDue;
 
-  /// How many separate dues (instalments/loans) this customer has today.
+  /// How many separate due rows this loan has today.
   final int dueCount;
 
   @override
@@ -1430,6 +1430,7 @@ class _UpNextCard extends ConsumerWidget {
                           child: Text(
                             [
                               time,
+                              if (row.loanCode.isNotEmpty) row.loanCode,
                               if (route != null && route.isNotEmpty) route,
                               if (dueCount > 1) '$dueCount ${t.x('dash.dues')}',
                             ].join(' \u00b7 '),
