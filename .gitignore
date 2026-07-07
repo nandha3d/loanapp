@@ -102,7 +102,7 @@ mobile/**/*.freezed.dart
 mobile/**/*.mocks.dart
 mobile/**/*.config.dart
 mobile/lib/data/services/fcm_service.dart
-mobile/pubspec.lock
+#mobile/pubspec.lock
 mobile/windows/flutter/generated_plugin_registrant.cc
 mobile/windows/flutter/generated_plugins.cmake
 
