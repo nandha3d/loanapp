@@ -21,6 +21,7 @@ export async function POST(
       where: {
         id,
         tenantId: ctx.tenantId,
+        appType: ctx.appType,
         ...scopedBranchWhere(ctx),
         deletedAt: null,
       },
@@ -30,7 +31,7 @@ export async function POST(
 
     const updated = await prisma.chitGroup.update({
       where: { id },
-      data: { status: 'cancelled' },
+      data: { status: 'cancelled', complianceStatus: 'suspended' },
     });
     return ok(updated);
   } catch (e: any) {

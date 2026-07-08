@@ -17,6 +17,7 @@ export async function GET(
       where: {
         id,
         tenantId: ctx.tenantId,
+        appType: ctx.appType,
         ...scopedBranchWhere(ctx),
         deletedAt: null,
       },
@@ -25,7 +26,7 @@ export async function GET(
     if (!group) return fail('Chit group not found', 404);
 
     const subscriptions = await prisma.chitSubscription.findMany({
-      where: { member: { chitGroupId: id } },
+      where: { member: { chitGroupId: id, chitGroup: { tenantId: ctx.tenantId, appType: ctx.appType } } },
       include: {
         member: {
           include: {

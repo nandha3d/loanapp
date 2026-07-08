@@ -291,6 +291,21 @@ export async function chitContributionToBranch(
 }
 
 /** Chit prize paid out to the winner — debits the branch cash pool. */
+export async function reverseChitContributionFromBranch(
+  tx: Tx,
+  input: { tenantId: string; appType: string; branchId: string; amount: number; refId: string; byUserId?: string | null },
+): Promise<number> {
+  if (!(input.amount > 0)) return 0;
+  return applyBranch(tx, input.tenantId, input.appType, input.branchId, -input.amount, {
+    type: 'adjustment',
+    refType: 'chit_receipt',
+    refId: input.refId,
+    note: 'Chit contribution reversal',
+    byUserId: input.byUserId ?? null,
+  });
+}
+
+/** Chit prize paid out to the winner. */
 export async function chitPayoutFromBranch(
   tx: Tx,
   input: { tenantId: string; appType: string; branchId: string; amount: number; refId: string; byUserId?: string | null },

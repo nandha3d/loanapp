@@ -23,6 +23,7 @@ export async function POST(
         member: {
           chitGroup: {
             tenantId: ctx.tenantId,
+            appType: ctx.appType,
             ...scopedBranchWhere(ctx),
             deletedAt: null,
           },

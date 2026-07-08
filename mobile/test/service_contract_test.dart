@@ -394,7 +394,8 @@ void main() {
           (body) =>
               body['memberId'] == 'member1' &&
               body['periodNumber'] == 1 &&
-              body['paidAmount'] == 500,
+              body['amount'] == 500 &&
+              body['mode'] == 'ADD_PAYMENT',
         ),
         isTrue,
       );
@@ -408,7 +409,10 @@ void main() {
 
       await dio.post<Map<String, dynamic>>(
         Endpoints.dashboardVerifyUpi,
-        data: {'action': 'bulk-upi', 'entryIds': ['entry1', 'entry2']},
+        data: {
+          'action': 'bulk-upi',
+          'entryIds': ['entry1', 'entry2']
+        },
       );
       await dio.post<Map<String, dynamic>>(
         Endpoints.dashboardCollectCash,

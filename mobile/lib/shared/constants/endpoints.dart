@@ -102,6 +102,28 @@ class Endpoints {
   static String chitMembers(String id) => '/chits/$id/members';
   static String chitAuctions(String id) => '/chits/$id/auctions';
   static String chitPayments(String id) => '/chits/$id/payments';
+  static String chitActivate(String id) => '/chits/$id/activate';
+  static String chitMember(String id, String memberId) =>
+      '/chits/$id/members/$memberId';
+  static String chitMemberAgreement(String id, String memberId) =>
+      '/chits/$id/members/$memberId/agreement';
+  static String chitAuctionBids(String id, String auctionId) =>
+      '/chits/$id/auctions/$auctionId/bids';
+  static String chitAuctionAttendance(String id, String auctionId) =>
+      '/chits/$id/auctions/$auctionId/attendance';
+  static String chitAuctionConfirm(String id, String auctionId) =>
+      '/chits/$id/auctions/$auctionId/confirm';
+  static String chitAuctionSecurity(String id, String auctionId) =>
+      '/chits/$id/auctions/$auctionId/security';
+  static String chitAuctionPayout(String id, String auctionId) =>
+      '/chits/$id/auctions/$auctionId/payout';
+  static String chitReceiptReverse(String receiptId) =>
+      '/chits/receipts/$receiptId/reverse';
+  static String chitPenalties(String id) => '/chits/$id/penalties';
+  static String chitPenaltyPay(String id, String penaltyId) =>
+      '/chits/$id/penalties/$penaltyId/pay';
+  static String chitPenaltyWaive(String id, String penaltyId) =>
+      '/chits/$id/penalties/$penaltyId/waive';
 
   // Settings
   static const String settings = '/settings';

@@ -1,0 +1,39 @@
+import { NextRequest } from 'next/server';
+import prisma from '@/lib/db';
+import { ok, fail } from '@/lib/api/v1-envelope';
+import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string; memberId: string }> },
+) {
+  const auth = await requireMobileContext(req);
+  if (auth.response) return auth.response;
+  const ctx = auth.context;
+  if (!['admin', 'superadmin', 'developer'].includes(ctx.role)) return fail('Forbidden', 403);
+  const { id, memberId } = await params;
+  const body = await req.json().catch(() => null) as any;
+  const status = body?.status ?? 'signed';
+  if (!['pending', 'signed', 'verified', 'rejected'].includes(status)) return fail('Invalid agreement status', 400);
+
+  try {
+    const member = await prisma.chitMember.findFirst({
+      where: {
+        id: memberId,
+        chitGroupId: id,
+        chitGroup: { tenantId: ctx.tenantId, appType: ctx.appType, ...scopedBranchWhere(ctx), deletedAt: null },
+      },
+    });
+    if (!member) return fail('Chit member not found', 404);
+    const updated = await prisma.chitMember.update({
+      where: { id: member.id },
+      data: {
+        agreementStatus: status,
+        agreementSignedAt: status === 'signed' || status === 'verified' ? new Date() : member.agreementSignedAt,
+      },
+    });
+    return ok(updated);
+  } catch (e: any) {
+    return fail(e?.message ?? 'Agreement update failed', 500);
+  }
+}

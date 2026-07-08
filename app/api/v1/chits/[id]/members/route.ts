@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { requireMobileContext } from '@/lib/api/v1-auth';
+import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 
 export async function GET(
   req: NextRequest,
@@ -14,7 +14,13 @@ export async function GET(
 
   try {
     const group = await prisma.chitGroup.findFirst({
-      where: { id, tenantId: ctx.tenantId },
+      where: {
+        id,
+        tenantId: ctx.tenantId,
+        appType: ctx.appType,
+        ...scopedBranchWhere(ctx),
+        deletedAt: null,
+      },
       select: { id: true },
     });
     if (!group) return fail('Chit group not found', 404);

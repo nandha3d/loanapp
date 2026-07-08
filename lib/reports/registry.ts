@@ -95,6 +95,21 @@ import { buildProductRepossessionReport } from './builders/product-repossession-
 import { buildChitGroupReport } from './builders/chit-group-report';
 import { buildChitAuctionReport } from './builders/chit-auction-report';
 import { buildChitSubscriptionDue } from './builders/chit-subscription-due';
+import {
+  buildChitAgreementPendingReport,
+  buildChitAuctionRegister,
+  buildChitBidHistory,
+  buildChitDefaultsReport,
+  buildChitDividendRegister,
+  buildChitForemanCommission,
+  buildChitGroupLedger,
+  buildChitPayoutReport,
+  buildChitPrizedSubscribers,
+  buildChitReceiptRegister,
+  buildChitSecurityPendingReport,
+  buildChitSubscriberLedger,
+  buildVacantChitReport,
+} from './builders/chit-production-reports';
 
 // Module: wallet / NPA
 import { buildWalletFloatLedger } from './builders/wallet-float-ledger';
@@ -198,6 +213,23 @@ export const reportRegistry: Record<string, ReportBuilder> = {
   'chit-group-report': buildChitGroupReport,
   'chit-auction-report': buildChitAuctionReport,
   'chit-subscription-due': buildChitSubscriptionDue,
+  'chit-group-ledger': buildChitGroupLedger,
+  'chit-subscriber-ledger': buildChitSubscriberLedger,
+  'chit-auction-register': buildChitAuctionRegister,
+  'auction-bid-history': buildChitBidHistory,
+  'chit-bid-history': buildChitBidHistory,
+  'chit-prized-subscriber-report': buildChitPrizedSubscribers,
+  'chit-prized-subscribers': buildChitPrizedSubscribers,
+  'chit-dividend-register': buildChitDividendRegister,
+  'chit-foreman-commission-report': buildChitForemanCommission,
+  'chit-foreman-commission': buildChitForemanCommission,
+  'chit-default-report': buildChitDefaultsReport,
+  'chit-defaults-report': buildChitDefaultsReport,
+  'chit-payout-report': buildChitPayoutReport,
+  'chit-security-pending-report': buildChitSecurityPendingReport,
+  'chit-agreement-pending-report': buildChitAgreementPendingReport,
+  'chit-receipt-register': buildChitReceiptRegister,
+  'vacant-chit-report': buildVacantChitReport,
 
   // Module: wallet / NPA
   'wallet-float-ledger': buildWalletFloatLedger,
