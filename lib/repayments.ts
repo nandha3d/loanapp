@@ -312,7 +312,10 @@ export function getDistributedInstalmentsAndMetrics<
   today: Date,
   paymentsToday: { loanId: string; amount: number | Prisma.Decimal | string }[],
 ): {
-  distributedInstalments: T[];
+  distributedInstalments: (T & {
+    outstandingAmount: number;
+    overdueAmount: number;
+  })[];
   metricsByLoan: Map<
     string,
     { overdueOutstanding: number; overdueCollectedToday: number; overdueTotalTillToday: number }
@@ -444,7 +447,16 @@ export function getDistributedInstalmentsAndMetrics<
         status: update.status,
       };
     }
-    return inst;
+    const due = asNumber(inst.dueAmount);
+    const rec = asNumber(inst.receivedAmount ?? 0);
+    const outstandingAmount = Math.max(0, due - rec);
+    const dueDate = startOfDay(new Date(inst.dueDate));
+    const isPastDue = dueDate.getTime() < todayStartTime;
+    return {
+      ...inst,
+      outstandingAmount,
+      overdueAmount: isPastDue ? outstandingAmount : 0,
+    };
   });
 
   return {
