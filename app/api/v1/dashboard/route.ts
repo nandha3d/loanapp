@@ -3,6 +3,7 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
+import { getDistributedInstalmentsAndMetrics } from '@/lib/repayments';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -47,9 +48,9 @@ export async function GET(req: NextRequest) {
       pendingPenalties,
       activeAgents,
       recentLoans,
-      overdueForTotalsAgg,
+      allInstalmentsForTotals,
       overdueDefaulterRows,
-      overduePaidTodayAllocations,
+      paymentsToday,
       routes,
       recentActivity,
       cashCollectedAgg,
@@ -79,10 +80,24 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: 'desc' },
         take: 5,
       }),
-      // Overdue totals — aggregate avoids loading every instalment row.
-      prisma.instalment.aggregate({
-        where: { loan: baseLoan, dueDate: { lt: today }, status: { in: ['upcoming', 'missed', 'partial'] } },
-        _sum: { dueAmount: true, receivedAmount: true },
+      prisma.instalment.findMany({
+        where: {
+          loan: { ...baseLoan, status: { in: ['active', 'overdue'] } },
+          status: { not: 'waived' },
+          OR: [
+            { dueDate: { lt: today } },
+            { receivedAmount: { gt: 0 } },
+          ],
+        },
+        select: {
+          id: true,
+          loanId: true,
+          dueDate: true,
+          dueAmount: true,
+          receivedAmount: true,
+          status: true,
+          instalmentNo: true,
+        },
       }),
       // Top overdue instalments for defaulter alerts (only need 10).
       prisma.instalment.findMany({
@@ -94,13 +109,13 @@ export async function GET(req: NextRequest) {
         orderBy: { dueDate: 'asc' },
         take: 10,
       }),
-      // Today's payments that landed on PAST-DUE instalments = overdue recovered today.
-      prisma.paymentAllocation.findMany({
+      prisma.payment.findMany({
         where: {
-          payment: { tenantId: ctx.tenantId, paymentDate: { gte: today, lt: tomorrow }, loan: baseLoan },
-          instalment: { dueDate: { lt: today } },
+          tenantId: ctx.tenantId,
+          paymentDate: { gte: today, lt: tomorrow },
+          loan: { ...baseLoan, status: { in: ['active', 'overdue'] } },
         },
-        select: { amount: true },
+        select: { loanId: true, amount: true },
       }),
       prisma.route.findMany({
         where: { tenantId: ctx.tenantId, appType: ctx.appType, status: 'active', ...scopedBranchWhere(ctx) },
@@ -278,14 +293,18 @@ export async function GET(req: NextRequest) {
 
     const outstanding = (item: any) => Math.max(0, Number(item.dueAmount) - Number(item.receivedAmount || 0));
 
-    // Overdue totals come from the DB aggregate — no large row set in memory.
-    const overdueDueTotal = Number(overdueForTotalsAgg._sum.dueAmount ?? 0);
-    const overdueReceivedTotal = Number(overdueForTotalsAgg._sum.receivedAmount ?? 0);
-    const overdueOutstanding = Math.max(0, overdueDueTotal - overdueReceivedTotal);
-    const overdueCollectedToday = overduePaidTodayAllocations.reduce(
-      (sum, a) => sum + Number(a.amount),
-      0,
+    const { metricsByLoan } = getDistributedInstalmentsAndMetrics(
+      allInstalmentsForTotals,
+      today,
+      paymentsToday,
     );
+
+    let overdueOutstanding = 0;
+    let overdueCollectedToday = 0;
+    for (const m of metricsByLoan.values()) {
+      overdueOutstanding += m.overdueOutstanding;
+      overdueCollectedToday += m.overdueCollectedToday;
+    }
     const overdueTotalTillToday = overdueOutstanding + overdueCollectedToday;
 
     const defaulterAlerts = overdueDefaulterRows

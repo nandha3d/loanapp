@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import AppSelectorClient from './AppSelectorClient';
 import prisma from '@/lib/db';
 import { getDefaultTenantId } from '@/lib/tenant';
-import { modulePath, normalizeModuleList } from '@/types/modules';
+import { mergeModuleLists, modulePath, normalizeModuleList } from '@/types/modules';
 import { getSubscription, isTenantSubscriptionExpired } from '@/lib/subscription';
 import SubscriptionExpiredModal from '@/components/layout/SubscriptionExpiredModal';
 
@@ -50,6 +50,19 @@ export default async function SuperAdminPortal() {
   if (role === 'admin' || role === 'agent') {
     const { getActiveModules } = await import('@/lib/branch');
     enabledModules = await getActiveModules();
+  } else if (role === 'superadmin' && tenantId) {
+    const branches = await prisma.branch.findMany({
+      where: { tenantId, superadminId: (session.user as any).id, status: 'active' },
+      select: { enabledModules: true },
+    });
+    enabledModules = mergeModuleLists(...branches.map((branch) => branch.enabledModules));
+    if (enabledModules.length === 0) {
+      const subscription = await prisma.tenantSubscription.findUnique({
+        where: { tenantId },
+        select: { enabledModules: true },
+      });
+      enabledModules = normalizeModuleList(subscription?.enabledModules);
+    }
   } else if (tenantId) {
     const subscription = await prisma.tenantSubscription.findUnique({
       where: { tenantId },

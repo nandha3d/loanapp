@@ -8,6 +8,7 @@ import { getSetting } from '@/lib/tenant';
 import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 import { startOfBusinessToday, startOfBusinessTomorrow } from '@/lib/businessTime';
 import { summarizeCollectionWorklist } from '@/lib/collectionSummary';
+import { getDistributedInstalmentsAndMetrics } from '@/lib/repayments';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -83,7 +84,7 @@ export async function GET(req: NextRequest) {
       overdueInstalments,
       paidTodayInstalments,
       agentRoutes,
-      overduePaidTodayAllocations,
+      paymentsToday,
     ] = await Promise.all([
       prisma.instalment.findMany({
         where: {
@@ -130,16 +131,13 @@ export async function GET(req: NextRequest) {
         },
         orderBy: { name: 'asc' },
       }),
-      prisma.paymentAllocation.findMany({
+      prisma.payment.findMany({
         where: {
-          payment: {
-            tenantId: ctx.tenantId,
-            paymentDate: { gte: today, lt: tomorrow },
-            loan: baseLoanWhere,
-          },
-          instalment: { dueDate: { lt: today } },
+          tenantId: ctx.tenantId,
+          paymentDate: { gte: today, lt: tomorrow },
+          loan: baseLoanWhere,
         },
-        select: { amount: true },
+        select: { loanId: true, amount: true },
       }),
     ]);
 
@@ -175,18 +173,98 @@ export async function GET(req: NextRequest) {
       ...todayDueInstalments,
       ...paidTodayInstalments.filter((i) => !seen.has(i.id)),
     ];
-    const collectionSummary = summarizeCollectionWorklist({
-      todayRows: todayDueInstalments,
-      overdueRows: overdueVisible,
-      overdueCollectedToday: overduePaidTodayAllocations.reduce(
-        (sum, row) => sum + Number(row.amount),
-        0,
-      ),
+
+    // Compute distributed instalments and metrics
+    const allLoanIds = Array.from(new Set([
+      ...todayInstalments.map((i) => i.loanId),
+      ...overdueVisible.map((i) => i.loanId),
+    ]));
+
+    const allInstalmentsForLoans = await prisma.instalment.findMany({
+      where: { loanId: { in: allLoanIds } },
+      orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
     });
 
+    const { distributedInstalments, metricsByLoan } = getDistributedInstalmentsAndMetrics(
+      allInstalmentsForLoans,
+      today,
+      paymentsToday,
+    );
+
+    const distributedMap = new Map(distributedInstalments.map((i) => [i.id, i]));
+
+    const mappedToday = todayInstalments.map((i) => {
+      const dist = distributedMap.get(i.id);
+      if (dist) {
+        return {
+          ...i,
+          receivedAmount: dist.receivedAmount,
+          outstandingAmount: dist.outstandingAmount,
+          overdueAmount: dist.overdueAmount,
+          status: dist.status,
+        };
+      }
+      return i;
+    });
+
+    const mappedOverdue = overdueVisible.map((i) => {
+      const dist = distributedMap.get(i.id);
+      if (dist) {
+        return {
+          ...i,
+          receivedAmount: dist.receivedAmount,
+          outstandingAmount: dist.outstandingAmount,
+          overdueAmount: dist.overdueAmount,
+          status: dist.status,
+        };
+      }
+      return i;
+    });
+
+    const todayExpected = mappedToday.reduce((sum, row) => sum + Number(row.dueAmount), 0);
+    const todayCollected = mappedToday.reduce(
+      (sum, row) => sum + Math.min(Number(row.receivedAmount), Number(row.dueAmount)),
+      0,
+    );
+    const todayOutstanding = mappedToday.reduce(
+      (sum, row) => sum + Math.max(0, Number(row.dueAmount) - Number(row.receivedAmount)),
+      0,
+    );
+    const todayPendingCount = mappedToday.filter(
+      (row) => Math.max(0, Number(row.dueAmount) - Number(row.receivedAmount)) > 0
+    ).length;
+    const todayPaidCount = mappedToday.filter(
+      (row) => Math.max(0, Number(row.dueAmount) - Number(row.receivedAmount)) <= 0 && Number(row.receivedAmount) > 0
+    ).length;
+
+    // Overdue Outstanding comes from the visible overdue rows in distributed view
+    const overdueOutstanding = mappedOverdue.reduce(
+      (sum, row) => sum + Math.max(0, Number(row.dueAmount) - Number(row.receivedAmount)),
+      0,
+    );
+    const overdueCollectedToday = Array.from(metricsByLoan.values()).reduce(
+      (sum, m) => sum + m.overdueCollectedToday,
+      0,
+    );
+    const overduePendingCount = mappedOverdue.filter(
+      (row) => Math.max(0, Number(row.dueAmount) - Number(row.receivedAmount)) > 0
+    ).length;
+
+    const collectionSummary = {
+      todayExpected,
+      todayCollected,
+      todayOutstanding,
+      todayPendingCount,
+      todayPaidCount,
+      overdueTotalTillToday: overdueOutstanding + overdueCollectedToday,
+      overdueCollectedToday,
+      overdueOutstanding,
+      overduePendingCount,
+    };
+
     return ok({
-      todayInstalments,
-      overdueInstalments: overdueVisible,
+      todayInstalments: mappedToday,
+      overdueInstalments: mappedOverdue,
       collectionSummary,
       routes: agentRoutes,
       dailyCollection: dailyCollectionRaw ? {

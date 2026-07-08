@@ -296,3 +296,159 @@ export function describeAllocationForPayment(
     ? `Direct payment applied: ${changed.join(', ')}`
     : 'Payment recorded.';
 }
+
+export function getDistributedInstalmentsAndMetrics<
+  T extends {
+    id: string;
+    dueDate: Date | string;
+    dueAmount: number | Prisma.Decimal | string;
+    receivedAmount: number | Prisma.Decimal | string | null;
+    status?: string | null;
+    instalmentNo: number;
+    loanId: string;
+  },
+>(
+  instalments: T[],
+  today: Date,
+  paymentsToday: { loanId: string; amount: number | Prisma.Decimal | string }[],
+): {
+  distributedInstalments: T[];
+  metricsByLoan: Map<
+    string,
+    { overdueOutstanding: number; overdueCollectedToday: number; overdueTotalTillToday: number }
+  >;
+} {
+  const waived = instalments.filter((i) => i.status === 'waived');
+  const payable = instalments.filter((i) => i.status !== 'waived');
+
+  // Group by loan
+  const loanInsts = new Map<string, T[]>();
+  for (const inst of payable) {
+    if (!loanInsts.has(inst.loanId)) {
+      loanInsts.set(inst.loanId, []);
+    }
+    loanInsts.get(inst.loanId)!.push(inst);
+  }
+
+  // Today's date boundary in IST
+  const todayStart = startOfDay(today);
+  const todayStartTime = todayStart.getTime();
+  const todayISO = todayStart.toISOString().slice(0, 10);
+
+  const paymentsTodayMap = new Map<string, number>();
+  for (const p of paymentsToday) {
+    paymentsTodayMap.set(p.loanId, (paymentsTodayMap.get(p.loanId) ?? 0) + asNumber(p.amount));
+  }
+
+  const metricsByLoan = new Map<
+    string,
+    { overdueOutstanding: number; overdueCollectedToday: number; overdueTotalTillToday: number }
+  >();
+
+  const updatedInstalmentsMap = new Map<string, { receivedAmount: number; status: string }>();
+
+  for (const [loanId, insts] of loanInsts.entries()) {
+    // Sort: Today's due first, then overdue oldest first, then future.
+    insts.sort((a, b) => {
+      const bucket = (item: T): number => {
+        const itemDate = startOfDay(new Date(item.dueDate)).toISOString().slice(0, 10);
+        if (itemDate === todayISO) return 0;
+        if (itemDate < todayISO) return 1;
+        return 2;
+      };
+      const delta = bucket(a) - bucket(b);
+      if (delta !== 0) return delta;
+      return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime() || a.instalmentNo - b.instalmentNo;
+    });
+
+    const cToday = paymentsTodayMap.get(loanId) ?? 0;
+    const cTotal = insts.reduce((sum, i) => sum + asNumber(i.receivedAmount ?? 0), 0);
+    const cYesterday = Math.max(0, cTotal - cToday);
+
+    // Allocate C_yesterday
+    let remainingYesterday = cYesterday;
+    const beforeAmounts = new Map<string, number>();
+    for (const inst of insts) {
+      const due = asNumber(inst.dueAmount);
+      const rec = Math.min(due, remainingYesterday);
+      remainingYesterday = Math.max(0, remainingYesterday - rec);
+      beforeAmounts.set(inst.id, rec);
+    }
+
+    // Allocate C_total
+    let remainingToday = cTotal;
+    const afterAmounts = new Map<string, number>();
+    for (const inst of insts) {
+      const due = asNumber(inst.dueAmount);
+      const rec = Math.min(due, remainingToday);
+      remainingToday = Math.max(0, remainingToday - rec);
+      afterAmounts.set(inst.id, rec);
+    }
+
+    let overdueOutstanding = 0;
+    let overdueCollectedToday = 0;
+
+    for (const inst of insts) {
+      const due = asNumber(inst.dueAmount);
+      const before = beforeAmounts.get(inst.id) ?? 0;
+      const after = afterAmounts.get(inst.id) ?? 0;
+
+      const dueDate = startOfDay(new Date(inst.dueDate));
+      const isPastDue = dueDate.getTime() < todayStartTime;
+
+      if (isPastDue) {
+        overdueOutstanding += Math.max(0, due - after);
+        overdueCollectedToday += Math.max(0, after - before);
+      }
+
+      // Determine in-memory distributed status
+      const status = after >= due
+        ? 'paid'
+        : after > 0
+          ? 'partial'
+          : isPastDue
+            ? 'missed'
+            : 'upcoming';
+
+      updatedInstalmentsMap.set(inst.id, { receivedAmount: after, status });
+    }
+
+    metricsByLoan.set(loanId, {
+      overdueOutstanding,
+      overdueCollectedToday,
+      overdueTotalTillToday: overdueOutstanding + overdueCollectedToday,
+    });
+  }
+
+  // Update in-memory instances of all instalments (including waived ones)
+  const distributedInstalments = instalments.map((inst) => {
+    if (inst.status === 'waived') {
+      return {
+        ...inst,
+        receivedAmount: 0,
+        outstandingAmount: 0,
+        overdueAmount: 0,
+      };
+    }
+    const update = updatedInstalmentsMap.get(inst.id);
+    if (update) {
+      const due = asNumber(inst.dueAmount);
+      const outstandingAmount = Math.max(0, due - update.receivedAmount);
+      const dueDate = startOfDay(new Date(inst.dueDate));
+      const isPastDue = dueDate.getTime() < todayStartTime;
+      return {
+        ...inst,
+        receivedAmount: update.receivedAmount,
+        outstandingAmount,
+        overdueAmount: isPastDue ? outstandingAmount : 0,
+        status: update.status,
+      };
+    }
+    return inst;
+  });
+
+  return {
+    distributedInstalments,
+    metricsByLoan,
+  };
+}
