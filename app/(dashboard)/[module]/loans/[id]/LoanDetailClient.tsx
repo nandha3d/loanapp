@@ -13,6 +13,7 @@ import { getCreditScoreGaugePresentation } from '@/lib/creditScoreGauge';
 import NachPanel from './NachPanel';
 import LoanTimeline from './LoanTimeline';
 import { useDashboardPath } from '@/components/layout/useDashboardPath';
+import { useRegisterBreadcrumbLabel } from '@/components/layout/BreadcrumbLabelContext';
 
 const CreditScoreGauge = ({ score, grade }: { score: number, grade: string }) => {
   const gauge = getCreditScoreGaugePresentation(score, grade);
@@ -174,6 +175,7 @@ export default function LoanDetailClient({
   const d = dict.loanDetail;
   const router = useRouter();
   const dashboardPath = useDashboardPath();
+  useRegisterBreadcrumbLabel(loan.loanCode, loan.customer?.name ? `${loan.loanCode} — ${loan.customer.name}` : loan.loanCode);
   const isAdmin = userRole === 'admin' || userRole === 'superadmin';
   const totalCollected = Number(loan.totalCollected || 0);
   const totalRepayable = Number(loan.perInstalment) * loan.totalInstalments;

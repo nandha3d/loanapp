@@ -39,9 +39,9 @@ export async function POST(request: Request) {
     const tenantId = await getTenantIdFromHost(host);
     
     // In development, fall back to first active tenant so local testing works
-    const resolvedTenantId = tenantId ?? (
+    const resolvedTenantId = tenantId || (isDev ? (
       await prisma.tenant.findFirst({ where: { status: 'active' }, select: { id: true } })
-    )?.id;
+    )?.id : null);
 
     const { phone, password, otp, newPassword, requestOtp, bypass } = await request.json();
 

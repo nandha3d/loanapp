@@ -1171,6 +1171,7 @@ model ChitGroup {
   tenantId                String        @map("tenant_id")
   branchId                String?       @map("branch_id")
   appType                 String        @default("chitfunds") @map("app_type")
+  groupCode               String?       @unique @map("group_code")
   name                    String
   chitValue               Decimal       @map("chit_value") @db.Decimal(14, 2)
   monthlyContrib          Decimal       @map("monthly_contrib") @db.Decimal(14, 2)

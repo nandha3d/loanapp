@@ -8,6 +8,7 @@ import { updateLanguage } from '@/app/(dashboard)/[module]/settings/actions';
 import { markNotificationRead, markAllNotificationsRead } from '@/app/(dashboard)/[module]/notifications/actions';
 import { parseModulePath } from '@/types/modules';
 import { formatNotificationTime } from '@/lib/utils';
+import { useBreadcrumbLabels } from './BreadcrumbLabelContext';
 
 interface BreadcrumbItem {
   label: string;
@@ -31,6 +32,7 @@ export default function Topbar({
 }) {
   const pathname = usePathname();
   const pagePath = parseModulePath(pathname).page;
+  const breadcrumbLabels = useBreadcrumbLabels();
   const [notifOpen, setNotifOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifItems, setNotifItems] = useState<any[]>([]);
@@ -71,7 +73,7 @@ export default function Topbar({
         if (parts[1] === 'new') {
           crumbs.push({ label: dict.loans.newLoan });
         } else {
-          crumbs.push({ label: parts[1] });
+          crumbs.push({ label: breadcrumbLabels[parts[1]] || parts[1] });
         }
       } else {
         crumbs.push({ label });

@@ -34,6 +34,7 @@ import {
   validateChitConfig,
   validateChitGroupActivation,
 } from '@/lib/chits/validation';
+import { generateCode } from '@/lib/utils';
 
 function value(formData: FormData, key: string) {
   const raw = formData.get(key);
@@ -63,10 +64,10 @@ function nextPeriodDate(startDate: Date, period: number, frequency: string) {
   return dueDate;
 }
 
-async function loadScopedGroup(id: string) {
+async function loadScopedGroup(idOrCode: string) {
   const scope = await getWebChitScope();
   const group = await prisma.chitGroup.findFirst({
-    where: scopedChitGroupWhere(scope, { id }),
+    where: scopedChitGroupWhere(scope, { OR: [{ id: idOrCode }, { groupCode: idOrCode }] }),
   });
   if (!group) throw new Error('Chit group not found');
   return { scope, group };
@@ -124,11 +125,14 @@ export async function createChitGroup(formData: FormData) {
   }
 
   const group = await prisma.$transaction(async (tx) => {
+    const existingCount = await tx.chitGroup.count({ where: { tenantId: scope.tenantId } });
+    const groupCode = generateCode('CF', existingCount + 1, 5);
     const created = await tx.chitGroup.create({
       data: {
         tenantId: scope.tenantId,
         branchId: scope.branchId || undefined,
         appType: scope.appType,
+        groupCode,
         name,
         chitValue,
         monthlyContrib,
@@ -192,7 +196,51 @@ export async function createChitGroup(formData: FormData) {
   });
 
   revalidatePath(modulePath(scope.appType, '/chits'));
-  redirect(modulePath(scope.appType, `/chits/${group.id}`));
+  redirect(modulePath(scope.appType, `/chits/${group.groupCode ?? group.id}`));
+}
+
+export async function autoAssignChitTicketNumbers(groupId: string) {
+  const { scope, group } = await loadScopedGroup(groupId);
+  assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+  if (group.status !== 'draft') {
+    throw new Error('Ticket numbers can only be auto-assigned while the group is in draft');
+  }
+
+  const members = await prisma.chitMember.findMany({
+    where: { chitGroupId: group.id },
+    orderBy: { memberNumber: 'asc' },
+    select: { id: true, memberNumber: true, ticketNo: true },
+  });
+
+  // Only fill in members missing a ticket number — never overwrite an existing
+  // (possibly manually set or share-split) ticket number.
+  const used = new Set(members.map((m) => m.ticketNo).filter(Boolean) as string[]);
+  let assignedCount = 0;
+
+  await prisma.$transaction(async (tx) => {
+    let candidate = 1;
+    for (const member of members) {
+      if (member.ticketNo) continue;
+      while (used.has(String(candidate))) candidate += 1;
+      const ticketNo = String(candidate);
+      used.add(ticketNo);
+      candidate += 1;
+      await tx.chitMember.update({ where: { id: member.id }, data: { ticketNo } });
+      assignedCount += 1;
+    }
+    if (assignedCount) {
+      await createChitAudit(tx, {
+        tenantId: scope.tenantId,
+        userId: scope.userId,
+        action: 'auto_assign_ticket_numbers',
+        entityType: 'chit_group',
+        entityId: group.id,
+        newValue: { assignedCount },
+      });
+    }
+  });
+
+  revalidatePath(modulePath(scope.appType, `/chits/${group.id}`));
 }
 
 export async function activateChitGroup(groupId: string) {
@@ -353,7 +401,8 @@ export async function updateChitMemberDetails(memberId: string, formData: FormDa
   if (!member) throw new Error('Chit member not found');
 
   const data = {
-    ticketNo: value(formData, 'ticketNo'),
+    // Ticket no is auto-assigned at enrollment; never silently wipe it if the field is left blank.
+    ticketNo: value(formData, 'ticketNo') ?? member.ticketNo,
     fractionNo: value(formData, 'fractionNo'),
     ticketShare: numberValue(formData, 'ticketShare', Number(member.ticketShare)),
     nomineeName: value(formData, 'nomineeName'),

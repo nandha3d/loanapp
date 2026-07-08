@@ -7,6 +7,7 @@ import { submitEditRequest } from '@/app/(dashboard)/[module]/approvals/actions'
 import { resetCustomerPassword } from '@/app/(dashboard)/[module]/customers/actions';
 import { calculateCreditScore } from '@/lib/creditScore';
 import { getCreditScoreGaugePresentation } from '@/lib/creditScoreGauge';
+import { useRegisterBreadcrumbLabel } from '@/components/layout/BreadcrumbLabelContext';
 
 const CreditScoreGauge = ({ score, grade }: { score: number, grade: string }) => {
   const gauge = getCreditScoreGaugePresentation(score, grade);
@@ -55,6 +56,7 @@ export default function CustomerProfileClient({
   loansEnabled?: boolean;
 }) {
   const router = useRouter();
+  useRegisterBreadcrumbLabel(customer.customerCode, customer.name);
   const d = dict.customerProfile;
   const [activeTab, setActiveTab] = useState(loansEnabled ? 'loans' : 'kyc');
   const [editRequestModal, setEditRequestModal] = useState(false);

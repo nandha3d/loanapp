@@ -14,7 +14,7 @@ export default async function EditChitGroupPage({ params }: { params: Promise<{ 
   const dict = await getDictionary(tenantId);
 
   const group = await prisma.chitGroup.findFirst({
-    where: { id, tenantId, appType },
+    where: { OR: [{ id }, { groupCode: id }], tenantId, appType },
     select: { id: true, name: true, commissionPct: true, status: true },
   });
 

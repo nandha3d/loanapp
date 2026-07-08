@@ -15,6 +15,7 @@ import {
   submitChitSecurity,
 } from '../../../actions';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { useRegisterBreadcrumbLabel } from '@/components/layout/BreadcrumbLabelContext';
 
 interface Props {
   auction: any;
@@ -27,6 +28,7 @@ export default function AuctionDetailClient({ auction, security, currencySymbol,
   const d = dict.chits;
   const router = useRouter();
   const group = auction.chitGroup;
+  useRegisterBreadcrumbLabel(group.groupCode ?? group.id, group.name);
   const isDrawType = ['lottery', 'fixed_rotation'].includes(group.auctionType);
   const isLive = group.auctionType === 'open_live';
   const isSealed = group.auctionType === 'sealed';

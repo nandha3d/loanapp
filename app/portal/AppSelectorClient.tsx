@@ -23,10 +23,6 @@ export default function AppSelectorClient({
   const router = useRouter();
   const defaultModule = normalizeModuleList(enabledModules)[0] ?? 'microlending';
 
-  const handleSelectApp = async (appType: AppType) => {
-    await selectApp(appType);
-  };
-
   return (
     <div style={{
       minHeight: '100vh',
@@ -91,9 +87,13 @@ export default function AppSelectorClient({
             </p>
           </div>
         ) : apps.map(app => (
-          <button
+          <form
             key={app.id}
-            onClick={() => handleSelectApp(app.id)}
+            action={selectApp.bind(null, app.id)}
+            style={{ display: 'contents' }}
+          >
+          <button
+            type="submit"
             style={{
               background: 'rgba(255,255,255,0.05)',
               backdropFilter: 'blur(10px)',
@@ -131,6 +131,7 @@ export default function AppSelectorClient({
             </p>
 
           </button>
+          </form>
         ))}
       </div>
       

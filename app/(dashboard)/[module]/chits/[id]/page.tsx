@@ -6,7 +6,7 @@ import Link from '@/components/layout/DashboardLink';
 import ChitGroupDetailClient from './ChitGroupDetailClient';
 import { getDictionary } from '@/lib/i18n';
 
-export default async function ChitGroupDetailPage({ params }: { params: { id: string } }) {
+export default async function ChitGroupDetailPage({ params }: { params: Promise<{ id: string; module: string }> }) {
   const { id } = await params;
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
@@ -17,7 +17,7 @@ export default async function ChitGroupDetailPage({ params }: { params: { id: st
   let group: any = null;
   try {
     group = await prisma.chitGroup.findFirst({
-      where: { id, tenantId, appType },
+      where: { OR: [{ id }, { groupCode: id }], tenantId, appType },
       include: {
         members: {
           orderBy: { memberNumber: 'asc' },

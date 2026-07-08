@@ -352,7 +352,7 @@ export default function ChitGroupForm({
       </div>
 
       <div style={{ display: 'flex', gap: '8px' }}>
-        <button type="submit" className="btn btn-primary" disabled={loading || selectedMembers.filter(Boolean).length !== totalMembers}>
+        <button type="submit" className="btn btn-primary" disabled={loading || selectedMembers.filter(Boolean).length > totalMembers}>
           {loading ? d.creating : d.createGroup}
         </button>
         <button type="button" className="btn btn-secondary" onClick={() => router.back()}>{d.cancel}</button>

@@ -26,6 +26,7 @@ import TrialBanner from '@/components/TrialBanner';
 import OnboardingTour from '@/components/onboarding/OnboardingTour';
 import MobileBottomNav from '@/components/layout/MobileBottomNav';
 import WebPushManager from '@/components/push/WebPushManager';
+import { BreadcrumbLabelProvider } from '@/components/layout/BreadcrumbLabelContext';
 
 export default async function DashboardLayout({
   children,
@@ -182,27 +183,29 @@ export default async function DashboardLayout({
         pendingApprovals={pendingApprovals}
       />
       <main className="main-content">
-        <Topbar
-          dict={dict}
-          currentLang={lang}
-          branchSwitcher={<BranchSwitcher branches={branches} activeBranchId={activeBranchId} />}
-        />
-        <div className="page-content fade-up" style={{ position: 'relative' }}>
-          <SubscriptionExpiredModal isExpired={isExpired} role={role} />
-          <TrialBanner sub={sub} />
-          <OnboardingTour module={requestedModule} role={role} />
-          <WebPushManager
-            config={{
-              apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? '',
-              authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? '',
-              projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? '',
-              messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ?? '',
-              appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID ?? '',
-              vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY ?? '',
-            }}
+        <BreadcrumbLabelProvider>
+          <Topbar
+            dict={dict}
+            currentLang={lang}
+            branchSwitcher={<BranchSwitcher branches={branches} activeBranchId={activeBranchId} />}
           />
-          {children}
-        </div>
+          <div className="page-content fade-up" style={{ position: 'relative' }}>
+            <SubscriptionExpiredModal isExpired={isExpired} role={role} />
+            <TrialBanner sub={sub} />
+            <OnboardingTour module={requestedModule} role={role} />
+            <WebPushManager
+              config={{
+                apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? '',
+                authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? '',
+                projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? '',
+                messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ?? '',
+                appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID ?? '',
+                vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY ?? '',
+              }}
+            />
+            {children}
+          </div>
+        </BreadcrumbLabelProvider>
       </main>
       {role === 'agent' && <MobileBottomNav modulePrefix={`/${requestedModule}`} dict={dict} />}
     </div>

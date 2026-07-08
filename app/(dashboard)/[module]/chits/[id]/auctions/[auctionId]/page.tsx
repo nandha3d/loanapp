@@ -6,7 +6,7 @@ import Link from '@/components/layout/DashboardLink';
 import AuctionDetailClient from './AuctionDetailClient';
 import { getDictionary } from '@/lib/i18n';
 
-export default async function ChitAuctionDetailPage({ params }: { params: { id: string; auctionId: string } }) {
+export default async function ChitAuctionDetailPage({ params }: { params: Promise<{ id: string; auctionId: string; module: string }> }) {
   const { id, auctionId } = await params;
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
@@ -15,7 +15,7 @@ export default async function ChitAuctionDetailPage({ params }: { params: { id: 
   const dict = await getDictionary(tenantId);
 
   const auction = await prisma.chitAuction.findFirst({
-    where: { id: auctionId, chitGroupId: id, chitGroup: { tenantId, appType, deletedAt: null } },
+    where: { id: auctionId, chitGroup: { OR: [{ id }, { groupCode: id }], tenantId, appType, deletedAt: null } },
     include: {
       chitGroup: {
         include: {
@@ -45,7 +45,7 @@ export default async function ChitAuctionDetailPage({ params }: { params: { id: 
   return (
     <div>
       <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Link href={`/chits/${id}`} className="btn btn-ghost btn-sm">
+        <Link href={`/chits/${auction.chitGroup.groupCode ?? id}`} className="btn btn-ghost btn-sm">
           <span className="material-icons-outlined" style={{ fontSize: '16px' }}>arrow_back</span>
           {auction.chitGroup.name}
         </Link>

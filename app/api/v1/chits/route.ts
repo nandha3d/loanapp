@@ -3,6 +3,7 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { validateChitConfig } from '@/lib/chits/validation';
+import { generateCode } from '@/lib/utils';
 
 function dateOrNow(value?: string) {
   if (!value) return new Date();
@@ -72,11 +73,14 @@ export async function POST(req: NextRequest) {
     const requestedBranchId = body?.branchId ?? ctx.branchId;
     const branchId = ctx.role === 'superadmin' || ctx.role === 'developer' ? requestedBranchId : ctx.branchId;
     const group = await prisma.$transaction(async (tx) => {
+      const existingCount = await tx.chitGroup.count({ where: { tenantId: ctx.tenantId } });
+      const groupCode = generateCode('CF', existingCount + 1, 5);
       const created = await tx.chitGroup.create({
         data: {
           tenantId: ctx.tenantId,
           appType: ctx.appType,
           branchId: branchId || null,
+          groupCode,
           name,
           chitValue,
           monthlyContrib,

@@ -144,7 +144,7 @@ export default async function ChitsPage({
                     <td>{g.auctions.length} / {g.durationMonths}</td>
                     <td>{formatDate(g.startDate)}</td>
                     <td><span className={`badge badge-${g.status === 'active' ? 'success' : g.status === 'completed' ? 'info' : 'secondary'}`}>{g.status}</span></td>
-                    <td><Link href={`/chits/${g.id}`} className="btn btn-ghost btn-sm">{dict.chits.view}</Link></td>
+                    <td><Link href={`/chits/${g.groupCode ?? g.id}`} className="btn btn-ghost btn-sm">{dict.chits.view}</Link></td>
                   </tr>
                 ))}
               </tbody>

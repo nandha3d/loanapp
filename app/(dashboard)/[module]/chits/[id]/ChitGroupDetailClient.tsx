@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   activateChitGroup,
+  autoAssignChitTicketNumbers,
   cancelChitGroup,
   drawAuctionWinner,
   markPaymentMissed,
@@ -14,6 +15,7 @@ import {
 } from '../actions';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import Link from '@/components/layout/DashboardLink';
+import { useRegisterBreadcrumbLabel } from '@/components/layout/BreadcrumbLabelContext';
 
 interface ChitGroupDetailClientProps {
   group: any;
@@ -38,6 +40,7 @@ const DISTRIBUTION_LABELS: Record<string, string> = {
 export default function ChitGroupDetailClient({ group, currencySymbol, dict }: ChitGroupDetailClientProps) {
   const d = dict.chits;
   const router = useRouter();
+  useRegisterBreadcrumbLabel(group.groupCode ?? group.id, group.name);
   const [paymentModal, setPaymentModal] = useState<any>(null);
   const [memberModal, setMemberModal] = useState<any>(null);
   const [payAmount, setPayAmount] = useState(0);
@@ -51,6 +54,7 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
 
   const isDrawType = ['lottery', 'fixed_rotation'].includes(group.auctionType);
   const completedAuctions = group.auctions.filter((a: any) => ['confirmed', 'paid', 'completed'].includes(a.status));
+  const membersMissingTicketNo = group.members.filter((m: any) => !m.ticketNo).length;
 
   const run = async (label: string, fn: () => Promise<any>) => {
     setBusy(label);
@@ -120,7 +124,16 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
       )}
 
       <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', justifyContent: 'flex-end' }}>
-        <a href={`/chits/${group.id}/edit`} className="btn btn-secondary btn-sm">Edit</a>
+        <a href={`/chits/${group.groupCode ?? group.id}/edit`} className="btn btn-secondary btn-sm">Edit</a>
+        {group.status === 'draft' && membersMissingTicketNo > 0 && (
+          <button
+            className="btn btn-secondary btn-sm"
+            disabled={busy === 'auto-assign'}
+            onClick={() => run('auto-assign', () => autoAssignChitTicketNumbers(group.id))}
+          >
+            {busy === 'auto-assign' ? 'Assigning…' : `Auto-assign ticket numbers (${membersMissingTicketNo})`}
+          </button>
+        )}
         {group.status === 'draft' && (
           <button
             className="btn btn-primary btn-sm"
@@ -236,7 +249,7 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
                     <td><span className={`badge badge-${['confirmed', 'paid'].includes(a.status) ? 'success' : a.status === 'cancelled' ? 'danger' : a.status === 'in_progress' ? 'info' : 'warning'}`}>{a.status}</span></td>
                     <td>{a.winnerMemberId ? <span className={`badge badge-${a.payoutStatus === 'paid' ? 'success' : a.payoutStatus === 'ready' ? 'info' : 'warning'}`}>{a.payoutStatus}</span> : '—'}</td>
                     <td style={{ whiteSpace: 'nowrap' }}>
-                      <Link href={`/chits/${group.id}/auctions/${a.id}`} className="btn btn-ghost btn-sm">Manage</Link>
+                      <Link href={`/chits/${group.groupCode ?? group.id}/auctions/${a.id}`} className="btn btn-ghost btn-sm">Manage</Link>
                       {isDrawType && !['confirmed', 'paid', 'cancelled'].includes(a.status) && group.status === 'active' && (
                         <button
                           className="btn btn-primary btn-sm"
