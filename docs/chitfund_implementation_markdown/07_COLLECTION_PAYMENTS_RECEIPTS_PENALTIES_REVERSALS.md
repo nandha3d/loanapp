@@ -1,5 +1,7 @@
 # Step 7 — Collections, Receipts, Penalties, and Reversals
 
+> **Implementation status (2026-07-08): BACKEND DONE, UI PARTIAL.** `collectChitSubscriptionPayment` posts receipt + account entry + wallet credit; penalties create/pay/waive and receipt-reverse routes exist. Web/mobile collection UI still lacks payment mode, reference no, receipt display, penalty and reversal actions. `CASH_PAYOUT`/`ACCUMULATE` dividend distributions are accepted but not yet posted (gap 5). See `IMPLEMENTATION_STATUS_GAP_ANALYSIS.md`.
+
 ## Goal
 
 Upgrade chit subscription collection from simple paid amount update to a real cash collection workflow.

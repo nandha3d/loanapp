@@ -565,8 +565,7 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
       return;
     }
     final now = DateTime.now();
-    final elapsedMonths =
-        (now.year - widget.group.startDate.year) * 12 +
+    final elapsedMonths = (now.year - widget.group.startDate.year) * 12 +
         now.month -
         widget.group.startDate.month;
     final currentPeriod =

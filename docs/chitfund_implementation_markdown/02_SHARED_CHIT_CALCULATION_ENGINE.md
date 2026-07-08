@@ -1,5 +1,7 @@
 # Step 2 — Shared Chit Calculation Engine
 
+> **Implementation status (2026-07-08): DONE.** `lib/chits/calculations.ts` is config-driven (commissionBasis, GST, dividendRounding + roundingIncome) and used by web actions and both API auction routes — the web/mobile money mismatch described below is fixed. Remaining: dividend is not `ticketShare`-weighted at distribution (gap 4 in `IMPLEMENTATION_STATUS_GAP_ANALYSIS.md`).
+
 ## Goal
 
 Create one shared calculation engine for chit auction, foreman commission, bid discount, dividend, due adjustment, payment delta, and status changes.

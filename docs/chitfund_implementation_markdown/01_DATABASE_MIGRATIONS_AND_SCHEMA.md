@@ -1,5 +1,7 @@
 # Step 1 — Database Migrations and Chit Schema Upgrade
 
+> **Implementation status (2026-07-08): DONE.** All models/fields below are live via migration `20260708000000_chitfund_production_upgrade`; `scripts/backfill-chit-schema.ts` exists. The "no migrations exist" premise and the baseline-creation section are historical — the repo has a committed migration history; only incremental migrations are needed now. See `IMPLEMENTATION_STATUS_GAP_ANALYSIS.md`.
+
 ## Goal
 
 Make the chit-fund database production-ready and deployable.

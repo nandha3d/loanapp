@@ -31,8 +31,11 @@ export default function ChitCollectionClient({
 }) {
   const router = useRouter();
   const [amounts, setAmounts] = useState<Record<string, string>>({});
+  const [modes, setModes] = useState<Record<string, string>>({});
+  const [refs, setRefs] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [receipt, setReceipt] = useState<string | null>(null);
 
   const dueToday = rows.filter((r) => r.bucket === 'today');
   const overdue = rows.filter((r) => r.bucket === 'overdue');
@@ -41,6 +44,7 @@ export default function ChitCollectionClient({
 
   async function collect(row: Row) {
     setError(null);
+    setReceipt(null);
     const raw = amounts[row.id];
     const amount = raw === undefined || raw === '' ? row.outstanding : Number(raw);
     if (!(amount > 0)) {
@@ -49,10 +53,11 @@ export default function ChitCollectionClient({
     }
     setBusyId(row.id);
     try {
-      // recordChitPayment takes the NEW TOTAL paid for the period; it throws on
-      // failure (caught below) and returns nothing on success.
-      const newTotal = row.paidAmount + amount;
-      await recordChitPayment(row.memberId, row.periodNumber, newTotal);
+      // recordChitPayment ADDS this amount to the existing paid amount and
+      // returns the collection receipt number.
+      const mode = modes[row.id] || 'cash';
+      const result = await recordChitPayment(row.memberId, row.periodNumber, amount, mode, refs[row.id] || null);
+      setReceipt(result?.receiptNo || null);
       router.refresh();
     } catch (e: any) {
       setError(e?.message || 'Collection failed');
@@ -99,7 +104,7 @@ export default function ChitCollectionClient({
                     <strong>{formatCurrency(row.outstanding, currencySymbol)}</strong>
                   </td>
                   <td data-label="Collect">
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                       <input
                         type="number"
                         className="form-control"
@@ -109,6 +114,29 @@ export default function ChitCollectionClient({
                         onChange={(e) => setAmounts((m) => ({ ...m, [row.id]: e.target.value }))}
                         disabled={busyId === row.id}
                       />
+                      <select
+                        className="form-control"
+                        style={{ width: 90 }}
+                        value={modes[row.id] ?? 'cash'}
+                        onChange={(e) => setModes((m) => ({ ...m, [row.id]: e.target.value }))}
+                        disabled={busyId === row.id}
+                      >
+                        <option value="cash">Cash</option>
+                        <option value="upi">UPI</option>
+                        <option value="bank">Bank</option>
+                        <option value="cheque">Cheque</option>
+                      </select>
+                      {(modes[row.id] ?? 'cash') !== 'cash' && (
+                        <input
+                          type="text"
+                          className="form-control"
+                          style={{ width: 120 }}
+                          placeholder="Ref no"
+                          value={refs[row.id] ?? ''}
+                          onChange={(e) => setRefs((m) => ({ ...m, [row.id]: e.target.value }))}
+                          disabled={busyId === row.id}
+                        />
+                      )}
                       <button
                         className="btn btn-primary btn-sm"
                         onClick={() => collect(row)}
@@ -162,6 +190,11 @@ export default function ChitCollectionClient({
 
       {error && (
         <div className="alert alert-danger" style={{ marginBottom: 16 }}>{error}</div>
+      )}
+      {receipt && (
+        <div style={{ marginBottom: 16, padding: '10px 14px', background: '#f0fff4', border: '1px solid var(--success)', borderRadius: 'var(--radius)', color: 'var(--success)' }}>
+          Collected — receipt {receipt}
+        </div>
       )}
 
       {table(`Due Today (${dueToday.length})`, dueToday, 'No contributions due today.')}

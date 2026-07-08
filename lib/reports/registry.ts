@@ -220,6 +220,7 @@ export const reportRegistry: Record<string, ReportBuilder> = {
   'chit-bid-history': buildChitBidHistory,
   'chit-prized-subscriber-report': buildChitPrizedSubscribers,
   'chit-prized-subscribers': buildChitPrizedSubscribers,
+  'prized-subscriber-report': buildChitPrizedSubscribers,
   'chit-dividend-register': buildChitDividendRegister,
   'chit-foreman-commission-report': buildChitForemanCommission,
   'chit-foreman-commission': buildChitForemanCommission,

@@ -1,5 +1,7 @@
 # Step 10 — Tests, Seed Data, QA Evidence, and Release Checklist
 
+> **Implementation status (2026-07-08): PARTIAL.** Done: `chitCalculation` + `chitSecurity` suites, `seed-chit-demo.ts`, `backfill-chit-schema.ts`, `test:chits`/`seed:chits`/`backfill:chits` scripts, e2e group-creation coverage. Missing: compliance, collections, auction-workflow, payout, and reports suites (5 of 7), plus the QA evidence file and release-checklist execution. See `IMPLEMENTATION_STATUS_GAP_ANALYSIS.md`.
+
 ## Goal
 
 Make the chit-fund module safe to release after Steps 1–9.

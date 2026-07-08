@@ -10,6 +10,16 @@ export function getWinningBid<T extends { bidDiscount: number; bidTime: Date; st
   })[0] ?? null;
 }
 
+// All valid bids tied at the highest discount. When the group's tieBreakRule is
+// LOTTERY_AMONG_TIED and this returns more than one bid, the winner must come from
+// a lottery draw among them (lib/chits/lottery.ts) instead of earliest-bid order.
+export function getTopBids<T extends { bidDiscount: number; bidTime: Date; status: string }>(bids: T[]): T[] {
+  const valid = bids.filter((bid) => bid.status === 'valid');
+  if (!valid.length) return [];
+  const topDiscount = Math.max(...valid.map((bid) => bid.bidDiscount));
+  return valid.filter((bid) => bid.bidDiscount === topDiscount);
+}
+
 export function generateAuctionMinutes(input: {
   groupName: string;
   periodNumber: number;

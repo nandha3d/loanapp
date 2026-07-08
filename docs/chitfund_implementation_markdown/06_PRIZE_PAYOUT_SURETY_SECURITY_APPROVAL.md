@@ -1,5 +1,7 @@
 # Step 6 — Prize Payout, Surety, and Security Approval
 
+> **Implementation status (2026-07-08): BACKEND DONE, UI MISSING.** Security record auto-created on confirm; `releasePrizePayout` is gated by approved security, idempotent, posts account entry + wallet debit + receipt. No web security-approval page; mobile service methods exist but no screen calls them. See `IMPLEMENTATION_STATUS_GAP_ANALYSIS.md`.
+
 ## Goal
 
 Prevent direct prize payout until the prized subscriber submits required surety/security and the business approves it.

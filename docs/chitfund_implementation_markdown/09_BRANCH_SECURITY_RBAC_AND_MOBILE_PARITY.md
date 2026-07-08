@@ -1,5 +1,7 @@
 # Step 9 — Branch Security, RBAC, and Mobile Parity
 
+> **Implementation status (2026-07-08): DONE at API/action level.** `lib/chits/access.ts` (`getWebChitScope`, `scopedChitGroupWhere`, `assertChitRole`) is used across actions and routes; `tests/chits/chitSecurity.test.ts` exists. Mobile parity is complete in `chit_service.dart` methods but the Flutter screens don't call the new ones yet. See `IMPLEMENTATION_STATUS_GAP_ANALYSIS.md`.
+
 ## Goal
 
 Ensure all chit-fund backend actions, API routes, UI actions, and mobile flows enforce tenant + branch + role access consistently.

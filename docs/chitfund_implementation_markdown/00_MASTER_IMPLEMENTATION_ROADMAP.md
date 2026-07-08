@@ -7,6 +7,7 @@ This roadmap converts the existing LoanTrack chit-fund MVP into a production-rea
 The current app already has:
 
 - `ChitGroup`, `ChitMember`, `ChitAuction`, and `ChitSubscription` Prisma models.
+- A working, git-tracked Prisma migration history (`prisma/migrations/`, baseline `20260515000000_initial_baseline` plus incrementals) — new chit changes are ordinary incremental migrations.
 - Web pages under `app/(dashboard)/[module]/chits`.
 - Mobile APIs under `app/api/v1/chits`.
 - Flutter screens under `mobile/lib/features/chits`.
@@ -14,31 +15,36 @@ The current app already has:
 
 The missing production areas are:
 
-- Legal/compliance registration fields.
+- Chit variety support: only one implicit style exists today (monthly open auction). Registered vs unregistered chits, lottery/fixed-rotation/sealed variants, daily/weekly frequency, dividend distribution options, fractional tickets, and foreman/vacant tickets are absent.
+- Legal/compliance registration fields (for registered chits).
 - Subscriber agreement, nominee, ticket, and document workflow.
-- Proper auction workflow with bid history, attendance, minutes, and consistent calculation.
+- Proper auction workflow with bid history, attendance, minutes, and consistent calculation — including live online bidding.
 - Surety/security approval before prize payout.
 - Strong collection/payment/receipt/reversal workflow.
-- Chit-specific reports.
+- Chit-specific reports (four report links in the analytics page point at slugs that do not exist in the registry).
 - Branch-level security and mobile parity.
-- Tests and deployment migrations.
+- Tests and seed data.
 
 ## Recommended implementation order
 
 Implement these markdown files in the below order. Do not skip the order because later steps depend on earlier database and calculation changes.
 
-| Step | Markdown file | Goal |
+| Order | Markdown file | Goal |
 |---:|---|---|
-| 1 | `01_DATABASE_MIGRATIONS_AND_SCHEMA.md` | Add real Prisma migrations and production-grade chit schema. |
+| 1 | `01_DATABASE_MIGRATIONS_AND_SCHEMA.md` | Add incremental Prisma migration and production-grade chit schema. |
 | 2 | `02_SHARED_CHIT_CALCULATION_ENGINE.md` | Centralize chit auction, dividend, commission, and subscription calculations. |
 | 3 | `03_CHIT_GROUP_COMPLIANCE_REGISTRATION.md` | Add chit registration, approval, commencement, bank, and foreman security fields. |
-| 4 | `04_SUBSCRIBER_AGREEMENT_KYC_NOMINEE_TICKET.md` | Add subscriber agreement, ticket/fraction, nominee, and document workflow. |
-| 5 | `05_AUCTION_WORKFLOW_BIDS_ATTENDANCE_MINUTES.md` | Build full auction process: schedule, notice, bids, winner, attendance, minutes. |
-| 6 | `06_PRIZE_PAYOUT_SURETY_SECURITY_APPROVAL.md` | Add surety/security verification before prize payout. |
-| 7 | `07_COLLECTION_PAYMENTS_RECEIPTS_PENALTIES_REVERSALS.md` | Improve payment collection, receipt, penalty, partial payment, and reversal handling. |
-| 8 | `08_REPORTS_EXPORTS_AND_DASHBOARDS.md` | Fix report registry mismatch and add chit-specific reports/exports. |
-| 9 | `09_BRANCH_SECURITY_RBAC_AND_MOBILE_PARITY.md` | Enforce tenant + branch security and align mobile APIs with web behavior. |
-| 10 | `10_TESTS_SEED_DATA_AND_RELEASE_CHECKLIST.md` | Add tests, seed data, QA evidence, and production release checklist. |
+| 4 | `11_CHIT_TYPES_AND_GROUP_CREATION_OPTIONS.md` | Add chit variety configuration: registered/unregistered, auction types, frequency, dividend and commission options, foreman/vacant/fractional tickets. |
+| 5 | `04_SUBSCRIBER_AGREEMENT_KYC_NOMINEE_TICKET.md` | Add subscriber agreement, ticket/fraction, nominee, and document workflow. |
+| 6 | `05_AUCTION_WORKFLOW_BIDS_ATTENDANCE_MINUTES.md` | Build full auction process: schedule, notice, bids, winner, attendance, minutes. |
+| 7 | `12_LIVE_AUCTION_ROOM_POLLING.md` | Live beat: polling auction room, anti-snipe timer, sealed bids, audited lottery draw. |
+| 8 | `06_PRIZE_PAYOUT_SURETY_SECURITY_APPROVAL.md` | Add surety/security verification before prize payout. |
+| 9 | `07_COLLECTION_PAYMENTS_RECEIPTS_PENALTIES_REVERSALS.md` | Improve payment collection, receipt, penalty, partial payment, and reversal handling. |
+| 10 | `08_REPORTS_EXPORTS_AND_DASHBOARDS.md` | Fix report registry mismatch and add chit-specific reports/exports. |
+| 11 | `09_BRANCH_SECURITY_RBAC_AND_MOBILE_PARITY.md` | Enforce tenant + branch security and align mobile APIs with web behavior. |
+| 12 | `10_TESTS_SEED_DATA_AND_RELEASE_CHECKLIST.md` | Add tests, seed data, QA evidence, and production release checklist. |
+
+File names keep their historical step numbers; follow the Order column. Step 11 must land before the auction/collection steps because they read its configuration fields. `IMPLEMENTATION_STATUS_GAP_ANALYSIS.md` records what the current codebase already implements versus this roadmap.
 
 ## Target business flow after all steps
 

@@ -1,5 +1,7 @@
 # Step 8 — Chit Reports, Exports, and Dashboard Fixes
 
+> **Implementation status (2026-07-08): DONE except one slug.** All builders below are registered in `lib/reports/registry.ts:212-232` including `vacant-chit-report` and aliases for the analytics-page links. Still broken: analytics uses bare `prized-subscriber-report` (`analytics/page.tsx:355`) which has no registry alias — one-line fix. See `IMPLEMENTATION_STATUS_GAP_ANALYSIS.md` gap 7.
+
 ## Goal
 
 Fix existing chit report mismatch and add production-ready chit-fund reports.

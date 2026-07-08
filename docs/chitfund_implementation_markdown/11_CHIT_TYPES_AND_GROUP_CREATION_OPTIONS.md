@@ -1,5 +1,7 @@
 # Step 11 — Chit Types and Group Creation Options
 
+> **Implementation status (2026-07-08): STORAGE + VALIDATION DONE, BEHAVIOR + UI PARTIAL.** All config columns and `validateChitConfig` are live; subscriptions are ticketShare-weighted. Missing: the group-form wizard (web + mobile expose none of these options), lottery/fixed_rotation draw path, tieBreakRule enforcement, foreman-ticket period-1 auto-resolution, ticketShare-weighted dividends, CASH_PAYOUT/ACCUMULATE posting. See `IMPLEMENTATION_STATUS_GAP_ANALYSIS.md` gaps 1–5.
+
 ## Goal
 
 Support every chit variety operated in different regions from one `ChitGroup` configuration, selected at group creation time.

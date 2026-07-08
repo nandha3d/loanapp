@@ -1,5 +1,7 @@
 # Step 5 — Auction Workflow with Bids, Attendance, and Minutes
 
+> **Implementation status (2026-07-08): BACKEND DONE, UI MISSING + 3 LOGIC GAPS.** Bids/attendance/notice/confirm with minutes, audit, and `payoutStatus=security_pending` are implemented; payout is no longer posted at confirmation. Missing: the auction detail page (web) and screen wiring (mobile); `tieBreakRule` not honored in `getWinningBid`; lottery/fixed_rotation groups have no draw path; confirm resurrects withdrawn/rejected bids (`updateMany → valid`). See `IMPLEMENTATION_STATUS_GAP_ANALYSIS.md` gaps 1, 2, 6.
+
 ## Goal
 
 Convert the current basic auction winner entry into a proper chit auction module.

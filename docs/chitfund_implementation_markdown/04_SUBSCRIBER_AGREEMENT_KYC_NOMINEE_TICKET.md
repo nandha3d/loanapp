@@ -1,5 +1,7 @@
 # Step 4 — Subscriber Agreement, KYC, Nominee, and Ticket Workflow
 
+> **Implementation status (2026-07-08): BACKEND DONE, UI MISSING.** Member fields, agreement sign/verify/reject actions, and member/agreement API routes exist. No web member table/edit UI and no mobile screen uses them yet. See `IMPLEMENTATION_STATUS_GAP_ANALYSIS.md`.
+
 ## Goal
 
 Add the subscriber-side legal and operational workflow that real chit funds need before the group starts.

@@ -4,7 +4,7 @@ import prisma from '@/lib/db';
 import { modulePath } from '@/types/modules';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { calculateChitAuction } from '@/lib/chits/calculations';
+import { calculateFixedDiscountPrize, roundMoney } from '@/lib/chits/calculations';
 import { collectChitSubscriptionPayment } from '@/lib/chits/collections';
 import { createChitAudit } from '@/lib/chits/audit';
 import {
@@ -15,7 +15,17 @@ import {
   getWebChitScope,
   scopedChitGroupWhere,
 } from '@/lib/chits/access';
-import { generateAuctionMinutes, getWinningBid } from '@/lib/chits/auction';
+import { getTopBids, getWinningBid } from '@/lib/chits/auction';
+import { drawLotteryWinner, formatDrawEvidence } from '@/lib/chits/lottery';
+import { finalizeAuctionInTx } from '@/lib/chits/finalize';
+import {
+  antiSnipeExtension,
+  closeAuctionRoom,
+  closeRoomIfExpired,
+  isRoomOpen,
+  openAuctionRoom,
+  secondsRemaining,
+} from '@/lib/chits/liveAuction';
 import { releaseChitPrizePayout } from '@/lib/chits/payout';
 import { assertCanReleasePrizePayout } from '@/lib/chits/security';
 import {
@@ -198,6 +208,8 @@ export async function activateChitGroup(groupId: string) {
       ticketShare: true,
       agreementStatus: true,
       isForemanTicket: true,
+      hasWon: true,
+      customer: { select: { name: true } },
     },
   });
   const ticketCounts = new Map<string, number>();
@@ -272,6 +284,51 @@ export async function activateChitGroup(groupId: string) {
       where: { id: group.id },
       data: { status: 'active', complianceStatus: 'active' },
     });
+
+    // Foreman/company ticket takes the period-1 prize without an auction (doc 11 §7).
+    const foremanMember = group.hasForemanTicket
+      ? members.find((member) => member.isForemanTicket && !member.hasWon)
+      : null;
+    if (foremanMember) {
+      const periodOne = await tx.chitAuction.findFirst({
+        where: { chitGroupId: group.id, periodNumber: 1, status: 'pending', winnerMemberId: null },
+      });
+      if (periodOne) {
+        const fixed = calculateFixedDiscountPrize({
+          chitValue: Number(group.chitValue),
+          fixedDiscountPct: group.fixedDiscountPct ? Number(group.fixedDiscountPct) : 0,
+        });
+        const branch = group.branchId
+          ? await tx.branch.findUnique({ where: { id: group.branchId }, select: { code: true } })
+          : null;
+        const bid = await tx.chitBid.create({
+          data: {
+            tenantId: scope.tenantId,
+            branchId: group.branchId,
+            auctionId: periodOne.id,
+            chitGroupId: group.id,
+            memberId: foremanMember.id,
+            bidAmount: fixed.prizeAmount,
+            bidDiscount: fixed.bidDiscount,
+            remarks: 'Foreman ticket — period 1 prize taken without auction',
+            createdById: scope.userId || undefined,
+          },
+        });
+        await finalizeAuctionInTx(tx, {
+          scope,
+          auction: periodOne,
+          group,
+          branchCode: branch?.code,
+          selectedBid: bid,
+          winnerName: foremanMember.customer.name,
+          winnerTicketNo: foremanMember.ticketNo,
+          presentCount: 0,
+          drawEvidence: 'Foreman ticket — period 1 prize taken without auction.',
+          auditAction: 'foreman_ticket_resolve',
+        });
+      }
+    }
+
     await createChitAudit(tx, {
       tenantId: scope.tenantId,
       userId: scope.userId,
@@ -407,9 +464,13 @@ export async function addAuctionBid(auctionId: string, memberId: string, prizeAm
   });
   if (!auction) throw new Error('Auction not found');
   if (['confirmed', 'paid', 'cancelled'].includes(auction.status)) throw new Error('Auction is locked');
+  if (['lottery', 'fixed_rotation'].includes(auction.chitGroup.auctionType)) {
+    throw new Error('This chit uses a draw — bids are not accepted. Use the draw action instead.');
+  }
   const member = await prisma.chitMember.findFirst({ where: { id: memberId, chitGroupId: auction.chitGroupId } });
   if (!member) throw new Error('Member not found in this chit group');
   if (member.hasWon) throw new Error('This member has already won in this group');
+  if (member.subscriberStatus !== 'active') throw new Error(`A ${member.subscriberStatus} ticket cannot bid`);
 
   assertValidPrizeAmount({
     chitValue: Number(auction.chitGroup.chitValue),
@@ -419,22 +480,59 @@ export async function addAuctionBid(auctionId: string, memberId: string, prizeAm
     commissionPct: Number(auction.chitGroup.commissionPct),
   });
   const bidDiscount = Number(auction.chitGroup.chitValue) - prizeAmount;
-  const bid = await prisma.chitBid.create({
-    data: {
-      tenantId: scope.tenantId,
-      branchId: auction.chitGroup.branchId,
-      auctionId,
-      chitGroupId: auction.chitGroupId,
-      memberId,
-      bidAmount: prizeAmount,
-      bidDiscount,
-      remarks,
-      createdById: scope.userId || undefined,
-    },
-  });
-  await prisma.chitAuction.update({
-    where: { id: auction.id },
-    data: { status: auction.status === 'pending' ? 'in_progress' : auction.status, startedAt: auction.startedAt ?? new Date() },
+
+  const bid = await prisma.$transaction(async (tx) => {
+    // Live room: lazily close on expiry, require an open room, apply anti-snipe extension.
+    if (auction.chitGroup.auctionType === 'open_live') {
+      await closeRoomIfExpired(tx, auctionId);
+      const fresh = await tx.chitAuction.findUnique({
+        where: { id: auctionId },
+        select: { roomStatus: true, biddingClosesAt: true, autoExtendSeconds: true },
+      });
+      if (!fresh || !isRoomOpen(fresh)) throw new Error('Bidding room is not open');
+      const extendedClose = antiSnipeExtension(fresh);
+      if (extendedClose) {
+        await tx.chitAuction.update({
+          where: { id: auctionId },
+          data: { biddingClosesAt: extendedClose, roomStatus: 'extended' },
+        });
+      }
+    }
+
+    // Bid increment step; exact-cap bids always accepted so cap ties can form.
+    if (auction.chitGroup.bidIncrement) {
+      const capDiscount = auction.chitGroup.maxDiscountPct
+        ? roundMoney((Number(auction.chitGroup.chitValue) * Number(auction.chitGroup.maxDiscountPct)) / 100)
+        : null;
+      const highest = await tx.chitBid.aggregate({
+        where: { auctionId, status: 'valid' },
+        _max: { bidDiscount: true },
+      });
+      const currentHighest = highest._max.bidDiscount ? Number(highest._max.bidDiscount) : 0;
+      const atCap = capDiscount != null && bidDiscount === capDiscount;
+      if (!atCap && currentHighest > 0 && bidDiscount < currentHighest + Number(auction.chitGroup.bidIncrement)) {
+        throw new Error(`Bid discount must exceed the current highest (${currentHighest}) by at least ${Number(auction.chitGroup.bidIncrement)}`);
+      }
+    }
+
+    const created = await tx.chitBid.create({
+      data: {
+        tenantId: scope.tenantId,
+        branchId: auction.chitGroup.branchId,
+        auctionId,
+        chitGroupId: auction.chitGroupId,
+        memberId,
+        bidAmount: prizeAmount,
+        bidDiscount,
+        remarks,
+        createdById: scope.userId || undefined,
+      },
+    });
+    await tx.chitAuction.update({
+      where: { id: auction.id },
+      data: { status: auction.status === 'pending' ? 'in_progress' : auction.status, startedAt: auction.startedAt ?? new Date() },
+    });
+    return created;
   });
   revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}`));
   return bid;
@@ -446,100 +544,140 @@ export async function confirmAuction(auctionId: string, winningBidId?: string | 
   const auction = await prisma.chitAuction.findFirst({
     where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
     include: {
-      chitGroup: true,
+      chitGroup: { include: { branch: true } },
       bids: { include: { member: { include: { customer: true } } }, orderBy: { bidTime: 'asc' } },
       attendance: true,
     },
   });
   if (!auction) throw new Error('Auction not found');
   if (['confirmed', 'paid'].includes(auction.status)) throw new Error('Auction already confirmed');
-  const selectedBid = winningBidId
-    ? auction.bids.find((bid) => bid.id === winningBidId)
-    : getWinningBid(auction.bids.map((bid) => ({
-        ...bid,
-        bidDiscount: Number(bid.bidDiscount),
-        bidTime: bid.bidTime,
-      })));
+
+  const comparableBids = auction.bids.map((bid) => ({
+    ...bid,
+    bidDiscount: Number(bid.bidDiscount),
+    bidTime: bid.bidTime,
+  }));
+  let drawEvidence: string | null = null;
+  let selectedBid = winningBidId ? auction.bids.find((bid) => bid.id === winningBidId) : undefined;
+  if (!winningBidId) {
+    const topBids = getTopBids(comparableBids);
+    if (topBids.length > 1 && auction.chitGroup.tieBreakRule === 'LOTTERY_AMONG_TIED') {
+      const uniqueMembers = new Map<string, typeof topBids[number]>();
+      for (const bid of topBids) if (!uniqueMembers.has(bid.memberId)) uniqueMembers.set(bid.memberId, bid);
+      const draw = drawLotteryWinner({
+        auctionId: auction.id,
+        candidates: Array.from(uniqueMembers.values()).map((bid) => ({
+          memberId: bid.memberId,
+          ticketNo: bid.member.ticketNo ?? bid.member.memberNumber.toString(),
+          memberName: bid.member.customer.name,
+        })),
+      });
+      selectedBid = auction.bids.find((bid) => bid.id === uniqueMembers.get(draw.winner.memberId)?.id);
+      drawEvidence = `Tie at highest discount. ${formatDrawEvidence(draw)}`;
+    } else {
+      const winner = getWinningBid(comparableBids);
+      selectedBid = winner ? auction.bids.find((bid) => bid.id === winner.id) : undefined;
+    }
+  }
   if (!selectedBid) throw new Error('At least one valid bid is required');
   if (selectedBid.status !== 'valid') throw new Error('Winning bid must be valid');
   if (selectedBid.member.hasWon) throw new Error('Winning member has already won');
 
-  const calc = calculateChitAuction({
-    chitValue: Number(auction.chitGroup.chitValue),
-    prizeAmount: Number(selectedBid.bidAmount),
-    commissionPct: Number(auction.chitGroup.commissionPct),
-    totalMembers: auction.chitGroup.totalMembers,
-    dividendPolicy: auction.chitGroup.dividendPolicy as any,
-    commissionBasis: auction.chitGroup.commissionBasis as any,
-    gstPct: auction.chitGroup.gstPct ? Number(auction.chitGroup.gstPct) : null,
-    dividendRounding: auction.chitGroup.dividendRounding,
+  await prisma.$transaction(async (tx) => {
+    await finalizeAuctionInTx(tx, {
+      scope,
+      auction,
+      group: auction.chitGroup,
+      branchCode: auction.chitGroup.branch?.code,
+      selectedBid,
+      winnerName: selectedBid.member.customer.name,
+      winnerTicketNo: selectedBid.member.ticketNo,
+      presentCount: auction.attendance.filter((entry) => entry.status === 'present' || entry.status === 'proxy').length,
+      minutesText,
+      drawEvidence,
+      auditAction: 'confirm_auction',
+    });
   });
-  const generatedMinutes = generateAuctionMinutes({
-    groupName: auction.chitGroup.name,
-    periodNumber: auction.periodNumber,
-    auctionDate: auction.auctionDate,
-    totalMembers: auction.chitGroup.totalMembers,
-    presentCount: auction.attendance.filter((entry) => entry.status === 'present' || entry.status === 'proxy').length,
-    winnerName: selectedBid.member.customer.name,
-    prizeAmount: calc.prizeAmount,
-    bidDiscount: calc.bidDiscount,
-    commission: calc.commission,
-    dividend: calc.dividend,
+  revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}`));
+}
+
+// Resolves a lottery or fixed_rotation period without bids: lottery uses the audited
+// random draw; fixed_rotation takes the lowest unprized ticket. Creates a synthetic
+// winning bid at the group's fixed discount so downstream flows match auctions.
+export async function drawAuctionWinner(auctionId: string) {
+  const scope = await getWebChitScope();
+  assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+  const auction = await prisma.chitAuction.findFirst({
+    where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
+    include: { chitGroup: { include: { branch: true } }, attendance: true },
+  });
+  if (!auction) throw new Error('Auction not found');
+  if (!['lottery', 'fixed_rotation'].includes(auction.chitGroup.auctionType)) {
+    throw new Error('Draw is only available for lottery or fixed rotation chits');
+  }
+  if (['confirmed', 'paid', 'cancelled'].includes(auction.status)) throw new Error('Auction is locked');
+
+  const eligible = await prisma.chitMember.findMany({
+    where: {
+      chitGroupId: auction.chitGroupId,
+      hasWon: false,
+      subscriberStatus: 'active',
+      ticketNo: { not: null },
+    },
+    include: { customer: true },
+  });
+  if (!eligible.length) throw new Error('No eligible tickets for this period');
+
+  let winnerMember: (typeof eligible)[number];
+  let drawEvidence: string;
+  if (auction.chitGroup.auctionType === 'lottery') {
+    const draw = drawLotteryWinner({
+      auctionId: auction.id,
+      candidates: eligible.map((member) => ({
+        memberId: member.id,
+        ticketNo: member.ticketNo as string,
+        memberName: member.customer.name,
+      })),
+    });
+    winnerMember = eligible.find((member) => member.id === draw.winner.memberId) as (typeof eligible)[number];
+    drawEvidence = formatDrawEvidence(draw);
+  } else {
+    winnerMember = [...eligible].sort((a, b) =>
+      (a.ticketNo as string).localeCompare(b.ticketNo as string, undefined, { numeric: true })
+    )[0];
+    drawEvidence = `Fixed rotation: ticket ${winnerMember.ticketNo} is next in payout order.`;
+  }
+
+  const fixed = calculateFixedDiscountPrize({
+    chitValue: Number(auction.chitGroup.chitValue),
+    fixedDiscountPct: auction.chitGroup.fixedDiscountPct ? Number(auction.chitGroup.fixedDiscountPct) : 0,
   });
 
   await prisma.$transaction(async (tx) => {
-    await tx.chitBid.updateMany({ where: { auctionId: auction.id }, data: { status: 'valid' } });
-    await tx.chitBid.update({ where: { id: selectedBid.id }, data: { status: 'winning' } });
-    await tx.chitAuction.update({
-      where: { id: auction.id },
-      data: {
-        winnerMemberId: selectedBid.memberId,
-        prizeAmount: calc.prizeAmount,
-        bidDiscount: calc.bidDiscount,
-        commission: calc.commission,
-        dividend: calc.dividend,
-        gstAmount: calc.gstAmount,
-        roundingIncome: calc.roundingIncome,
-        status: 'confirmed',
-        payoutStatus: 'security_pending',
-        completedAt: new Date(),
-        confirmedAt: new Date(),
-        confirmedById: scope.userId || undefined,
-        minutesText: minutesText || generatedMinutes,
-      },
-    });
-    await tx.chitMember.update({ where: { id: selectedBid.memberId }, data: { hasWon: true, wonAt: new Date() } });
-    await tx.chitSecurity.create({
+    const bid = await tx.chitBid.create({
       data: {
         tenantId: scope.tenantId,
         branchId: auction.chitGroup.branchId,
-        chitGroupId: auction.chitGroupId,
         auctionId: auction.id,
-        winnerMemberId: selectedBid.memberId,
-        status: 'pending',
+        chitGroupId: auction.chitGroupId,
+        memberId: winnerMember.id,
+        bidAmount: fixed.prizeAmount,
+        bidDiscount: fixed.bidDiscount,
+        remarks: drawEvidence,
+        createdById: scope.userId || undefined,
       },
     });
-
-    if (calc.dividend > 0 && auction.chitGroup.dividendDistribution === 'ADJUST_NEXT_DUE') {
-      await tx.chitSubscription.updateMany({
-        where: {
-          member: {
-            chitGroupId: auction.chitGroupId,
-            ...(auction.chitGroup.dividendPolicy === 'NON_WINNERS_ONLY' ? { id: { not: selectedBid.memberId } } : {}),
-          },
-          periodNumber: { gt: auction.periodNumber },
-          status: { not: 'paid' },
-        },
-        data: { dividendAmount: { increment: calc.dividend }, dueAmount: { decrement: calc.dividend } },
-      });
-    }
-    await createChitAudit(tx, {
-      tenantId: scope.tenantId,
-      userId: scope.userId,
-      action: 'confirm_auction',
-      entityType: 'chit_auction',
-      entityId: auction.id,
-      newValue: { winningBidId: selectedBid.id, calc },
+    await finalizeAuctionInTx(tx, {
+      scope,
+      auction,
+      group: auction.chitGroup,
+      branchCode: auction.chitGroup.branch?.code,
+      selectedBid: bid,
+      winnerName: winnerMember.customer.name,
+      winnerTicketNo: winnerMember.ticketNo,
+      presentCount: auction.attendance.filter((entry) => entry.status === 'present' || entry.status === 'proxy').length,
+      drawEvidence,
+      auditAction: 'draw_winner',
     });
   });
   revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}`));
@@ -648,7 +786,14 @@ export async function releasePrizePayout(auctionId: string, formData?: FormData)
   revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}`));
 }
 
-export async function recordChitPayment(memberId: string, periodNumber: number, amount: number) {
+export async function recordChitPayment(
+  memberId: string,
+  periodNumber: number,
+  amount: number,
+  paymentMode = 'cash',
+  referenceNo?: string | null,
+  notes?: string | null,
+) {
   const scope = await getWebChitScope();
   if (!canCollectChits(scope.role)) throw new Error('Forbidden');
   const sub = await prisma.chitSubscription.findFirst({
@@ -656,6 +801,7 @@ export async function recordChitPayment(memberId: string, periodNumber: number, 
     include: { member: { include: { chitGroup: { include: { branch: true } } } } },
   });
   if (!sub) throw new Error('Subscription not found or not in your tenant/branch');
+  let receiptNo = '';
   await prisma.$transaction(async (tx) => {
     const result = await collectChitSubscriptionPayment(tx, {
       tenantId: scope.tenantId,
@@ -667,9 +813,12 @@ export async function recordChitPayment(memberId: string, periodNumber: number, 
       dueAmount: Number(sub.dueAmount),
       amount,
       mode: 'ADD_PAYMENT',
-      paymentMode: 'cash',
+      paymentMode,
+      referenceNo,
+      notes,
       collectorId: scope.userId as string,
     });
+    receiptNo = result.receiptNo;
     await createChitAudit(tx, {
       tenantId: scope.tenantId,
       userId: scope.userId,
@@ -681,6 +830,118 @@ export async function recordChitPayment(memberId: string, periodNumber: number, 
   });
 
   revalidatePath(modulePath(scope.appType, `/chits/${sub.member.chitGroupId}`));
+  return { receiptNo };
+}
+
+export async function openLiveRoom(auctionId: string, durationMinutes = 30, autoExtendSeconds = 0) {
+  const scope = await getWebChitScope();
+  assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+  const auction = await prisma.chitAuction.findFirst({
+    where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
+    include: { chitGroup: true },
+  });
+  if (!auction) throw new Error('Auction not found');
+  if (auction.chitGroup.auctionType !== 'open_live') throw new Error('Live room is only available for open_live chits');
+  if (['confirmed', 'paid', 'cancelled'].includes(auction.status)) throw new Error('Auction is locked');
+
+  await prisma.$transaction(async (tx) => {
+    await closeRoomIfExpired(tx, auctionId);
+    const fresh = await tx.chitAuction.findUnique({ where: { id: auctionId }, select: { roomStatus: true } });
+    if (fresh && ['open', 'extended'].includes(fresh.roomStatus)) throw new Error('Room is already open');
+    await openAuctionRoom(tx, { auctionId, durationMinutes, autoExtendSeconds });
+    await createChitAudit(tx, {
+      tenantId: scope.tenantId,
+      userId: scope.userId,
+      action: 'open_live_room',
+      entityType: 'chit_auction',
+      entityId: auctionId,
+      newValue: { durationMinutes, autoExtendSeconds },
+    });
+  });
+  revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}`));
+}
+
+export async function closeLiveRoom(auctionId: string) {
+  const scope = await getWebChitScope();
+  assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+  const auction = await prisma.chitAuction.findFirst({
+    where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
+  });
+  if (!auction) throw new Error('Auction not found');
+  await prisma.$transaction(async (tx) => {
+    await closeAuctionRoom(tx, auctionId);
+    await createChitAudit(tx, {
+      tenantId: scope.tenantId,
+      userId: scope.userId,
+      action: 'close_live_room',
+      entityType: 'chit_auction',
+      entityId: auctionId,
+      newValue: { roomStatus: 'closed' },
+    });
+  });
+  revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}`));
+}
+
+// Poll target for the web live auction room (2-3s interval). Lazily closes an
+// expired room, then returns server-clock-driven room state.
+export async function getLiveAuctionState(auctionId: string) {
+  const scope = await getWebChitScope();
+  const exists = await prisma.chitAuction.findFirst({
+    where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
+    select: { id: true },
+  });
+  if (!exists) throw new Error('Auction not found');
+
+  await prisma.$transaction(async (tx) => {
+    await closeRoomIfExpired(tx, auctionId);
+  });
+
+  const auction = await prisma.chitAuction.findFirst({
+    where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
+    include: {
+      chitGroup: true,
+      bids: {
+        where: { status: { in: ['valid', 'winning'] } },
+        include: { member: { include: { customer: { select: { name: true } } } } },
+        orderBy: { bidTime: 'desc' },
+      },
+      attendance: true,
+      winnerMember: { include: { customer: { select: { name: true } } } },
+    },
+  });
+  if (!auction) throw new Error('Auction not found');
+
+  const now = new Date();
+  const sealed = auction.chitGroup.auctionType === 'sealed' && auction.roomStatus !== 'closed';
+  const bids = sealed
+    ? []
+    : auction.bids.map((bid) => ({
+        id: bid.id,
+        ticketNo: bid.member.ticketNo,
+        memberName: bid.member.customer.name,
+        bidAmount: Number(bid.bidAmount),
+        bidDiscount: Number(bid.bidDiscount),
+        bidTime: bid.bidTime.toISOString(),
+        status: bid.status,
+      }));
+  const highestBid = bids.length
+    ? bids.reduce((top, bid) => (bid.bidDiscount > top.bidDiscount ? bid : top), bids[0])
+    : null;
+
+  return {
+    roomStatus: auction.roomStatus,
+    auctionStatus: auction.status,
+    serverTime: now.toISOString(),
+    biddingClosesAt: auction.biddingClosesAt?.toISOString() ?? null,
+    secondsRemaining: secondsRemaining(auction, now),
+    bidCount: auction.bids.length,
+    bids,
+    highestBid,
+    presentCount: auction.attendance.filter((entry) => entry.status === 'present' || entry.status === 'proxy').length,
+    winner: auction.winnerMember
+      ? { name: auction.winnerMember.customer.name, ticketNo: auction.winnerMember.ticketNo }
+      : null,
+  };
 }
 
 export async function markPaymentMissed(subscriptionId: string) {

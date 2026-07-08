@@ -1,5 +1,7 @@
 # Step 3 — Chit Group Compliance and Registration Workflow
 
+> **Implementation status (2026-07-08): BACKEND DONE, UI MISSING.** `activateChitGroup` + `POST /api/v1/chits/[id]/activate` enforce chitType-branched compliance (registered vs unregistered per Step 11). But no web page or Flutter screen exposes the compliance fields or the activate action — the create/edit/detail UI work below is still open. See `IMPLEMENTATION_STATUS_GAP_ANALYSIS.md`.
+
 ## Goal
 
 Make chit group creation match a real registered chit-fund business flow.

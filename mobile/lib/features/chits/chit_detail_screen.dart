@@ -10,6 +10,7 @@ import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/data/models/chit.dart';
 import 'package:loantrack/data/services/chit_service.dart';
+import 'package:loantrack/features/chits/chit_live_auction_screen.dart';
 import 'package:loantrack/shared/widgets/skeleton.dart';
 
 final _detailProvider =
@@ -109,8 +110,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                   items: eligible
                       .map((m) => DropdownMenuItem(
                           value: m.id,
-                          child:
-                              Text('${m.memberNumber}. ${m.customerName}')))
+                          child: Text('${m.memberNumber}. ${m.customerName}')))
                       .toList(),
                   onChanged: (v) => setLocal(() => winnerId = v),
                 ),
@@ -142,9 +142,8 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                                       widget.id,
                                       periodNumber: auction.periodNumber,
                                       winnerMemberId: winnerId,
-                                      prizeAmount: prizeAmount > 0
-                                          ? prizeAmount
-                                          : null,
+                                      prizeAmount:
+                                          prizeAmount > 0 ? prizeAmount : null,
                                     );
                                 _refresh();
                               } catch (e) {
@@ -190,8 +189,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                     style: AppTypography.caption),
                 const SizedBox(height: 12),
                 TextFormField(
-                  decoration:
-                      const InputDecoration(labelText: 'Amount Paid'),
+                  decoration: const InputDecoration(labelText: 'Amount Paid'),
                   keyboardType: TextInputType.number,
                   initialValue: amount.toStringAsFixed(0),
                   onChanged: (v) =>
@@ -214,13 +212,13 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                               try {
                                 await ref
                                     .read(chitServiceProvider)
-                                     .collectContribution(
-                                       widget.id,
-                                       memberId: sub.memberId,
-                                       periodNumber: sub.periodNumber,
-                                       amount: amount,
-                                       paymentMode: 'cash',
-                                     );
+                                    .collectContribution(
+                                      widget.id,
+                                      memberId: sub.memberId,
+                                      periodNumber: sub.periodNumber,
+                                      amount: amount,
+                                      paymentMode: 'cash',
+                                    );
                                 _refresh();
                               } catch (e) {
                                 setState(() => _error = e.toString());
@@ -250,6 +248,311 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
     setState(() => _busy = false);
   }
 
+  Future<void> _activateGroup() async {
+    setState(() => _busy = true);
+    try {
+      await ref.read(chitServiceProvider).activate(widget.id);
+      _refresh();
+    } catch (e) {
+      setState(() => _error = e.toString());
+    }
+    setState(() => _busy = false);
+  }
+
+  Future<void> _runAction(Future<void> Function() fn) async {
+    setState(() => _busy = true);
+    try {
+      await fn();
+      _refresh();
+    } catch (e) {
+      setState(() => _error = e.toString());
+    }
+    setState(() => _busy = false);
+  }
+
+  void _showAddBidSheet(ChitAuction auction, List<ChitMember> members) {
+    final eligible = members
+        .where((m) => !m.hasWon && m.subscriberStatus == 'active')
+        .toList();
+    String? memberId;
+    double prize = 0;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+              20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Add Bid — Period ${auction.periodNumber}',
+                  style: AppTypography.sectionTitle),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                decoration: const InputDecoration(labelText: 'Ticket'),
+                items: eligible
+                    .map((m) => DropdownMenuItem(
+                        value: m.id,
+                        child: Text(
+                            '${m.ticketNo ?? m.memberNumber}. ${m.customerName}')))
+                    .toList(),
+                onChanged: (v) => setLocal(() => memberId = v),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                decoration:
+                    const InputDecoration(labelText: 'Prize amount accepted'),
+                keyboardType: TextInputType.number,
+                onChanged: (v) =>
+                    setLocal(() => prize = double.tryParse(v) ?? 0),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Cancel')),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: memberId == null || prize <= 0
+                        ? null
+                        : () {
+                            Navigator.pop(ctx);
+                            _runAction(() => ref
+                                .read(chitServiceProvider)
+                                .addBid(widget.id, auction.id,
+                                    memberId: memberId!, bidAmount: prize));
+                          },
+                    child: const Text('Add Bid'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      }),
+    );
+  }
+
+  void _showSecuritySheet(ChitAuction auction) {
+    String securityType = 'guarantor';
+    double? value;
+    String guarantorName = '';
+    String guarantorPhone = '';
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+              20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Security — Period ${auction.periodNumber}',
+                  style: AppTypography.sectionTitle),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                initialValue: securityType,
+                decoration: const InputDecoration(labelText: 'Security type'),
+                items: const [
+                  DropdownMenuItem(
+                      value: 'guarantor', child: Text('Guarantor')),
+                  DropdownMenuItem(value: 'property', child: Text('Property')),
+                  DropdownMenuItem(value: 'gold', child: Text('Gold')),
+                  DropdownMenuItem(value: 'fd', child: Text('Fixed deposit')),
+                  DropdownMenuItem(value: 'salary', child: Text('Salary')),
+                  DropdownMenuItem(value: 'cheque', child: Text('Cheque')),
+                  DropdownMenuItem(value: 'other', child: Text('Other')),
+                ],
+                onChanged: (v) =>
+                    setLocal(() => securityType = v ?? 'guarantor'),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                decoration: const InputDecoration(labelText: 'Security value'),
+                keyboardType: TextInputType.number,
+                onChanged: (v) => value = double.tryParse(v),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                decoration: const InputDecoration(labelText: 'Guarantor name'),
+                onChanged: (v) => guarantorName = v,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                decoration: const InputDecoration(labelText: 'Guarantor phone'),
+                keyboardType: TextInputType.phone,
+                onChanged: (v) => guarantorPhone = v,
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 8,
+                children: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Cancel')),
+                  OutlinedButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _runAction(() => ref
+                          .read(chitServiceProvider)
+                          .submitSecurity(widget.id, auction.id,
+                              securityType: securityType,
+                              securityValue: value,
+                              guarantorName: guarantorName,
+                              guarantorPhone: guarantorPhone));
+                    },
+                    child: const Text('Submit'),
+                  ),
+                  OutlinedButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _runAction(() => ref
+                          .read(chitServiceProvider)
+                          .reviewSecurity(widget.id, auction.id,
+                              action: 'verify'));
+                    },
+                    child: const Text('Verify'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _runAction(() => ref
+                          .read(chitServiceProvider)
+                          .reviewSecurity(widget.id, auction.id,
+                              action: 'approve'));
+                    },
+                    child: const Text('Approve'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      }),
+    );
+  }
+
+  void _showAuctionManageSheet(ChitAuction auction, Map<String, dynamic> group,
+      List<ChitMember> members) {
+    final auctionType = (group['auctionType'] as String?) ?? 'open_manual';
+    final isDrawType =
+        auctionType == 'lottery' || auctionType == 'fixed_rotation';
+    final locked = ['confirmed', 'paid', 'cancelled'].contains(auction.status);
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text('Period ${auction.periodNumber} · ${auction.status}',
+                  style: AppTypography.sectionTitle),
+            ),
+            if (auctionType == 'open_live' && !locked)
+              ListTile(
+                leading: Icon(Icons.podcasts, color: AppColors.primary),
+                title: const Text('Live bidding room'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => ChitLiveAuctionScreen(
+                        groupId: widget.id,
+                        auctionId: auction.id,
+                        periodNumber: auction.periodNumber,
+                        members: members,
+                        isAdmin: true,
+                      ),
+                    ),
+                  ).then((_) => _refresh());
+                },
+              ),
+            if (!isDrawType && !locked)
+              ListTile(
+                leading: Icon(Icons.gavel, color: AppColors.primary),
+                title: const Text('Add bid'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showAddBidSheet(auction, members);
+                },
+              ),
+            if (isDrawType && !locked)
+              ListTile(
+                leading: Icon(Icons.casino, color: AppColors.primary),
+                title: Text(auctionType == 'lottery'
+                    ? 'Draw winner (audited lottery)'
+                    : 'Resolve next in rotation'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _runAction(() async {
+                    await ref
+                        .read(chitServiceProvider)
+                        .drawWinner(widget.id, auction.id);
+                  });
+                },
+              ),
+            if (!isDrawType && !locked)
+              ListTile(
+                leading:
+                    const Icon(Icons.check_circle, color: AppColors.success),
+                title: const Text('Confirm highest bid'),
+                subtitle: const Text('No money moves until security approval'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _runAction(() => ref
+                      .read(chitServiceProvider)
+                      .confirmAuction(widget.id, auction.id));
+                },
+              ),
+            if (auction.status == 'confirmed')
+              ListTile(
+                leading: const Icon(Icons.shield, color: AppColors.warning),
+                title: const Text('Security (submit / verify / approve)'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showSecuritySheet(auction);
+                },
+              ),
+            if (auction.status == 'confirmed')
+              ListTile(
+                leading: const Icon(Icons.payments, color: AppColors.success),
+                title: const Text('Release prize payout'),
+                subtitle: const Text('Requires approved security'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _runAction(() => ref
+                      .read(chitServiceProvider)
+                      .releasePayout(widget.id, auction.id));
+                },
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final detail = ref.watch(_detailProvider(widget.id));
@@ -271,12 +574,17 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                 if (v == 'edit') {
                   context.push('/chits/${widget.id}/edit',
                       extra: detail.valueOrNull);
+                } else if (v == 'activate') {
+                  _activateGroup();
                 } else if (v == 'cancel') {
                   _cancelGroup();
                 }
               },
               itemBuilder: (_) => [
                 const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                if ((detail.valueOrNull?['status'] as String?) == 'draft')
+                  const PopupMenuItem(
+                      value: 'activate', child: Text('Activate Group')),
                 const PopupMenuItem(
                     value: 'cancel',
                     child: Text('Cancel Group',
@@ -338,6 +646,10 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                                     final m = members.valueOrNull ?? [];
                                     _showRecordWinnerSheet(a, m, fmt);
                                   },
+                                  onManage: () {
+                                    final m = members.valueOrNull ?? [];
+                                    _showAuctionManageSheet(a, group, m);
+                                  },
                                 );
                               }).toList(),
                             );
@@ -389,8 +701,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                                 return _SubscriptionTile(
                                   sub: s,
                                   fmt: fmt,
-                                  onPay: () =>
-                                      _showRecordPaymentSheet(s, fmt),
+                                  onPay: () => _showRecordPaymentSheet(s, fmt),
                                   onMiss: () => _markMissed(s.id),
                                 );
                               }).toList(),
@@ -515,11 +826,16 @@ class _SectionCard extends StatelessWidget {
 }
 
 class _AuctionTile extends StatelessWidget {
-  const _AuctionTile(
-      {required this.auction, required this.fmt, required this.onRecord});
+  const _AuctionTile({
+    required this.auction,
+    required this.fmt,
+    required this.onRecord,
+    required this.onManage,
+  });
   final ChitAuction auction;
   final NumberFormat fmt;
   final VoidCallback onRecord;
+  final VoidCallback onManage;
 
   @override
   Widget build(BuildContext context) {
@@ -529,10 +845,10 @@ class _AuctionTile extends StatelessWidget {
         : '—';
     return ListTile(
       dense: true,
+      onTap: onManage,
       title: Text('Period ${auction.periodNumber}',
           style: AppTypography.body.copyWith(fontWeight: FontWeight.w600)),
-      subtitle: Text(
-          '${auction.winnerName ?? "—"} · $dateStr',
+      subtitle: Text('${auction.winnerName ?? "—"} · $dateStr',
           style: AppTypography.caption),
       trailing: isPending
           ? TextButton(
@@ -578,8 +894,8 @@ class _MemberTile extends StatelessWidget {
         radius: 16,
         backgroundColor: AppColors.primaryLight,
         child: Text('${member.memberNumber}',
-            style: AppTypography.caption
-                .copyWith(color: AppColors.primary, fontWeight: FontWeight.w700)),
+            style: AppTypography.caption.copyWith(
+                color: AppColors.primary, fontWeight: FontWeight.w700)),
       ),
       title: Text(member.customerName, style: AppTypography.body),
       subtitle: Text(member.customerCode, style: AppTypography.caption),
@@ -637,8 +953,7 @@ class _SubscriptionTile extends StatelessWidget {
           style: AppTypography.caption),
       trailing: sub.status == 'paid'
           ? Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
                 color: AppColors.successBg,
                 borderRadius: BorderRadius.circular(AppTokens.radiusBadge),
@@ -654,8 +969,8 @@ class _SubscriptionTile extends StatelessWidget {
                   onPressed: onPay,
                   style: TextButton.styleFrom(
                     foregroundColor: AppColors.primary,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
