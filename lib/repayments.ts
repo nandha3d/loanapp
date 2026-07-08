@@ -368,10 +368,14 @@ export function getDistributedInstalmentsAndMetrics<
     const cTotal = insts.reduce((sum, i) => sum + asNumber(i.receivedAmount ?? 0), 0);
     const cYesterday = Math.max(0, cTotal - cToday);
 
-    // Allocate C_yesterday
+    // Allocate C_yesterday using chronological sorting
+    const chronologicalInsts = [...insts].sort((a, b) => {
+      return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime() || a.instalmentNo - b.instalmentNo;
+    });
+
     let remainingYesterday = cYesterday;
     const beforeAmounts = new Map<string, number>();
-    for (const inst of insts) {
+    for (const inst of chronologicalInsts) {
       const due = asNumber(inst.dueAmount);
       const rec = Math.min(due, remainingYesterday);
       remainingYesterday = Math.max(0, remainingYesterday - rec);
