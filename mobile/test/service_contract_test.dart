@@ -145,6 +145,35 @@ class _ContractAdapter implements HttpClientAdapter {
             'repoFlag': false
           }
         ];
+      case Endpoints.chits:
+        if (options.method == 'POST') {
+          return {
+            'id': 'chit1',
+            'name': 'QA Chit',
+            'chitValue': 100000,
+            'monthlyContrib': 5000,
+            'totalMembers': 2,
+            'durationMonths': 2,
+            'status': 'draft',
+            'startDate': '2026-07-01T00:00:00.000Z',
+            'commissionPct': 5,
+            '_count': {'members': 2, 'auctions': 0},
+          };
+        }
+        return [
+          {
+            'id': 'chit1',
+            'name': 'QA Chit',
+            'chitValue': 100000,
+            'monthlyContrib': 5000,
+            'totalMembers': 2,
+            'durationMonths': 2,
+            'status': 'active',
+            'startDate': '2026-07-01T00:00:00.000Z',
+            'commissionPct': 5,
+            '_count': {'members': 2, 'auctions': 1},
+          }
+        ];
       default:
         if (options.path == Endpoints.nachLoan('loan1')) {
           return null;
@@ -154,6 +183,85 @@ class _ContractAdapter implements HttpClientAdapter {
         }
         if (options.path == Endpoints.chit('chit1')) {
           return {'id': 'chit1', 'status': 'active'};
+        }
+        if (options.path == Endpoints.chitActivate('chit1')) {
+          return {'id': 'chit1', 'status': 'active'};
+        }
+        if (options.path == Endpoints.chitMembers('chit1')) {
+          return [
+            {
+              'id': 'member1',
+              'memberNumber': 1,
+              'ticketNo': '1',
+              'ticketShare': 1,
+              'subscriberStatus': 'active',
+              'agreementStatus': 'verified',
+              'hasWon': false,
+              'customer': {'name': 'QA Member', 'customerCode': 'C001'},
+            }
+          ];
+        }
+        if (options.path == Endpoints.chitMember('chit1', 'member1')) {
+          return {'id': 'member1', 'ticketNo': '1A'};
+        }
+        if (options.path ==
+            Endpoints.chitMemberAgreement('chit1', 'member1')) {
+          return {'id': 'member1', 'agreementStatus': 'verified'};
+        }
+        if (options.path == Endpoints.chitAuctions('chit1')) {
+          return [
+            {
+              'id': 'auc1',
+              'periodNumber': 1,
+              'status': 'pending',
+              'auctionDate': '2026-07-01T00:00:00.000Z',
+              'payoutStatus': 'not_ready',
+              'gstAmount': 0,
+              'roundingIncome': 0,
+              'bids': [],
+              'attendance': [],
+            }
+          ];
+        }
+        if (options.path == Endpoints.chitAuctionBids('chit1', 'auc1')) {
+          return {
+            'id': 'bid1',
+            'memberId': 'member1',
+            'bidAmount': 80000,
+            'bidDiscount': 20000,
+            'bidTime': '2026-07-01T10:00:00.000Z',
+            'status': 'valid',
+          };
+        }
+        if (options.path ==
+            Endpoints.chitAuctionAttendance('chit1', 'auc1')) {
+          return {'id': 'att1', 'memberId': 'member1', 'status': 'present'};
+        }
+        if (options.path == Endpoints.chitAuctionConfirm('chit1', 'auc1')) {
+          return {'id': 'auc1', 'status': 'confirmed'};
+        }
+        if (options.path == Endpoints.chitAuctionSecurity('chit1', 'auc1')) {
+          return {'id': 'sec1', 'status': 'approved'};
+        }
+        if (options.path == Endpoints.chitAuctionLive('chit1', 'auc1')) {
+          return {
+            'roomStatus': 'open',
+            'secondsRemaining': 30,
+            'bidCount': 1,
+          };
+        }
+        if (options.path == Endpoints.chitAuctionRoom('chit1', 'auc1')) {
+          return {'roomStatus': 'open'};
+        }
+        if (options.path == Endpoints.chitAuctionDraw('chit1', 'auc1')) {
+          return {
+            'auctionId': 'auc1',
+            'winnerMemberId': 'member1',
+            'drawEvidence': 'fixed seed',
+          };
+        }
+        if (options.path == Endpoints.chitAuctionPayout('chit1', 'auc1')) {
+          return {'receiptNo': 'CPO-BR-2026-000001'};
         }
         if (options.path == Endpoints.chitCancel('chit1')) {
           return {'id': 'chit1', 'status': 'cancelled'};
@@ -179,6 +287,23 @@ class _ContractAdapter implements HttpClientAdapter {
         }
         if (options.path == Endpoints.chitPayments('chit1')) {
           return {'id': 'sub1', 'status': 'paid'};
+        }
+        if (options.path == Endpoints.chitPenalties('chit1')) {
+          if (options.method == 'POST') {
+            return {'id': 'pen1', 'status': 'due'};
+          }
+          return [
+            {'id': 'pen1', 'status': 'due', 'amount': 100}
+          ];
+        }
+        if (options.path == Endpoints.chitPenaltyPay('chit1', 'pen1')) {
+          return {'id': 'pen1', 'status': 'partial'};
+        }
+        if (options.path == Endpoints.chitPenaltyWaive('chit1', 'pen1')) {
+          return {'id': 'pen1', 'status': 'waived'};
+        }
+        if (options.path == Endpoints.chitReceiptReverse('receipt1')) {
+          return {'id': 'rev1', 'receiptType': 'reversal'};
         }
         if (options.path == Endpoints.dashboardVerifyUpi) {
           return {'success': true};
@@ -396,6 +521,149 @@ void main() {
               body['periodNumber'] == 1 &&
               body['amount'] == 500 &&
               body['mode'] == 'ADD_PAYMENT',
+        ),
+        isTrue,
+      );
+    });
+
+    test('MOB-SVC-009 chit auction, security, payout, and penalty routes are stable',
+        () async {
+      final adapter = _ContractAdapter();
+      final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'));
+      dio.httpClientAdapter = adapter;
+      final service = ChitService(dio);
+
+      final created = await service.create(
+        name: 'QA Chit',
+        chitValue: 100000,
+        monthlyContrib: 5000,
+        totalMembers: 2,
+        commissionPct: 5,
+        startDate: '2026-07-01',
+        memberIds: ['member1', 'member2'],
+        auctionType: 'open_live',
+        tieBreakRule: 'LOTTERY_AMONG_TIED',
+      );
+      final list = await service.list();
+      final members = await service.members('chit1');
+      final auctions = await service.auctions('chit1');
+      await service.activate('chit1');
+      await service.updateMember(
+        'chit1',
+        'member1',
+        ticketNo: '1A',
+        nomineeName: 'QA Nominee',
+      );
+      await service.updateAgreement(
+        'chit1',
+        'member1',
+        status: 'verified',
+      );
+      final bid = await service.addBid(
+        'chit1',
+        'auc1',
+        memberId: 'member1',
+        bidAmount: 80000,
+        bidDiscount: 20000,
+      );
+      await service.markAttendance('chit1', 'auc1', memberId: 'member1');
+      await service.confirmAuction('chit1', 'auc1', winningBidId: 'bid1');
+      await service.submitSecurity(
+        'chit1',
+        'auc1',
+        securityType: 'guarantor',
+        guarantorName: 'QA Guarantor',
+      );
+      await service.reviewSecurity('chit1', 'auc1', action: 'approve');
+      final live = await service.liveState('chit1', 'auc1');
+      final room = await service.roomAction(
+        'chit1',
+        'auc1',
+        action: 'open',
+        durationMinutes: 30,
+        autoExtendSeconds: 60,
+      );
+      final draw = await service.drawWinner('chit1', 'auc1');
+      await service.releasePayout('chit1', 'auc1', paymentMode: 'cash');
+      final penalties = await service.penalties('chit1');
+      await service.createPenalty(
+        'chit1',
+        subscriptionId: 'sub1',
+        amount: 100,
+      );
+      await service.payPenalty('chit1', 'pen1', amount: 50);
+      await service.waivePenalty('chit1', 'pen1', reason: 'manager waiver');
+      await service.reverseReceipt('receipt1', reason: 'correction');
+
+      expect(created['id'], 'chit1');
+      expect(list.single.id, 'chit1');
+      expect(members.single.customerName, 'QA Member');
+      expect(auctions.single.id, 'auc1');
+      expect(bid.id, 'bid1');
+      expect(live['roomStatus'], 'open');
+      expect(room['roomStatus'], 'open');
+      expect(draw['winnerMemberId'], 'member1');
+      expect(penalties.single['id'], 'pen1');
+      expect(adapter.requests, contains('POST /chits'));
+      expect(adapter.requests, contains('GET /chits'));
+      expect(adapter.requests, contains('GET /chits/chit1/members'));
+      expect(adapter.requests, contains('GET /chits/chit1/auctions'));
+      expect(adapter.requests, contains('POST /chits/chit1/activate'));
+      expect(adapter.requests, contains('PATCH /chits/chit1/members/member1'));
+      expect(adapter.requests,
+          contains('POST /chits/chit1/members/member1/agreement'));
+      expect(adapter.requests, contains('POST /chits/chit1/auctions/auc1/bids'));
+      expect(adapter.requests,
+          contains('POST /chits/chit1/auctions/auc1/attendance'));
+      expect(adapter.requests,
+          contains('POST /chits/chit1/auctions/auc1/confirm'));
+      expect(adapter.requests,
+          contains('POST /chits/chit1/auctions/auc1/security'));
+      expect(adapter.requests, contains('GET /chits/chit1/auctions/auc1/live'));
+      expect(adapter.requests,
+          contains('POST /chits/chit1/auctions/auc1/room'));
+      expect(adapter.requests,
+          contains('POST /chits/chit1/auctions/auc1/draw'));
+      expect(adapter.requests,
+          contains('POST /chits/chit1/auctions/auc1/payout'));
+      expect(adapter.requests, contains('GET /chits/chit1/penalties'));
+      expect(adapter.requests, contains('POST /chits/chit1/penalties'));
+      expect(adapter.requests, contains('POST /chits/chit1/penalties/pen1/pay'));
+      expect(
+        adapter.requests,
+        contains('POST /chits/chit1/penalties/pen1/waive'),
+      );
+      expect(
+        adapter.requests,
+        contains('POST /chits/receipts/receipt1/reverse'),
+      );
+      expect(
+        adapter.requestBodies.any(
+          (body) =>
+              body['name'] == 'QA Chit' &&
+              body['auctionType'] == 'open_live' &&
+              body['tieBreakRule'] == 'LOTTERY_AMONG_TIED',
+        ),
+        isTrue,
+      );
+      expect(
+        adapter.requestBodies.any(
+          (body) =>
+              body['memberId'] == 'member1' &&
+              body['bidAmount'] == 80000 &&
+              body['bidDiscount'] == 20000,
+        ),
+        isTrue,
+      );
+      expect(
+        adapter.requestBodies.any(
+          (body) => body['action'] == 'open' && body['autoExtendSeconds'] == 60,
+        ),
+        isTrue,
+      );
+      expect(
+        adapter.requestBodies.any(
+          (body) => body['reason'] == 'correction',
         ),
         isTrue,
       );
