@@ -105,6 +105,10 @@ export function normalizeModuleList(value: unknown): ModuleKey[] {
   );
 }
 
+export function mergeModuleLists(...values: unknown[]): ModuleKey[] {
+  return Array.from(new Set(values.flatMap((value) => normalizeModuleList(value))));
+}
+
 export function moduleForRoute(path: string): ModuleKey | null {
   const { page } = parseModulePath(path);
   for (const moduleKey of ALL_MODULES) {

@@ -14,6 +14,7 @@ import {
   ALL_MODULES,
   isModuleKey,
   isRouteEnabledForModules,
+  mergeModuleLists,
   modulePath,
   normalizeModuleList,
   parseModulePath,
@@ -60,8 +61,13 @@ export default async function DashboardLayout({
   } else if (role === 'superadmin') {
     const rawBranches = await getSuperadminBranches(tenantId, userId);
     const activeBranchId = await getActiveBranchId();
+    const activeBranchCookie = (await cookies()).get('active_branch_id')?.value;
     const activeBranch = rawBranches.find((branch) => branch.id === activeBranchId) ?? rawBranches[0];
-    enabledModules = activeBranch ? normalizeModuleList(activeBranch.enabledModules) : [...ALL_MODULES];
+    enabledModules = activeBranchCookie === 'all'
+      ? mergeModuleLists(...rawBranches.map((branch) => branch.enabledModules))
+      : activeBranch
+        ? normalizeModuleList(activeBranch.enabledModules)
+        : [...ALL_MODULES];
   } else {
     const { getActiveModules } = await import('@/lib/branch');
     enabledModules = await getActiveModules();

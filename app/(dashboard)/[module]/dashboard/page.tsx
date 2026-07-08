@@ -2,6 +2,7 @@ import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { getDefaultTenantId, getBranding, getUserAppType, getSetting } from '@/lib/tenant';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { getDistributedInstalmentsAndMetrics } from '@/lib/repayments';
 import Link from '@/components/layout/DashboardLink';
 import { redirect } from 'next/navigation';
 import { getActiveBranchId } from '@/lib/branch';
@@ -167,12 +168,20 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     prisma.instalment.findMany({
       where: {
         loan: { ...loanWhere, status: { in: ['active', 'overdue'] } },
-        dueDate: { lt: today },
-        status: { in: ['upcoming', 'missed', 'partial'] },
+        status: { not: 'waived' },
+        OR: [
+          { dueDate: { lt: today } },
+          { receivedAmount: { gt: 0 } },
+        ],
       },
       select: {
+        id: true,
+        loanId: true,
+        dueDate: true,
         dueAmount: true,
         receivedAmount: true,
+        status: true,
+        instalmentNo: true,
         loan: { select: { customerId: true } },
       },
     }),
@@ -279,37 +288,38 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     })
     .filter((item) => item.overdueAmount > 0);
 
-  // Totals are computed from the FULL (un-limited) overdue set so KPIs stay
-  // correct even when the table-feed query is capped at 10 rows.
-  const overdueForTotals = overdueInstalmentsForTotals.filter(
-    (item: any) => outstanding(item) > 0,
+  // Overdue collection — a DAILY snapshot that resets each day:
+  const paymentsToday = await prisma.payment.findMany({
+    where: {
+      tenantId,
+      paymentDate: { gte: today, lt: tomorrow },
+      loan: { ...loanWhere, status: { in: ['active', 'overdue'] } },
+    },
+    select: { loanId: true, amount: true },
+  });
+
+  const { distributedInstalments, metricsByLoan } = getDistributedInstalmentsAndMetrics(
+    overdueInstalmentsForTotals as any,
+    today,
+    paymentsToday,
   );
-  const overdueAmount = overdueForTotals.reduce(
-    (sum: number, item: any) => sum + outstanding(item),
+
+  const overdueForTotals = distributedInstalments.filter(
+    (item: any) => item.overdueAmount > 0,
+  );
+  const overdueOutstanding = overdueForTotals.reduce(
+    (sum: number, item: any) => sum + item.overdueAmount,
     0,
   );
   const overdueCustomerCount = new Set(
     overdueForTotals.map((item: any) => item.loan.customerId),
   ).size;
-  // Overdue collection — a DAILY snapshot that resets each day:
-  //   • Today Collected = today's payments that landed on PAST-DUE instalments.
-  //   • Remaining       = overdue outstanding right now (overdueAmount).
-  //   • Total till today = what was overdue at the START of today
-  //                        = remaining now + what we already recovered today.
-  // Tomorrow this naturally re-bases: today's payments drop out of the "today"
-  // window, and whatever is still outstanding becomes the fresh total overdue.
-  const overduePaidTodayAllocations = await prisma.paymentAllocation.findMany({
-    where: {
-      payment: { tenantId, paymentDate: { gte: today, lt: tomorrow }, loan: { ...loanWhere } },
-      instalment: { dueDate: { lt: today } },
-    },
-    select: { amount: true },
-  });
-  const overdueCollectedToday = overduePaidTodayAllocations.reduce(
-    (sum: number, a: any) => sum + Number(a.amount),
-    0,
-  );
-  const overdueTotalTillToday = overdueAmount + overdueCollectedToday;
+
+  let overdueCollectedToday = 0;
+  for (const m of metricsByLoan.values()) {
+    overdueCollectedToday += m.overdueCollectedToday;
+  }
+  const overdueTotalTillToday = overdueOutstanding + overdueCollectedToday;
   const pendingPenaltyTotal = Math.max(
     0,
     Number(pendingPenalties._sum.grossPenalty || 0) -
@@ -379,7 +389,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     todayExpected,
     todayCollected,
     todayGap,
-    overdueAmount,
+    overdueAmount: overdueOutstanding,
     overdueCollectedToday,
     overdueTotalTillToday,
     overdueCustomerCount,
