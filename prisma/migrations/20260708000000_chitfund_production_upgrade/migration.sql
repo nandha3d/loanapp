@@ -1,4 +1,4 @@
-﻿-- AlterTable
+-- AlterTable
 ALTER TABLE `chit_groups` ADD COLUMN `approved_bank_account_no` VARCHAR(191) NULL,
     ADD COLUMN `approved_bank_name` VARCHAR(191) NULL,
     ADD COLUMN `auction_day` INTEGER NULL,
