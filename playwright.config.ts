@@ -39,6 +39,7 @@ const criticalUiServerEnv = {
  */
 export default defineConfig({
   testDir: './e2e',
+  testIgnore: isLoanTrackCriticalUi ? [] : [/loantrack-.*\.spec\.ts/],
   /* Run tests in files in parallel */
   fullyParallel: !isLoanTrackCriticalUi,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
