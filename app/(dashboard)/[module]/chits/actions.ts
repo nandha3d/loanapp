@@ -136,104 +136,19 @@ export async function recordAuctionWinner(
   const appType = await getUserAppType();
   await requireModule(tenantId, 'chitfunds');
 
-  const auction = await prisma.chitAuction.findUnique({
-    where: { id: auctionId },
-    include: { chitGroup: true },
-  });
-  if (!auction) throw new Error('Auction not found');
-  // Security: verify auction belongs to this tenant
-  if (auction.chitGroup.tenantId !== tenantId) throw new Error('Auction not in your tenant');
-  if (auction.status === 'completed') throw new Error('Auction already completed');
-
-  const winner = await prisma.chitMember.findFirst({ where: { id: winnerMemberId, chitGroupId: auction.chitGroupId } });
-  if (!winner) throw new Error('Member not found in this chit group');
-  if (winner.hasWon) throw new Error('This member has already won in this group');
-
-  const chitValue = Number(auction.chitGroup.chitValue);
-  const commissionPct = Number(auction.chitGroup.commissionPct);
-  const totalMembers = auction.chitGroup.totalMembers;
-  const bidDiscount = chitValue - prizeAmount;
-  const commission = (bidDiscount * commissionPct) / 100;
-  const dividend = totalMembers > 1 ? (bidDiscount - commission) / (totalMembers - 1) : 0;
-
-  await prisma.$transaction([
-    prisma.chitAuction.update({
-      where: { id: auctionId },
-      data: {
-        winnerMemberId,
-        prizeAmount,
-        bidDiscount,
-        commission,
-        dividend,
-        status: 'completed',
-      },
-    }),
-    prisma.chitMember.updateMany({
-      where: { id: winnerMemberId, chitGroup: { tenantId } },
-      data: { hasWon: true, wonAt: new Date() },
-    }),
-  ]);
-
-  // Prize handed to the winner is cash leaving the office → accounting payout +
-  // branch pool debit, so Liquid Cash / capital drop. Net of all periods, the
-  // commission the company keeps remains as positive capital.
-  const payoutBranchId = auction.chitGroup.branchId;
-  const prize = Number(prizeAmount);
-  if (prize > 0) {
-    await prisma.$transaction(async (tx) => {
-      await tx.accountEntry.create({
-        data: {
-          tenantId,
-          appType,
-          entryDate: new Date(),
-          type: 'chit_payout',
-          category: 'cash',
-          amount: prize,
-          description: `Chit prize payout — period ${auction.periodNumber}`,
-          referenceId: auctionId,
-          referenceType: 'chit_auction',
-          createdBy: session.user?.id as string,
-          branchId: payoutBranchId || undefined,
-        },
-      });
-      if (payoutBranchId) {
-        const { chitPayoutFromBranch } = await import('@/lib/wallet');
-        await chitPayoutFromBranch(tx, { tenantId, appType, branchId: payoutBranchId, amount: prize, refId: auctionId, byUserId: session.user?.id });
-      }
-    });
-  }
-
-  // Reduce future subscription dueAmount by dividend for all non-winner members
-  if (dividend > 0) {
-    const futurePeriod = auction.periodNumber + 1;
-    const nonWinnerMembers = await prisma.chitMember.findMany({
-      where: { chitGroupId: auction.chitGroupId, id: { not: winnerMemberId } },
-      select: { id: true },
-    });
-    for (const m of nonWinnerMembers) {
-      await prisma.chitSubscription.updateMany({
-        where: {
-          memberId: m.id,
-          periodNumber: { gte: futurePeriod },
-          status: { not: 'paid' },
-        },
-        data: { dueAmount: { decrement: dividend } },
-      });
-    }
-  }
-
-  await prisma.auditLog.create({
-    data: {
-      tenantId,
-      userId: session.user?.id,
-      action: 'auction_winner',
-      entityType: 'chit_auction',
-      entityId: auctionId,
-      newValue: JSON.stringify({ winnerMemberId, prizeAmount, bidDiscount, commission, dividend }),
-    },
+  // All settlement math + accounting lives in the single source of truth so web,
+  // mobile result-only, and live-auction close all settle identically.
+  const { settleAuctionWinner } = await import('@/lib/chit/settlement');
+  const result = await settleAuctionWinner({
+    auctionId,
+    winnerMemberId,
+    prizeAmount,
+    tenantId,
+    appType,
+    actorUserId: session.user?.id,
   });
 
-  revalidatePath(`/chits/${auction.chitGroupId}`);
+  revalidatePath(`/chits/${result.chitGroupId}`);
 }
 
 export async function recordChitPayment(

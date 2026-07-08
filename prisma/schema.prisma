@@ -1223,12 +1223,66 @@ model ChitAuction {
   dividend       Decimal?    @db.Decimal(14, 2)
   status         String      @default("pending")
   createdAt      DateTime    @default(now()) @map("created_at")
-  chitGroup      ChitGroup   @relation(fields: [chitGroupId], references: [id], onDelete: Cascade)
-  winnerMember   ChitMember? @relation("AuctionWinner", fields: [winnerMemberId], references: [id])
+  // Live-auction fields (all nullable — legacy result-only auctions leave them
+  // blank). `status` gains the logical value 'live' while an auction is running.
+  startedAt        DateTime? @map("started_at")
+  endsAt           DateTime? @map("ends_at")
+  countdownSeconds Int?      @map("countdown_seconds")
+  minBidDecrement  Decimal?  @map("min_bid_decrement") @db.Decimal(14, 2)
+  currentBestBidId String?   @unique @map("current_best_bid_id")
+  operatorId       String?   @map("operator_id")
+  closedAt         DateTime? @map("closed_at")
+  chitGroup      ChitGroup          @relation(fields: [chitGroupId], references: [id], onDelete: Cascade)
+  winnerMember   ChitMember?        @relation("AuctionWinner", fields: [winnerMemberId], references: [id])
+  bids           ChitBid[]
+  events         ChitAuctionEvent[]
 
   @@unique([chitGroupId, periodNumber])
   @@index([winnerMemberId], map: "chit_auctions_winner_member_id_fkey")
   @@map("chit_auctions")
+}
+
+// A single bid (or pass/retraction) placed during a live chit auction. Bids are
+// attributed to a ChitMember (not the device) so remote multi-device bidding is
+// later just an auth/route change, no schema rewrite. `memberId`/`createdById`
+// are plain scalars (no relation) to match the AccountEntry convention.
+model ChitBid {
+  id             String      @id @default(cuid())
+  chitGroupId    String      @map("chit_group_id")
+  auctionId      String      @map("auction_id")
+  periodNumber   Int         @map("period_number")
+  memberId       String      @map("member_id")
+  prizeAmount    Decimal     @map("prize_amount") @db.Decimal(14, 2)
+  discountAmount Decimal     @map("discount_amount") @db.Decimal(14, 2)
+  kind           String      @default("bid") // bid | pass | retracted
+  source         String      @default("tap") // tap | voice | remote
+  transcript     String?     @db.Text
+  seq            Int // monotonic per auction — ordering + undo
+  createdById    String?     @map("created_by_id")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  auction        ChitAuction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+
+  @@unique([auctionId, seq])
+  @@index([auctionId, createdAt])
+  @@index([memberId])
+  @@map("chit_bids")
+}
+
+// Legal-grade "minutes" trail for a live auction — every open/extend/announce/
+// pass/close/winner/cancel event, in order.
+model ChitAuctionEvent {
+  id          String      @id @default(cuid())
+  auctionId   String      @map("auction_id")
+  type        String // open | extend | announce | pass | close | winner | cancel
+  message     String?     @db.Text
+  memberId    String?     @map("member_id")
+  amount      Decimal?    @db.Decimal(14, 2)
+  createdById String?     @map("created_by_id")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  auction     ChitAuction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+
+  @@index([auctionId, createdAt])
+  @@map("chit_auction_events")
 }
 
 model ChitSubscription {

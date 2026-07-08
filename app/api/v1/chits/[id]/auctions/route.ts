@@ -50,88 +50,41 @@ export async function POST(
     const body = await req.json();
     const periodNumber = Number(body.periodNumber);
     const winnerMemberId = body.winnerMemberId ? String(body.winnerMemberId) : null;
-    const prizeAmount = body.prizeAmount ? Number(body.prizeAmount) : null;
-    const bidDiscount = body.bidDiscount ? Number(body.bidDiscount) : null;
+    const prizeAmount = body.prizeAmount != null ? Number(body.prizeAmount) : null;
     if (!periodNumber) return fail('periodNumber required', 400);
 
     const group = await prisma.chitGroup.findFirst({
       where: { id, tenantId: ctx.tenantId },
-      select: { id: true, commissionPct: true, chitValue: true, totalMembers: true, branchId: true },
+      select: { id: true },
     });
     if (!group) return fail('Chit group not found', 404);
 
-    // Whether this period was already settled — so we don't double-post the payout.
-    const existing = await prisma.chitAuction.findUnique({
-      where: { chitGroupId_periodNumber: { chitGroupId: id, periodNumber } },
-      select: { status: true },
-    });
-    const wasCompleted = existing?.status === 'completed';
-
-    const commission = prizeAmount
-      ? Math.round((prizeAmount * Number(group.commissionPct)) / 100)
-      : null;
-    const dividend =
-      prizeAmount && commission
-        ? Math.round((Number(group.chitValue) - prizeAmount - commission) / group.totalMembers)
-        : null;
-
+    // Ensure the auction row exists (chit creation seeds a stub per period, but
+    // be safe for legacy groups). We never write money math inline here — when a
+    // winner is provided we defer to the single source of truth so mobile
+    // settles identically to web (dividend ÷ members-1, commission off the
+    // discount, plus reducing every non-winner's future dues — all of which the
+    // old inline math got wrong or skipped). The settle helper is idempotent.
     const auction = await prisma.chitAuction.upsert({
       where: { chitGroupId_periodNumber: { chitGroupId: id, periodNumber } },
-      create: {
-        chitGroupId: id,
-        periodNumber,
-        auctionDate: new Date(),
-        winnerMemberId,
-        prizeAmount,
-        bidDiscount,
-        commission,
-        dividend,
-        status: winnerMemberId ? 'completed' : 'pending',
-      },
-      update: {
-        winnerMemberId,
-        prizeAmount,
-        bidDiscount,
-        commission,
-        dividend,
-        status: winnerMemberId ? 'completed' : 'pending',
-      },
+      create: { chitGroupId: id, periodNumber, auctionDate: new Date(), status: 'pending' },
+      update: {},
     });
 
-    if (winnerMemberId) {
-      await prisma.chitMember.update({
-        where: { id: winnerMemberId },
-        data: { hasWon: true, wonAt: new Date() },
+    if (winnerMemberId && prizeAmount != null) {
+      const { settleAuctionWinner } = await import('@/lib/chit/settlement');
+      await settleAuctionWinner({
+        auctionId: auction.id,
+        winnerMemberId,
+        prizeAmount,
+        tenantId: ctx.tenantId,
+        appType: ctx.appType,
+        actorUserId: ctx.userId,
       });
     }
 
-    // Prize paid to the winner = cash out → accounting payout + branch pool debit
-    // (parity with the web recordAuctionWinner). Only on first settlement.
-    if (winnerMemberId && prizeAmount && prizeAmount > 0 && !wasCompleted) {
-      await prisma.$transaction(async (tx) => {
-        await tx.accountEntry.create({
-          data: {
-            tenantId: ctx.tenantId,
-            appType: ctx.appType,
-            entryDate: new Date(),
-            type: 'chit_payout',
-            category: 'cash',
-            amount: prizeAmount,
-            description: `Chit prize payout — period ${periodNumber}`,
-            referenceId: auction.id,
-            referenceType: 'chit_auction',
-            createdBy: ctx.userId,
-            branchId: group.branchId || undefined,
-          },
-        });
-        if (group.branchId) {
-          const { chitPayoutFromBranch } = await import('@/lib/wallet');
-          await chitPayoutFromBranch(tx, { tenantId: ctx.tenantId, appType: ctx.appType, branchId: group.branchId, amount: prizeAmount, refId: auction.id, byUserId: ctx.userId });
-        }
-      });
-    }
-
-    return ok(auction);
+    const updated = await prisma.chitAuction.findUnique({ where: { id: auction.id } });
+    return ok(updated);
   } catch (e: any) {
     return fail(e?.message ?? 'Auction save failed', 500);
   }
