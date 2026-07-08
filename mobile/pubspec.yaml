@@ -49,9 +49,6 @@ dependencies:
   geolocator: ^13.0.0
   permission_handler: ^11.3.0
 
-  # Google sign-in (registration/login)
-  google_sign_in: ^6.2.1
-
   # QR scanner (payment proof)
   mobile_scanner: ^5.2.3
   flutter_map: ^7.0.2
