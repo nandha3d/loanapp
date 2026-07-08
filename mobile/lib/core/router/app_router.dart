@@ -15,8 +15,14 @@ import 'package:loantrack/features/admin/tracking/agent_tracking_screen.dart';
 import 'package:loantrack/features/auth/forgot_password_screen.dart';
 import 'package:loantrack/features/auth/login_screen.dart';
 import 'package:loantrack/features/auth/registration_screen.dart';
+import 'package:loantrack/features/auth/splash_screen.dart';
 import 'package:loantrack/features/auth/totp_screen.dart';
 import 'package:loantrack/features/chits/chits_screen.dart';
+import 'package:loantrack/features/chits/chit_detail_screen.dart';
+import 'package:loantrack/features/chits/chit_form_screen.dart';
+import 'package:loantrack/features/borrower/borrower_login_screen.dart';
+import 'package:loantrack/features/borrower/borrower_dashboard_screen.dart';
+import 'package:loantrack/features/borrower/borrower_pay_screen.dart';
 import 'package:loantrack/features/collection/collection_screen.dart';
 import 'package:loantrack/features/collection/collection_runs_screen.dart';
 import 'package:loantrack/features/collection/run_sheet_screen.dart';
@@ -25,8 +31,11 @@ import 'package:loantrack/features/settings/settings_detail_screen.dart';
 import 'package:loantrack/features/customers/customer_detail_screen.dart';
 import 'package:loantrack/features/customers/customers_screen.dart';
 import 'package:loantrack/features/customers/new_customer_screen.dart';
+import 'package:loantrack/data/repositories/dashboard_repository.dart';
+import 'package:loantrack/data/repositories/customer_repository.dart';
 import 'package:loantrack/features/dashboard/dashboard_screen.dart';
 import 'package:loantrack/features/loans/edit_loan_screen.dart';
+import 'package:loantrack/features/loans/gold_reports_screen.dart';
 import 'package:loantrack/features/loans/loan_detail_screen.dart';
 import 'package:loantrack/features/loans/loans_screen.dart';
 import 'package:loantrack/features/loans/new_loan_screen.dart';
@@ -34,6 +43,8 @@ import 'package:loantrack/features/more/more_screen.dart';
 import 'package:loantrack/features/notifications/notifications_screen.dart';
 import 'package:loantrack/features/npa/npa_screen.dart';
 import 'package:loantrack/features/penalties/penalties_screen.dart';
+import 'package:loantrack/features/profile/superadmin_profile_screen.dart';
+import 'package:loantrack/features/profile/account_profile_screen.dart';
 import 'package:loantrack/features/reports/reports_screen.dart';
 import 'package:loantrack/features/wallet/wallet_screen.dart';
 import 'package:loantrack/features/settings/settings_screen.dart';
@@ -82,15 +93,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final loc = state.matchedLocation;
       final stage = auth.stage;
 
-      if (stage == AuthStage.unknown) return null;
+      // Session bootstrap in progress → branded splash, never a flash of the
+      // login or dashboard screens.
+      if (stage == AuthStage.unknown) {
+        return loc == '/splash' ? null : '/splash';
+      }
 
       final atLogin = loc == '/login';
       final atRegister = loc == '/register';
+      final atBorrower = loc.startsWith('/borrower');
       final atTotp = loc == '/2fa';
       final atLock = loc == '/lock';
+      final atSplash = loc == '/splash';
 
       if (stage == AuthStage.unauthenticated) {
-        if (atRegister) return null;
+        if (atRegister || atBorrower) return null;
         return atLogin ? null : '/login';
       }
       if (stage == AuthStage.pendingTotp) {
@@ -102,7 +119,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // Authenticated redirect.
       final user = auth.user;
       if (user != null) {
-        if (atLogin || atRegister || atTotp || atLock || loc == '/') {
+        if (atLogin ||
+            atRegister ||
+            atTotp ||
+            atLock ||
+            atSplash ||
+            loc == '/') {
           if (user.role == UserRole.developer) return '/admin';
           if (user.role == UserRole.superadmin || user.role == UserRole.admin) {
             return '/portal';
@@ -150,9 +172,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(path: '/2fa', builder: (_, __) => const TotpScreen()),
+      GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),
       GoRoute(path: '/lock', builder: (_, __) => const BiometricLockScreen()),
       GoRoute(path: '/dashboard', builder: (_, __) => const DashboardScreen()),
+      GoRoute(
+        path: '/gold-reports',
+        builder: (_, __) => const GoldReportsScreen(),
+      ),
       GoRoute(path: '/admin', builder: (_, __) => const DeveloperAdminScreen()),
+      GoRoute(
+        path: '/profile',
+        builder: (_, __) {
+          final user = auth.user;
+          if (user?.role == UserRole.superadmin) {
+            return const SuperadminProfileScreen();
+          }
+          return const AccountProfileScreen();
+        },
+      ),
       GoRoute(path: '/portal', builder: (_, __) => const PortalScreen()),
       GoRoute(
         path: '/admin/team',
@@ -257,7 +294,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/collection',
-        builder: (_, __) => const CollectionScreen(),
+        builder: (_, __) {
+          final user = auth.user;
+          if (AppType.userIsChit(user)) return const ChitsScreen();
+          return const CollectionScreen();
+        },
         routes: [
           GoRoute(
             path: 'runs',
@@ -275,7 +316,41 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/approvals', builder: (_, __) => const ApprovalsScreen()),
       GoRoute(path: '/kyc-review', builder: (_, __) => const KycReviewScreen()),
       GoRoute(path: '/analytics', builder: (_, __) => const AnalyticsScreen()),
-      GoRoute(path: '/chits', builder: (_, __) => const ChitsScreen()),
+      GoRoute(
+        path: '/chits',
+        builder: (_, __) => const ChitsScreen(),
+        routes: [
+          GoRoute(
+            path: 'new',
+            builder: (_, __) => const ChitGroupFormScreen(),
+          ),
+          GoRoute(
+            path: ':id',
+            builder: (_, state) =>
+                ChitDetailScreen(id: state.pathParameters['id']!),
+            routes: [
+              GoRoute(
+                path: 'edit',
+                builder: (_, state) => ChitGroupFormScreen(
+                  editData: state.extra as Map<String, dynamic>?,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/borrower/login',
+        builder: (_, __) => const BorrowerLoginScreen(),
+      ),
+      GoRoute(
+        path: '/borrower/dashboard',
+        builder: (_, __) => const BorrowerDashboardScreen(),
+      ),
+      GoRoute(
+        path: '/borrower/pay',
+        builder: (_, __) => const BorrowerPayScreen(),
+      ),
       GoRoute(path: '/npa', builder: (_, __) => const NpaScreen()),
       GoRoute(
         path: '/accounting',
@@ -380,6 +455,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 });
 
 bool _moduleBlocked(String location, User user) {
+  if (AppType.userIsChit(user) && location.startsWith('/loans/new')) {
+    return true;
+  }
+
   // First, check administrative / developer routes.
   // /admin (root developer dashboard)
   if (location == '/admin') {
@@ -423,6 +502,10 @@ bool _moduleBlocked(String location, User user) {
   if (location == '/portal') {
     return user.role != UserRole.superadmin && user.role != UserRole.admin;
   }
+
+  // /profile — superadmin gets the richer account/subscription/security
+  // screen; every other authenticated role gets the generic account
+  // profile (see the GoRoute builder below). No role block here.
 
   // /portal/billing
   if (location == '/portal/billing') {
@@ -489,7 +572,19 @@ class _AuthListenable extends ChangeNotifier {
   _AuthListenable(this._ref) {
     _ref.listen<AuthState>(
       authControllerProvider,
-      (_, __) => notifyListeners(),
+      (prev, next) {
+        // The main list/dashboard providers are cached (no autoDispose) for
+        // instant navigation. Clear them when the session ends so the next
+        // user never sees the previous user's cached data.
+        if (prev?.stage == AuthStage.authenticated &&
+            next.stage != AuthStage.authenticated) {
+          _ref.invalidate(dashboardSummaryProvider);
+          _ref.invalidate(customerListProvider);
+          _ref.invalidate(loansProvider);
+          _ref.invalidate(collectionTodayProvider);
+        }
+        notifyListeners();
+      },
     );
   }
   final Ref _ref;

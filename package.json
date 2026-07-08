@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "postinstall": "prisma generate",
+    "seed:locations": "tsx prisma/seed_locations.ts",
     "test:repayments": "tsx tests/repaymentAllocation.test.ts",
     "test:e2e-features": "tsx tests/endToEndFeatures.test.ts",
     "test:security": "tsx tests/security.test.ts",
@@ -21,7 +22,7 @@
     "test:new-modules": "npx playwright test tests/e2e/new-modules",
     "test:mobile-parity-api": "tsx tests/mobileParityRoutes.test.ts && tsx tests/newModulesApi.test.ts",
     "test:mobile-desktop-parity-audit": "tsx scripts/mobileDesktopParityAudit.test.ts",
-    "test:rbac-new-modules": "tsx tests/rbacNewModules.test.ts",
+    "test:rbac-new-modules": "tsx tests/rbacNewModules.test.ts && tsx scripts/check-agent-branch-module-guards.ts",
     "test:full-regression": "npm run test:repayments && npm run test:security && npm run test:authdb && npm run test:e2e-features && npm run test:dashboard-kpi-unit && npm run test:mobile-parity-api && npm run test:rbac-new-modules",
     "test:ci": "npm run test:repayments && npm run test:loan-calculator && npm run test:security",
     "test:coverage": "c8 --check-coverage --lines 40 --functions 45 --branches 60 --statements 40 --exclude=lib/utils.ts npm run test:ci",
@@ -35,9 +36,16 @@
     "db:deploy": "npx prisma migrate deploy",
     "db:push": "npx prisma db push",
     "db:seed": "npx tsx prisma/seed.ts",
+    "db:seed-gold-master": "npx tsx prisma/seed_gold_master.ts",
+    "db:seed-gold-demo": "npx tsx prisma/seed_gold_demo.ts",
     "db:studio": "npx prisma studio",
     "db:reset": "npx prisma migrate reset",
-    "test:loan-calculator": "tsx tests/loanCalculator.test.ts"
+    "test:loan-calculator": "tsx tests/loanCalculator.test.ts",
+    "test:gold": "tsx tests/goldValuation.test.ts && tsx tests/goldOrnaments.test.ts && tsx tests/pledgeInterest.test.ts && tsx tests/goldServicing.test.ts",
+    "self-heal": "node scripts/self-heal/healer.mjs",
+    "hooks:install": "git config core.hooksPath .githooks",
+    "gen:tests": "node scripts/self-heal/generate-tests.mjs",
+    "test:links": "npx playwright test e2e/link-check.spec.ts"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
@@ -45,14 +53,16 @@
   "dependencies": {
     "@prisma/client": "^5.22.0",
     "@react-pdf/renderer": "^4.5.1",
+    "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.107.0",
     "bcryptjs": "^3.0.3",
+    "exceljs": "^4.4.0",
     "firebase-admin": "^14.0.0",
     "jose": "^5.9.6",
     "mysql2": "^3.22.3",
     "next": "16.2.6",
     "next-auth": "^5.0.0-beta.31",
-    "nodemailer": "^7.0.7",
+    "nodemailer": "^9.0.1",
     "otplib": "^13.4.0",
     "prisma": "^5.22.0",
     "qrcode": "^1.5.4",
@@ -61,11 +71,10 @@
     "recharts": "^3.8.1",
     "sharp": "^0.34.5",
     "socks-proxy-agent": "^10.0.0",
-    "xlsx": "^0.18.5",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.60.0",
+    "@playwright/test": "^1.61.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/nodemailer": "^8.0.0",
@@ -75,8 +84,13 @@
     "c8": "^11.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
-    "exceljs": "^4.4.0",
     "tsx": "^4.21.0",
     "typescript": "^5"
+  },
+  "overrides": {
+    "postcss": "^8.5.10",
+    "uuid": "^11.1.1",
+    "esbuild": "^0.28.1",
+    "nodemailer": "^9.0.1"
   }
 }

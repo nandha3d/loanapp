@@ -1,21 +1,35 @@
 'use client';
 
 import { useState } from 'react';
-import { saveSystemSettings, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, deleteLoanPackage, assignAgentToRoute, removeAgentFromRoute, setPrimaryAgent, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections, saveUpiQrCode, saveNotificationSettings, saveBureauSettings } from './actions';
+import { saveSystemSettings, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, deleteLoanPackage, assignAgentToRoute, removeAgentFromRoute, setPrimaryAgent, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections, saveUpiQrCode, saveNotificationSettings, saveBureauSettings, saveThemeSettings, saveNotificationTemplate } from './actions';
+import { THEME_PRESETS, THEME_SETTING_KEY } from '@/lib/themes';
 import Modal from '@/components/Modal';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { manageBranchAgent, setBranchAgentStatus } from '../../../admin/actions';
+import GoldMasterClient from './gold-master/GoldMasterClient';
 
 export default function SettingsClient({
   routes, packages, users, settings, currencySymbol, dict, currentUser, subscription, bureauCredential,
-  viewerRole, appType, branchAgents = [], manageBranchId = null, manageBranchName = null
+  viewerRole, appType, branchAgents = [], manageBranchId = null, manageBranchName = null, goldMaster = null, goldConfig = null,
+  notificationTemplates = []
 }: {
   routes: any[], packages: any[], users: any[], settings: Record<string, string>, currencySymbol: string, dict: any, currentUser: any, subscription: any, bureauCredential: any,
-  viewerRole?: string, appType?: string, branchAgents?: any[], manageBranchId?: string | null, manageBranchName?: string | null
+  viewerRole?: string, appType?: string, branchAgents?: any[], manageBranchId?: string | null, manageBranchName?: string | null, goldMaster?: any, goldConfig?: any,
+  notificationTemplates?: any[]
 }) {
   const d = dict.settings;
-  const [activeTab, setActiveTab] = useState('routes');
+  const searchParams = useSearchParams();
+  // Tab survives reloads via ?tab= (history.replaceState avoids a server round-trip).
+  const [activeTab, setActiveTabState] = useState(searchParams.get('tab') || 'routes');
+  const [selectedEvent, setSelectedEvent] = useState('payment_received');
+  const [selectedLang, setSelectedLang] = useState('en');
+  const setActiveTab = (tab: string) => {
+    setActiveTabState(tab);
+    const params = new URLSearchParams(window.location.search);
+    params.set('tab', tab);
+    window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
+  };
   const [loading, setLoading] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
@@ -24,7 +38,22 @@ export default function SettingsClient({
 
   // Scoped agent management (Users tab)
   const canManageAgents = viewerRole === 'admin' || viewerRole === 'superadmin' || viewerRole === 'developer';
-  const [agentModal, setAgentModal] = useState<{ id?: string; name: string; username: string; phone: string; status: string } | null>(null);
+  const [agentModal, setAgentModal] = useState<{
+    id?: string;
+    name: string;
+    username: string;
+    phone: string;
+    email?: string | null;
+    status: string;
+    aadharNumber?: string | null;
+    dob?: string | null;
+    experience?: string | null;
+    age?: number | null;
+    bypassLoanApproval?: boolean;
+    bypassCustomerApproval?: boolean;
+    autoReleaseFloat?: boolean;
+    feeConfirmationMandatory?: boolean;
+  } | null>(null);
   const [agentBusy, setAgentBusy] = useState(false);
 
   const submitAgent = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -54,6 +83,39 @@ export default function SettingsClient({
   const [raAgentId, setRaAgentId] = useState('');
   const [editingPrimaryRouteId, setEditingPrimaryRouteId] = useState<string | null>(null);
   const [packageDeductionType, setPackageDeductionType] = useState<'fixed' | 'percentage'>('fixed');
+
+  // Theme state
+  const [activeTheme, setActiveTheme] = useState(settings[THEME_SETTING_KEY] || 'default');
+  const [themeBusy, setThemeBusy] = useState(false);
+  const applyTheme = async (key: string) => {
+    if (themeBusy || key === activeTheme) return;
+    setThemeBusy(true);
+    const res = await saveThemeSettings(key);
+    setThemeBusy(false);
+    if (res?.success) {
+      setActiveTheme(key);
+      // Recolour immediately — don't wait for the layout RSC round-trip.
+      const preset = THEME_PRESETS.find((t) => t.key === key);
+      const wrapper = document.querySelector('.app-layout') as HTMLElement | null;
+      if (wrapper) {
+        if (preset) {
+          wrapper.style.setProperty('--primary', preset.primary);
+          wrapper.style.setProperty('--primary-dark', preset.primaryDark);
+          wrapper.style.setProperty('--primary-light', preset.primaryLight);
+          wrapper.style.setProperty('--accent', preset.accent);
+        } else {
+          // Default → let the server-rendered per-module colours win again.
+          wrapper.style.removeProperty('--primary');
+          wrapper.style.removeProperty('--primary-dark');
+          wrapper.style.removeProperty('--primary-light');
+          wrapper.style.removeProperty('--accent');
+        }
+      }
+      router.refresh();
+    } else {
+      alert(res?.error || 'Failed to save theme');
+    }
+  };
 
   // 2FA state
   const [is2faModalOpen, setIs2faModalOpen] = useState(false);
@@ -88,6 +150,9 @@ export default function SettingsClient({
         <div className={`tab ${activeTab === 'routes' ? 'active' : ''}`} onClick={() => setActiveTab('routes')}>{d.tabRoutes}</div>
         <div className={`tab ${activeTab === 'penalty' ? 'active' : ''}`} onClick={() => setActiveTab('penalty')}>{d.tabPenalty}</div>
         <div className={`tab ${activeTab === 'packages' ? 'active' : ''}`} onClick={() => setActiveTab('packages')}>{d.tabPackages}</div>
+        {effAppType === 'goldloan' && (
+          <div className={`tab ${activeTab === 'goldmaster' ? 'active' : ''}`} onClick={() => setActiveTab('goldmaster')}>Gold Master</div>
+        )}
         <div className={`tab ${activeTab === 'payment' ? 'active' : ''}`} onClick={() => setActiveTab('payment')}>{d.tabPayment}</div>
         {subscription?.whatsappSmsEnabled && (
           <div className={`tab ${activeTab === 'notifications' ? 'active' : ''}`} onClick={() => setActiveTab('notifications')}>Notifications</div>
@@ -102,11 +167,14 @@ export default function SettingsClient({
         {currentUser?.role === 'developer' && (
           <div className={`tab ${activeTab === 'system' ? 'active' : ''}`} onClick={() => setActiveTab('system')}>{d.tabSystem}</div>
         )}
+        {(viewerRole === 'superadmin' || viewerRole === 'developer') && (
+          <div className={`tab ${activeTab === 'theme' ? 'active' : ''}`} onClick={() => setActiveTab('theme')}>Theme</div>
+        )}
         {currentUser?.role === 'superadmin' && (
           <div className={`tab ${activeTab === 'data' ? 'active' : ''}`} style={{color: 'var(--danger)'}} onClick={() => setActiveTab('data')}>{d.tabData}</div>
         )}
         {canManageAgents && (
-          <div className={`tab ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>Users</div>
+          <div className={`tab ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>Agents</div>
         )}
         <div className={`tab ${activeTab === 'security' ? 'active' : ''}`} onClick={() => setActiveTab('security')}>{d.tabSecurity}</div>
       </div>
@@ -122,7 +190,7 @@ export default function SettingsClient({
             </p>
           </div>
           {manageBranchId && (
-            <button className="btn btn-primary btn-sm" onClick={() => setAgentModal({ name: '', username: '', phone: '', status: 'active' })}>
+            <button className="btn btn-primary btn-sm" onClick={() => setAgentModal({ name: '', username: '', phone: '', email: '', status: 'active', aadharNumber: '', dob: '', experience: '', age: null, bypassLoanApproval: false, bypassCustomerApproval: false, autoReleaseFloat: false, feeConfirmationMandatory: false })}>
               <span className="material-icons-outlined" style={{ fontSize: '14px' }}>add</span> Add Agent
             </button>
           )}
@@ -133,7 +201,7 @@ export default function SettingsClient({
           <div className="table-wrapper">
             <table>
               <thead>
-                <tr><th>Name</th><th>Username</th><th>Phone</th><th>Status</th><th style={{ textAlign: 'right' }}>Actions</th></tr>
+                <tr><th>Name</th><th>Username</th><th>Phone</th><th>Permissions</th><th>Status</th><th style={{ textAlign: 'right' }}>Actions</th></tr>
               </thead>
               <tbody>
                 {branchAgents.map((a: any) => (
@@ -141,9 +209,43 @@ export default function SettingsClient({
                     <td>{a.name}</td>
                     <td>{a.username}</td>
                     <td>{a.phone}</td>
+                    <td>
+                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                        {a.bypassCustomerApproval && (
+                          <span className="badge badge-info" style={{ fontSize: '10px', padding: '2px 8px' }} title="Bypass Customer Approval">Auto Customer</span>
+                        )}
+                        {a.bypassLoanApproval && (
+                          <span className="badge badge-pending" style={{ fontSize: '10px', padding: '2px 8px' }} title="Bypass Loan Approval">Auto Loan</span>
+                        )}
+                        {a.autoReleaseFloat && (
+                          <span className="badge" style={{ background: '#F3E8FF', color: '#7C3AED', fontSize: '10px', padding: '2px 8px' }} title="Auto-Release Float">Auto Disburse</span>
+                        )}
+                        {a.feeConfirmationMandatory && (
+                          <span className="badge" style={{ background: '#FEF3C7', color: '#D97706', fontSize: '10px', padding: '2px 8px' }} title="Mandatory Customer Confirmation">Fee Confirm</span>
+                        )}
+                        {!a.bypassCustomerApproval && !a.bypassLoanApproval && !a.autoReleaseFloat && !a.feeConfirmationMandatory && (
+                          <span style={{ color: 'var(--text-light)', fontSize: '.75rem' }}>Standard</span>
+                        )}
+                      </div>
+                    </td>
                     <td><span className={`badge ${a.status === 'active' ? 'badge-success' : 'badge-danger'}`}>{a.status}</span></td>
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <button className="btn btn-ghost btn-sm" onClick={() => setAgentModal({ id: a.id, name: a.name, username: a.username, phone: a.phone, status: a.status })}>Edit</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => setAgentModal({
+                        id: a.id,
+                        name: a.name,
+                        username: a.username,
+                        phone: a.phone,
+                        email: a.email || '',
+                        status: a.status,
+                        aadharNumber: a.aadharNumber || '',
+                        dob: a.dob ? new Date(a.dob).toISOString().split('T')[0] : '',
+                        experience: a.experience || '',
+                        age: a.age || null,
+                        bypassLoanApproval: !!a.bypassLoanApproval,
+                        bypassCustomerApproval: !!a.bypassCustomerApproval,
+                        autoReleaseFloat: !!a.autoReleaseFloat,
+                        feeConfirmationMandatory: !!a.feeConfirmationMandatory,
+                      })}>Edit</button>
                       <button className="btn btn-ghost btn-sm" onClick={() => toggleAgent(a.id, a.status)} style={{ color: a.status === 'active' ? 'var(--danger)' : 'var(--success)' }}>
                         {a.status === 'active' ? 'Deactivate' : 'Activate'}
                       </button>
@@ -151,7 +253,7 @@ export default function SettingsClient({
                   </tr>
                 ))}
                 {branchAgents.length === 0 && (
-                  <tr><td colSpan={5} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-light)' }}>No agents yet. Add one.</td></tr>
+                  <tr><td colSpan={6} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-light)' }}>No agents yet. Add one.</td></tr>
                 )}
               </tbody>
             </table>
@@ -175,8 +277,95 @@ export default function SettingsClient({
             <input name="phone" className="form-control" defaultValue={agentModal?.phone || ''} required />
           </div>
           <div className="form-group">
+            <label className="form-label">Email</label>
+            <input name="email" type="email" className="form-control" defaultValue={agentModal?.email || ''} placeholder="Optional" />
+          </div>
+          <div className="form-group">
             <label className="form-label">{agentModal?.id ? 'New password (leave blank to keep)' : 'Password'}</label>
             <input name="password" type="password" className="form-control" autoComplete="new-password" {...(agentModal?.id ? {} : { required: true })} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="form-group">
+              <label className="form-label">Aadhaar Number</label>
+              <input name="aadharNumber" className="form-control" defaultValue={agentModal?.aadharNumber || ''} placeholder="Optional" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Date of Birth</label>
+              <input name="dob" type="date" className="form-control" defaultValue={agentModal?.dob || ''} />
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="form-group">
+              <label className="form-label">Experience</label>
+              <input name="experience" className="form-control" defaultValue={agentModal?.experience || ''} placeholder="e.g. 2 years, Optional" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Age</label>
+              <input name="age" type="number" className="form-control" defaultValue={agentModal?.age || ''} placeholder="Optional" />
+            </div>
+          </div>
+          <div style={{ marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px', marginBottom: '16px' }}>
+            <h4 style={{ fontSize: '.9rem', fontWeight: 600, marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary-dark)' }}>
+              <span className="material-icons-outlined" style={{ fontSize: '18px' }}>admin_panel_settings</span>
+              Agent Permissions & Autopay Controls
+            </h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  name="bypassCustomerApproval" 
+                  value="true" 
+                  defaultChecked={!!agentModal?.bypassCustomerApproval} 
+                  style={{ marginTop: '3px' }}
+                />
+                <div>
+                  <strong style={{ fontSize: '.85rem', display: 'block' }}>Bypass Customer Approval</strong>
+                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>Allow agent to create active customers without admin review.</span>
+                </div>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  name="bypassLoanApproval" 
+                  value="true" 
+                  defaultChecked={!!agentModal?.bypassLoanApproval} 
+                  style={{ marginTop: '3px' }}
+                />
+                <div>
+                  <strong style={{ fontSize: '.85rem', display: 'block' }}>Bypass Loan Approval</strong>
+                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>Allow agent to create active loans immediately.</span>
+                </div>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  name="autoReleaseFloat" 
+                  value="true" 
+                  defaultChecked={!!agentModal?.autoReleaseFloat} 
+                  style={{ marginTop: '3px' }}
+                />
+                <div>
+                  <strong style={{ fontSize: '.85rem', display: 'block' }}>Auto-Release Float</strong>
+                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>Automatically disburse funds from agent float when loan is created/approved.</span>
+                </div>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  name="feeConfirmationMandatory" 
+                  value="true" 
+                  defaultChecked={!!agentModal?.feeConfirmationMandatory} 
+                  style={{ marginTop: '3px' }}
+                />
+                <div>
+                  <strong style={{ fontSize: '.85rem', display: 'block' }}>Mandatory Customer Confirmation</strong>
+                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>Require borrower to confirm cash collection before it reflects to admin dashboard.</span>
+                </div>
+              </label>
+            </div>
           </div>
           <div className="form-group">
             <label className="form-label">Status</label>
@@ -415,6 +604,13 @@ export default function SettingsClient({
       )}
 
       {/* Bulk Tools Tab */}
+
+      {/* Gold Master Tab */}
+      {effAppType === 'goldloan' && (
+        <div className={`tab-content ${activeTab === 'goldmaster' ? 'active' : ''}`}>
+          <GoldMasterClient master={goldMaster || { ornamentTypes: [], ornamentSpecs: [], bankNames: [] }} config={goldConfig} />
+        </div>
+      )}
 
       {/* Payment / UPI Tab */}
       <div className={`tab-content ${activeTab === 'payment' ? 'active' : ''}`}>
@@ -682,6 +878,235 @@ export default function SettingsClient({
             <span className="material-icons-outlined" style={{ fontSize: '16px' }}>save</span> {loading ? 'Saving...' : 'Save Settings'}
           </button>
         </form>
+
+        {/* Custom Notification Templates Editor */}
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: '24px', marginTop: '30px' }}>
+          <div style={{ marginBottom: '16px' }}>
+            <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--primary-dark)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="material-icons-outlined">edit_note</span>
+              Custom Messages & Templates Editor
+            </h4>
+            <p style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+              Select a trigger event and target language to edit message bodies for SMS, WhatsApp, and Push channels.
+            </p>
+          </div>
+
+          {/* Selector Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+            <div className="form-group">
+              <label className="form-label" style={{ fontSize: '.8rem', fontWeight: 600 }}>Trigger Event</label>
+              <select 
+                className="form-control" 
+                value={selectedEvent} 
+                onChange={(e) => setSelectedEvent(e.target.value)}
+              >
+                <option value="payment_received">Payment Received</option>
+                <option value="payment_due_reminder">Due Date Reminder</option>
+                <option value="loan_disbursed">Loan Disbursed</option>
+                <option value="loan_overdue">Loan Overdue</option>
+                <option value="loan_closed">Loan Closed</option>
+                <option value="penalty_accrued">Penalty Accrued</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" style={{ fontSize: '.8rem', fontWeight: 600 }}>Language</label>
+              <select 
+                className="form-control" 
+                value={selectedLang} 
+                onChange={(e) => setSelectedLang(e.target.value)}
+              >
+                <option value="en">English (EN)</option>
+                <option value="ta">Tamil (TA)</option>
+                <option value="hi">Hindi (HI)</option>
+                <option value="te">Telugu (TE)</option>
+                <option value="kn">Kannada (KN)</option>
+                <option value="ml">Malayalam (ML)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Template Form */}
+          {(() => {
+            const smsTemp = notificationTemplates.find(t => t.name === selectedEvent && t.lang === selectedLang && t.channel === 'sms');
+            const waTemp = notificationTemplates.find(t => t.name === selectedEvent && t.lang === selectedLang && t.channel === 'whatsapp');
+            const pushTemp = notificationTemplates.find(t => t.name === selectedEvent && t.lang === selectedLang && t.channel === 'push');
+
+            return (
+              <form action={async (fd) => {
+                setLoading(true);
+                const smsActive = fd.get('sms_active') === 'true';
+                const waActive = fd.get('whatsapp_active') === 'true';
+                const pushActive = fd.get('push_active') === 'true';
+
+                const [resSms, resWa, resPush] = await Promise.all([
+                  saveNotificationTemplate({
+                    name: selectedEvent,
+                    lang: selectedLang,
+                    channel: 'sms',
+                    body: fd.get('sms_body') as string,
+                    isActive: smsActive,
+                  }),
+                  saveNotificationTemplate({
+                    name: selectedEvent,
+                    lang: selectedLang,
+                    channel: 'whatsapp',
+                    body: fd.get('whatsapp_body') as string,
+                    isActive: waActive,
+                  }),
+                  saveNotificationTemplate({
+                    name: selectedEvent,
+                    lang: selectedLang,
+                    channel: 'push',
+                    subject: fd.get('push_subject') as string,
+                    body: fd.get('push_body') as string,
+                    isActive: pushActive,
+                  })
+                ]);
+
+                setLoading(false);
+                if (resSms.success && resWa.success && resPush.success) {
+                  showToast('Notification templates saved successfully!');
+                  router.refresh();
+                } else {
+                  alert('Failed to save templates. Please check auth / input values.');
+                }
+              }} style={{ background: 'var(--bg-alt)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '20px', display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px' }}>
+                
+                {/* Channels Editor Inputs */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  
+                  {/* SMS */}
+                  <div style={{ paddingBottom: '16px', borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <strong style={{ fontSize: '.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span className="material-icons-outlined" style={{ fontSize: '18px', color: 'var(--primary)' }}>sms</span>
+                        SMS Message Template
+                      </strong>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '.8rem' }}>
+                        <input type="checkbox" name="sms_active" value="true" defaultChecked={smsTemp ? smsTemp.isActive : true} key={`${selectedEvent}-${selectedLang}-sms-active`} />
+                        Active
+                      </label>
+                    </div>
+                    <textarea 
+                      name="sms_body" 
+                      className="form-control" 
+                      rows={3} 
+                      defaultValue={smsTemp?.body || ''} 
+                      placeholder={`e.g. Hi {customer}, we received {amount} for loan {loan_code}.`}
+                      key={`${selectedEvent}-${selectedLang}-sms-body`}
+                      required
+                    />
+                  </div>
+
+                  {/* WhatsApp */}
+                  <div style={{ paddingBottom: '16px', borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <strong style={{ fontSize: '.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span className="material-icons-outlined" style={{ fontSize: '18px', color: '#25D366' }}>whatsapp</span>
+                        WhatsApp Message Template
+                      </strong>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '.8rem' }}>
+                        <input type="checkbox" name="whatsapp_active" value="true" defaultChecked={waTemp ? waTemp.isActive : true} key={`${selectedEvent}-${selectedLang}-wa-active`} />
+                        Active
+                      </label>
+                    </div>
+                    <textarea 
+                      name="whatsapp_body" 
+                      className="form-control" 
+                      rows={3} 
+                      defaultValue={waTemp?.body || ''} 
+                      placeholder={`e.g. 👋 Hi {customer}, ₹{amount} has been received for loan {loan_code}.`}
+                      key={`${selectedEvent}-${selectedLang}-wa-body`}
+                      required
+                    />
+                  </div>
+
+                  {/* Push Notification */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <strong style={{ fontSize: '.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span className="material-icons-outlined" style={{ fontSize: '18px', color: '#FF9900' }}>notifications_active</span>
+                        Push Notification Template
+                      </strong>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '.8rem' }}>
+                        <input type="checkbox" name="push_active" value="true" defaultChecked={pushTemp ? pushTemp.isActive : true} key={`${selectedEvent}-${selectedLang}-push-active`} />
+                        Active
+                      </label>
+                    </div>
+                    <div className="form-group" style={{ marginBottom: '8px' }}>
+                      <label className="form-label" style={{ fontSize: '.75rem' }}>Push Title / Subject</label>
+                      <input 
+                        type="text" 
+                        name="push_subject" 
+                        className="form-control" 
+                        defaultValue={pushTemp?.subject || ''} 
+                        placeholder="e.g. Payment Confirmation"
+                        key={`${selectedEvent}-${selectedLang}-push-subject`}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '.75rem' }}>Push Body</label>
+                      <textarea 
+                        name="push_body" 
+                        className="form-control" 
+                        rows={3} 
+                        defaultValue={pushTemp?.body || ''} 
+                        placeholder={`e.g. Hi {customer}, ₹{amount} has been received for loan {loan_code}.`}
+                        key={`${selectedEvent}-${selectedLang}-push-body`}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: '10px' }}>
+                    <button type="submit" className="btn btn-primary" disabled={loading}>
+                      <span className="material-icons-outlined" style={{ fontSize: '16px' }}>save</span>
+                      {loading ? 'Saving Templates...' : 'Save Selected Templates'}
+                    </button>
+                  </div>
+
+                </div>
+
+                {/* Placeholder Cheatsheet */}
+                <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: '20px', fontSize: '.8rem', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <h5 style={{ margin: 0, fontWeight: 700, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span className="material-icons-outlined" style={{ fontSize: '16px' }}>info</span>
+                    Placeholders Key
+                  </h5>
+                  <p style={{ color: 'var(--text-light)', margin: 0 }}>
+                    Copy and paste these placeholder tags in your template bodies. They resolve dynamically upon notification dispatch:
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {[
+                      { token: '{customer}', desc: 'Customer name' },
+                      { token: '{amount}', desc: 'Transaction/Due amount' },
+                      { token: '{due_date}', desc: 'Instalment due date' },
+                      { token: '{loan_code}', desc: 'Unique loan number' },
+                      { token: '{days}', desc: 'Days overdue' },
+                      { token: '{penalty}', desc: 'Accrued penalty charge' },
+                      { token: '{balance}', desc: 'Remaining loan balance' },
+                      { token: '{orgName}', desc: 'Tenant organization name' },
+                      { token: '{firstDue}', desc: 'First instalment due date' }
+                    ].map(({ token, desc }) => (
+                      <div key={token} style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '4px', padding: '6px 8px' }}>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--primary-dark)', cursor: 'pointer' }} onClick={() => {
+                          if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                            navigator.clipboard.writeText(token);
+                            showToast(`Copied ${token} to clipboard!`);
+                          }
+                        }} title="Click to copy">{token}</span>
+                        <span style={{ color: 'var(--text-light)', fontSize: '.72rem', marginTop: '2px' }}>{desc}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+              </form>
+            );
+          })()}
+
+        </div>
       </div>
 
       {/* Bulk Tools Tab */}
@@ -1026,8 +1451,66 @@ export default function SettingsClient({
         </div>
       )}
 
+      {/* Theme Tab (superadmin) */}
+      {(viewerRole === 'superadmin' || viewerRole === 'developer') && (
+      <div className={`tab-content ${activeTab === 'theme' ? 'active' : ''}`}>
+        <div className="card-header">
+          <div>
+            <h3>🎨 Colour Theme</h3>
+            <p style={{ fontSize: '.78rem', color: 'var(--text-secondary)', margin: '2px 0 0' }}>
+              Applies to the web dashboard and the mobile app for everyone in this business.
+            </p>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '12px', opacity: themeBusy ? 0.6 : 1 }}>
+          {/* Default = each module keeps its own colours */}
+          <div
+            onClick={() => applyTheme('default')}
+            style={{
+              padding: '12px', borderRadius: '10px', cursor: 'pointer',
+              border: `2px solid ${activeTheme === 'default' ? 'var(--primary)' : 'var(--border)'}`,
+              background: activeTheme === 'default' ? 'var(--primary-light)' : 'transparent',
+            }}
+          >
+            <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
+              <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'linear-gradient(135deg, #E67E22, #2980B9, #27AE60, #B8860B)' }} />
+            </div>
+            <div style={{ fontWeight: 600, fontSize: '.85rem' }}>Default</div>
+            <div style={{ fontSize: '.72rem', color: 'var(--text-secondary)' }}>Per-module colours</div>
+          </div>
+
+          {THEME_PRESETS.map((t) => (
+            <div
+              key={t.key}
+              onClick={() => applyTheme(t.key)}
+              style={{
+                padding: '12px', borderRadius: '10px', cursor: 'pointer',
+                border: `2px solid ${activeTheme === t.key ? t.primary : 'var(--border)'}`,
+                background: activeTheme === t.key ? t.primaryLight : 'transparent',
+              }}
+            >
+              <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
+                <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: t.primary, border: '1px solid rgba(0,0,0,.08)' }} />
+                <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: t.primaryDark, border: '1px solid rgba(0,0,0,.08)' }} />
+                <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: t.primaryLight, border: '1px solid rgba(0,0,0,.08)' }} />
+              </div>
+              <div style={{ fontWeight: 600, fontSize: '.85rem' }}>{t.name}</div>
+              <div style={{ fontSize: '.72rem', color: 'var(--text-secondary)' }}>
+                {activeTheme === t.key ? 'Active' : '3-colour set'}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <p style={{ fontSize: '.78rem', color: 'var(--text-light)', marginTop: '16px' }}>
+          The mobile app picks up the new theme the next time it starts or refreshes its session.
+        </p>
+      </div>
+      )}
+
       {/* --- Modals --- */}
-      
+
       {/* Route Modal */}
       <Modal isOpen={isRouteModalOpen} onClose={() => setIsRouteModalOpen(false)} title={d.addNewRoute}>
         <form action={async (fd) => { await createRoute(fd); setIsRouteModalOpen(false); showToast(d.routeCreated); }}>

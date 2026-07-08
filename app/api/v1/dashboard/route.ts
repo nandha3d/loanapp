@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
-import { getAgentRouteIds } from '@/lib/access';
+import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -20,37 +20,23 @@ export async function GET(req: NextRequest) {
   const today = new Date(istMidnightUtcMs);
   const tomorrow = new Date(istMidnightUtcMs + 24 * 60 * 60 * 1000);
 
+  // Agent scoping — restrict to the agent's OWN customers via linkage (direct
+  // agentId or route assignment), NOT by branch. A branch pin falsely excluded
+  // their customers/loans with a null or different branchId. Admins stay
+  // branch-scoped; superadmin/developer see the whole tenant.
+  const isAgent = ctx.role === 'agent';
+  const agentAccess = isAgent ? buildAgentCustomerAccessWhere({ userId: ctx.userId }) : null;
+
   const baseLoan: any = {
     tenantId: ctx.tenantId,
     appType: ctx.appType,
-    ...scopedBranchWhere(ctx),
+    ...(isAgent ? { customer: agentAccess } : scopedBranchWhere(ctx)),
   };
-  const baseCustomer: any = { ...baseLoan };
-
-  // Agent scoping — restrict to customers/loans in agent's assigned routes.
-  if (ctx.role === 'agent') {
-    const routeIds = await getAgentRouteIds(ctx.userId);
-    if (routeIds.length === 0) {
-      return ok({
-        activeLoans: 0,
-        overdueLoans: 0,
-        totalCustomers: 0,
-        todayExpected: 0,
-        todayCollected: 0,
-        cashCollectedToday: 0,
-        todayGap: 0,
-        overdueOutstanding: 0,
-        overdueCollectedToday: 0,
-        overdueTotalTillToday: 0,
-        pendingPenalties: 0,
-        activeAgents: 0,
-        recentLoans: [],
-        todayInstalments: [],
-      });
-    }
-    baseCustomer.routeId = { in: routeIds };
-    baseLoan.customer = { routeId: { in: routeIds } };
-  }
+  const baseCustomer: any = {
+    tenantId: ctx.tenantId,
+    appType: ctx.appType,
+    ...(isAgent ? agentAccess : scopedBranchWhere(ctx)),
+  };
 
   try {
     const [
@@ -67,13 +53,14 @@ export async function GET(req: NextRequest) {
       routes,
       recentActivity,
       cashCollectedAgg,
+      todayActivityRows,
     ] = await Promise.all([
       prisma.loan.count({ where: { ...baseLoan, status: 'active' } }),
       prisma.loan.count({ where: { ...baseLoan, status: 'overdue' } }),
       prisma.customer.count({ where: { ...baseCustomer, status: { not: 'blacklisted' } } }),
       prisma.instalment.findMany({
         where: { loan: baseLoan, dueDate: { gte: today, lt: tomorrow } },
-        include: { loan: { include: { customer: { select: { id: true, name: true, customerCode: true } } } } },
+        include: { loan: { include: { customer: { select: { id: true, name: true, customerCode: true, profilePhoto: true } } } } },
         orderBy: { dueDate: 'asc' },
       }),
       prisma.penalty.count({ where: { loan: baseLoan, status: 'pending' } }),
@@ -88,7 +75,7 @@ export async function GET(req: NextRequest) {
       }),
       prisma.loan.findMany({
         where: baseLoan,
-        include: { customer: { select: { id: true, customerCode: true, name: true } } },
+        include: { customer: { select: { id: true, customerCode: true, name: true, profilePhoto: true } } },
         orderBy: { createdAt: 'desc' },
         take: 5,
       }),
@@ -102,7 +89,7 @@ export async function GET(req: NextRequest) {
         where: { loan: baseLoan, dueDate: { lt: today }, status: { in: ['upcoming', 'missed', 'partial'] } },
         select: {
           id: true, dueDate: true, dueAmount: true, receivedAmount: true,
-          loan: { select: { id: true, loanCode: true, customer: { select: { id: true, name: true, customerCode: true } } } },
+          loan: { select: { id: true, loanCode: true, customer: { select: { id: true, name: true, customerCode: true, profilePhoto: true } } } },
         },
         orderBy: { dueDate: 'asc' },
         take: 10,
@@ -153,7 +140,123 @@ export async function GET(req: NextRequest) {
         },
         _sum: { receivedAmount: true },
       }),
+      // Today's activity feed — every collection recorded today, newest first,
+      // with the customer collected from, the agent who collected, the amount,
+      // and the time. Lets the dashboard show "what was done today" at a glance.
+      prisma.collectionEntry.findMany({
+        where: {
+          tenantId: ctx.tenantId,
+          submittedAt: { gte: today, lt: tomorrow },
+          loan: baseLoan,
+        },
+        select: {
+          id: true,
+          receivedAmount: true,
+          paymentMode: true,
+          submittedAt: true,
+          verificationStatus: true,
+          source: true,
+          customer: { select: { id: true, name: true, customerCode: true, profilePhoto: true } },
+          agent: { select: { id: true, name: true } },
+          loan: { select: { loanCode: true } },
+        },
+        orderBy: { submittedAt: 'desc' },
+      }),
     ]);
+
+    // Web dashboard parity additions
+    const [
+      totalLoansAgg,
+      topRepayer,
+      topLoan,
+      pendingUpiCollections,
+      pendingCashCollections,
+      collectionsByMode,
+    ] = await Promise.all([
+      prisma.loan.aggregate({
+        where: baseLoan,
+        _sum: { principal: true, disbursed: true, totalCollected: true },
+      }),
+      prisma.collectionEntry.groupBy({
+        by: ['customerId'],
+        where: { tenantId: ctx.tenantId, loan: baseLoan },
+        _sum: { receivedAmount: true },
+        orderBy: { _sum: { receivedAmount: 'desc' } },
+        take: 1,
+      }),
+      prisma.loan.findFirst({
+        where: { ...baseLoan, status: { in: ['active', 'overdue'] } },
+        orderBy: { principal: 'desc' },
+        include: { customer: { select: { name: true } } },
+      }),
+      prisma.collectionEntry.findMany({
+        where: {
+          tenantId: ctx.tenantId,
+          paymentMode: 'upi',
+          verificationStatus: 'pending',
+          loan: baseLoan,
+        },
+        select: {
+          id: true,
+          receivedAmount: true,
+          paymentMode: true,
+          submittedAt: true,
+          verificationStatus: true,
+          source: true,
+          customer: { select: { id: true, name: true, customerCode: true, profilePhoto: true } },
+          agent: { select: { id: true, name: true } },
+          loan: { select: { loanCode: true } },
+        },
+        orderBy: { submittedAt: 'desc' },
+      }),
+      prisma.collectionEntry.findMany({
+        where: {
+          tenantId: ctx.tenantId,
+          paymentMode: 'cash',
+          verificationStatus: 'pending',
+          loan: baseLoan,
+        },
+        select: {
+          id: true,
+          receivedAmount: true,
+          paymentMode: true,
+          submittedAt: true,
+          verificationStatus: true,
+          source: true,
+          customer: { select: { id: true, name: true, customerCode: true, profilePhoto: true } },
+          agent: { select: { id: true, name: true } },
+          loan: { select: { loanCode: true } },
+        },
+        orderBy: { submittedAt: 'desc' },
+      }),
+      prisma.collectionEntry.groupBy({
+        by: ['paymentMode'],
+        where: {
+          tenantId: ctx.tenantId,
+          submittedAt: { gte: today, lt: tomorrow },
+          loan: baseLoan,
+        },
+        _sum: { receivedAmount: true },
+      }),
+    ]);
+
+    const totalDisbursed = Number(totalLoansAgg._sum.disbursed ?? 0);
+    const totalCollectedAllTime = Number(totalLoansAgg._sum.totalCollected ?? 0);
+
+    let bestPayer = '—';
+    if (topRepayer.length > 0 && topRepayer[0].customerId) {
+      const cust = await prisma.customer.findUnique({
+        where: { id: topRepayer[0].customerId },
+        select: { name: true },
+      });
+      if (cust) bestPayer = cust.name;
+    }
+    const highestBorrower = topLoan?.customer?.name ?? '—';
+
+    const todayByMode: Record<string, number> = {};
+    for (const c of collectionsByMode) {
+      todayByMode[c.paymentMode] = Number(c._sum.receivedAmount ?? 0);
+    }
 
     const todayExpected = todayInstalments.reduce(
       (sum, item) => sum + Number(item.dueAmount),
@@ -196,6 +299,7 @@ export async function GET(req: NextRequest) {
       return {
         id: route.id,
         name: route.name,
+        agentId: route.routeAgents?.[0]?.agentId ?? null,
         agent: route.routeAgents?.map((ra: any) => ra.agent?.name).join(', ') || '-',
         customers: route._count.customers,
         overdue: routeOverdue,
@@ -222,6 +326,78 @@ export async function GET(req: NextRequest) {
       defaulterAlerts,
       routePerformance,
       recentActivity,
+      // Group the raw entries into one activity line per collection action: a
+      // single payment is distributed into many instalment rows (all written in
+      // the same instant), so we fold them by customer+agent+loan+minute and
+      // sum the amount — the feed shows one tidy line, newest first.
+      todayActivity: (() => {
+        const groups = new Map<string, any>();
+        for (const e of todayActivityRows) {
+          const minute = new Date(e.submittedAt);
+          minute.setSeconds(0, 0);
+          const key = `${e.customer?.id ?? ''}|${e.agent?.id ?? ''}|${e.loan?.loanCode ?? ''}|${minute.getTime()}`;
+          const existing = groups.get(key);
+          if (existing) {
+            existing.amount += Number(e.receivedAmount);
+            existing.count += 1;
+            if (new Date(e.submittedAt) > new Date(existing.submittedAt)) {
+              existing.submittedAt = e.submittedAt;
+            }
+          } else {
+            groups.set(key, {
+              id: e.id,
+              amount: Number(e.receivedAmount),
+              count: 1,
+              paymentMode: e.paymentMode,
+              submittedAt: e.submittedAt,
+              verificationStatus: e.verificationStatus,
+              source: e.source,
+              customerName: e.customer?.name ?? '—',
+              customerCode: e.customer?.customerCode ?? '',
+              customerPhoto: e.customer?.profilePhoto ?? null,
+              customerId: e.customer?.id ?? '',
+              agentName: e.agent?.name ?? '—',
+              loanCode: e.loan?.loanCode ?? '',
+            });
+          }
+        }
+        return Array.from(groups.values()).sort(
+          (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime(),
+        );
+      })(),
+      totalDisbursed,
+      totalCollectedAllTime,
+      bestPayer,
+      highestBorrower,
+      pendingUpiCollections: pendingUpiCollections.map((e) => ({
+        id: e.id,
+        amount: Number(e.receivedAmount),
+        paymentMode: e.paymentMode,
+        submittedAt: e.submittedAt,
+        verificationStatus: e.verificationStatus,
+        source: e.source,
+        customerName: e.customer?.name ?? '—',
+        customerCode: e.customer?.customerCode ?? '',
+        customerPhoto: e.customer?.profilePhoto ?? null,
+        customerId: e.customer?.id ?? '',
+        agentName: e.agent?.name ?? '—',
+        loanCode: e.loan?.loanCode ?? '',
+      })),
+      pendingCashCollections: pendingCashCollections.map((e) => ({
+        id: e.id,
+        amount: Number(e.receivedAmount),
+        paymentMode: e.paymentMode,
+        submittedAt: e.submittedAt,
+        verificationStatus: e.verificationStatus,
+        source: e.source,
+        customerName: e.customer?.name ?? '—',
+        customerCode: e.customer?.customerCode ?? '',
+        customerPhoto: e.customer?.profilePhoto ?? null,
+        customerId: e.customer?.id ?? '',
+        agentName: e.agent?.name ?? '—',
+        loanCode: e.loan?.loanCode ?? '',
+      })),
+      todayByMode,
     });
   } catch (e: any) {
     return fail(e?.message ?? 'Dashboard failed', 500);

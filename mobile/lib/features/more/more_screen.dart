@@ -98,7 +98,26 @@ class _ModuleItem {
   final UserRole? minRole;
 }
 
-const _allModules = <_ModuleItem>[
+// Not const: module tiles reference the runtime tenant theme (AppColors).
+final _allModules = <_ModuleItem>[
+  // Customers lives here now — its bottom-nav tab was removed so the
+  // center "+" button has a clear gap instead of overlapping a tab.
+  _ModuleItem(
+    icon: Icons.people_outline,
+    label: 'Customers',
+    subtitle: 'Profiles, KYC, and loan history',
+    route: '/customers',
+    color: AppColors.primary,
+    bgColor: AppColors.primaryLight,
+  ),
+  _ModuleItem(
+    icon: Icons.payments_outlined,
+    label: 'Collection',
+    subtitle: 'Daily dues, route work, and chit contributions',
+    route: '/collection',
+    color: AppColors.success,
+    bgColor: AppColors.successBg,
+  ),
   _ModuleItem(
     icon: Icons.warning_amber_rounded,
     label: 'Penalties',
@@ -107,7 +126,7 @@ const _allModules = <_ModuleItem>[
     color: AppColors.danger,
     bgColor: AppColors.dangerBg,
   ),
-  _ModuleItem(
+  const _ModuleItem(
     icon: Icons.fact_check_outlined,
     label: 'Approvals',
     subtitle: 'Review pending requests',
@@ -116,7 +135,7 @@ const _allModules = <_ModuleItem>[
     color: AppColors.success,
     bgColor: AppColors.successBg,
   ),
-  _ModuleItem(
+  const _ModuleItem(
     icon: Icons.verified_user_outlined,
     label: 'KYC Review',
     subtitle: 'Verify pending customer KYC',
@@ -125,7 +144,7 @@ const _allModules = <_ModuleItem>[
     bgColor: AppColors.warningBg,
     minRole: UserRole.admin,
   ),
-  _ModuleItem(
+  const _ModuleItem(
     icon: Icons.bar_chart_rounded,
     label: 'Reports & Analytics',
     subtitle: 'Collection trends & agent performance',
@@ -134,7 +153,7 @@ const _allModules = <_ModuleItem>[
     color: AppColors.info,
     bgColor: AppColors.infoBg,
   ),
-  _ModuleItem(
+  const _ModuleItem(
     icon: Icons.savings_outlined,
     label: 'Chit Funds',
     subtitle: 'Group savings management',
@@ -142,6 +161,24 @@ const _allModules = <_ModuleItem>[
     moduleKey: 'chitfunds',
     color: AppColors.purple,
     bgColor: AppColors.purpleBg,
+  ),
+  _ModuleItem(
+    icon: Icons.receipt_long_outlined,
+    label: 'Reports',
+    subtitle: 'Daily, agent, and overdue reports',
+    route: '/reports',
+    moduleKey: 'reports',
+    color: AppColors.purple,
+    bgColor: AppColors.purpleBg,
+  ),
+  _ModuleItem(
+    icon: Icons.workspace_premium_outlined,
+    label: 'Gold Pledge Report',
+    subtitle: 'Pending interests & pledged weight',
+    route: '/gold-reports',
+    moduleKey: 'goldloan',
+    color: AppColors.warning,
+    bgColor: AppColors.warningBg,
   ),
   _ModuleItem(
     icon: Icons.account_balance_outlined,
@@ -152,7 +189,7 @@ const _allModules = <_ModuleItem>[
     color: AppColors.info,
     bgColor: AppColors.infoBg,
   ),
-  _ModuleItem(
+  const _ModuleItem(
     icon: Icons.health_and_safety_outlined,
     label: 'NPA Monitoring',
     subtitle: 'Portfolio risk, provisioning & upgrades',
@@ -170,7 +207,7 @@ const _allModules = <_ModuleItem>[
     color: AppColors.primary,
     bgColor: AppColors.primaryLight,
   ),
-  _ModuleItem(
+  const _ModuleItem(
     icon: Icons.account_balance_rounded,
     label: 'Payment Gateway',
     subtitle: 'UPI & Razorpay for borrower self-pay',
@@ -179,7 +216,7 @@ const _allModules = <_ModuleItem>[
     bgColor: AppColors.infoBg,
     minRole: UserRole.admin,
   ),
-  _ModuleItem(
+  const _ModuleItem(
     icon: Icons.settings_outlined,
     label: 'Settings',
     subtitle: 'Routes, account & app preferences',
@@ -210,6 +247,7 @@ bool _canAccess(_ModuleItem item, User user) {
     case 'accounting':
     case 'npa':
     case 'settings':
+    case 'reports':
       return user.role != UserRole.agent;
   }
 
@@ -230,15 +268,18 @@ class MoreScreen extends ConsumerWidget {
     final simpleMode = ref.watch(simpleModeProvider);
     // Simple mode (U4): field agents see only daily-work items. Admin roles
     // keep the full grid regardless of the toggle - never hides capability.
-    const dailyWorkRoutes = {'/penalties', '/wallet', '/settings'};
+    // '/customers' counts as daily work — it moved here from the bottom nav.
+    const dailyWorkRoutes = {'/customers', '/penalties', '/wallet', '/settings'};
     final visible = user == null
         ? <_ModuleItem>[]
         : _allModules
             .where((m) => _canAccess(m, user))
-            .where((m) =>
-                !simpleMode ||
-                user.role != UserRole.agent ||
-                dailyWorkRoutes.contains(m.route),)
+            .where(
+              (m) =>
+                  !simpleMode ||
+                  user.role != UserRole.agent ||
+                  dailyWorkRoutes.contains(m.route),
+            )
             .toList();
     final pinsAsync = ref.watch(_mapPinsProvider);
 
@@ -254,6 +295,24 @@ class MoreScreen extends ConsumerWidget {
             tenantSlug: user?.tenantSlug ?? '',
           ),
           const SizedBox(height: 16),
+          // Module switcher — the portal hub is where superadmin/admin move
+          // between business modules (microlending, auto finance, gold loan,
+          // chits, …). They land there at login, but once inside a module
+          // the only way back used to be re-logging in.
+          if (user?.role == UserRole.superadmin ||
+              user?.role == UserRole.admin) ...[
+            _ModuleTile(
+              item: _ModuleItem(
+                icon: Icons.apps_rounded,
+                label: 'Portal · Switch Module',
+                subtitle: 'Auto finance, gold loan, chits and more',
+                route: '/portal',
+                color: AppColors.primary,
+                bgColor: AppColors.primaryLight,
+              ),
+            ),
+            const SizedBox(height: 4),
+          ],
           // Map hub
           _MapSection(
             pinsAsync: pinsAsync,
@@ -262,10 +321,49 @@ class MoreScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 4),
           for (final m in visible) _ModuleTile(item: m),
+          const SizedBox(height: 4),
+          // Always visible regardless of role/module gating — this used to
+          // only exist in the (now removed) side drawer, which was the only
+          // sign-out path for agents since Settings hides it from them and
+          // Portal is admin/superadmin-only.
+          _ModuleTile(
+            item: _ModuleItem(
+              icon: Icons.logout_outlined,
+              label: 'Log out',
+              subtitle: 'Sign out of this account',
+              route: '',
+              color: AppColors.danger,
+              bgColor: AppColors.dangerBg,
+            ),
+            onTap: () => _confirmLogout(context, ref),
+          ),
         ],
       ),
       bottomNavigationBar: const AppBottomNav(currentRoute: '/more'),
     );
+  }
+
+  Future<void> _confirmLogout(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Log out'),
+        content: const Text('Log out of this account?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Log out'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      ref.read(authControllerProvider.notifier).logout();
+    }
   }
 
   void _showPinSheet(BuildContext context, T t, _MapPin pin) {
@@ -478,7 +576,7 @@ class _MapSection extends StatelessWidget {
                             .copyWith(color: AppColors.textSecondary),
                       ),
                       const SizedBox(width: 8),
-                      const Icon(
+                      Icon(
                         Icons.location_on_rounded,
                         size: 13,
                         color: AppColors.primary,
@@ -593,7 +691,10 @@ class _ProfileHeader extends StatelessWidget {
     final subtitle = [roleLabel, if (tenantSlug.isNotEmpty) tenantSlug]
         .where((s) => s.isNotEmpty)
         .join(' · ');
-    return Container(
+    return InkWell(
+      borderRadius: BorderRadius.circular(22),
+      onTap: () => context.push('/profile'),
+      child: Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -616,7 +717,7 @@ class _ProfileHeader extends StatelessWidget {
             alignment: Alignment.center,
             child: Text(
               _initials(),
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.primary,
                 fontWeight: FontWeight.w800,
                 fontSize: 19,
@@ -628,16 +729,25 @@ class _ProfileHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.2,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.2,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Icon(Icons.edit_outlined,
+                        size: 14, color: Colors.white.withAlpha(140),),
+                  ],
                 ),
                 if (subtitle.isNotEmpty) ...[
                   const SizedBox(height: 4),
@@ -666,13 +776,13 @@ class _ProfileHeader extends StatelessWidget {
                 Container(
                   width: 6,
                   height: 6,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: AppColors.primary,
                     shape: BoxShape.circle,
                   ),
                 ),
                 const SizedBox(width: 6),
-                const Text(
+                Text(
                   'ONLINE',
                   style: TextStyle(
                     color: AppColors.primary,
@@ -686,6 +796,7 @@ class _ProfileHeader extends StatelessWidget {
           ),
         ],
       ),
+      ),
     );
   }
 }
@@ -693,8 +804,9 @@ class _ProfileHeader extends StatelessWidget {
 // ── Module tile ───────────────────────────────────────────────────────────────
 
 class _ModuleTile extends StatelessWidget {
-  const _ModuleTile({required this.item});
+  const _ModuleTile({required this.item, this.onTap});
   final _ModuleItem item;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -705,7 +817,7 @@ class _ModuleTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppTokens.radius),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: () => context.go(item.route),
+          onTap: onTap ?? () => context.go(item.route),
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: const BoxDecoration(boxShadow: AppTokens.shadow),

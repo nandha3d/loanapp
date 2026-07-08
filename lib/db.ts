@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { MONEY_SCOPED_MODELS } from './scope';
 
 // For shared/low-resource hosting, tune the connection pool via DATABASE_URL:
 //   ?connection_limit=5&pool_timeout=10
@@ -37,6 +38,36 @@ prismaInstance.$use(async (params, next) => {
 
   return next(params);
 });
+
+// ─── Dev-only appType scope tripwire ─────────────────────────────────────────
+// Warns (never throws) when a list/aggregate on a money-bearing module-scoped
+// model omits `appType` in its where — the recurring cross-module leak bug.
+// Tenant-wide background sweeps (crons) legitimately trip this; the warning is a
+// hint to confirm intent, not an error. Skipped entirely in production.
+if (process.env.NODE_ENV !== 'production') {
+  prismaInstance.$use(async (params, next) => {
+    if (
+      params.model &&
+      MONEY_SCOPED_MODELS.has(params.model) &&
+      ['findMany', 'aggregate', 'groupBy', 'count'].includes(params.action)
+    ) {
+      const where = (params.args?.where ?? {}) as Record<string, unknown>;
+      const hasAppType =
+        'appType' in where ||
+        // relation-scoped (e.g. instalment via loan) — caller filtered upstream
+        Object.values(where).some(
+          (v) => v && typeof v === 'object' && 'appType' in (v as Record<string, unknown>),
+        );
+      if (!hasAppType) {
+        console.warn(
+          `[scope] ${params.model}.${params.action} has no appType filter — ` +
+            `module data may leak across apps. Add ...appScope(appType) unless this is an intentional tenant-wide read.`,
+        );
+      }
+    }
+    return next(params);
+  });
+}
 
 export const prisma = prismaInstance;
 

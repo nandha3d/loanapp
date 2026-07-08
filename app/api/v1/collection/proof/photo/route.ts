@@ -3,6 +3,7 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
 import { getAgentRouteIds } from '@/lib/access';
+import { canAgentAccessCustomer } from '@/lib/loanPolicy';
 
 /**
  * POST /api/v1/collection/proof/photo  (agent)
@@ -34,9 +35,11 @@ export async function POST(req: NextRequest) {
     }
 
     if (ctx.role === 'agent') {
+      // Honour direct agent assignment too (matches the read-side scope).
       const routeIds = await getAgentRouteIds(ctx.userId);
-      const cRoute = instalment.loan.customer.routeId;
-      if (!cRoute || !routeIds.includes(cRoute)) return fail('Forbidden', 403);
+      if (!canAgentAccessCustomer(instalment.loan.customer, routeIds, ctx.userId)) {
+        return fail('Forbidden', 403);
+      }
     }
 
     const approval = await prisma.paymentApproval.create({

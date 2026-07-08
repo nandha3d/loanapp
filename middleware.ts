@@ -6,19 +6,33 @@ import { corsHeadersFor } from '@/lib/cors';
 
 const AGENT_BLOCKED = [
   '/dashboard',
-  '/vehicles',
   '/chits',
   '/penalties',
   '/reports',
   '/settings',
-  '/approvals',
   '/subscription',
   '/accounting',
   '/analytics',
 ];
 
+// Module-exclusive routes that only live under one module. When hit WITHOUT a
+// module prefix (bare /chits, /vehicles — e.g. a typed URL or stale link) the
+// `[module]` segment captures the page name and 404s. Map them to their owner.
+const BARE_EXCLUSIVE: Record<string, string> = {
+  '/chits': 'chitfunds',
+  '/vehicles': 'autofinance',
+};
+
+function bareExclusiveModule(pathname: string): string | null {
+  for (const [bare, mod] of Object.entries(BARE_EXCLUSIVE)) {
+    if (pathname === bare || pathname.startsWith(`${bare}/`)) return mod;
+  }
+  return null;
+}
+
 const SUPERADMIN_ONLY: string[] = [];
 const DEVELOPER_ONLY = ['/admin'];
+const PUBLIC_BASE_PATH = normalizeBasePath(process.env.NEXT_PUBLIC_BASE_PATH);
 const PUBLIC_PREFIXES = [
   '/_next',
   '/api',
@@ -37,14 +51,62 @@ const MARKETING_PATHS = [
   '/contact',
 ];
 
+function normalizeBasePath(value: string | undefined): string {
+  const raw = (value ?? '').trim();
+  if (!raw || raw === '/') return '';
+  return `/${raw.replace(/^\/+|\/+$/g, '')}`;
+}
+
+function withBasePath(path: string): string {
+  if (!PUBLIC_BASE_PATH) return path;
+  if (!path.startsWith('/')) return path;
+  if (path === PUBLIC_BASE_PATH || path.startsWith(`${PUBLIC_BASE_PATH}/`)) return path;
+  return `${PUBLIC_BASE_PATH}${path}`;
+}
+
+function isInternalHost(host: string): boolean {
+  const hostname = host.toLowerCase().split(':')[0];
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+}
+
+export function getPublicOrigin(request: NextRequest): string {
+  const proto = request.headers.get('x-forwarded-proto') || request.nextUrl.protocol.replace(':', '') || 'https';
+  const requestHost =
+    request.headers.get('x-forwarded-host') ||
+    request.headers.get('host') ||
+    request.nextUrl.host;
+
+  if (requestHost && !isInternalHost(requestHost)) {
+    return `${proto}://${requestHost}`;
+  }
+
+  const configured =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.WEB_APP_URL ||
+    process.env.APP_URL ||
+    '';
+  if (configured) {
+    const parsed = new URL(configured);
+    return parsed.origin;
+  }
+
+  return `${proto}://${requestHost}`;
+}
+
+function publicUrl(request: NextRequest, path: string): URL {
+  return new URL(withBasePath(path), getPublicOrigin(request));
+}
+
 export function isPublicPath(pathname: string): boolean {
   return (
     pathname === '/favicon.ico' ||
+    pathname === '/firebase-messaging-sw.js' ||
     pathname === '/login' ||
     pathname === '/register' ||
     pathname === '/forgot-password' ||
     pathname === '/reset-password' ||
     pathname.startsWith('/auth/callback') ||
+    pathname.startsWith('/auth/exchange') ||
     pathname.startsWith('/r/') ||
     pathname === '/affiliate' ||
     pathname.startsWith('/borrower') ||
@@ -79,6 +141,15 @@ export function getRoleRedirectTarget(
       return '/admin';
     }
     return null;
+  }
+
+  // Bare module-exclusive route (no module prefix) → send to its owning module
+  // so it resolves instead of 404-ing. For agents the prefixed path re-enters
+  // middleware: /autofinance/vehicles renders (agents allowed), while
+  // /chitfunds/chits hits the agent block below and lands on agent-dashboard.
+  if (module === null) {
+    const exclusive = bareExclusiveModule(pathname);
+    if (exclusive) return `/${exclusive}${pathname}`;
   }
 
   // Superadmin: allow specific /admin paths for user and branch management
@@ -253,8 +324,13 @@ export async function middleware(request: NextRequest) {
   const token = await getSessionToken(request);
 
   if (!token) {
-    const loginUrl = new URL('/login', request.url);
-    if (pathname !== '/') loginUrl.searchParams.set('callbackUrl', request.url);
+    const loginUrl = publicUrl(request, '/login');
+    if (pathname !== '/') {
+      loginUrl.searchParams.set(
+        'callbackUrl',
+        publicUrl(request, `${pathname}${request.nextUrl.search}`).toString(),
+      );
+    }
     return NextResponse.redirect(loginUrl);
   }
 
@@ -272,7 +348,7 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.searchParams.has('edit'),
   );
   if (redirectTarget) {
-    return NextResponse.redirect(new URL(redirectTarget, request.url));
+    return NextResponse.redirect(publicUrl(request, redirectTarget));
   }
 
   return nextWithTenantHeaders(request, tenantSlug);

@@ -7,6 +7,7 @@ import { getDictionary } from '@/lib/i18n';
 import { modulePath } from '@/types/modules';
 import { getSubscription } from '@/lib/subscription';
 import { getActiveBranchId } from '@/lib/branch';
+import { serverFetch } from '@/lib/api-client/server';
 
 export default async function SettingsPage() {
   const session = await auth();
@@ -19,7 +20,7 @@ export default async function SettingsPage() {
   const tenantId = await getDefaultTenantId();
   const dict = await getDictionary(tenantId);
   
-  const [routes, rawPackages, users, settings, currentUser, subscription, bureauCredential] = await Promise.all([
+  const [routes, rawPackages, users, settings, currentUser, subscription, bureauCredential, notificationTemplates] = await Promise.all([
     prisma.route.findMany({ 
       where: { tenantId, appType },
       include: { 
@@ -34,6 +35,7 @@ export default async function SettingsPage() {
     prisma.user.findUnique({ where: { id: session?.user?.id } }),
     getSubscription(tenantId),
     prisma.bureauCredential.findUnique({ where: { tenantId } }),
+    prisma.notificationTemplate.findMany({ where: { tenantId } }),
   ]);
 
   const packages = rawPackages.map(p => ({
@@ -66,13 +68,41 @@ export default async function SettingsPage() {
     }
   }
 
-  let branchAgents: { id: string; name: string; username: string; phone: string; status: string }[] = [];
+  let branchAgents: {
+    id: string;
+    name: string;
+    username: string;
+    phone: string;
+    status: string;
+    aadharNumber?: string | null;
+    dob?: Date | null;
+    experience?: string | null;
+    age?: number | null;
+    bypassLoanApproval?: boolean;
+    bypassCustomerApproval?: boolean;
+    autoReleaseFloat?: boolean;
+    feeConfirmationMandatory?: boolean;
+  }[] = [];
   let manageBranchName: string | null = null;
   if (manageBranchId) {
     const [agents, br] = await Promise.all([
       prisma.user.findMany({
         where: { tenantId, appType, role: 'agent', branchId: manageBranchId },
-        select: { id: true, name: true, username: true, phone: true, status: true },
+        select: {
+          id: true,
+          name: true,
+          username: true,
+          phone: true,
+          status: true,
+          aadharNumber: true,
+          dob: true,
+          experience: true,
+          age: true,
+          bypassLoanApproval: true,
+          bypassCustomerApproval: true,
+          autoReleaseFloat: true,
+          feeConfirmationMandatory: true,
+        },
         orderBy: { name: 'asc' },
       }),
       prisma.branch.findUnique({ where: { id: manageBranchId }, select: { name: true } }),
@@ -97,10 +127,27 @@ export default async function SettingsPage() {
     };
   }
 
+  // Gold master data + config for the Gold Master settings tab (gold module only).
+  let goldMaster: any = null;
+  let goldConfig: any = null;
+  if (appType === 'goldloan') {
+    try {
+      const { getGoldConfig } = await import('@/lib/gold/settings');
+      const [m, cfg] = await Promise.all([
+        serverFetch<any>('/gold/master').catch(() => null),
+        getGoldConfig(tenantId).catch(() => null),
+      ]);
+      goldMaster = m?.data ?? null;
+      goldConfig = cfg;
+    } catch { goldMaster = null; goldConfig = null; }
+  }
+
   return (
-    <SettingsClient 
-      routes={routes} 
-      packages={packages} 
+    <SettingsClient
+      routes={routes}
+      packages={packages}
+      goldMaster={goldMaster}
+      goldConfig={goldConfig}
       users={users} 
       settings={settings} 
       currencySymbol={settings.currency_symbol || '₹'}
@@ -113,6 +160,7 @@ export default async function SettingsPage() {
       branchAgents={branchAgents}
       manageBranchId={manageBranchId}
       manageBranchName={manageBranchName}
+      notificationTemplates={notificationTemplates}
     />
   );
 }

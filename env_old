@@ -1,0 +1,38 @@
+DATABASE_URL="mysql://root:root@localhost:3306/loantrack"
+AUTH_SECRET="5982ea104f7d81debf44bc2b2637cd08ebc233711bbbac244c2d840ba67d1c40"
+# AUTH_URL="http://localhost:3000"
+
+CRON_SECRET=replace-with-long-random-secret-for-cron-auth
+
+# Mobile API (v1 routes for Flutter app)
+MOBILE_JWT_SECRET="replace-with-64-char-hex-secret"
+
+# Bureau integration (CRIF / CIBIL)
+CRIF_API_URL=""
+CRIF_USERNAME=""
+CRIF_PASSWORD=""
+CRIF_MEMBER_ID=""
+CIBIL_API_URL=""
+CIBIL_CONSUMER_KEY=""
+CIBIL_CONSUMER_SECRET=""
+CIBIL_MEMBER_ID=""
+
+# Digio KYC (Aadhaar OTP + Video KYC)
+DIGIO_CLIENT_ID=""
+DIGIO_CLIENT_SECRET=""
+DIGIO_BASE_URL="https://ext.digio.in:444"
+DIGIO_WEBHOOK_SECRET=""
+
+# MSG91 SMS / WhatsApp
+MSG91_AUTH_KEY=""
+MSG91_SENDER_ID="LNTRCK"
+MSG91_WHATSAPP_NUMBER=""
+
+# PII encryption key (64 hex characters)
+PII_ENCRYPTION_KEY="f3b92efbca1387d8383f982ea104f7d81debf44bc2b2637cd08ebc233711bbba"
+
+# Recommended settings
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+NEXT_PUBLIC_ROOT_DOMAIN="localhost:3000"
+# NEXT_PUBLIC_APP_URL="http://lvh.me:3000"
+# NEXT_PUBLIC_ROOT_DOMAIN="lvh.me:3000"

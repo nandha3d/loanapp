@@ -56,7 +56,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         centerTitle: true,
         actions: [
           if (_markingAll)
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(right: 16),
               child: SizedBox(
                 width: 20,
@@ -232,7 +232,7 @@ class _NotificationTile extends ConsumerWidget {
                           Container(
                             width: 8,
                             height: 8,
-                            decoration: const BoxDecoration(
+                            decoration: BoxDecoration(
                               color: AppColors.primary,
                               shape: BoxShape.circle,
                             ),

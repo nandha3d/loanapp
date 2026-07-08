@@ -6,6 +6,7 @@ import { getDictionary } from '@/lib/i18n';
 import { getActiveBranchId } from '@/lib/branch';
 
 import { auth } from '@/lib/auth';
+import { notFound } from 'next/navigation';
 
 export default async function LoansPage({
   searchParams
@@ -16,6 +17,8 @@ export default async function LoansPage({
   const userRole = (session?.user as any)?.role || 'agent';
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
+  // Chitfunds is chit-only — no loan origination.
+  if (appType === 'chitfunds') notFound();
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
   const dict = await getDictionary(tenantId);
   const branchId = await getActiveBranchId();
@@ -152,8 +155,8 @@ export default async function LoansPage({
               const initials = (l.customer.name || '?').trim().charAt(0).toUpperCase();
               return (
                 <tr key={l.id}>
-                  <td><strong>{l.loanCode}</strong></td>
-                  <td>
+                  <td data-label={dict.loansList.loanId}><strong>{l.loanCode}</strong></td>
+                  <td data-label={dict.loansList.customer}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <div style={{
                         width: '36px', height: '36px', borderRadius: '50%', flexShrink: 0,
@@ -173,26 +176,26 @@ export default async function LoansPage({
                       </div>
                     </div>
                   </td>
-                  <td>{formatCurrency(l.principal, currencySymbol)}</td>
-                  <td>
+                  <td data-label={dict.loansList.principal}>{formatCurrency(l.principal, currencySymbol)}</td>
+                  <td data-label={dict.loanDetail.paid}>
                     <span style={{ fontWeight: 700, color: 'var(--success)' }}>{formatCurrency(paid, currencySymbol)}</span>
                     <br />
                     <span style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>of {formatCurrency(totalRepayable, currencySymbol)}</span>
                   </td>
-                  <td style={{textTransform:'capitalize'}}>{l.frequency}</td>
-                  <td>{formatDate(l.startDate)}</td>
-                  <td>
+                  <td data-label={dict.loansList.frequency} style={{textTransform:'capitalize'}}>{l.frequency}</td>
+                  <td data-label={dict.loansList.startDate}>{formatDate(l.startDate)}</td>
+                  <td data-label={dict.loansList.progress}>
                     <div className="progress" style={{ width: '100px' }}>
                       <div className="progress-fill" style={{ width: `${pct}%` }}></div>
                     </div>
                     <span className="progress-text">{pct}% ({l.paidCount}/{l.totalInstalments})</span>
                   </td>
-                  <td>
+                  <td data-label={dict.loansList.status}>
                     <span className={getBadgeClass(l.status)} style={{textTransform:'capitalize'}}>
                       {l.status === 'pending_review' ? dict.approvals.pendingReview : l.status}
                     </span>
                   </td>
-                  <td>
+                  <td data-label={dict.loansList.action}>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <Link href={`/loans/${l.loanCode}`} className="btn btn-ghost btn-sm">{dict.loansList.view}</Link>
                       <Link href={`/loans/${l.loanCode}/edit`} className="btn btn-ghost btn-sm" style={{ color: 'var(--primary)' }}>{dict.loansList.edit}</Link>

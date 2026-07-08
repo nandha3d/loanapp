@@ -41,6 +41,18 @@ class AnalyticsService {
           .toList(growable: false);
     });
   }
+
+  /// Full consolidated analytics for the enhanced mobile dashboard.
+  Future<FullAnalytics> fullAnalytics({int? range}) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.analyticsFull,
+      queryParameters: range != null ? {'range': range.toString()} : null,
+    );
+    return unwrapEnvelope(
+      res,
+      (dynamic d) => FullAnalytics.fromJson(d as Map<String, dynamic>),
+    );
+  }
 }
 
 final analyticsServiceProvider = Provider<AnalyticsService>(

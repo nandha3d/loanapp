@@ -1,0 +1,122 @@
+{
+  "name": "Self-Healing SDLC — Playwright + Claude Code",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "self-heal-status",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook: self-heal-status",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-200, 300],
+      "webhookId": "self-heal-status"
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst secret = $env.SELF_HEAL_WEBHOOK_SECRET;\nconst raw = JSON.stringify($input.first().json.body || $input.first().json);\nconst signature = $input.first().json.headers['x-signature'];\nif (!secret) {\n  throw new Error('SELF_HEAL_WEBHOOK_SECRET not configured on n8n');\n}\nconst expected = crypto.createHmac('sha256', secret).update(raw).digest('hex');\nif (!signature || signature !== expected) {\n  throw new Error('invalid signature, dropping payload');\n}\nreturn $input.all();"
+      },
+      "id": "verify-signature",
+      "name": "Verify HMAC Signature",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [20, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            { "conditions": { "string": [{ "value1": "={{$json.body.event}}", "value2": "run_passed" }] }, "outputKey": "run_passed" },
+            { "conditions": { "string": [{ "value1": "={{$json.body.event}}", "value2": "run_healed" }] }, "outputKey": "run_healed" },
+            { "conditions": { "string": [{ "value1": "={{$json.body.event}}", "value2": "attempt_failed" }] }, "outputKey": "attempt_failed" },
+            { "conditions": { "string": [{ "value1": "={{$json.body.event}}", "value2": "run_escalate" }] }, "outputKey": "run_escalate" }
+          ]
+        }
+      },
+      "id": "switch-event",
+      "name": "Switch on event",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "console.log('[self-heal] passed clean on first run', $json.body);\nreturn $input.all();"
+      },
+      "id": "log-passed",
+      "name": "Log: passed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 80]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{$env.SELF_HEAL_FROM_EMAIL}}",
+        "toEmail": "={{$env.SELF_HEAL_NOTIFY_EMAIL}}",
+        "subject": "=[self-heal] fixed: {{$json.body.branch}} ({{$json.body.attempts}} attempt(s))",
+        "text": "=Branch {{$json.body.branch}} had failing Playwright tests, Claude Code patched it in {{$json.body.attempts}} attempt(s). Push is unblocked locally — review the [self-heal] commit(s) before merging.",
+        "options": {}
+      },
+      "id": "notify-healed",
+      "name": "Email: healed",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [480, 220],
+      "credentials": { "smtp": { "id": "brevo-smtp", "name": "Brevo SMTP" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "console.log('[self-heal] attempt failed, healing in progress', $json.body.attempt, $json.body.failures);\nreturn $input.all();"
+      },
+      "id": "log-attempt",
+      "name": "Log: attempt failed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 360]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{$env.SELF_HEAL_FROM_EMAIL}}",
+        "toEmail": "={{$env.SELF_HEAL_NOTIFY_EMAIL}}",
+        "subject": "=[self-heal] ESCALATION: {{$json.body.branch}} could not self-heal",
+        "text": "=Branch {{$json.body.branch}} failed Playwright tests after {{$json.body.attempts}} healing attempt(s). Push is BLOCKED. Reason: {{$json.body.reason || 'max retries reached'}}.\n\nFailures:\n{{JSON.stringify($json.body.failures, null, 2)}}\n\nAttempted diffs (for review, none were pushed or merged):\n{{(($json.body.diffs)||[]).join('\\n---\\n')}}",
+        "options": {}
+      },
+      "id": "notify-escalate",
+      "name": "Email: escalate",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [480, 520],
+      "credentials": { "smtp": { "id": "brevo-smtp", "name": "Brevo SMTP" } }
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={ \"ok\": true }" },
+      "id": "respond",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [760, 300]
+    }
+  ],
+  "connections": {
+    "Webhook: self-heal-status": { "main": [[{ "node": "Verify HMAC Signature", "type": "main", "index": 0 }]] },
+    "Verify HMAC Signature": { "main": [[{ "node": "Switch on event", "type": "main", "index": 0 }]] },
+    "Switch on event": {
+      "main": [
+        [{ "node": "Log: passed", "type": "main", "index": 0 }],
+        [{ "node": "Email: healed", "type": "main", "index": 0 }],
+        [{ "node": "Log: attempt failed", "type": "main", "index": 0 }],
+        [{ "node": "Email: escalate", "type": "main", "index": 0 }]
+      ]
+    },
+    "Log: passed": { "main": [[{ "node": "Respond 200", "type": "main", "index": 0 }]] },
+    "Email: healed": { "main": [[{ "node": "Respond 200", "type": "main", "index": 0 }]] },
+    "Log: attempt failed": { "main": [[{ "node": "Respond 200", "type": "main", "index": 0 }]] },
+    "Email: escalate": { "main": [[{ "node": "Respond 200", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" }
+}

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail, parseCursorPaging } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
+import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -16,9 +17,12 @@ export async function GET(req: NextRequest) {
     tenantId: ctx.tenantId,
     appType: ctx.appType,
     deletedAt: null,
-    customer: {
-      ...scopedBranchWhere(ctx),
-    },
+    // Agents scope by customer-linkage (agentId / route), NOT branch — same fix
+    // applied to loans/customers so a branch pin doesn't hide their own records.
+    customer:
+      ctx.role === 'agent'
+        ? buildAgentCustomerAccessWhere({ userId: ctx.userId })
+        : { ...scopedBranchWhere(ctx) },
   };
 
   if (q) {
@@ -81,17 +85,30 @@ export async function POST(req: NextRequest) {
       return fail('customerId, registrationNo, make, model are required', 400);
     }
 
-    // Customer must belong to the caller's tenant/app/branch scope.
+    // Customer must belong to the caller's scope — agents by customer-linkage,
+    // others by branch.
     const customer = await prisma.customer.findFirst({
       where: {
         id: customerId,
         tenantId: ctx.tenantId,
         appType: ctx.appType,
-        ...scopedBranchWhere(ctx),
+        ...(ctx.role === 'agent'
+          ? buildAgentCustomerAccessWhere({ userId: ctx.userId })
+          : scopedBranchWhere(ctx)),
       },
       select: { id: true },
     });
     if (!customer) return fail('Customer not found', 404);
+
+    // An agent's vehicle goes to admin approval unless they hold the bypass.
+    let status = 'active';
+    if (ctx.role === 'agent') {
+      const agent = await prisma.user.findUnique({
+        where: { id: ctx.userId },
+        select: { bypassVehicleApproval: true },
+      });
+      status = agent?.bypassVehicleApproval ? 'active' : 'pending_review';
+    }
 
     const dup = await prisma.vehicle.findFirst({
       where: { tenantId: ctx.tenantId, appType: ctx.appType, registrationNo, deletedAt: null },
@@ -113,9 +130,25 @@ export async function POST(req: NextRequest) {
         chassisNo: body.chassisNo ? String(body.chassisNo) : null,
         vehicleType: body.vehicleType ? String(body.vehicleType) : 'two_wheeler',
         insuranceExpiry: body.insuranceExpiry ? new Date(String(body.insuranceExpiry)) : null,
+        status,
       },
-      include: { customer: { select: { id: true, name: true, customerCode: true } } },
+      include: { customer: { select: { id: true, name: true, customerCode: true, branchId: true } } },
     });
+
+    if (status === 'pending_review') {
+      const { notifyApprovers } = await import('@/lib/notify/approvers');
+      const { modulePath } = await import('@/types/modules');
+      await notifyApprovers({
+        tenantId: ctx.tenantId,
+        branchId: vehicle.customer?.branchId ?? ctx.branchId,
+        appType: ctx.appType,
+        type: 'approval_pending',
+        icon: 'directions_car',
+        title: 'Vehicle awaiting approval',
+        message: `Vehicle ${registrationNo} (${vehicle.customer?.name ?? 'customer'}) was submitted and needs review.`,
+        link: modulePath(ctx.appType, '/approvals'),
+      });
+    }
 
     return ok(vehicle);
   } catch (e: any) {

@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
@@ -45,12 +47,32 @@ class AuthController extends StateNotifier<AuthState> {
   late final StreamSubscription<void> _unauthorizedSub;
 
   Future<void> _bootstrap() async {
-    final user = await _repo.currentUser();
-    if (user == null) {
+    try {
+      final user = await _repo.currentUser().timeout(const Duration(seconds: 4));
+      if (user == null) {
+        state = const AuthState(stage: AuthStage.unauthenticated);
+      } else {
+        // Lock screen is opt-in: the tenant must enable it (Settings →
+        // Security) AND the device must be able to show a biometric prompt.
+        final canLock = user.biometricLockRequired && await _canUseBiometrics();
+        state = AuthState(
+          stage: canLock ? AuthStage.locked : AuthStage.authenticated,
+          user: user,
+        );
+        _fcm.startTokenSync();
+      }
+    } on Object catch (e) {
+      debugPrint('Bootstrap error or timeout: $e');
       state = const AuthState(stage: AuthStage.unauthenticated);
-    } else {
-      state = AuthState(stage: AuthStage.locked, user: user);
-      _fcm.startTokenSync();
+    }
+  }
+
+  Future<bool> _canUseBiometrics() async {
+    try {
+      return await _localAuth.isDeviceSupported() &&
+          await _localAuth.canCheckBiometrics;
+    } on Object {
+      return false;
     }
   }
 
@@ -158,9 +180,36 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   Future<void> lock() async {
-    if (state.stage == AuthStage.authenticated) {
+    // Lock screen is opt-in (tenant security setting) and needs a working
+    // biometric prompt — otherwise it would just trap the user.
+    if (state.stage == AuthStage.authenticated &&
+        (state.user?.biometricLockRequired ?? false) &&
+        await _canUseBiometrics()) {
       state = state.copyWith(stage: AuthStage.locked);
     }
+  }
+
+  Future<void> setActiveAppType(String appType) async {
+    final user = state.user;
+    if (user == null || user.appType == appType) return;
+    await _repo.setActiveAppType(appType);
+    state = state.copyWith(
+      user: User(
+        id: user.id,
+        name: user.name,
+        phone: user.phone,
+        username: user.username,
+        role: user.role,
+        appType: appType,
+        status: user.status,
+        totpEnabled: user.totpEnabled,
+        enabledModules: user.enabledModules,
+        email: user.email,
+        branchId: user.branchId,
+        tenantSlug: user.tenantSlug,
+        biometricLockRequired: user.biometricLockRequired,
+      ),
+    );
   }
 
   Future<bool> unlockWithBiometrics() async {
@@ -197,6 +246,23 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   String _readable(Object e) {
+    // Turn raw Dio network failures into a short, actionable message instead
+    // of the developer-facing "DioException [connection timeout]: ..." dump.
+    if (e is DioException) {
+      switch (e.type) {
+        case DioExceptionType.connectionTimeout:
+        case DioExceptionType.sendTimeout:
+        case DioExceptionType.receiveTimeout:
+          return 'Could not reach the server. Check your internet and try again.';
+        case DioExceptionType.connectionError:
+          return 'No connection to the server. Check your internet and try again.';
+        default:
+          final msg = e.response?.data is Map
+              ? (e.response?.data['error']?.toString())
+              : null;
+          return msg ?? 'Login failed. Please try again.';
+      }
+    }
     final s = e.toString();
     return s.startsWith('Exception: ') ? s.substring(11) : s;
   }

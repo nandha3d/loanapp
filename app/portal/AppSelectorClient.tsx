@@ -38,7 +38,13 @@ export default function AppSelectorClient({
         position: 'absolute', top: '24px', right: '32px',
       }}>
         <button
-          onClick={() => signOut({ callbackUrl: window.location.origin + '/login' })}
+          onClick={async () => {
+            // redirect:false + manual navigation keeps logout on the current
+            // domain (custom tenant domains would otherwise bounce to the root
+            // SaaS host).
+            await signOut({ redirect: false });
+            window.location.href = '/login';
+          }}
           style={{
             background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
             color: '#fff', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer',
@@ -66,7 +72,25 @@ export default function AppSelectorClient({
         display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
         gap: '24px', maxWidth: '960px', width: '100%',
       }}>
-        {apps.map(app => (
+        {apps.length === 0 ? (
+          <div style={{
+            gridColumn: '1 / -1',
+            background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.14)',
+            borderRadius: '12px',
+            padding: '28px 24px',
+            textAlign: 'center',
+            color: '#fff',
+          }}>
+            <span className="material-icons-outlined" style={{ fontSize: '36px', color: 'rgba(255,255,255,0.75)', marginBottom: '10px' }}>
+              apps
+            </span>
+            <h3 style={{ margin: '0 0 8px', fontSize: '1.1rem', fontWeight: 700 }}>No application access assigned</h3>
+            <p style={{ margin: 0, color: 'rgba(255,255,255,0.62)', fontSize: '.9rem' }}>
+              Ask an administrator to assign this user to an active branch and module.
+            </p>
+          </div>
+        ) : apps.map(app => (
           <button
             key={app.id}
             onClick={() => handleSelectApp(app.id)}

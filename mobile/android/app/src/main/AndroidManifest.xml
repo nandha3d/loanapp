@@ -5,11 +5,48 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Voice entry (speech_to_text) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Android 11+ package visibility so speech_to_text can find the
+         on-device recognizer service. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
+
+    <!-- Android 11+ (API 30+) package visibility: without these, url_launcher's
+         canLaunchUrl() returns false for tel:/sms:/https: even with a dialer,
+         messaging app, or browser installed, so Call/Message/WhatsApp buttons
+         silently no-op. ACTION_DIAL/ACTION_SENDTO (not ACTION_CALL/SEND_SMS)
+         just open the dialer/messaging app pre-filled — no CALL_PHONE or
+         SEND_SMS runtime permission needed for that. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+            <data android:scheme="tel" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="sms" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="smsto" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
 
     <application
         android:label="LoanTrack"
         android:name="${applicationName}"
         android:usesCleartextTraffic="true"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
         android:icon="@mipmap/launcher_icon">
         <activity
             android:name=".MainActivity"

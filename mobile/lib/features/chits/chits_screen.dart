@@ -2,7 +2,7 @@ import 'package:loantrack/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-
+import 'package:go_router/go_router.dart';
 import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
@@ -86,6 +86,12 @@ class ChitsScreen extends ConsumerWidget {
           );
         },
       ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => context.push('/chits/new'),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        child: const Icon(Icons.add),
+      ),
       bottomNavigationBar: const AppBottomNav(currentRoute: '/chits'),
     );
   }
@@ -108,16 +114,20 @@ class _KpiRow extends ConsumerWidget {
     return Row(
       children: [
         Expanded(
-            child: _KpiChip(
-                value: '$total',
-                label: t.x('ch.total_groups'),
-                color: AppColors.info,),),
+          child: _KpiChip(
+            value: '$total',
+            label: t.x('ch.total_groups'),
+            color: AppColors.info,
+          ),
+        ),
         const SizedBox(width: 10),
         Expanded(
-            child: _KpiChip(
-                value: '$active',
-                label: t.x('status.active'),
-                color: AppColors.success,),),
+          child: _KpiChip(
+            value: '$active',
+            label: t.x('status.active'),
+            color: AppColors.success,
+          ),
+        ),
         const SizedBox(width: 10),
         Expanded(
           child: _KpiChip(
@@ -132,8 +142,11 @@ class _KpiRow extends ConsumerWidget {
 }
 
 class _KpiChip extends StatelessWidget {
-  const _KpiChip(
-      {required this.value, required this.label, required this.color,});
+  const _KpiChip({
+    required this.value,
+    required this.label,
+    required this.color,
+  });
   final String value, label;
   final Color color;
 
@@ -290,7 +303,9 @@ class _GroupCard extends ConsumerWidget {
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4,),
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: _statusBg,
                         borderRadius:
@@ -366,12 +381,7 @@ class _GroupCard extends ConsumerWidget {
   }
 
   void _showDetail(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _GroupDetailSheet(group: group),
-    );
+    context.push('/chits/${group.id}');
   }
 }
 
@@ -435,84 +445,99 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
         bool busy = false;
         return StatefulBuilder(
           builder: (ctx, setLocal) {
-          return AlertDialog(
-            title: Text(t.x('ch.record_auction')),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (err != null) ...[
-                    Text(err!, style: const TextStyle(color: AppColors.danger, fontSize: 13)),
-                    const SizedBox(height: 8),
-                  ],
-                  TextField(
-                    controller: periodCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(labelText: t.x('ch.period_number')),
-                  ),
-                  const SizedBox(height: 10),
-                  DropdownButtonFormField<String>(
-                    initialValue: winnerId,
-                    isExpanded: true,
-                    decoration: InputDecoration(labelText: t.x('ch.winner')),
-                    items: members
-                        .map((m) => DropdownMenuItem(
+            return AlertDialog(
+              title: Text(t.x('ch.record_auction')),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (err != null) ...[
+                      Text(err!,
+                          style: const TextStyle(
+                              color: AppColors.danger, fontSize: 13)),
+                      const SizedBox(height: 8),
+                    ],
+                    TextField(
+                      controller: periodCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration:
+                          InputDecoration(labelText: t.x('ch.period_number')),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      initialValue: winnerId,
+                      isExpanded: true,
+                      decoration: InputDecoration(labelText: t.x('ch.winner')),
+                      items: members
+                          .map(
+                            (m) => DropdownMenuItem(
                               value: m.id,
-                              child: Text('#${m.memberNumber} ${m.customerName}',
-                                  overflow: TextOverflow.ellipsis,),
-                            ),)
-                        .toList(),
-                    onChanged: (v) => winnerId = v,
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: prizeCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(labelText: t.x('ch.prize_amount')),
-                  ),
-                ],
+                              child: Text(
+                                '#${m.memberNumber} ${m.customerName}',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) => winnerId = v,
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: prizeCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration:
+                          InputDecoration(labelText: t.x('ch.prize_amount')),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: busy ? null : () => Navigator.pop(ctx, false),
-                child: Text(t.x('common.cancel')),
-              ),
-              FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
-                onPressed: busy
-                    ? null
-                    : () async {
-                        final period = int.tryParse(periodCtrl.text.trim());
-                        if (period == null || period <= 0) {
-                          setLocal(() => err = t.x('ch.period_required'));
-                          return;
-                        }
-                        setLocal(() {
-                          busy = true;
-                          err = null;
-                        });
-                        try {
-                          await ref.read(chitServiceProvider).recordAuction(
-                                widget.group.id,
-                                periodNumber: period,
-                                winnerMemberId: winnerId,
-                                prizeAmount: double.tryParse(prizeCtrl.text.trim()),
-                              );
-                          if (ctx.mounted) Navigator.pop(ctx, true);
-                        } catch (e) {
+              actions: [
+                TextButton(
+                  onPressed: busy ? null : () => Navigator.pop(ctx, false),
+                  child: Text(t.x('common.cancel')),
+                ),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary),
+                  onPressed: busy
+                      ? null
+                      : () async {
+                          final period = int.tryParse(periodCtrl.text.trim());
+                          if (period == null || period <= 0) {
+                            setLocal(() => err = t.x('ch.period_required'));
+                            return;
+                          }
                           setLocal(() {
-                            busy = false;
-                            err = e.toString().replaceFirst('Exception: ', '');
+                            busy = true;
+                            err = null;
                           });
-                        }
-                      },
-                child: busy
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : Text(t.x('ch.save')),
-              ),
-            ],
-          );
+                          try {
+                            await ref.read(chitServiceProvider).recordAuction(
+                                  widget.group.id,
+                                  periodNumber: period,
+                                  winnerMemberId: winnerId,
+                                  prizeAmount:
+                                      double.tryParse(prizeCtrl.text.trim()),
+                                );
+                            if (ctx.mounted) Navigator.pop(ctx, true);
+                          } catch (e) {
+                            setLocal(() {
+                              busy = false;
+                              err =
+                                  e.toString().replaceFirst('Exception: ', '');
+                            });
+                          }
+                        },
+                  child: busy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2))
+                      : Text(t.x('ch.save')),
+                ),
+              ],
+            );
           },
         );
       },
@@ -522,7 +547,180 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
     if (saved == true && mounted) {
       _reload();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.x('ch.auction_saved')), backgroundColor: AppColors.success),
+        SnackBar(
+            content: Text(t.x('ch.auction_saved')),
+            backgroundColor: AppColors.success),
+      );
+    }
+  }
+
+  Future<void> _collectContribution() async {
+    final t = T.of(ref);
+    final members = await _membersFuture;
+    if (!mounted) return;
+    if (members.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.x('ch.no_members_yet'))),
+      );
+      return;
+    }
+    final now = DateTime.now();
+    final elapsedMonths =
+        (now.year - widget.group.startDate.year) * 12 +
+        now.month -
+        widget.group.startDate.month;
+    final currentPeriod =
+        (elapsedMonths + 1).clamp(1, widget.group.durationMonths).toInt();
+
+    final amountCtrl = TextEditingController(
+      text: widget.group.monthlyContrib.round().toString(),
+    );
+    final noteCtrl = TextEditingController();
+    String memberId = members.first.id;
+    String paymentMode = 'cash';
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        String? err;
+        bool busy = false;
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            return AlertDialog(
+              title: Text(t.x('ch.collect_contribution')),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (err != null) ...[
+                      Text(
+                        err!,
+                        style: const TextStyle(
+                          color: AppColors.danger,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    DropdownButtonFormField<String>(
+                      initialValue: memberId,
+                      isExpanded: true,
+                      decoration: InputDecoration(labelText: t.x('ch.member')),
+                      items: members
+                          .map(
+                            (m) => DropdownMenuItem(
+                              value: m.id,
+                              child: Text(
+                                '#${m.memberNumber} ${m.customerName}',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) memberId = v;
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: amountCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(labelText: t.x('fld.amount')),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      initialValue: paymentMode,
+                      decoration:
+                          InputDecoration(labelText: t.x('ch.payment_mode')),
+                      items: [
+                        DropdownMenuItem(
+                            value: 'cash', child: Text(t.x('coll.cash'))),
+                        DropdownMenuItem(
+                            value: 'upi', child: Text(t.x('coll.upi'))),
+                        DropdownMenuItem(
+                            value: 'bank', child: Text(t.x('coll.bank'))),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) paymentMode = v;
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: noteCtrl,
+                      decoration: InputDecoration(labelText: t.x('ch.note')),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: busy ? null : () => Navigator.pop(ctx, false),
+                  child: Text(t.x('common.cancel')),
+                ),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                  ),
+                  onPressed: busy
+                      ? null
+                      : () async {
+                          final amount =
+                              double.tryParse(amountCtrl.text.trim());
+                          if (amount == null || amount <= 0) {
+                            setLocal(() => err = t.x('err.enter_valid_amount'));
+                            return;
+                          }
+                          setLocal(() {
+                            busy = true;
+                            err = null;
+                          });
+                          try {
+                            await ref
+                                .read(chitServiceProvider)
+                                .collectContribution(
+                                  widget.group.id,
+                                  memberId: memberId,
+                                  periodNumber: currentPeriod,
+                                  amount: amount,
+                                  paymentMode: paymentMode,
+                                  note: noteCtrl.text,
+                                );
+                            if (ctx.mounted) Navigator.pop(ctx, true);
+                          } catch (e) {
+                            setLocal(() {
+                              busy = false;
+                              err =
+                                  e.toString().replaceFirst('Exception: ', '');
+                            });
+                          }
+                        },
+                  child: busy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : Text(t.x('btn.collect')),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    amountCtrl.dispose();
+    noteCtrl.dispose();
+
+    if (saved == true && mounted) {
+      _reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(t.x('ch.contribution_collected')),
+          backgroundColor: AppColors.success,
+        ),
       );
     }
   }
@@ -609,7 +807,9 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                               padding: const EdgeInsets.all(16),
                               itemCount: members.length,
                               separatorBuilder: (_, __) => const Divider(
-                                  color: AppColors.border, height: 16,),
+                                color: AppColors.border,
+                                height: 16,
+                              ),
                               itemBuilder: (_, i) {
                                 final m = members[i];
                                 return Row(
@@ -655,7 +855,8 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                                         child: Text(
                                           t.x('ch.won_badge'),
                                           style: AppTypography.tiny.copyWith(
-                                              color: AppColors.success,),
+                                            color: AppColors.success,
+                                          ),
                                         ),
                                       ),
                                   ],
@@ -693,7 +894,9 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                               padding: const EdgeInsets.all(16),
                               itemCount: auctions.length,
                               separatorBuilder: (_, __) => const Divider(
-                                  color: AppColors.border, height: 16,),
+                                color: AppColors.border,
+                                height: 16,
+                              ),
                               itemBuilder: (_, i) {
                                 final a = auctions[i];
                                 final dateFmt = DateFormat('d MMM yyyy');
@@ -753,7 +956,8 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                                             fmt.format(a.prizeAmount!),
                                             style: AppTypography.bodyLarge
                                                 .copyWith(
-                                                    color: AppColors.success,),
+                                              color: AppColors.success,
+                                            ),
                                           ),
                                         if (a.dividend != null)
                                           Text(
@@ -780,18 +984,33 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _recordAuction,
-                  icon: const Icon(Icons.gavel_rounded, size: 18),
-                  label: Text(t.x('ch.record_auction')),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primary,
-                    side: const BorderSide(color: AppColors.primary),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _recordAuction,
+                      icon: const Icon(Icons.gavel_rounded, size: 18),
+                      label: Text(t.x('ch.record_auction')),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: BorderSide(color: AppColors.primary),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _collectContribution,
+                      icon: const Icon(Icons.payments_outlined, size: 18),
+                      label: Text(t.x('btn.collect')),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

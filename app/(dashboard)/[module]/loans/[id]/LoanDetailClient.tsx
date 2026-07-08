@@ -3,11 +3,12 @@
 import { useMemo, useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import { formatCurrency, formatDate, getBadgeClass, calcPercentage } from '@/lib/utils';
-import { markInstalmentPaid, requestCollectionEdit, waiveLoanPenalty, settleLoanPenalty, closeLoan, renewLoan, precloseLoanAdmin } from './actions';
+import { markInstalmentPaid, markLoanCollection, requestCollectionEdit, waiveLoanPenalty, settleLoanPenalty, closeLoan, renewLoan, precloseLoanAdmin, recordGoldServicing, recordBankRepledge } from './actions';
 import { createSelfPayLinkAction } from '../../collection/runActions';
 import Link from '@/components/layout/DashboardLink';
 import { useRouter } from 'next/navigation';
 import { calculateCreditScore } from '@/lib/creditScore';
+import { computeExtendedSchedule } from '@/lib/restructure';
 import { getCreditScoreGaugePresentation } from '@/lib/creditScoreGauge';
 import NachPanel from './NachPanel';
 import LoanTimeline from './LoanTimeline';
@@ -40,6 +41,115 @@ const CreditScoreGauge = ({ score, grade }: { score: number, grade: string }) =>
   );
 };
 
+// Gold pledge servicing panel — outstanding, interest due, redemption + actions.
+function GoldServicingPanel({ data, loanId, currencySymbol }: { data: any; loanId: string; currencySymbol: string }) {
+  const [interestAmt, setInterestAmt] = useState<number>(Math.round(Number(data?.interestDue) || Number(data?.monthlyInterest) || 0));
+  const [partAmt, setPartAmt] = useState<number>(0);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [repledgeOpen, setRepledgeOpen] = useState(false);
+  const fmt = (n: number) => `${currencySymbol}${Math.round(Number(n) || 0).toLocaleString('en-IN')}`;
+  const closed = data?.status === 'closed';
+
+  const run = async (action: 'interest' | 'part' | 'redeem' | 'takeover', amount: number) => {
+    if (busy) return;
+    if ((action === 'interest' || action === 'part') && (!amount || amount <= 0)) return;
+    if (action === 'redeem' && !window.confirm(`Redeem this pledge for ${fmt(data?.redemptionAmount)}? This closes the loan and releases the ornaments.`)) return;
+    setBusy(action);
+    const res = await recordGoldServicing(loanId, action, amount);
+    setBusy(null);
+    if (res && 'error' in res && res.error) { alert(res.error); return; }
+    window.location.reload();
+  };
+
+  return (
+    <div className="card" style={{ borderTop: '3px solid var(--primary)', marginBottom: 16 }}>
+      <div className="card-header"><h3>🏅 Gold Pledge Servicing</h3>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <a href={`/api/loans/${loanId}/gold-receipt`} target="_blank" rel="noreferrer" style={{ fontSize: '.82rem', color: 'var(--primary)', fontWeight: 600, textDecoration: 'none' }}>🧾 Receipt</a>
+          {closed && <span className="badge" style={{ background: 'var(--success-bg,#dcfce7)', color: 'var(--success)' }}>Redeemed</span>}
+        </div>
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, padding: '4px 0 14px' }}>
+        <div><div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>Outstanding</div><b>{fmt(data?.outstandingPrincipal)}</b></div>
+        <div><div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>Monthly interest</div><b>{fmt(data?.monthlyInterest)}</b></div>
+        <div><div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>Interest due ({data?.monthsDue} mo)</div><b>{fmt(data?.interestDue)}</b></div>
+        <div><div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>Redemption</div><b>{fmt(data?.redemptionAmount)}</b></div>
+      </div>
+      {!closed && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
+          <div className="form-group" style={{ flex: '0 1 160px' }}>
+            <label className="form-label">Pay interest</label>
+            <input type="number" className="form-control" value={interestAmt} onChange={e => setInterestAmt(Number(e.target.value))} />
+          </div>
+          <button type="button" className="btn btn-primary" disabled={!!busy} onClick={() => run('interest', interestAmt)}>{busy === 'interest' ? '…' : 'Pay Interest'}</button>
+          <div className="form-group" style={{ flex: '0 1 160px' }}>
+            <label className="form-label">Part payment</label>
+            <input type="number" className="form-control" value={partAmt || ''} onChange={e => setPartAmt(Number(e.target.value))} placeholder="0" />
+          </div>
+          <button type="button" className="btn btn-ghost" disabled={!!busy} onClick={() => run('part', partAmt)}>{busy === 'part' ? '…' : 'Part Pay'}</button>
+          <button type="button" className="btn btn-ghost" style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }} disabled={!!busy} onClick={() => run('redeem', Number(data?.redemptionAmount) || 0)}>{busy === 'redeem' ? '…' : 'Redeem / Close'}</button>
+          <button type="button" className="btn btn-ghost" disabled={!!busy} onClick={() => { if (window.confirm('Mark this pledge taken over by another financier? This closes the loan and releases the ornaments.')) run('takeover', 0); }}>{busy === 'takeover' ? '…' : 'Take Over'}</button>
+          <button type="button" className="btn btn-ghost" onClick={() => setRepledgeOpen(o => !o)}>🏦 Bank Repledge</button>
+        </div>
+      )}
+      {!closed && repledgeOpen && <RepledgePanel loanId={loanId} fmt={fmt} />}
+      {Array.isArray(data?.payments) && data.payments.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}>History</div>
+          {data.payments.slice(0, 6).map((p: any) => (
+            <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.85rem', padding: '3px 0', borderTop: '1px solid var(--border)' }}>
+              <span>{p.paymentType} · {new Date(p.paymentDate).toLocaleDateString('en-IN')}</span>
+              <span>{fmt(p.amount)} · {p.paymentMode}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Bank repledge form — record re-pledging the gold to a bank for liquidity.
+function RepledgePanel({ loanId, fmt }: { loanId: string; fmt: (n: number) => string }) {
+  const [f, setF] = useState<any>({ bankName: '', bankDate: new Date().toISOString().slice(0, 10), referenceNo: '', amountGivenByBank: '', interestRate: '', processingFee: '', staffName: '' });
+  const [busy, setBusy] = useState(false);
+  const [ok, setOk] = useState(false);
+  const set = (k: string, v: string) => { setF((p: any) => ({ ...p, [k]: v })); setOk(false); };
+  const save = async () => {
+    if (!f.bankName.trim() || busy) return;
+    setBusy(true);
+    const res = await recordBankRepledge(loanId, {
+      bankName: f.bankName, bankDate: f.bankDate, referenceNo: f.referenceNo || null,
+      amountGivenByBank: Number(f.amountGivenByBank) || 0,
+      interestRate: f.interestRate ? Number(f.interestRate) : null,
+      processingFee: Number(f.processingFee) || 0, staffName: f.staffName || null,
+    });
+    setBusy(false);
+    if (res && 'error' in res && res.error) { alert(res.error); return; }
+    setOk(true);
+  };
+  const inp = (k: string, ph: string, type = 'text') => (
+    <input type={type} className="form-control" value={f[k]} onChange={e => set(k, e.target.value)} placeholder={ph} style={{ flex: '1 1 130px' }} />
+  );
+  return (
+    <div style={{ marginTop: 12, padding: 12, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg,#fafafa)' }}>
+      <div style={{ fontWeight: 600, marginBottom: 8 }}>🏦 Bank Repledge</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {inp('bankName', 'Bank name *')}
+        {inp('bankDate', '', 'date')}
+        {inp('referenceNo', 'Reference no')}
+        {inp('amountGivenByBank', 'Amount by bank', 'number')}
+        {inp('interestRate', 'Interest %', 'number')}
+        {inp('processingFee', 'Processing fee', 'number')}
+        {inp('staffName', 'Staff')}
+      </div>
+      <div style={{ marginTop: 10, display: 'flex', gap: 12, alignItems: 'center' }}>
+        <button type="button" className="btn btn-primary" disabled={busy || !f.bankName.trim()} onClick={save}>{busy ? 'Saving…' : 'Save Repledge'}</button>
+        {ok && <span style={{ color: 'var(--success)', fontSize: '.85rem' }}>✓ Recorded</span>}
+      </div>
+    </div>
+  );
+}
+
 export default function LoanDetailClient({
   loan,
   currencySymbol,
@@ -49,6 +159,7 @@ export default function LoanDetailClient({
   receiptPdfEnabled = false,
   upiId = '',
   payeeName = 'LoanTrack',
+  goldServicing = null,
 }: {
   loan: any;
   currencySymbol: string;
@@ -58,6 +169,7 @@ export default function LoanDetailClient({
   receiptPdfEnabled?: boolean;
   upiId?: string;
   payeeName?: string;
+  goldServicing?: any;
 }) {
   const d = dict.loanDetail;
   const router = useRouter();
@@ -91,6 +203,16 @@ export default function LoanDetailClient({
     const today = new Date();
     today.setHours(0, 0, 0, 0); // Start of today (don't mark missed until tomorrow)
 
+    const toDateStr = (dateInput: Date | string) => {
+      const d = new Date(dateInput);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    };
+
+    const todayStr = toDateStr(today);
+
     if (viewMode === 'actual') {
       return loan.instalments.map((inst: any) => {
         const dueDate = new Date(inst.dueDate);
@@ -106,6 +228,8 @@ export default function LoanDetailClient({
             dynamicStatus = 'partial';
           } else if (dueDate < today) {
             dynamicStatus = 'missed';
+          } else if (toDateStr(dueDate) === todayStr) {
+            dynamicStatus = 'due today';
           }
         }
         return { ...inst, status: dynamicStatus };
@@ -130,7 +254,7 @@ export default function LoanDetailClient({
           inst.receivedAmount = 0;
           const dueDate = new Date(inst.dueDate);
           dueDate.setHours(0, 0, 0, 0);
-          inst.status = dueDate < today ? 'missed' : 'upcoming';
+          inst.status = dueDate < today ? 'missed' : (toDateStr(dueDate) === todayStr ? 'due today' : 'upcoming');
         }
       }
       return dist;
@@ -141,6 +265,26 @@ export default function LoanDetailClient({
   const dynamicRemainingCount = useMemo(() => {
     return Math.ceil(outstanding / Number(loan.perInstalment));
   }, [outstanding, loan.perInstalment]);
+
+  // DEFAULT "extend days" projection: keep paying the normal per-instalment, slide
+  // the finish out one period per unpaid due. Recomputed live from outstanding.
+  const extended = useMemo(
+    () => computeExtendedSchedule(loan.instalments || [], Number(loan.perInstalment), loan.frequency, new Date()),
+    [loan.instalments, loan.perInstalment, loan.frequency],
+  );
+  // Projected rows BEYOND the original schedule's last date — appended (muted) to
+  // the schedule in extend mode so the extra days are visible.
+  const projectedExtraRows = useMemo(() => {
+    if (extended.extraPeriods <= 0) return [] as { no: number; date: Date; amount: number }[];
+    const per = Number(loan.perInstalment) || 0;
+    const startNo = loan.totalInstalments + 1;
+    const dates = extended.projectedDates.slice(-extended.extraPeriods);
+    return dates.map((date, idx) => ({
+      no: startNo + idx,
+      date,
+      amount: idx === dates.length - 1 ? extended.finalPartial : per,
+    }));
+  }, [extended, loan.perInstalment, loan.totalInstalments]);
 
   const dynamicPaidCount = useMemo(() => {
     return Math.max(0, loan.totalInstalments - dynamicRemainingCount);
@@ -160,35 +304,34 @@ export default function LoanDetailClient({
   //   rate = perInstalment + (overdueTillDate / remainingPeriods)
   //   • Paid on schedule → overdueTillDate 0 → rate = perInstalment (no change).
   //   • Fell behind      → rate slightly above normal, clears backlog on time.
+  // Restructure: spread the entire outstanding amount across the actual remaining days/periods:
+  //   rate = outstanding / actualRemainingCount
   const { restructureRemainingCount, adjustedInstallment } = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    let overdueTillDate = 0;
-    let remaining = 0;
-    let perInst = 0;
-    for (const inst of loan.instalments as any[]) {
-      const out = Math.max(0, Number(inst.dueAmount) - Number(inst.receivedAmount));
-      if (out <= 0) continue;
-      const d = new Date(inst.dueDate);
-      d.setHours(0, 0, 0, 0);
-      if (d.getTime() < today.getTime()) {
-        overdueTillDate += out; // strictly past = backlog
+    const endDate = loan.endDate ? new Date(loan.endDate) : new Date();
+    endDate.setHours(0, 0, 0, 0);
+    const calendarDays = Math.ceil((endDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+    
+    let actualCount = 0;
+    if (calendarDays > 0) {
+      if (loan.frequency === 'weekly') {
+        actualCount = Math.max(1, Math.ceil(calendarDays / 7));
+      } else if (loan.frequency === 'monthly') {
+        actualCount = Math.max(1, Math.ceil(calendarDays / 30));
       } else {
-        remaining += 1; // today + future = days still paid
-        if (perInst === 0) perInst = Number(inst.dueAmount);
+        actualCount = Math.max(1, calendarDays);
       }
     }
-    if (remaining === 0) {
-      return {
-        restructureRemainingCount: overdueTillDate > 0 ? 1 : 1,
-        adjustedInstallment: Math.round(overdueTillDate * 100) / 100,
-      };
-    }
+    
+    const divisor = actualCount || 1;
+    const rate = Math.round((outstanding / divisor) * 100) / 100;
+    
     return {
-      restructureRemainingCount: remaining,
-      adjustedInstallment: Math.round((perInst + overdueTillDate / remaining) * 100) / 100,
+      restructureRemainingCount: actualCount,
+      adjustedInstallment: rate,
     };
-  }, [loan.instalments]);
+  }, [loan.endDate, loan.frequency, outstanding]);
 
   const missedInstalments = displayInstalments.filter((i: any) => i.status === 'missed');
   const missedCount = missedInstalments.length;
@@ -213,6 +356,67 @@ export default function LoanDetailClient({
   const [payRemarks, setPayRemarks] = useState('');
   const [payReason, setPayReason] = useState('');
   const [qrCodeUrl, setQrCodeUrl] = useState('');
+
+  // Loan-wide collect popup (same UX as the collection page): two preset cards
+  // (today's due / total due), editable amount, spread oldest-first server-side.
+  const [collectOpen, setCollectOpen] = useState(false);
+  const [collectAmount, setCollectAmount] = useState(0);
+  const [collectCard, setCollectCard] = useState<'today' | 'total'>('today');
+  const [collectMode, setCollectMode] = useState('cash');
+  const [collectRemarks, setCollectRemarks] = useState('');
+
+  const todayISO = new Date().toISOString().slice(0, 10);
+  // Today's due across this loan = outstanding on the instalment dated today.
+  const todayDueForLoan = useMemo(() => {
+    return loan.instalments.reduce((sum: number, inst: any) => {
+      const due = new Date(inst.dueDate).toISOString().slice(0, 10);
+      if (due !== todayISO) return sum;
+      return sum + Math.max(0, Number(inst.dueAmount) - Number(inst.receivedAmount || 0));
+    }, 0);
+  }, [loan.instalments, todayISO]);
+
+  // "Total Due" = everything payable UP TO today (previous overdue + today's
+  // due) — NOT the full loan outstanding, which includes instalments not yet
+  // due. The amount field stays editable for an early full settlement.
+  const dueTillTodayForLoan = useMemo(() => {
+    return loan.instalments.reduce((sum: number, inst: any) => {
+      const due = new Date(inst.dueDate).toISOString().slice(0, 10);
+      if (due > todayISO) return sum; // future instalment — not due yet
+      return sum + Math.max(0, Number(inst.dueAmount) - Number(inst.receivedAmount || 0));
+    }, 0);
+  }, [loan.instalments, todayISO]);
+
+  const openCollectModal = () => {
+    const defaultAmt = todayDueForLoan > 0 ? todayDueForLoan : dueTillTodayForLoan;
+    setCollectCard(todayDueForLoan > 0 ? 'today' : 'total');
+    setCollectAmount(defaultAmt);
+    setCollectMode('cash');
+    setCollectRemarks('');
+    setCollectOpen(true);
+  };
+
+  const handleCollect = async () => {
+    if (collectAmount <= 0) return;
+    setLoading(true);
+    const fd = new FormData();
+    fd.set('loanId', loan.id);
+    fd.set('amount', String(collectAmount));
+    fd.set('paymentMode', collectMode);
+    fd.set('remarks', collectRemarks);
+    try {
+      const result = await markLoanCollection(fd);
+      setLoading(false);
+      if (result.success) {
+        setCollectOpen(false);
+        router.refresh();
+      } else {
+        alert(result.error || d.failedToRecordPayment);
+      }
+    } catch (err: any) {
+      setLoading(false);
+      alert(err?.message || d.failedToRecordPayment);
+    }
+  };
 
   useEffect(() => {
     // Build a UPI intent QR against the TENANT's own VPA (no hardcoded payee).
@@ -403,17 +607,23 @@ export default function LoanDetailClient({
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   
-  // Calculate total scheduled/expected payments up to today
-  const totalExpectedUpToToday = displayInstalments
+  // Overdue = sum of the STILL-UNPAID amount on each instalment whose due date
+  // has already passed (today's instalment is not overdue yet). This mirrors the
+  // collection page exactly. The previous formula — (total expected up to today)
+  // minus (ALL collections ever) — drifted toward the full outstanding balance
+  // and overstated the overdue figure, so the loan page disagreed with the
+  // collection page.
+  const duesPending = (loan.instalments || [])
     .filter((inst: any) => {
       const dueDate = new Date(inst.dueDate);
       dueDate.setHours(0, 0, 0, 0);
       return dueDate < today;
     })
-    .reduce((sum: number, inst: any) => sum + Number(inst.dueAmount), 0);
-
-  // True dues pending is the scheduled expectation minus total collections (capped at 0)
-  const duesPending = Math.max(0, totalExpectedUpToToday - totalCollected);
+    .reduce(
+      (sum: number, inst: any) =>
+        sum + Math.max(0, Number(inst.dueAmount) - Number(inst.receivedAmount || 0)),
+      0,
+    );
 
   const duesPendingBox = duesPending > 0 && (
     <div style={{ 
@@ -442,6 +652,7 @@ export default function LoanDetailClient({
 
   return (
     <>
+      {goldServicing && <GoldServicingPanel data={goldServicing} loanId={loan.id} currencySymbol={currencySymbol} />}
       <style>{`
         .loan-top-card { display: flex; flex-direction: column; gap: 16px; }
         .loan-top-header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 4px; }
@@ -590,27 +801,59 @@ export default function LoanDetailClient({
                 </div>
               </div>
               <div>
-                <div className="cm-label">Remaining</div>
+                <div className="cm-label">Remaining (Actual)</div>
+                <div className="cm-value" style={{ color: 'var(--danger)' }}>
+                  {restructureRemainingCount} {loan.frequency === 'daily' ? 'Days' : loan.frequency === 'weekly' ? 'Weeks' : 'Months'}
+                </div>
+              </div>
+              <div>
+                <div className="cm-label">Remaining (Extended)</div>
                 <div className="cm-value" style={{ color: 'var(--danger)' }}>
                   {dynamicRemainingCount} {loan.frequency === 'daily' ? 'Days' : loan.frequency === 'weekly' ? 'Weeks' : 'Months'}
                 </div>
               </div>
 
               {outstanding > 0 && (
-                <div style={{ gridColumn: 'span 4', borderTop: '1px dashed var(--border)', paddingTop: '12px', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <span style={{ fontSize: '.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>💡 Finishing Rate Option</span>
-                    <p style={{ fontSize: '.68rem', color: 'var(--text-light)', margin: '2px 0 0' }}>
-                      Normal due + backlog spread across the remaining {restructureRemainingCount} {loan.frequency === 'daily' ? 'days' : loan.frequency === 'weekly' ? 'weeks' : 'months'} to finish on time:
-                    </p>
+                showRestructuredRates ? (
+                  // RESTRUCTURE (toggle on): keep the original tenure, raise the rate
+                  // so the backlog clears by the original end date. Unchanged.
+                  <div style={{ gridColumn: 'span 4', borderTop: '1px dashed var(--border)', paddingTop: '12px', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <span style={{ fontSize: '.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>💡 Finishing Rate Option</span>
+                      <p style={{ fontSize: '.68rem', color: 'var(--text-light)', margin: '2px 0 0' }}>
+                        {restructureRemainingCount > 0
+                          ? `Outstanding balance spread across the remaining ${restructureRemainingCount} ${loan.frequency === 'daily' ? 'days' : loan.frequency === 'weekly' ? 'weeks' : 'months'} to finish on time:`
+                          : 'Outstanding balance (overdue past end date):'}
+                      </p>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '.9rem', fontWeight: 800, color: 'var(--primary)' }}>
+                        {formatCurrency(adjustedInstallment, currencySymbol)}
+                      </span>
+                      <span style={{ fontSize: '.68rem', color: 'var(--text-light)' }}> / {loan.frequency === 'daily' ? 'Day' : loan.frequency === 'weekly' ? 'Week' : 'Month'}</span>
+                    </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <span style={{ fontSize: '.9rem', fontWeight: 800, color: 'var(--primary)' }}>
-                      {formatCurrency(adjustedInstallment, currencySymbol)}
-                    </span>
-                    <span style={{ fontSize: '.68rem', color: 'var(--text-light)' }}> / {loan.frequency === 'daily' ? 'Day' : loan.frequency === 'weekly' ? 'Week' : 'Month'}</span>
+                ) : (
+                  // DEFAULT — extend the term at the normal rate; finish slides out.
+                  // Same flex layout as the restructure panel so the ₹/Day on the
+                  // right keeps its position (no wrap / no shift).
+                  <div style={{ gridColumn: 'span 4', borderTop: '1px dashed var(--border)', paddingTop: '12px', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ minWidth: 0, paddingRight: '12px' }}>
+                      <span style={{ fontSize: '.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>📅 Extended Plan (normal rate)</span>
+                      <p style={{ fontSize: '.68rem', color: 'var(--text-light)', margin: '2px 0 0' }}>
+                        {extended.remainingPayments} more {loan.frequency === 'daily' ? 'days' : loan.frequency === 'weekly' ? 'weeks' : loan.frequency === 'monthly' ? 'months' : 'periods'} at {formatCurrency(loan.perInstalment, currencySymbol)}
+                        {extended.extraPeriods > 0 ? ` · +${extended.extraPeriods} beyond the original term` : ''}
+                        {' · '}finishes <strong style={{ color: 'var(--text-secondary)' }}>{formatDate(extended.projectedEndDate)}</strong>
+                      </p>
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <span style={{ fontSize: '.9rem', fontWeight: 800, color: 'var(--primary)' }}>
+                        {formatCurrency(loan.perInstalment, currencySymbol)}
+                      </span>
+                      <span style={{ fontSize: '.68rem', color: 'var(--text-light)' }}> / {loan.frequency === 'daily' ? 'Day' : loan.frequency === 'weekly' ? 'Week' : 'Month'}</span>
+                    </div>
                   </div>
-                </div>
+                )
               )}
             </div>
  
@@ -649,9 +892,26 @@ export default function LoanDetailClient({
                     </div>
                   );
                 })}
+                {/* Extended days (extend mode) — projected term beyond the original. */}
+                {!showRestructuredRates && projectedExtraRows.map((r) => (
+                  <div
+                    key={`cal-proj-${r.no}`}
+                    className="heatmap-cell"
+                    style={{ width: '18px', height: '18px', borderRadius: '3px', backgroundColor: '#C7D2FE', border: '1px dashed #6366F1' }}
+                  >
+                    <div className="tooltip-content">
+                      <div style={{ fontWeight: 800, marginBottom: '2px', borderBottom: '1px solid #475569', paddingBottom: '2px', fontSize: '.75rem' }}>
+                        #{r.no} (Projected)
+                      </div>
+                      <div>Due: <strong>{formatDate(r.date)}</strong></div>
+                      <div>Amount: <strong>{formatCurrency(r.amount, currencySymbol)}</strong></div>
+                      <div style={{ marginTop: '2px', fontWeight: 700, color: '#A5B4FC' }}>Extended day</div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
- 
+
             <div className="stats-col" style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center' }}>
               <div style={{ display: 'flex', gap: '20px', alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{ textAlign: 'center' }}>
@@ -673,21 +933,30 @@ export default function LoanDetailClient({
 
       <div className="grid-60-40">
         <div className="card">
-          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             <h3>📅 {d.paymentSchedule}</h3>
-            {outstanding > 0 && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '.72rem', color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
-                <input 
-                  type="checkbox" 
-                  checked={showRestructuredRates} 
-                  onChange={(e) => setShowRestructuredRates(e.target.checked)} 
-                  style={{ width: '13px', height: '13px', cursor: 'pointer' }}
-                />
-                <strong>Show Restructured Rate</strong>
-              </label>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              {outstanding > 0 && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '.72rem', color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none' }} title="Default: extend the term at the normal rate. Check to keep the original tenure and raise the rate instead.">
+                  <input
+                    type="checkbox"
+                    checked={showRestructuredRates}
+                    onChange={(e) => setShowRestructuredRates(e.target.checked)}
+                    style={{ width: '13px', height: '13px', cursor: 'pointer' }}
+                  />
+                  <strong>Show Restructured Rate</strong>
+                  <span style={{ fontSize: '.64rem', color: 'var(--text-light)' }}>({showRestructuredRates ? 'keep tenure, higher rate' : 'default: extend term'})</span>
+                </label>
+              )}
+              {loan.status !== 'closed' && outstanding > 0 && (
+                <button className="btn btn-primary btn-sm" onClick={openCollectModal} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <span className="material-icons-outlined" style={{ fontSize: '16px' }}>payments</span>
+                  {d.recordPayment || 'Record Payment'}
+                </button>
+              )}
+            </div>
           </div>
-          <div className="table-wrapper" style={{ maxHeight: '500px', overflowY: 'auto' }}>
+          <div className="table-wrapper schedule-table-wrap" style={{ maxHeight: '500px', overflowY: 'auto' }}>
             <table>
               <thead>
                 <tr>
@@ -705,12 +974,21 @@ export default function LoanDetailClient({
                   const collectedTime = inst.receivedAt ? new Date(inst.receivedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : null;
                   const isPaid = Number(inst.receivedAmount) > 0;
                   const isHighlighted = highlightedInstalmentNo === inst.instalmentNo;
+                  // Overdue = past-due and not fully paid. These rows are shown
+                  // dull red and read-only (no per-row Pay) — collection happens
+                  // via the single "Record Payment" popup, which clears the
+                  // backlog oldest-first. Admin keeps an Edit to correct a date.
+                  const isOverdue = inst.status === 'missed';
                   return (
-                    <tr 
-                      key={inst.id} 
+                    <tr
+                      key={inst.id}
                       id={`inst-row-${inst.instalmentNo}`}
                       className={isHighlighted ? 'highlight-row' : ''}
-                      style={{ opacity: inst.status === 'paid' && !isHighlighted ? 0.6 : 1 }}
+                      style={{
+                        opacity: inst.status === 'paid' && !isHighlighted ? 0.6 : 1,
+                        background: isOverdue && !isHighlighted ? 'rgba(239,68,68,0.06)' : undefined,
+                        color: isOverdue ? '#b91c1c' : undefined,
+                      }}
                     >
                       <td>{inst.instalmentNo}</td>
                       <td>{formatDate(inst.dueDate)}</td>
@@ -737,25 +1015,41 @@ export default function LoanDetailClient({
                       <td><span className={getBadgeClass(inst.status)} style={{textTransform:'capitalize'}}>{inst.status}</span></td>
                       <td>
                         <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                          {loan.status !== 'closed' && (
-                            <button className="btn btn-primary btn-sm" onClick={() => openPaymentModal(inst)} style={{ padding: '8px 12px', minHeight: '36px' }}>
+                          {loan.status !== 'closed' && isPaid && (
+                            // Paid → edit/correct this specific instalment.
+                            <button className="btn btn-ghost btn-sm" onClick={() => openPaymentModal(inst)} style={{ padding: '6px 10px' }}>
                               <span className="material-icons-outlined" style={{ fontSize: '14px' }}>
-                                {isPaid ? (isAdmin ? 'edit' : 'history_edu') : 'payments'}
+                                {isAdmin ? 'edit' : 'history_edu'}
                               </span>{' '}
-                              {isPaid ? (isAdmin ? d.edit : 'Request') : d.pay}
+                              {isAdmin ? d.edit : 'Request'}
                             </button>
                           )}
-                          {loan.status !== 'closed' && inst.status !== 'paid' && (
-                            <button
-                              className="btn btn-ghost btn-sm"
-                              onClick={() => sendPayLink(inst)}
-                              disabled={payLinkBusyId === inst.id}
-                              title="Generate a UPI self-pay link for the borrower"
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                            >
-                              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>qr_code_2</span>
-                              {payLinkBusyId === inst.id ? '…' : 'Pay link'}
+                          {loan.status !== 'closed' && !isPaid && isOverdue && isAdmin && (
+                            // Overdue → dull red row, no Pay. Admin-only Edit to
+                            // manually correct this date if ever needed.
+                            <button className="btn btn-ghost btn-sm" onClick={() => openPaymentModal(inst)} style={{ padding: '6px 10px', color: '#b91c1c' }}>
+                              <span className="material-icons-outlined" style={{ fontSize: '14px' }}>edit</span>{' '}
+                              {d.edit}
                             </button>
+                          )}
+                          {loan.status !== 'closed' && !isPaid && !isOverdue && (
+                            // Today / upcoming → collect via the loan-wide popup.
+                            <>
+                              <button className="btn btn-primary btn-sm" onClick={openCollectModal} style={{ padding: '8px 12px', minHeight: '36px' }}>
+                                <span className="material-icons-outlined" style={{ fontSize: '14px' }}>payments</span>{' '}
+                                {d.pay}
+                              </button>
+                              <button
+                                className="btn btn-ghost btn-sm"
+                                onClick={() => sendPayLink(inst)}
+                                disabled={payLinkBusyId === inst.id}
+                                title="Generate a UPI self-pay link for the borrower"
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              >
+                                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>qr_code_2</span>
+                                {payLinkBusyId === inst.id ? '…' : 'Pay link'}
+                              </button>
+                            </>
                           )}
                           {receiptPdfEnabled && inst.collectionEntry?.id && (
                             <a
@@ -775,42 +1069,152 @@ export default function LoanDetailClient({
                     </tr>
                   );
                 })}
+                {/* Projected extra days (extend mode only) — the term sliding out
+                    past the original schedule. Display-only, non-actionable. */}
+                {!showRestructuredRates && projectedExtraRows.map((r) => (
+                  <tr key={`proj-${r.no}`} style={{ background: 'rgba(99,102,241,0.05)', color: 'var(--text-light)' }}>
+                    <td>{r.no}</td>
+                    <td>{formatDate(r.date)}</td>
+                    <td>—</td>
+                    <td>{formatCurrency(r.amount, currencySymbol)}</td>
+                    <td>—</td>
+                    <td><span className="badge" style={{ background: 'rgba(99,102,241,0.12)', color: '#6366F1' }}>Projected</span></td>
+                    <td>—</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Compact mobile schedule — one tight row per instalment instead of
+              the table reflowing into a giant card per row. */}
+          <div className="schedule-mobile">
+            {displayInstalments.map((inst: any) => {
+              const isPaid = Number(inst.receivedAmount) > 0;
+              const isOverdue = inst.status === 'missed';
+              const collectedTime = inst.receivedAt ? new Date(inst.receivedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : null;
+              const accent = inst.status === 'paid' ? 'var(--success)' : isOverdue ? 'var(--danger)' : 'var(--primary)';
+              return (
+                <div
+                  key={inst.id}
+                  id={`inst-row-m-${inst.instalmentNo}`}
+                  className="sched-row"
+                  style={{ borderLeft: `3px solid ${accent}`, opacity: inst.status === 'paid' ? 0.75 : 1 }}
+                >
+                  <div className="sched-main">
+                    <span className="sched-no">#{inst.instalmentNo}</span>
+                    <span className="sched-date">{formatDate(inst.dueDate)}</span>
+                    {showRestructuredRates && Number(inst.receivedAmount) < Number(inst.dueAmount) && new Date(inst.dueDate) >= new Date(new Date().setHours(0, 0, 0, 0)) ? (
+                      <span className="sched-amt" style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5 }}>
+                        <span style={{ color: 'var(--primary)', fontWeight: 800 }}>{formatCurrency(adjustedInstallment, currencySymbol)}</span>
+                        {Math.abs(adjustedInstallment - Number(inst.dueAmount)) >= 0.01 && (
+                          <span style={{ fontSize: '.62rem', color: 'var(--text-light)', textDecoration: 'line-through' }}>{formatCurrency(inst.dueAmount, currencySymbol)}</span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="sched-amt">{formatCurrency(inst.dueAmount, currencySymbol)}</span>
+                    )}
+                    <span className={getBadgeClass(inst.status)} style={{ textTransform: 'capitalize', marginLeft: 'auto' }}>{inst.status}</span>
+                  </div>
+                  <div className="sched-sub">
+                    <span style={{ color: 'var(--text-light)' }}>
+                      {isPaid ? `${d.received}: ${formatCurrency(inst.receivedAmount, currencySymbol)}${collectedTime ? ` · ${collectedTime}` : ''}` : ''}
+                    </span>
+                    {loan.status !== 'closed' && (
+                      isPaid ? (
+                        <button className="btn btn-ghost btn-sm" onClick={() => openPaymentModal(inst)} style={{ minHeight: 36 }}>
+                          <span className="material-icons-outlined" style={{ fontSize: 14 }}>{isAdmin ? 'edit' : 'history_edu'}</span> {isAdmin ? d.edit : 'Request'}
+                        </button>
+                      ) : isOverdue ? (
+                        isAdmin ? (
+                          <button className="btn btn-ghost btn-sm" onClick={() => openPaymentModal(inst)} style={{ minHeight: 36, color: '#b91c1c' }}>
+                            <span className="material-icons-outlined" style={{ fontSize: 14 }}>edit</span> {d.edit}
+                          </button>
+                        ) : null
+                      ) : (
+                        <button className="btn btn-primary btn-sm" onClick={openCollectModal} style={{ minHeight: 36 }}>
+                          <span className="material-icons-outlined" style={{ fontSize: 14 }}>payments</span> {d.pay}
+                        </button>
+                      )
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            {!showRestructuredRates && projectedExtraRows.map((r) => (
+              <div key={`proj-m-${r.no}`} className="sched-row" style={{ borderLeft: '3px solid #6366F1', background: 'rgba(99,102,241,0.05)' }}>
+                <div className="sched-main">
+                  <span className="sched-no">#{r.no}</span>
+                  <span className="sched-date">{formatDate(r.date)}</span>
+                  <span className="sched-amt">{formatCurrency(r.amount, currencySymbol)}</span>
+                  <span className="badge" style={{ background: 'rgba(99,102,241,0.12)', color: '#6366F1', marginLeft: 'auto' }}>Projected</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
         <div>
-          <div className="card" style={{ marginBottom: '20px' }}>
-            <div className="card-header">
-              <h3>⚡ {d.penaltySummary}</h3>
-              <Link href={`/penalties?q=${encodeURIComponent(loan.loanCode)}`} className="btn btn-ghost btn-sm">
-                <span className="material-icons-outlined" style={{ fontSize: '14px' }}>open_in_new</span>
-                {d.viewInPenalties}
+          {/* Overdue Summary Card */}
+          <div className="card" style={{ marginBottom: '16px', padding: '14px' }}>
+            <div className="card-header" style={{ marginBottom: '12px' }}>
+              <h3 style={{ fontSize: '.9rem', display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}>
+                <span className="material-icons-outlined" style={{ fontSize: '18px', color: 'var(--danger)' }}>report_problem</span>
+                Overdues
+              </h3>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div style={{ background: 'var(--bg)', padding: '10px', borderRadius: 'var(--radius-sm)' }}>
+                <span style={{ fontSize: '.72rem', color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '.3px' }}>{d.missedDays}</span>
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--danger)', marginTop: '2px' }}>
+                  {missedCount}
+                </div>
+              </div>
+              <div style={{ background: 'var(--bg)', padding: '10px', borderRadius: 'var(--radius-sm)' }}>
+                <span style={{ fontSize: '.72rem', color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '.3px' }}>Overdue Amount</span>
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--danger)', marginTop: '2px' }}>
+                  {formatCurrency(duesPending, currencySymbol)}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Penalty Summary Card */}
+          <div className="card" style={{ marginBottom: '20px', padding: '14px' }}>
+            <div className="card-header" style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '.9rem', display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}>
+                <span className="material-icons-outlined" style={{ fontSize: '18px', color: 'var(--primary)' }}>gavel</span>
+                {d.penaltySummary}
+              </h3>
+              <Link href={`/penalties?q=${encodeURIComponent(loan.loanCode)}`} className="btn btn-ghost btn-xs" style={{ padding: '2px 6px', fontSize: '.7rem', height: 'auto', minHeight: 'auto' }}>
+                <span className="material-icons-outlined" style={{ fontSize: '12px', marginRight: '3px' }}>open_in_new</span>
+                View
               </Link>
             </div>
-            <div className="stats-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-              <div className="stat-item">
-                <div className="stat-value" style={{ color: 'var(--danger)' }}>{missedCount}</div>
-                <div className="stat-label">{d.missedDays}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '4px' }}>
+              <div style={{ background: 'var(--bg)', padding: '8px', borderRadius: 'var(--radius-sm)', textAlign: 'center' }}>
+                <span style={{ fontSize: '.65rem', color: 'var(--text-light)', textTransform: 'uppercase' }}>Total</span>
+                <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--danger)', marginTop: '2px' }}>
+                  {formatCurrency(totalPenalty, currencySymbol)}
+                </div>
               </div>
-              <div className="stat-item">
-                <div className="stat-value" style={{ color: 'var(--danger)' }}>{formatCurrency(totalPenalty, currencySymbol)}</div>
-                <div className="stat-label">{d.totalPenalty}</div>
+              <div style={{ background: 'var(--bg)', padding: '8px', borderRadius: 'var(--radius-sm)', textAlign: 'center' }}>
+                <span style={{ fontSize: '.65rem', color: 'var(--text-light)', textTransform: 'uppercase' }}>{d.settledWaived}</span>
+                <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--success)', marginTop: '2px' }}>
+                  {formatCurrency(settledPenalty + waivedPenalty, currencySymbol)}
+                </div>
               </div>
-              <div className="stat-item">
-                <div className="stat-value" style={{ color: 'var(--success)' }}>{formatCurrency(settledPenalty + waivedPenalty, currencySymbol)}</div>
-                <div className="stat-label">{d.settledWaived}</div>
-              </div>
-              <div className="stat-item">
-                <div className="stat-value" style={{ color: 'var(--primary-dark)' }}>{formatCurrency(netPenalty, currencySymbol)}</div>
-                <div className="stat-label">{d.netDue}</div>
+              <div style={{ background: 'var(--bg)', padding: '8px', borderRadius: 'var(--radius-sm)', textAlign: 'center' }}>
+                <span style={{ fontSize: '.65rem', color: 'var(--text-light)', textTransform: 'uppercase' }}>{d.netDue}</span>
+                <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--primary-dark)', marginTop: '2px' }}>
+                  {formatCurrency(netPenalty, currencySymbol)}
+                </div>
               </div>
             </div>
             {netPenalty > 0 && (
-              <div style={{ marginTop: '16px', display: 'flex', gap: '8px' }}>
-                <button className="btn btn-ghost btn-sm" style={{ flex: 1, border: '1px solid var(--border)' }} onClick={() => openPenaltyModal({ id: 'new', grossPenalty: netPenalty }, 'waive')}>{d.waisePenalty}</button>
-                <button className="btn btn-ghost btn-sm" style={{ flex: 1, border: '1px solid var(--border)' }} onClick={() => openPenaltyModal({ id: 'new', grossPenalty: netPenalty }, 'settle')}>{d.settlePenalty}</button>
+              <div style={{ marginTop: '12px', display: 'flex', gap: '6px' }}>
+                <button className="btn btn-ghost btn-xs" style={{ flex: 1, border: '1px solid var(--border)', padding: '6px 8px', fontSize: '.75rem', minHeight: 'auto' }} onClick={() => openPenaltyModal({ id: 'new', grossPenalty: netPenalty }, 'waive')}>{d.waisePenalty}</button>
+                <button className="btn btn-ghost btn-xs" style={{ flex: 1, border: '1px solid var(--border)', padding: '6px 8px', fontSize: '.75rem', minHeight: 'auto' }} onClick={() => openPenaltyModal({ id: 'new', grossPenalty: netPenalty }, 'settle')}>{d.settlePenalty}</button>
               </div>
             )}
           </div>
@@ -910,6 +1314,85 @@ export default function LoanDetailClient({
           <LoanTimeline loanId={loan.id} currencySymbol={currencySymbol} />
         </div>
       </div>
+
+      {/* Loan-wide collect popup — same UX as the collection page. Pick a preset
+          (today's due / total due), edit if needed; the server spreads it across
+          open instalments oldest-first and records it today. */}
+      {collectOpen && (
+        <div className="modal-overlay show" onClick={(e) => { if (e.target === e.currentTarget) setCollectOpen(false); }}>
+          <div className="modal">
+            <div className="modal-header">
+              <h3>💰 {d.recordPayment || 'Record Payment'}</h3>
+              <button className="modal-close material-icons-outlined" onClick={() => setCollectOpen(false)}>close</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ background: 'var(--bg)', borderRadius: 'var(--radius-sm)', padding: '14px', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.9rem' }}>
+                  <span><strong>{loan.customer.name}</strong></span>
+                  <span style={{ color: 'var(--text-secondary)' }}>{loan.loanCode}</span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '14px' }}>
+                <button
+                  type="button"
+                  onClick={() => { setCollectCard('today'); setCollectAmount(todayDueForLoan); }}
+                  style={{
+                    flex: 1, textAlign: 'left', cursor: 'pointer',
+                    background: collectCard === 'today' ? 'rgba(245,158,11,0.08)' : 'var(--bg)',
+                    border: `2px solid ${collectCard === 'today' ? 'var(--primary)' : 'var(--border)'}`,
+                    borderRadius: 'var(--radius-sm)', padding: '12px 14px',
+                  }}
+                >
+                  <div style={{ fontSize: '.72rem', fontWeight: 600, color: collectCard === 'today' ? 'var(--primary)' : 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Today&apos;s Due</div>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 800, marginTop: '4px' }}>{formatCurrency(todayDueForLoan, currencySymbol)}</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setCollectCard('total'); setCollectAmount(dueTillTodayForLoan); }}
+                  style={{
+                    flex: 1, textAlign: 'left', cursor: 'pointer',
+                    background: collectCard === 'total' ? 'rgba(239,68,68,0.08)' : 'var(--bg)',
+                    border: `2px solid ${collectCard === 'total' ? 'var(--danger)' : 'var(--border)'}`,
+                    borderRadius: 'var(--radius-sm)', padding: '12px 14px',
+                  }}
+                >
+                  <div style={{ fontSize: '.72rem', fontWeight: 600, color: collectCard === 'total' ? 'var(--danger)' : 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Total Due</div>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 800, marginTop: '4px' }}>{formatCurrency(dueTillTodayForLoan, currencySymbol)}</div>
+                  {dueTillTodayForLoan > todayDueForLoan && (
+                    <div style={{ fontSize: '.66rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Includes previous overdue</div>
+                  )}
+                </button>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">{d.receivedAmount} ({currencySymbol}) *</label>
+                <input type="number" className="form-control" style={{ fontSize: '1.1rem', padding: '12px' }} value={collectAmount} onChange={(e) => setCollectAmount(Number(e.target.value))} min={0} required />
+              </div>
+              <div className="form-group">
+                <label className="form-label">{d.paymentMode}</label>
+                <select className="form-control" style={{ fontSize: '1rem', padding: '12px' }} value={collectMode} onChange={(e) => setCollectMode(e.target.value)}>
+                  <option value="cash">{d.cash}</option>
+                  <option value="upi">{d.upi}</option>
+                  <option value="cheque">{d.cheque}</option>
+                  <option value="bank_transfer">{d.bankTransfer}</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">{d.remarksOptional}</label>
+                <input type="text" className="form-control" style={{ fontSize: '1rem', padding: '12px' }} value={collectRemarks} onChange={(e) => setCollectRemarks(e.target.value)} placeholder={d.notesPlaceholder} />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setCollectOpen(false)}>{d.cancel}</button>
+              <button className="btn btn-primary" onClick={handleCollect} disabled={loading || collectAmount <= 0}>
+                <span className="material-icons-outlined" style={{ fontSize: '18px' }}>check</span>
+                {loading ? d.submitting : d.submitPayment}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {paymentModal && (() => {
         return (

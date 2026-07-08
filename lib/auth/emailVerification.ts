@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from 'crypto';
-import { sendEmail } from '@/lib/notify/channels/email';
+import { sendEmail, type EmailResult } from '@/lib/notify/channels/email';
 
 // Stateless email-verification token: base64url(payload).hexSig.
 // No DB column needed — the signature + expiry are self-contained. Activation
@@ -58,12 +58,12 @@ export async function sendVerificationEmail(params: {
   email: string;
   name?: string | null;
   userId: string;
-}): Promise<void> {
+}): Promise<EmailResult> {
   const token = signVerifyToken(params.userId);
   const link = `${appBaseUrl()}/api/auth/verify-email?token=${encodeURIComponent(token)}`;
   const { getSetting } = await import('@/lib/tenant');
   const brandName = await getSetting(params.tenantId, 'app_name', 'LoanTrack');
-  await sendEmail(
+  return sendEmail(
     params.tenantId,
     params.email,
     `Verify your ${brandName} account`,

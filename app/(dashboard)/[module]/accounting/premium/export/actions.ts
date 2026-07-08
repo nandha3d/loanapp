@@ -5,7 +5,7 @@ import { auth } from '@/lib/auth';
 import { getDefaultTenantId } from '@/lib/tenant';
 import { getActiveBranchId } from '@/lib/branch';
 import { getOrCreateAccountingSettings, getPeriodKey, writeAuditLog } from '@/lib/accounting/premium';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 function requireRole(role: string, allowed: string[]) {
   if (!allowed.includes(role)) throw new Error('Unauthorized');
@@ -303,7 +303,7 @@ export async function exportExcelWorkbook(
     orderBy: [{ entryDate: 'asc' }, { entryNo: 'asc' }],
   });
 
-  const wb = XLSX.utils.book_new();
+  const workbook = new ExcelJS.Workbook();
 
   // Cover sheet
   const coverData = [
@@ -313,8 +313,8 @@ export async function exportExcelWorkbook(
     ['Exported At', new Date().toISOString()],
     ['Total JEs', jes.length],
   ];
-  const coverWs = XLSX.utils.aoa_to_sheet(coverData);
-  XLSX.utils.book_append_sheet(wb, coverWs, 'Cover');
+  const coverSheet = workbook.addWorksheet('Cover');
+  coverSheet.addRows(coverData);
 
   // Journal Book sheet
   const jbRows: any[][] = [
@@ -334,10 +334,10 @@ export async function exportExcelWorkbook(
       ]);
     }
   }
-  const jbWs = XLSX.utils.aoa_to_sheet(jbRows);
-  XLSX.utils.book_append_sheet(wb, jbWs, 'Journal Book');
+  const journalSheet = workbook.addWorksheet('Journal Book');
+  journalSheet.addRows(jbRows);
 
-  const buffer = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+  const buffer = Buffer.from(await workbook.xlsx.writeBuffer()).toString('base64');
   const filename = `journal_book_${periodKey}${activeBranchId ? `_${activeBranchId}` : ''}.xlsx`;
 
   await recordExportRun({

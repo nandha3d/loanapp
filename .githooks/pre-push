@@ -1,0 +1,5 @@
+#!/bin/sh
+# Self-healing SDLC gate. See docs/self-healing-sdlc.md.
+# Installed via: npm run hooks:install
+node scripts/self-heal/healer.mjs
+exit $?

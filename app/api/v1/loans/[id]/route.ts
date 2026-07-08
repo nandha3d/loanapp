@@ -2,13 +2,13 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
-import { computeRestructure, restructuredAmountFor } from '@/lib/restructure';
+import { computeRestructure, restructuredAmountFor, computeExtendedSchedule } from '@/lib/restructure';
 import { calculateEndDate } from '@/lib/utils';
 import { calculateLoanPreview } from '@/lib/loanCalculator';
 import { validateGuarantorPhone } from '@/lib/guarantorPolicy';
 import { encryptAadharNumber, decryptAadharNumber } from '@/lib/pii';
 import { writeAudit } from '@/lib/audit';
-import { validateLoanNumericInputs } from '@/lib/loanPolicy';
+import { validateLoanNumericInputs, buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 import { hasFinancialActivity } from '@/lib/repayments';
 
 export async function GET(
@@ -20,16 +20,23 @@ export async function GET(
   const ctx = auth.context;
   const { id } = await params;
 
+  const loanWhere: any = {
+    OR: [
+      { id },
+      { loanCode: id }
+    ],
+    tenantId: ctx.tenantId,
+    appType: ctx.appType,
+  };
+  if (ctx.role === 'agent') {
+    // Agents see only their own customers' loans (linkage), regardless of branch.
+    loanWhere.customer = buildAgentCustomerAccessWhere({ userId: ctx.userId });
+  } else {
+    Object.assign(loanWhere, scopedBranchWhere(ctx));
+  }
+
   const loan = await prisma.loan.findFirst({
-    where: {
-      OR: [
-        { id },
-        { loanCode: id }
-      ],
-      tenantId: ctx.tenantId,
-      appType: ctx.appType,
-      ...scopedBranchWhere(ctx),
-    },
+    where: loanWhere,
     include: {
       customer: {
         include: {
@@ -49,20 +56,113 @@ export async function GET(
       penalties: { orderBy: { createdAt: 'desc' } },
       collaterals: true,
       guarantor: true,
+      goldCollateral: true,
+      propertyCollateral: true,
+      productFinanceItem: true,
+      payments: {
+        orderBy: { paymentDate: 'asc' }
+      }
     },
   });
   if (!loan) return fail('Loan not found', 404);
 
+  // Helper to get local date string YYYY-MM-DD
+  const toDateStr = (dateInput: Date | string) => {
+    const d = new Date(dateInput);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const payments = loan.payments || [];
+
+  // Match each payment to the closest installment by dueDate
+  const instMap = new Map<string, number>();
+  for (const payment of payments) {
+    const pDate = new Date(payment.paymentDate);
+    pDate.setHours(0, 0, 0, 0);
+    
+    let closestInst = loan.instalments[0];
+    let minDiff = Infinity;
+    for (const inst of loan.instalments) {
+      const iDate = new Date(inst.dueDate);
+      iDate.setHours(0, 0, 0, 0);
+      const diff = Math.abs(pDate.getTime() - iDate.getTime());
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestInst = inst;
+      }
+    }
+    
+    if (closestInst) {
+      const current = instMap.get(closestInst.id) || 0;
+      instMap.set(closestInst.id, current + Number(payment.amount));
+    }
+  }
+
+  // Pre-map instalments with actual receivedAmount and computed status
+  const preMappedInstalments = loan.instalments.map((inst) => {
+    const actualAmount = instMap.get(inst.id) || 0;
+    const isPaid = actualAmount >= Number(inst.dueAmount);
+    const isPartial = actualAmount > 0 && actualAmount < Number(inst.dueAmount);
+
+    let computedStatus = inst.status;
+    const instDateStr = toDateStr(inst.dueDate);
+
+    if (inst.status !== 'paid' && inst.status !== 'partial') {
+      if (isPaid) {
+        computedStatus = 'paid';
+      } else if (isPartial) {
+        computedStatus = 'partial';
+      } else if (new Date(inst.dueDate) < today) {
+        computedStatus = 'missed';
+      } else if (instDateStr === toDateStr(today)) {
+        computedStatus = 'due today';
+      }
+    } else {
+      if (isPaid) {
+        computedStatus = 'paid';
+      } else if (isPartial) {
+        computedStatus = 'partial';
+      } else if (new Date(inst.dueDate) < today) {
+        computedStatus = 'missed';
+      } else if (instDateStr === toDateStr(today)) {
+        computedStatus = 'due today';
+      } else {
+        computedStatus = 'upcoming';
+      }
+    }
+
+    return {
+      ...inst,
+      receivedAmount: actualAmount,
+      status: computedStatus,
+    };
+  });
+
   // Restructured rate — computed server-side (single source of truth). Each
   // instalment gets a `restructuredAmount`; the loan carries the loan-level
   // figures. Clients render these directly and never recompute.
-  const restructure = computeRestructure(loan.instalments);
-  const instalments = loan.instalments.map((inst) => ({
+  const restructure = computeRestructure(preMappedInstalments, loan.frequency, loan.endDate);
+  const instalments = preMappedInstalments.map((inst) => ({
     ...inst,
     restructuredAmount: restructuredAmountFor(inst, restructure.restructuredRate),
   }));
 
-  return ok({ ...loan, instalments, restructure });
+  // Default "extend term" projection — same server-side source of truth the
+  // web page uses for its heatmap tail cells, so mobile can render the
+  // identical projected extra days without re-deriving the math.
+  const extendedSchedule = computeExtendedSchedule(
+    preMappedInstalments,
+    Number(loan.perInstalment),
+    loan.frequency,
+  );
+
+  return ok({ ...loan, instalments, restructure, extendedSchedule });
 }
 
 /**

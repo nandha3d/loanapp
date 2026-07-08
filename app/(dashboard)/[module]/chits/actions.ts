@@ -133,6 +133,7 @@ export async function recordAuctionWinner(
 ) {
   const session = await requireAdmin();
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
   await requireModule(tenantId, 'chitfunds');
 
   const auction = await prisma.chitAuction.findUnique({
@@ -172,6 +173,35 @@ export async function recordAuctionWinner(
       data: { hasWon: true, wonAt: new Date() },
     }),
   ]);
+
+  // Prize handed to the winner is cash leaving the office → accounting payout +
+  // branch pool debit, so Liquid Cash / capital drop. Net of all periods, the
+  // commission the company keeps remains as positive capital.
+  const payoutBranchId = auction.chitGroup.branchId;
+  const prize = Number(prizeAmount);
+  if (prize > 0) {
+    await prisma.$transaction(async (tx) => {
+      await tx.accountEntry.create({
+        data: {
+          tenantId,
+          appType,
+          entryDate: new Date(),
+          type: 'chit_payout',
+          category: 'cash',
+          amount: prize,
+          description: `Chit prize payout — period ${auction.periodNumber}`,
+          referenceId: auctionId,
+          referenceType: 'chit_auction',
+          createdBy: session.user?.id as string,
+          branchId: payoutBranchId || undefined,
+        },
+      });
+      if (payoutBranchId) {
+        const { chitPayoutFromBranch } = await import('@/lib/wallet');
+        await chitPayoutFromBranch(tx, { tenantId, appType, branchId: payoutBranchId, amount: prize, refId: auctionId, byUserId: session.user?.id });
+      }
+    });
+  }
 
   // Reduce future subscription dueAmount by dividend for all non-winner members
   if (dividend > 0) {
@@ -213,6 +243,7 @@ export async function recordChitPayment(
 ) {
   const session = await requireAdmin();
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
   await requireModule(tenantId, 'chitfunds');
 
   // Security: verify subscription belongs to this tenant by joining through ChitGroup
@@ -222,33 +253,60 @@ export async function recordChitPayment(
       periodNumber,
       member: { chitGroup: { tenantId } },
     },
+    include: { member: { include: { chitGroup: { select: { id: true, branchId: true } } } } },
   });
   if (!sub) throw new Error('Subscription not found or not in your tenant');
 
+  const userId = session.user?.id as string;
+  const branchId = sub.member.chitGroup.branchId;
+  // Cash received NOW = new total paid minus what was already paid (avoids
+  // double-counting when a partial payment is topped up later).
+  const delta = Math.max(0, paidAmount - Number(sub.paidAmount));
   const newStatus = paidAmount >= Number(sub.dueAmount) ? 'paid' : 'partial';
-  await prisma.chitSubscription.update({
-    where: { id: sub.id },
-    data: {
-      paidAmount,
-      status: newStatus,
-      paidAt: new Date(),
-    },
-  });
 
-  const member = await prisma.chitMember.findUnique({ where: { id: memberId } });
+  await prisma.$transaction(async (tx) => {
+    await tx.chitSubscription.update({
+      where: { id: sub.id },
+      data: { paidAmount, status: newStatus, paidAt: new Date() },
+    });
+
+    // Contribution is real cash into the office → accounting collection + branch
+    // pool credit, so it flows into Liquid Cash / capital like a loan collection.
+    if (delta > 0) {
+      await tx.accountEntry.create({
+        data: {
+          tenantId,
+          appType,
+          entryDate: new Date(),
+          type: 'collection',
+          category: 'cash',
+          amount: delta,
+          description: `Chit contribution — period ${periodNumber}`,
+          referenceId: sub.id,
+          referenceType: 'chit_subscription',
+          createdBy: userId,
+          branchId: branchId || undefined,
+        },
+      });
+      if (branchId) {
+        const { chitContributionToBranch } = await import('@/lib/wallet');
+        await chitContributionToBranch(tx, { tenantId, appType, branchId, amount: delta, refId: sub.id, byUserId: userId });
+      }
+    }
+  });
 
   await prisma.auditLog.create({
     data: {
       tenantId,
-      userId: session.user?.id,
+      userId,
       action: 'chit_payment',
       entityType: 'chit_subscription',
       entityId: sub.id,
-      newValue: JSON.stringify({ memberId, periodNumber, paidAmount }),
+      newValue: JSON.stringify({ memberId, periodNumber, paidAmount, delta }),
     },
   });
 
-  revalidatePath(`/chits/${member?.chitGroupId}`);
+  revalidatePath(`/chits/${sub.member.chitGroupId}`);
 }
 
 export async function markPaymentMissed(subscriptionId: string) {

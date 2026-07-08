@@ -26,3 +26,26 @@ export const CollectionEntrySchema = z
   .passthrough();
 
 export type CollectionEntryInput = z.infer<typeof CollectionEntrySchema>;
+
+/**
+ * Body schema for loan-level collection (`/api/v1/collection/collect` POST).
+ * One payment spread across the loan's open instalments oldest-first.
+ */
+export const CollectLoanSchema = z
+  .object({
+    loanId: z.string().min(1, 'loanId required'),
+    amount: z
+      .number({ error: 'amount must be a number' })
+      .positive('amount must be > 0')
+      .max(10_000_000, 'amount exceeds limit'),
+    paymentMode: z.string().min(1).max(40).default('cash'),
+    remarks: z.string().max(500).nullable().optional(),
+    collectionDate: z.string().nullable().optional(),
+    idempotencyKey: z.string().max(128).optional(),
+    latitude: z.number().min(-90).max(90).nullable().optional(),
+    longitude: z.number().min(-180).max(180).nullable().optional(),
+    gpsAccuracy: z.number().nonnegative().nullable().optional(),
+  })
+  .passthrough();
+
+export type CollectLoanInput = z.infer<typeof CollectLoanSchema>;

@@ -252,8 +252,8 @@ export async function createUser(formData: FormData) {
   }
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
-  const username = ((formData.get('username') as string) || (formData.get('email') as string) || '').trim().toLowerCase();
   const phone = ((formData.get('phone') as string) || '').trim();
+  const username = ((formData.get('username') as string) || phone).trim().toLowerCase();
   const email = ((formData.get('email') as string) || '').trim().toLowerCase() || null;
   if (!username || !phone) {
     return { success: false, error: 'Username and phone are required' };
@@ -522,6 +522,13 @@ export async function wipeDatabaseRecords(tablesToWipe: string[]) {
 
       if (tablesToWipe.includes('accounting')) {
         await tx.accountEntry.deleteMany({ where: { tenantId } });
+        // Wallet ledger drives Branch Cash / Agent Float / Released-to-Agent on
+        // the dashboard. Clear the transactions first, then zero the balances by
+        // removing the account rows (recreated lazily on next release/disburse).
+        await tx.walletTransaction.deleteMany({ where: { tenantId } });
+        await tx.cashHandover.deleteMany({ where: { tenantId } });
+        await tx.agentAccount.deleteMany({ where: { tenantId } });
+        await tx.branchCashAccount.deleteMany({ where: { tenantId } });
       }
 
       // Helper function to delete a specific set of users
@@ -661,6 +668,43 @@ export async function wipeDatabaseRecords(tablesToWipe: string[]) {
   }
 }
 
+export async function saveThemeSettings(presetKey: string) {
+  const session = await auth();
+  const role = (session?.user as any)?.role;
+  const userId = session?.user?.id;
+  if (!userId || !['superadmin', 'developer'].includes(role)) {
+    return { success: false, error: 'Only a superadmin can change the theme' };
+  }
+  const { getThemePreset, THEME_SETTING_KEY } = await import('@/lib/themes');
+  const preset = presetKey === 'default' ? null : getThemePreset(presetKey);
+  if (presetKey !== 'default' && !preset) {
+    return { success: false, error: 'Unknown theme' };
+  }
+
+  const tenantId = await getDefaultTenantId();
+  await Promise.all([
+    setSetting(tenantId, THEME_SETTING_KEY, presetKey, 'branding'),
+    // Concrete colours so web layout + mobile app read them directly.
+    setSetting(tenantId, 'primary_color', preset?.primary ?? '#F5A623', 'branding'),
+    setSetting(tenantId, 'primary_dark', preset?.primaryDark ?? '#E8930C', 'branding'),
+    setSetting(tenantId, 'primary_light', preset?.primaryLight ?? '#FFF3E0', 'branding'),
+    setSetting(tenantId, 'accent_color', preset?.accent ?? '#FFC107', 'branding'),
+  ]);
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId,
+      userId,
+      action: 'update',
+      entityType: 'settings',
+      newValue: JSON.stringify({ category: 'theme', preset: presetKey }),
+    },
+  });
+
+  revalidatePath('/', 'layout');
+  return { success: true };
+}
+
 export async function saveNotificationSettings(formData: FormData) {
   const session = await auth();
   const role = (session?.user as any)?.role;
@@ -795,6 +839,61 @@ export async function saveBureauSettings(formData: FormData) {
       action: 'update',
       entityType: 'settings',
       newValue: JSON.stringify({ category: 'bureau', provider, environment, hasCert: !!certPemBase64 }),
+    },
+  });
+
+  revalidatePath('/settings');
+  return { success: true };
+}
+
+export async function saveNotificationTemplate(data: {
+  name: string;
+  channel: string;
+  lang: string;
+  subject?: string | null;
+  body: string;
+  isActive?: boolean;
+}) {
+  const session = await auth();
+  const role = (session?.user as any)?.role;
+  const userId = session?.user?.id;
+  if (!userId || !['admin', 'superadmin', 'developer'].includes(role)) {
+    return { success: false, error: 'Unauthorized' };
+  }
+  const tenantId = await getDefaultTenantId();
+
+  await prisma.notificationTemplate.upsert({
+    where: {
+      tenantId_name_channel_lang: {
+        tenantId,
+        name: data.name,
+        channel: data.channel,
+        lang: data.lang,
+      },
+    },
+    update: {
+      subject: data.subject || null,
+      body: data.body,
+      isActive: data.isActive ?? true,
+    },
+    create: {
+      tenantId,
+      name: data.name,
+      channel: data.channel,
+      lang: data.lang,
+      subject: data.subject || null,
+      body: data.body,
+      isActive: data.isActive ?? true,
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId,
+      userId,
+      action: 'update',
+      entityType: 'notification_template',
+      newValue: JSON.stringify({ name: data.name, channel: data.channel, lang: data.lang }),
     },
   });
 

@@ -229,7 +229,7 @@ class _NotificationSettingsScreenState
             onTap: () => context.push('/notifications'),
             child: Row(
               children: [
-                const Icon(Icons.history, color: AppColors.primary, size: 20),
+                Icon(Icons.history, color: AppColors.primary, size: 20),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -244,7 +244,7 @@ class _NotificationSettingsScreenState
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right, color: AppColors.primary),
+                Icon(Icons.chevron_right, color: AppColors.primary),
               ],
             ),
           ),

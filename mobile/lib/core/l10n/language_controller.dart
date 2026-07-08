@@ -16,6 +16,7 @@ class LanguageController extends StateNotifier<AppLang> {
   Future<void> _hydrate() async {
     final box = await _openBox();
     final code = box.get(_kLangKey) as String?;
+    if (!mounted) return;
     state = AppLangX.fromCode(code);
   }
 

@@ -26,12 +26,20 @@ class LoanHeatmap extends ConsumerWidget {
     this.cellSize = 22,
     this.onJump,
     this.title = 'Calendar Tracker',
+    this.extraPeriods = 0,
+    this.projectedEndDate,
   });
 
   final List<Instalment> instalments;
   final double cellSize;
   final String title;
   final void Function(int instalmentNo)? onJump;
+
+  /// Extra periods projected beyond the original schedule if the loan keeps
+  /// paying at the normal per-instalment rate instead of restructuring —
+  /// same figure as web's "extend term" default model.
+  final int extraPeriods;
+  final DateTime? projectedEndDate;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -88,8 +96,36 @@ class LoanHeatmap extends ConsumerWidget {
                     size: cellSize,
                     onTap: () => _open(context, inst),
                   ),
+                for (var i = 0; i < extraPeriods; i++)
+                  _ExtraDayCell(size: cellSize, dayNumber: i + 1),
               ],
             ),
+          if (extraPeriods > 0) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFC7D2FE).withAlpha(60),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.trending_up_rounded,
+                      size: 15, color: Color(0xFF6366F1),),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      projectedEndDate == null
+                          ? '+$extraPeriods extra ${extraPeriods == 1 ? 'day' : 'days'} projected at the current pace'
+                          : '+$extraPeriods extra ${extraPeriods == 1 ? 'day' : 'days'} · projected finish ${DateFormat('d MMM yyyy').format(projectedEndDate!)}',
+                      style: AppTypography.caption
+                          .copyWith(color: const Color(0xFF4F46E5)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 14),
           _Legend(t: t),
         ],
@@ -175,6 +211,38 @@ class _HeatCell extends StatelessWidget {
                           size: 12,
                         )
                       : null,
+        ),
+      ),
+    );
+  }
+}
+
+/// A projected "extend term" tail day — not a real instalment yet, just how
+/// many extra periods the loan will need beyond its original schedule if it
+/// keeps paying at the normal rate. Matches web's dashed indigo cells.
+class _ExtraDayCell extends StatelessWidget {
+  const _ExtraDayCell({required this.size, required this.dayNumber});
+  final double size;
+  final int dayNumber;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'Extended day $dayNumber, projected',
+      child: Tooltip(
+        message: 'Extended day — projected, not yet scheduled',
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: const Color(0xFFC7D2FE).withAlpha(90),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(
+              color: const Color(0xFF6366F1),
+              width: 1,
+              style: BorderStyle.solid,
+            ),
+          ),
         ),
       ),
     );

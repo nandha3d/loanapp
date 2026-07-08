@@ -26,16 +26,19 @@ export async function GET(req: NextRequest) {
   const where: any = {
     tenantId: ctx.tenantId,
     appType: ctx.appType,
-    ...scopedBranchWhere(ctx),
     AND: [],
   };
-  
+
   if (customerId) where.customerId = customerId;
   if (status) where.status = status;
   if (frequency) where.frequency = frequency;
-  
+
   if (ctx.role === 'agent') {
+    // Agents scope by customer-linkage, NOT branch — a branch pin falsely hides
+    // their customers' loans with branchId = null or in another branch.
     where.AND.push({ customer: buildAgentCustomerAccessWhere({ userId: ctx.userId }) });
+  } else {
+    Object.assign(where, scopedBranchWhere(ctx));
   }
 
   if (q) {
@@ -218,19 +221,45 @@ export async function POST(req: NextRequest) {
       dueDay,
     });
 
-    // Note: Agents now disburse on-approval. We don't block them from creating the
-    // loan request if they have insufficient float, because the admin can release
-    // funds before approving the loan.
-    // (If the creator is an admin/superadmin, the loan is active immediately and
-    // disburses from the branch pool, which doesn't have a strict balance block here).
-
     const { calculateEndDate, generateCode } = await import('@/lib/utils');
+    let bypassLoanApproval = false;
+    let autoReleaseFloat = true;
+    if (ctx.role === 'agent') {
+       const agentUser = await prisma.user.findUnique({
+          where: { id: ctx.userId },
+          select: { bypassLoanApproval: true, autoReleaseFloat: true }
+       });
+       bypassLoanApproval = agentUser?.bypassLoanApproval === true;
+       autoReleaseFloat = agentUser?.autoReleaseFloat !== false;
+    } else {
+       // Non-agents (admin/superadmin/manager/...) keep their original
+       // privileges: loans go straight to active and float auto-releases. The
+       // agent permission toggles must NEVER gate non-agent users.
+       bypassLoanApproval = true;
+       autoReleaseFloat = true;
+    }
+    // Loan starts active when approval is bypassed, else waits for review.
+    // (This was referenced at create time but never declared — loan creation
+    // 500'd with "status is not defined" until now.)
+    const status = bypassLoanApproval ? 'active' : 'pending_review';
     const { getBranding } = await import('@/lib/tenant');
     const branding = await getBranding(ctx.tenantId);
     const count = await prisma.loan.count({
       where: { tenantId: ctx.tenantId, appType: ctx.appType },
     });
-    const loanCode = generateCode(branding.loanCodePrefix, count + 1, 5);
+    // Frequency-specific prefixes (DL/WL/BWL/ML); tenant prefix is the fallback
+    // for any other/legacy frequency value.
+    const FREQUENCY_PREFIX: Record<string, string> = {
+      daily: 'DL',
+      weekly: 'WL',
+      biweekly: 'BWL',
+      monthly: 'ML',
+    };
+    const loanCode = generateCode(
+      FREQUENCY_PREFIX[frequency] ?? branding.loanCodePrefix,
+      count + 1,
+      5,
+    );
     const endDate = calculateEndDate(startDate, frequency, tenure);
 
     let guarantorId: string | null = null;
@@ -290,7 +319,7 @@ export async function POST(req: NextRequest) {
         totalPayable: preview.totalPayable,
         totalInstalments: tenure,
         createdById: ctx.userId,
-        status: ctx.role === 'agent' ? 'pending_review' : 'active',
+        status,
         instalments: {
           create: preview.schedule.map((i: any) => ({
             instalmentNo: i.instalmentNo,
@@ -315,16 +344,180 @@ export async function POST(req: NextRequest) {
       newValue: { loanCode, principal, customerId },
     });
 
-    // Disburse cash from the float ledger. For agents, this now happens 
-    // ON APPROVAL in the review action. For admin/superadmin (loan goes straight
-    // to active), we draw from the branch cash pool here.
-    if (loan.status === 'active') {
+    // Gold/Silver pledge: persist the collateral header + ornament line items
+    // when the form sent a structured goldCollateral payload. Additive and
+    // best-effort — a gold failure must never roll back an already-created loan.
+    const goldInput: any = body.goldCollateral;
+    if (goldInput && typeof goldInput === 'object') {
+      try {
+        const { ornamentTotals, resolveOrnamentLine } = await import('@/lib/gold/ornaments');
+        const itemsInput: any[] = Array.isArray(goldInput.items) ? goldInput.items : [];
+        const totals = ornamentTotals(itemsInput);
+        await prisma.goldLoanCollateral.create({
+          data: {
+            tenantId: ctx.tenantId,
+            branchId: loan.branchId,
+            loanId: loan.id,
+            customerId,
+            packetNo: goldInput.packetNo ?? null,
+            ornamentDescription: goldInput.ornamentDescription ?? null,
+            grossWeightGrams: totals.totalGrossWeight,
+            netWeightGrams: totals.totalNetWeight,
+            purityKarat: String(goldInput.purityKarat ?? itemsInput[0]?.purityKarat ?? '22K'),
+            marketRatePerGram: goldInput.marketRatePerGram != null ? Number(goldInput.marketRatePerGram) : null,
+            assessedValue: totals.totalValue > 0
+              ? totals.totalValue
+              : (goldInput.assessedValue != null ? Number(goldInput.assessedValue) : null),
+            eligibleLtvPercent: goldInput.eligibleLtvPercent != null ? Number(goldInput.eligibleLtvPercent) : null,
+            storageLocation: goldInput.storageLocation ?? null,
+            valuerName: goldInput.valuerName ?? null,
+            valuationDate: goldInput.valuationDate ? new Date(goldInput.valuationDate) : null,
+            photoPath: goldInput.photoPath ?? null,
+            documentPath: goldInput.documentPath ?? null,
+            ...(itemsInput.length > 0
+              ? {
+                  items: {
+                    create: itemsInput.map((it: any, idx: number) => {
+                      const line = resolveOrnamentLine({
+                        quantity: Number(it.quantity),
+                        grossWeightGrams: Number(it.grossWeightGrams),
+                        wastageGrams: Number(it.wastageGrams),
+                        netWeightGrams: it.netWeightGrams != null ? Number(it.netWeightGrams) : undefined,
+                        ratePerGram: Number(it.ratePerGram),
+                      });
+                      return {
+                        tenantId: ctx.tenantId,
+                        ornamentType: String(it.ornamentType ?? ''),
+                        specification: it.specification ?? null,
+                        purityKarat: it.purityKarat ?? null,
+                        quantity: line.quantity,
+                        grossWeightGrams: line.grossWeightGrams,
+                        wastageGrams: line.wastageGrams,
+                        netWeightGrams: line.netWeightGrams,
+                        ratePerGram: line.ratePerGram,
+                        value: line.value,
+                        bankName: it.bankName ?? null,
+                        refNo: it.refNo ?? null,
+                        photoPath: it.photoPath ?? null,
+                        sortOrder: idx,
+                      };
+                    }),
+                  },
+                }
+              : {}),
+          },
+        });
+      } catch (e) {
+        console.error('[GOLD_COLLATERAL] persist failed for loan', loan.id, e);
+      }
+    }
+
+    // Property collateral (mortgage). Additive, best-effort.
+    const propertyInput: any = body.propertyCollateral;
+    if (propertyInput && typeof propertyInput === 'object') {
+      try {
+        await prisma.propertyCollateral.create({
+          data: {
+            tenantId: ctx.tenantId,
+            branchId: loan.branchId,
+            loanId: loan.id,
+            customerId,
+            propertyType: propertyInput.propertyType ?? null,
+            address: propertyInput.address ?? null,
+            surveyNo: propertyInput.surveyNo ?? null,
+            extentValue: propertyInput.extentValue != null ? Number(propertyInput.extentValue) : null,
+            extentUnit: propertyInput.extentUnit ?? null,
+            marketValue: propertyInput.marketValue != null ? Number(propertyInput.marketValue) : null,
+            eligibleLtvPercent: propertyInput.eligibleLtvPercent != null ? Number(propertyInput.eligibleLtvPercent) : null,
+            eligibleAmount: propertyInput.eligibleAmount != null ? Number(propertyInput.eligibleAmount) : null,
+            encumbranceStatus: propertyInput.encumbranceStatus ?? null,
+            registrationNo: propertyInput.registrationNo ?? null,
+            valuerName: propertyInput.valuerName ?? null,
+            valuationDate: propertyInput.valuationDate ? new Date(propertyInput.valuationDate) : null,
+            titleDeedPath: propertyInput.titleDeedPath ?? null,
+            ecPath: propertyInput.ecPath ?? null,
+            taxReceiptPath: propertyInput.taxReceiptPath ?? null,
+            photoPath: propertyInput.photoPath ?? null,
+          },
+        });
+      } catch (e) {
+        console.error('[PROPERTY_COLLATERAL] persist failed for loan', loan.id, e);
+      }
+    }
+
+    // Product-finance item. Additive, best-effort.
+    const productInput: any = body.productItem ?? body.productFinanceItem;
+    if (productInput && typeof productInput === 'object') {
+      try {
+        await prisma.productFinanceItem.create({
+          data: {
+            tenantId: ctx.tenantId,
+            branchId: loan.branchId,
+            loanId: loan.id,
+            customerId,
+            category: productInput.category ?? null,
+            productName: productInput.productName ?? null,
+            brand: productInput.brand ?? null,
+            modelNo: productInput.modelNo ?? null,
+            serialNo: productInput.serialNo ?? null,
+            dealerName: productInput.dealerName ?? null,
+            dealerId: productInput.dealerId ?? null,
+            invoiceNo: productInput.invoiceNo ?? null,
+            invoiceAmount: productInput.invoiceAmount != null ? Number(productInput.invoiceAmount) : null,
+            downPayment: productInput.downPayment != null ? Number(productInput.downPayment) : null,
+            financedAmount: productInput.financedAmount != null ? Number(productInput.financedAmount) : null,
+            tenureMonths: productInput.tenureMonths != null ? Number(productInput.tenureMonths) : null,
+            warrantyExpiry: productInput.warrantyExpiry ? new Date(productInput.warrantyExpiry) : null,
+            invoicePath: productInput.invoicePath ?? null,
+            photoPath: productInput.photoPath ?? null,
+          },
+        });
+      } catch (e) {
+        console.error('[PRODUCT_ITEM] persist failed for loan', loan.id, e);
+      }
+    }
+
+    if (status === 'pending_review') {
+      const { notifyApprovers } = await import('@/lib/notify/approvers');
+      const { modulePath } = await import('@/types/modules');
+      await notifyApprovers({
+        tenantId: ctx.tenantId,
+        branchId: loan.branchId,
+        appType: ctx.appType,
+        type: 'approval_pending',
+        icon: 'account_balance',
+        title: 'Loan awaiting approval',
+        message: `Loan ${loanCode} (${loan.customer?.name ?? 'customer'}) was submitted and needs review.`,
+        link: modulePath(ctx.appType, '/approvals'),
+      });
+    }
+
+    // Disburse cash from the float ledger. An agent physically hands the NET
+    // disbursed cash to the customer, so their float ALWAYS drops by that amount
+    // when the loan is active (not gated by autoReleaseFloat). Admin/superadmin
+    // loans draw from the branch cash pool. Note: `disbursedAmount` is already
+    // net of the upfront fee for upfront loans (= principal for EMI loans), so the
+    // upfront fee is never deducted from the float.
+    const shouldDisburse = loan.status === 'active' && (ctx.role === 'agent' || autoReleaseFloat);
+    if (shouldDisburse) {
       try {
         const disburseAmt = Number(preview.disbursedAmount);
-        if (loan.branchId) {
+        if (ctx.role === 'agent') {
+          await prisma.$transaction((tx) =>
+            disburseFromAgent(tx, {
+              tenantId: ctx.tenantId,
+              appType: ctx.appType,
+              agentId: ctx.userId,
+              amount: disburseAmt,
+              loanId: loan.id,
+              byUserId: ctx.userId,
+            }),
+          );
+        } else if (loan.branchId) {
           await prisma.$transaction((tx) =>
             disburseFromBranch(tx, {
               tenantId: ctx.tenantId,
+              appType: ctx.appType,
               branchId: loan.branchId!,
               amount: disburseAmt,
               loanId: loan.id,
@@ -333,7 +526,7 @@ export async function POST(req: NextRequest) {
           );
         }
       } catch (err) {
-        console.error('[wallet] branch disbursement debit failed:', err);
+        console.error('[wallet] disbursement debit failed:', err);
       }
     }
 
@@ -341,6 +534,7 @@ export async function POST(req: NextRequest) {
       await prisma.accountEntry.create({
         data: {
           tenantId: ctx.tenantId,
+          appType: ctx.appType,
           branchId: ctx.branchId || undefined,
           entryDate: startDate,
           type: 'loan_disburse',

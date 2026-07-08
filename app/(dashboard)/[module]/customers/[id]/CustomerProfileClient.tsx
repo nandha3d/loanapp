@@ -44,6 +44,7 @@ export default function CustomerProfileClient({
   dict,
   kycEnabled = false,
   tenantKycMethod = 'manual_upload',
+  loansEnabled = true,
 }: {
   customer: any;
   currencySymbol: string;
@@ -51,10 +52,11 @@ export default function CustomerProfileClient({
   dict: any;
   kycEnabled?: boolean;
   tenantKycMethod?: string;
+  loansEnabled?: boolean;
 }) {
   const router = useRouter();
   const d = dict.customerProfile;
-  const [activeTab, setActiveTab] = useState('loans');
+  const [activeTab, setActiveTab] = useState(loansEnabled ? 'loans' : 'kyc');
   const [editRequestModal, setEditRequestModal] = useState(false);
   const [editRequestLoading, setEditRequestLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
@@ -248,7 +250,28 @@ export default function CustomerProfileClient({
               </div>
             </div>
             <div className="profile-meta" style={{ display: 'flex', gap: '20px', fontSize: '.9rem', color: 'var(--text-secondary)' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span className="material-icons-outlined" style={{ fontSize: '16px' }}>phone</span> {customer.phone}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>phone</span> {customer.phone}
+                {customer.phone && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '2px', marginLeft: '4px' }}>
+                    <a href={`tel:${customer.phone}`} title="Call" style={{ display: 'flex', color: 'var(--success, #16a34a)' }}>
+                      <span className="material-icons-outlined" style={{ fontSize: '18px' }}>call</span>
+                    </a>
+                    <a href={`sms:${customer.phone}`} title="Message" style={{ display: 'flex', color: 'var(--info, #2563eb)' }}>
+                      <span className="material-icons-outlined" style={{ fontSize: '18px' }}>sms</span>
+                    </a>
+                    <a
+                      href={`https://wa.me/${String(customer.phone).replace(/\D/g, '').replace(/^(\d{10})$/, '91$1')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="WhatsApp"
+                      style={{ display: 'flex', color: '#25D366' }}
+                    >
+                      <span className="material-icons-outlined" style={{ fontSize: '18px' }}>chat</span>
+                    </a>
+                  </span>
+                )}
+              </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span className="material-icons-outlined" style={{ fontSize: '16px' }}>location_on</span> {customer.route?.name || d.noRoute}</span>
               <span><span className={getBadgeClass(customer.kycStatus)} style={{textTransform:'capitalize', padding: '2px 10px', borderRadius: '4px'}}>{customer.kycStatus}</span></span>
             </div>
@@ -277,7 +300,16 @@ export default function CustomerProfileClient({
                 <span className="material-icons-outlined" style={{ fontSize: '14px' }}>edit_note</span> {d.requestEdit}
               </button>
             )}
-            {userRole !== 'agent' && (
+            <a
+              href={`/api/customers/${customer.id}/collection-receipt`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-secondary btn-sm"
+            >
+              <span className="material-icons-outlined" style={{ fontSize: '14px' }}>receipt_long</span>
+              {d.collectionReceipt || 'Collection Receipt'}
+            </a>
+            {userRole !== 'agent' && loansEnabled && (
               <Link href={`/loans/new?customerId=${customer.id}`} className="btn btn-primary btn-sm">
                 <span className="material-icons-outlined" style={{ fontSize: '14px' }}>add</span> {d.newLoan}
               </Link>
@@ -308,7 +340,9 @@ export default function CustomerProfileClient({
       {/* Tabs */}
       <div className="card">
         <div className="tabs">
-          <div className={`tab ${activeTab === 'loans' ? 'active' : ''}`} onClick={() => setActiveTab('loans')}>{d.loanHistory}</div>
+          {loansEnabled && (
+            <div className={`tab ${activeTab === 'loans' ? 'active' : ''}`} onClick={() => setActiveTab('loans')}>{d.loanHistory}</div>
+          )}
           <div className={`tab ${activeTab === 'kyc' ? 'active' : ''}`} onClick={() => setActiveTab('kyc')}>{d.kycDocuments}</div>
           <div className={`tab ${activeTab === 'cheques' ? 'active' : ''}`} onClick={() => setActiveTab('cheques')}>{d.securityCheques}</div>
           <div className={`tab ${activeTab === 'guarantors' ? 'active' : ''}`} onClick={() => setActiveTab('guarantors')}>{d.guarantors}</div>

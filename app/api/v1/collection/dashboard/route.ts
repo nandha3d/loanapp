@@ -3,18 +3,33 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
 import { getAgentRouteIds } from '@/lib/access';
-import { COLLECTIBLE_LOAN_STATUSES } from '@/lib/collectionPolicy';
+import { COLLECTIBLE_LOAN_STATUSES, isCollectionDay } from '@/lib/collectionPolicy';
 import { getSetting } from '@/lib/tenant';
+import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
+import { startOfBusinessToday, startOfBusinessTomorrow } from '@/lib/businessTime';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
   const ctx = auth.context;
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  // Day window in the business timezone (IST), not the server's UTC midnight,
+  // so "today" matches the operator's calendar.
+  const today = startOfBusinessToday();
+  const tomorrow = startOfBusinessTomorrow();
+
+  // Superadmin/developer oversee the whole tenant (the web shows "All
+  // Branches/All Routes"), so they must NOT be pinned to their token's single
+  // home branch — that left their collection list empty whenever a loan lived
+  // in another branch. Agents are ALSO not branch-pinned: they're already scoped
+  // to their own customers via buildAgentCustomerAccessWhere (agentId / route
+  // assignment), so an extra branch filter only causes false exclusions —
+  // notably for loans created with branchId = null, or a customer's loan that
+  // lives in a different branch than the agent's home branch. Only branch admins
+  // stay branch-scoped.
+  const branchUnpinned =
+    ctx.role === 'superadmin' || ctx.role === 'developer' || ctx.role === 'agent';
+  const branchScope = !branchUnpinned && ctx.branchId ? { branchId: ctx.branchId } : {};
 
   try {
     let customerIds: string[];
@@ -23,7 +38,11 @@ export async function GET(req: NextRequest) {
     if (ctx.role === 'agent') {
       agentRouteIds = await getAgentRouteIds(ctx.userId);
       const customers = await prisma.customer.findMany({
-        where: { tenantId: ctx.tenantId, appType: ctx.appType, routeId: { in: agentRouteIds } },
+        where: {
+          tenantId: ctx.tenantId,
+          appType: ctx.appType,
+          ...buildAgentCustomerAccessWhere({ userId: ctx.userId }),
+        },
         select: { id: true },
       });
       customerIds = customers.map((customer) => customer.id);
@@ -32,7 +51,7 @@ export async function GET(req: NextRequest) {
         where: {
           tenantId: ctx.tenantId,
           appType: ctx.appType,
-          ...(ctx.branchId ? { branchId: ctx.branchId } : {}),
+          ...branchScope,
         },
         select: { id: true },
       });
@@ -44,7 +63,7 @@ export async function GET(req: NextRequest) {
       appType: ctx.appType,
       customerId: { in: customerIds },
       status: { in: [...COLLECTIBLE_LOAN_STATUSES] },
-      ...(ctx.branchId ? { branchId: ctx.branchId } : {}),
+      ...branchScope,
     };
 
     const includeLoan = {
@@ -58,7 +77,7 @@ export async function GET(req: NextRequest) {
       },
     };
 
-    const [todayInstalments, overdueInstalments, agentRoutes] = await Promise.all([
+    const [todayDueInstalments, overdueInstalments, paidTodayInstalments, agentRoutes] = await Promise.all([
       prisma.instalment.findMany({
         where: {
           loan: baseLoanWhere,
@@ -71,7 +90,23 @@ export async function GET(req: NextRequest) {
         where: {
           loan: baseLoanWhere,
           dueDate: { lt: today },
-          status: { in: ['upcoming', 'missed', 'partial'] },
+          // Any past-due instalment that isn't fully settled. A status
+          // whitelist used to omit 'pending' rows (the default before the
+          // missed-marking cron runs), so overdue dues silently disappeared.
+          NOT: { status: 'paid' },
+        },
+        include: includeLoan,
+        orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
+      }),
+      // Past-due instalments that were CLEARED today. Without this, a customer
+      // whose overdue was fully settled today vanishes from the agent's list
+      // (it's no longer "due" and no longer "overdue"). Keep them visible —
+      // grayed-out — so the day's work is auditable at a glance.
+      prisma.instalment.findMany({
+        where: {
+          loan: baseLoanWhere,
+          dueDate: { lt: today },
+          receivedAt: { gte: today, lt: tomorrow },
         },
         include: includeLoan,
         orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
@@ -81,7 +116,7 @@ export async function GET(req: NextRequest) {
           tenantId: ctx.tenantId,
           appType: ctx.appType,
           status: 'active',
-          ...(ctx.branchId ? { branchId: ctx.branchId } : {}),
+          ...branchScope,
           ...(ctx.role === 'agent' && agentRouteIds.length > 0
             ? { id: { in: agentRouteIds } }
             : ctx.role !== 'agent' ? {} : { id: { in: [] } }),
@@ -106,9 +141,26 @@ export async function GET(req: NextRequest) {
     const receiptPdfEnabled = isReceiptPdfAllowed && isReceiptPdfActive;
     const gpsTrackingEnabled = sub?.gpsTrackingEnabled || false;
 
+    // Frequency-aware worklist: a non-daily loan's overdue backlog only surfaces
+    // on its cadence day (weekly → its weekday, monthly → its day-of-month), so
+    // the agent isn't told to chase weekly/monthly customers every single day.
+    // Daily loans are unaffected. Today's dues and today's collections always show.
+    const overdueVisible = overdueInstalments.filter((i) =>
+      isCollectionDay(i.loan.frequency, i.dueDate, today),
+    );
+
+    // Merge today's dues with past-due-cleared-today. Dedupe by id (a partial
+    // paid today can appear in both the overdue and paid-today queries; the
+    // client also de-dupes, but keep the payload clean).
+    const seen = new Set(todayDueInstalments.map((i) => i.id));
+    const todayInstalments = [
+      ...todayDueInstalments,
+      ...paidTodayInstalments.filter((i) => !seen.has(i.id)),
+    ];
+
     return ok({
       todayInstalments,
-      overdueInstalments,
+      overdueInstalments: overdueVisible,
       routes: agentRoutes,
       dailyCollection: dailyCollectionRaw ? {
         id: dailyCollectionRaw.id,

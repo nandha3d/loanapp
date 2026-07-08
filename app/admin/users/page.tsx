@@ -85,6 +85,7 @@ export default async function AdminUsersPage() {
         name: superadmin.name,
         username: superadmin.username,
         phone: superadmin.phone,
+        email: superadmin.email,
         status: superadmin.status,
         subscription: saSubscription,
         branches: ownedBranches.map((branch) => ({

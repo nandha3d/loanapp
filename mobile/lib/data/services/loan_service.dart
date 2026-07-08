@@ -11,7 +11,10 @@ class LoanService {
   LoanService(this._dio);
   final Dio _dio;
 
-  Future<List<Map<String, dynamic>>> list({String? customerId, String? status}) async {
+  Future<List<Map<String, dynamic>>> list({
+    String? customerId,
+    String? status,
+  }) async {
     // The API is cursor-paginated (default 20, max 100 per page). Follow the
     // cursor and accumulate every page so the list shows ALL loans — previously
     // only the first 20 ever loaded, which is why the mobile list looked short
@@ -114,6 +117,9 @@ class LoanService {
     int? dueDay,
     Map<String, dynamic>? guarantor,
     List<Map<String, dynamic>>? securityCheques,
+    Map<String, dynamic>? goldCollateral,
+    Map<String, dynamic>? propertyCollateral,
+    Map<String, dynamic>? productItem,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.loans,
@@ -132,6 +138,10 @@ class LoanService {
         if (dueDay != null) 'dueDay': dueDay,
         if (guarantor != null) 'guarantor': guarantor,
         if (securityCheques != null) 'securityCheques': securityCheques,
+        if (goldCollateral != null) 'goldCollateral': goldCollateral,
+        if (propertyCollateral != null)
+          'propertyCollateral': propertyCollateral,
+        if (productItem != null) 'productItem': productItem,
       },
     );
     return unwrapEnvelope(
@@ -140,7 +150,11 @@ class LoanService {
     );
   }
 
-  Future<void> performAction(String id, String action, {Map<String, dynamic>? data}) async {
+  Future<void> performAction(
+    String id,
+    String action, {
+    Map<String, dynamic>? data,
+  }) async {
     final res = await _dio.post<Map<String, dynamic>>(
       '${Endpoints.loans}/$id/$action',
       data: data,
@@ -153,7 +167,7 @@ class LoanService {
       '${Endpoints.loans}/$loanId/statement',
       options: Options(responseType: ResponseType.bytes),
     );
-    return res.data ?? const <int>[];
+    return unwrapPdfBytes(res);
   }
 }
 

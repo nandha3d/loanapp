@@ -4,6 +4,7 @@ import { useState, useEffect, Fragment } from 'react';
 import { submitBorrowerRepayment } from './actions';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import PasswordInput from '@/components/ui/PasswordInput';
 
 interface BorrowerDashboardClientProps {
   loans: any[];
@@ -1935,8 +1936,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                           </div>
                           <div className="form-group" style={{ margin: 0 }}>
                             <label className="form-label" style={{ fontSize: '0.75rem' }}>CVV</label>
-                            <input
-                              type="password"
+                            <PasswordInput
                               className="form-control"
                               maxLength={3}
                               placeholder="***"

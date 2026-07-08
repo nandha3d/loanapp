@@ -197,7 +197,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     }),
     // Capital KPI
     prisma.accountEntry.findMany({
-      where: { tenantId, ...(branchId ? { branchId } : {}) },
+      where: { tenantId, appType, ...(branchId ? { branchId } : {}) },
       select: { type: true, amount: true },
     }),
     // Feature 6 & 8: Today's collection entries for cash/UPI split + route-wise.
@@ -363,6 +363,15 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     });
   }
 
+  // Total Disbursed KPI = GROSS loan book (principal), not the net cash that left
+  // (principal − upfront fee). The `loan_disburse` AccountEntry stays net for the
+  // capital balance; this is a separate, gross figure for the headline KPI.
+  const grossDisbursedAgg = await prisma.loan.aggregate({
+    where: loanWhere,
+    _sum: { principal: true },
+  });
+  const grossDisbursed = Number(grossDisbursedAgg._sum.principal || 0);
+
   return {
     totalCustomers,
     recentLoans,
@@ -410,9 +419,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     bestPayer,
     pendingUpiCollections,
     pendingCashCollections,
-    totalDisbursed: accountEntries
-      .filter((e) => e.type === 'loan_disburse')
-      .reduce((sum, e) => sum + Number(e.amount), 0),
+    totalDisbursed: grossDisbursed,
     totalCollectedAllTime: accountEntries
       .filter((e) => e.type === 'collection')
       .reduce((sum, e) => sum + Number(e.amount), 0),
@@ -757,8 +764,6 @@ export default async function DashboardPage() {
 
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
-
-  if (appType === 'chitfunds') redirect('/chits');
 
   const branding = await getBranding(tenantId);
   const dict = await getDictionary(tenantId);
@@ -1179,7 +1184,11 @@ export default async function DashboardPage() {
   const remainingPct = 100 - collectedPct;
   const overduePct = data.overdueTotalTillToday > 0 ? Math.min(100, Math.round((data.overdueCollectedToday / data.overdueTotalTillToday) * 100)) : 0;
   const overdueRemainingPct = 100 - overduePct;
-  const totalSplit = data.todayCollected;
+  // Total for the split = the sum of what each payment mode actually collected
+  // today (today's dues + overdue recovery). Using today's-dues-only here made
+  // the % overshoot (e.g. cash 14000 / 450 = 3111%); the denominator must be the
+  // same population as the bars it scales.
+  const totalSplit = Object.values(data.todayByMode).reduce((s: number, a) => s + Number(a || 0), 0);
   const modeConfig: Record<string, { label: string; icon: string; color: string; bg: string }> = {
     cash:   { label: 'Cash',   icon: 'payments',        color: '#16a34a', bg: '#f0fdf4' },
     upi:    { label: 'UPI',    icon: 'qr_code_scanner', color: '#7c3aed', bg: '#f5f3ff' },

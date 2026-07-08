@@ -5,10 +5,99 @@ import 'package:loantrack/data/models/user.dart';
 
 import 'package:loantrack/core/auth/auth_controller.dart';
 import 'package:loantrack/core/l10n/language_controller.dart';
+import 'package:loantrack/core/network/dio_client.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/shared/widgets/app_button.dart';
+import 'package:loantrack/shared/constants/endpoints.dart';
+
+/// Verticals the tenant subscribed to — served by /api/v1/auth/me, mirrors
+/// the web /portal module cards.
+final _verticalsProvider =
+    FutureProvider.autoDispose<List<String>>((ref) async {
+  final dio = ref.watch(dioProvider);
+  final res = await dio.get<Map<String, dynamic>>(Endpoints.me);
+  final data = res.data?['data'] as Map<String, dynamic>?;
+  return (data?['verticals'] as List<dynamic>? ?? const [])
+      .whereType<String>()
+      .toList(growable: false);
+});
+
+class _VerticalDef {
+  const _VerticalDef(
+    this.key,
+    this.title,
+    this.description,
+    this.icon,
+    this.color,
+    this.bg,
+    this.route,
+  );
+  final String key;
+  final String title;
+  final String description;
+  final IconData icon;
+  final Color color;
+  final Color bg;
+  final String route;
+}
+
+const _verticalDefs = <_VerticalDef>[
+  _VerticalDef(
+    AppType.microlending,
+    'Micro Lending',
+    'Manage micro-loans, collections, penalties, and customer portfolios.',
+    Icons.monetization_on_outlined,
+    AppColors.success,
+    AppColors.successBg,
+    '/dashboard',
+  ),
+  _VerticalDef(
+    AppType.autofinance,
+    'Auto Finance',
+    'Vehicle financing, EMI management, and auto loan tracking.',
+    Icons.directions_car_outlined,
+    AppColors.info,
+    AppColors.infoBg,
+    '/vehicles',
+  ),
+  _VerticalDef(
+    AppType.chitfunds,
+    'Chit Funds',
+    'Chit fund management, auctions, and member tracking.',
+    Icons.savings_outlined,
+    AppColors.purpleText,
+    AppColors.purpleBg,
+    '/chits',
+  ),
+  _VerticalDef(
+    AppType.goldloan,
+    'Gold Loan',
+    'Gold-backed lending, valuation, LTV, pledges, and release tracking.',
+    Icons.workspace_premium_outlined,
+    AppColors.warning,
+    AppColors.warningBg,
+    '/dashboard',
+  ),
+  _VerticalDef(
+    AppType.property,
+    'Property Loan',
+    'Property-backed origination, valuations, and document-led lending.',
+    Icons.home_work_outlined,
+    AppColors.defaultPrimary,
+    AppColors.defaultPrimaryLight,
+    '/dashboard',
+  ),
+  _VerticalDef(
+    AppType.productfinance,
+    'Product Finance',
+    'Consumer durable finance with dealer, invoice, and down-payment capture.',
+    Icons.shopping_bag_outlined,
+    AppColors.info,
+    AppColors.infoBg,
+    '/dashboard',
+  ),
+];
 
 class PortalScreen extends ConsumerWidget {
   const PortalScreen({super.key});
@@ -17,6 +106,11 @@ class PortalScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authControllerProvider).user;
     final t = T.of(ref);
+    final verticalsAsync = ref.watch(_verticalsProvider);
+
+    final isAdminish = user?.role == UserRole.superadmin ||
+        user?.role == UserRole.admin ||
+        user?.role == UserRole.developer;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -50,7 +144,7 @@ class PortalScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    user?.name ?? '—',
+                    'Welcome, ${user?.name ?? '—'}',
                     style: AppTypography.nameLg.copyWith(color: Colors.white),
                   ),
                   const SizedBox(height: 4),
@@ -59,110 +153,215 @@ class PortalScreen extends ConsumerWidget {
                     style:
                         AppTypography.caption.copyWith(color: Colors.white70),
                   ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withAlpha(20),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.info_outline,
-                          color: AppColors.primary,
-                          size: 18,
+                  if (user?.role == UserRole.superadmin ||
+                      user?.role == UserRole.admin) ...[
+                    const SizedBox(height: 14),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          padding: EdgeInsets.zero,
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Active App Scope: ${user?.appType.toUpperCase()}',
-                            style: AppTypography.caption
-                                .copyWith(color: Colors.white),
-                          ),
-                        ),
-                      ],
+                        icon: const Icon(Icons.account_circle_outlined),
+                        label: const Text('View profile'),
+                        onPressed: () => context.push('/profile'),
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
             const SizedBox(height: 24),
 
-            // Modules Header
-            Text(
-              t.x('portal.modules'),
-              style: AppTypography.sectionTitle,
-            ),
+            // Module (vertical) cards — same set the tenant subscribed to.
+            Text(t.x('portal.modules'), style: AppTypography.sectionTitle),
             const SizedBox(height: 12),
-
-            // Microlending Module Card
-            _ModuleCard(
-              title: 'Micro-Lending Platform',
-              description:
-                  'Manage daily loan allocations, field collections, cash handovers, and routing.',
-              icon: Icons.monetization_on_outlined,
-              iconColor: AppColors.success,
-              iconBg: AppColors.successBg,
-              onTap: () {
-                context.go('/dashboard');
-              },
+            ...verticalsAsync.when(
+              loading: () => const [
+                Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              ],
+              error: (_, __) => _verticalCards(
+                context,
+                ref,
+                [user?.appType ?? AppType.microlending],
+              ),
+              data: (verticals) => _verticalCards(
+                context,
+                ref,
+                verticals.isEmpty
+                    ? [user?.appType ?? AppType.microlending]
+                    : verticals,
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
 
-            // Chit Funds Module Card (Visible if chit module enabled or superadmin/admin)
-            if (user?.role != UserRole.agent ||
-                (user?.hasModule('chits') ?? false)) ...[
-              _ModuleCard(
-                title: 'Chit Funds Suite',
-                description:
-                    'Organize chit groups, subscriber allocations, and process bidding auctions.',
-                icon: Icons.account_balance_wallet_outlined,
-                iconColor: AppColors.info,
-                iconBg: AppColors.infoBg,
-                onTap: () {
-                  context.go('/chits');
-                },
+            // Quick Access (non-agents) — mirrors web portal.
+            if (isAdminish) ...[
+              Text('Quick Access', style: AppTypography.sectionTitle),
+              const SizedBox(height: 12),
+              _quickTile(
+                context,
+                Icons.payments_outlined,
+                AppColors.success,
+                'My Collections',
+                'View and manage collections',
+                '/collection',
+              ),
+              const SizedBox(height: 10),
+              _quickTile(
+                context,
+                Icons.people_outline,
+                AppColors.info,
+                'My Customers',
+                'View assigned customers',
+                '/customers',
+              ),
+              const SizedBox(height: 10),
+              _quickTile(
+                context,
+                Icons.account_balance_wallet_outlined,
+                AppColors.primary,
+                'My Loans',
+                'View loan details',
+                '/loans',
+              ),
+              const SizedBox(height: 10),
+              _quickTile(
+                context,
+                Icons.dashboard_outlined,
+                AppColors.purpleText,
+                'My Dashboard',
+                'View stats and overview',
+                '/dashboard',
               ),
               const SizedBox(height: 24),
             ],
 
-            // Branch Context (management is available to superadmins only)
+            // System Administration (superadmin / developer).
             if (user?.role == UserRole.superadmin ||
-                user?.role == UserRole.admin) ...[
-              Text(
-                'Branch Locations',
-                style: AppTypography.sectionTitle,
-              ),
+                user?.role == UserRole.developer) ...[
+              Text('System Administration', style: AppTypography.sectionTitle),
               const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(AppTokens.radius),
-                  boxShadow: AppTokens.shadow,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Currently viewing data for Branch ID: ${user?.branchId ?? 'Head Office'}',
-                      style: AppTypography.bodyLarge,
-                    ),
-                    if (user?.role == UserRole.superadmin) ...[
-                      const SizedBox(height: 12),
-                      AppButton(
-                        label: 'Manage Branches',
-                        onPressed: () {
-                          context.go('/admin/branches');
-                        },
-                      ),
-                    ],
-                  ],
-                ),
+              _quickTile(
+                context,
+                Icons.manage_accounts_outlined,
+                AppColors.warning,
+                'User Management',
+                'Manage team roles and access',
+                user?.role == UserRole.developer
+                    ? '/admin/users'
+                    : '/admin/team',
+              ),
+              const SizedBox(height: 10),
+              _quickTile(
+                context,
+                Icons.store_mall_directory_outlined,
+                AppColors.info,
+                'Branch Management',
+                'Branches and module access',
+                '/admin/branches',
+              ),
+              const SizedBox(height: 10),
+              _quickTile(
+                context,
+                Icons.receipt_long_outlined,
+                AppColors.purpleText,
+                'My Subscription',
+                'View plan details and usage',
+                user?.role == UserRole.developer
+                    ? '/admin/billing'
+                    : '/portal/billing',
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _verticalCards(
+    BuildContext context,
+    WidgetRef ref,
+    List<String> enabled,
+  ) {
+    final cards = <Widget>[];
+    final normalized = enabled.map(AppType.normalize).toSet();
+    for (final def in _verticalDefs) {
+      if (!normalized.contains(def.key)) continue;
+      if (cards.isNotEmpty) cards.add(const SizedBox(height: 12));
+      cards.add(
+        _ModuleCard(
+          title: def.title,
+          description: def.description,
+          icon: def.icon,
+          iconColor: def.color,
+          iconBg: def.bg,
+          onTap: () async {
+            await ref
+                .read(authControllerProvider.notifier)
+                .setActiveAppType(def.key);
+            if (context.mounted) context.go(def.route);
+          },
+        ),
+      );
+    }
+    if (cards.isEmpty) {
+      cards.add(
+        _ModuleCard(
+          title: 'Micro Lending',
+          description:
+              'Manage micro-loans, collections, penalties, and customer portfolios.',
+          icon: Icons.monetization_on_outlined,
+          iconColor: AppColors.success,
+          iconBg: AppColors.successBg,
+          onTap: () => context.go('/dashboard'),
+        ),
+      );
+    }
+    return cards;
+  }
+
+  Widget _quickTile(
+    BuildContext context,
+    IconData icon,
+    Color color,
+    String title,
+    String subtitle,
+    String route,
+  ) {
+    return InkWell(
+      onTap: () => context.go(route),
+      borderRadius: BorderRadius.circular(AppTokens.radius),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppTokens.radius),
+          border: Border.all(color: AppColors.border),
+          boxShadow: AppTokens.shadow,
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: AppTypography.bodyLarge
+                        .copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  Text(subtitle, style: AppTypography.caption),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: AppColors.textLight),
           ],
         ),
       ),
@@ -222,10 +421,7 @@ class _ModuleCard extends StatelessWidget {
                     style: AppTypography.sectionTitle.copyWith(fontSize: 16),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    description,
-                    style: AppTypography.caption,
-                  ),
+                  Text(description, style: AppTypography.caption),
                 ],
               ),
             ),

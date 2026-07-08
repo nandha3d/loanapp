@@ -10,6 +10,7 @@ class ChitGroup {
     required this.startDate,
     required this.memberCount,
     required this.auctionCount,
+    required this.commissionPct,
   });
 
   final String id;
@@ -22,6 +23,7 @@ class ChitGroup {
   final DateTime startDate;
   final int memberCount;
   final int auctionCount;
+  final double commissionPct;
 
   factory ChitGroup.fromJson(Map<String, dynamic> json) {
     double n(dynamic v) =>
@@ -38,6 +40,48 @@ class ChitGroup {
       startDate: DateTime.parse(json['startDate'] as String),
       memberCount: (counts['members'] as num?)?.toInt() ?? 0,
       auctionCount: (counts['auctions'] as num?)?.toInt() ?? 0,
+      commissionPct: n(json['commissionPct']),
+    );
+  }
+}
+
+class ChitSubscription {
+  const ChitSubscription({
+    required this.id,
+    required this.periodNumber,
+    required this.dueDate,
+    required this.dueAmount,
+    required this.paidAmount,
+    required this.status,
+    required this.memberId,
+    required this.memberName,
+  });
+
+  final String id;
+  final int periodNumber;
+  final DateTime dueDate;
+  final double dueAmount;
+  final double paidAmount;
+  final String status;
+  final String memberId;
+  final String memberName;
+
+  double get outstanding => (dueAmount - paidAmount).clamp(0, double.infinity);
+
+  factory ChitSubscription.fromJson(Map<String, dynamic> json) {
+    double n(dynamic v) =>
+        v == null ? 0 : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
+    final member = json['member'] as Map<String, dynamic>?;
+    final customer = member?['customer'] as Map<String, dynamic>?;
+    return ChitSubscription(
+      id: json['id'] as String,
+      periodNumber: (json['periodNumber'] as num).toInt(),
+      dueDate: DateTime.parse(json['dueDate'] as String),
+      dueAmount: n(json['dueAmount']),
+      paidAmount: n(json['paidAmount']),
+      status: (json['status'] as String?) ?? 'pending',
+      memberId: (member?['id'] as String?) ?? '',
+      memberName: (customer?['name'] as String?) ?? '—',
     );
   }
 }

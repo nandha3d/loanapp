@@ -25,8 +25,17 @@ export type RunActor = {
 
 function startOfDay(value?: string | Date | null): Date {
   const d = value ? new Date(value) : new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
+  if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0) {
+    const yyyy = d.getUTCFullYear();
+    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(d.getUTCDate()).padStart(2, '0');
+    return new Date(`${yyyy}-${mm}-${dd}T00:00:00.000Z`);
+  } else {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return new Date(`${yyyy}-${mm}-${dd}T00:00:00.000Z`);
+  }
 }
 
 /** Digital line (UPI) lands in the bank, not the agent's cash float. */
@@ -386,6 +395,7 @@ export async function reconcileRun(
   if (cashDeposited > 0 && run.branchId) {
     await depositToOffice({
       tenantId: actor.tenantId,
+      appType: actor.appType,
       agentId: run.agentId,
       branchId: run.branchId,
       amount: cashDeposited,

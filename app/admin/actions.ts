@@ -9,14 +9,27 @@ import { checkLimit, normalizeEnabledModules, assertTenantSubscriptionAccess } f
 import { normalizeModuleList, type ModuleKey } from '@/types/modules';
 import { findUserUniqueConflicts } from '@/lib/userUniqueness';
 
-export async function manageMasterUser(formData: FormData) {
+// The mobile v1 API authenticates with a Bearer token (no NextAuth cookie),
+// so `auth()` is empty there. Routes that reuse these actions pass the
+// verified mobile context as an explicit actor instead.
+export type ActionActor = { id: string; role: string; tenantId: string };
+
+async function resolveActionActor(override?: ActionActor): Promise<ActionActor | null> {
+  if (override) return override;
   const session = await auth();
-  const userRole = (session?.user as any)?.role;
-  const actorTenantId = (session?.user as any)?.tenantId;
-  
-  if (userRole !== 'superadmin' && userRole !== 'developer') {
+  const u = session?.user as any;
+  if (!u?.id) return null;
+  return { id: u.id, role: u.role, tenantId: u.tenantId };
+}
+
+export async function manageMasterUser(formData: FormData, actorOverride?: ActionActor) {
+  const actor = await resolveActionActor(actorOverride);
+  if (!actor || (actor.role !== 'superadmin' && actor.role !== 'developer')) {
     return { success: false, error: 'Unauthorized. Super Admin or Developer only.' };
   }
+  const userRole = actor.role;
+  const actorTenantId = actor.tenantId;
+  const actorUserId = actor.id;
 
   const id = formData.get('id') as string | null;
   const role = formData.get('role') as string;
@@ -48,9 +61,11 @@ export async function manageMasterUser(formData: FormData) {
       return { success: false, error: err.message };
     }
   }
+
   const name = formData.get('name') as string;
-  const username = formData.get('username') as string;
   const phone = formData.get('phone') as string;
+  const username = ((formData.get('username') as string) || phone).trim().toLowerCase();
+  const email = ((formData.get('email') as string) || '').trim().toLowerCase() || null;
   const password = formData.get('password') as string;
   const requestedAppType = formData.get('appType') as string;
   // For superadmins: branchId is ignored; branchIds[] is the multi-select
@@ -62,6 +77,20 @@ export async function manageMasterUser(formData: FormData) {
   const userModuleList = normalizeModuleList(formData.getAll('userModules'));
   const appType = requestedAppType || adminModules[0] || userModuleList[0] || 'microlending';
 
+  // New optional details & permission switches
+  const aadharNumber = formData.get('aadharNumber') as string | null || null;
+  const dobRaw = formData.get('dob') as string | null;
+  const dob = dobRaw ? new Date(dobRaw) : null;
+  const experience = formData.get('experience') as string | null || null;
+  const ageRaw = formData.get('age') as string | null;
+  const age = ageRaw ? parseInt(ageRaw, 10) : null;
+
+  const bypassLoanApproval = formData.get('bypassLoanApproval') === 'true' || formData.get('bypassLoanApproval') === 'on';
+  const bypassCustomerApproval = formData.get('bypassCustomerApproval') === 'true' || formData.get('bypassCustomerApproval') === 'on';
+  const bypassVehicleApproval = formData.get('bypassVehicleApproval') === 'true' || formData.get('bypassVehicleApproval') === 'on';
+  const autoReleaseFloat = formData.get('autoReleaseFloat') === 'true' || formData.get('autoReleaseFloat') === 'on';
+  const feeConfirmationMandatory = formData.get('feeConfirmationMandatory') === 'true' || formData.get('feeConfirmationMandatory') === 'on';
+
   if (!name || !username || !phone || !role || !appType) {
     return { success: false, error: 'Missing required fields' };
   }
@@ -69,7 +98,7 @@ export async function manageMasterUser(formData: FormData) {
   if (userRole === 'superadmin') {
     if (branchId) {
       const branch = await prisma.branch.findFirst({
-        where: { id: branchId, superadminId: session?.user?.id }
+        where: { id: branchId, superadminId: actorUserId }
       });
       if (!branch) {
         return { success: false, error: 'Unauthorized: You do not own the target branch.' };
@@ -84,13 +113,13 @@ export async function manageMasterUser(formData: FormData) {
         where: { id, tenantId }
       });
       if (!targetUser) return { success: false, error: 'User not found' };
-      if (targetUser.id !== session?.user?.id) {
+      if (targetUser.id !== actorUserId) {
         if (targetUser.role === 'superadmin') {
           return { success: false, error: 'Unauthorized: Cannot modify other superadmins.' };
         }
         if (targetUser.branchId) {
           const branch = await prisma.branch.findFirst({
-            where: { id: targetUser.branchId, superadminId: session?.user?.id }
+            where: { id: targetUser.branchId, superadminId: actorUserId }
           });
           if (!branch) {
             return { success: false, error: 'Unauthorized: Target user belongs to a branch you do not own.' };
@@ -105,10 +134,10 @@ export async function manageMasterUser(formData: FormData) {
     return { success: false, error: 'Only a developer can manage developer accounts.' };
   }
 
-  const conflicts = await findUserUniqueConflicts({ username, phone }, id);
+  const conflicts = await findUserUniqueConflicts({ username, phone, email: email || undefined }, id);
   if (conflicts.length > 0) return { success: false, error: conflicts[0].message };
 
-  const actorId = (session?.user as any)?.id;
+  const actorId = actorUserId;
   const subscription = await prisma.tenantSubscription.findUnique({
     where: { tenantId },
     select: { enabledModules: true },
@@ -143,10 +172,20 @@ export async function manageMasterUser(formData: FormData) {
       name,
       username,
       phone,
+      email,
       role,
       appType,
       branchId,
       status,
+      aadharNumber,
+      dob,
+      experience,
+      age,
+      bypassLoanApproval,
+      bypassCustomerApproval,
+      bypassVehicleApproval,
+      autoReleaseFloat,
+      feeConfirmationMandatory,
     };
     if (password) {
       updateData.passwordHash = await bcrypt.hash(password, 10);
@@ -185,13 +224,24 @@ export async function manageMasterUser(formData: FormData) {
           name,
           username,
           phone,
+          email,
           passwordHash: await bcrypt.hash(password, 10),
           role,
           appType,
           branchId,
-          status
+          status,
+          aadharNumber,
+          dob,
+          experience,
+          age,
+          bypassLoanApproval,
+          bypassCustomerApproval,
+          bypassVehicleApproval,
+          autoReleaseFloat,
+          feeConfirmationMandatory,
         }
       });
+      savedUserId = savedUser.id;
     } catch (err: any) {
       if (err.code === 'P2002') {
         // Prisma's meta.target is a string (MySQL index name) — NOT an array as
@@ -589,13 +639,21 @@ export async function assignAdminModules(data: {
   return { success: true };
 }
 
-export async function toggleUserStatus(userId: string, newStatus: string) {
-  const session = await auth();
-  const role = (session?.user as any)?.role;
-  const actorId = (session?.user as any)?.id;
+export async function toggleUserStatus(userId: string, newStatus: string, actorOverride?: ActionActor) {
+  const actor = await resolveActionActor(actorOverride);
+  const role = actor?.role;
+  const actorId = actor?.id;
   if (role !== 'superadmin' && role !== 'developer') return { success: false };
 
-  const tenantId = await getDefaultTenantId();
+  // Scope: non-developers may only toggle users inside their own tenant.
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { tenantId: true },
+  });
+  if (!target) return { success: false };
+  if (role !== 'developer' && target.tenantId !== actor?.tenantId) {
+    return { success: false };
+  }
 
   await prisma.user.update({
     where: { id: userId },
@@ -604,7 +662,7 @@ export async function toggleUserStatus(userId: string, newStatus: string) {
 
   await prisma.auditLog.create({
     data: {
-      tenantId,
+      tenantId: target.tenantId,
       userId: actorId,
       action: 'update',
       entityType: 'user',
@@ -621,23 +679,38 @@ export async function toggleUserStatus(userId: string, newStatus: string) {
 // Lets a branch admin / superadmin manage AGENTS within ONE branch + ONE module
 // only. Narrower than manageMasterUser (which is superadmin/dev-only and handles
 // tenant/superadmin creation). Portal /admin/users stays the master editor.
-export async function manageBranchAgent(formData: FormData) {
-  const session = await auth();
-  const user = session?.user as any;
-  const role = user?.role;
-  const actorId = user?.id;
+export async function manageBranchAgent(formData: FormData, actorOverride?: ActionActor) {
+  const actor = await resolveActionActor(actorOverride);
+  const role = actor?.role;
+  const actorId = actor?.id;
   if (role !== 'admin' && role !== 'superadmin' && role !== 'developer') {
     return { success: false, error: 'Unauthorized.' };
   }
-  const tenantId = await getDefaultTenantId();
+  // Mobile actor carries its tenant; web resolves from session/host.
+  const tenantId = actorOverride ? actorOverride.tenantId : await getDefaultTenantId();
 
   const id = (formData.get('id') as string) || null;
   const name = ((formData.get('name') as string) || '').trim();
-  const username = ((formData.get('username') as string) || '').trim().toLowerCase();
   const phone = ((formData.get('phone') as string) || '').trim();
+  const username = ((formData.get('username') as string) || phone).trim().toLowerCase();
+  const email = ((formData.get('email') as string) || '').trim().toLowerCase() || null;
   const password = (formData.get('password') as string) || '';
   const status = (formData.get('status') as string) === 'inactive' ? 'inactive' : 'active';
   const appType = (formData.get('appType') as string) || 'microlending';
+
+  // New optional details & permission switches
+  const aadharNumber = formData.get('aadharNumber') as string | null || null;
+  const dobRaw = formData.get('dob') as string | null;
+  const dob = dobRaw ? new Date(dobRaw) : null;
+  const experience = formData.get('experience') as string | null || null;
+  const ageRaw = formData.get('age') as string | null;
+  const age = ageRaw ? parseInt(ageRaw, 10) : null;
+
+  const bypassLoanApproval = formData.get('bypassLoanApproval') === 'true' || formData.get('bypassLoanApproval') === 'on';
+  const bypassCustomerApproval = formData.get('bypassCustomerApproval') === 'true' || formData.get('bypassCustomerApproval') === 'on';
+  const bypassVehicleApproval = formData.get('bypassVehicleApproval') === 'true' || formData.get('bypassVehicleApproval') === 'on';
+  const autoReleaseFloat = formData.get('autoReleaseFloat') === 'true' || formData.get('autoReleaseFloat') === 'on';
+  const feeConfirmationMandatory = formData.get('feeConfirmationMandatory') === 'true' || formData.get('feeConfirmationMandatory') === 'on';
 
   if (!name || !username || !phone) {
     return { success: false, error: 'Name, username and phone are required.' };
@@ -676,9 +749,10 @@ export async function manageBranchAgent(formData: FormData) {
     return { success: false, error: `Module "${appType}" is not enabled for this branch.` };
   }
 
-  const conflicts = await findUserUniqueConflicts({ username, phone }, id);
+  const conflicts = await findUserUniqueConflicts({ username, phone, email: email || undefined }, id);
   if (conflicts.length > 0) return { success: false, error: conflicts[0].message };
 
+  let savedUserId = id;
   if (id) {
     // Edit — target must be an agent inside the allowed branch
     const target = await prisma.user.findFirst({
@@ -686,7 +760,9 @@ export async function manageBranchAgent(formData: FormData) {
       select: { id: true },
     });
     if (!target) return { success: false, error: 'Agent not found in your branch.' };
-    const data: any = { name, username, phone, status };
+    const data: any = { name, username, phone, email, status,
+      aadharNumber, dob, experience, age,
+      bypassLoanApproval, bypassCustomerApproval, bypassVehicleApproval, autoReleaseFloat, feeConfirmationMandatory };
     if (password) data.passwordHash = await bcrypt.hash(password, 10);
     await prisma.user.update({ where: { id }, data });
     await prisma.auditLog.create({
@@ -701,10 +777,13 @@ export async function manageBranchAgent(formData: FormData) {
     }
     try {
       const created = await prisma.user.create({
-        data: { tenantId, branchId, name, username, phone,
+        data: { tenantId, branchId, name, username, phone, email,
           passwordHash: await bcrypt.hash(password, 10),
-          role: 'agent', appType, status, canCreateLoan: true },
+          role: 'agent', appType, status, canCreateLoan: true,
+          aadharNumber, dob, experience, age,
+          bypassLoanApproval, bypassCustomerApproval, bypassVehicleApproval, autoReleaseFloat, feeConfirmationMandatory },
       });
+      savedUserId = created.id;
       await prisma.auditLog.create({
         data: { tenantId, userId: actorId, action: 'create', entityType: 'user', entityId: created.id,
           newValue: JSON.stringify({ name, username, role: 'agent', appType, status, scope: 'branch_agent' }) },
@@ -719,6 +798,25 @@ export async function manageBranchAgent(formData: FormData) {
       }
       throw err;
     }
+  }
+
+  if (savedUserId && branchId) {
+    // 1. Update UserModule
+    await prisma.userModule.deleteMany({ where: { userId: savedUserId } });
+    await prisma.userModule.create({
+      data: {
+        userId: savedUserId,
+        appType,
+        assignedById: actorId,
+      },
+    });
+
+    // 2. Update UserBranchModule
+    await prisma.userBranchModule.upsert({
+      where: { userId_branchId: { userId: savedUserId, branchId } },
+      update: { enabledModules: JSON.stringify([appType]) },
+      create: { userId: savedUserId, branchId, enabledModules: JSON.stringify([appType]) },
+    });
   }
 
   revalidatePath(`/${appType}/settings`);

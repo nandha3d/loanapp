@@ -18,7 +18,7 @@ export const PLAN_FEATURES: Record<string, PlanFeature> = {
   // Not a buyable/public plan; assigned manually to a specific tenant.
   lifetime: {
     loans: 999999, agents: 999, branches: 999,
-    modules: ['microlending', 'autofinance', 'chitfunds', 'goldloan'],
+    modules: ['microlending', 'autofinance', 'chitfunds', 'goldloan', 'property', 'productfinance'],
     gracePeriodDays: 999999, trialDays: 0,
   },
   // Internal — assigned on registration before user picks a plan.
@@ -32,19 +32,27 @@ export const PLAN_FEATURES: Record<string, PlanFeature> = {
     modules: ['microlending'],
     gracePeriodDays: 3, trialDays: 0,
   },
+  // Collector — unlimited agents, single branch, one vertical. Counter to
+  // Vasool's ₹699 flat plan. Module is chosen at checkout; default here is the
+  // micro-lending base for fallback purposes only.
+  collector: {
+    loans: 500, agents: 999, branches: 1,
+    modules: ['microlending'],
+    gracePeriodDays: 7, trialDays: 0,
+  },
   basic: {
-    loans: 200, agents: 10, branches: 2,
+    loans: 500, agents: 15, branches: 2,
     modules: ['microlending', 'autofinance'],
     gracePeriodDays: 7, trialDays: 0,
   },
   business: {
-    loans: 1000, agents: 50, branches: 5,
-    modules: ['microlending', 'autofinance', 'chitfunds', 'goldloan'],
+    loans: 1500, agents: 60, branches: 6,
+    modules: ['microlending', 'autofinance', 'chitfunds', 'goldloan', 'property', 'productfinance'],
     gracePeriodDays: 14, trialDays: 0,
   },
   enterprise: {
     loans: 999999, agents: 999, branches: 999,
-    modules: ['microlending', 'autofinance', 'chitfunds', 'goldloan'],
+    modules: ['microlending', 'autofinance', 'chitfunds', 'goldloan', 'property', 'productfinance'],
     gracePeriodDays: 30,
     // 15-day full-feature trial. During this window the tenant has enterprise
     // limits but no payment is collected. After 15 days they must subscribe
@@ -57,6 +65,7 @@ export const PLAN_FEATURES: Record<string, PlanFeature> = {
 export const PLAN_PRICING: Record<string, { amount: number; tax: number; total: number }> = {
   trial:      { amount: 0,    tax: 0,    total: 0 },
   free:       { amount: 0,    tax: 0,    total: 0 },
+  collector:  { amount: 699,  tax: 126,  total: 825 },
   basic:      { amount: 999,  tax: 180,  total: 1179 },
   business:   { amount: 2999, tax: 540,  total: 3539 },
   enterprise: { amount: 7999, tax: 1440, total: 9439 },
@@ -66,6 +75,7 @@ export const PLAN_LABELS: Record<string, string> = {
   lifetime:   'Lifetime',
   trial:      'Trial',
   free:       'Free',
+  collector:  'Collector',
   basic:      'Basic',
   business:   'Business',
   enterprise: 'Enterprise',
@@ -75,6 +85,7 @@ export const PLAN_COLORS: Record<string, string> = {
   lifetime:   'var(--primary)',
   trial:      'var(--warning)',
   free:       'var(--text-secondary)',
+  collector:  'var(--accent)',
   basic:      'var(--info)',
   business:   'var(--success)',
   enterprise: 'var(--primary-dark)',
@@ -84,6 +95,7 @@ export const PLAN_DESCRIPTIONS: Record<string, string> = {
   lifetime:   'Standalone license — no billing; features set in admin panel',
   trial:      'Get started for free',
   free:       'Perfect for individuals — always free',
+  collector:  'Unlimited agents for a single-product collection business',
   basic:      'Small NBFC or personal lender',
   business:   'Growing microfinance operation',
   enterprise: 'Unlimited scale — 15-day free trial',

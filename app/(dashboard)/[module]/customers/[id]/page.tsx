@@ -1,5 +1,5 @@
 import { serverFetch } from '@/lib/api-client/server';
-import { getDefaultTenantId, getSetting } from '@/lib/tenant';
+import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { redirect } from 'next/navigation';
 import CustomerProfileClient from './CustomerProfileClient';
 import { notFound } from 'next/navigation';
@@ -39,6 +39,9 @@ export default async function CustomerProfilePage({
   const sub = await getSubscription(tenantId);
   const kycEnabled = sub?.kycEnabled || false;
   const tenantKycMethod = await getSetting(tenantId, 'kyc_method', 'manual_upload');
+  // Chitfunds is chit-only — no loan origination, so hide loan affordances.
+  const appType = await getUserAppType();
+  const loansEnabled = appType !== 'chitfunds';
 
   // Serialize Decimal fields for client component
   const serializedCustomer = JSON.parse(JSON.stringify(customer));
@@ -51,6 +54,7 @@ export default async function CustomerProfilePage({
       dict={dict}
       kycEnabled={kycEnabled}
       tenantKycMethod={tenantKycMethod}
+      loansEnabled={loansEnabled}
     />
   );
 }

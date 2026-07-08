@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
       orderBy: { name: 'asc' },
     });
     const accounts = await prisma.branchCashAccount.findMany({
-      where: { tenantId: ctx.tenantId, branchId: { in: branches.map((b) => b.id) } },
+      where: { tenantId: ctx.tenantId, appType: ctx.appType, branchId: { in: branches.map((b) => b.id) } },
       select: { branchId: true, balance: true },
     });
     const balMap = new Map(accounts.map((a) => [a.branchId, Number(a.balance)]));
@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
 
     const { branchBalance } = await injectBranchCash({
       tenantId: ctx.tenantId,
+      appType: ctx.appType,
       branchId,
       amount,
       byUserId: ctx.userId,

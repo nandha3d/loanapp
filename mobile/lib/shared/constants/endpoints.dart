@@ -21,6 +21,14 @@ class Endpoints {
   static const String refreshToken = '/auth/refresh';
   static const String googleAuth = '/auth/google';
   static const String pricing = '/pricing';
+  static const String profile = '/profile';
+  static const String profilePasswordOtp = '/profile/password/otp';
+  static const String profilePasswordChange = '/profile/password/change';
+  // Generic self-service account (non-superadmin roles) — separate from the
+  // superadmin-only /profile endpoints above.
+  static const String account = '/account';
+  static const String accountPasswordOtp = '/account/password/otp';
+  static const String accountPasswordChange = '/account/password/change';
 
   // Customers
   static const String customers = '/customers';
@@ -33,12 +41,21 @@ class Endpoints {
   static String loanInstalments(String id) => '/loans/$id/instalments';
   static const String newLoan = '/loans/new';
 
+  // Gold pledge module
+  static const String goldMaster = '/gold/master';
+  static const String goldConfig = '/gold/config';
+  static const String goldRate = '/gold/rate';
+  static const String goldReports = '/gold/reports';
+  static String goldServicing(String loanId) => '/gold/loans/$loanId/servicing';
+
   // Collection
   static const String collectionToday = '/collection/today';
   static String collectionByDate(String date) => '/collection/$date';
   static const String collectionEntry = '/collection/entry';
   static const String collectionProofPhoto = '/collection/proof/photo';
   static const String collectionProofQr = '/collection/proof/qr';
+  static String customerCollectionReceipt(String customerId) =>
+      '/customers/$customerId/collection-receipt';
 
   // mCollect — route batch collection runs
   static const String runOpen = '/collection/run/open';
@@ -47,6 +64,7 @@ class Endpoints {
   static String runClose(String id) => '/collection/run/$id/close';
   static String runReconcile(String id) => '/collection/run/$id/reconcile';
   // mCollect — digital self-pay
+  static const String selfPayQueue = '/collection/self-pay';
   static const String selfPayLink = '/collection/self-pay/link';
   // Per-tenant payment gateway config
   static const String paymentGateway = '/settings/payment-gateway';
@@ -81,9 +99,12 @@ class Endpoints {
   static String chit(String id) => '/chits/$id';
   static String chitMembers(String id) => '/chits/$id/members';
   static String chitAuctions(String id) => '/chits/$id/auctions';
+  static String chitPayments(String id) => '/chits/$id/payments';
 
   // Settings
   static const String settings = '/settings';
+  // Tenant colour theme (readable by every role, unlike /settings)
+  static const String theme = '/theme';
   static const String routes = '/routes';
   static const String packages = '/packages';
   static const String agents = '/agents';
@@ -142,4 +163,29 @@ class Endpoints {
   static const String npaLoans = '/npa/loans';
   static const String npaHistory = '/npa/history';
   static const String npaUpgrade = '/npa/upgrade';
+
+  // NACH (e-mandate auto-debit)
+  static String nachLoan(String loanId) => '/nach/loan/$loanId';
+  static const String nachMandate = '/nach/mandate';
+  static String nachMandateCancel(String id) => '/nach/mandate/$id';
+
+  // Full analytics (consolidated endpoint for mobile)
+  static const String analyticsFull = '/analytics/full';
+
+  // Chit CRUD extensions
+  static String chitCancel(String id) => '/chits/$id/cancel';
+  static String chitSubscriptions(String id) => '/chits/$id/subscriptions';
+  static String chitSubscriptionMiss(String subId) =>
+      '/chits/subscriptions/$subId/miss';
+
+  // Dashboard extended fields
+  static const String dashboardVerifyUpi = '/collection/verify';
+  static const String dashboardCollectCash = '/collection/verify';
+
+  // Borrower portal
+  static const String borrowerLogin = '/borrower/auth/login';
+  static const String borrowerVerify = '/borrower/auth/verify';
+  static const String borrowerLoans = '/borrower/loans';
+  static const String borrowerPay = '/borrower/pay';
+  static const String borrowerLogout = '/borrower/auth/logout';
 }

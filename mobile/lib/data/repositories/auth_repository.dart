@@ -20,7 +20,11 @@ class AuthRepository {
       await _storage.savePendingTotpUser(username);
       return null;
     }
-    await _persist(result.token!, result.user!, refreshToken: result.refreshToken);
+    await _persist(
+      result.token!,
+      result.user!,
+      refreshToken: result.refreshToken,
+    );
     return result.user;
   }
 
@@ -30,16 +34,22 @@ class AuthRepository {
       throw StateError('No pending TOTP user');
     }
     final result = await _service.verify2fa(username: username, code: code);
-    await _persist(result.token!, result.user!, refreshToken: result.refreshToken);
+    await _persist(
+      result.token!,
+      result.user!,
+      refreshToken: result.refreshToken,
+    );
     await _storage.clearPendingTotpUser();
     return result.user!;
   }
 
   Future<User?> currentUser() async {
-    final token = await _storage.readToken();
-    if (token == null) return null;
     try {
-      return await _service.me();
+      final token = await _storage.readToken();
+      if (token == null) return null;
+      final user = await _service.me().timeout(const Duration(seconds: 3));
+      await _storage.saveActiveAppType(user.appType);
+      return user;
     } on Object {
       return null;
     }
@@ -52,6 +62,10 @@ class AuthRepository {
       // ignore — clear local state regardless
     }
     await _storage.clear();
+  }
+
+  Future<void> setActiveAppType(String appType) {
+    return _storage.saveActiveAppType(appType);
   }
 
   Future<User> registerWithEmail({
@@ -98,7 +112,9 @@ class AuthRepository {
       selectedAddons: selectedAddons,
       referralCode: referralCode,
     );
-    if (!result.needsRegistration && result.token != null && result.user != null) {
+    if (!result.needsRegistration &&
+        result.token != null &&
+        result.user != null) {
       await _persist(result.token!, result.user!);
     }
     return result;
@@ -108,6 +124,7 @@ class AuthRepository {
     await _storage.saveSession(
       token: token,
       tenantSlug: user.tenantSlug ?? '',
+      appType: user.appType,
       branchId: user.branchId,
       refreshToken: refreshToken,
     );

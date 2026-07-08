@@ -17,6 +17,6 @@ final dashboardRepositoryProvider = Provider<DashboardRepository>(
 /// FutureProvider consumed by dashboard screen. `autoDispose` so the dashboard
 /// refetches when navigated back to after, e.g., adding a customer.
 final dashboardSummaryProvider =
-    FutureProvider.autoDispose<DashboardSummary>((ref) {
+    FutureProvider<DashboardSummary>((ref) {
   return ref.watch(dashboardRepositoryProvider).getSummary();
 });

@@ -28,6 +28,33 @@ class RunSheetScreen extends ConsumerStatefulWidget {
   ConsumerState<RunSheetScreen> createState() => _RunSheetScreenState();
 }
 
+/// One row per loan (not per instalment) — a loan with several missed dues
+/// shows as a single stop with a total, like the default collection process.
+class _LoanGroup {
+  _LoanGroup(this.rows);
+  final List<RunSheetRow> rows;
+
+  String get key => '${rows.first.customerId}|${rows.first.loanCode}';
+  RunSheetRow get primary => rows.first;
+  double get totalOutstanding =>
+      rows.fold(0.0, (s, r) => s + r.outstanding);
+  int get maxDaysOverdue =>
+      rows.fold(0, (m, r) => r.daysOverdue > m ? r.daysOverdue : m);
+  bool get overdue => rows.any((r) => r.overdue);
+
+  /// Oldest-first: most overdue instalment gets paid before newer ones.
+  List<RunSheetRow> get oldestFirst =>
+      [...rows]..sort((a, b) => b.daysOverdue.compareTo(a.daysOverdue));
+}
+
+List<_LoanGroup> _groupByLoan(List<RunSheetRow> rows) {
+  final byKey = <String, List<RunSheetRow>>{};
+  for (final r in rows) {
+    byKey.putIfAbsent('${r.customerId}|${r.loanCode}', () => []).add(r);
+  }
+  return byKey.values.map(_LoanGroup.new).toList(growable: false);
+}
+
 class _RunSheetScreenState extends ConsumerState<RunSheetScreen> {
   final Map<String, TextEditingController> _amounts = {};
   final Map<String, String> _modes = {};
@@ -54,16 +81,22 @@ class _RunSheetScreenState extends ConsumerState<RunSheetScreen> {
     );
   }
 
-  Future<void> _collect(List<RunSheetRow> rows) async {
+  Future<void> _collect(List<_LoanGroup> groups) async {
     final lines = <Map<String, dynamic>>[];
-    for (final r in rows) {
-      final amt = double.tryParse(_ctrl(r.instalmentId).text.trim()) ?? 0;
-      if (amt > 0) {
+    for (final g in groups) {
+      var remaining = double.tryParse(_ctrl(g.key).text.trim()) ?? 0;
+      if (remaining <= 0) continue;
+      final mode = _modes[g.key] ?? 'cash';
+      for (final r in g.oldestFirst) {
+        if (remaining <= 0) break;
+        final toPay = remaining < r.outstanding ? remaining : r.outstanding;
+        if (toPay <= 0) continue;
         lines.add({
           'instalmentId': r.instalmentId,
-          'receivedAmount': amt,
-          'paymentMode': _modes[r.instalmentId] ?? 'cash',
+          'receivedAmount': toPay,
+          'paymentMode': mode,
         });
+        remaining -= toPay;
       }
     }
     if (lines.isEmpty) {
@@ -77,8 +110,8 @@ class _RunSheetScreenState extends ConsumerState<RunSheetScreen> {
           .collect(widget.runId, lines);
       _snack(
           'Posted ${res.posted}${res.skipped > 0 ? ', ${res.skipped} skipped' : ''}',);
-      for (final l in lines) {
-        _ctrl(l['instalmentId'] as String).clear();
+      for (final g in groups) {
+        _ctrl(g.key).clear();
       }
       ref.invalidate(_sheetProvider(widget.runId));
     } catch (e) {
@@ -101,15 +134,15 @@ class _RunSheetScreenState extends ConsumerState<RunSheetScreen> {
     }
   }
 
-  Future<void> _sendPayLink(RunSheetRow r) async {
+  Future<void> _sendPayLink(_LoanGroup g) async {
     try {
       final url = await ref
           .read(collectionRunServiceProvider)
-          .selfPayLink(r.instalmentId);
+          .selfPayLink(g.oldestFirst.first.instalmentId);
       if (!mounted) return;
       await showModalBottomSheet<void>(
         context: context,
-        builder: (ctx) => _PayLinkSheet(name: r.name, url: url),
+        builder: (ctx) => _PayLinkSheet(name: g.primary.name, url: url),
       );
     } catch (e) {
       _snack(e.toString(), error: true);
@@ -132,36 +165,37 @@ class _RunSheetScreenState extends ConsumerState<RunSheetScreen> {
         ),
         data: (sheet) {
           final run = sheet.run;
+          final groups = _groupByLoan(sheet.rows);
           return Column(
             children: [
               _Header(run: run, fmt: fmt),
               Expanded(
                 child: run.isLocked
                     ? _DepositHint(run: run, fmt: fmt)
-                    : sheet.rows.isEmpty
+                    : groups.isEmpty
                         ? const EmptyState(
                             icon: Icons.check_circle_outline_rounded,
                             title: 'Nothing due on this route',)
                         : ListView.builder(
                             padding: const EdgeInsets.all(12),
-                            itemCount: sheet.rows.length,
-                            itemBuilder: (_, i) => _RowTile(
-                              row: sheet.rows[i],
+                            itemCount: groups.length,
+                            itemBuilder: (_, i) => _GroupTile(
+                              group: groups[i],
                               fmt: fmt,
-                              amountCtrl: _ctrl(sheet.rows[i].instalmentId),
-                              mode:
-                                  _modes[sheet.rows[i].instalmentId] ?? 'cash',
-                              onMode: (m) => setState(
-                                  () => _modes[sheet.rows[i].instalmentId] = m,),
-                              onFill: () => setState(() =>
-                                  _ctrl(sheet.rows[i].instalmentId).text = sheet
-                                      .rows[i].outstanding
-                                      .toStringAsFixed(0),),
-                              onPayLink: () => _sendPayLink(sheet.rows[i]),
+                              amountCtrl: _ctrl(groups[i].key),
+                              mode: _modes[groups[i].key] ?? 'cash',
+                              onMode: (String m) =>
+                                  setState(() => _modes[groups[i].key] = m),
+                              onFill: () => setState(() {
+                                _ctrl(groups[i].key).text = groups[i]
+                                    .totalOutstanding
+                                    .toStringAsFixed(0);
+                              }),
+                              onPayLink: () => _sendPayLink(groups[i]),
                             ),
                           ),
               ),
-              if (!run.isLocked && sheet.rows.isNotEmpty)
+              if (!run.isLocked && groups.isNotEmpty)
                 SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.all(12),
@@ -169,8 +203,7 @@ class _RunSheetScreenState extends ConsumerState<RunSheetScreen> {
                       children: [
                         Expanded(
                           child: FilledButton.icon(
-                            onPressed:
-                                _busy ? null : () => _collect(sheet.rows),
+                            onPressed: _busy ? null : () => _collect(groups),
                             icon: const Icon(Icons.check_rounded),
                             label: Text(_busy ? 'Posting…' : 'Collect'),
                           ),
@@ -245,9 +278,9 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _RowTile extends StatelessWidget {
-  const _RowTile({
-    required this.row,
+class _GroupTile extends StatelessWidget {
+  const _GroupTile({
+    required this.group,
     required this.fmt,
     required this.amountCtrl,
     required this.mode,
@@ -255,7 +288,7 @@ class _RowTile extends StatelessWidget {
     required this.onFill,
     required this.onPayLink,
   });
-  final RunSheetRow row;
+  final _LoanGroup group;
   final NumberFormat fmt;
   final TextEditingController amountCtrl;
   final String mode;
@@ -265,6 +298,7 @@ class _RowTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final row = group.primary;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
@@ -283,7 +317,10 @@ class _RowTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(row.name, style: AppTypography.bodyLarge),
-                    Text('${row.loanCode} · #${row.instalmentNo}',
+                    Text(
+                        group.rows.length > 1
+                            ? '${row.loanCode} · ${group.rows.length} dues'
+                            : '${row.loanCode} · #${row.instalmentNo}',
                         style: AppTypography.caption,),
                   ],
                 ),
@@ -291,11 +328,11 @@ class _RowTile extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(fmt.format(row.outstanding),
+                  Text(fmt.format(group.totalOutstanding),
                       style: AppTypography.bodyLarge
                           .copyWith(fontWeight: FontWeight.w700),),
-                  if (row.overdue)
-                    Text('overdue ${row.daysOverdue}d',
+                  if (group.overdue)
+                    Text('overdue ${group.maxDaysOverdue}d',
                         style: AppTypography.caption
                             .copyWith(color: AppColors.danger),),
                 ],
@@ -330,7 +367,7 @@ class _RowTile extends StatelessWidget {
               IconButton(
                 tooltip: 'Fill due',
                 onPressed: onFill,
-                icon: const Icon(Icons.bolt_rounded, color: AppColors.primary),
+                icon: Icon(Icons.bolt_rounded, color: AppColors.primary),
               ),
               IconButton(
                 tooltip: 'Send pay link',

@@ -32,6 +32,7 @@ class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
   final _textController5 = TextEditingController();
   final _textController6 = TextEditingController();
   bool _boolVal1 = false;
+  bool _showSecret = false;
   List<LoanPackage> _packages = [];
 
   @override
@@ -217,10 +218,15 @@ class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
           const SizedBox(height: 12),
           TextField(
             controller: _textController2,
-            obscureText: true,
-            decoration: const InputDecoration(
+            obscureText: !_showSecret,
+            decoration: InputDecoration(
               labelText: 'Bureau API Key / Secret *',
-              border: OutlineInputBorder(),
+              border: const OutlineInputBorder(),
+              suffixIcon: IconButton(
+                tooltip: _showSecret ? 'Hide secret' : 'Show secret',
+                icon: Icon(_showSecret ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                onPressed: () => setState(() => _showSecret = !_showSecret),
+              ),
             ),
           ),
         ],

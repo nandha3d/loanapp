@@ -3,6 +3,12 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 
+function addMonths(date: Date, months: number) {
+  const next = new Date(date);
+  next.setMonth(next.getMonth() + months);
+  return next;
+}
+
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
@@ -46,6 +52,7 @@ export async function POST(req: NextRequest) {
         commissionPct?: number | string;
         startDate?: string;
         branchId?: string | null;
+        memberIds?: string[];
       }
     | null;
 
@@ -64,6 +71,9 @@ export async function POST(req: NextRequest) {
   if (!Number.isInteger(durationMonths) || durationMonths <= 0) return fail('durationMonths must be a positive integer', 400);
   if (!Number.isFinite(commissionPct) || commissionPct < 0) return fail('commissionPct must be zero or greater', 400);
   if (Number.isNaN(startDate.getTime())) return fail('startDate is invalid', 400);
+  if (body?.memberIds && body.memberIds.length > totalMembers) {
+    return fail('memberIds cannot exceed totalMembers', 400);
+  }
 
   try {
     const requestedBranchId = body?.branchId ?? ctx.branchId;
@@ -71,20 +81,56 @@ export async function POST(req: NextRequest) {
       ? requestedBranchId
       : ctx.branchId;
 
-    const group = await prisma.chitGroup.create({
-      data: {
-        tenantId: ctx.tenantId,
-        appType: ctx.appType,
-        branchId: branchId || null,
-        name,
-        chitValue,
-        monthlyContrib,
-        totalMembers,
-        durationMonths,
-        commissionPct,
-        startDate,
-        status: 'active',
-      },
+    const group = await prisma.$transaction(async (tx) => {
+      const created = await tx.chitGroup.create({
+        data: {
+          tenantId: ctx.tenantId,
+          appType: ctx.appType,
+          branchId: branchId || null,
+          name,
+          chitValue,
+          monthlyContrib,
+          totalMembers,
+          durationMonths,
+          commissionPct,
+          startDate,
+          status: 'active',
+        },
+      });
+
+      const memberIds = Array.from(new Set(body?.memberIds ?? []));
+      for (const [idx, customerId] of memberIds.entries()) {
+        const customer = await tx.customer.findFirst({
+          where: {
+            id: customerId,
+            tenantId: ctx.tenantId,
+            appType: ctx.appType,
+            deletedAt: null,
+          },
+          select: { id: true },
+        });
+        if (!customer) throw new Error(`Customer not found: ${customerId}`);
+
+        const member = await tx.chitMember.create({
+          data: {
+            chitGroupId: created.id,
+            customerId,
+            memberNumber: idx + 1,
+          },
+        });
+
+        await tx.chitSubscription.createMany({
+          data: Array.from({ length: durationMonths }, (_, periodIdx) => ({
+            memberId: member.id,
+            periodNumber: periodIdx + 1,
+            dueDate: addMonths(startDate, periodIdx),
+            dueAmount: monthlyContrib,
+            status: periodIdx === 0 ? 'upcoming' : 'upcoming',
+          })),
+        });
+      }
+
+      return created;
     });
 
     return ok(group);

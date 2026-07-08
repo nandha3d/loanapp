@@ -37,6 +37,9 @@ MOBILE_JWT_SECRET=<64-hex random>
 PII_ENCRYPTION_KEY=<64-hex random>
 CRON_SECRET=<32-hex random>
 NEXT_PUBLIC_APP_URL=https://YOUR_DOMAIN
+# Set this only when serving the app from a subpath, e.g. https://YOUR_DOMAIN/LoanTrack.
+# Leave empty when serving from the domain root.
+NEXT_PUBLIC_BASE_PATH=
 NEXT_PUBLIC_ROOT_DOMAIN=YOUR_DOMAIN
 TRUST_PROXY=true
 EOF

@@ -52,6 +52,7 @@
           { "route": "/microlending/reports", "label": "Reports", "source": "app/(dashboard)/[module]/reports/page.tsx" },
           { "route": "/microlending/reports/agents", "label": "Agent reports", "source": "app/(dashboard)/[module]/reports/agents/page.tsx" },
           { "route": "/microlending/settings", "label": "Settings", "source": "app/(dashboard)/[module]/settings/page.tsx" },
+          { "route": "/microlending/profile", "label": "Superadmin profile", "source": "app/(dashboard)/[module]/profile/page.tsx" },
           { "route": "/microlending/subscription", "label": "Subscription", "source": "app/(dashboard)/[module]/subscription/page.tsx" },
           { "route": "/microlending/branch-requests", "label": "Branch requests", "source": "app/(dashboard)/[module]/branch-requests/page.tsx" },
           { "route": "/microlending/module-requests", "label": "Module requests", "source": "app/(dashboard)/[module]/module-requests/page.tsx" },
@@ -61,7 +62,7 @@
       },
       "mobile": {
         "landing": "/portal",
-        "primaryRoutes": ["/dashboard", "/portal", "/admin/users", "/admin/branches", "/portal/billing", "/microlending/subscription", "/microlending/branch-requests", "/microlending/module-requests", "/microlending/affiliate", "/customers", "/loans", "/collection", "/more", "/settings", "/settings/packages", "/settings/bulk", "/settings/bureau", "/settings/npa", "/settings/security", "/settings/branding", "/analytics", "/reports", "/accounting", "/accounting/bank-rec", "/wallet", "/approvals", "/kyc-review", "/notifications"]
+        "primaryRoutes": ["/dashboard", "/portal", "/profile", "/admin/users", "/admin/branches", "/portal/billing", "/microlending/subscription", "/microlending/branch-requests", "/microlending/module-requests", "/microlending/affiliate", "/customers", "/loans", "/collection", "/more", "/settings", "/settings/packages", "/settings/bulk", "/settings/bureau", "/settings/npa", "/settings/security", "/settings/branding", "/analytics", "/reports", "/accounting", "/accounting/bank-rec", "/wallet", "/approvals", "/kyc-review", "/notifications"]
       },
       "gaps": [
         { "webRoute": "/microlending/reports/agents", "mobileRoute": "/reports", "label": "Agent reports", "status": "partial", "priority": "P2", "source": "app/(dashboard)/[module]/reports/agents/page.tsx", "notes": "Mobile reports route exists but no dedicated agent reports route." },

@@ -16,8 +16,8 @@ import 'package:loantrack/shared/widgets/empty_state.dart';
 import 'package:loantrack/shared/widgets/fab_extended.dart';
 import 'package:loantrack/shared/widgets/skeleton.dart';
 
-final _loansProvider =
-    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
+final loansProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) {
   return ref.watch(loanServiceProvider).list();
 });
 
@@ -29,13 +29,13 @@ class LoansScreen extends ConsumerStatefulWidget {
 }
 
 class _LoansScreenState extends ConsumerState<LoansScreen> {
-  // Default: hide closed loans — only active/ongoing loans are shown until the
+  // Default: hide closed loans â€” only active/ongoing loans are shown until the
   // user opts in via the toggle.
   bool _showClosed = false;
 
   @override
   Widget build(BuildContext context) {
-    final async = ref.watch(_loansProvider);
+    final async = ref.watch(loansProvider);
     final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
 
@@ -81,7 +81,7 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
               Expanded(
                 child: RefreshIndicator(
                   color: AppColors.primary,
-                  onRefresh: () async => ref.refresh(_loansProvider.future),
+                  onRefresh: () async => ref.refresh(loansProvider.future),
                   child: visible.isEmpty
                       ? ListView(
                           // Keep it scrollable so pull-to-refresh still works.
@@ -173,7 +173,7 @@ class _ClosedToggle extends StatelessWidget {
                 Text(
                   value
                       ? '${activeCount + closedCount} ${t.x('loans.total_suffix')}'
-                      : '$activeCount ${t.x('loans.active_suffix')} · $closedCount ${t.x('loans.closed_suffix')}',
+                      : '$activeCount ${t.x('loans.active_suffix')} \u00b7 $closedCount ${t.x('loans.closed_suffix')}',
                   style: AppTypography.caption,
                 ),
               ],
@@ -203,7 +203,7 @@ class _LoanTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final customer = (loan['customer'] as Map<String, dynamic>?) ?? const {};
-    final customerName = customer['name']?.toString() ?? '—';
+    final customerName = customer['name']?.toString() ?? '-';
     final customerPhoto = customer['profilePhoto']?.toString();
     final principal = _toDouble(loan['principal']);
     final status = (loan['status'] as String?) ?? 'pending_review';
@@ -256,7 +256,7 @@ class _LoanTile extends ConsumerWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              loan['loanCode']?.toString() ?? '—',
+                              loan['loanCode']?.toString() ?? '-',
                               style: AppTypography.bodyLarge.copyWith(
                                 fontFamily: 'monospace',
                                 fontWeight: FontWeight.w700,
@@ -272,7 +272,7 @@ class _LoanTile extends ConsumerWidget {
                             if (total > 0) ...[
                               const SizedBox(height: 4),
                               Text(
-                                '$paid / $total · ${(pct * 100).round()}%',
+                                '$paid / $total \u00b7 ${(pct * 100).round()}%',
                                 style: AppTypography.extraTiny.copyWith(
                                   color: AppColors.textLight,
                                   fontFeatures: const [
@@ -327,7 +327,7 @@ class _Avatar extends StatelessWidget {
   final ImageProvider? image;
 
   Color _color() {
-    const palette = [
+    final palette = [
       AppColors.primary,
       AppColors.info,
       AppColors.purple,
@@ -341,7 +341,7 @@ class _Avatar extends StatelessWidget {
 
   String _initials() {
     final parts = name.trim().split(RegExp(r'\s+'));
-    if (parts.isEmpty || parts.first.isEmpty) return '—';
+    if (parts.isEmpty || parts.first.isEmpty) return '-';
     return parts
         .take(2)
         .map((p) => p.isEmpty ? '' : p[0].toUpperCase())

@@ -3,12 +3,60 @@
 import { apiFetch } from '@/lib/api-client/index';
 import { getApiRequestContext } from '@/lib/api-client/server';
 import { revalidatePath } from 'next/cache';
-import { submitCollectionEntry, requestCollectionEdit } from '@/app/(dashboard)/[module]/collection/actions';
+import { submitCollectionEntry, submitLoanCollection, requestCollectionEdit } from '@/app/(dashboard)/[module]/collection/actions';
 
 export { requestCollectionEdit };
 
 export async function markInstalmentPaid(formData: FormData) {
   return submitCollectionEntry(formData);
+}
+
+// Record a bank repledge against a gold loan.
+export async function recordBankRepledge(loanId: string, data: Record<string, unknown>) {
+  try {
+    const apiContext = await getApiRequestContext();
+    const res = await apiFetch<any>(`/gold/loans/${loanId}/repledge`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      ...apiContext,
+    });
+    if (res?.error) return { error: res.error };
+    revalidatePath('/loans');
+    return { success: true, data: res?.data ?? res };
+  } catch (e: any) {
+    return { error: e?.message || 'Failed to record repledge' };
+  }
+}
+
+// Record a gold pledge servicing event (interest / part-payment / redemption)
+// via the servicing API, then refresh the loan detail.
+export async function recordGoldServicing(
+  loanId: string,
+  action: 'interest' | 'part' | 'redeem' | 'takeover',
+  amount: number,
+  paymentMode: string = 'cash',
+) {
+  try {
+    const apiContext = await getApiRequestContext();
+    const res = await apiFetch<any>(`/gold/loans/${loanId}/servicing`, {
+      method: 'POST',
+      body: JSON.stringify({ action, amount, paymentMode }),
+      ...apiContext,
+    });
+    if (res?.error) return { error: res.error };
+    revalidatePath('/loans');
+    return { success: true, data: res?.data ?? res };
+  } catch (e: any) {
+    return { error: e?.message || 'Failed to record servicing' };
+  }
+}
+
+/**
+ * Loan-wide collection from the loan page — same engine as the collection page
+ * popup: spreads the amount across open instalments oldest-first, recorded today.
+ */
+export async function markLoanCollection(formData: FormData) {
+  return submitLoanCollection(formData);
 }
 
 export async function waiveLoanPenalty(formData: FormData) {

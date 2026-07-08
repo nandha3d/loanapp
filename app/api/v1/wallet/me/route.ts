@@ -14,8 +14,8 @@ export async function GET(req: NextRequest) {
 
   try {
     const [balance, transactions] = await Promise.all([
-      getAgentBalance(ctx.tenantId, ctx.userId),
-      getAgentStatement(ctx.tenantId, ctx.userId, 50),
+      getAgentBalance(ctx.tenantId, ctx.appType, ctx.userId),
+      getAgentStatement(ctx.tenantId, ctx.appType, ctx.userId, 50),
     ]);
     return ok({ balance, transactions });
   } catch (e: any) {

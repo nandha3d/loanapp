@@ -3,6 +3,14 @@ import type { NextConfig } from "next";
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? '').replace(/\/+$/, '');
 const cspApiUrl = API_URL ? ` ${API_URL}` : '';
 
+function normalizeBasePath(value: string | undefined): string {
+  const raw = (value ?? '').trim();
+  if (!raw || raw === '/') return '';
+  return `/${raw.replace(/^\/+|\/+$/g, '')}`;
+}
+
+const PUBLIC_BASE_PATH = normalizeBasePath(process.env.NEXT_PUBLIC_BASE_PATH);
+
 // Supabase auth runs in the browser (OAuth code exchange, magic-link send), so
 // its origin must be allowed in connect-src or the CSP blocks every call.
 const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/+$/, '');
@@ -17,9 +25,11 @@ const securityHeaders = [
     key: 'Content-Security-Policy',
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      `img-src 'self' data: blob:${cspApiUrl}`,
+      // unpkg.com: Leaflet (route-tracker live map) is loaded from CDN at runtime
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
+      // OpenStreetMap tiles + Leaflet marker sprites for the live map
+      `img-src 'self' data: blob: https://*.tile.openstreetmap.org https://unpkg.com${cspApiUrl}`,
       "font-src 'self' https://fonts.gstatic.com",
       `connect-src 'self'${cspApiUrl}${cspSupabase}`,
       "frame-ancestors 'none'",
@@ -34,6 +44,7 @@ const noStoreHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  ...(PUBLIC_BASE_PATH ? { basePath: PUBLIC_BASE_PATH } : {}),
   output: 'standalone',
   compress: true,
   allowedDevOrigins: ['lvh.me', '*.lvh.me', 'localhost:3000', 'localhost:3001'],
