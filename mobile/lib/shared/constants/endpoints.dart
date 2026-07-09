@@ -115,6 +115,11 @@ class Endpoints {
       '/chits/$id/auctions/$auctionId/confirm';
   static String chitAuctionSecurity(String id, String auctionId) =>
       '/chits/$id/auctions/$auctionId/security';
+  static String chitAuctionSecurityDocuments(String id, String auctionId) =>
+      '/chits/$id/auctions/$auctionId/security/documents';
+  static String chitAuctionSecurityDocument(
+          String id, String auctionId, String documentId) =>
+      '/chits/$id/auctions/$auctionId/security/documents/$documentId';
   static String chitAuctionPayout(String id, String auctionId) =>
       '/chits/$id/auctions/$auctionId/payout';
   static String chitAuctionLive(String id, String auctionId) =>

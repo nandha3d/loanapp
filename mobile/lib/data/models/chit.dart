@@ -338,6 +338,54 @@ class ChitAuction {
   }
 }
 
+class ChitSecurityDocument {
+  const ChitSecurityDocument({
+    required this.id,
+    required this.documentType,
+    required this.fileName,
+    required this.fileUrl,
+    required this.status,
+    this.mimeType,
+    this.sizeBytes,
+    this.uploadedAt,
+  });
+
+  final String id;
+  final String documentType;
+  final String fileName;
+  final String fileUrl;
+  final String status;
+  final String? mimeType;
+  final int? sizeBytes;
+  final DateTime? uploadedAt;
+
+  String get label {
+    switch (documentType) {
+      case 'guarantor_photo':
+        return 'Guarantor photo';
+      case 'guarantor_kyc':
+        return 'Guarantor KYC';
+      case 'security_cheque':
+        return 'Security cheque';
+      default:
+        return documentType.replaceAll('_', ' ');
+    }
+  }
+
+  factory ChitSecurityDocument.fromJson(Map<String, dynamic> json) {
+    return ChitSecurityDocument(
+      id: json['id'] as String,
+      documentType: (json['documentType'] as String?) ?? 'document',
+      fileName: (json['fileName'] as String?) ?? 'document',
+      fileUrl: (json['fileUrl'] as String?) ?? '',
+      status: (json['status'] as String?) ?? 'pending',
+      mimeType: json['mimeType'] as String?,
+      sizeBytes: (json['sizeBytes'] as num?)?.toInt(),
+      uploadedAt: _date(json['uploadedAt']),
+    );
+  }
+}
+
 class ChitBid {
   const ChitBid({
     required this.id,

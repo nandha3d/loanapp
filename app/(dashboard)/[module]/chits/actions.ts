@@ -2,8 +2,10 @@
 
 import prisma from '@/lib/db';
 import { modulePath } from '@/types/modules';
+import { mkdir, writeFile } from 'fs/promises';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import path from 'path';
 import { calculateFixedDiscountPrize, roundMoney } from '@/lib/chits/calculations';
 import { collectChitSubscriptionPayment } from '@/lib/chits/collections';
 import { createChitAudit } from '@/lib/chits/audit';
@@ -34,6 +36,12 @@ import {
   validateChitConfig,
   validateChitGroupActivation,
 } from '@/lib/chits/validation';
+import {
+  ALLOWED_UPLOAD_MIME_TYPES,
+  MAX_UPLOAD_SIZE_BYTES,
+  uploadBaseDir,
+  validateFileBytes,
+} from '@/lib/fileUpload';
 import { generateCode } from '@/lib/utils';
 
 function value(formData: FormData, key: string) {
@@ -62,6 +70,31 @@ function nextPeriodDate(startDate: Date, period: number, frequency: string) {
   else if (frequency === 'fortnightly') dueDate.setDate(dueDate.getDate() + (period - 1) * 14);
   else dueDate.setMonth(dueDate.getMonth() + period - 1);
   return dueDate;
+}
+
+const SECURITY_DOCUMENT_FIELDS = [
+  { key: 'guarantorPhoto', type: 'guarantor_photo', label: 'Guarantor photo' },
+  { key: 'guarantorKyc', type: 'guarantor_kyc', label: 'Guarantor KYC' },
+  { key: 'securityCheque', type: 'security_cheque', label: 'Security cheque' },
+] as const;
+
+async function saveChitDocumentFile(file: File, tenantId: string) {
+  if (!ALLOWED_UPLOAD_MIME_TYPES.includes(file.type)) {
+    throw new Error(`${file.name}: only JPEG, PNG, WebP, and PDF files are accepted`);
+  }
+  if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+    throw new Error(`${file.name}: file exceeds the 5 MB limit`);
+  }
+  const buffer = Buffer.from(await file.arrayBuffer());
+  if (!validateFileBytes(buffer, file.type)) {
+    throw new Error(`${file.name}: invalid file signature`);
+  }
+  const ext = path.extname(file.name).replace(/[^a-zA-Z0-9.]/g, '').toLowerCase() || '.bin';
+  const safeName = `${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`;
+  const uploadDir = path.join(uploadBaseDir(), tenantId);
+  await mkdir(uploadDir, { recursive: true });
+  await writeFile(path.join(uploadDir, safeName), buffer);
+  return { url: `/api/files/${tenantId}/${safeName}`, fileName: file.name || safeName };
 }
 
 async function loadScopedGroup(idOrCode: string) {
@@ -745,7 +778,16 @@ export async function submitChitSecurity(auctionId: string, formData: FormData) 
     include: { chitGroup: true },
   });
   if (!auction || !auction.winnerMemberId) throw new Error('Auction winner is required before security');
-  const status = value(formData, 'action') === 'verify' ? 'verified' : value(formData, 'action') === 'approve' ? 'approved' : value(formData, 'action') === 'reject' ? 'rejected' : 'submitted';
+  const requestedAction = value(formData, 'action');
+  const status = requestedAction === 'verify'
+    ? 'verified'
+    : requestedAction === 'approve'
+      ? 'approved'
+      : requestedAction === 'reject'
+        ? 'rejected'
+        : requestedAction === 'documents'
+          ? 'documents'
+          : 'submitted';
   if ((status === 'approved' || status === 'rejected') && !canApproveChitSecurity(scope.role)) throw new Error('Forbidden');
 
   await prisma.$transaction(async (tx) => {
@@ -756,7 +798,7 @@ export async function submitChitSecurity(auctionId: string, formData: FormData) 
       guarantorName: value(formData, 'guarantorName'),
       guarantorPhone: value(formData, 'guarantorPhone'),
       details: value(formData, 'details'),
-      status,
+      status: status === 'documents' ? security?.status ?? 'submitted' : status,
       submittedAt: status === 'submitted' ? new Date() : security?.submittedAt,
       verifiedById: status === 'verified' ? scope.userId : security?.verifiedById,
       verifiedAt: status === 'verified' ? new Date() : security?.verifiedAt,
@@ -764,9 +806,9 @@ export async function submitChitSecurity(auctionId: string, formData: FormData) 
       approvedAt: status === 'approved' ? new Date() : security?.approvedAt,
       rejectionReason: status === 'rejected' ? value(formData, 'rejectionReason') : security?.rejectionReason,
     };
-    if (security) await tx.chitSecurity.update({ where: { id: security.id }, data });
-    else {
-      await tx.chitSecurity.create({
+    const savedSecurity = security
+      ? await tx.chitSecurity.update({ where: { id: security.id }, data })
+      : await tx.chitSecurity.create({
         data: {
           tenantId: scope.tenantId,
           branchId: auction.chitGroup.branchId,
@@ -776,6 +818,26 @@ export async function submitChitSecurity(auctionId: string, formData: FormData) 
           ...data,
         },
       });
+    for (const spec of SECURITY_DOCUMENT_FIELDS) {
+      const file = formData.get(spec.key);
+      if (!(file instanceof File) || file.size <= 0) continue;
+      const saved = await saveChitDocumentFile(file, scope.tenantId);
+      await tx.chitDocument.create({
+        data: {
+          tenantId: scope.tenantId,
+          branchId: auction.chitGroup.branchId,
+          appType: scope.appType,
+          entityType: 'chit_security',
+          entityId: savedSecurity.id,
+          documentType: spec.type,
+          fileName: saved.fileName,
+          fileUrl: saved.url,
+          mimeType: file.type || null,
+          sizeBytes: file.size,
+          status: 'pending',
+          uploadedById: scope.userId,
+        },
+      });
     }
     if (status === 'approved') {
       await tx.chitAuction.update({ where: { id: auction.id }, data: { payoutStatus: 'ready' } });
@@ -783,13 +845,55 @@ export async function submitChitSecurity(auctionId: string, formData: FormData) 
     await createChitAudit(tx, {
       tenantId: scope.tenantId,
       userId: scope.userId,
-      action: `security_${status}`,
+      action: status === 'documents' ? 'security_documents' : `security_${status}`,
       entityType: 'chit_security',
-      entityId: auction.id,
+      entityId: savedSecurity.id,
       newValue: data,
     });
   });
   revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}`));
+  revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}/auctions/${auction.id}`));
+}
+
+export async function reviewChitSecurityDocument(auctionId: string, documentId: string, action: 'verify' | 'approve' | 'reject') {
+  const scope = await getWebChitScope();
+  assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+  const status = action === 'verify' ? 'verified' : action === 'approve' ? 'approved' : 'rejected';
+  if ((status === 'approved' || status === 'rejected') && !canApproveChitSecurity(scope.role)) throw new Error('Forbidden');
+  const auction = await prisma.chitAuction.findFirst({
+    where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
+    include: { chitGroup: true },
+  });
+  if (!auction) throw new Error('Auction not found');
+  const security = await prisma.chitSecurity.findFirst({ where: { auctionId: auction.id }, orderBy: { updatedAt: 'desc' } });
+  if (!security) throw new Error('Security record is required before reviewing documents');
+  const document = await prisma.chitDocument.findFirst({
+    where: {
+      id: documentId,
+      tenantId: scope.tenantId,
+      appType: scope.appType,
+      entityType: 'chit_security',
+      entityId: security.id,
+    },
+  });
+  if (!document) throw new Error('Security document not found');
+
+  await prisma.$transaction(async (tx) => {
+    const updated = await tx.chitDocument.update({
+      where: { id: document.id },
+      data: { status },
+    });
+    await createChitAudit(tx, {
+      tenantId: scope.tenantId,
+      userId: scope.userId,
+      action: `security_document_${status}`,
+      entityType: 'chit_security',
+      entityId: security.id,
+      newValue: { documentId: updated.id, documentType: updated.documentType, status },
+    });
+  });
+  revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}`));
+  revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}/auctions/${auction.id}`));
 }
 
 export async function releasePrizePayout(auctionId: string, formData?: FormData) {

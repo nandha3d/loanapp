@@ -40,6 +40,17 @@ export default async function ChitAuctionDetailPage({ params }: { params: Promis
         orderBy: { updatedAt: 'desc' },
       })
     : null;
+  const securityDocuments = security
+    ? await prisma.chitDocument.findMany({
+        where: {
+          tenantId,
+          appType: scope.appType,
+          entityType: 'chit_security',
+          entityId: security.id,
+        },
+        orderBy: [{ documentType: 'asc' }, { uploadedAt: 'desc' }],
+      })
+    : [];
 
   return (
     <div>
@@ -53,6 +64,7 @@ export default async function ChitAuctionDetailPage({ params }: { params: Promis
       <AuctionDetailClient
         auction={JSON.parse(JSON.stringify(auction))}
         security={security ? JSON.parse(JSON.stringify(security)) : null}
+        securityDocuments={JSON.parse(JSON.stringify(securityDocuments))}
         currencySymbol={currencySymbol}
         dict={dict}
       />

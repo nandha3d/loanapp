@@ -12,6 +12,7 @@ import {
   markAuctionNoticeSent,
   openLiveRoom,
   releasePrizePayout,
+  reviewChitSecurityDocument,
   submitChitSecurity,
 } from '../../../actions';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -20,11 +21,18 @@ import { useRegisterBreadcrumbLabel } from '@/components/layout/BreadcrumbLabelC
 interface Props {
   auction: any;
   security: any | null;
+  securityDocuments: any[];
   currencySymbol: string;
   dict: any;
 }
 
-export default function AuctionDetailClient({ auction, security, currencySymbol, dict }: Props) {
+const securityDocumentLabels: Record<string, string> = {
+  guarantor_photo: 'Guarantor photo',
+  guarantor_kyc: 'Guarantor KYC',
+  security_cheque: 'Security cheque',
+};
+
+export default function AuctionDetailClient({ auction, security, securityDocuments, currencySymbol, dict }: Props) {
   const d = dict.chits;
   const router = useRouter();
   const group = auction.chitGroup;
@@ -363,6 +371,93 @@ export default function AuctionDetailClient({ auction, security, currencySymbol,
                   {' '}· Payout: <span className={`badge badge-${auction.payoutStatus === 'paid' ? 'success' : auction.payoutStatus === 'ready' ? 'info' : 'warning'}`}>{auction.payoutStatus}</span>
                 </p>
 
+                {securityDocuments.length > 0 && (
+                  <div style={{ marginBottom: '14px', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
+                    <table className="data-table" style={{ margin: 0 }}>
+                      <thead>
+                        <tr>
+                          <th>Document</th>
+                          <th>File</th>
+                          <th>Status</th>
+                          <th>Review</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {securityDocuments.map((doc) => (
+                          <tr key={doc.id}>
+                            <td>{securityDocumentLabels[doc.documentType] ?? doc.documentType}</td>
+                            <td>
+                              <a href={doc.fileUrl} target="_blank" rel="noreferrer">{doc.fileName}</a>
+                              <div style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>{doc.mimeType ?? 'file'}</div>
+                            </td>
+                            <td>
+                              <span className={`badge badge-${doc.status === 'approved' || doc.status === 'verified' ? 'success' : doc.status === 'rejected' ? 'danger' : 'warning'}`}>
+                                {doc.status}
+                              </span>
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-sm"
+                                  disabled={!!busy}
+                                  onClick={() => run(`doc-${doc.id}-verify`, () => reviewChitSecurityDocument(auction.id, doc.id, 'verify'))}
+                                >
+                                  Verify
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary btn-sm"
+                                  disabled={!!busy}
+                                  onClick={() => run(`doc-${doc.id}-approve`, () => reviewChitSecurityDocument(auction.id, doc.id, 'approve'))}
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-danger btn-sm"
+                                  disabled={!!busy}
+                                  onClick={() => run(`doc-${doc.id}-reject`, () => reviewChitSecurityDocument(auction.id, doc.id, 'reject'))}
+                                >
+                                  Reject
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {security?.status === 'approved' && auction.payoutStatus !== 'paid' && (
+                  <form
+                    style={{ marginBottom: '14px', border: '1px solid var(--border)', borderRadius: '8px', padding: '12px' }}
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const fd = new FormData(e.currentTarget);
+                      fd.set('action', 'documents');
+                      run('security-documents', () => submitChitSecurity(auction.id, fd));
+                    }}
+                  >
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                      <div className="form-group">
+                        <label className="form-label">Guarantor photo</label>
+                        <input name="guarantorPhoto" type="file" accept="image/*" className="form-control" />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Guarantor KYC</label>
+                        <input name="guarantorKyc" type="file" accept="image/*,.pdf" className="form-control" />
+                      </div>
+                      <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                        <label className="form-label">Security cheque image</label>
+                        <input name="securityCheque" type="file" accept="image/*,.pdf" className="form-control" />
+                      </div>
+                    </div>
+                    <button type="submit" className="btn btn-secondary btn-sm" disabled={!!busy}>Upload documents</button>
+                  </form>
+                )}
+
                 {auction.payoutStatus !== 'paid' && (
                   <>
                     {security?.status !== 'approved' && (
@@ -401,6 +496,18 @@ export default function AuctionDetailClient({ auction, security, currencySymbol,
                           <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                             <label className="form-label">Details</label>
                             <input name="details" type="text" className="form-control" defaultValue={security?.details ?? ''} />
+                          </div>
+                          <div className="form-group">
+                            <label className="form-label">Guarantor photo</label>
+                            <input name="guarantorPhoto" type="file" accept="image/*" className="form-control" />
+                          </div>
+                          <div className="form-group">
+                            <label className="form-label">Guarantor KYC</label>
+                            <input name="guarantorKyc" type="file" accept="image/*,.pdf" className="form-control" />
+                          </div>
+                          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                            <label className="form-label">Security cheque image</label>
+                            <input name="securityCheque" type="file" accept="image/*,.pdf" className="form-control" />
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>

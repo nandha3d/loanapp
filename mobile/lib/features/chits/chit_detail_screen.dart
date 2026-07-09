@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:loantrack/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import 'package:loantrack/core/l10n/language_controller.dart';
@@ -12,6 +15,7 @@ import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/data/local/chit_payment_queue.dart';
 import 'package:loantrack/data/models/chit.dart';
 import 'package:loantrack/data/services/chit_service.dart';
+import 'package:loantrack/data/services/upload_service.dart';
 import 'package:loantrack/features/chits/chit_live_auction_screen.dart';
 import 'package:loantrack/shared/widgets/skeleton.dart';
 
@@ -44,6 +48,7 @@ class ChitDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
+  final _picker = ImagePicker();
   bool _busy = false;
   String? _error;
 
@@ -414,6 +419,8 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
     double? value;
     String guarantorName = '';
     String guarantorPhone = '';
+    var documentsFuture =
+        ref.read(chitServiceProvider).securityDocuments(widget.id, auction.id);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -422,93 +429,204 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+        Future<void> uploadDocument(String documentType) async {
+          final picked = await _picker.pickImage(
+            source: ImageSource.gallery,
+            maxWidth: 1400,
+            maxHeight: 1400,
+            imageQuality: 80,
+          );
+          if (picked == null) return;
+          final file = File(picked.path);
+          final upload = await ref
+              .read(uploadServiceProvider)
+              .uploadFile(file, contentType: 'image/jpeg');
+          await ref.read(chitServiceProvider).uploadSecurityDocument(
+                widget.id,
+                auction.id,
+                documentType: documentType,
+                fileName: upload.filename,
+                fileUrl: upload.url,
+                mimeType: 'image/jpeg',
+                sizeBytes: file.lengthSync(),
+              );
+          setLocal(() {
+            documentsFuture = ref
+                .read(chitServiceProvider)
+                .securityDocuments(widget.id, auction.id);
+          });
+        }
+
+        Future<void> reviewDocument(
+            ChitSecurityDocument document, String action) async {
+          await ref.read(chitServiceProvider).reviewSecurityDocument(
+                widget.id,
+                auction.id,
+                documentId: document.id,
+                action: action,
+              );
+          setLocal(() {
+            documentsFuture = ref
+                .read(chitServiceProvider)
+                .securityDocuments(widget.id, auction.id);
+          });
+        }
+
         return Padding(
           padding: EdgeInsets.fromLTRB(
               20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Security — Period ${auction.periodNumber}',
-                  style: AppTypography.sectionTitle),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: securityType,
-                decoration: const InputDecoration(labelText: 'Security type'),
-                items: const [
-                  DropdownMenuItem(
-                      value: 'guarantor', child: Text('Guarantor')),
-                  DropdownMenuItem(value: 'property', child: Text('Property')),
-                  DropdownMenuItem(value: 'gold', child: Text('Gold')),
-                  DropdownMenuItem(value: 'fd', child: Text('Fixed deposit')),
-                  DropdownMenuItem(value: 'salary', child: Text('Salary')),
-                  DropdownMenuItem(value: 'cheque', child: Text('Cheque')),
-                  DropdownMenuItem(value: 'other', child: Text('Other')),
-                ],
-                onChanged: (v) =>
-                    setLocal(() => securityType = v ?? 'guarantor'),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                decoration: const InputDecoration(labelText: 'Security value'),
-                keyboardType: TextInputType.number,
-                onChanged: (v) => value = double.tryParse(v),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                decoration: const InputDecoration(labelText: 'Guarantor name'),
-                onChanged: (v) => guarantorName = v,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                decoration: const InputDecoration(labelText: 'Guarantor phone'),
-                keyboardType: TextInputType.phone,
-                onChanged: (v) => guarantorPhone = v,
-              ),
-              const SizedBox(height: 16),
-              Wrap(
-                alignment: WrapAlignment.end,
-                spacing: 8,
-                children: [
-                  TextButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      child: const Text('Cancel')),
-                  OutlinedButton(
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      _runAction(() => ref
-                          .read(chitServiceProvider)
-                          .submitSecurity(widget.id, auction.id,
-                              securityType: securityType,
-                              securityValue: value,
-                              guarantorName: guarantorName,
-                              guarantorPhone: guarantorPhone));
-                    },
-                    child: const Text('Submit'),
-                  ),
-                  OutlinedButton(
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      _runAction(() => ref
-                          .read(chitServiceProvider)
-                          .reviewSecurity(widget.id, auction.id,
-                              action: 'verify'));
-                    },
-                    child: const Text('Verify'),
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      _runAction(() => ref
-                          .read(chitServiceProvider)
-                          .reviewSecurity(widget.id, auction.id,
-                              action: 'approve'));
-                    },
-                    child: const Text('Approve'),
-                  ),
-                ],
-              ),
-            ],
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Security — Period ${auction.periodNumber}',
+                    style: AppTypography.sectionTitle),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: securityType,
+                  decoration: const InputDecoration(labelText: 'Security type'),
+                  items: const [
+                    DropdownMenuItem(
+                        value: 'guarantor', child: Text('Guarantor')),
+                    DropdownMenuItem(
+                        value: 'property', child: Text('Property')),
+                    DropdownMenuItem(value: 'gold', child: Text('Gold')),
+                    DropdownMenuItem(value: 'fd', child: Text('Fixed deposit')),
+                    DropdownMenuItem(value: 'salary', child: Text('Salary')),
+                    DropdownMenuItem(value: 'cheque', child: Text('Cheque')),
+                    DropdownMenuItem(value: 'other', child: Text('Other')),
+                  ],
+                  onChanged: (v) =>
+                      setLocal(() => securityType = v ?? 'guarantor'),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  decoration:
+                      const InputDecoration(labelText: 'Security value'),
+                  keyboardType: TextInputType.number,
+                  onChanged: (v) => value = double.tryParse(v),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  decoration:
+                      const InputDecoration(labelText: 'Guarantor name'),
+                  onChanged: (v) => guarantorName = v,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  decoration:
+                      const InputDecoration(labelText: 'Guarantor phone'),
+                  keyboardType: TextInputType.phone,
+                  onChanged: (v) => guarantorPhone = v,
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () =>
+                          _runAction(() => uploadDocument('guarantor_photo')),
+                      icon: const Icon(Icons.person_pin_circle_outlined),
+                      label: const Text('Photo'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () =>
+                          _runAction(() => uploadDocument('guarantor_kyc')),
+                      icon: const Icon(Icons.badge_outlined),
+                      label: const Text('KYC'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () =>
+                          _runAction(() => uploadDocument('security_cheque')),
+                      icon: const Icon(Icons.receipt_long_outlined),
+                      label: const Text('Cheque'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                FutureBuilder<List<ChitSecurityDocument>>(
+                  future: documentsFuture,
+                  builder: (context, snap) {
+                    final docs = snap.data ?? const <ChitSecurityDocument>[];
+                    if (snap.connectionState == ConnectionState.waiting &&
+                        docs.isEmpty) {
+                      return const LinearProgressIndicator(minHeight: 2);
+                    }
+                    if (docs.isEmpty) return const SizedBox.shrink();
+                    return Column(
+                      children: docs
+                          .map(
+                            (doc) => ListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              leading: const Icon(Icons.description_outlined),
+                              title: Text(doc.label),
+                              subtitle: Text('${doc.fileName} · ${doc.status}'),
+                              trailing: PopupMenuButton<String>(
+                                onSelected: (action) => _runAction(
+                                    () => reviewDocument(doc, action)),
+                                itemBuilder: (_) => const [
+                                  PopupMenuItem(
+                                      value: 'verify', child: Text('Verify')),
+                                  PopupMenuItem(
+                                      value: 'approve', child: Text('Approve')),
+                                  PopupMenuItem(
+                                      value: 'reject', child: Text('Reject')),
+                                ],
+                              ),
+                            ),
+                          )
+                          .toList(growable: false),
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 8,
+                  children: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('Cancel')),
+                    OutlinedButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _runAction(() => ref
+                            .read(chitServiceProvider)
+                            .submitSecurity(widget.id, auction.id,
+                                securityType: securityType,
+                                securityValue: value,
+                                guarantorName: guarantorName,
+                                guarantorPhone: guarantorPhone));
+                      },
+                      child: const Text('Submit'),
+                    ),
+                    OutlinedButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _runAction(() => ref
+                            .read(chitServiceProvider)
+                            .reviewSecurity(widget.id, auction.id,
+                                action: 'verify'));
+                      },
+                      child: const Text('Verify'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _runAction(() => ref
+                            .read(chitServiceProvider)
+                            .reviewSecurity(widget.id, auction.id,
+                                action: 'approve'));
+                      },
+                      child: const Text('Approve'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         );
       }),

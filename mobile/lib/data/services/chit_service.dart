@@ -169,6 +169,61 @@ class ChitService {
 
   /// Live bidding room state — poll every 2-3 seconds while the room is open.
   /// Countdown must use the returned secondsRemaining, never the device clock.
+  Future<List<ChitSecurityDocument>> securityDocuments(
+      String groupId, String auctionId) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.chitAuctionSecurityDocuments(groupId, auctionId),
+    );
+    return unwrapEnvelope(res, (dynamic d) {
+      return (d as List<dynamic>)
+          .map((dynamic e) =>
+              ChitSecurityDocument.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false);
+    });
+  }
+
+  Future<ChitSecurityDocument> uploadSecurityDocument(
+    String groupId,
+    String auctionId, {
+    required String documentType,
+    required String fileName,
+    required String fileUrl,
+    String? mimeType,
+    int? sizeBytes,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.chitAuctionSecurityDocuments(groupId, auctionId),
+      data: {
+        'documentType': documentType,
+        'fileName': fileName,
+        'fileUrl': fileUrl,
+        if (mimeType != null && mimeType.trim().isNotEmpty)
+          'mimeType': mimeType.trim(),
+        if (sizeBytes != null) 'sizeBytes': sizeBytes,
+      },
+    );
+    return unwrapEnvelope(
+      res,
+      (dynamic d) => ChitSecurityDocument.fromJson(d as Map<String, dynamic>),
+    );
+  }
+
+  Future<ChitSecurityDocument> reviewSecurityDocument(
+    String groupId,
+    String auctionId, {
+    required String documentId,
+    required String action,
+  }) async {
+    final res = await _dio.patch<Map<String, dynamic>>(
+      Endpoints.chitAuctionSecurityDocument(groupId, auctionId, documentId),
+      data: {'action': action},
+    );
+    return unwrapEnvelope(
+      res,
+      (dynamic d) => ChitSecurityDocument.fromJson(d as Map<String, dynamic>),
+    );
+  }
+
   Future<Map<String, dynamic>> liveState(
       String groupId, String auctionId) async {
     final res = await _dio.get<Map<String, dynamic>>(

@@ -241,6 +241,37 @@ class _ContractAdapter implements HttpClientAdapter {
         if (options.path == Endpoints.chitAuctionSecurity('chit1', 'auc1')) {
           return {'id': 'sec1', 'status': 'approved'};
         }
+        if (options.path ==
+            Endpoints.chitAuctionSecurityDocuments('chit1', 'auc1')) {
+          if (options.method == 'POST') {
+            return {
+              'id': 'doc2',
+              'documentType': 'security_cheque',
+              'fileName': 'cheque.jpg',
+              'fileUrl': '/api/files/t1/cheque.jpg',
+              'status': 'pending',
+            };
+          }
+          return [
+            {
+              'id': 'doc1',
+              'documentType': 'guarantor_photo',
+              'fileName': 'photo.jpg',
+              'fileUrl': '/api/files/t1/photo.jpg',
+              'status': 'pending',
+            }
+          ];
+        }
+        if (options.path ==
+            Endpoints.chitAuctionSecurityDocument('chit1', 'auc1', 'doc1')) {
+          return {
+            'id': 'doc1',
+            'documentType': 'guarantor_photo',
+            'fileName': 'photo.jpg',
+            'fileUrl': '/api/files/t1/photo.jpg',
+            'status': 'approved',
+          };
+        }
         if (options.path == Endpoints.chitAuctionLive('chit1', 'auc1')) {
           return {
             'roomStatus': 'open',
@@ -578,6 +609,22 @@ void main() {
         securityType: 'guarantor',
         guarantorName: 'QA Guarantor',
       );
+      final securityDocs = await service.securityDocuments('chit1', 'auc1');
+      final uploadedSecurityDoc = await service.uploadSecurityDocument(
+        'chit1',
+        'auc1',
+        documentType: 'security_cheque',
+        fileName: 'cheque.jpg',
+        fileUrl: '/api/files/t1/cheque.jpg',
+        mimeType: 'image/jpeg',
+        sizeBytes: 2048,
+      );
+      final reviewedSecurityDoc = await service.reviewSecurityDocument(
+        'chit1',
+        'auc1',
+        documentId: 'doc1',
+        action: 'approve',
+      );
       await service.reviewSecurity('chit1', 'auc1', action: 'approve');
       final live = await service.liveState('chit1', 'auc1');
       final room = await service.roomAction(
@@ -605,6 +652,9 @@ void main() {
       expect(members.single.customerName, 'QA Member');
       expect(auctions.single.id, 'auc1');
       expect(bid.id, 'bid1');
+      expect(securityDocs.single.documentType, 'guarantor_photo');
+      expect(uploadedSecurityDoc.documentType, 'security_cheque');
+      expect(reviewedSecurityDoc.status, 'approved');
       expect(live['roomStatus'], 'open');
       expect(room['roomStatus'], 'open');
       expect(draw['winnerMemberId'], 'member1');
@@ -625,6 +675,14 @@ void main() {
           contains('POST /chits/chit1/auctions/auc1/confirm'));
       expect(adapter.requests,
           contains('POST /chits/chit1/auctions/auc1/security'));
+      expect(adapter.requests,
+          contains('GET /chits/chit1/auctions/auc1/security/documents'));
+      expect(adapter.requests,
+          contains('POST /chits/chit1/auctions/auc1/security/documents'));
+      expect(
+        adapter.requests,
+        contains('PATCH /chits/chit1/auctions/auc1/security/documents/doc1'),
+      );
       expect(adapter.requests, contains('GET /chits/chit1/auctions/auc1/live'));
       expect(
           adapter.requests, contains('POST /chits/chit1/auctions/auc1/room'));
@@ -665,6 +723,21 @@ void main() {
       expect(
         adapter.requestBodies.any(
           (body) => body['action'] == 'open' && body['autoExtendSeconds'] == 60,
+        ),
+        isTrue,
+      );
+      expect(
+        adapter.requestBodies.any(
+          (body) =>
+              body['documentType'] == 'security_cheque' &&
+              body['fileUrl'] == '/api/files/t1/cheque.jpg' &&
+              body['mimeType'] == 'image/jpeg',
+        ),
+        isTrue,
+      );
+      expect(
+        adapter.requestBodies.any(
+          (body) => body['action'] == 'approve',
         ),
         isTrue,
       );

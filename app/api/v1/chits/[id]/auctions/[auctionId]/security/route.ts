@@ -65,7 +65,7 @@ export async function POST(
         verifiedAt: status === 'verified' ? new Date() : existing?.verifiedAt,
         approvedById: status === 'approved' ? ctx.userId : existing?.approvedById,
         approvedAt: status === 'approved' ? new Date() : existing?.approvedAt,
-        rejectionReason: status === 'rejected' ? body?.rejectionReason ?? null : existing?.rejectionReason,
+        rejectionReason: status === 'rejected' ? body?.rejectionReason ?? body?.reason ?? null : existing?.rejectionReason,
       };
       const security = existing
         ? await tx.chitSecurity.update({ where: { id: existing.id }, data })
