@@ -18,6 +18,18 @@ export default async function WalletPage() {
   // Agents see their OWN cash float (cash held in the field) + ledger — not the
   // branch/oversight view. Cash handover stays on the collection page.
   if (role === 'agent' && userId) {
+    if (appType === 'chitfunds') {
+      return (
+        <div className="card" style={{ padding: '34px 18px', textAlign: 'center', border: '1px solid var(--border)' }}>
+          <span className="material-icons-outlined" style={{ fontSize: 48, color: 'var(--text-light)', marginBottom: 12 }}>account_balance_wallet</span>
+          <h3 style={{ margin: '0 0 8px', fontSize: '1.1rem', fontWeight: 800 }}>Agent Wallet Not Applicable</h3>
+          <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '.88rem' }}>
+            Agent wallets are not used in Chit Funds. All payments are processed directly by the branch cash pool.
+          </p>
+        </div>
+      );
+    }
+
     const [balance, txns, handoversRaw] = await Promise.all([
       getAgentBalance(tenantId, appType, userId),
       getAgentStatement(tenantId, appType, userId, 50),
@@ -141,6 +153,7 @@ export default async function WalletPage() {
       agents={agentRows}
       pendingHandovers={pendingHandovers}
       currencySymbol={currencySymbol}
+      appType={appType}
       summary={{
         accountingCapital: accountingCapitalIn - accountingCapitalOut,
         releasedToAgents,

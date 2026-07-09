@@ -72,7 +72,7 @@ export default function Sidebar({
     { id: 'approvals', icon: 'verified', label: dict.sidebar.approvals, href: '/approvals', appTypes: ['microlending', 'autofinance', 'goldloan', 'property', 'productfinance'] },
     { id: 'kyc-review', icon: 'rate_review', label: dict.sidebar.kycReview, href: '/kyc-review', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan', 'property', 'productfinance'] },
     { id: 'accounting', icon: 'account_balance_wallet', label: dict.sidebar.accounting, href: '/accounting', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan', 'chitfunds', 'property', 'productfinance'] },
-    { id: 'wallet', icon: 'payments', label: (dict.sidebar as any).wallet || 'Agent Wallet', href: '/wallet', appTypes: ['microlending', 'autofinance', 'goldloan', 'chitfunds', 'property', 'productfinance'] },
+    { id: 'wallet', icon: 'payments', label: userAppType === 'chitfunds' ? (dict.sidebar.dashboard === 'டேஷ்போர்டு' ? 'கிளை ரொக்கம்' : dict.sidebar.dashboard === 'डैशबोर्ड' ? 'शाखा नकद' : dict.sidebar.dashboard === 'డాష్‌బోర్డ్' ? 'బ్రాంచ్ నగదు' : dict.sidebar.dashboard === 'ಡ್ಯಾಶ್‌ಬೋರ್ಡ್' ? 'ಶಾಖೆಯ ನಗದು' : dict.sidebar.dashboard === 'ഡാഷ്ബോർഡ്' ? 'ബ്രാഞ്ച് കാഷ്' : 'Branch Cash') : ((dict.sidebar as any).wallet || 'Agent Wallet'), href: '/wallet', appTypes: ['microlending', 'autofinance', 'goldloan', 'chitfunds', 'property', 'productfinance'] },
     { section: dict.sidebar.sections.insights },
     { id: 'analytics', icon: 'insights', label: dict.sidebar.analytics, href: '/analytics', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan', 'chitfunds', 'property', 'productfinance'] },
     { id: 'notifications', icon: 'notifications', label: dict.sidebar.notifications, href: '/notifications' },
