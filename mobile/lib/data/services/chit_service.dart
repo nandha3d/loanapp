@@ -76,7 +76,10 @@ class ChitService {
       Endpoints.chitAuctionBids(groupId, auctionId),
       data: {
         'memberId': memberId,
-        'bidAmount': bidAmount,
+        // The bids route reads `prizeAmount` (the prize the winner accepts) and
+        // derives the discount server-side. Sending `bidAmount` alone made every
+        // bid 400 with "prizeAmount required".
+        'prizeAmount': bidAmount,
         if (bidDiscount != null) 'bidDiscount': bidDiscount,
         if (remarks != null && remarks.trim().isNotEmpty)
           'remarks': remarks.trim(),
