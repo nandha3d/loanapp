@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 
 import 'package:loantrack/core/a11y/voice_assist.dart';
 import 'package:loantrack/core/currency/currency_controller.dart';
@@ -15,6 +18,7 @@ import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/data/models/chit_live.dart';
 import 'package:loantrack/data/services/chit_service.dart';
+import 'package:loantrack/data/services/upload_service.dart';
 import 'package:loantrack/features/chits/voice_bid_parser.dart';
 import 'package:loantrack/features/collection/voice_entry_controller.dart';
 import 'package:loantrack/data/models/chit.dart';
@@ -40,6 +44,13 @@ class _LiveAuctionScreenState extends ConsumerState<LiveAuctionScreen> {
   bool _showMinutes = false;
   String? _lastAnnouncedBidId;
 
+  // Voice-bid audio proof. POINT 17: the mic records ONLY inside the voice-bid
+  // gesture below — recording starts when the raise begins, stops when speech
+  // ends, and the clip is DISCARDED unless a bid is actually submitted. There
+  // is no ambient or continuous capture anywhere in the app.
+  final AudioRecorder _recorder = AudioRecorder();
+  String? _clipPath;
+
   ({String groupId, int period}) get _key =>
       (groupId: widget.groupId, period: widget.period);
 
@@ -60,6 +71,8 @@ class _LiveAuctionScreenState extends ConsumerState<LiveAuctionScreen> {
   void dispose() {
     _pollTimer?.cancel();
     _tickTimer?.cancel();
+    _recorder.dispose();
+    _discardClip();
     super.dispose();
   }
 
@@ -92,14 +105,73 @@ class _LiveAuctionScreenState extends ConsumerState<LiveAuctionScreen> {
     }
   }
 
+  // ── Voice-clip capture (push-to-talk bid gesture only) ─────────────────
+  Future<void> _startClip() async {
+    try {
+      if (!await _recorder.hasPermission()) return;
+      final dir = await getTemporaryDirectory();
+      final path =
+          '${dir.path}/voice_bid_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await _recorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          bitRate: 64000,
+          sampleRate: 22050,
+          numChannels: 1,
+        ),
+        path: path,
+      );
+      _clipPath = path;
+    } catch (_) {
+      _clipPath = null; // capture is best-effort; the bid never depends on it
+    }
+  }
+
+  Future<void> _stopClip() async {
+    try {
+      await _recorder.stop();
+    } catch (_) {}
+  }
+
+  Future<void> _discardClip() async {
+    final path = _clipPath;
+    _clipPath = null;
+    if (path == null) return;
+    try {
+      final f = File(path);
+      if (await f.exists()) await f.delete();
+    } catch (_) {}
+  }
+
   Future<void> _placeBid(
     String memberId,
     double prize, {
     String source = 'tap',
     String? transcript,
+    bool attachClip = false,
   }) async {
     setState(() => _busy = true);
     try {
+      // Upload the voice clip first (best-effort). Only voice bids that are
+      // actually submitted keep their clip; everything else is discarded.
+      String? audioUrl;
+      String? audioFileName;
+      int? audioSize;
+      if (attachClip && _clipPath != null) {
+        try {
+          final f = File(_clipPath!);
+          if (await f.exists() && await f.length() > 0) {
+            final up = await ref
+                .read(uploadServiceProvider)
+                .uploadFile(f, contentType: 'audio/mp4');
+            audioUrl = up.url;
+            audioFileName = up.filename;
+            audioSize = await f.length();
+          }
+        } catch (_) {
+          // Clip upload failure never blocks the bid itself.
+        }
+      }
       final s = await _svc.submitBid(
         widget.groupId,
         widget.period,
@@ -107,11 +179,16 @@ class _LiveAuctionScreenState extends ConsumerState<LiveAuctionScreen> {
         prizeAmount: prize,
         source: source,
         transcript: transcript,
+        audioUrl: audioUrl,
+        audioFileName: audioFileName,
+        audioMime: audioUrl != null ? 'audio/mp4' : null,
+        audioSize: audioSize,
       );
       _applyState(s);
     } catch (e) {
       _snack(_msg(e));
     } finally {
+      await _discardClip();
       if (mounted) setState(() => _busy = false);
     }
   }
@@ -202,20 +279,26 @@ class _LiveAuctionScreenState extends ConsumerState<LiveAuctionScreen> {
               profilePhoto: seat.profilePhoto,
             ))
         .toList();
+    // POINT 17: start the proof clip only now, inside the raise gesture, and
+    // stop it as soon as speech ends. If no bid is submitted it is discarded.
+    await _startClip();
     await ref.read(voiceEntryProvider.notifier).listen(
       lang,
-      onFinal: (text) {
+      onFinal: (text) async {
+        await _stopClip();
         if (!mounted) return;
         final res = parseVoiceBid(text, members);
         final amount = res.amount ??
             (s.currentPrize - s.minBidDecrement).clamp(0, double.infinity).toDouble();
         if (res.candidates.isEmpty) {
+          await _discardClip();
           ref.speak(t.x('chit.live.not_understood'));
           _snack(t.x('chit.live.not_understood'));
           return;
         }
         if (res.isConfident) {
-          _placeBid(res.best!.member.id, amount, source: 'voice', transcript: res.raw);
+          _placeBid(res.best!.member.id, amount,
+              source: 'voice', transcript: res.raw, attachClip: true);
         } else {
           _chooseCandidate(res, amount);
         }
@@ -226,6 +309,7 @@ class _LiveAuctionScreenState extends ConsumerState<LiveAuctionScreen> {
   void _chooseCandidate(VoiceBidResult res, double amount) {
     final t = T.of(ref);
     final fmt = ref.read(currencyFmtProvider);
+    var picked = false;
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: AppColors.surface,
@@ -246,8 +330,10 @@ class _LiveAuctionScreenState extends ConsumerState<LiveAuctionScreen> {
                   return ActionChip(
                     label: Text(c.member.customerName),
                     onPressed: () {
+                      picked = true;
                       Navigator.of(context).pop();
-                      _placeBid(c.member.id, amount, source: 'voice', transcript: res.raw);
+                      _placeBid(c.member.id, amount,
+                          source: 'voice', transcript: res.raw, attachClip: true);
                     },
                   );
                 }).toList(),
@@ -256,7 +342,11 @@ class _LiveAuctionScreenState extends ConsumerState<LiveAuctionScreen> {
           ),
         ),
       ),
-    );
+    ).whenComplete(() {
+      // Dismissed without choosing → the bid was never submitted, so the clip
+      // must not survive (point 17).
+      if (!picked) _discardClip();
+    });
   }
 
   // ── Tap to bid ─────────────────────────────────────────────────────────
@@ -291,6 +381,180 @@ class _LiveAuctionScreenState extends ConsumerState<LiveAuctionScreen> {
     );
   }
 
+  // ── Waiting room (admission = 'approval') ───────────────────────────────
+  Future<void> _admit(String memberId, String decision) async {
+    setState(() => _busy = true);
+    try {
+      final s = await _svc.admitMember(
+        widget.groupId,
+        widget.period,
+        memberId: memberId,
+        decision: decision,
+      );
+      _applyState(s);
+    } catch (e) {
+      _snack(_msg(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  // ── Chat drawer ──────────────────────────────────────────────────────────
+  void _openChat() {
+    final composer = TextEditingController();
+    var toOrganizer = false;
+    var sending = false;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      isScrollControlled: true,
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (sheetCtx, setLocal) => SafeArea(
+          child: Padding(
+            padding: EdgeInsets.only(
+                bottom: MediaQuery.of(sheetCtx).viewInsets.bottom),
+            child: SizedBox(
+              height: MediaQuery.of(sheetCtx).size.height * 0.6,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.forum_outlined,
+                            color: AppColors.textSecondary, size: 20),
+                        const SizedBox(width: 8),
+                        Text('Room chat', style: AppTypography.nameLg),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    // Live-updating list: rides the same 1.5s poll as the table.
+                    child: Consumer(
+                      builder: (_, ref, __) {
+                        final async = ref.watch(liveAuctionStateProvider(_key));
+                        final msgs =
+                            async.valueOrNull?.latestMessages ?? const <RoomMessage>[];
+                        if (msgs.isEmpty) {
+                          return Center(
+                            child: Text('No messages yet',
+                                style: AppTypography.caption
+                                    .copyWith(color: AppColors.textSecondary)),
+                          );
+                        }
+                        final tf = DateFormat('HH:mm');
+                        return ListView.builder(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 6),
+                          itemCount: msgs.length,
+                          itemBuilder: (_, i) {
+                            final m = msgs[i];
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: RichText(
+                                text: TextSpan(
+                                  style: AppTypography.body
+                                      .copyWith(color: AppColors.textPrimary),
+                                  children: [
+                                    TextSpan(
+                                      text: '${tf.format(m.createdAt)}  ',
+                                      style: AppTypography.tiny.copyWith(
+                                          color: AppColors.textLight),
+                                    ),
+                                    TextSpan(
+                                      text: '${m.senderName}: ',
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w700),
+                                    ),
+                                    if (m.isPrivate)
+                                      TextSpan(
+                                        text: '(private) ',
+                                        style: AppTypography.tiny.copyWith(
+                                            color: AppColors.warning),
+                                      ),
+                                    TextSpan(text: m.body),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            Checkbox(
+                              value: toOrganizer,
+                              onChanged: (v) =>
+                                  setLocal(() => toOrganizer = v ?? false),
+                            ),
+                            Expanded(
+                              child: Text('Send privately to organizer',
+                                  style: AppTypography.caption.copyWith(
+                                      color: AppColors.textSecondary)),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: composer,
+                                maxLength: 500,
+                                decoration: const InputDecoration(
+                                  hintText: 'Message the room…',
+                                  counterText: '',
+                                  isDense: true,
+                                  border: OutlineInputBorder(),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton.filled(
+                              onPressed: sending
+                                  ? null
+                                  : () async {
+                                      final text = composer.text.trim();
+                                      if (text.isEmpty) return;
+                                      setLocal(() => sending = true);
+                                      try {
+                                        await _svc.sendRoomMessage(
+                                          widget.groupId,
+                                          widget.period,
+                                          body: text,
+                                          toOrganizer: toOrganizer,
+                                        );
+                                        composer.clear();
+                                        ref.invalidate(
+                                            liveAuctionStateProvider(_key));
+                                      } catch (e) {
+                                        _snack(_msg(e));
+                                      }
+                                      setLocal(() => sending = false);
+                                    },
+                              icon: const Icon(Icons.send_rounded),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _snack(String m) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
@@ -311,6 +575,11 @@ class _LiveAuctionScreenState extends ConsumerState<LiveAuctionScreen> {
         elevation: 0,
         title: Text('${t.x('chit.live.title')} · ${t.x('chit.live.period')} ${widget.period}'),
         actions: [
+          IconButton(
+            tooltip: 'Chat',
+            icon: const Icon(Icons.forum_outlined),
+            onPressed: _openChat,
+          ),
           IconButton(
             tooltip: t.x('chit.live.minutes'),
             icon: Icon(_showMinutes ? Icons.close : Icons.receipt_long_rounded),
@@ -334,7 +603,7 @@ class _LiveAuctionScreenState extends ConsumerState<LiveAuctionScreen> {
           if (_showMinutes) return _MinutesPanel(state: s);
           if (s.isCompleted) return _WinnerView(state: s);
           if (!s.isLive) return _IdleView(state: s, busy: _busy, onOpen: _open);
-          return _LiveView(
+          final liveView = _LiveView(
             state: s,
             busy: _busy,
             onTapSeat: (seat) => _tapSeat(s, seat),
@@ -343,6 +612,13 @@ class _LiveAuctionScreenState extends ConsumerState<LiveAuctionScreen> {
             onUndo: _undo,
             onDeclare: () => _declare(s),
             listening: ref.watch(voiceEntryProvider).listening,
+          );
+          if (s.waiting.isEmpty) return liveView;
+          return Column(
+            children: [
+              _WaitingPanel(waiting: s.waiting, busy: _busy, onDecide: _admit),
+              Expanded(child: liveView),
+            ],
           );
         },
       ),
@@ -1139,6 +1415,77 @@ class _WinnerView extends ConsumerWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ───────────────────────── Waiting room panel ─────────────────────────
+
+/// Organizer lobby for admission='approval': joiners wait here until admitted
+/// or denied. Rendered above the table only while someone is waiting.
+class _WaitingPanel extends StatelessWidget {
+  const _WaitingPanel({
+    required this.waiting,
+    required this.busy,
+    required this.onDecide,
+  });
+  final List<WaitingMember> waiting;
+  final bool busy;
+  final void Function(String memberId, String decision) onDecide;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: AppColors.inkElevated,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.meeting_room_outlined,
+                  color: AppColors.onInkMuted, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                'Waiting room (${waiting.length})',
+                style: AppTypography.caption.copyWith(
+                    color: AppColors.onInk, fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          for (final w in waiting)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(w.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.body
+                            .copyWith(color: AppColors.onInk)),
+                  ),
+                  TextButton(
+                    onPressed: busy ? null : () => onDecide(w.memberId, 'admit'),
+                    style: TextButton.styleFrom(
+                        foregroundColor: AppColors.success,
+                        visualDensity: VisualDensity.compact),
+                    child: const Text('Admit'),
+                  ),
+                  TextButton(
+                    onPressed: busy ? null : () => onDecide(w.memberId, 'deny'),
+                    style: TextButton.styleFrom(
+                        foregroundColor: AppColors.danger,
+                        visualDensity: VisualDensity.compact),
+                    child: const Text('Deny'),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }

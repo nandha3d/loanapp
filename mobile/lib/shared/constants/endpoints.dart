@@ -231,6 +231,13 @@ class Endpoints {
       '/chits/$id/auctions/$period/close';
   static String chitAuctionSchedule(String id, String auctionId) =>
       '/chits/$id/auctions/$auctionId/schedule';
+  // Live-room chat + admission (M2). Period-based, System-B convention.
+  static String chitAuctionMessages(String id, int period) =>
+      '/chits/$id/auctions/$period/messages';
+  static String chitAuctionJoin(String id, int period) =>
+      '/chits/$id/auctions/$period/join';
+  static String chitAuctionAdmit(String id, int period) =>
+      '/chits/$id/auctions/$period/admit';
 
   // Dashboard extended fields
   static const String dashboardVerifyUpi = '/collection/verify';

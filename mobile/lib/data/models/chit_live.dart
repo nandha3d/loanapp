@@ -149,6 +149,46 @@ class AuctionSettlement {
 }
 
 /// Full live-auction state snapshot from `…/state` (or returned by write routes).
+/// One live-room chat message (public, or private to the organizer).
+class RoomMessage {
+  const RoomMessage({
+    required this.id,
+    required this.senderName,
+    required this.visibility,
+    required this.body,
+    required this.createdAt,
+  });
+  final String id;
+  final String senderName;
+  final String visibility; // public | organizer
+  final String body;
+  final DateTime createdAt;
+
+  bool get isPrivate => visibility == 'organizer';
+
+  factory RoomMessage.fromJson(Map<String, dynamic> j) => RoomMessage(
+        id: (j['id'] as String?) ?? '',
+        senderName: (j['senderName'] as String?) ?? '—',
+        visibility: (j['visibility'] as String?) ?? 'public',
+        body: (j['body'] as String?) ?? '',
+        createdAt:
+            DateTime.tryParse((j['createdAt'] as String?) ?? '')?.toLocal() ??
+                DateTime.now(),
+      );
+}
+
+/// A member waiting in the admission lobby (roomAdmission = 'approval').
+class WaitingMember {
+  const WaitingMember({required this.memberId, required this.name});
+  final String memberId;
+  final String name;
+
+  factory WaitingMember.fromJson(Map<String, dynamic> j) => WaitingMember(
+        memberId: (j['memberId'] as String?) ?? '',
+        name: (j['name'] as String?) ?? '—',
+      );
+}
+
 class LiveAuctionState {
   const LiveAuctionState({
     required this.auctionId,
@@ -173,6 +213,9 @@ class LiveAuctionState {
     this.winner,
     this.settlement,
     this.autoClose = false,
+    this.roomAdmission = 'auto',
+    this.latestMessages = const [],
+    this.waiting = const [],
   });
 
   final String auctionId;
@@ -200,6 +243,9 @@ class LiveAuctionState {
   final AuctionSettlement? winner;
   final AuctionSettlement? settlement;
   final bool autoClose;
+  final String roomAdmission; // auto | approval
+  final List<RoomMessage> latestMessages;
+  final List<WaitingMember> waiting;
 
   bool get isLive => status == 'live';
   bool get isCompleted => status == 'completed';
@@ -279,6 +325,9 @@ class LiveAuctionState {
           ? null
           : AuctionSettlement.fromJson(j['settlement'] as Map<String, dynamic>),
       autoClose: (j['autoClose'] as bool?) ?? false,
+      roomAdmission: (j['roomAdmission'] as String?) ?? 'auto',
+      latestMessages: parseList('latestMessages', RoomMessage.fromJson),
+      waiting: parseList('waiting', WaitingMember.fromJson),
     );
   }
 }

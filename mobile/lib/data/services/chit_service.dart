@@ -595,6 +595,8 @@ class ChitService {
   }
 
   /// Place a bid (reverse auction — prizeAmount lower than the current best).
+  /// Voice bids may attach the push-to-talk audio proof: pass the uploaded
+  /// file's URL + metadata and the server persists the bid_audio ChitDocument.
   Future<LiveAuctionState> submitBid(
     String groupId,
     int period, {
@@ -602,6 +604,10 @@ class ChitService {
     required double prizeAmount,
     String source = 'tap',
     String? transcript,
+    String? audioUrl,
+    String? audioFileName,
+    String? audioMime,
+    int? audioSize,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.chitAuctionBid(groupId, period),
@@ -610,7 +616,74 @@ class ChitService {
         'prizeAmount': prizeAmount,
         'source': source,
         if (transcript != null) 'transcript': transcript,
+        if (audioUrl != null) 'audioUrl': audioUrl,
+        if (audioFileName != null) 'audioFileName': audioFileName,
+        if (audioMime != null) 'audioMime': audioMime,
+        if (audioSize != null) 'audioSize': audioSize,
       },
+    );
+    return _state(res);
+  }
+
+  // ── Live-room chat + admission (M2) ─────────────────────────────────────
+  Future<List<RoomMessage>> roomMessages(
+    String groupId,
+    int period, {
+    String? sinceMessageId,
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.chitAuctionMessages(groupId, period),
+      queryParameters: {
+        if (sinceMessageId != null) 'since': sinceMessageId,
+      },
+    );
+    return unwrapEnvelope(res, (dynamic d) {
+      return (d as List<dynamic>)
+          .map((dynamic e) => RoomMessage.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false);
+    });
+  }
+
+  Future<RoomMessage> sendRoomMessage(
+    String groupId,
+    int period, {
+    required String body,
+    bool toOrganizer = false,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.chitAuctionMessages(groupId, period),
+      data: {
+        'body': body,
+        'visibility': toOrganizer ? 'organizer' : 'public',
+      },
+    );
+    return unwrapEnvelope(
+        res, (dynamic d) => RoomMessage.fromJson(d as Map<String, dynamic>));
+  }
+
+  /// Enter the live room. Staff may pass [memberId] to seat a subscriber who is
+  /// present in the hall; policy 'approval' parks them in the waiting lobby.
+  Future<String> joinRoom(String groupId, int period, {String? memberId}) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.chitAuctionJoin(groupId, period),
+      data: {if (memberId != null) 'memberId': memberId},
+    );
+    return unwrapEnvelope(res, (dynamic d) {
+      final map = d as Map<String, dynamic>;
+      return (map['admissionStatus'] as String?) ?? 'admitted';
+    });
+  }
+
+  /// Organizer decision on a waiting member: decision 'admit' | 'deny'.
+  Future<LiveAuctionState> admitMember(
+    String groupId,
+    int period, {
+    required String memberId,
+    required String decision,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.chitAuctionAdmit(groupId, period),
+      data: {'memberId': memberId, 'decision': decision},
     );
     return _state(res);
   }

@@ -75,6 +75,10 @@ dependencies:
   # Voice ENTRY - speech-to-text collection input (parity: Vasool voice entry)
   speech_to_text: ^7.0.0
 
+  # Voice-bid audio proof — captures the short clip during the push-to-talk
+  # bid gesture in the chit live room (never records ambiently).
+  record: ^6.0.0
+
   # Utilities
   intl: ^0.19.0
   google_fonts: ^6.2.1
