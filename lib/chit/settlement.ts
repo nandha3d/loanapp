@@ -2,6 +2,7 @@ import 'server-only';
 import prisma from '@/lib/db';
 import { computeSettlement } from './settlementMath';
 import type { SettlementResult } from './settlementMath';
+import { applyWinnerInterest } from '@/lib/chits/winnerInterest';
 
 // Re-export the pure math so callers can `import { computeSettlement } from
 // '@/lib/chit/settlement'`. The math itself lives in ./settlementMath (no
@@ -144,6 +145,21 @@ export async function settleAuctionWinner(
     }
   }
 
+  const winnerInterest = await applyWinnerInterest(prisma, {
+    chitGroupId: auction.chitGroupId,
+    winnerMemberId,
+    wonPeriodNumber: auction.periodNumber,
+    group: {
+      chitValue,
+      totalMembers,
+      winnerInterestType: auction.chitGroup.winnerInterestType,
+      winnerInterestValue: auction.chitGroup.winnerInterestValue != null
+        ? Number(auction.chitGroup.winnerInterestValue)
+        : null,
+      winnerInterestPeriods: auction.chitGroup.winnerInterestPeriods,
+    },
+  });
+
   await prisma.auditLog.create({
     data: {
       tenantId,
@@ -151,7 +167,7 @@ export async function settleAuctionWinner(
       action: 'auction_winner',
       entityType: 'chit_auction',
       entityId: auctionId,
-      newValue: JSON.stringify({ winnerMemberId, prizeAmount, bidDiscount, commission, dividend }),
+      newValue: JSON.stringify({ winnerMemberId, prizeAmount, bidDiscount, commission, dividend, winnerInterest }),
     },
   });
 

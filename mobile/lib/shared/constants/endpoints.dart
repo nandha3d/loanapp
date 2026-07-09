@@ -223,10 +223,14 @@ class Endpoints {
       '/chits/$id/auctions/$period/pass';
   static String chitAuctionUndo(String id, int period) =>
       '/chits/$id/auctions/$period/undo';
+  static String chitAuctionRetract(String id, int period) =>
+      '/chits/$id/auctions/$period/retract';
   static String chitAuctionState(String id, int period) =>
       '/chits/$id/auctions/$period/state';
   static String chitAuctionClose(String id, int period) =>
       '/chits/$id/auctions/$period/close';
+  static String chitAuctionSchedule(String id, String auctionId) =>
+      '/chits/$id/auctions/$auctionId/schedule';
 
   // Dashboard extended fields
   static const String dashboardVerifyUpi = '/collection/verify';

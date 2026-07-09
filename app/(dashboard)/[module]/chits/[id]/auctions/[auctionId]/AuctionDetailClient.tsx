@@ -12,6 +12,7 @@ import {
   markAuctionNoticeSent,
   openLiveRoom,
   releasePrizePayout,
+  retractLiveMemberBid,
   reviewChitSecurityDocument,
   submitChitSecurity,
 } from '../../../actions';
@@ -50,13 +51,14 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
   const [roomMinutes, setRoomMinutes] = useState(30);
   const [antiSnipe, setAntiSnipe] = useState(60);
   const [live, setLive] = useState<any>(null);
+  const [seatModal, setSeatModal] = useState<any>(null);
   const [payMode, setPayMode] = useState('cash');
   const [payRef, setPayRef] = useState('');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const roomActive = (live?.roomStatus ?? auction.roomStatus) === 'open' || (live?.roomStatus ?? auction.roomStatus) === 'extended';
 
-  // Poll the live room every 2.5s while it is (or may be) open. Countdown is
+  // Poll the live room every 1.5s while it is (or may be) open. Countdown is
   // server-driven via secondsRemaining — never the device clock.
   useEffect(() => {
     if (!isLive || locked) return;
@@ -74,7 +76,7 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
       }
     };
     tick();
-    pollRef.current = setInterval(tick, 2500);
+    pollRef.current = setInterval(tick, 1500);
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
@@ -100,6 +102,8 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
   const bidDiscountPreview = Number(group.chitValue) - bidPrize;
   const validBids = auction.bids.filter((b: any) => ['valid', 'winning'].includes(b.status));
   const hideBidAmounts = isSealed && !locked && (live?.roomStatus ?? auction.roomStatus) !== 'closed';
+  const quickStep = Number(group.bidIncrement || 1);
+  const quickBase = Number(live?.minNextPrize ?? bidPrize);
 
   const presentCount = auction.attendance.filter((entry: any) => ['present', 'proxy'].includes(entry.status)).length;
 
@@ -174,17 +178,40 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
                     {busy === 'close-room' ? 'Closing…' : 'Close room now'}
                   </button>
                 </div>
-                {!hideBidAmounts && (live?.bids?.length ?? 0) > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '8px', marginBottom: '12px' }}>
+                  {group.members.map((m: any) => {
+                    const liveSeat = live?.seats?.find((s: any) => s.memberId === m.id);
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        style={{ justifyContent: 'flex-start', minHeight: '44px' }}
+                        onClick={() => setSeatModal({ ...m, liveSeat })}
+                      >
+                        <span className="material-icons-outlined" style={{ fontSize: '16px', marginRight: '6px' }}>{m.hasWon ? 'visibility' : 'person'}</span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.ticketNo ?? m.memberNumber}. {m.customer.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {seatModal?.hasWon && (
+                  <div className="alert alert-warning" style={{ marginBottom: '12px', padding: '8px 10px' }}>
+                    {seatModal.customer.name} has already won and is viewing as a spectator.
+                  </div>
+                )}
+                {!hideBidAmounts && ((live?.allBids?.length ?? live?.bids?.length ?? 0) > 0) && (
                   <div className="table-wrapper" style={{ maxHeight: '220px', overflowY: 'auto' }}>
                     <table>
-                      <thead><tr><th>Time</th><th>Ticket</th><th>Member</th><th>Discount</th></tr></thead>
+                      <thead><tr><th>Time</th><th>Ticket</th><th>Member</th><th>Discount</th><th>Source</th></tr></thead>
                       <tbody>
-                        {live.bids.map((b: any) => (
+                        {(live.allBids ?? live.bids).map((b: any) => (
                           <tr key={b.id}>
-                            <td>{new Date(b.bidTime).toLocaleTimeString()}</td>
+                            <td>{new Date(b.bidTime ?? b.createdAt).toLocaleTimeString()}</td>
                             <td>{b.ticketNo}</td>
                             <td>{b.memberName}</td>
-                            <td>{formatCurrency(b.bidDiscount, currencySymbol)}</td>
+                            <td>{formatCurrency(b.bidDiscount ?? b.discountAmount, currencySymbol)}</td>
+                            <td>{b.source ?? 'tap'}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -217,6 +244,25 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
                   <label className="form-label">{d.prizeAmount} ({currencySymbol})</label>
                   <input type="number" className="form-control" value={bidPrize} onChange={(e) => setBidPrize(Number(e.target.value))} max={Number(group.chitValue)} style={{ width: '160px' }} />
                 </div>
+                {isLive && (
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center', paddingBottom: '10px', flexWrap: 'wrap' }}>
+                    {[
+                      ['Min', quickBase],
+                      ['+1', quickBase - quickStep],
+                      ['+2', quickBase - quickStep * 2],
+                      ['+5', quickBase - quickStep * 5],
+                    ].map(([label, amount]) => (
+                      <button
+                        key={label}
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => setBidPrize(Math.max(1, Number(amount)))}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <div style={{ paddingBottom: '10px', fontSize: '.8rem', color: 'var(--text-secondary)' }}>
                   Discount: {formatCurrency(bidDiscountPreview, currencySymbol)}
                 </div>
@@ -572,6 +618,49 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
           )}
         </div>
       </div>
+      {seatModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="card" style={{ width: '420px', maxWidth: 'calc(100vw - 24px)', padding: '18px' }}>
+            <h3 style={{ margin: '0 0 10px' }}>{seatModal.ticketNo ?? seatModal.memberNumber}. {seatModal.customer.name}</h3>
+            <p style={{ margin: '0 0 12px', color: 'var(--text-secondary)', fontSize: '.84rem' }}>
+              {seatModal.hasWon ? 'Spectator' : 'Active bidder'} · latest prize {seatModal.liveSeat?.latestPrize ? formatCurrency(seatModal.liveSeat.latestPrize, currencySymbol) : '—'}
+            </p>
+            <div className="table-wrapper" style={{ maxHeight: '220px', overflowY: 'auto', marginBottom: '12px' }}>
+              <table>
+                <thead><tr><th>Time</th><th>Prize</th><th>Source</th></tr></thead>
+                <tbody>
+                  {(live?.memberBids?.[seatModal.id] ?? []).map((b: any) => (
+                    <tr key={b.id}>
+                      <td>{new Date(b.bidTime ?? b.createdAt).toLocaleTimeString()}</td>
+                      <td>{formatCurrency(b.bidAmount ?? b.prizeAmount, currencySymbol)}</td>
+                      <td>{b.source ?? 'tap'}</td>
+                    </tr>
+                  ))}
+                  {(live?.memberBids?.[seatModal.id] ?? []).length === 0 && (
+                    <tr><td colSpan={3} style={{ color: 'var(--text-secondary)' }}>No live bids yet.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSeatModal(null)}>Close</button>
+              {!seatModal.hasWon && (
+                <button
+                  type="button"
+                  className="btn btn-danger btn-sm"
+                  disabled={busy === 'retract-member'}
+                  onClick={() => run('retract-member', async () => {
+                    await retractLiveMemberBid(auction.id, seatModal.id);
+                    setSeatModal(null);
+                  })}
+                >
+                  Retract last
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

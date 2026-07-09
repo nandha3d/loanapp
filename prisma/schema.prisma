@@ -1193,6 +1193,7 @@ model ChitGroup {
   auctionFrequency        String        @default("monthly") @map("auction_frequency")
   auctionMode             String        @default("offline") @map("auction_mode")
   auctionDay              Int?          @map("auction_day")
+  auctionTime             String?       @map("auction_time")
   complianceStatus        String        @default("draft") @map("compliance_status")
   remarks                 String?       @db.Text
   chitType                String        @default("unregistered") @map("chit_type")
@@ -1206,6 +1207,9 @@ model ChitGroup {
   minDiscountPct          Decimal?      @map("min_discount_pct") @db.Decimal(5, 2)
   bidIncrement            Decimal?      @map("bid_increment") @db.Decimal(14, 2)
   tieBreakRule            String        @default("EARLIEST_BID") @map("tie_break_rule")
+  winnerInterestType      String        @default("NONE") @map("winner_interest_type")
+  winnerInterestValue     Decimal?      @map("winner_interest_value") @db.Decimal(14, 2)
+  winnerInterestPeriods   Int?          @map("winner_interest_periods")
   hasForemanTicket        Boolean       @default(false) @map("has_foreman_ticket")
   createdAt               DateTime      @default(now()) @map("created_at")
   updatedAt               DateTime      @updatedAt @map("updated_at")
@@ -1288,6 +1292,8 @@ model ChitAuction {
   currentBestBidId String?                 @unique @map("current_best_bid_id")
   operatorId       String?                 @map("operator_id")
   closedAt         DateTime?               @map("closed_at")
+  reminder1DayAt   DateTime?               @map("reminder_1day_at")
+  reminder1HourAt  DateTime?               @map("reminder_1hour_at")
   bids             ChitBid[]
   attendance       ChitAuctionAttendance[]
   events           ChitAuctionEvent[]
@@ -1358,6 +1364,7 @@ model ChitSubscription {
   dueAmount        Decimal       @map("due_amount") @db.Decimal(14, 2)
   baseDueAmount    Decimal?      @map("base_due_amount") @db.Decimal(14, 2)
   dividendAmount   Decimal       @default(0.00) @map("dividend_amount") @db.Decimal(14, 2)
+  interestAmount   Decimal       @default(0.00) @map("interest_amount") @db.Decimal(14, 2)
   penaltyAmount    Decimal       @default(0.00) @map("penalty_amount") @db.Decimal(14, 2)
   paidAmount       Decimal       @default(0.00) @map("paid_amount") @db.Decimal(14, 2)
   status           String        @default("upcoming")

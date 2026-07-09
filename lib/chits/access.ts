@@ -1,7 +1,7 @@
 import { auth } from '@/lib/auth';
 import { getActiveBranchId } from '@/lib/branch';
 import { requireModule } from '@/lib/moduleGate';
-import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
+import { getDefaultTenantId } from '@/lib/tenant';
 import type { ChitScope } from './types';
 
 export function isTenantWideRole(role?: string | null) {
@@ -35,7 +35,7 @@ export async function getWebChitScope(): Promise<ChitScope> {
   if (!session?.user) throw new Error('Unauthorized');
   const role = (session.user as any).role as string;
   const tenantId = await getDefaultTenantId();
-  const appType = await getUserAppType();
+  const appType = 'chitfunds';
   const branchId = await getActiveBranchId();
   await requireModule(tenantId, 'chitfunds');
   return {

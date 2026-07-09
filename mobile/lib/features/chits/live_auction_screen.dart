@@ -141,6 +141,22 @@ class _LiveAuctionScreenState extends ConsumerState<LiveAuctionScreen> {
     }
   }
 
+  Future<void> _retractMember(String memberId) async {
+    setState(() => _busy = true);
+    try {
+      final s = await _svc.retractMemberBid(
+        widget.groupId,
+        widget.period,
+        memberId: memberId,
+      );
+      _applyState(s);
+    } catch (e) {
+      _snack(_msg(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _declare(LiveAuctionState s) async {
     if (_closing) return;
     if (s.currentBest == null) {
@@ -150,12 +166,17 @@ class _LiveAuctionScreenState extends ConsumerState<LiveAuctionScreen> {
     _closing = true;
     setState(() => _busy = true);
     try {
-      final res = await _svc.closeAuction(widget.groupId, widget.period);
-      final w = res.settlement ?? res.winner;
-      final seat = w != null ? res.seatOf(w.winnerMemberId) : null;
-      if (w != null) {
+      await _svc.confirmAuction(
+        widget.groupId,
+        s.auctionId,
+        winningBidId: s.currentBest?.bidId.isNotEmpty == true
+            ? s.currentBest!.bidId
+            : null,
+      );
+      final seat = s.currentBest != null ? s.seatOf(s.currentBest!.memberId) : null;
+      if (s.currentBest != null) {
         ref.speak(
-            '${T.of(ref).x('chit.live.winner_is')} ${seat?.name ?? ''}, ${_speakAmount(w.prizeAmount)}');
+            '${T.of(ref).x('chit.live.winner_is')} ${seat?.name ?? ''}, ${_speakAmount(s.currentBest!.prizeAmount)}');
       }
       ref.invalidate(liveAuctionStateProvider(_key));
     } catch (e) {
@@ -240,10 +261,11 @@ class _LiveAuctionScreenState extends ConsumerState<LiveAuctionScreen> {
 
   // ── Tap to bid ─────────────────────────────────────────────────────────
   void _tapSeat(LiveAuctionState s, SeatState seat) {
-    if (!s.isLive || !seat.active || _busy) return;
-    final start = (s.currentPrize - s.minBidDecrement)
+    if (!s.isLive || _busy) return;
+    final start = (s.minNextPrize ?? (s.currentPrize - s.minBidDecrement))
         .clamp(0, s.chitValue)
         .toDouble();
+    final memberBids = s.memberBids[seat.memberId] ?? const <LiveBid>[];
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: AppColors.surface,
@@ -252,11 +274,19 @@ class _LiveAuctionScreenState extends ConsumerState<LiveAuctionScreen> {
         seat: seat,
         initial: start,
         step: s.minBidDecrement > 0 ? s.minBidDecrement : 1,
-        max: (s.currentPrize - s.minBidDecrement).clamp(0, s.chitValue).toDouble(),
+        max: start,
+        memberBids: memberBids,
+        canBid: seat.active,
         onConfirm: (amt) {
           Navigator.of(context).pop();
           _placeBid(seat.memberId, amt, source: 'tap');
         },
+        onRetract: memberBids.isEmpty
+            ? null
+            : () {
+                Navigator.of(context).pop();
+                _retractMember(seat.memberId);
+              },
       ),
     );
   }
@@ -433,6 +463,7 @@ class _LiveView extends ConsumerWidget {
     return Column(
       children: [
         Expanded(child: _PokerTable(state: state, onTapSeat: onTapSeat)),
+        _SpectatorBanner(state: state),
         _BenchStrip(state: state),
         _BottomBar(
           busy: busy,
@@ -616,6 +647,32 @@ String _short(double v) {
 }
 
 // ───────────────────────── Center pot + countdown ─────────────────────────
+
+class _SpectatorBanner extends StatelessWidget {
+  const _SpectatorBanner({required this.state});
+  final LiveAuctionState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final spectators = state.seats.where((s) => !s.active).length;
+    if (spectators == 0) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.inkElevated,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.inkBorder),
+      ),
+      child: Text(
+        '$spectators spectator${spectators == 1 ? '' : 's'} watching only',
+        style: AppTypography.caption.copyWith(color: AppColors.onInkMuted),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+}
 
 class _CenterPot extends ConsumerStatefulWidget {
   const _CenterPot({required this.state});
@@ -828,13 +885,19 @@ class _BidSheet extends ConsumerStatefulWidget {
     required this.initial,
     required this.step,
     required this.max,
+    required this.memberBids,
+    required this.canBid,
     required this.onConfirm,
+    this.onRetract,
   });
   final SeatState seat;
   final double initial;
   final double step;
   final double max;
+  final List<LiveBid> memberBids;
+  final bool canBid;
   final void Function(double) onConfirm;
+  final VoidCallback? onRetract;
 
   @override
   ConsumerState<_BidSheet> createState() => _BidSheetState();
@@ -847,6 +910,12 @@ class _BidSheetState extends ConsumerState<_BidSheet> {
   Widget build(BuildContext context) {
     final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
+    final quicks = <({String label, double amount})>[
+      (label: 'Min', amount: widget.max),
+      (label: '-1', amount: (widget.max - widget.step).clamp(0, widget.max).toDouble()),
+      (label: '-2', amount: (widget.max - (widget.step * 2)).clamp(0, widget.max).toDouble()),
+      (label: '-5', amount: (widget.max - (widget.step * 5)).clamp(0, widget.max).toDouble()),
+    ];
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -865,6 +934,21 @@ class _BidSheetState extends ConsumerState<_BidSheet> {
             const SizedBox(height: 16),
             Text(t.x('chit.live.enter_bid'),
                 style: AppTypography.caption.copyWith(color: AppColors.textSecondary)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                for (final q in quicks)
+                  ActionChip(
+                    label: Text('${q.label} ${fmt.format(q.amount)}'),
+                    onPressed: widget.canBid && q.amount > 0
+                        ? () => setState(() => _amount = q.amount)
+                        : null,
+                  ),
+              ],
+            ),
             const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -885,6 +969,52 @@ class _BidSheetState extends ConsumerState<_BidSheet> {
                 ),
               ],
             ),
+            if (widget.memberBids.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Member history',
+                    style: AppTypography.caption.copyWith(
+                        color: AppColors.textSecondary, fontWeight: FontWeight.w700)),
+              ),
+              const SizedBox(height: 6),
+              for (final bid in widget.memberBids.take(4))
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    children: [
+                      Icon(
+                        bid.kind == 'bid'
+                            ? Icons.trending_down_rounded
+                            : Icons.pan_tool_alt_outlined,
+                        size: 16,
+                        color: AppColors.textSecondary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          bid.kind == 'bid'
+                              ? '${fmt.format(bid.prizeAmount)} (${bid.source})'
+                              : bid.kind,
+                          style: AppTypography.caption
+                              .copyWith(color: AppColors.textSecondary),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              if (widget.onRetract != null) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: widget.onRetract,
+                    icon: const Icon(Icons.backspace_outlined, size: 18),
+                    label: const Text('Retract last'),
+                  ),
+                ),
+              ],
+            ],
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
@@ -894,7 +1024,8 @@ class _BidSheetState extends ConsumerState<_BidSheet> {
                   foregroundColor: AppColors.onPrimary,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-                onPressed: _amount > 0 ? () => widget.onConfirm(_amount) : null,
+                onPressed:
+                    widget.canBid && _amount > 0 ? () => widget.onConfirm(_amount) : null,
                 child: Text('${t.x('chit.live.bid')} ${fmt.format(_amount)}',
                     style: AppTypography.bodyLarge.copyWith(
                         color: AppColors.onPrimary, fontWeight: FontWeight.w700)),
@@ -919,7 +1050,7 @@ class _MinutesPanel extends ConsumerWidget {
     final tf = DateFormat('HH:mm:ss');
     // Merge bids + events into one reverse-chronological trail.
     final rows = <(_MinuteKind, DateTime, String)>[];
-    for (final b in state.recentBids) {
+    for (final b in state.allBids) {
       final seat = state.seatOf(b.memberId);
       final name = seat?.name ?? '';
       if (b.kind == 'pass') {

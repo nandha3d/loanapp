@@ -72,6 +72,15 @@ function nextPeriodDate(startDate: Date, period: number, frequency: string) {
   return dueDate;
 }
 
+function scheduledDateTime(baseDate: Date, auctionTime?: string | null) {
+  const scheduled = new Date(baseDate);
+  if (auctionTime && /^([01]\d|2[0-3]):[0-5]\d$/.test(auctionTime)) {
+    const [hours, minutes] = auctionTime.split(':').map(Number);
+    scheduled.setHours(hours, minutes, 0, 0);
+  }
+  return scheduled;
+}
+
 const SECURITY_DOCUMENT_FIELDS = [
   { key: 'guarantorPhoto', type: 'guarantor_photo', label: 'Guarantor photo' },
   { key: 'guarantorKyc', type: 'guarantor_kyc', label: 'Guarantor KYC' },
@@ -128,6 +137,10 @@ export async function createChitGroup(formData: FormData) {
   const maxDiscountPct = numberValue(formData, 'maxDiscountPct');
   const minDiscountPct = numberValue(formData, 'minDiscountPct');
   const foremanCommissionCapPct = numberValue(formData, 'foremanCommissionCapPct');
+  const auctionTime = value(formData, 'auctionTime');
+  const winnerInterestType = value(formData, 'winnerInterestType') ?? 'NONE';
+  const winnerInterestValue = numberValue(formData, 'winnerInterestValue');
+  const winnerInterestPeriods = numberValue(formData, 'winnerInterestPeriods');
   validateChitConfig({
     auctionType: value(formData, 'auctionType') ?? 'open_manual',
     commissionBasis: value(formData, 'commissionBasis') ?? 'BID_DISCOUNT',
@@ -137,6 +150,10 @@ export async function createChitGroup(formData: FormData) {
     minDiscountPct,
     maxDiscountPct,
     fixedDiscountPct: numberValue(formData, 'fixedDiscountPct'),
+    auctionTime,
+    winnerInterestType,
+    winnerInterestValue,
+    winnerInterestPeriods,
   });
   assertValidCommissionPct({ commissionPct, foremanCommissionCapPct });
 
@@ -180,6 +197,7 @@ export async function createChitGroup(formData: FormData) {
         auctionFrequency: value(formData, 'auctionFrequency') ?? 'monthly',
         auctionMode: value(formData, 'auctionMode') ?? 'offline',
         auctionDay: numberValue(formData, 'auctionDay'),
+        auctionTime,
         registrationNo: value(formData, 'registrationNo'),
         registrationDate: dateValue(formData, 'registrationDate'),
         registrarOffice: value(formData, 'registrarOffice'),
@@ -199,6 +217,9 @@ export async function createChitGroup(formData: FormData) {
         dividendRounding: numberValue(formData, 'dividendRounding', 0) ?? 0,
         bidIncrement: numberValue(formData, 'bidIncrement'),
         tieBreakRule: value(formData, 'tieBreakRule') ?? 'EARLIEST_BID',
+        winnerInterestType,
+        winnerInterestValue: winnerInterestType === 'NONE' ? null : winnerInterestValue,
+        winnerInterestPeriods: winnerInterestType === 'NONE' ? null : winnerInterestPeriods,
         hasForemanTicket: value(formData, 'hasForemanTicket') === 'true',
         remarks: value(formData, 'remarks'),
       },
@@ -350,12 +371,13 @@ export async function activateChitGroup(groupId: string) {
     }
     if (!existingAuctions) {
       for (let period = 1; period <= periodCount; period++) {
+        const auctionDate = nextPeriodDate(group.startDate, period, group.auctionFrequency);
         await tx.chitAuction.create({
           data: {
             chitGroupId: group.id,
             periodNumber: period,
-            auctionDate: nextPeriodDate(group.startDate, period, group.auctionFrequency),
-            scheduledAt: nextPeriodDate(group.startDate, period, group.auctionFrequency),
+            auctionDate,
+            scheduledAt: scheduledDateTime(auctionDate, group.auctionTime),
             status: 'pending',
           },
         });
@@ -509,6 +531,43 @@ export async function markAuctionNoticeSent(auctionId: string) {
   revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}`));
 }
 
+export async function rescheduleAuction(auctionId: string, scheduledAtIso: string) {
+  const scope = await getWebChitScope();
+  assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+  const scheduledAt = new Date(scheduledAtIso);
+  if (Number.isNaN(scheduledAt.getTime())) throw new Error('Invalid schedule date/time');
+  const auction = await prisma.chitAuction.findFirst({
+    where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
+    include: { chitGroup: true },
+  });
+  if (!auction) throw new Error('Auction not found');
+  if (!['pending', 'notice_sent'].includes(auction.status)) {
+    throw new Error('Only pending or notice-sent auctions can be rescheduled');
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.chitAuction.update({
+      where: { id: auction.id },
+      data: {
+        scheduledAt,
+        auctionDate: scheduledAt,
+        reminder1DayAt: null,
+        reminder1HourAt: null,
+      },
+    });
+    await createChitAudit(tx, {
+      tenantId: scope.tenantId,
+      userId: scope.userId,
+      action: 'reschedule_auction',
+      entityType: 'chit_auction',
+      entityId: auction.id,
+      newValue: { scheduledAt: scheduledAt.toISOString() },
+    });
+  });
+  revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}`));
+  revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}/auctions/${auction.id}`));
+}
+
 export async function markAuctionAttendance(auctionId: string, memberId: string, status = 'present', proxyName?: string | null) {
   const scope = await getWebChitScope();
   assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
@@ -618,6 +677,46 @@ export async function addAuctionBid(auctionId: string, memberId: string, prizeAm
   });
   revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}`));
   return bid;
+}
+
+export async function retractLiveMemberBid(auctionId: string, memberId: string) {
+  const scope = await getWebChitScope();
+  assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+  const auction = await prisma.chitAuction.findFirst({
+    where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
+    include: { chitGroup: true },
+  });
+  if (!auction) throw new Error('Auction not found');
+  if (auction.chitGroup.auctionType !== 'open_live') throw new Error('Retract is only available in live rooms');
+  if (!['open', 'extended'].includes(auction.roomStatus)) throw new Error('Room is not open');
+  const last = await prisma.chitBid.findFirst({
+    where: {
+      auctionId,
+      memberId,
+      status: 'valid',
+      ...(auction.startedAt ? { bidTime: { gte: auction.startedAt } } : {}),
+    },
+    orderBy: { bidTime: 'desc' },
+    select: { id: true },
+  });
+  if (!last) throw new Error('No valid member bid to retract');
+
+  await prisma.$transaction(async (tx) => {
+    await tx.chitBid.update({
+      where: { id: last.id },
+      data: { status: 'retracted', kind: 'retracted' },
+    });
+    await createChitAudit(tx, {
+      tenantId: scope.tenantId,
+      userId: scope.userId,
+      action: 'retract_live_bid',
+      entityType: 'chit_auction',
+      entityId: auctionId,
+      newValue: { memberId, bidId: last.id },
+    });
+  });
+  revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}`));
+  revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}/auctions/${auction.id}`));
 }
 
 export async function confirmAuction(auctionId: string, winningBidId?: string | null, minutesText?: string | null) {
@@ -1070,16 +1169,30 @@ export async function getLiveAuctionState(auctionId: string) {
     ? []
     : auction.bids.map((bid) => ({
         id: bid.id,
+        memberId: bid.memberId,
         ticketNo: bid.member.ticketNo,
         memberName: bid.member.customer.name,
         bidAmount: Number(bid.bidAmount),
+        prizeAmount: Number(bid.bidAmount),
         bidDiscount: Number(bid.bidDiscount),
+        discountAmount: Number(bid.bidDiscount),
         bidTime: bid.bidTime.toISOString(),
+        createdAt: bid.bidTime.toISOString(),
+        source: bid.source ?? 'tap',
         status: bid.status,
+        kind: bid.status === 'retracted' ? 'retracted' : 'bid',
       }));
   const highestBid = bids.length
     ? bids.reduce((top, bid) => (bid.bidDiscount > top.bidDiscount ? bid : top), bids[0])
     : null;
+  const minStep = auction.chitGroup.bidIncrement ? Number(auction.chitGroup.bidIncrement) : 0;
+  const minNextPrize = Math.max(1, (highestBid?.bidAmount ?? Number(auction.chitGroup.chitValue)) - minStep);
+  const allBids = bids.slice(0, 200);
+  const memberBids = allBids.reduce<Record<string, typeof allBids>>((acc, bid) => {
+    acc[bid.memberId] = acc[bid.memberId] ?? [];
+    acc[bid.memberId].push(bid);
+    return acc;
+  }, {});
 
   return {
     roomStatus: auction.roomStatus,
@@ -1089,7 +1202,14 @@ export async function getLiveAuctionState(auctionId: string) {
     secondsRemaining: secondsRemaining(auction, now),
     bidCount: auction.bids.length,
     bids,
+    recentBids: bids.slice(0, 20),
+    allBids,
+    memberBids,
     highestBid,
+    currentBest: highestBid
+      ? { memberId: highestBid.memberId, prizeAmount: highestBid.bidAmount, discountAmount: highestBid.bidDiscount }
+      : null,
+    minNextPrize,
     presentCount: auction.attendance.filter((entry) => entry.status === 'present' || entry.status === 'proxy').length,
     winner: auction.winnerMember
       ? { name: auction.winnerMember.customer.name, ticketNo: auction.winnerMember.ticketNo }

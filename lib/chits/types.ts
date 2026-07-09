@@ -4,6 +4,7 @@ export type ChitCommissionBasis = 'BID_DISCOUNT' | 'CHIT_VALUE';
 export type ChitPaymentMode = 'ADD_PAYMENT' | 'SET_TOTAL_PAID';
 export type ChitAuctionType = 'open_manual' | 'open_live' | 'sealed' | 'lottery' | 'fixed_rotation';
 export type ChitTieBreakRule = 'EARLIEST_BID' | 'LOTTERY_AMONG_TIED';
+export type ChitWinnerInterestType = 'NONE' | 'FIXED' | 'PERCENT';
 
 export type ChitAuctionCalculationInput = {
   chitValue: number;

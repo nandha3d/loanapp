@@ -11,6 +11,7 @@ import {
   recordChitPayment,
   updateChitMemberDetails,
   markChitAgreementSigned,
+  rescheduleAuction,
   verifyChitAgreement,
 } from '../actions';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -48,6 +49,8 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
   const [payRef, setPayRef] = useState('');
   const [payNotes, setPayNotes] = useState('');
   const [lastReceipt, setLastReceipt] = useState('');
+  const [rescheduleModal, setRescheduleModal] = useState<any>(null);
+  const [rescheduleValue, setRescheduleValue] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
@@ -57,12 +60,14 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
   const membersMissingTicketNo = group.members.filter((m: any) => !m.ticketNo).length;
   const subscriptionBreakdown = (s: any) => {
     const dividendAdjustment = Number(s.dividendAmount || 0);
+    const interest = Number(s.interestAmount || 0);
     const penalty = Number(s.penaltyAmount || 0);
     const netDue = Number(s.dueAmount) + penalty;
     const paid = Number(s.paidAmount || 0);
     return {
-      baseContribution: Number(s.baseDueAmount ?? Number(s.dueAmount) + dividendAdjustment),
+      baseContribution: Number(s.baseDueAmount ?? Number(s.dueAmount) + dividendAdjustment - interest),
       dividendAdjustment,
+      interest,
       penalty,
       netDue,
       paid,
@@ -112,6 +117,16 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
     setLoading(false);
   };
 
+  const handleReschedule = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!rescheduleModal || !rescheduleValue) return;
+    await run('reschedule', async () => {
+      await rescheduleAuction(rescheduleModal.id, new Date(rescheduleValue).toISOString());
+      setRescheduleModal(null);
+      setRescheduleValue('');
+    });
+  };
+
   const agreementBadge = (status: string) => {
     const cls = status === 'verified' ? 'success' : status === 'signed' ? 'info' : status === 'rejected' ? 'danger' : 'warning';
     return <span className={`badge badge-${cls}`}>{status}</span>;
@@ -138,7 +153,7 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
       )}
 
       <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', justifyContent: 'flex-end' }}>
-        <a href={`/chits/${group.groupCode ?? group.id}/edit`} className="btn btn-secondary btn-sm">Edit</a>
+        <Link href={`/chits/${group.id}/edit`} className="btn btn-secondary btn-sm">Edit</Link>
         {group.status === 'draft' && membersMissingTicketNo > 0 && (
           <button
             className="btn btn-secondary btn-sm"
@@ -202,6 +217,8 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
                 <tr><td>Type</td><td>{group.chitType === 'registered' ? 'Registered' : 'Unregistered'} · {AUCTION_TYPE_LABELS[group.auctionType] ?? group.auctionType}</td></tr>
                 <tr><td>Commission</td><td>{Number(group.commissionPct)}% of {group.commissionBasis === 'CHIT_VALUE' ? 'chit value' : 'bid discount'}{group.gstPct ? ` + GST ${Number(group.gstPct)}%` : ''}</td></tr>
                 <tr><td>Dividend</td><td>{group.dividendPolicy === 'NON_WINNERS_ONLY' ? 'Non-winners only' : 'All members'} · {DISTRIBUTION_LABELS[group.dividendDistribution] ?? group.dividendDistribution}{group.dividendRounding ? ` · rounded to ${currencySymbol}${group.dividendRounding}` : ''}</td></tr>
+                <tr><td>Default time</td><td>{group.auctionTime || 'Not set'}</td></tr>
+                <tr><td>Winner interest</td><td>{group.winnerInterestType === 'NONE' ? 'None' : `${group.winnerInterestType} ${group.winnerInterestValue ?? ''} for ${group.winnerInterestPeriods ?? 0} period(s)`}</td></tr>
                 {!isDrawType && (
                   <tr><td>Bid rules</td><td>
                     Discount {group.minDiscountPct ? `${Number(group.minDiscountPct)}%` : `${Number(group.commissionPct)}% (commission floor)`} – {group.maxDiscountPct ? `${Number(group.maxDiscountPct)}%` : 'no cap'}
@@ -256,14 +273,35 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
                 {group.auctions.map((a: any) => (
                   <tr key={a.id}>
                     <td>Period {a.periodNumber}</td>
-                    <td>{formatDate(a.auctionDate)}</td>
+                    <td>
+                      {formatDate(a.auctionDate)}
+                      {a.scheduledAt && <div style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>{new Date(a.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>}
+                    </td>
                     <td>{a.winnerMember?.customer?.name || '—'}</td>
                     <td>{a.prizeAmount ? formatCurrency(Number(a.prizeAmount), currencySymbol) : '—'}</td>
                     <td>{a.dividend ? formatCurrency(Number(a.dividend), currencySymbol) : '—'}</td>
                     <td><span className={`badge badge-${['confirmed', 'paid'].includes(a.status) ? 'success' : a.status === 'cancelled' ? 'danger' : a.status === 'in_progress' ? 'info' : 'warning'}`}>{a.status}</span></td>
                     <td>{a.winnerMemberId ? <span className={`badge badge-${a.payoutStatus === 'paid' ? 'success' : a.payoutStatus === 'ready' ? 'info' : 'warning'}`}>{a.payoutStatus}</span> : '—'}</td>
                     <td style={{ whiteSpace: 'nowrap' }}>
-                      <Link href={`/chits/${group.groupCode ?? group.id}/auctions/${a.id}`} className="btn btn-ghost btn-sm">Manage</Link>
+                      <Link href={`/chits/${group.id}/auctions/${a.id}`} className="btn btn-ghost btn-sm">Manage</Link>
+                      {group.auctionType === 'open_live' && (
+                        <Link href={`/chits/${group.id}/auctions/${a.id}`} className="btn btn-secondary btn-sm" style={{ marginLeft: '4px' }}>Enter room</Link>
+                      )}
+                      {['pending', 'notice_sent'].includes(a.status) && (
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          style={{ marginLeft: '4px' }}
+                          disabled={busy === 'reschedule'}
+                          onClick={() => {
+                            setRescheduleModal(a);
+                            const initial = a.scheduledAt ? new Date(a.scheduledAt) : new Date(a.auctionDate);
+                            const local = new Date(initial.getTime() - initial.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+                            setRescheduleValue(local);
+                          }}
+                        >
+                          Reschedule
+                        </button>
+                      )}
                       {isDrawType && !['confirmed', 'paid', 'cancelled'].includes(a.status) && group.status === 'active' && (
                         <button
                           className="btn btn-primary btn-sm"
@@ -422,6 +460,7 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', marginBottom: '12px', fontSize: '.8rem', color: 'var(--text-secondary)' }}>
               <span>Base: {formatCurrency(Number(paymentModal.baseContribution), currencySymbol)}</span>
               <span>Dividend: {Number(paymentModal.dividendAdjustment) > 0 ? `-${formatCurrency(Number(paymentModal.dividendAdjustment), currencySymbol)}` : '—'}</span>
+              <span>Interest: {Number(paymentModal.interest) > 0 ? formatCurrency(Number(paymentModal.interest), currencySymbol) : '—'}</span>
               <span>Penalty: {Number(paymentModal.penalty) > 0 ? formatCurrency(Number(paymentModal.penalty), currencySymbol) : '—'}</span>
               <span>Net due: {formatCurrency(Number(paymentModal.netDue), currencySymbol)}</span>
               <span>Paid: {formatCurrency(Number(paymentModal.paid), currencySymbol)}</span>
@@ -457,6 +496,32 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Reschedule Modal */}
+      {rescheduleModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <form className="card" style={{ width: '420px', padding: '24px' }} onSubmit={handleReschedule}>
+            <h3 style={{ marginBottom: '12px' }}>Reschedule period {rescheduleModal.periodNumber}</h3>
+            {error && <p style={{ color: 'var(--danger)', marginBottom: '10px', fontSize: '.85rem' }}>{error}</p>}
+            <div className="form-group" style={{ marginBottom: '16px' }}>
+              <label className="form-label">New date and time</label>
+              <input
+                type="datetime-local"
+                className="form-control"
+                value={rescheduleValue}
+                onChange={(e) => setRescheduleValue(e.target.value)}
+                required
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setRescheduleModal(null)}>Cancel</button>
+              <button type="submit" className="btn btn-primary btn-sm" disabled={busy === 'reschedule'}>
+                {busy === 'reschedule' ? 'Saving...' : 'Save schedule'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 

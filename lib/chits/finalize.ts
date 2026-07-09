@@ -2,6 +2,7 @@ import { calculateChitAuction, roundMoney } from './calculations';
 import { generateAuctionMinutes } from './auction';
 import { generateChitReceiptNo } from './receipts';
 import { createChitAudit } from './audit';
+import { applyWinnerInterest } from './winnerInterest';
 
 type FinalizeScope = { tenantId: string; appType: string; userId?: string | null };
 
@@ -190,13 +191,26 @@ export async function finalizeAuctionInTx(tx: any, params: {
     winnerTicketNo: params.winnerTicketNo,
   });
 
+  const winnerInterest = await applyWinnerInterest(tx, {
+    chitGroupId: auction.chitGroupId,
+    winnerMemberId: selectedBid.memberId,
+    wonPeriodNumber: auction.periodNumber,
+    group: {
+      chitValue: Number(group.chitValue),
+      totalMembers: group.totalMembers,
+      winnerInterestType: group.winnerInterestType,
+      winnerInterestValue: group.winnerInterestValue != null ? Number(group.winnerInterestValue) : null,
+      winnerInterestPeriods: group.winnerInterestPeriods,
+    },
+  });
+
   await createChitAudit(tx, {
     tenantId: scope.tenantId,
     userId: scope.userId,
     action: params.auditAction,
     entityType: 'chit_auction',
     entityId: auction.id,
-    newValue: { winningBidId: selectedBid.id, calc, drawEvidence: params.drawEvidence || undefined },
+    newValue: { winningBidId: selectedBid.id, calc, winnerInterest, drawEvidence: params.drawEvidence || undefined },
   });
   return { calc, auction: saved };
 }

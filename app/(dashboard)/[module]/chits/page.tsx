@@ -1,7 +1,7 @@
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
-import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
+import { getDefaultTenantId, getSetting } from '@/lib/tenant';
 import { requireModule } from '@/lib/moduleGate';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import Link from '@/components/layout/DashboardLink';
@@ -19,7 +19,7 @@ export default async function ChitsPage({
   if (!session) redirect('/login');
 
   const tenantId = await getDefaultTenantId();
-  const appType = await getUserAppType();
+  const appType = 'chitfunds';
   if (userRole === 'agent') redirect(modulePath(appType, '/collection'));
   const dict = await getDictionary(tenantId);
   try {
@@ -59,7 +59,10 @@ export default async function ChitsPage({
         orderBy: { createdAt: 'desc' },
         include: {
           _count: { select: { members: true, auctions: true } },
-          auctions: { where: { status: 'completed' }, select: { id: true } },
+          auctions: {
+            orderBy: { periodNumber: 'asc' },
+            select: { id: true, periodNumber: true, status: true, scheduledAt: true, auctionDate: true, roomStatus: true },
+          },
         },
       }),
       prisma.chitGroup.count({ where: { tenantId, appType, status: 'active', ...(branchId ? { branchId } : {}) } }),
@@ -120,35 +123,41 @@ export default async function ChitsPage({
             <Link href="/chits/new" className="btn btn-primary btn-sm">{dict.chits.createFirst}</Link>
           </div>
         ) : (
-          <div className="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th>{dict.chits.name}</th>
-                  <th>{dict.chits.chitValue}</th>
-                  <th>{dict.chits.monthly}</th>
-                  <th>{dict.chits.members}</th>
-                  <th>{dict.chits.auctionsDone}</th>
-                  <th>{dict.chits.startDate}</th>
-                  <th>{dict.chits.status}</th>
-                  <th>{dict.chits.action}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {groups.map((g) => (
-                  <tr key={g.id}>
-                    <td><strong>{g.name}</strong></td>
-                    <td>{formatCurrency(Number(g.chitValue), currencySymbol)}</td>
-                    <td>{formatCurrency(Number(g.monthlyContrib), currencySymbol)}</td>
-                    <td>{g._count.members} / {g.totalMembers}</td>
-                    <td>{g.auctions.length} / {g.durationMonths}</td>
-                    <td>{formatDate(g.startDate)}</td>
-                    <td><span className={`badge badge-${g.status === 'active' ? 'success' : g.status === 'completed' ? 'info' : 'secondary'}`}>{g.status}</span></td>
-                    <td><Link href={`/chits/${g.groupCode ?? g.id}`} className="btn btn-ghost btn-sm">{dict.chits.view}</Link></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
+            {groups.map((g) => {
+              const completedAuctions = g.auctions.filter((a: any) => ['confirmed', 'paid', 'completed'].includes(a.status));
+              const nextAuction = g.auctions.find((a: any) => ['pending', 'notice_sent', 'in_progress'].includes(a.status));
+              return (
+                <div key={g.id} className="card" style={{ padding: '14px', borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginBottom: '10px' }}>
+                    <div>
+                      <h4 style={{ margin: 0 }}>{g.name}</h4>
+                      <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>{g.groupCode ?? g.id}</div>
+                    </div>
+                    <span className={`badge badge-${g.status === 'active' ? 'success' : g.status === 'completed' ? 'info' : 'secondary'}`}>{g.status}</span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '.84rem', marginBottom: '12px' }}>
+                    <span>{dict.chits.chitValue}<br /><strong>{formatCurrency(Number(g.chitValue), currencySymbol)}</strong></span>
+                    <span>{dict.chits.monthly}<br /><strong>{formatCurrency(Number(g.monthlyContrib), currencySymbol)}</strong></span>
+                    <span>{dict.chits.members}<br /><strong>{g._count.members} / {g.totalMembers}</strong></span>
+                    <span>{dict.chits.auctionsDone}<br /><strong>{completedAuctions.length} / {g.durationMonths}</strong></span>
+                  </div>
+                  <div style={{ fontSize: '.82rem', color: 'var(--text-secondary)', minHeight: '38px', marginBottom: '12px' }}>
+                    {nextAuction
+                      ? <>Next auction: Period {nextAuction.periodNumber} · {formatDate(nextAuction.scheduledAt ?? nextAuction.auctionDate)} {nextAuction.scheduledAt ? new Date(nextAuction.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</>
+                      : <>Started {formatDate(g.startDate)}</>}
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <Link href={`/chits/${g.id}`} className="btn btn-ghost btn-sm">{dict.chits.view}</Link>
+                    {nextAuction && (
+                      <Link href={`/chits/${g.id}/auctions/${nextAuction.id}`} className="btn btn-secondary btn-sm">
+                        {g.auctionType === 'open_live' ? 'Enter room' : 'Manage auction'}
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

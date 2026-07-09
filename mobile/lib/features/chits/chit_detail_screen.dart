@@ -88,88 +88,6 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
     setState(() => _busy = false);
   }
 
-  void _showRecordWinnerSheet(
-      ChitAuction auction, List<ChitMember> members, NumberFormat fmt) {
-    String? winnerId;
-    double prizeAmount = 0;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(builder: (ctx, setLocal) {
-          final eligible = members.where((m) => !m.hasWon).toList();
-          return Padding(
-            padding: EdgeInsets.fromLTRB(
-                20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Record Winner — Period ${auction.periodNumber}',
-                    style: AppTypography.sectionTitle),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(labelText: 'Winner'),
-                  items: eligible
-                      .map((m) => DropdownMenuItem(
-                          value: m.id,
-                          child: Text('${m.memberNumber}. ${m.customerName}')))
-                      .toList(),
-                  onChanged: (v) => setLocal(() => winnerId = v),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  decoration: const InputDecoration(labelText: 'Prize Amount'),
-                  keyboardType: TextInputType.number,
-                  onChanged: (v) =>
-                      setLocal(() => prizeAmount = double.tryParse(v) ?? 0),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        child: const Text('Cancel')),
-                    const SizedBox(width: 8),
-                    ElevatedButton(
-                      onPressed: winnerId == null
-                          ? null
-                          : () async {
-                              Navigator.pop(ctx);
-                              setState(() => _busy = true);
-                              try {
-                                await ref
-                                    .read(chitServiceProvider)
-                                    .recordAuction(
-                                      widget.id,
-                                      periodNumber: auction.periodNumber,
-                                      winnerMemberId: winnerId,
-                                      prizeAmount:
-                                          prizeAmount > 0 ? prizeAmount : null,
-                                    );
-                                _refresh();
-                              } catch (e) {
-                                setState(() => _error = e.toString());
-                              }
-                              setState(() => _busy = false);
-                            },
-                      child: const Text('Record Winner'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        });
-      },
-    );
-  }
-
   void _showRecordPaymentSheet(ChitSubscription sub, NumberFormat fmt) {
     double amount = sub.outstanding;
     String paymentMode = 'cash';
@@ -832,12 +750,20 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                                     final m = members.valueOrNull ?? [];
                                     _showAuctionManageSheet(a, group, m);
                                   },
-                                  onLive: () => context.push(
-                                    '/chits/${widget.id}/auction/${a.periodNumber}/live',
-                                  ),
-                                  onRecord: () {
+                                  onLive: () {
                                     final m = members.valueOrNull ?? [];
-                                    _showRecordWinnerSheet(a, m, fmt);
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute<void>(
+                                        builder: (_) => ChitLiveAuctionScreen(
+                                          groupId: widget.id,
+                                          auctionId: a.id,
+                                          periodNumber: a.periodNumber,
+                                          members: m,
+                                          isAdmin: true,
+                                        ),
+                                      ),
+                                    ).then((_) => _refresh());
                                   },
                                 );
                               }).toList(),
@@ -1020,13 +946,11 @@ class _AuctionTile extends StatelessWidget {
     required this.fmt,
     required this.onManage,
     required this.onLive,
-    required this.onRecord,
   });
   final ChitAuction auction;
   final NumberFormat fmt;
   final VoidCallback onManage;
   final VoidCallback onLive;
-  final VoidCallback onRecord;
 
   @override
   Widget build(BuildContext context) {
@@ -1058,18 +982,6 @@ class _AuctionTile extends StatelessWidget {
                   label: const Text('Live'),
                 ),
                 const SizedBox(width: 8),
-                TextButton(
-                  onPressed: onRecord,
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppColors.primary,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: const Text('Record'),
-                ),
-                const SizedBox(width: 4),
                 IconButton(
                   onPressed: onManage,
                   icon: const Icon(Icons.more_horiz),

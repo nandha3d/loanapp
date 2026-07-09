@@ -12,15 +12,18 @@ int _i(dynamic v) =>
 /// The current leading (lowest-prize) bid.
 class CurrentBest {
   const CurrentBest({
+    required this.bidId,
     required this.memberId,
     required this.prizeAmount,
     required this.discountAmount,
   });
+  final String bidId;
   final String memberId;
   final double prizeAmount;
   final double discountAmount;
 
   factory CurrentBest.fromJson(Map<String, dynamic> j) => CurrentBest(
+        bidId: (j['bidId'] as String?) ?? '',
         memberId: (j['memberId'] as String?) ?? '',
         prizeAmount: _d(j['prizeAmount']),
         discountAmount: _d(j['discountAmount']),
@@ -160,7 +163,10 @@ class LiveAuctionState {
     required this.seats,
     required this.activeCount,
     required this.recentBids,
+    required this.allBids,
+    required this.memberBids,
     required this.events,
+    this.minNextPrize,
     this.startedAt,
     this.endsAt,
     this.currentBest,
@@ -184,7 +190,10 @@ class LiveAuctionState {
   final List<SeatState> seats;
   final int activeCount;
   final List<LiveBid> recentBids;
+  final List<LiveBid> allBids;
+  final Map<String, List<LiveBid>> memberBids;
   final List<AuctionEvent> events;
+  final double? minNextPrize;
   final DateTime? startedAt;
   final DateTime? endsAt;
   final CurrentBest? currentBest;
@@ -224,6 +233,22 @@ class LiveAuctionState {
           .toList(growable: false);
     }
 
+    Map<String, List<LiveBid>> parseMemberBids() {
+      final raw = j['memberBids'];
+      if (raw is! Map) return const <String, List<LiveBid>>{};
+      return raw.map((dynamic key, dynamic value) {
+        final bids = value is List
+            ? value
+                .map((dynamic e) => LiveBid.fromJson(e as Map<String, dynamic>))
+                .toList(growable: false)
+            : const <LiveBid>[];
+        return MapEntry(key.toString(), bids);
+      });
+    }
+
+    final recentBids = parseList('recentBids', LiveBid.fromJson);
+    final allBids = parseList('allBids', LiveBid.fromJson);
+
     return LiveAuctionState(
       auctionId: (j['auctionId'] as String?) ?? '',
       periodNumber: _i(j['periodNumber']),
@@ -237,8 +262,11 @@ class LiveAuctionState {
       totalMembers: _i(j['totalMembers']),
       seats: parseList('seats', SeatState.fromJson),
       activeCount: _i(j['activeCount']),
-      recentBids: parseList('recentBids', LiveBid.fromJson),
+      recentBids: recentBids,
+      allBids: allBids.isEmpty ? recentBids : allBids,
+      memberBids: parseMemberBids(),
       events: parseList('events', AuctionEvent.fromJson),
+      minNextPrize: _dn(j['minNextPrize']),
       startedAt: DateTime.tryParse((j['startedAt'] as String?) ?? '')?.toUtc(),
       endsAt: DateTime.tryParse((j['endsAt'] as String?) ?? '')?.toUtc(),
       currentBest: j['currentBest'] == null

@@ -13,7 +13,9 @@ export type EventKey =
   | 'loan_disbursed'
   | 'loan_overdue'
   | 'loan_closed'
-  | 'penalty_accrued';
+  | 'penalty_accrued'
+  | 'chit_auction_reminder_day'
+  | 'chit_auction_reminder_hour';
 
 const MESSAGES: Record<EventKey, Record<string, (d: Record<string, string>) => string>> = {
   payment_received: {
@@ -46,6 +48,16 @@ const MESSAGES: Record<EventKey, Record<string, (d: Record<string, string>) => s
     ta: d => `வணக்கம் ${d.name}, கடன் ${d.loanCode}க்கு ₹${d.penalty} அபராதம் சேர்க்கப்பட்டது. -${d.orgName}`,
     hi: d => `नमस्ते ${d.name}, ऋण ${d.loanCode} पर ₹${d.penalty} जुर्माना जोड़ा गया। -${d.orgName}`,
   },
+  chit_auction_reminder_day: {
+    en: d => `Hi ${d.name}, chit auction for ${d.groupName} period ${d.periodNumber} is scheduled at ${d.scheduledAt}. Please join the live room. -${d.orgName}`,
+    ta: d => `Hi ${d.name}, chit auction for ${d.groupName} period ${d.periodNumber} is scheduled at ${d.scheduledAt}. Please join the live room. -${d.orgName}`,
+    hi: d => `Hi ${d.name}, chit auction for ${d.groupName} period ${d.periodNumber} is scheduled at ${d.scheduledAt}. Please join the live room. -${d.orgName}`,
+  },
+  chit_auction_reminder_hour: {
+    en: d => `Hi ${d.name}, chit auction for ${d.groupName} period ${d.periodNumber} starts at ${d.scheduledAt}. Please join the live room. -${d.orgName}`,
+    ta: d => `Hi ${d.name}, chit auction for ${d.groupName} period ${d.periodNumber} starts at ${d.scheduledAt}. Please join the live room. -${d.orgName}`,
+    hi: d => `Hi ${d.name}, chit auction for ${d.groupName} period ${d.periodNumber} starts at ${d.scheduledAt}. Please join the live room. -${d.orgName}`,
+  },
 };
 
 // WhatsApp template names (pre-register these in MSG91 dashboard)
@@ -56,6 +68,8 @@ const WA_TEMPLATES: Record<EventKey, string> = {
   loan_overdue:         'lt_loan_overdue',
   loan_closed:          'lt_loan_closed',
   penalty_accrued:      'lt_penalty_accrued',
+  chit_auction_reminder_day: 'lt_chit_auction_reminder_day',
+  chit_auction_reminder_hour: 'lt_chit_auction_reminder_hour',
 };
 
 function interpolateTemplate(template: string, d: Record<string, string>): string {
@@ -73,6 +87,10 @@ function interpolateTemplate(template: string, d: Record<string, string>): strin
     '{start_date}': d.start_date || d.startDate || '',
     '{per_instalment}': d.per_instalment || d.perInstalment || '',
     '{principal}': d.principal || '',
+    '{groupName}': d.groupName || '',
+    '{periodNumber}': d.periodNumber || '',
+    '{scheduledAt}': d.scheduledAt || '',
+    '{chitValue}': d.chitValue || '',
 
     '{{customer_name}}': d.name || '',
     '{{amount}}': d.amount || '',
@@ -85,6 +103,10 @@ function interpolateTemplate(template: string, d: Record<string, string>): strin
     '{{principal}}': d.principal || '',
     '{{start_date}}': d.start_date || d.startDate || '',
     '{{per_instalment}}': d.per_instalment || d.perInstalment || '',
+    '{{groupName}}': d.groupName || '',
+    '{{periodNumber}}': d.periodNumber || '',
+    '{{scheduledAt}}': d.scheduledAt || '',
+    '{{chitValue}}': d.chitValue || '',
   };
 
   for (const [key, value] of Object.entries(replacements)) {
@@ -278,7 +300,7 @@ export async function notify(params: NotifyParams): Promise<void> {
 }
 
 function emailSubject(event: EventKey, d: Record<string, string>): string {
-  const subjects: Record<EventKey, string> = {
+  const subjects: Partial<Record<EventKey, string>> = {
     payment_received:     `Payment Received — Loan ${d.loanCode}`,
     payment_due_reminder: `Reminder: Payment Due — Loan ${d.loanCode}`,
     loan_disbursed:       `Loan Disbursed — ${d.loanCode}`,

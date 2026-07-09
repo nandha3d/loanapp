@@ -99,7 +99,8 @@ function buildStateShape(args: {
     latestPrize: number | null;
   }>;
   activeCount: number;
-  currentBest: { memberId: string; prizeAmount: number; discountAmount: number } | null;
+  currentBest: { bidId: string; memberId: string; prizeAmount: number; discountAmount: number } | null;
+  minNextPrize: number;
   recentBids: Array<{
     id: string;
     memberId: string;
@@ -109,6 +110,24 @@ function buildStateShape(args: {
     source: string;
     createdAt: string;
   }>;
+  allBids: Array<{
+    id: string;
+    memberId: string;
+    prizeAmount: number;
+    discountAmount: number;
+    kind: string;
+    source: string;
+    createdAt: string;
+  }>;
+  memberBids: Record<string, Array<{
+    id: string;
+    memberId: string;
+    prizeAmount: number;
+    discountAmount: number;
+    kind: string;
+    source: string;
+    createdAt: string;
+  }>>;
   events: Array<{
     id: string;
     type: string;
@@ -118,7 +137,7 @@ function buildStateShape(args: {
     createdAt: string;
   }>;
 }) {
-  const { auction, group, seats, activeCount, currentBest, recentBids, events } = args;
+  const { auction, group, seats, activeCount, currentBest, minNextPrize, recentBids, allBids, memberBids, events } = args;
   return {
     auctionId: auction.id,
     periodNumber: auction.periodNumber,
@@ -132,9 +151,12 @@ function buildStateShape(args: {
     commissionPct: group.commissionPct,
     totalMembers: group.totalMembers,
     currentBest,
+    minNextPrize,
     seats,
     activeCount,
     recentBids,
+    allBids,
+    memberBids,
     events,
     winner:
       auction.status === 'completed' && auction.winnerMemberId
@@ -236,12 +258,13 @@ export async function buildLiveState(group: ChitGroupLite, periodNumber: number)
   // and not passed this round.
   const activeCount = seats.filter((s) => !s.hasWon && !s.passed).length;
 
-  let currentBest: { memberId: string; prizeAmount: number; discountAmount: number } | null =
+  let currentBest: { bidId: string; memberId: string; prizeAmount: number; discountAmount: number } | null =
     null;
   if (auction?.currentBestBidId) {
     const best = allBids.find((b) => b.id === auction.currentBestBidId);
     if (best) {
       currentBest = {
+        bidId: best.id,
         memberId: best.memberId,
         prizeAmount: Number(best.prizeAmount),
         discountAmount: Number(best.discountAmount),
@@ -261,6 +284,25 @@ export async function buildLiveState(group: ChitGroupLite, periodNumber: number)
       source: b.source,
       createdAt: b.createdAt.toISOString(),
     }));
+  const exposedBids = allBids
+    .slice(-200)
+    .reverse()
+    .map((b) => ({
+      id: b.id,
+      memberId: b.memberId,
+      prizeAmount: Number(b.prizeAmount),
+      discountAmount: Number(b.discountAmount),
+      kind: b.kind,
+      source: b.source,
+      createdAt: b.createdAt.toISOString(),
+    }));
+  const memberBids = exposedBids.reduce<Record<string, typeof exposedBids>>((acc, bid) => {
+    acc[bid.memberId] = acc[bid.memberId] ?? [];
+    acc[bid.memberId].push(bid);
+    return acc;
+  }, {});
+  const minBidDecrement = auction?.minBidDecrement != null ? Number(auction.minBidDecrement) : 0;
+  const minNextPrize = Math.max(1, (currentBest?.prizeAmount ?? group.chitValue) - minBidDecrement);
 
   const eventRows = auction
     ? await prisma.chitAuctionEvent.findMany({
@@ -304,7 +346,10 @@ export async function buildLiveState(group: ChitGroupLite, periodNumber: number)
     seats,
     activeCount,
     currentBest,
+    minNextPrize,
     recentBids,
+    allBids: exposedBids,
+    memberBids,
     events,
   });
 }

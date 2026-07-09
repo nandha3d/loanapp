@@ -55,7 +55,7 @@ export default async function ChitAuctionDetailPage({ params }: { params: Promis
   return (
     <div>
       <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Link href={`/chits/${auction.chitGroup.groupCode ?? id}`} className="btn btn-ghost btn-sm">
+        <Link href={`/chits/${auction.chitGroup.id}`} className="btn btn-ghost btn-sm">
           <span className="material-icons-outlined" style={{ fontSize: '16px' }}>arrow_back</span>
           {auction.chitGroup.name}
         </Link>

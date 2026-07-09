@@ -30,8 +30,17 @@ export default function ChitGroupForm({
   const [auctionType, setAuctionType] = useState('open_manual');
   const [auctionFrequency, setAuctionFrequency] = useState('monthly');
   const [hasForemanTicket, setHasForemanTicket] = useState(false);
+  const [winnerInterestType, setWinnerInterestType] = useState('NONE');
+  const [winnerInterestValue, setWinnerInterestValue] = useState(0);
+  const [winnerInterestPeriods, setWinnerInterestPeriods] = useState(0);
 
   const isDrawType = auctionType === 'lottery' || auctionType === 'fixed_rotation';
+  const interestPerPeriod = winnerInterestType === 'FIXED'
+    ? winnerInterestValue
+    : winnerInterestType === 'PERCENT'
+      ? (chitValue * winnerInterestValue) / 100
+      : 0;
+  const winnerDuePreview = monthlyContrib + interestPerPeriod;
 
   const addMemberSlot = () => {
     if (selectedMembers.length < totalMembers) {
@@ -160,6 +169,11 @@ export default function ChitGroupForm({
           <div className="form-group">
             <label className="form-label">Auction day</label>
             <input name="auctionDay" type="number" className="form-control" min="1" max="31" placeholder={auctionFrequency === 'weekly' ? '1-7 (Mon-Sun)' : 'Day of month'} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Default auction time</label>
+            <input name="auctionTime" type="time" className="form-control" />
+            <p style={hintStyle}>Used when activation creates each period schedule.</p>
           </div>
           {isDrawType && (
             <div className="form-group">
@@ -305,6 +319,61 @@ export default function ChitGroupForm({
             </select>
             <p style={hintStyle}>The rounding remainder is booked as foreman income — nothing is lost.</p>
           </div>
+        </div>
+      </div>
+
+      <div style={sectionStyle}>
+        <h4 style={sectionTitleStyle}>Winner interest</h4>
+        <div style={gridStyle}>
+          <div className="form-group">
+            <label className="form-label">Winner interest</label>
+            <select
+              name="winnerInterestType"
+              className="form-control"
+              value={winnerInterestType}
+              onChange={(e) => setWinnerInterestType(e.target.value)}
+            >
+              <option value="NONE">None</option>
+              <option value="FIXED">Fixed amount per period</option>
+              <option value="PERCENT">Percent of chit value per period</option>
+            </select>
+          </div>
+          {winnerInterestType !== 'NONE' && (
+            <>
+              <div className="form-group">
+                <label className="form-label">{winnerInterestType === 'FIXED' ? `Interest amount (${currencySymbol})` : 'Interest percent'}</label>
+                <input
+                  name="winnerInterestValue"
+                  type="number"
+                  className="form-control"
+                  min="0"
+                  step="0.01"
+                  value={winnerInterestValue || ''}
+                  onChange={(e) => setWinnerInterestValue(Number(e.target.value))}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Interest periods</label>
+                <input
+                  name="winnerInterestPeriods"
+                  type="number"
+                  className="form-control"
+                  min="1"
+                  step="1"
+                  value={winnerInterestPeriods || ''}
+                  onChange={(e) => setWinnerInterestPeriods(Number(e.target.value))}
+                />
+              </div>
+              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                <p style={{ ...hintStyle, margin: 0 }}>
+                  Preview: winner pays {currencySymbol}{Math.round(winnerDuePreview).toLocaleString('en-IN')} for the next {winnerInterestPeriods || 0} period(s)
+                  {monthlyContrib > 0 && interestPerPeriod > 0
+                    ? ` (${currencySymbol}${monthlyContrib.toLocaleString('en-IN')} base + ${currencySymbol}${Math.round(interestPerPeriod).toLocaleString('en-IN')} interest).`
+                    : '.'}
+                </p>
+              </div>
+            </>
+          )}
         </div>
       </div>
 

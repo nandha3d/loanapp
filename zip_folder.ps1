@@ -6,51 +6,73 @@ $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $zipFileName = "${projectName}_source_${timestamp}.zip"
 
 # Define patterns to exclude
-# Define patterns to exclude
 $excludePatterns = @(
     "*\.git*",
     "*\.github*",
     "*\node_modules*",
     "*\.next*",
+    "*.zip",
     "*\*.zip",
-    "*\*.pdf",
-    "*\*.sql",
-    "*\.env*",
-    "*package-lock.json",
-    "*tsconfig.tsbuildinfo",
-    "*\scratch*",
-    "*\*.md*",
-    "*.doc*",
-    "*.csv*",
-    "*.xls*",
-    "*.xlsx*",
-    "*\scratch*",
-    "*.docx",
+    "*.apk",
+    "*\*.apk",
+    "*.aab",
+    "*\*.aab",
+    "*.ipa",
+    "*\*.ipa",
     "*.pdf",
+    "*\*.pdf",
+    "*.pptx",
+    "*\*.pptx",
+    "*.ppt",
+    "*\*.ppt",
+    "*.docx",
+    "*\*.docx",
+    "*.doc",
+    "*\*.doc",
+    "*.xlsx",
+    "*\*.xlsx",
+    "*.xls",
+    "*\*.xls",
+    "*.csv",
+    "*\*.csv",
     "*.sql",
+    "*\*.sql",
     "*.md",
+    "*\*.md*",
+    "*.tar",
+    "*\*.tar",
+    "*.gz",
+    "*\*.gz",
+    "*.tgz",
+    "*\*.tgz",
+    "*.rar",
+    "*\*.rar",
+    "*.7z",
+    "*\*.7z",
+    "*\scratch*",
     "*\.agents*",
     "*\.antigravity*",
     "*\.claude*",
     "*\.devcontainer*",
     "*\.githooks*",
     "*\.jules*",
-    "*\.next*",
     "*\.planning*",
     "*\.playwright-cli*",
     "*\.venv*",
     "*\.test-results*",
     "*\.tests*",
     "*\.Testing*",
-    "*\.playwright",
-    "*\.playwright-cli*",
+    "*\.playwright*",
     "*\.outputs*",
     "*\.output*",
     "*\.deploy*",
     "*\.coverage*",
     "*\.vscode*",
     "*\mobile\build*",
-    "*\mobile\.dart_tool*"
+    "*\mobile\.dart_tool*",
+    "*\mobile\.pub-cache*",
+    "*package-lock.json",
+    "*tsconfig.tsbuildinfo"
 )
 
 Write-Host "Creating zip: $zipFileName" -ForegroundColor Cyan
@@ -60,10 +82,16 @@ Write-Host "Excluding: $excludePatterns" -ForegroundColor Yellow
 Add-Type -AssemblyName "System.IO.Compression"
 Add-Type -AssemblyName "System.IO.Compression.FileSystem"
 
-# Get all files excluding the patterns
+# Get all files excluding the patterns and files larger than 5MB
 $rootPath = (Get-Item .).FullName
 $files = Get-ChildItem -LiteralPath . -Recurse | Where-Object {
     if ($_.PSIsContainer) { return $false }
+    
+    # Exclude files larger than 5MB (not source code)
+    if ($_.Length -gt 5MB) {
+        return $false
+    }
+
     $itemPath = $_.FullName
     $exclude = $false
     foreach ($pattern in $excludePatterns) {

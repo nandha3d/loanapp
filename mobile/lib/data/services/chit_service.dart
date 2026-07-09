@@ -637,6 +637,30 @@ class ChitService {
     return _state(res);
   }
 
+  Future<LiveAuctionState> retractMemberBid(
+    String groupId,
+    int period, {
+    required String memberId,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.chitAuctionRetract(groupId, period),
+      data: {'memberId': memberId},
+    );
+    return _state(res);
+  }
+
+  Future<Map<String, dynamic>> rescheduleAuction(
+    String groupId,
+    String auctionId,
+    DateTime scheduledAt,
+  ) async {
+    final res = await _dio.patch<Map<String, dynamic>>(
+      Endpoints.chitAuctionSchedule(groupId, auctionId),
+      data: {'scheduledAt': scheduledAt.toUtc().toIso8601String()},
+    );
+    return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
+  }
+
   /// Poll the live state (hot path). Named liveAuctionState to avoid clashing
   /// with the Map-based liveState used by the room-style screen.
   Future<LiveAuctionState> liveAuctionState(String groupId, int period) async {
@@ -646,22 +670,19 @@ class ChitService {
     return _state(res);
   }
 
-  /// Declare the winner and settle. If `winnerMemberId`/`prizeAmount` omitted,
-  /// resolves from current best bid.
+  /// Retired legacy close-and-settle path.
+  ///
+  /// Mobile auction completion must use [confirmAuction] or [drawWinner],
+  /// followed by security approval and payout release.
   Future<LiveAuctionState> closeAuction(
     String groupId,
     int period, {
     String? winnerMemberId,
     double? prizeAmount,
   }) async {
-    final res = await _dio.post<Map<String, dynamic>>(
-      Endpoints.chitAuctionClose(groupId, period),
-      data: {
-        if (winnerMemberId != null) 'winnerMemberId': winnerMemberId,
-        if (prizeAmount != null) 'prizeAmount': prizeAmount,
-      },
+    throw UnsupportedError(
+      'Legacy auction close is retired. Use confirm/draw plus security approval and payout release.',
     );
-    return _state(res);
   }
 }
 

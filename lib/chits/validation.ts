@@ -1,10 +1,11 @@
-import type { ChitAuctionType, ChitCommissionBasis, ChitDividendDistribution, ChitDividendPolicy, ChitTieBreakRule } from './types';
+import type { ChitAuctionType, ChitCommissionBasis, ChitDividendDistribution, ChitDividendPolicy, ChitTieBreakRule, ChitWinnerInterestType } from './types';
 
 const AUCTION_TYPES: ChitAuctionType[] = ['open_manual', 'open_live', 'sealed', 'lottery', 'fixed_rotation'];
 const COMMISSION_BASIS: ChitCommissionBasis[] = ['BID_DISCOUNT', 'CHIT_VALUE'];
 const DIVIDEND_POLICIES: ChitDividendPolicy[] = ['ALL_MEMBERS', 'NON_WINNERS_ONLY'];
 const DIVIDEND_DISTRIBUTIONS: ChitDividendDistribution[] = ['ADJUST_NEXT_DUE', 'CASH_PAYOUT', 'ACCUMULATE'];
 const TIE_BREAK_RULES: ChitTieBreakRule[] = ['EARLIEST_BID', 'LOTTERY_AMONG_TIED'];
+const WINNER_INTEREST_TYPES: ChitWinnerInterestType[] = ['NONE', 'FIXED', 'PERCENT'];
 
 export function assertValidPrizeAmount(params: {
   chitValue: number;
@@ -48,6 +49,10 @@ export function validateChitConfig(input: {
   minDiscountPct?: number | null;
   maxDiscountPct?: number | null;
   fixedDiscountPct?: number | null;
+  auctionTime?: string | null;
+  winnerInterestType?: string | null;
+  winnerInterestValue?: number | null;
+  winnerInterestPeriods?: number | null;
 }) {
   if (input.auctionType && !AUCTION_TYPES.includes(input.auctionType as ChitAuctionType)) {
     throw new Error('Invalid auction type');
@@ -72,6 +77,26 @@ export function validateChitConfig(input: {
   }
   if (input.fixedDiscountPct != null && input.maxDiscountPct != null && input.fixedDiscountPct > input.maxDiscountPct) {
     throw new Error('Fixed discount cannot exceed maximum discount');
+  }
+  if (input.auctionTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(input.auctionTime)) {
+    throw new Error('Auction time must be HH:mm');
+  }
+  const winnerInterestType = input.winnerInterestType ?? 'NONE';
+  if (!WINNER_INTEREST_TYPES.includes(winnerInterestType as ChitWinnerInterestType)) {
+    throw new Error('Invalid winner interest type');
+  }
+  if (winnerInterestType === 'NONE') return;
+  if (input.winnerInterestValue == null || input.winnerInterestValue <= 0) {
+    throw new Error('Winner interest value must be greater than zero');
+  }
+  if (winnerInterestType === 'PERCENT' && input.winnerInterestValue > 100) {
+    throw new Error('Winner interest percent cannot exceed 100');
+  }
+  if (input.winnerInterestPeriods == null || input.winnerInterestPeriods <= 0) {
+    throw new Error('Winner interest periods must be greater than zero');
+  }
+  if (!Number.isInteger(input.winnerInterestPeriods)) {
+    throw new Error('Winner interest periods must be a whole number');
   }
 }
 
