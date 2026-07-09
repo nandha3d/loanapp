@@ -28,7 +28,7 @@ export async function GET(
     const members = await prisma.chitMember.findMany({
       where: { chitGroupId: id },
       include: {
-        customer: { select: { id: true, customerCode: true, name: true, phone: true } },
+        customer: { select: { id: true, customerCode: true, name: true, phone: true, profilePhoto: true } },
         subscriptions: { orderBy: { periodNumber: 'asc' } },
       },
       orderBy: { memberNumber: 'asc' },

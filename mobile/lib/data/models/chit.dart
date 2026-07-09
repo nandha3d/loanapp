@@ -207,6 +207,7 @@ class ChitMember {
     this.introducedBy,
     this.isForemanTicket = false,
     this.wonAt,
+    this.profilePhoto,
   });
 
   final String id;
@@ -226,6 +227,7 @@ class ChitMember {
   final String? introducedBy;
   final bool isForemanTicket;
   final DateTime? wonAt;
+  final String? profilePhoto;
 
   factory ChitMember.fromJson(Map<String, dynamic> json) {
     final customer = (json['customer'] as Map<String, dynamic>?) ?? const {};
@@ -247,6 +249,7 @@ class ChitMember {
       introducedBy: json['introducedBy'] as String?,
       isForemanTicket: (json['isForemanTicket'] as bool?) ?? false,
       wonAt: _date(json['wonAt']),
+      profilePhoto: customer['profilePhoto'] as String?,
     );
   }
 }

@@ -1255,40 +1255,99 @@ model ChitMember {
 }
 
 model ChitAuction {
-  id             String                  @id @default(cuid())
-  chitGroupId    String                  @map("chit_group_id")
-  periodNumber   Int                     @map("period_number")
-  auctionDate    DateTime                @map("auction_date") @db.Date
-  scheduledAt    DateTime?               @map("scheduled_at")
-  startedAt      DateTime?               @map("started_at")
-  completedAt    DateTime?               @map("completed_at")
-  noticeStatus   String                  @default("pending") @map("notice_status")
-  minutesText    String?                 @map("minutes_text") @db.Text
-  confirmedById  String?                 @map("confirmed_by_id")
-  confirmedAt    DateTime?               @map("confirmed_at")
-  payoutStatus   String                  @default("not_ready") @map("payout_status")
-  biddingOpensAt DateTime?               @map("bidding_opens_at")
-  biddingClosesAt DateTime?              @map("bidding_closes_at")
-  autoExtendSeconds Int                  @default(0) @map("auto_extend_seconds")
-  roomStatus     String                  @default("scheduled") @map("room_status")
-  winnerMemberId String?                 @map("winner_member_id")
-  prizeAmount    Decimal?                @map("prize_amount") @db.Decimal(14, 2)
-  bidDiscount    Decimal?                @map("bid_discount") @db.Decimal(14, 2)
-  commission     Decimal?                @db.Decimal(14, 2)
-  dividend       Decimal?                @db.Decimal(14, 2)
-  gstAmount      Decimal                 @default(0.00) @map("gst_amount") @db.Decimal(14, 2)
-  roundingIncome Decimal                 @default(0.00) @map("rounding_income") @db.Decimal(14, 2)
-  status         String                  @default("pending")
-  createdAt      DateTime                @default(now()) @map("created_at")
-  bids           ChitBid[]
-  attendance     ChitAuctionAttendance[]
-  chitGroup      ChitGroup               @relation(fields: [chitGroupId], references: [id], onDelete: Cascade)
-  winnerMember   ChitMember?             @relation("AuctionWinner", fields: [winnerMemberId], references: [id])
+  id               String                  @id @default(cuid())
+  chitGroupId      String                  @map("chit_group_id")
+  periodNumber     Int                     @map("period_number")
+  auctionDate      DateTime                @map("auction_date") @db.Date
+  scheduledAt      DateTime?               @map("scheduled_at")
+  startedAt        DateTime?               @map("started_at")
+  completedAt      DateTime?               @map("completed_at")
+  noticeStatus     String                  @default("pending") @map("notice_status")
+  minutesText      String?                 @map("minutes_text") @db.Text
+  confirmedById    String?                 @map("confirmed_by_id")
+  confirmedAt      DateTime?               @map("confirmed_at")
+  payoutStatus     String                  @default("not_ready") @map("payout_status")
+  biddingOpensAt   DateTime?               @map("bidding_opens_at")
+  biddingClosesAt  DateTime?               @map("bidding_closes_at")
+  autoExtendSeconds Int                    @default(0) @map("auto_extend_seconds")
+  roomStatus       String                  @default("scheduled") @map("room_status")
+  winnerMemberId   String?                 @map("winner_member_id")
+  prizeAmount      Decimal?                @map("prize_amount") @db.Decimal(14, 2)
+  bidDiscount      Decimal?                @map("bid_discount") @db.Decimal(14, 2)
+  commission       Decimal?                @db.Decimal(14, 2)
+  dividend         Decimal?                @db.Decimal(14, 2)
+  gstAmount        Decimal                 @default(0.00) @map("gst_amount") @db.Decimal(14, 2)
+  roundingIncome   Decimal                 @default(0.00) @map("rounding_income") @db.Decimal(14, 2)
+  status           String                  @default("pending")
+  createdAt        DateTime                @default(now()) @map("created_at")
+  // Live-auction fields (all nullable — legacy result-only auctions leave them
+  // blank). `status` gains the logical value 'live' while an auction is running.
+  endsAt           DateTime?               @map("ends_at")
+  countdownSeconds Int?                    @map("countdown_seconds")
+  minBidDecrement  Decimal?                @map("min_bid_decrement") @db.Decimal(14, 2)
+  currentBestBidId String?                 @unique @map("current_best_bid_id")
+  operatorId       String?                 @map("operator_id")
+  closedAt         DateTime?               @map("closed_at")
+  bids             ChitBid[]
+  attendance       ChitAuctionAttendance[]
+  events           ChitAuctionEvent[]
+  chitGroup        ChitGroup               @relation(fields: [chitGroupId], references: [id], onDelete: Cascade)
+  winnerMember     ChitMember?             @relation("AuctionWinner", fields: [winnerMemberId], references: [id])
 
   @@unique([chitGroupId, periodNumber])
   @@index([chitGroupId, status])
   @@index([winnerMemberId], map: "chit_auctions_winner_member_id_fkey")
   @@map("chit_auctions")
+}
+
+// Unified ChitBid model for both legacy/manual/open room auctions and live auctions
+model ChitBid {
+  id             String      @id @default(cuid())
+  tenantId       String?     @map("tenant_id")
+  branchId       String?     @map("branch_id")
+  chitGroupId    String      @map("chit_group_id")
+  auctionId      String      @map("auction_id")
+  periodNumber   Int?        @map("period_number")
+  memberId       String      @map("member_id")
+  prizeAmount    Decimal?    @map("prize_amount") @db.Decimal(14, 2)
+  discountAmount Decimal?    @map("discount_amount") @db.Decimal(14, 2)
+  bidAmount      Decimal?    @map("bid_amount") @db.Decimal(14, 2)
+  bidDiscount    Decimal?    @map("bid_discount") @db.Decimal(14, 2)
+  kind           String      @default("bid") // bid | pass | retracted
+  source         String      @default("tap") // tap | voice | remote
+  transcript     String?     @db.Text
+  seq            Int? // monotonic per auction — ordering + undo
+  bidTime        DateTime    @default(now()) @map("bid_time")
+  status         String      @default("valid")
+  remarks        String?     @db.Text
+  createdById    String?     @map("created_by_id")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  auction        ChitAuction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  member         ChitMember  @relation(fields: [memberId], references: [id])
+
+  @@unique([auctionId, seq])
+  @@index([tenantId, branchId, chitGroupId])
+  @@index([auctionId, createdAt])
+  @@index([auctionId, status])
+  @@index([memberId])
+  @@map("chit_bids")
+}
+
+// Legal-grade "minutes" trail for a live auction — every open/extend/announce/
+// pass/close/winner/cancel event, in order.
+model ChitAuctionEvent {
+  id          String      @id @default(cuid())
+  auctionId   String      @map("auction_id")
+  type        String // open | extend | announce | pass | close | winner | cancel
+  message     String?     @db.Text
+  memberId    String?     @map("member_id")
+  amount      Decimal?    @db.Decimal(14, 2)
+  createdById String?     @map("created_by_id")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  auction     ChitAuction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+
+  @@index([auctionId, createdAt])
+  @@map("chit_auction_events")
 }
 
 model ChitSubscription {
@@ -1338,28 +1397,7 @@ model ChitDocument {
   @@map("chit_documents")
 }
 
-model ChitBid {
-  id          String      @id @default(cuid())
-  tenantId    String      @map("tenant_id")
-  branchId    String?     @map("branch_id")
-  auctionId   String      @map("auction_id")
-  chitGroupId String      @map("chit_group_id")
-  memberId    String      @map("member_id")
-  bidAmount   Decimal     @map("bid_amount") @db.Decimal(14, 2)
-  bidDiscount Decimal     @map("bid_discount") @db.Decimal(14, 2)
-  bidTime     DateTime    @default(now()) @map("bid_time")
-  status      String      @default("valid")
-  remarks     String?     @db.Text
-  createdById String?     @map("created_by_id")
-  createdAt   DateTime    @default(now()) @map("created_at")
-  auction     ChitAuction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
-  member      ChitMember  @relation(fields: [memberId], references: [id])
 
-  @@index([tenantId, branchId, chitGroupId])
-  @@index([auctionId, status])
-  @@index([memberId])
-  @@map("chit_bids")
-}
 
 model ChitAuctionAttendance {
   id         String      @id @default(cuid())

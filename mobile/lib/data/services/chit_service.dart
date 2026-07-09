@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:loantrack/core/network/dio_client.dart';
 import 'package:loantrack/data/models/chit.dart';
+import 'package:loantrack/data/models/chit_live.dart';
 import 'package:loantrack/shared/constants/endpoints.dart';
 
 class ChitService {
@@ -457,27 +458,28 @@ class ChitService {
     final res = await _dio.get<Map<String, dynamic>>(
       Endpoints.chitPenalties(groupId),
     );
-    return unwrapEnvelope(res, (dynamic d) {
-      return (d as List<dynamic>)
-          .cast<Map<String, dynamic>>()
-          .toList(growable: false);
-    });
+    return unwrapEnvelope(
+      res,
+      (dynamic d) => (d as List<dynamic>)
+          .map((dynamic e) => e as Map<String, dynamic>)
+          .toList(growable: false),
+    );
   }
 
   Future<void> createPenalty(
     String groupId, {
-    required String subscriptionId,
+    required String memberId,
     required double amount,
-    String penaltyType = 'late_fee',
-    String? reason,
+    required String reason,
+    int? periodNumber,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.chitPenalties(groupId),
       data: {
-        'subscriptionId': subscriptionId,
+        'memberId': memberId,
         'amount': amount,
-        'penaltyType': penaltyType,
-        if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+        'reason': reason,
+        if (periodNumber != null) 'periodNumber': periodNumber,
       },
     );
     unwrapEnvelope(res, (_) => null);
@@ -486,19 +488,18 @@ class ChitService {
   Future<void> payPenalty(
     String groupId,
     String penaltyId, {
-    required double amount,
+    required double amountPaid,
     String paymentMode = 'cash',
     String? referenceNo,
-    String? notes,
+    String? remarks,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.chitPenaltyPay(groupId, penaltyId),
       data: {
-        'amount': amount,
+        'amountPaid': amountPaid,
         'paymentMode': paymentMode,
-        if (referenceNo != null && referenceNo.trim().isNotEmpty)
-          'referenceNo': referenceNo.trim(),
-        if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+        if (referenceNo != null) 'referenceNo': referenceNo,
+        if (remarks != null) 'remarks': remarks,
       },
     );
     unwrapEnvelope(res, (_) => null);
@@ -507,20 +508,113 @@ class ChitService {
   Future<void> waivePenalty(
     String groupId,
     String penaltyId, {
-    double? amount,
-    String? reason,
+    required String reason,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.chitPenaltyWaive(groupId, penaltyId),
-      data: {
-        if (amount != null) 'amount': amount,
-        if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
-      },
+      data: {'reason': reason},
     );
     unwrapEnvelope(res, (_) => null);
+  }
+
+  // ── Live auction ─────────────────────────────────────────────────────────
+  LiveAuctionState _state(Response<Map<String, dynamic>> res) =>
+      unwrapEnvelope(res, (dynamic d) => LiveAuctionState.fromJson(d as Map<String, dynamic>));
+
+  /// Start a live auction for a period. Optionally override the clock/step.
+  Future<LiveAuctionState> openAuction(
+    String groupId,
+    int period, {
+    int? countdownSeconds,
+    double? minBidDecrement,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.chitAuctionOpen(groupId, period),
+      data: {
+        if (countdownSeconds != null) 'countdownSeconds': countdownSeconds,
+        if (minBidDecrement != null) 'minBidDecrement': minBidDecrement,
+      },
+    );
+    return _state(res);
+  }
+
+  /// Place a bid (reverse auction — prizeAmount lower than the current best).
+  Future<LiveAuctionState> submitBid(
+    String groupId,
+    int period, {
+    required String memberId,
+    required double prizeAmount,
+    String source = 'tap',
+    String? transcript,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.chitAuctionBid(groupId, period),
+      data: {
+        'memberId': memberId,
+        'prizeAmount': prizeAmount,
+        'source': source,
+        if (transcript != null) 'transcript': transcript,
+      },
+    );
+    return _state(res);
+  }
+
+  /// A member sits out this round.
+  Future<LiveAuctionState> passMember(
+    String groupId,
+    int period, {
+    required String memberId,
+    String source = 'tap',
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.chitAuctionPass(groupId, period),
+      data: {'memberId': memberId, 'source': source},
+    );
+    return _state(res);
+  }
+
+  /// Retract the last bid/pass.
+  Future<LiveAuctionState> undoBid(String groupId, int period) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.chitAuctionUndo(groupId, period),
+    );
+    return _state(res);
+  }
+
+  /// Poll the live state (hot path).
+  Future<LiveAuctionState> liveState(String groupId, int period) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.chitAuctionLiveState(groupId, period),
+    );
+    return _state(res);
+  }
+
+  /// Declare the winner and settle. If `winnerMemberId`/`prizeAmount` omitted,
+  /// resolves from current best bid.
+  Future<LiveAuctionState> closeAuction(
+    String groupId,
+    int period, {
+    String? winnerMemberId,
+    double? prizeAmount,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.chitAuctionClose(groupId, period),
+      data: {
+        if (winnerMemberId != null) 'winnerMemberId': winnerMemberId,
+        if (prizeAmount != null) 'prizeAmount': prizeAmount,
+      },
+    );
+    return _state(res);
   }
 }
 
 final chitServiceProvider = Provider<ChitService>(
   (ref) => ChitService(ref.watch(dioProvider)),
 );
+
+/// Live-auction state, polled by the screen via `ref.invalidate` on a timer.
+/// Keyed by (groupId, period). autoDispose so polling stops when the screen goes.
+final liveAuctionStateProvider = FutureProvider.autoDispose
+    .family<LiveAuctionState, ({String groupId, int period})>((ref, key) {
+  return ref.watch(chitServiceProvider).liveState(key.groupId, key.period);
+});

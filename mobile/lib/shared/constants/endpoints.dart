@@ -209,6 +209,20 @@ class Endpoints {
   static String chitSubscriptionMiss(String subId) =>
       '/chits/subscriptions/$subId/miss';
 
+  // Live chit auction (poker-table live bidding)
+  static String chitAuctionOpen(String id, int period) =>
+      '/chits/$id/auctions/$period/open';
+  static String chitAuctionBid(String id, int period) =>
+      '/chits/$id/auctions/$period/bid';
+  static String chitAuctionPass(String id, int period) =>
+      '/chits/$id/auctions/$period/pass';
+  static String chitAuctionUndo(String id, int period) =>
+      '/chits/$id/auctions/$period/undo';
+  static String chitAuctionState(String id, int period) =>
+      '/chits/$id/auctions/$period/state';
+  static String chitAuctionClose(String id, int period) =>
+      '/chits/$id/auctions/$period/close';
+
   // Dashboard extended fields
   static const String dashboardVerifyUpi = '/collection/verify';
   static const String dashboardCollectCash = '/collection/verify';

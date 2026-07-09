@@ -20,6 +20,7 @@ import 'package:loantrack/features/auth/totp_screen.dart';
 import 'package:loantrack/features/chits/chits_screen.dart';
 import 'package:loantrack/features/chits/chit_detail_screen.dart';
 import 'package:loantrack/features/chits/chit_form_screen.dart';
+import 'package:loantrack/features/chits/live_auction_screen.dart';
 import 'package:loantrack/features/borrower/borrower_login_screen.dart';
 import 'package:loantrack/features/borrower/borrower_dashboard_screen.dart';
 import 'package:loantrack/features/borrower/borrower_pay_screen.dart';
@@ -334,6 +335,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: 'edit',
                 builder: (_, state) => ChitGroupFormScreen(
                   editData: state.extra as Map<String, dynamic>?,
+                ),
+              ),
+              GoRoute(
+                path: 'auction/:period/live',
+                builder: (_, state) => LiveAuctionScreen(
+                  groupId: state.pathParameters['id']!,
+                  period: int.tryParse(state.pathParameters['period'] ?? '') ?? 0,
                 ),
               ),
             ],
