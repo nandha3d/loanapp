@@ -1210,6 +1210,9 @@ model ChitGroup {
   winnerInterestType      String        @default("NONE") @map("winner_interest_type")
   winnerInterestValue     Decimal?      @map("winner_interest_value") @db.Decimal(14, 2)
   winnerInterestPeriods   Int?          @map("winner_interest_periods")
+  // Live-room admission policy: 'auto' admits joiners instantly; 'approval'
+  // parks them in a waiting room until the organizer admits/denies.
+  roomAdmission           String        @default("auto") @map("room_admission")
   hasForemanTicket        Boolean       @default(false) @map("has_foreman_ticket")
   createdAt               DateTime      @default(now()) @map("created_at")
   updatedAt               DateTime      @updatedAt @map("updated_at")
@@ -1297,6 +1300,7 @@ model ChitAuction {
   bids             ChitBid[]
   attendance       ChitAuctionAttendance[]
   events           ChitAuctionEvent[]
+  roomMessages     ChitRoomMessage[]
   chitGroup        ChitGroup               @relation(fields: [chitGroupId], references: [id], onDelete: Cascade)
   winnerMember     ChitMember?             @relation("AuctionWinner", fields: [winnerMemberId], references: [id])
 
@@ -1322,6 +1326,9 @@ model ChitBid {
   kind           String      @default("bid") // bid | pass | retracted
   source         String      @default("tap") // tap | voice | remote
   transcript     String?     @db.Text
+  // Voice-bid audio proof → ChitDocument(documentType='bid_audio'). Clip is
+  // captured ONLY inside the push-to-talk bid gesture, never ambiently.
+  audioDocumentId String?    @map("audio_document_id")
   seq            Int? // monotonic per auction — ordering + undo
   bidTime        DateTime    @default(now()) @map("bid_time")
   status         String      @default("valid")
@@ -1413,6 +1420,9 @@ model ChitAuctionAttendance {
   auctionId  String      @map("auction_id")
   memberId   String      @map("member_id")
   status     String      @default("present")
+  // Live-room admission state (attendance doubles as presence): waiting until
+  // the organizer decides when the group is 'approval'; else auto 'admitted'.
+  admissionStatus String  @default("admitted") @map("admission_status")
   proxyName  String?     @map("proxy_name")
   remarks    String?     @db.Text
   markedById String?     @map("marked_by_id")
@@ -1424,6 +1434,26 @@ model ChitAuctionAttendance {
   @@index([tenantId, branchId])
   @@index([memberId])
   @@map("chit_auction_attendance")
+}
+
+// Live-room chat. 'public' messages are visible to everyone in the room;
+// 'organizer' messages are private between the sender and staff. senderName is
+// denormalized so the hot poll can render without joins.
+model ChitRoomMessage {
+  id             String   @id @default(cuid())
+  tenantId       String   @map("tenant_id")
+  auctionId      String   @map("auction_id")
+  senderUserId   String?  @map("sender_user_id") // staff/organizer sender
+  senderMemberId String?  @map("sender_member_id") // subscriber sender (M3)
+  senderName     String   @map("sender_name")
+  visibility     String   @default("public") // public | organizer
+  body           String   @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  auction ChitAuction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+
+  @@index([auctionId, createdAt])
+  @@map("chit_room_messages")
 }
 
 model ChitReceipt {

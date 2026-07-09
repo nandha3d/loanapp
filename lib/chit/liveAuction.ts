@@ -19,6 +19,7 @@ export type ChitGroupLite = {
   chitValue: number;
   commissionPct: number;
   totalMembers: number;
+  roomAdmission: string; // auto | approval
 };
 
 /** Load a tenant/branch-scoped chit group by id, or null if not visible. */
@@ -36,6 +37,7 @@ export async function loadScopedGroup(
       chitValue: true,
       commissionPct: true,
       totalMembers: true,
+      roomAdmission: true,
     },
   });
   if (!group) return null;
@@ -47,6 +49,7 @@ export async function loadScopedGroup(
     chitValue: Number(group.chitValue),
     commissionPct: Number(group.commissionPct),
     totalMembers: group.totalMembers,
+    roomAdmission: group.roomAdmission,
   };
 }
 
@@ -136,8 +139,29 @@ function buildStateShape(args: {
     amount: number | null;
     createdAt: string;
   }>;
+  latestMessages: Array<{
+    id: string;
+    senderName: string;
+    visibility: string;
+    body: string;
+    createdAt: string;
+  }>;
+  waiting: Array<{ memberId: string; name: string }>;
 }) {
-  const { auction, group, seats, activeCount, currentBest, minNextPrize, recentBids, allBids, memberBids, events } = args;
+  const {
+    auction,
+    group,
+    seats,
+    activeCount,
+    currentBest,
+    minNextPrize,
+    recentBids,
+    allBids,
+    memberBids,
+    events,
+    latestMessages,
+    waiting,
+  } = args;
   return {
     auctionId: auction.id,
     periodNumber: auction.periodNumber,
@@ -158,6 +182,9 @@ function buildStateShape(args: {
     allBids,
     memberBids,
     events,
+    roomAdmission: group.roomAdmission,
+    latestMessages,
+    waiting,
     winner:
       auction.status === 'completed' && auction.winnerMemberId
         ? {
@@ -315,6 +342,36 @@ export async function buildLiveState(group: ChitGroupLite, periodNumber: number)
         select: { id: true, type: true, message: true, memberId: true, amount: true, createdAt: true },
       })
     : [];
+
+  // Chat piggyback: last 30 PUBLIC messages ride the hot poll so the room stays
+  // one request; organizer-private history comes from the messages route.
+  const messageRows = auction
+    ? await prisma.chitRoomMessage.findMany({
+        where: { auctionId: auction.id, visibility: 'public' },
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+        select: { id: true, senderName: true, visibility: true, body: true, createdAt: true },
+      })
+    : [];
+  const latestMessages = messageRows.reverse().map((m) => ({
+    id: m.id,
+    senderName: m.senderName,
+    visibility: m.visibility,
+    body: m.body,
+    createdAt: m.createdAt.toISOString(),
+  }));
+
+  // Waiting room (admission='approval'): members who joined but await a decision.
+  const waitingRows = auction
+    ? await prisma.chitAuctionAttendance.findMany({
+        where: { auctionId: auction.id, admissionStatus: 'waiting' },
+        select: { memberId: true, member: { select: { customer: { select: { name: true } } } } },
+      })
+    : [];
+  const waiting = waitingRows.map((w) => ({
+    memberId: w.memberId,
+    name: w.member?.customer?.name ?? '—',
+  }));
   const events = eventRows.map((e) => ({
     id: e.id,
     type: e.type,
@@ -351,5 +408,7 @@ export async function buildLiveState(group: ChitGroupLite, periodNumber: number)
     allBids: exposedBids,
     memberBids,
     events,
+    latestMessages,
+    waiting,
   });
 }

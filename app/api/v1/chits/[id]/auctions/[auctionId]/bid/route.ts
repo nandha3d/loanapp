@@ -40,6 +40,42 @@ export async function POST(
     if (!(prizeAmount > 0)) return fail('prizeAmount must be positive', 400);
     if (prizeAmount >= group.chitValue) return fail('Bid must be below the chit value', 400);
 
+    // Voice-bid audio proof. Either link an already-created ChitDocument
+    // (audioDocumentId) or pass the freshly-uploaded file's metadata
+    // ({ audioUrl, audioFileName?, audioMime?, audioSize? }) and the route
+    // persists the ChitDocument itself. Clips are captured ONLY inside the
+    // push-to-talk bid gesture — never ambient recording.
+    let audioDocumentId: string | null = null;
+    if (body.audioDocumentId) {
+      const doc = await prisma.chitDocument.findFirst({
+        where: {
+          id: String(body.audioDocumentId),
+          tenantId: ctx.tenantId,
+          documentType: 'bid_audio',
+        },
+        select: { id: true },
+      });
+      if (!doc) return fail('audioDocumentId is not a valid bid_audio document', 400);
+      audioDocumentId = doc.id;
+    } else if (body.audioUrl) {
+      const doc = await prisma.chitDocument.create({
+        data: {
+          tenantId: ctx.tenantId,
+          branchId: group.branchId,
+          entityType: 'bid',
+          entityId: '', // backfilled with the bid id below
+          documentType: 'bid_audio',
+          fileName: String(body.audioFileName ?? 'voice-bid.m4a').slice(0, 190),
+          fileUrl: String(body.audioUrl),
+          mimeType: body.audioMime ? String(body.audioMime) : null,
+          sizeBytes: Number.isFinite(Number(body.audioSize)) ? Number(body.audioSize) : null,
+          uploadedById: ctx.userId,
+        },
+        select: { id: true },
+      });
+      audioDocumentId = doc.id;
+    }
+
     const auction = await ensureAuction(id, periodNumber);
     if (auction.status !== 'live') return fail('Auction is not live', 409);
     if (auction.endsAt && auction.endsAt.getTime() < Date.now()) {
@@ -90,10 +126,18 @@ export async function POST(
         kind: 'bid',
         source,
         transcript,
+        audioDocumentId,
         seq,
         createdById: ctx.userId,
       },
     });
+    if (audioDocumentId) {
+      // Backfill the document's entity link now that the bid id exists.
+      await prisma.chitDocument.updateMany({
+        where: { id: audioDocumentId, tenantId: ctx.tenantId, entityId: '' },
+        data: { entityId: bid.id },
+      });
+    }
 
     // Anti-snipe: a bid in the final seconds extends the clock.
     const data: Record<string, unknown> = { currentBestBidId: bid.id };

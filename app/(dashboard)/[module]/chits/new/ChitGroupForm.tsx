@@ -326,6 +326,14 @@ export default function ChitGroupForm({
         <h4 style={sectionTitleStyle}>Winner interest</h4>
         <div style={gridStyle}>
           <div className="form-group">
+            <label className="form-label">Live room admission</label>
+            <select name="roomAdmission" className="form-control" defaultValue="auto">
+              <option value="auto">Auto-admit joiners</option>
+              <option value="approval">Organizer approves each joiner</option>
+            </select>
+            <p style={hintStyle}>With approval, subscribers wait in a lobby until you admit them.</p>
+          </div>
+          <div className="form-group">
             <label className="form-label">Winner interest</label>
             <select
               name="winnerInterestType"

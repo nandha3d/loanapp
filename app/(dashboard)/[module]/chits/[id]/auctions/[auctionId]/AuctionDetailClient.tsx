@@ -6,11 +6,13 @@ import {
   addAuctionBid,
   closeLiveRoom,
   confirmAuction,
+  decideRoomAdmission,
   drawAuctionWinner,
   getLiveAuctionState,
   markAuctionAttendance,
   markAuctionNoticeSent,
   openLiveRoom,
+  postRoomMessage,
   releasePrizePayout,
   retractLiveMemberBid,
   reviewChitSecurityDocument,
@@ -54,6 +56,8 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
   const [seatModal, setSeatModal] = useState<any>(null);
   const [payMode, setPayMode] = useState('cash');
   const [payRef, setPayRef] = useState('');
+  const [chatBody, setChatBody] = useState('');
+  const [chatToOrganizer, setChatToOrganizer] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const roomActive = (live?.roomStatus ?? auction.roomStatus) === 'open' || (live?.roomStatus ?? auction.roomStatus) === 'extended';
@@ -220,6 +224,88 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Waiting room + live chat (M2) */}
+      {isLive && !locked && (
+        <div className="card" style={{ marginBottom: '20px' }}>
+          <div className="card-header"><h3>💬 Room chat{(live?.waiting?.length ?? 0) > 0 ? ` · ${live.waiting.length} waiting` : ''}</h3></div>
+          <div style={{ padding: '16px' }}>
+            {(live?.waiting?.length ?? 0) > 0 && (
+              <div style={{ marginBottom: '14px' }}>
+                <div style={{ fontWeight: 600, marginBottom: '6px' }}>Waiting room</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {live.waiting.map((w: any) => (
+                    <div key={w.memberId} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ flex: 1 }}>{w.name}</span>
+                      <button
+                        className="btn btn-primary btn-sm"
+                        disabled={busy === `admit-${w.memberId}`}
+                        onClick={() => run(`admit-${w.memberId}`, () => decideRoomAdmission(auction.id, w.memberId, 'admit'))}
+                      >
+                        Admit
+                      </button>
+                      <button
+                        className="btn btn-danger btn-sm"
+                        disabled={busy === `deny-${w.memberId}`}
+                        onClick={() => run(`deny-${w.memberId}`, () => decideRoomAdmission(auction.id, w.memberId, 'deny'))}
+                      >
+                        Deny
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px' }}>
+              {(live?.latestMessages ?? []).length === 0 ? (
+                <p style={{ color: 'var(--text-secondary)', margin: 0 }}>No messages yet.</p>
+              ) : (
+                live.latestMessages.map((m: any) => (
+                  <div key={m.id} style={{ fontSize: '.85rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>{new Date(m.createdAt).toLocaleTimeString()}</span>{' '}
+                    <strong>{m.senderName}</strong>
+                    {m.visibility === 'organizer' && <span className="badge badge-warning" style={{ marginLeft: '6px' }}>private</span>}
+                    <span style={{ marginLeft: '6px' }}>{m.body}</span>
+                  </div>
+                ))
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Message the room…"
+                value={chatBody}
+                maxLength={500}
+                style={{ flex: 1, minWidth: '220px' }}
+                onChange={(e) => setChatBody(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && chatBody.trim() && busy !== 'chat') {
+                    run('chat', async () => {
+                      await postRoomMessage(auction.id, chatBody, chatToOrganizer ? 'organizer' : 'public');
+                      setChatBody('');
+                    });
+                  }
+                }}
+              />
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '.8rem' }}>
+                <input type="checkbox" checked={chatToOrganizer} onChange={(e) => setChatToOrganizer(e.target.checked)} />
+                Organizer-only
+              </label>
+              <button
+                className="btn btn-primary btn-sm"
+                disabled={busy === 'chat' || !chatBody.trim()}
+                onClick={() => run('chat', async () => {
+                  await postRoomMessage(auction.id, chatBody, chatToOrganizer ? 'organizer' : 'public');
+                  setChatBody('');
+                })}
+              >
+                {busy === 'chat' ? 'Sending…' : 'Send'}
+              </button>
+            </div>
           </div>
         </div>
       )}

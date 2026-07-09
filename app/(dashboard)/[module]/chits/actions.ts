@@ -141,6 +141,7 @@ export async function createChitGroup(formData: FormData) {
   const winnerInterestType = value(formData, 'winnerInterestType') ?? 'NONE';
   const winnerInterestValue = numberValue(formData, 'winnerInterestValue');
   const winnerInterestPeriods = numberValue(formData, 'winnerInterestPeriods');
+  const roomAdmission = value(formData, 'roomAdmission') === 'approval' ? 'approval' : 'auto';
   validateChitConfig({
     auctionType: value(formData, 'auctionType') ?? 'open_manual',
     commissionBasis: value(formData, 'commissionBasis') ?? 'BID_DISCOUNT',
@@ -220,6 +221,7 @@ export async function createChitGroup(formData: FormData) {
         winnerInterestType,
         winnerInterestValue: winnerInterestType === 'NONE' ? null : winnerInterestValue,
         winnerInterestPeriods: winnerInterestType === 'NONE' ? null : winnerInterestPeriods,
+        roomAdmission,
         hasForemanTicket: value(formData, 'hasForemanTicket') === 'true',
         remarks: value(formData, 'remarks'),
       },
@@ -1194,6 +1196,28 @@ export async function getLiveAuctionState(auctionId: string) {
     return acc;
   }, {});
 
+  // Chat + waiting room piggyback on the hot poll (web is staff-only, so all
+  // visibilities are returned). Waiting = joiners awaiting an admit/deny when
+  // the group's roomAdmission is 'approval'.
+  const messageRows = await prisma.chitRoomMessage.findMany({
+    where: { auctionId: auction.id },
+    orderBy: { createdAt: 'desc' },
+    take: 30,
+    select: { id: true, senderName: true, visibility: true, body: true, createdAt: true },
+  });
+  const latestMessages = messageRows.reverse().map((m) => ({
+    id: m.id,
+    senderName: m.senderName,
+    visibility: m.visibility,
+    body: m.body,
+    createdAt: m.createdAt.toISOString(),
+  }));
+  const waitingRows = await prisma.chitAuctionAttendance.findMany({
+    where: { auctionId: auction.id, admissionStatus: 'waiting' },
+    select: { memberId: true, member: { select: { customer: { select: { name: true } } } } },
+  });
+  const waiting = waitingRows.map((w) => ({ memberId: w.memberId, name: w.member?.customer?.name ?? '—' }));
+
   return {
     roomStatus: auction.roomStatus,
     auctionStatus: auction.status,
@@ -1211,10 +1235,76 @@ export async function getLiveAuctionState(auctionId: string) {
       : null,
     minNextPrize,
     presentCount: auction.attendance.filter((entry) => entry.status === 'present' || entry.status === 'proxy').length,
+    roomAdmission: auction.chitGroup.roomAdmission,
+    latestMessages,
+    waiting,
     winner: auction.winnerMember
       ? { name: auction.winnerMember.customer.name, ticketNo: auction.winnerMember.ticketNo }
       : null,
   };
+}
+
+/** Post a live-room chat message. 'organizer' visibility = private to staff. */
+export async function postRoomMessage(auctionId: string, body: string, visibility: 'public' | 'organizer' = 'public') {
+  const scope = await getWebChitScope();
+  const trimmed = String(body ?? '').trim();
+  if (!trimmed) throw new Error('Message body required');
+  if (trimmed.length > 500) throw new Error('Message too long (max 500 characters)');
+
+  const auction = await prisma.chitAuction.findFirst({
+    where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
+    select: { id: true },
+  });
+  if (!auction) throw new Error('Auction not found');
+
+  const sender = scope.userId
+    ? await prisma.user.findUnique({
+        where: { id: scope.userId },
+        select: { name: true, username: true },
+      })
+    : null;
+  await prisma.chitRoomMessage.create({
+    data: {
+      tenantId: scope.tenantId,
+      auctionId,
+      senderUserId: scope.userId,
+      senderName: sender?.name || sender?.username || 'Staff',
+      visibility: visibility === 'organizer' ? 'organizer' : 'public',
+      body: trimmed,
+    },
+  });
+}
+
+/** Organizer decision on a waiting-room member: admit or deny. */
+export async function decideRoomAdmission(auctionId: string, memberId: string, decision: 'admit' | 'deny') {
+  const scope = await getWebChitScope();
+  assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+  const auction = await prisma.chitAuction.findFirst({
+    where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
+    select: { id: true },
+  });
+  if (!auction) throw new Error('Auction not found');
+
+  const attendance = await prisma.chitAuctionAttendance.findUnique({
+    where: { auctionId_memberId: { auctionId, memberId } },
+    select: { id: true },
+  });
+  if (!attendance) throw new Error('Member has not joined this room');
+
+  const admissionStatus = decision === 'deny' ? 'denied' : 'admitted';
+  await prisma.chitAuctionAttendance.update({
+    where: { id: attendance.id },
+    data: { admissionStatus, markedById: scope.userId },
+  });
+  await prisma.chitAuctionEvent.create({
+    data: {
+      auctionId,
+      type: 'announce',
+      memberId,
+      message: admissionStatus === 'admitted' ? 'Member admitted to room' : 'Member denied entry',
+      createdById: scope.userId,
+    },
+  });
 }
 
 export async function markPaymentMissed(subscriptionId: string) {

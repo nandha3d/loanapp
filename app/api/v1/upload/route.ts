@@ -10,7 +10,8 @@ import {
 } from '@/lib/rateLimit';
 import {
   ALLOWED_UPLOAD_MIME_TYPES,
-  MAX_UPLOAD_SIZE_BYTES,
+  isAudioMime,
+  maxUploadSizeFor,
   uploadBaseDir,
   validateFileBytes,
 } from '@/lib/fileUpload';
@@ -41,12 +42,17 @@ export async function POST(req: NextRequest) {
 
   if (!ALLOWED_UPLOAD_MIME_TYPES.includes(file.type)) {
     return fail(
-      'File type not allowed. Only JPEG, PNG, WebP, and PDF are accepted.',
+      'File type not allowed. Only JPEG, PNG, WebP, PDF, and short audio clips are accepted.',
       400,
     );
   }
-  if (file.size > MAX_UPLOAD_SIZE_BYTES) {
-    return fail('File exceeds the 5 MB limit.', 400);
+  if (file.size > maxUploadSizeFor(file.type)) {
+    return fail(
+      isAudioMime(file.type)
+        ? 'Audio clip exceeds the 1 MB limit.'
+        : 'File exceeds the 5 MB limit.',
+      400,
+    );
   }
 
   const ext =

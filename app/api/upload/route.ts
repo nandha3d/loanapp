@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { checkRateLimit, getClientIp, routeKey } from '@/lib/rateLimit';
-import { ALLOWED_UPLOAD_MIME_TYPES, MAX_UPLOAD_SIZE_BYTES, uploadBaseDir, validateFileBytes } from '@/lib/fileUpload';
+import { ALLOWED_UPLOAD_MIME_TYPES, isAudioMime, maxUploadSizeFor, uploadBaseDir, validateFileBytes } from '@/lib/fileUpload';
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -39,11 +39,14 @@ export async function POST(req: NextRequest) {
   }
 
   if (!ALLOWED_UPLOAD_MIME_TYPES.includes(file.type)) {
-    return NextResponse.json({ error: 'File type not allowed. Only JPEG, PNG, WebP, and PDF are accepted.' }, { status: 400 });
+    return NextResponse.json({ error: 'File type not allowed. Only JPEG, PNG, WebP, PDF, and short audio clips are accepted.' }, { status: 400 });
   }
 
-  if (file.size > MAX_UPLOAD_SIZE_BYTES) {
-    return NextResponse.json({ error: 'File exceeds the 5 MB limit.' }, { status: 400 });
+  if (file.size > maxUploadSizeFor(file.type)) {
+    return NextResponse.json(
+      { error: isAudioMime(file.type) ? 'Audio clip exceeds the 1 MB limit.' : 'File exceeds the 5 MB limit.' },
+      { status: 400 },
+    );
   }
 
   // Sanitize filename — prevent path traversal
