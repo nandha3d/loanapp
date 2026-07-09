@@ -8,6 +8,8 @@ import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/data/models/customer.dart';
 import 'package:loantrack/core/l10n/language_controller.dart';
+import 'package:loantrack/core/auth/auth_controller.dart';
+import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/shared/widgets/app_badge.dart';
 
 class CustomerTile extends ConsumerWidget {
@@ -19,6 +21,8 @@ class CustomerTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
+    final user = ref.watch(authControllerProvider).user;
+    final isChit = AppType.userIsChit(user);
     final cs = customer.creditScore;
     final activeLoans =
         customer.loans.where((l) => l.status == 'active').toList();
@@ -78,7 +82,7 @@ class CustomerTile extends ConsumerWidget {
                                   color: AppColors.textLight,
                                 ),
                               ),
-                              if (customer.routeName != null) ...[
+                              if (customer.routeName != null && !isChit) ...[
                                 const SizedBox(width: 8),
                                 Container(
                                   padding: const EdgeInsets.symmetric(
@@ -107,7 +111,9 @@ class CustomerTile extends ConsumerWidget {
                 ),
                 const SizedBox(height: 16),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: isChit
+                      ? MainAxisAlignment.start
+                      : MainAxisAlignment.spaceBetween,
                   children: [
                     _InfoSnippet(
                       icon: Icons.speed_rounded,
@@ -115,20 +121,22 @@ class CustomerTile extends ConsumerWidget {
                       value: (cs != null && cs.rated) ? '${cs.score}' : '—',
                       valueColor: _scoreColor(cs?.score ?? 0),
                     ),
-                    _InfoSnippet(
-                      icon: Icons.account_balance_wallet_outlined,
-                      label: t.x('loan.outstanding'),
-                      value: '₹${outstanding.toInt()}',
-                      valueColor: outstanding > 0
-                          ? AppColors.textPrimary
-                          : AppColors.textLight,
-                    ),
-                    _InfoSnippet(
-                      icon: Icons.receipt_long_outlined,
-                      label: t.x('cust.loans_tab'),
-                      value: '${customer.loans.length}',
-                      valueColor: AppColors.textPrimary,
-                    ),
+                    if (!isChit) ...[
+                      _InfoSnippet(
+                        icon: Icons.account_balance_wallet_outlined,
+                        label: t.x('loan.outstanding'),
+                        value: '₹${outstanding.toInt()}',
+                        valueColor: outstanding > 0
+                            ? AppColors.textPrimary
+                            : AppColors.textLight,
+                      ),
+                      _InfoSnippet(
+                        icon: Icons.receipt_long_outlined,
+                        label: t.x('cust.loans_tab'),
+                        value: '${customer.loans.length}',
+                        valueColor: AppColors.textPrimary,
+                      ),
+                    ],
                   ],
                 ),
               ],

@@ -89,13 +89,16 @@ export default function WalletClient({
   pendingHandovers,
   currencySymbol,
   summary,
+  appType,
 }: {
   pools: Pool[];
   agents: Agent[];
   pendingHandovers: PendingHandover[];
   currencySymbol: string;
   summary: CashSummary;
+  appType?: string;
 }) {
+  const isChitFunds = appType === 'chitfunds';
   const branchCount = pools.length;
   const agentCount = agents.length;
   const activeAgentCount = agents.filter((agent) => agent.balance > 0).length;
@@ -147,9 +150,13 @@ export default function WalletClient({
               <div className="badge" style={{ background: 'rgba(255,243,224,.16)', color: '#FFE2A3', marginBottom: 10 }}>
                 Live cash control
               </div>
-              <h1 style={{ margin: 0, fontSize: '1.75rem', lineHeight: 1.15, fontWeight: 800 }}>Agent Wallet</h1>
+              <h1 style={{ margin: 0, fontSize: '1.75rem', lineHeight: 1.15, fontWeight: 800 }}>
+                {isChitFunds ? 'Branch Cash Control' : 'Agent Wallet'}
+              </h1>
               <p style={{ margin: '8px 0 0', color: 'rgba(255,255,255,.72)', maxWidth: 560, fontSize: '.92rem' }}>
-                Release funds to agents, top up branch pools, and keep field cash aligned with accounting capital.
+                {isChitFunds
+                  ? 'Top up and manage branch cash pools to fund payouts and reconcile collections.'
+                  : 'Release funds to agents, top up branch pools, and keep field cash aligned with accounting capital.'}
               </p>
             </div>
           </div>
@@ -158,10 +165,12 @@ export default function WalletClient({
               <span className="material-icons-outlined" style={{ fontSize: 14 }}>storefront</span>
               {branchCount} branches
             </div>
-            <div className="badge" style={{ background: 'rgba(255,255,255,.12)', color: '#fff', border: '1px solid rgba(255,255,255,.16)' }}>
-              <span className="material-icons-outlined" style={{ fontSize: 14 }}>groups</span>
-              {agentCount} agents
-            </div>
+            {!isChitFunds && (
+              <div className="badge" style={{ background: 'rgba(255,255,255,.12)', color: '#fff', border: '1px solid rgba(255,255,255,.16)' }}>
+                <span className="material-icons-outlined" style={{ fontSize: 14 }}>groups</span>
+                {agentCount} agents
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -174,13 +183,15 @@ export default function WalletClient({
           tone={summary.accountingCapital >= 0 ? 'blue' : 'red'}
           detail="Book cash available before field movement."
         />
-        <MetricCard
-          icon="outbox"
-          label="Released to agents"
-          value={fmt(currencySymbol, summary.releasedToAgents)}
-          tone="orange"
-          detail="Total branch cash released into the field."
-        />
+        {!isChitFunds && (
+          <MetricCard
+            icon="outbox"
+            label="Released to agents"
+            value={fmt(currencySymbol, summary.releasedToAgents)}
+            tone="orange"
+            detail="Total branch cash released into the field."
+          />
+        )}
         <MetricCard
           icon="account_balance"
           label="Available branch cash"
@@ -188,16 +199,18 @@ export default function WalletClient({
           tone={summary.branchCashAvailable >= 0 ? 'green' : 'red'}
           detail={`${branchCount} branch pool${branchCount === 1 ? '' : 's'} ready for release.`}
         />
-        <MetricCard
-          icon="payments"
-          label="Agent cash"
-          value={fmt(currencySymbol, summary.agentFloat)}
-          tone="green"
-          detail={`${activeAgentCount} active holder${activeAgentCount === 1 ? '' : 's'} - ${floatCoverage}% of releases still in field.`}
-        />
+        {!isChitFunds && (
+          <MetricCard
+            icon="payments"
+            label="Agent cash"
+            value={fmt(currencySymbol, summary.agentFloat)}
+            tone="green"
+            detail={`${activeAgentCount} active holder${activeAgentCount === 1 ? '' : 's'} - ${floatCoverage}% of releases still in field.`}
+          />
+        )}
       </div>
 
-      {pendingHandovers.length > 0 && (
+      {pendingHandovers.length > 0 && !isChitFunds && (
         <section className="card" style={{ padding: 0, overflow: 'hidden', border: '1px solid var(--primary)' }}>
           <div className="card-header" style={{ padding: '20px 24px 14px', marginBottom: 0, borderBottom: '1px solid var(--border)' }}>
             <div>
@@ -233,24 +246,26 @@ export default function WalletClient({
         )}
       </section>
 
-      <section className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <div className="card-header" style={{ padding: '20px 24px 14px', marginBottom: 0, borderBottom: '1px solid var(--border)' }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 800 }}>Agent cash</h2>
-            <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: '.8rem' }}>Release cash to field agents and monitor what each person currently holds.</p>
+      {!isChitFunds && (
+        <section className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="card-header" style={{ padding: '20px 24px 14px', marginBottom: 0, borderBottom: '1px solid var(--border)' }}>
+            <div>
+              <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 800 }}>Agent cash</h2>
+              <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: '.8rem' }}>Release cash to field agents and monitor what each person currently holds.</p>
+            </div>
+            <span className="badge badge-active">{fmt(currencySymbol, summary.agentFloat)} in field</span>
           </div>
-          <span className="badge badge-active">{fmt(currencySymbol, summary.agentFloat)} in field</span>
-        </div>
-        {agents.length === 0 ? (
-          <EmptyState icon="group_off" title="No active agents" text="Active agents will appear here once they are assigned to this tenant or branch." />
-        ) : (
-          <div>
-            {agents.map((agent) => (
-              <AgentRow key={agent.agentId} agent={agent} currencySymbol={currencySymbol} />
-            ))}
-          </div>
-        )}
-      </section>
+          {agents.length === 0 ? (
+            <EmptyState icon="group_off" title="No active agents" text="Active agents will appear here once they are assigned to this tenant or branch." />
+          ) : (
+            <div>
+              {agents.map((agent) => (
+                <AgentRow key={agent.agentId} agent={agent} currencySymbol={currencySymbol} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }

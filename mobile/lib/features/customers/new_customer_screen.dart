@@ -20,6 +20,8 @@ import 'package:loantrack/data/repositories/customer_repository.dart';
 import 'package:loantrack/data/services/customer_service.dart';
 import 'package:loantrack/data/services/settings_service.dart';
 import 'package:loantrack/core/gps/gps_service.dart';
+import 'package:loantrack/core/auth/auth_controller.dart';
+import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/data/services/upload_service.dart';
 
 // ── Providers ──────────────────────────────────────────────────────────────
@@ -389,7 +391,8 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
     if (aadhar.isNotEmpty && !RegExp(r'^\d{12}$').hasMatch(aadhar)) {
       errs['aadhar'] = t.x('err.aadhar_invalid');
     }
-    if (!_isEdit && _routeId == null) errs['route'] = t.x('err.route_required');
+    final isChit = AppType.userIsChit(ref.read(authControllerProvider).user);
+    if (!_isEdit && _routeId == null && !isChit) errs['route'] = t.x('err.route_required');
     setState(() => _fieldErrors
       ..clear()
       ..addAll(errs),);
@@ -651,6 +654,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
   Widget build(BuildContext context) {
     final t = T.of(ref);
     final routesAsync = ref.watch(_routeListProvider);
+    final isChit = AppType.userIsChit(ref.watch(authControllerProvider).user);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -822,47 +826,49 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                   // customer's collecting agent — no separate agent picker;
                   // agent↔route assignment lives in Settings → Routes, same
                   // as web). ────────────────────────────────────────────────
-                  _LabeledField(
-                    label: t.x('fld.route_line'),
-                    required: true,
-                    trailing: TextButton(
-                      style: TextButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  if (!isChit) ...[
+                    _LabeledField(
+                      label: t.x('fld.route_line'),
+                      required: true,
+                      trailing: TextButton(
+                        style: TextButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        onPressed: _showNewRouteDialog,
+                        child: Text(
+                          t.x('btn.new_route'),
+                          style: AppTypography.caption
+                              .copyWith(color: AppColors.primary),
+                        ),
                       ),
-                      onPressed: _showNewRouteDialog,
-                      child: Text(
-                        t.x('btn.new_route'),
-                        style: AppTypography.caption
-                            .copyWith(color: AppColors.primary),
-                      ),
-                    ),
-                    child: routesAsync.when(
-                      loading: () => _dropdownSkeleton(),
-                      error: (_, __) => _dropdownError(t.x('err.routes_unavail')),
-                      data: (routes) => _AppDropdown<String>(
-                        value: _routeId,
-                        hint: t.x('fld.select_route'),
-                        error: _fieldErrors['route'],
-                        items: routes
-                            .map(
-                              (r) => DropdownMenuItem(
-                                value: r.id,
-                                child: Text(
-                                  r.name,
-                                  overflow: TextOverflow.ellipsis,
+                      child: routesAsync.when(
+                        loading: () => _dropdownSkeleton(),
+                        error: (_, __) => _dropdownError(t.x('err.routes_unavail')),
+                        data: (routes) => _AppDropdown<String>(
+                          value: _routeId,
+                          hint: t.x('fld.select_route'),
+                          error: _fieldErrors['route'],
+                          items: routes
+                              .map(
+                                (r) => DropdownMenuItem(
+                                  value: r.id,
+                                  child: Text(
+                                    r.name,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (v) => setState(() {
-                          _routeId = v;
-                          _fieldErrors.remove('route');
-                        }),
+                              )
+                              .toList(),
+                          onChanged: (v) => setState(() {
+                            _routeId = v;
+                            _fieldErrors.remove('route');
+                          }),
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),

@@ -650,7 +650,7 @@ void main() {
         adapter.requestBodies.any(
           (body) =>
               body['memberId'] == 'member1' &&
-              body['bidAmount'] == 80000 &&
+              body['prizeAmount'] == 80000 &&
               body['bidDiscount'] == 20000,
         ),
         isTrue,

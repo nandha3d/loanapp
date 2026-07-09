@@ -108,6 +108,7 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
   Widget build(BuildContext context) {
     final c = widget.customer;
     final t = T.of(ref);
+    final isChit = AppType.userIsChit(ref.watch(authControllerProvider).user);
 
     return Column(
       children: [
@@ -120,10 +121,12 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
               const SizedBox(height: 14),
               _RiskCard(customer: c, t: t),
               const SizedBox(height: 14),
-              _KpiStrip(customer: c, t: t),
-              const SizedBox(height: 14),
-              _LoansSection(customer: c, t: t),
-              const SizedBox(height: 14),
+              if (!isChit) ...[
+                _KpiStrip(customer: c, t: t),
+                const SizedBox(height: 14),
+                _LoansSection(customer: c, t: t),
+                const SizedBox(height: 14),
+              ],
               _IdentitySection(customer: c, t: t),
               const SizedBox(height: 14),
               if (c.companyName != null && c.companyName!.isNotEmpty) ...[
@@ -158,21 +161,23 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: _printingReceipt ? null : _openCollectionReceipt,
-                    icon: _printingReceipt
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.picture_as_pdf_outlined),
-                    label: const Text('Collection passbook'),
+                if (!isChit) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _printingReceipt ? null : _openCollectionReceipt,
+                      icon: _printingReceipt
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.picture_as_pdf_outlined),
+                      label: const Text('Collection passbook'),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
+                  const SizedBox(height: 12),
+                ],
                 Row(
                   children: [
                     Expanded(

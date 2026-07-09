@@ -154,10 +154,12 @@ class _CreateFab extends ConsumerWidget {
   }
 
   void _showCreateSheet(BuildContext context, WidgetRef ref) {
-    final role = ref.read(authControllerProvider).user?.role;
+    final user = ref.read(authControllerProvider).user;
+    final role = user?.role;
     final privileged = role == UserRole.admin ||
         role == UserRole.superadmin ||
         role == UserRole.developer;
+    final isChit = AppType.userIsChit(user);
 
     void go(BuildContext ctx, String route) {
       Navigator.pop(ctx);
@@ -191,16 +193,24 @@ class _CreateFab extends ConsumerWidget {
                   label: 'New Customer',
                   onTap: () => go(ctx, '/customers/new'),
                 ),
-                _CreateOption(
-                  icon: Icons.request_quote_outlined,
-                  label: 'New Loan',
-                  onTap: () => go(ctx, '/loans/new'),
-                ),
-                _CreateOption(
-                  icon: Icons.route_outlined,
-                  label: 'Collection Run',
-                  onTap: () => go(ctx, '/collection/runs'),
-                ),
+                if (!isChit) ...[
+                  _CreateOption(
+                    icon: Icons.request_quote_outlined,
+                    label: 'New Loan',
+                    onTap: () => go(ctx, '/loans/new'),
+                  ),
+                  _CreateOption(
+                    icon: Icons.route_outlined,
+                    label: 'Collection Run',
+                    onTap: () => go(ctx, '/collection/runs'),
+                  ),
+                ] else ...[
+                  _CreateOption(
+                    icon: Icons.savings_outlined,
+                    label: 'New Chit Group',
+                    onTap: () => go(ctx, '/chits/new'),
+                  ),
+                ],
                 if (privileged) ...[
                   const _CreateSectionLabel('Account'),
                   _CreateOption(
@@ -219,16 +229,18 @@ class _CreateFab extends ConsumerWidget {
                     label: 'Create Agent',
                     onTap: () => go(ctx, '/admin/team'),
                   ),
-                  _CreateOption(
-                    icon: Icons.alt_route_outlined,
-                    label: 'Create Route',
-                    onTap: () => go(ctx, '/settings'),
-                  ),
-                  _CreateOption(
-                    icon: Icons.account_balance_wallet_outlined,
-                    label: 'Release Agent Wallet',
-                    onTap: () => go(ctx, '/wallet'),
-                  ),
+                  if (!isChit) ...[
+                    _CreateOption(
+                      icon: Icons.alt_route_outlined,
+                      label: 'Create Route',
+                      onTap: () => go(ctx, '/settings'),
+                    ),
+                    _CreateOption(
+                      icon: Icons.account_balance_wallet_outlined,
+                      label: 'Release Agent Wallet',
+                      onTap: () => go(ctx, '/wallet'),
+                    ),
+                  ],
                 ],
               ],
             ),
