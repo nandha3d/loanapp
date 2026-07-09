@@ -93,12 +93,14 @@ class ChitMember {
     required this.customerName,
     required this.customerCode,
     required this.hasWon,
+    this.profilePhoto,
   });
   final String id;
   final int memberNumber;
   final String customerName;
   final String customerCode;
   final bool hasWon;
+  final String? profilePhoto;
 
   factory ChitMember.fromJson(Map<String, dynamic> json) {
     final c = (json['customer'] as Map<String, dynamic>?) ?? const {};
@@ -108,6 +110,7 @@ class ChitMember {
       customerName: (c['name'] as String?) ?? '—',
       customerCode: (c['customerCode'] as String?) ?? '',
       hasWon: (json['hasWon'] as bool?) ?? false,
+      profilePhoto: c['profilePhoto'] as String?,
     );
   }
 }

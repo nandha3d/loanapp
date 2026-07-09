@@ -338,6 +338,9 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                                     final m = members.valueOrNull ?? [];
                                     _showRecordWinnerSheet(a, m, fmt);
                                   },
+                                  onLive: () => context.push(
+                                    '/chits/${widget.id}/auction/${a.periodNumber}/live',
+                                  ),
                                 );
                               }).toList(),
                             );
@@ -516,10 +519,14 @@ class _SectionCard extends StatelessWidget {
 
 class _AuctionTile extends StatelessWidget {
   const _AuctionTile(
-      {required this.auction, required this.fmt, required this.onRecord});
+      {required this.auction,
+      required this.fmt,
+      required this.onRecord,
+      required this.onLive});
   final ChitAuction auction;
   final NumberFormat fmt;
   final VoidCallback onRecord;
+  final VoidCallback onLive;
 
   @override
   Widget build(BuildContext context) {
@@ -535,14 +542,31 @@ class _AuctionTile extends StatelessWidget {
           '${auction.winnerName ?? "—"} · $dateStr',
           style: AppTypography.caption),
       trailing: isPending
-          ? TextButton(
-              onPressed: onRecord,
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              ),
-              child: const Text('Record'),
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FilledButton.icon(
+                  onPressed: onLive,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.onPrimary,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  icon: const Icon(Icons.gavel_rounded, size: 16),
+                  label: const Text('Live'),
+                ),
+                TextButton(
+                  onPressed: onRecord,
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.textSecondary,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  ),
+                  child: const Text('Record'),
+                ),
+              ],
             )
           : Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
