@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 
 import 'package:loantrack/core/a11y/voice_assist.dart';
 import 'package:loantrack/core/currency/currency_controller.dart';
+import 'package:loantrack/core/l10n/app_strings.dart'; // AppLangX.code extension
 import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
