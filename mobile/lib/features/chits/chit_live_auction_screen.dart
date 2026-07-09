@@ -117,15 +117,14 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
       await _poll();
     } catch (e) {
       if (mounted) {
-        setState(
-            () => _error = e.toString().replaceFirst('Exception: ', ''));
+        setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
       }
     }
     if (mounted) setState(() => _busy = false);
   }
 
   Future<void> _openRoom() async {
-    int duration = 30;
+    int durationMinutes = 30;
     int antiSnipe = 60;
     final ok = await showDialog<bool>(
       context: context,
@@ -136,9 +135,9 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               _NumberField(
-                label: 'Duration (seconds)',
-                value: duration,
-                onChanged: (v) => setLocal(() => duration = v),
+                label: 'Duration (minutes)',
+                value: durationMinutes,
+                onChanged: (v) => setLocal(() => durationMinutes = v),
               ),
               _NumberField(
                 label: 'Anti-snipe extend (seconds)',
@@ -162,7 +161,7 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
     await _run(() => _svc
         .roomAction(widget.groupId, widget.auctionId,
             action: 'open',
-            durationMinutes: (duration / 60).ceil().clamp(1, 120),
+            durationMinutes: durationMinutes.clamp(1, 120),
             autoExtendSeconds: antiSnipe)
         .then((_) {}));
   }
@@ -203,6 +202,129 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
   }
 
   // ── Bidding ──────────────────────────────────────────────────────────────
+  Future<void> _markAttendance(ChitMember member, String status) async {
+    String? proxyName;
+    if (status == 'proxy') {
+      final ctrl = TextEditingController();
+      proxyName = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('Proxy for ${member.customerName}'),
+          content: TextField(
+            controller: ctrl,
+            autofocus: true,
+            decoration: const InputDecoration(labelText: 'Proxy name'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+              child: const Text('Mark proxy'),
+            ),
+          ],
+        ),
+      );
+      ctrl.dispose();
+      if (proxyName == null || proxyName.trim().isEmpty) return;
+    }
+
+    await _run(() => _svc.markAttendance(
+          widget.groupId,
+          widget.auctionId,
+          memberId: member.id,
+          status: status,
+          proxyName: proxyName,
+        ));
+  }
+
+  void _showAttendanceSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      isScrollControlled: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.how_to_reg_rounded),
+                  const SizedBox(width: 8),
+                  Text('Attendance', style: AppTypography.sectionTitle),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Mark members before confirming or drawing the winner.',
+                style: AppTypography.caption
+                    .copyWith(color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 12),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(ctx).size.height * 0.7,
+                ),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: widget.members.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (_, index) {
+                    final member = widget.members[index];
+                    final status = _attendanceStatus(member.id);
+                    final proxyName = _attendanceProxyName(member.id);
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(
+                        backgroundColor:
+                            _attendanceColor(status).withValues(alpha: 0.12),
+                        foregroundColor: _attendanceColor(status),
+                        child: Icon(_attendanceIcon(status), size: 20),
+                      ),
+                      title: Text(member.customerName),
+                      subtitle: Text(
+                        proxyName == null
+                            ? _attendanceLabel(status)
+                            : '${_attendanceLabel(status)}: $proxyName',
+                      ),
+                      trailing: PopupMenuButton<String>(
+                        tooltip: 'Mark attendance',
+                        enabled: !_busy,
+                        onSelected: (value) {
+                          Navigator.pop(ctx);
+                          _markAttendance(member, value);
+                        },
+                        itemBuilder: (_) => const [
+                          PopupMenuItem(
+                            value: 'present',
+                            child: Text('Present'),
+                          ),
+                          PopupMenuItem(
+                            value: 'absent',
+                            child: Text('Absent'),
+                          ),
+                          PopupMenuItem(
+                            value: 'proxy',
+                            child: Text('Proxy'),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   double get _chitValue => (_live?['chitValue'] as num?)?.toDouble() ?? 0;
 
   double? get _highestDiscount {
@@ -372,6 +494,25 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
   List<Map<String, dynamic>> get _bids =>
       (_live?['bids'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
 
+  List<Map<String, dynamic>> get _attendanceRows =>
+      ((_live?['attendance'] as List?) ?? const <dynamic>[])
+          .whereType<Map<dynamic, dynamic>>()
+          .map((row) => Map<String, dynamic>.from(row))
+          .toList(growable: false);
+
+  Map<String, dynamic>? _attendanceFor(String memberId) {
+    for (final row in _attendanceRows) {
+      if (row['memberId'] == memberId) return row;
+    }
+    return null;
+  }
+
+  String _attendanceStatus(String memberId) =>
+      (_attendanceFor(memberId)?['status'] as String?) ?? 'unmarked';
+
+  String? _attendanceProxyName(String memberId) =>
+      _attendanceFor(memberId)?['proxyName'] as String?;
+
   /// Best (lowest) prize a member has bid this round, or null.
   double? _memberPrize(ChitMember m) {
     double? bestDiscount;
@@ -405,6 +546,12 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
         elevation: 0,
         title: Text('Live Auction · Period ${widget.periodNumber}'),
         actions: [
+          if (widget.isAdmin)
+            IconButton(
+              tooltip: 'Attendance',
+              icon: const Icon(Icons.how_to_reg_rounded),
+              onPressed: _busy ? null : _showAttendanceSheet,
+            ),
           IconButton(
             tooltip: 'Minutes',
             icon: Icon(_showMinutes ? Icons.close : Icons.receipt_long_rounded),
@@ -469,6 +616,45 @@ String _short(double v) {
 
 // ───────────────────────── Poker table ─────────────────────────
 
+String _attendanceLabel(String status) {
+  switch (status) {
+    case 'present':
+      return 'Present';
+    case 'absent':
+      return 'Absent';
+    case 'proxy':
+      return 'Proxy';
+    default:
+      return 'Not marked';
+  }
+}
+
+IconData _attendanceIcon(String status) {
+  switch (status) {
+    case 'present':
+      return Icons.check_circle_rounded;
+    case 'absent':
+      return Icons.cancel_rounded;
+    case 'proxy':
+      return Icons.supervised_user_circle_rounded;
+    default:
+      return Icons.radio_button_unchecked_rounded;
+  }
+}
+
+Color _attendanceColor(String status) {
+  switch (status) {
+    case 'present':
+      return AppColors.success;
+    case 'absent':
+      return AppColors.danger;
+    case 'proxy':
+      return AppColors.warning;
+    default:
+      return AppColors.textSecondary;
+  }
+}
+
 class _PokerTable extends StatelessWidget {
   const _PokerTable({
     required this.members,
@@ -526,16 +712,21 @@ class _PokerTable extends StatelessWidget {
               ),
             ),
             for (var i = 0; i < members.length; i++)
-              _seat(cx, cy, rx, ry,
-                  -math.pi / 2 + (2 * math.pi * i / members.length), members[i]),
+              _seat(
+                  cx,
+                  cy,
+                  rx,
+                  ry,
+                  -math.pi / 2 + (2 * math.pi * i / members.length),
+                  members[i]),
           ],
         );
       },
     );
   }
 
-  Widget _seat(double cx, double cy, double rx, double ry, double angle,
-      ChitMember m) {
+  Widget _seat(
+      double cx, double cy, double rx, double ry, double angle, ChitMember m) {
     final x = cx + rx * math.cos(angle);
     final y = cy + ry * math.sin(angle);
     return Positioned(
@@ -643,7 +834,8 @@ class _CenterPot extends StatelessWidget {
     double? lowestPrize;
     for (final m in members) {
       final p = memberPrize(m);
-      if (p != null && (lowestPrize == null || p < lowestPrize)) lowestPrize = p;
+      if (p != null && (lowestPrize == null || p < lowestPrize))
+        lowestPrize = p;
     }
     final prize = lowestPrize ?? chitValue;
     final discount = chitValue - prize;
@@ -813,8 +1005,8 @@ class _MinutesPanel extends ConsumerWidget {
       child: rows.isEmpty
           ? Center(
               child: Text('No bids yet',
-                  style: AppTypography.body
-                      .copyWith(color: AppColors.onInkMuted)))
+                  style:
+                      AppTypography.body.copyWith(color: AppColors.onInkMuted)))
           : ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: rows.length,

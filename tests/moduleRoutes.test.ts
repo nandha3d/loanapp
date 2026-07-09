@@ -34,6 +34,8 @@ assert.equal(isRouteEnabledForModules('/microlending/loans/new', ['microlending'
 assert.equal(isRouteEnabledForModules('/microlending/vehicles', ['microlending']), false);
 assert.equal(isRouteEnabledForModules('/autofinance/vehicles/new', ['autofinance']), true);
 assert.equal(isRouteEnabledForModules('/chitfunds/loans', ['chitfunds']), false);
+assert.equal(isRouteEnabledForModules('/chitfunds/wallet', ['chitfunds']), false);
+assert.equal(isRouteEnabledForModules('/microlending/wallet', ['microlending']), true);
 assert.equal(isRouteEnabledForModules('/chitfunds/customers', ['microlending']), false);
 assert.equal(isRouteEnabledForModules('/microlending/settings', ['microlending']), true);
 assert.deepEqual(mergeModuleLists('["microlending"]', '["chitfunds","microlending"]'), ['microlending', 'chitfunds']);

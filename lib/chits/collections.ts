@@ -14,6 +14,7 @@ export async function collectChitSubscriptionPayment(tx: any, input: {
   mode: ChitPaymentMode;
   paymentMode: string;
   referenceNo?: string | null;
+  idempotencyKey?: string | null;
   notes?: string | null;
   collectorId: string;
 }) {
@@ -57,6 +58,7 @@ export async function collectChitSubscriptionPayment(tx: any, input: {
       amount: calc.receivedDelta,
       paymentMode: input.paymentMode,
       referenceNo: input.referenceNo || undefined,
+      idempotencyKey: input.idempotencyKey || undefined,
       notes: input.notes || undefined,
       issuedById: input.collectorId,
     },

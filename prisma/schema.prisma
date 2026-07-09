@@ -1431,6 +1431,7 @@ model ChitReceipt {
   amount         Decimal   @db.Decimal(14, 2)
   paymentMode    String    @default("cash") @map("payment_mode")
   referenceNo    String?   @map("reference_no")
+  idempotencyKey String?   @map("idempotency_key")
   notes          String?   @db.Text
   status         String    @default("active")
   issuedById     String?   @map("issued_by_id")
@@ -1440,6 +1441,7 @@ model ChitReceipt {
   reversalReason String?   @map("reversal_reason") @db.Text
 
   @@unique([tenantId, receiptNo])
+  @@unique([tenantId, idempotencyKey], map: "chit_receipts_tenant_idempotency_key")
   @@index([tenantId, branchId, receiptType])
   @@index([entityType, entityId])
   @@map("chit_receipts")

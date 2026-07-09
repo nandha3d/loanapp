@@ -55,6 +55,20 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
   const isDrawType = ['lottery', 'fixed_rotation'].includes(group.auctionType);
   const completedAuctions = group.auctions.filter((a: any) => ['confirmed', 'paid', 'completed'].includes(a.status));
   const membersMissingTicketNo = group.members.filter((m: any) => !m.ticketNo).length;
+  const subscriptionBreakdown = (s: any) => {
+    const dividendAdjustment = Number(s.dividendAmount || 0);
+    const penalty = Number(s.penaltyAmount || 0);
+    const netDue = Number(s.dueAmount) + penalty;
+    const paid = Number(s.paidAmount || 0);
+    return {
+      baseContribution: Number(s.baseDueAmount ?? Number(s.dueAmount) + dividendAdjustment),
+      dividendAdjustment,
+      penalty,
+      netDue,
+      paid,
+      outstanding: Math.max(0, netDue - paid),
+    };
+  };
 
   const run = async (label: string, fn: () => Promise<any>) => {
     setBusy(label);
@@ -331,9 +345,12 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
                 <th>{d.member}</th>
                 <th>{d.period}</th>
                 <th>{d.dueDate}</th>
-                <th>{d.dueAmount}</th>
+                <th>Base</th>
                 <th>{d.dividend}</th>
+                <th>Penalty</th>
+                <th>Net due</th>
                 <th>{d.paid}</th>
+                <th>Outstanding</th>
                 <th>Receipt</th>
                 <th>{d.status}</th>
                 <th></th>
@@ -341,14 +358,19 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
             </thead>
             <tbody>
               {group.members.flatMap((m: any) =>
-                m.subscriptions.map((s: any) => (
+                m.subscriptions.map((s: any) => {
+                  const b = subscriptionBreakdown(s);
+                  return (
                   <tr key={s.id}>
                     <td>{m.customer.name}</td>
                     <td>Period {s.periodNumber}</td>
                     <td>{formatDate(s.dueDate)}</td>
-                    <td>{formatCurrency(Number(s.dueAmount), currencySymbol)}</td>
+                    <td>{formatCurrency(b.baseContribution, currencySymbol)}</td>
                     <td>{Number(s.dividendAmount) > 0 ? formatCurrency(Number(s.dividendAmount), currencySymbol) : '—'}</td>
-                    <td>{formatCurrency(Number(s.paidAmount), currencySymbol)}</td>
+                    <td>{b.penalty > 0 ? formatCurrency(b.penalty, currencySymbol) : '—'}</td>
+                    <td>{formatCurrency(b.netDue, currencySymbol)}</td>
+                    <td>{formatCurrency(b.paid, currencySymbol)}</td>
+                    <td><strong>{formatCurrency(b.outstanding, currencySymbol)}</strong></td>
                     <td style={{ fontSize: '.75rem' }}>{s.lastReceiptNo || '—'}</td>
                     <td><span className={`badge badge-${s.status === 'paid' ? 'success' : s.status === 'missed' ? 'danger' : s.status === 'partial' ? 'warning' : 'secondary'}`}>{s.status}</span></td>
                     <td style={{ display: 'flex', gap: '4px' }}>
@@ -356,8 +378,8 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
                         <button
                           className="btn btn-ghost btn-sm"
                           onClick={() => {
-                            setPaymentModal({ subscriptionId: s.id, memberId: m.id, periodNumber: s.periodNumber, dueAmount: s.dueAmount });
-                            setPayAmount(Number(s.dueAmount) - Number(s.paidAmount));
+                            setPaymentModal({ subscriptionId: s.id, memberId: m.id, periodNumber: s.periodNumber, dueAmount: s.dueAmount, ...b });
+                            setPayAmount(b.outstanding);
                             setPayMode('cash');
                             setPayRef('');
                             setPayNotes('');
@@ -379,7 +401,8 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
                       )}
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -392,10 +415,18 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
           <div className="card" style={{ width: '400px', padding: '24px' }}>
             <h3 style={{ marginBottom: '12px' }}>{d.recordPayment} — Period {paymentModal.periodNumber}
               <span style={{ fontSize: '.75rem', color: 'var(--text-secondary)', fontWeight: 'normal', marginLeft: '8px' }}>
-                Due: {formatCurrency(Number(paymentModal.dueAmount), currencySymbol)}
+                Outstanding: {formatCurrency(Number(paymentModal.outstanding), currencySymbol)}
               </span>
             </h3>
             {error && <p style={{ color: 'var(--danger)', marginBottom: '10px', fontSize: '.85rem' }}>{error}</p>}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', marginBottom: '12px', fontSize: '.8rem', color: 'var(--text-secondary)' }}>
+              <span>Base: {formatCurrency(Number(paymentModal.baseContribution), currencySymbol)}</span>
+              <span>Dividend: {Number(paymentModal.dividendAdjustment) > 0 ? `-${formatCurrency(Number(paymentModal.dividendAdjustment), currencySymbol)}` : '—'}</span>
+              <span>Penalty: {Number(paymentModal.penalty) > 0 ? formatCurrency(Number(paymentModal.penalty), currencySymbol) : '—'}</span>
+              <span>Net due: {formatCurrency(Number(paymentModal.netDue), currencySymbol)}</span>
+              <span>Paid: {formatCurrency(Number(paymentModal.paid), currencySymbol)}</span>
+              <strong style={{ color: 'var(--text-primary)' }}>Outstanding: {formatCurrency(Number(paymentModal.outstanding), currencySymbol)}</strong>
+            </div>
             <div className="form-group" style={{ marginBottom: '12px' }}>
               <label className="form-label">{d.amountPaid} ({currencySymbol})</label>
               <input type="number" className="form-control" value={payAmount} onChange={(e) => setPayAmount(Number(e.target.value))} />

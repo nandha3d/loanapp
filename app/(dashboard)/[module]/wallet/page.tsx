@@ -5,6 +5,7 @@ import { getActiveBranchId } from '@/lib/branch';
 import { getBranchAccounts, getAgentBalance, getAgentStatement } from '@/lib/wallet';
 import WalletClient from './WalletClient';
 import AgentWalletClient from './AgentWalletClient';
+import { notFound } from 'next/navigation';
 
 export default async function WalletPage() {
   const session = await auth();
@@ -13,23 +14,12 @@ export default async function WalletPage() {
 
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
+  if (appType === 'chitfunds') notFound();
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
 
   // Agents see their OWN cash float (cash held in the field) + ledger — not the
   // branch/oversight view. Cash handover stays on the collection page.
   if (role === 'agent' && userId) {
-    if (appType === 'chitfunds') {
-      return (
-        <div className="card" style={{ padding: '34px 18px', textAlign: 'center', border: '1px solid var(--border)' }}>
-          <span className="material-icons-outlined" style={{ fontSize: 48, color: 'var(--text-light)', marginBottom: 12 }}>account_balance_wallet</span>
-          <h3 style={{ margin: '0 0 8px', fontSize: '1.1rem', fontWeight: 800 }}>Agent Wallet Not Applicable</h3>
-          <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '.88rem' }}>
-            Agent wallets are not used in Chit Funds. All payments are processed directly by the branch cash pool.
-          </p>
-        </div>
-      );
-    }
-
     const [balance, txns, handoversRaw] = await Promise.all([
       getAgentBalance(tenantId, appType, userId),
       getAgentStatement(tenantId, appType, userId, 50),

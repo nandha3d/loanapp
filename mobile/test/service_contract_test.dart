@@ -204,8 +204,7 @@ class _ContractAdapter implements HttpClientAdapter {
         if (options.path == Endpoints.chitMember('chit1', 'member1')) {
           return {'id': 'member1', 'ticketNo': '1A'};
         }
-        if (options.path ==
-            Endpoints.chitMemberAgreement('chit1', 'member1')) {
+        if (options.path == Endpoints.chitMemberAgreement('chit1', 'member1')) {
           return {'id': 'member1', 'agreementStatus': 'verified'};
         }
         if (options.path == Endpoints.chitAuctions('chit1')) {
@@ -233,8 +232,7 @@ class _ContractAdapter implements HttpClientAdapter {
             'status': 'valid',
           };
         }
-        if (options.path ==
-            Endpoints.chitAuctionAttendance('chit1', 'auc1')) {
+        if (options.path == Endpoints.chitAuctionAttendance('chit1', 'auc1')) {
           return {'id': 'att1', 'memberId': 'member1', 'status': 'present'};
         }
         if (options.path == Endpoints.chitAuctionConfirm('chit1', 'auc1')) {
@@ -503,7 +501,9 @@ void main() {
         memberId: 'member1',
         periodNumber: 1,
         amount: 500,
-        paymentMode: 'cash',
+        paymentMode: 'cheque',
+        idempotencyKey: 'chit-pay-1',
+        referenceNo: 'CHQ-001',
       );
       await service.markMissed('sub1');
       await service.cancel('chit1');
@@ -520,13 +520,17 @@ void main() {
               body['memberId'] == 'member1' &&
               body['periodNumber'] == 1 &&
               body['amount'] == 500 &&
-              body['mode'] == 'ADD_PAYMENT',
+              body['mode'] == 'ADD_PAYMENT' &&
+              body['paymentMode'] == 'cheque' &&
+              body['idempotencyKey'] == 'chit-pay-1' &&
+              body['referenceNo'] == 'CHQ-001',
         ),
         isTrue,
       );
     });
 
-    test('MOB-SVC-009 chit auction, security, payout, and penalty routes are stable',
+    test(
+        'MOB-SVC-009 chit auction, security, payout, and penalty routes are stable',
         () async {
       final adapter = _ContractAdapter();
       final dio = Dio(BaseOptions(baseUrl: 'http://localhost/api/v1'));
@@ -588,10 +592,11 @@ void main() {
       final penalties = await service.penalties('chit1');
       await service.createPenalty(
         'chit1',
-        subscriptionId: 'sub1',
+        memberId: 'member1',
         amount: 100,
+        reason: 'late payment',
       );
-      await service.payPenalty('chit1', 'pen1', amount: 50);
+      await service.payPenalty('chit1', 'pen1', amountPaid: 50);
       await service.waivePenalty('chit1', 'pen1', reason: 'manager waiver');
       await service.reverseReceipt('receipt1', reason: 'correction');
 
@@ -612,7 +617,8 @@ void main() {
       expect(adapter.requests, contains('PATCH /chits/chit1/members/member1'));
       expect(adapter.requests,
           contains('POST /chits/chit1/members/member1/agreement'));
-      expect(adapter.requests, contains('POST /chits/chit1/auctions/auc1/bids'));
+      expect(
+          adapter.requests, contains('POST /chits/chit1/auctions/auc1/bids'));
       expect(adapter.requests,
           contains('POST /chits/chit1/auctions/auc1/attendance'));
       expect(adapter.requests,
@@ -620,15 +626,16 @@ void main() {
       expect(adapter.requests,
           contains('POST /chits/chit1/auctions/auc1/security'));
       expect(adapter.requests, contains('GET /chits/chit1/auctions/auc1/live'));
-      expect(adapter.requests,
-          contains('POST /chits/chit1/auctions/auc1/room'));
-      expect(adapter.requests,
-          contains('POST /chits/chit1/auctions/auc1/draw'));
-      expect(adapter.requests,
-          contains('POST /chits/chit1/auctions/auc1/payout'));
+      expect(
+          adapter.requests, contains('POST /chits/chit1/auctions/auc1/room'));
+      expect(
+          adapter.requests, contains('POST /chits/chit1/auctions/auc1/draw'));
+      expect(
+          adapter.requests, contains('POST /chits/chit1/auctions/auc1/payout'));
       expect(adapter.requests, contains('GET /chits/chit1/penalties'));
       expect(adapter.requests, contains('POST /chits/chit1/penalties'));
-      expect(adapter.requests, contains('POST /chits/chit1/penalties/pen1/pay'));
+      expect(
+          adapter.requests, contains('POST /chits/chit1/penalties/pen1/pay'));
       expect(
         adapter.requests,
         contains('POST /chits/chit1/penalties/pen1/waive'),

@@ -12,6 +12,10 @@ type Row = {
   customerName: string;
   customerPhone: string;
   groupName: string;
+  baseContribution: number;
+  dividendAdjustment: number;
+  penalty: number;
+  netDue: number;
   dueAmount: number;
   paidAmount: number;
   outstanding: number;
@@ -81,7 +85,10 @@ export default function ChitCollectionClient({
                 <th>Member</th>
                 <th>Chit Group</th>
                 <th>Period</th>
-                <th>Due</th>
+                <th>Base</th>
+                <th>Dividend</th>
+                <th>Penalty</th>
+                <th>Net Due</th>
                 <th>Paid</th>
                 <th>Outstanding</th>
                 <th>Collect</th>
@@ -98,7 +105,14 @@ export default function ChitCollectionClient({
                   </td>
                   <td data-label="Chit Group">{row.groupName}</td>
                   <td data-label="Period">#{row.periodNumber}</td>
-                  <td data-label="Due">{formatCurrency(row.dueAmount, currencySymbol)}</td>
+                  <td data-label="Base">{formatCurrency(row.baseContribution, currencySymbol)}</td>
+                  <td data-label="Dividend">
+                    {row.dividendAdjustment > 0 ? `-${formatCurrency(row.dividendAdjustment, currencySymbol)}` : '—'}
+                  </td>
+                  <td data-label="Penalty">
+                    {row.penalty > 0 ? formatCurrency(row.penalty, currencySymbol) : '—'}
+                  </td>
+                  <td data-label="Net Due">{formatCurrency(row.netDue, currencySymbol)}</td>
                   <td data-label="Paid">{formatCurrency(row.paidAmount, currencySymbol)}</td>
                   <td data-label="Outstanding">
                     <strong>{formatCurrency(row.outstanding, currencySymbol)}</strong>
@@ -150,7 +164,7 @@ export default function ChitCollectionClient({
               ))}
               {list.length === 0 && (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: 28, color: 'var(--text-light)' }}>
+                  <td colSpan={10} style={{ textAlign: 'center', padding: 28, color: 'var(--text-light)' }}>
                     {emptyText}
                   </td>
                 </tr>

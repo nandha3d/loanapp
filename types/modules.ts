@@ -28,18 +28,18 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
 };
 
 export const MODULE_ROUTES: Record<ModuleKey, string[]> = {
-  microlending: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard'],
-  autofinance: ['/vehicles', '/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard'],
+  microlending: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard', '/wallet'],
+  autofinance: ['/vehicles', '/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard', '/wallet'],
   chitfunds: ['/chits', '/customers', '/collection', '/accounting', '/reports', '/analytics', '/notifications'],
-  goldloan: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard'],
+  goldloan: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard', '/wallet'],
   // Property + product finance reuse the generic loan lifecycle. Their
   // collateral-specific pages (/property, /products) ship with the gated
   // collateral migration — see docs/parity/migrations.
-  property: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard'],
-  productfinance: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard'],
+  property: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard', '/wallet'],
+  productfinance: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard', '/wallet'],
 };
 
-const MODULE_SHARED_ROUTES = ['/dashboard', '/settings', '/subscription', '/profile', '/branch-requests', '/affiliate', '/kyc-review', '/module-requests', '/wallet'];
+const MODULE_SHARED_ROUTES = ['/dashboard', '/settings', '/subscription', '/profile', '/branch-requests', '/affiliate', '/kyc-review', '/module-requests'];
 const DASHBOARD_EXTERNAL_PREFIXES = [
   '/admin',
   '/api',

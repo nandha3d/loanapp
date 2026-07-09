@@ -1,23 +1,22 @@
 import prisma from '@/lib/db';
-import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
-import { requireModule } from '@/lib/moduleGate';
+import { getSetting } from '@/lib/tenant';
 import { notFound } from 'next/navigation';
 import Link from '@/components/layout/DashboardLink';
 import ChitGroupDetailClient from './ChitGroupDetailClient';
 import { getDictionary } from '@/lib/i18n';
+import { getWebChitScope, scopedChitGroupWhere } from '@/lib/chits/access';
 
 export default async function ChitGroupDetailPage({ params }: { params: Promise<{ id: string; module: string }> }) {
   const { id } = await params;
-  const tenantId = await getDefaultTenantId();
-  const appType = await getUserAppType();
-  await requireModule(tenantId, 'chitfunds');
+  const scope = await getWebChitScope();
+  const tenantId = scope.tenantId;
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
   const dict = await getDictionary(tenantId);
 
   let group: any = null;
   try {
     group = await prisma.chitGroup.findFirst({
-      where: { OR: [{ id }, { groupCode: id }], tenantId, appType },
+      where: scopedChitGroupWhere(scope, { OR: [{ id }, { groupCode: id }] }),
       include: {
         members: {
           orderBy: { memberNumber: 'asc' },

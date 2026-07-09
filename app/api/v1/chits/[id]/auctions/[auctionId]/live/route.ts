@@ -41,7 +41,10 @@ export async function GET(
           include: { member: { include: { customer: true } } },
           orderBy: { bidTime: 'desc' },
         },
-        attendance: true,
+        attendance: {
+          include: { member: { include: { customer: true } } },
+          orderBy: { markedAt: 'desc' },
+        },
         winnerMember: { include: { customer: true } },
       },
     });
@@ -81,6 +84,16 @@ export async function GET(
       bids,
       highestBid,
       minNextDiscount,
+      attendance: auction.attendance.map((entry) => ({
+        id: entry.id,
+        memberId: entry.memberId,
+        memberName: entry.member.customer.name,
+        ticketNo: entry.member.ticketNo,
+        status: entry.status,
+        proxyName: entry.proxyName,
+        remarks: entry.remarks,
+        markedAt: entry.markedAt,
+      })),
       presentCount: auction.attendance.filter((entry) => entry.status === 'present' || entry.status === 'proxy').length,
       totalMembers: auction.chitGroup.totalMembers,
       winner: auction.winnerMember

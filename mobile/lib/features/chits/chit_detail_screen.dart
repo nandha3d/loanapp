@@ -5,9 +5,11 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import 'package:loantrack/core/l10n/language_controller.dart';
+import 'package:loantrack/core/network/api_exception.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
+import 'package:loantrack/data/local/chit_payment_queue.dart';
 import 'package:loantrack/data/models/chit.dart';
 import 'package:loantrack/data/services/chit_service.dart';
 import 'package:loantrack/features/chits/chit_live_auction_screen.dart';
@@ -165,6 +167,8 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
 
   void _showRecordPaymentSheet(ChitSubscription sub, NumberFormat fmt) {
     double amount = sub.outstanding;
+    String paymentMode = 'cash';
+    String referenceNo = '';
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -187,6 +191,8 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                 const SizedBox(height: 8),
                 Text('Due: ${fmt.format(sub.dueAmount)}',
                     style: AppTypography.caption),
+                const SizedBox(height: 8),
+                _ContributionBreakdown(sub: sub, fmt: fmt),
                 const SizedBox(height: 12),
                 TextFormField(
                   decoration: const InputDecoration(labelText: 'Amount Paid'),
@@ -195,6 +201,28 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                   onChanged: (v) =>
                       setLocal(() => amount = double.tryParse(v) ?? 0),
                 ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: paymentMode,
+                  decoration: const InputDecoration(labelText: 'Payment mode'),
+                  items: const [
+                    DropdownMenuItem(value: 'cash', child: Text('Cash')),
+                    DropdownMenuItem(value: 'upi', child: Text('UPI')),
+                    DropdownMenuItem(value: 'bank', child: Text('Bank')),
+                    DropdownMenuItem(value: 'cheque', child: Text('Cheque')),
+                  ],
+                  onChanged: (v) {
+                    if (v != null) setLocal(() => paymentMode = v);
+                  },
+                ),
+                if (paymentMode != 'cash') ...[
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    decoration:
+                        const InputDecoration(labelText: 'Reference no'),
+                    onChanged: (v) => referenceNo = v,
+                  ),
+                ],
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -209,19 +237,59 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                           : () async {
                               Navigator.pop(ctx);
                               setState(() => _busy = true);
+                              final idempotencyKey = chitPaymentIdempotencyKey(
+                                groupId: widget.id,
+                                memberId: sub.memberId,
+                                periodNumber: sub.periodNumber,
+                                amount: amount,
+                              );
+                              final queued = queuedChitPayment(
+                                idempotencyKey: idempotencyKey,
+                                groupId: widget.id,
+                                memberId: sub.memberId,
+                                periodNumber: sub.periodNumber,
+                                amount: amount,
+                                paymentMode: paymentMode,
+                                referenceNo: referenceNo,
+                              );
                               try {
-                                await ref
-                                    .read(chitServiceProvider)
-                                    .collectContribution(
-                                      widget.id,
-                                      memberId: sub.memberId,
-                                      periodNumber: sub.periodNumber,
-                                      amount: amount,
-                                      paymentMode: 'cash',
-                                    );
+                                if (!ref.read(chitPaymentSyncProvider).online) {
+                                  await ref
+                                      .read(chitPaymentQueueProvider)
+                                      .add(queued);
+                                  await ref
+                                      .read(chitPaymentSyncProvider.notifier)
+                                      .refresh();
+                                } else {
+                                  await ref
+                                      .read(chitServiceProvider)
+                                      .collectContribution(
+                                        widget.id,
+                                        memberId: sub.memberId,
+                                        periodNumber: sub.periodNumber,
+                                        amount: amount,
+                                        paymentMode: paymentMode,
+                                        idempotencyKey: idempotencyKey,
+                                        referenceNo: referenceNo,
+                                      );
+                                }
                                 _refresh();
                               } catch (e) {
-                                setState(() => _error = e.toString());
+                                final isServerReject = e is ApiException &&
+                                    e.statusCode != null &&
+                                    e.statusCode! >= 400 &&
+                                    e.statusCode! < 500;
+                                if (!isServerReject) {
+                                  await ref
+                                      .read(chitPaymentQueueProvider)
+                                      .add(queued);
+                                  await ref
+                                      .read(chitPaymentSyncProvider.notifier)
+                                      .refresh();
+                                  _refresh();
+                                } else {
+                                  setState(() => _error = e.message);
+                                }
                               }
                               setState(() => _busy = false);
                             },
@@ -642,10 +710,6 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                                 return _AuctionTile(
                                   auction: a,
                                   fmt: fmt,
-                                  onRecord: () {
-                                    final m = members.valueOrNull ?? [];
-                                    _showRecordWinnerSheet(a, m, fmt);
-                                  },
                                   onManage: () {
                                     final m = members.valueOrNull ?? [];
                                     _showAuctionManageSheet(a, group, m);
@@ -653,6 +717,10 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                                   onLive: () => context.push(
                                     '/chits/${widget.id}/auction/${a.periodNumber}/live',
                                   ),
+                                  onRecord: () {
+                                    final m = members.valueOrNull ?? [];
+                                    _showRecordWinnerSheet(a, m, fmt);
+                                  },
                                 );
                               }).toList(),
                             );
@@ -832,15 +900,15 @@ class _AuctionTile extends StatelessWidget {
   const _AuctionTile({
     required this.auction,
     required this.fmt,
-    required this.onRecord,
     required this.onManage,
     required this.onLive,
+    required this.onRecord,
   });
   final ChitAuction auction;
   final NumberFormat fmt;
-  final VoidCallback onRecord;
   final VoidCallback onManage;
   final VoidCallback onLive;
+  final VoidCallback onRecord;
 
   @override
   Widget build(BuildContext context) {
@@ -871,14 +939,24 @@ class _AuctionTile extends StatelessWidget {
                   icon: const Icon(Icons.gavel_rounded, size: 16),
                   label: const Text('Live'),
                 ),
+                const SizedBox(width: 8),
                 TextButton(
                   onPressed: onRecord,
                   style: TextButton.styleFrom(
-                    foregroundColor: AppColors.textSecondary,
+                    foregroundColor: AppColors.primary,
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                   child: const Text('Record'),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  onPressed: onManage,
+                  icon: const Icon(Icons.more_horiz),
+                  color: AppColors.primary,
+                  tooltip: 'Manage auction',
                 ),
               ],
             )
@@ -939,6 +1017,45 @@ class _MemberTile extends StatelessWidget {
   }
 }
 
+class _ContributionBreakdown extends StatelessWidget {
+  const _ContributionBreakdown({required this.sub, required this.fmt});
+
+  final ChitSubscription sub;
+  final NumberFormat fmt;
+
+  @override
+  Widget build(BuildContext context) {
+    final base = sub.baseDueAmount ?? sub.dueAmount + sub.dividendAmount;
+    final netDue = sub.dueAmount + sub.penaltyAmount;
+    final rows = <String>[
+      'Base ${fmt.format(base)}',
+      sub.dividendAmount > 0
+          ? 'Dividend -${fmt.format(sub.dividendAmount)}'
+          : 'Dividend -',
+      sub.penaltyAmount > 0
+          ? 'Penalty ${fmt.format(sub.penaltyAmount)}'
+          : 'Penalty -',
+      'Net due ${fmt.format(netDue)}',
+      'Paid ${fmt.format(sub.paidAmount)}',
+      'Outstanding ${fmt.format(sub.outstanding)}',
+    ];
+    return Wrap(
+      spacing: 8,
+      runSpacing: 4,
+      children: rows
+          .map(
+            (text) => Text(
+              text,
+              style: AppTypography.caption.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+}
+
 class _SubscriptionTile extends StatelessWidget {
   const _SubscriptionTile({
     required this.sub,
@@ -970,9 +1087,10 @@ class _SubscriptionTile extends StatelessWidget {
       dense: true,
       title: Text('${sub.memberName} · Period ${sub.periodNumber}',
           style: AppTypography.body.copyWith(fontWeight: FontWeight.w500)),
-      subtitle: Text(
-          'Due: ${fmt.format(sub.dueAmount)} · Paid: ${fmt.format(sub.paidAmount)}',
-          style: AppTypography.caption),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: _ContributionBreakdown(sub: sub, fmt: fmt),
+      ),
       trailing: sub.status == 'paid'
           ? Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),

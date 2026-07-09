@@ -18,6 +18,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const amount = Number(body?.amount ?? body?.paidAmount);
     const mode = body?.mode === 'SET_TOTAL_PAID' ? 'SET_TOTAL_PAID' : 'ADD_PAYMENT';
     const paymentMode = String(body?.paymentMode ?? 'cash');
+    const idempotencyKey =
+      typeof body?.idempotencyKey === 'string' && body.idempotencyKey.trim()
+        ? body.idempotencyKey.trim().slice(0, 191)
+        : null;
     if (!memberId || !Number.isInteger(periodNumber)) return fail('memberId and periodNumber are required', 400);
     if (!Number.isFinite(amount) || amount <= 0) return fail('amount must be greater than zero', 400);
 
@@ -39,6 +43,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
     if (!sub) return fail('Subscription not found', 404);
 
+    if (idempotencyKey) {
+      const existingReceipt = await (prisma as any).chitReceipt.findFirst({
+        where: {
+          tenantId: ctx.tenantId,
+          appType: ctx.appType,
+          receiptType: 'collection',
+          idempotencyKey,
+        },
+      });
+      if (existingReceipt) {
+        if (existingReceipt.entityType !== 'subscription' || existingReceipt.entityId !== sub.id) {
+          return fail('Idempotency key already used for another chit payment', 409);
+        }
+        return ok({
+          id: sub.id,
+          subscription: sub,
+          receiptNo: existingReceipt.receiptNo,
+          receivedDelta: Number(existingReceipt.amount),
+          status: sub.status,
+          idempotent: true,
+        });
+      }
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       return collectChitSubscriptionPayment(tx, {
         tenantId: ctx.tenantId,
@@ -52,6 +80,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         mode,
         paymentMode,
         referenceNo: body?.referenceNo ?? null,
+        idempotencyKey,
         notes: body?.notes ?? body?.note ?? null,
         collectorId: ctx.userId,
       });

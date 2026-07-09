@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 import 'package:loantrack/core/l10n/language_controller.dart';
+import 'package:loantrack/core/network/api_exception.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
+import 'package:loantrack/data/local/chit_payment_queue.dart';
 import 'package:loantrack/data/models/chit.dart';
 import 'package:loantrack/data/services/chit_service.dart';
 import 'package:loantrack/shared/widgets/bottom_nav.dart';
@@ -638,6 +640,8 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                             value: 'upi', child: Text(t.x('coll.upi'))),
                         DropdownMenuItem(
                             value: 'bank', child: Text(t.x('coll.bank'))),
+                        const DropdownMenuItem(
+                            value: 'cheque', child: Text('Cheque')),
                       ],
                       onChanged: (v) {
                         if (v != null) paymentMode = v;
@@ -673,23 +677,61 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                             busy = true;
                             err = null;
                           });
+                          final idempotencyKey = chitPaymentIdempotencyKey(
+                            groupId: widget.group.id,
+                            memberId: memberId,
+                            periodNumber: currentPeriod,
+                            amount: amount,
+                          );
+                          final queued = queuedChitPayment(
+                            idempotencyKey: idempotencyKey,
+                            groupId: widget.group.id,
+                            memberId: memberId,
+                            periodNumber: currentPeriod,
+                            amount: amount,
+                            paymentMode: paymentMode,
+                            note: noteCtrl.text,
+                          );
                           try {
-                            await ref
-                                .read(chitServiceProvider)
-                                .collectContribution(
-                                  widget.group.id,
-                                  memberId: memberId,
-                                  periodNumber: currentPeriod,
-                                  amount: amount,
-                                  paymentMode: paymentMode,
-                                  note: noteCtrl.text,
-                                );
+                            if (!ref.read(chitPaymentSyncProvider).online) {
+                              await ref
+                                  .read(chitPaymentQueueProvider)
+                                  .add(queued);
+                              await ref
+                                  .read(chitPaymentSyncProvider.notifier)
+                                  .refresh();
+                            } else {
+                              await ref
+                                  .read(chitServiceProvider)
+                                  .collectContribution(
+                                    widget.group.id,
+                                    memberId: memberId,
+                                    periodNumber: currentPeriod,
+                                    amount: amount,
+                                    paymentMode: paymentMode,
+                                    idempotencyKey: idempotencyKey,
+                                    note: noteCtrl.text,
+                                  );
+                            }
                             if (ctx.mounted) Navigator.pop(ctx, true);
                           } catch (e) {
+                            final isServerReject = e is ApiException &&
+                                e.statusCode != null &&
+                                e.statusCode! >= 400 &&
+                                e.statusCode! < 500;
+                            if (!isServerReject) {
+                              await ref
+                                  .read(chitPaymentQueueProvider)
+                                  .add(queued);
+                              await ref
+                                  .read(chitPaymentSyncProvider.notifier)
+                                  .refresh();
+                              if (ctx.mounted) Navigator.pop(ctx, true);
+                              return;
+                            }
                             setLocal(() {
                               busy = false;
-                              err =
-                                  e.toString().replaceFirst('Exception: ', '');
+                              err = e.message;
                             });
                           }
                         },
@@ -978,38 +1020,19 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
               ),
             ),
           ),
-          // Record an auction result (server enforces admin + computes payouts).
           SafeArea(
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _recordAuction,
-                      icon: const Icon(Icons.gavel_rounded, size: 18),
-                      label: Text(t.x('ch.record_auction')),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primary,
-                        side: BorderSide(color: AppColors.primary),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: _collectContribution,
-                      icon: const Icon(Icons.payments_outlined, size: 18),
-                      label: Text(t.x('btn.collect')),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
-                  ),
-                ],
+              child: FilledButton.icon(
+                onPressed: _collectContribution,
+                icon: const Icon(Icons.payments_outlined, size: 18),
+                label: Text(t.x('btn.collect')),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  minimumSize: const Size.fromHeight(48),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
               ),
             ),
           ),

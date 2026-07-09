@@ -43,8 +43,10 @@ class ChitService {
     });
   }
 
-  /// Records (or updates) an auction result for a period. Commission/dividend
-  /// are computed server-side from the group config — no client math.
+  /// Retired legacy result recording path.
+  ///
+  /// Mobile winner resolution must submit bids, then call [confirmAuction] or
+  /// [drawWinner] so the shared finalization/dividend flow runs.
   Future<void> recordAuction(
     String groupId, {
     required int periodNumber,
@@ -52,16 +54,9 @@ class ChitService {
     double? prizeAmount,
     double? bidDiscount,
   }) async {
-    final res = await _dio.post<Map<String, dynamic>>(
-      Endpoints.chitAuctions(groupId),
-      data: {
-        'periodNumber': periodNumber,
-        if (winnerMemberId != null) 'winnerMemberId': winnerMemberId,
-        if (prizeAmount != null) 'prizeAmount': prizeAmount,
-        if (bidDiscount != null) 'bidDiscount': bidDiscount,
-      },
+    throw UnsupportedError(
+      'Legacy auction result recording is retired. Use bids plus confirm/draw.',
     );
-    unwrapEnvelope(res, (_) => null);
   }
 
   Future<ChitBid> addBid(
@@ -236,6 +231,7 @@ class ChitService {
     required double amount,
     required String paymentMode,
     String mode = 'ADD_PAYMENT',
+    String? idempotencyKey,
     String? referenceNo,
     String? note,
   }) async {
@@ -247,6 +243,8 @@ class ChitService {
         'amount': amount,
         'mode': mode,
         'paymentMode': paymentMode,
+        if (idempotencyKey != null && idempotencyKey.trim().isNotEmpty)
+          'idempotencyKey': idempotencyKey.trim(),
         if (referenceNo != null && referenceNo.trim().isNotEmpty)
           'referenceNo': referenceNo.trim(),
         if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
@@ -521,8 +519,8 @@ class ChitService {
   }
 
   // ── Live auction ─────────────────────────────────────────────────────────
-  LiveAuctionState _state(Response<Map<String, dynamic>> res) =>
-      unwrapEnvelope(res, (dynamic d) => LiveAuctionState.fromJson(d as Map<String, dynamic>));
+  LiveAuctionState _state(Response<Map<String, dynamic>> res) => unwrapEnvelope(
+      res, (dynamic d) => LiveAuctionState.fromJson(d as Map<String, dynamic>));
 
   /// Start a live auction for a period. Optionally override the clock/step.
   Future<LiveAuctionState> openAuction(
@@ -620,5 +618,7 @@ final chitServiceProvider = Provider<ChitService>(
 /// Keyed by (groupId, period). autoDispose so polling stops when the screen goes.
 final liveAuctionStateProvider = FutureProvider.autoDispose
     .family<LiveAuctionState, ({String groupId, int period})>((ref, key) {
-  return ref.watch(chitServiceProvider).liveAuctionState(key.groupId, key.period);
+  return ref
+      .watch(chitServiceProvider)
+      .liveAuctionState(key.groupId, key.period);
 });

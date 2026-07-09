@@ -471,6 +471,9 @@ bool _moduleBlocked(String location, User user) {
   if (AppType.userIsChit(user) && location.startsWith('/loans/new')) {
     return true;
   }
+  if (AppType.userIsChit(user) && location.startsWith('/wallet')) {
+    return true;
+  }
 
   // First, check administrative / developer routes.
   // /admin (root developer dashboard)

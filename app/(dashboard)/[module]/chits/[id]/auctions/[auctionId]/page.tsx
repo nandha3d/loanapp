@@ -1,21 +1,20 @@
 import prisma from '@/lib/db';
-import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
-import { requireModule } from '@/lib/moduleGate';
+import { getSetting } from '@/lib/tenant';
 import { notFound } from 'next/navigation';
 import Link from '@/components/layout/DashboardLink';
 import AuctionDetailClient from './AuctionDetailClient';
 import { getDictionary } from '@/lib/i18n';
+import { getWebChitScope, scopedChitGroupWhere } from '@/lib/chits/access';
 
 export default async function ChitAuctionDetailPage({ params }: { params: Promise<{ id: string; auctionId: string; module: string }> }) {
   const { id, auctionId } = await params;
-  const tenantId = await getDefaultTenantId();
-  const appType = await getUserAppType();
-  await requireModule(tenantId, 'chitfunds');
+  const scope = await getWebChitScope();
+  const tenantId = scope.tenantId;
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
   const dict = await getDictionary(tenantId);
 
   const auction = await prisma.chitAuction.findFirst({
-    where: { id: auctionId, chitGroup: { OR: [{ id }, { groupCode: id }], tenantId, appType, deletedAt: null } },
+    where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope, { OR: [{ id }, { groupCode: id }] }) },
     include: {
       chitGroup: {
         include: {
@@ -37,7 +36,7 @@ export default async function ChitAuctionDetailPage({ params }: { params: Promis
 
   const security = auction.winnerMemberId
     ? await prisma.chitSecurity.findFirst({
-        where: { auctionId: auction.id },
+        where: { auctionId: auction.id, chitGroupId: auction.chitGroupId, tenantId },
         orderBy: { updatedAt: 'desc' },
       })
     : null;
