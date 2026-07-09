@@ -987,7 +987,7 @@ class _WinnerView extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.emoji_events_rounded, color: AppColors.primary, size: 72),
+            Icon(Icons.emoji_events_rounded, color: AppColors.primary, size: 72),
             const SizedBox(height: 16),
             Text(t.x('chit.live.winner_is'),
                 style: AppTypography.caption.copyWith(color: AppColors.onInkMuted)),

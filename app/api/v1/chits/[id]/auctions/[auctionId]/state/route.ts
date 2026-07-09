@@ -8,13 +8,13 @@ import { loadScopedGroup, buildLiveState } from '@/lib/chit/liveAuction';
 // countdown is server-authoritative regardless of device clock skew.
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string; period: string }> },
+  { params }: { params: Promise<{ id: string; auctionId: string }> },
 ) {
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
   const ctx = auth.context;
-  const { id, period } = await params;
-  const periodNumber = Number(period);
+  const { id, auctionId } = await params;
+  const periodNumber = Number(auctionId);
   if (!periodNumber) return fail('Invalid period', 400);
 
   try {

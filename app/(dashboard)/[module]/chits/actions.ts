@@ -831,6 +831,7 @@ export async function releasePrizePayout(auctionId: string, formData?: FormData)
       entityId: auction.id,
       newValue: result,
     });
+  });
   revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}`));
 }
 

@@ -584,10 +584,11 @@ class ChitService {
     return _state(res);
   }
 
-  /// Poll the live state (hot path).
-  Future<LiveAuctionState> liveState(String groupId, int period) async {
+  /// Poll the live state (hot path). Named liveAuctionState to avoid clashing
+  /// with the Map-based liveState used by the room-style screen.
+  Future<LiveAuctionState> liveAuctionState(String groupId, int period) async {
     final res = await _dio.get<Map<String, dynamic>>(
-      Endpoints.chitAuctionLiveState(groupId, period),
+      Endpoints.chitAuctionState(groupId, period),
     );
     return _state(res);
   }
@@ -619,5 +620,5 @@ final chitServiceProvider = Provider<ChitService>(
 /// Keyed by (groupId, period). autoDispose so polling stops when the screen goes.
 final liveAuctionStateProvider = FutureProvider.autoDispose
     .family<LiveAuctionState, ({String groupId, int period})>((ref, key) {
-  return ref.watch(chitServiceProvider).liveState(key.groupId, key.period);
+  return ref.watch(chitServiceProvider).liveAuctionState(key.groupId, key.period);
 });

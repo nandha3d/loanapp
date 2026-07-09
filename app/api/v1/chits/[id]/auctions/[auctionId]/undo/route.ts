@@ -13,14 +13,14 @@ import {
 // recompute the current best.
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string; period: string }> },
+  { params }: { params: Promise<{ id: string; auctionId: string }> },
 ) {
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
   const ctx = auth.context;
   if (!LIVE_WRITE_ROLES.includes(ctx.role)) return fail('Forbidden', 403);
-  const { id, period } = await params;
-  const periodNumber = Number(period);
+  const { id, auctionId } = await params;
+  const periodNumber = Number(auctionId);
   if (!periodNumber) return fail('Invalid period', 400);
 
   try {

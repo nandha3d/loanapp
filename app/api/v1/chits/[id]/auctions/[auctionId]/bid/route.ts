@@ -16,15 +16,15 @@ import {
 // Body: { memberId, prizeAmount, source?, transcript? }
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string; period: string }> },
+  { params }: { params: Promise<{ id: string; auctionId: string }> },
 ) {
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
   const ctx = auth.context;
   // Phase 4 will relax this so members can POST their own bids from their device.
   if (!LIVE_WRITE_ROLES.includes(ctx.role)) return fail('Forbidden', 403);
-  const { id, period } = await params;
-  const periodNumber = Number(period);
+  const { id, auctionId } = await params;
+  const periodNumber = Number(auctionId);
   if (!periodNumber) return fail('Invalid period', 400);
 
   try {
