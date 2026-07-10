@@ -1,6 +1,10 @@
 import { spawnSync } from 'node:child_process';
 
-const specs = [
+const authCompatibility = process.argv.includes('--auth-compat');
+const forwardedArgs = process.argv.slice(2).filter((arg) => arg !== '--auth-compat');
+const specs = authCompatibility ? [
+  'e2e/loantrack-auth-compat.spec.ts',
+] : [
   'e2e/loantrack-critical-flow.spec.ts',
   'e2e/loantrack-rbac-menu.spec.ts',
   'e2e/loantrack-reports-visibility.spec.ts',
@@ -8,12 +12,14 @@ const specs = [
 
 const env = {
   ...process.env,
-  LOANTRACK_E2E_UI: '1',
+  ...(authCompatibility
+    ? { LOANTRACK_E2E_AUTH_COMPAT: '1' }
+    : { LOANTRACK_E2E_UI: '1' }),
 };
 
 const result = spawnSync(
   'npx',
-  ['playwright', 'test', ...specs, ...process.argv.slice(2)],
+  ['playwright', 'test', ...specs, ...forwardedArgs],
   {
     stdio: 'inherit',
     env,

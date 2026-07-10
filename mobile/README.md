@@ -46,11 +46,11 @@ flutter run --dart-define=API_BASE_URL=http://localhost:3000/api/v1
 Note that `localhost` is **not reachable** on a real iPhone. When testing on a real iPhone 16, you must:
 1. Make sure your server and iPhone are on the same local Wi-Fi network and use the host computer's local IP address (e.g. `http://192.168.1.100:3000/api/v1`), OR
 2. Expose the Next.js server using an HTTPS tunnel (e.g., using `ngrok http 3000` or `localtunnel`), OR
-3. Point to your production domain (e.g., `https://your-production-domain.com/api/v1`).
+3. Point to production at `https://app.animazon.in/api/v1`.
 
 Build/run command for real device:
 ```powershell
-flutter run --dart-define=API_BASE_URL=https://your-production-domain.com/api/v1
+flutter run --dart-define=API_BASE_URL=https://app.animazon.in/api/v1
 ```
 
 ## Backend env vars
@@ -124,7 +124,7 @@ Each sprint also adds the corresponding `/api/v1/*` wrappers server-side.
 flutter pub get                      # install deps
 flutter analyze                      # static analysis
 flutter test                         # run unit tests (none yet — Sprint 9)
-flutter build apk --release          # Android release
+flutter build apk --release          # Android release; defaults to app.animazon.in
 flutter build ios --release          # iOS release (macOS only)
 ```
 

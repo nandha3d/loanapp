@@ -12,12 +12,30 @@ import 'package:loantrack/core/a11y/ui_prefs.dart';
 import 'package:loantrack/core/network/api_exception.dart';
 
 /// Base URL — override via --dart-define=API_BASE_URL=...
-/// Android emulator uses 10.0.2.2 to reach host localhost; all other platforms use localhost directly.
+/// Release builds default to production; debug builds use local development.
+const kProductionApiBaseUrl = 'https://app.animazon.in/api/v1';
+
+String resolveApiBaseUrl({
+  required String configuredUrl,
+  required bool isRelease,
+  required bool isWeb,
+  required bool isAndroid,
+}) {
+  final override = configuredUrl.trim();
+  if (override.isNotEmpty) return override;
+  if (isRelease) return kProductionApiBaseUrl;
+  final host = !isWeb && isAndroid ? '10.0.2.2' : 'localhost';
+  return 'http://$host:3000/api/v1';
+}
+
 String get kDefaultBaseUrl {
   const envUrl = String.fromEnvironment('API_BASE_URL');
-  if (envUrl.isNotEmpty) return envUrl;
-  final host = (!kIsWeb && Platform.isAndroid) ? '10.0.2.2' : 'localhost';
-  return 'http://$host:3000/api/v1';
+  return resolveApiBaseUrl(
+    configuredUrl: envUrl,
+    isRelease: kReleaseMode,
+    isWeb: kIsWeb,
+    isAndroid: !kIsWeb && Platform.isAndroid,
+  );
 }
 
 /// Global 401 broadcast — UI listens to force logout (spec §9.3 rule 6).

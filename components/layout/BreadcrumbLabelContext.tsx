@@ -24,6 +24,8 @@ function createStore() {
 type BreadcrumbStore = ReturnType<typeof createStore>;
 
 const BreadcrumbStoreContext = createContext<BreadcrumbStore | null>(null);
+const emptyBreadcrumbLabels: Record<string, string> = {};
+const getEmptyBreadcrumbLabels = () => emptyBreadcrumbLabels;
 
 /** Wraps the dashboard layout so any page below it can register a friendly
  * breadcrumb label for the dynamic id segment in the current URL. */
@@ -42,8 +44,8 @@ export function useBreadcrumbLabels(): Record<string, string> {
   const store = useContext(BreadcrumbStoreContext);
   return useSyncExternalStore(
     store ? store.subscribe : () => () => {},
-    () => (store ? store.getSnapshot() : {}),
-    () => ({}),
+    store ? store.getSnapshot : getEmptyBreadcrumbLabels,
+    getEmptyBreadcrumbLabels,
   );
 }
 

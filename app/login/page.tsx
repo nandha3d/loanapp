@@ -181,12 +181,12 @@ function LoginForm() {
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="form-label" htmlFor="username">Username / Phone</label>
+            <label className="form-label" htmlFor="username">Username / Phone / Email</label>
             <input
               type="text"
               id="username"
               className="form-control"
-              placeholder="Enter username or phone"
+              placeholder="Enter username, phone, or email"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required

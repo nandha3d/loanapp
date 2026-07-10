@@ -37,6 +37,26 @@ test('AUTH-001 admin login returns token, active user, and tenant slug', async (
   assert.equal(dbUser?.status, 'active');
 });
 
+test('AUTH-001B admin can log in with email', async () => {
+  const login = await loginMobile({
+    username: `${scenario.users.adminA1.username}@example.test`,
+    password: scenario.password,
+    tenantSlug: scenario.tenantA.slug,
+  });
+  assert.equal(login.user.id, scenario.users.adminA1.id);
+  assert.equal(login.user.tenantSlug, scenario.tenantA.slug);
+});
+
+test('AUTH-001C admin can log in with phone', async () => {
+  const login = await loginMobile({
+    username: scenario.users.adminA1.phone,
+    password: scenario.password,
+    tenantSlug: scenario.tenantA.slug,
+  });
+  assert.equal(login.user.id, scenario.users.adminA1.id);
+  assert.equal(login.user.tenantSlug, scenario.tenantA.slug);
+});
+
 test('AUTH-002 agent login returns token and role agent', async () => {
   const login = await loginMobile({
     username: scenario.users.agentA1.username,
