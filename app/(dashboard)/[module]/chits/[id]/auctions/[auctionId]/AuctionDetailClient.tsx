@@ -59,6 +59,15 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
   const [chatBody, setChatBody] = useState('');
   const [chatToOrganizer, setChatToOrganizer] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollFailCountRef = useRef(0);
+  const [clockNow, setClockNow] = useState<Date | null>(null);
+
+  // Wall-clock corner display — client-only (null on first render) so SSR/CSR text never mismatches.
+  useEffect(() => {
+    setClockNow(new Date());
+    const t = setInterval(() => setClockNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   const roomActive = (live?.roomStatus ?? auction.roomStatus) === 'open' || (live?.roomStatus ?? auction.roomStatus) === 'extended';
 
@@ -69,14 +78,19 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
     const tick = async () => {
       try {
         const state = await getLiveAuctionState(auction.id);
+        pollFailCountRef.current = 0;
         setLive(state);
         if (state.roomStatus === 'closed' && pollRef.current) {
           clearInterval(pollRef.current);
           pollRef.current = null;
           router.refresh();
         }
-      } catch {
-        /* transient poll failure — next tick retries */
+      } catch (e: any) {
+        pollFailCountRef.current += 1;
+        // Surface after 2 consecutive failures so a single transient blip doesn't flash an error.
+        if (pollFailCountRef.current >= 2) {
+          setError(`Live room poll failing: ${e?.message ?? 'unknown error'}`);
+        }
       }
     };
     tick();
@@ -167,38 +181,172 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
               </div>
             ) : (
               <div>
-                <div style={{ display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '12px' }}>
-                  <div style={{ fontSize: '1.6rem', fontWeight: 700 }}>
-                    ⏱ {Math.floor((live?.secondsRemaining ?? 0) / 60)}:{String((live?.secondsRemaining ?? 0) % 60).padStart(2, '0')}
-                  </div>
-                  <span className={`badge badge-${live?.roomStatus === 'extended' ? 'warning' : 'success'}`}>{live?.roomStatus}</span>
-                  {live?.highestBid && !hideBidAmounts && (
-                    <div>
-                      Highest: ticket {live.highestBid.ticketNo} — discount {formatCurrency(live.highestBid.bidDiscount, currencySymbol)}
+                <div style={{ display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '16px', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                    <div style={{ fontSize: '1.6rem', fontWeight: 700 }}>
+                      ⏱ {Math.floor((live?.secondsRemaining ?? 0) / 60)}:{String((live?.secondsRemaining ?? 0) % 60).padStart(2, '0')}
                     </div>
-                  )}
-                  {hideBidAmounts && <div>{live?.bidCount ?? 0} sealed bid(s) received</div>}
+                    <span className={`badge badge-${live?.roomStatus === 'extended' ? 'warning' : 'success'}`}>{live?.roomStatus}</span>
+                    {live?.highestBid && !hideBidAmounts && (
+                      <div style={{ fontWeight: 600, color: 'var(--success)' }}>
+                        Highest: ticket #{live.highestBid.ticketNo} — discount {formatCurrency(live.highestBid.bidDiscount, currencySymbol)}
+                      </div>
+                    )}
+                    {hideBidAmounts && <div>{live?.bidCount ?? 0} sealed bid(s) received</div>}
+                  </div>
                   <button className="btn btn-danger btn-sm" disabled={busy === 'close-room'} onClick={() => run('close-room', () => closeLiveRoom(auction.id))}>
                     {busy === 'close-room' ? 'Closing…' : 'Close room now'}
                   </button>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '8px', marginBottom: '12px' }}>
-                  {group.members.map((m: any) => {
+
+                {/* Poker Table Visual Room with Avatars & Green Dot */}
+                <div style={{ position: 'relative', width: '100%', maxWidth: '1080px', aspectRatio: '2712 / 1536', borderRadius: '28px', overflow: 'hidden', border: '3px solid #334155', boxShadow: '0 24px 48px rgba(0,0,0,0.55)', margin: '28px auto 40px auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ position: 'absolute', inset: 0, backgroundImage: 'url(/assets/poker_table.avif)', backgroundSize: 'cover', backgroundPosition: 'center', filter: 'brightness(0.88) contrast(1.12)' }} />
+                  <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle, rgba(15,23,42,0.35) 0%, rgba(15,23,42,0.7) 100%)' }} />
+
+                  {/* Corner: live wall-clock date & time */}
+                  {clockNow && (
+                    <div style={{ position: 'absolute', top: '14px', left: '14px', zIndex: 10, padding: '6px 12px', background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(6px)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', textAlign: 'left' }}>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#f8fafc', fontFamily: 'monospace' }}>
+                        {clockNow.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      </div>
+                      <div style={{ fontSize: '0.62rem', color: '#94a3b8' }}>
+                        {clockNow.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Center Table Info Panel */}
+                  <div style={{ position: 'relative', zIndex: 10, textAlign: 'center', padding: '18px 32px', background: 'rgba(15, 23, 42, 0.82)', backdropFilter: 'blur(10px)', borderRadius: '100px', border: '1px solid rgba(255,255,255,0.18)', boxShadow: '0 8px 32px rgba(0,0,0,0.45)', maxWidth: '300px' }}>
+                    <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '1.5px', color: '#94a3b8', fontWeight: 700 }}>Chit Period {auction.periodNumber}</div>
+                    <div style={{ fontSize: '1.85rem', fontWeight: 800, color: '#38bdf8', fontFamily: 'monospace', margin: '4px 0', textShadow: '0 0 12px rgba(56,189,248,0.5)' }}>
+                      ⏱ {Math.floor((live?.secondsRemaining ?? 0) / 60)}:{String((live?.secondsRemaining ?? 0) % 60).padStart(2, '0')}
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>Chit Value: {formatCurrency(Number(group.chitValue), currencySymbol)}</div>
+                    {live?.highestBid && (
+                      <div style={{ fontSize: '0.8rem', color: '#22c55e', fontWeight: 700, marginTop: '2px' }}>
+                        🏆 Ticket #{live.highestBid.ticketNo} · {formatCurrency(Number(group.chitValue) - live.highestBid.bidDiscount, currencySymbol)}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Arranged Seats cleanly spaced inside the felt oval */}
+                  {group.members.map((m: any, idx: number) => {
+                    const total = group.members.length || 1;
+                    const angle = (idx / total) * 2 * Math.PI - Math.PI / 2;
+                    const rx = 34;
+                    const ry = 31;
+                    const left = 50 + rx * Math.cos(angle);
+                    const top = 50 + ry * Math.sin(angle);
                     const liveSeat = live?.seats?.find((s: any) => s.memberId === m.id);
+                    const isOnline = attendanceOf(m.id) === 'present' || attendanceOf(m.id) === 'proxy' || (liveSeat && !liveSeat.passed && liveSeat.latestPrize !== null);
+                    const photoUrl = liveSeat?.profilePhoto || m.customer?.profilePhoto || null;
+                    const isLeader = live?.highestBid && live.highestBid.memberId === m.id;
+
                     return (
-                      <button
+                      <div
                         key={m.id}
-                        type="button"
-                        className="btn btn-ghost btn-sm"
-                        style={{ justifyContent: 'flex-start', minHeight: '44px' }}
                         onClick={() => setSeatModal({ ...m, liveSeat })}
+                        style={{
+                          position: 'absolute',
+                          left: `${left}%`,
+                          top: `${top}%`,
+                          transform: 'translate(-50%, -50%)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          cursor: 'pointer',
+                          zIndex: 20,
+                          transition: 'transform 0.2s',
+                        }}
+                        title={`${m.customer.name} (${isOnline ? 'Online' : 'Offline'})`}
                       >
-                        <span className="material-icons-outlined" style={{ fontSize: '16px', marginRight: '6px' }}>{m.hasWon ? 'visibility' : 'person'}</span>
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.ticketNo ?? m.memberNumber}. {m.customer.name}</span>
-                      </button>
+                        {isLeader && (
+                          <div style={{
+                            position: 'absolute',
+                            bottom: '100%',
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            marginBottom: '8px',
+                            padding: '4px 10px',
+                            background: '#eab308',
+                            color: '#1e293b',
+                            fontWeight: 800,
+                            fontSize: '0.72rem',
+                            borderRadius: '999px',
+                            whiteSpace: 'nowrap',
+                            boxShadow: '0 4px 12px rgba(234,179,8,0.5)',
+                            zIndex: 30,
+                          }}>
+                            {formatCurrency(Number(group.chitValue) - live.highestBid.bidDiscount, currencySymbol)}
+                            <div style={{
+                              position: 'absolute',
+                              top: '100%',
+                              left: '50%',
+                              transform: 'translateX(-50%)',
+                              width: 0,
+                              height: 0,
+                              borderLeft: '5px solid transparent',
+                              borderRight: '5px solid transparent',
+                              borderTop: '5px solid #eab308',
+                            }} />
+                          </div>
+                        )}
+                        <div style={{
+                          position: 'relative',
+                          width: '54px',
+                          height: '54px',
+                          borderRadius: '50%',
+                          border: isLeader ? '3px solid #eab308' : isOnline ? '2px solid #22c55e' : '2px solid rgba(255,255,255,0.3)',
+                          backgroundColor: '#1e293b',
+                          boxShadow: isLeader ? '0 0 15px rgba(234, 179, 8, 0.7)' : '0 4px 10px rgba(0,0,0,0.6)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          overflow: 'hidden',
+                        }}>
+                          {photoUrl ? (
+                            <img src={photoUrl} alt={m.customer.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            <span style={{ fontSize: '1.2rem', fontWeight: 700, color: '#f8fafc' }}>
+                              {m.customer?.name?.[0]?.toUpperCase() ?? 'M'}
+                            </span>
+                          )}
+                          <div style={{
+                            position: 'absolute',
+                            bottom: '2px',
+                            right: '2px',
+                            width: '13px',
+                            height: '13px',
+                            borderRadius: '50%',
+                            backgroundColor: isOnline ? '#22c55e' : '#64748b',
+                            border: '2px solid #0f172a',
+                            boxShadow: isOnline ? '0 0 6px #22c55e' : 'none',
+                          }} />
+                        </div>
+                        <div style={{
+                          marginTop: '4px',
+                          padding: '2px 8px',
+                          backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                          borderRadius: '12px',
+                          border: '1px solid rgba(255,255,255,0.18)',
+                          textAlign: 'center',
+                          maxWidth: '96px',
+                        }}>
+                          <div style={{ fontSize: '0.68rem', color: '#f8fafc', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {m.ticketNo ?? m.memberNumber}. {m.customer?.name?.split(' ')[0]}
+                          </div>
+                          {liveSeat?.latestPrize && (
+                            <div style={{ fontSize: '0.62rem', color: '#38bdf8', fontWeight: 700 }}>
+                              {formatCurrency(liveSeat.latestPrize, currencySymbol)}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
+
                 {seatModal?.hasWon && (
                   <div className="alert alert-warning" style={{ marginBottom: '12px', padding: '8px 10px' }}>
                     {seatModal.customer.name} has already won and is viewing as a spectator.

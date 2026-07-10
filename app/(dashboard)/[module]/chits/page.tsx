@@ -123,35 +123,37 @@ export default async function ChitsPage({
             <Link href="/chits/new" className="btn btn-primary btn-sm">{dict.chits.createFirst}</Link>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(235px, 1fr))', gap: '12px' }}>
             {groups.map((g) => {
               const completedAuctions = g.auctions.filter((a: any) => ['confirmed', 'paid', 'completed'].includes(a.status));
               const nextAuction = g.auctions.find((a: any) => ['pending', 'notice_sent', 'in_progress'].includes(a.status));
               return (
-                <div key={g.id} className="card" style={{ padding: '14px', borderRadius: '8px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginBottom: '10px' }}>
-                    <div>
-                      <h4 style={{ margin: 0 }}>{g.name}</h4>
-                      <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>{g.groupCode ?? g.id}</div>
+                <div key={g.id} className="card" style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '100%' }}>
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px', marginBottom: '8px' }}>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 600, lineHeight: 1.2 }}>{g.name}</h4>
+                        <div style={{ fontSize: '.72rem', color: 'var(--text-secondary)' }}>{g.groupCode ?? g.id}</div>
+                      </div>
+                      <span className={`badge badge-${g.status === 'active' ? 'success' : g.status === 'completed' ? 'info' : 'secondary'}`} style={{ fontSize: '0.68rem', padding: '2px 6px' }}>{g.status}</span>
                     </div>
-                    <span className={`badge badge-${g.status === 'active' ? 'success' : g.status === 'completed' ? 'info' : 'secondary'}`}>{g.status}</span>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '.78rem', marginBottom: '10px', backgroundColor: 'var(--bg-hover, rgba(0,0,0,0.02))', padding: '8px', borderRadius: '6px' }}>
+                      <div><span style={{ color: 'var(--text-secondary)' }}>{dict.chits.chitValue}</span><br /><strong style={{ fontSize: '0.85rem' }}>{formatCurrency(Number(g.chitValue), currencySymbol)}</strong></div>
+                      <div><span style={{ color: 'var(--text-secondary)' }}>{dict.chits.monthly}</span><br /><strong style={{ fontSize: '0.85rem' }}>{formatCurrency(Number(g.monthlyContrib), currencySymbol)}</strong></div>
+                      <div><span style={{ color: 'var(--text-secondary)' }}>{dict.chits.members}</span><br /><strong>{g._count.members} / {g.totalMembers}</strong></div>
+                      <div><span style={{ color: 'var(--text-secondary)' }}>{dict.chits.auctionsDone}</span><br /><strong>{completedAuctions.length} / {g.durationMonths}</strong></div>
+                    </div>
+                    <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)', minHeight: '32px', marginBottom: '10px', lineHeight: 1.3 }}>
+                      {nextAuction
+                        ? <><strong>Next:</strong> Period {nextAuction.periodNumber} · {formatDate(nextAuction.scheduledAt ?? nextAuction.auctionDate)} {nextAuction.scheduledAt ? new Date(nextAuction.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</>
+                        : <>Started {formatDate(g.startDate)}</>}
+                    </div>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '.84rem', marginBottom: '12px' }}>
-                    <span>{dict.chits.chitValue}<br /><strong>{formatCurrency(Number(g.chitValue), currencySymbol)}</strong></span>
-                    <span>{dict.chits.monthly}<br /><strong>{formatCurrency(Number(g.monthlyContrib), currencySymbol)}</strong></span>
-                    <span>{dict.chits.members}<br /><strong>{g._count.members} / {g.totalMembers}</strong></span>
-                    <span>{dict.chits.auctionsDone}<br /><strong>{completedAuctions.length} / {g.durationMonths}</strong></span>
-                  </div>
-                  <div style={{ fontSize: '.82rem', color: 'var(--text-secondary)', minHeight: '38px', marginBottom: '12px' }}>
-                    {nextAuction
-                      ? <>Next auction: Period {nextAuction.periodNumber} · {formatDate(nextAuction.scheduledAt ?? nextAuction.auctionDate)} {nextAuction.scheduledAt ? new Date(nextAuction.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</>
-                      : <>Started {formatDate(g.startDate)}</>}
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    <Link href={`/chits/${g.id}`} className="btn btn-ghost btn-sm">{dict.chits.view}</Link>
+                  <div style={{ display: 'flex', gap: '6px', marginTop: 'auto' }}>
+                    <Link href={`/chits/${g.id}`} className="btn btn-ghost btn-sm" style={{ flex: 1, padding: '4px 8px', fontSize: '0.78rem', textAlign: 'center' }}>{dict.chits.view}</Link>
                     {nextAuction && (
-                      <Link href={`/chits/${g.id}/auctions/${nextAuction.id}`} className="btn btn-secondary btn-sm">
-                        {g.auctionType === 'open_live' ? 'Enter room' : 'Manage auction'}
+                      <Link href={`/chits/${g.id}/auctions/${nextAuction.id}`} className="btn btn-secondary btn-sm" style={{ flex: 1.4, padding: '4px 8px', fontSize: '0.78rem', textAlign: 'center' }}>
+                        {g.auctionType === 'open_live' ? 'Enter room' : 'Manage'}
                       </Link>
                     )}
                   </div>

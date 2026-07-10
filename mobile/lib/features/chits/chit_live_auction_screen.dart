@@ -711,6 +711,11 @@ class _PokerTable extends StatelessWidget {
                 memberPrize: memberPrize,
               ),
             ),
+            Positioned(
+              top: 10,
+              left: 10,
+              child: _CornerClock(now: DateTime.now()),
+            ),
             for (var i = 0; i < members.length; i++)
               _seat(
                   cx,
@@ -766,33 +771,63 @@ class _SeatChip extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: border, width: leader ? 3 : 1.5),
-              boxShadow: leader
-                  ? [
-                      BoxShadow(
-                          color: AppColors.primary.withAlpha(120),
-                          blurRadius: 12)
-                    ]
-                  : null,
-            ),
-            child: CircleAvatar(
-              radius: radius,
-              backgroundColor: member.hasWon
-                  ? AppColors.inkElevated
-                  : const Color(0xFF2A2D35),
-              child: Text(
-                member.customerName.isEmpty
-                    ? '?'
-                    : member.customerName[0].toUpperCase(),
-                style: AppTypography.body.copyWith(
-                    color:
-                        member.hasWon ? AppColors.onInkMuted : AppColors.onInk),
+          Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: border, width: leader ? 3 : 1.5),
+                  boxShadow: leader
+                      ? [
+                          BoxShadow(
+                              color: AppColors.primary.withAlpha(120),
+                              blurRadius: 12)
+                        ]
+                      : null,
+                ),
+                child: CircleAvatar(
+                  radius: radius,
+                  backgroundColor: member.hasWon
+                      ? AppColors.inkElevated
+                      : const Color(0xFF2A2D35),
+                  child: Text(
+                    member.customerName.isEmpty
+                        ? '?'
+                        : member.customerName[0].toUpperCase(),
+                    style: AppTypography.body.copyWith(
+                        color: member.hasWon
+                            ? AppColors.onInkMuted
+                            : AppColors.onInk),
+                  ),
+                ),
               ),
-            ),
+              // Leader chip: floats above whoever holds the current best bid,
+              // moves automatically as the leader changes each poll.
+              if (leader && prize != null)
+                Positioned(
+                  top: -26,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(999),
+                      boxShadow: [
+                        BoxShadow(
+                            color: AppColors.primary.withAlpha(140),
+                            blurRadius: 8)
+                      ],
+                    ),
+                    child: Text('₹${_short(prize!)}',
+                        style: AppTypography.tiny.copyWith(
+                            color: AppColors.onPrimary,
+                            fontWeight: FontWeight.w800)),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 2),
           Text(
@@ -807,6 +842,38 @@ class _SeatChip extends StatelessWidget {
                 style: AppTypography.tiny.copyWith(
                     color: leader ? AppColors.primary : AppColors.onInkMuted,
                     fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Wall-clock corner badge. Rebuilds off the screen's existing 1s ticker
+/// (parent already calls setState every second for the countdown) — no
+/// separate timer needed here.
+class _CornerClock extends StatelessWidget {
+  const _CornerClock({required this.now});
+  final DateTime now;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.ink.withAlpha(180),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.inkBorder, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(DateFormat('HH:mm:ss').format(now),
+              style: AppTypography.tiny.copyWith(
+                  color: AppColors.onInk, fontWeight: FontWeight.w700)),
+          Text(DateFormat('EEE, d MMM y').format(now),
+              style: AppTypography.tiny
+                  .copyWith(color: AppColors.onInkMuted, fontSize: 9)),
         ],
       ),
     );
@@ -849,6 +916,9 @@ class _CenterPot extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          Text('Chit value ₹${_short(chitValue)}',
+              style: AppTypography.tiny.copyWith(color: AppColors.onInkMuted)),
+          const SizedBox(height: 4),
           Text('Current prize',
               style: AppTypography.tiny.copyWith(color: AppColors.onInkMuted)),
           Text('₹${_short(prize)}',
