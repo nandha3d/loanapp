@@ -66,6 +66,8 @@ class ChitService {
     required double bidAmount,
     double? bidDiscount,
     String? remarks,
+    String source = 'tap',
+    String? transcript,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.chitAuctionBids(groupId, auctionId),
@@ -78,6 +80,9 @@ class ChitService {
         if (bidDiscount != null) 'bidDiscount': bidDiscount,
         if (remarks != null && remarks.trim().isNotEmpty)
           'remarks': remarks.trim(),
+        'source': source,
+        if (transcript != null && transcript.trim().isNotEmpty)
+          'transcript': transcript.trim(),
       },
     );
     return unwrapEnvelope(

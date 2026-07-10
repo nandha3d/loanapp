@@ -1287,8 +1287,10 @@ model ChitAuction {
   roundingIncome   Decimal                 @default(0.00) @map("rounding_income") @db.Decimal(14, 2)
   status           String                  @default("pending")
   createdAt        DateTime                @default(now()) @map("created_at")
-  // Live-auction fields (all nullable — legacy result-only auctions leave them
-  // blank). `status` gains the logical value 'live' while an auction is running.
+  // DEPRECATED — unused since the auction-engine unification (Release 1). The
+  // roomStatus/biddingOpensAt/biddingClosesAt/autoExtendSeconds fields above
+  // are the single canonical live-room engine; these columns are kept only to
+  // avoid a destructive migration and back no active code path.
   endsAt           DateTime?               @map("ends_at")
   countdownSeconds Int?                    @map("countdown_seconds")
   minBidDecrement  Decimal?                @map("min_bid_decrement") @db.Decimal(14, 2)
@@ -1333,12 +1335,14 @@ model ChitBid {
   bidTime        DateTime    @default(now()) @map("bid_time")
   status         String      @default("valid")
   remarks        String?     @db.Text
+  idempotencyKey String?     @map("idempotency_key")
   createdById    String?     @map("created_by_id")
   createdAt      DateTime    @default(now()) @map("created_at")
   auction        ChitAuction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
   member         ChitMember  @relation(fields: [memberId], references: [id])
 
   @@unique([auctionId, seq])
+  @@unique([auctionId, idempotencyKey], map: "chit_bids_auction_idempotency_key")
   @@index([tenantId, branchId, chitGroupId])
   @@index([auctionId, createdAt])
   @@index([auctionId, status])

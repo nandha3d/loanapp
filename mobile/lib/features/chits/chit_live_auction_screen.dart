@@ -350,7 +350,8 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
           widget.auctionId,
           memberId: m.id,
           bidAmount: prize,
-          remarks: transcript,
+          source: source ?? 'tap',
+          transcript: transcript,
         ));
     ref.speak('${m.customerName.split(' ').first} ${_speakAmount(prize)}');
   }

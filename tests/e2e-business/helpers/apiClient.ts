@@ -197,6 +197,7 @@ export const routes = {
   chitAuctionRoom: '../../../app/api/v1/chits/[id]/auctions/[auctionId]/room/route.ts',
   chitAuctionSecurity: '../../../app/api/v1/chits/[id]/auctions/[auctionId]/security/route.ts',
   chitAuctionPayout: '../../../app/api/v1/chits/[id]/auctions/[auctionId]/payout/route.ts',
+  chitAuctionStateRetired: '../../../app/api/v1/chits/[id]/auctions/[auctionId]/state/route.ts',
   chitPayments: '../../../app/api/v1/chits/[id]/payments/route.ts',
   chitCancel: '../../../app/api/v1/chits/[id]/cancel/route.ts',
   chitSubscriptions: '../../../app/api/v1/chits/[id]/subscriptions/route.ts',
