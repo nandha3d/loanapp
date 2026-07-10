@@ -12,11 +12,11 @@ export function loginUsername(page: Page): Locator {
 }
 
 export function loginPassword(page: Page): Locator {
-  return page.getByLabel(/password/i).first();
+  return page.locator('#password');
 }
 
 export function loginSubmit(page: Page): Locator {
-  return page.getByRole('button', { name: /sign in|log ?in/i }).first();
+  return page.locator('form button[type="submit"]');
 }
 
 export async function expectLoginForm(page: Page) {
@@ -30,8 +30,12 @@ export async function loginAs(page: Page, credentials: {
   password: string;
   callbackPath: string;
 }) {
+  const registrationProbe = page
+    .waitForResponse((response) => response.url().includes('/api/host/registration'), { timeout: 10_000 })
+    .catch(() => null);
   await page.goto(`/login?callbackUrl=${encodeURIComponent(credentials.callbackPath)}`);
   await expectLoginForm(page);
+  await registrationProbe;
   await loginUsername(page).fill(credentials.username);
   await loginPassword(page).fill(credentials.password);
   await loginSubmit(page).click();

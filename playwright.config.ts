@@ -11,9 +11,10 @@ export const STORAGE = {
 const BASE_URL = process.env.E2E_BASE_URL || 'http://localhost:3000';
 const isLoanTrackCriticalUi = process.env.LOANTRACK_E2E_UI === '1';
 const baseUrlPort = new URL(BASE_URL).port || '3000';
+const criticalDatabaseUrl = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL;
 const criticalUiServerEnv = {
   ...process.env,
-  DATABASE_URL: process.env.TEST_DATABASE_URL || process.env.DATABASE_URL || '',
+  ...(criticalDatabaseUrl ? { DATABASE_URL: criticalDatabaseUrl } : {}),
   AUTH_SECRET: process.env.AUTH_SECRET || 'business-e2e-secret-business-e2e-secret',
   NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET || 'business-e2e-secret-business-e2e-secret',
   MOBILE_JWT_SECRET: process.env.MOBILE_JWT_SECRET || process.env.AUTH_SECRET || 'business-e2e-secret-business-e2e-secret',

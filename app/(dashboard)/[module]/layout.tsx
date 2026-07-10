@@ -80,11 +80,7 @@ export default async function DashboardLayout({
   const isSharedProfileRoute = pagePath === '/profile';
 
   if (!enabledModules.includes(requestedModule) && !isSharedProfileRoute) {
-    const fallback = enabledModules[0];
-    if (fallback) {
-      redirect(modulePath(fallback, '/dashboard'));
-    }
-    redirect('/portal');
+    redirect(`/portal?moduleAccess=denied&module=${encodeURIComponent(requestedModule)}`);
   }
 
   if (pathname && !isRouteEnabledForModules(pathname, [requestedModule])) {
