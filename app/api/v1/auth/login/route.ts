@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
 
     const user = await prisma.user.findFirst({
       where: {
-        OR: [{ username }, { phone: username }],
+        OR: [{ username }, { phone: username }, { email: username }],
         status: 'active',
         ...(tenantId ? { tenantId } : {}),
       },

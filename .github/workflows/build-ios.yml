@@ -6,7 +6,7 @@ on:
       api_base_url:
         description: "API base URL baked into the build"
         required: true
-        default: "http://187.127.177.121/api/v1"
+        default: "https://app.animazon.in/api/v1"
   push:
     branches: [merged-all-branches]
     paths:
@@ -42,7 +42,7 @@ jobs:
       - name: Build iOS (unsigned)
         run: |
           flutter build ios --release --no-codesign \
-            --dart-define=API_BASE_URL=${{ github.event.inputs.api_base_url || 'http://187.127.177.121/api/v1' }}
+            --dart-define=API_BASE_URL=${{ github.event.inputs.api_base_url || 'https://app.animazon.in/api/v1' }}
 
       # Wrap the unsigned .app in the .ipa Payload layout so it can be archived
       # and later re-signed. A stock iPhone will still refuse to install it.

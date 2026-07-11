@@ -2,8 +2,10 @@ import { getBorrowerSession } from '@/lib/borrowerAuth';
 import { redirect } from 'next/navigation';
 import prisma from '@/lib/db';
 import BorrowerDashboardClient from './BorrowerDashboardClient';
+import ChitOnlyPanel from './ChitOnlyPanel';
 import PaymentProofPanel from './PaymentProofPanel';
 import { getDictionary } from '@/lib/i18n';
+import { getMyChitMemberships } from '@/lib/chits/customerPortal';
 
 export default async function BorrowerDashboard() {
   const session = await getBorrowerSession();
@@ -39,8 +41,14 @@ export default async function BorrowerDashboard() {
     },
   });
 
-  if (loans.length === 0) {
+  const chitMemberships = loans.length === 0 ? await getMyChitMemberships(session.customerId, session.tenantId) : [];
+
+  if (loans.length === 0 && chitMemberships.length === 0) {
     redirect('/borrower/login');
+  }
+
+  if (loans.length === 0) {
+    return <ChitOnlyPanel memberships={chitMemberships} />;
   }
 
   // Fetch payment/UPI settings for custom QR display

@@ -61,6 +61,7 @@ void main() {
     expect(find.byType(App), findsOneWidget);
     expect(find.byType(AppButton), findsWidgets);
     expect(find.byType(TextField), findsAtLeastNWidgets(2));
+    expect(find.text('Username / Phone / Email'), findsOneWidget);
     expect(find.text('Register Business'), findsOneWidget);
     expect(find.text('Continue with Google'), findsOneWidget);
   });

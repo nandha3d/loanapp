@@ -10,10 +10,13 @@ export const STORAGE = {
 
 const BASE_URL = process.env.E2E_BASE_URL || 'http://localhost:3000';
 const isLoanTrackCriticalUi = process.env.LOANTRACK_E2E_UI === '1';
+const isAuthCompatibility = process.env.LOANTRACK_E2E_AUTH_COMPAT === '1';
+const usesManagedServer = isLoanTrackCriticalUi || isAuthCompatibility;
 const baseUrlPort = new URL(BASE_URL).port || '3000';
+const criticalDatabaseUrl = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL;
 const criticalUiServerEnv = {
   ...process.env,
-  DATABASE_URL: process.env.TEST_DATABASE_URL || process.env.DATABASE_URL || '',
+  ...(criticalDatabaseUrl ? { DATABASE_URL: criticalDatabaseUrl } : {}),
   AUTH_SECRET: process.env.AUTH_SECRET || 'business-e2e-secret-business-e2e-secret',
   NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET || 'business-e2e-secret-business-e2e-secret',
   MOBILE_JWT_SECRET: process.env.MOBILE_JWT_SECRET || process.env.AUTH_SECRET || 'business-e2e-secret-business-e2e-secret',
@@ -39,15 +42,16 @@ const criticalUiServerEnv = {
  */
 export default defineConfig({
   testDir: './e2e',
-  testIgnore: isLoanTrackCriticalUi ? [] : [/loantrack-.*\.spec\.ts/],
+  testMatch: isAuthCompatibility ? /loantrack-auth-compat\.spec\.ts/ : undefined,
+  testIgnore: usesManagedServer ? [] : [/loantrack-.*\.spec\.ts/],
   /* Run tests in files in parallel */
-  fullyParallel: !isLoanTrackCriticalUi,
+  fullyParallel: !usesManagedServer,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
   /* Opt out of parallel tests on CI. */
-  workers: process.env.CI || isLoanTrackCriticalUi ? 1 : undefined,
+  workers: process.env.CI || usesManagedServer ? 1 : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: 'html',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
@@ -62,7 +66,20 @@ export default defineConfig({
   },
 
   /* Configure projects for major browsers */
-  projects: isLoanTrackCriticalUi ? [
+  projects: isAuthCompatibility ? [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'] },
+    },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
+    },
+  ] : isLoanTrackCriticalUi ? [
     {
       name: 'loantrack-critical-chromium',
       use: { ...devices['Desktop Chrome'] },
@@ -106,7 +123,7 @@ export default defineConfig({
   ],
 
   /* Run your local dev server before starting the tests */
-  webServer: isLoanTrackCriticalUi ? {
+  webServer: usesManagedServer ? {
     command: `npm run dev -- -p ${baseUrlPort}`,
     url: `${BASE_URL}/login`,
     reuseExistingServer: process.env.LOANTRACK_E2E_REUSE_SERVER === '1',

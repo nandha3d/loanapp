@@ -9,11 +9,13 @@ import { modulePath, normalizeModuleList } from '@/types/modules';
 export default function AppSelectorClient({ 
   userName, 
   userRole, 
-  enabledModules 
+  enabledModules,
+  accessNotice,
 }: { 
   userName: string, 
   userRole: string, 
-  enabledModules: string[] 
+  enabledModules: string[],
+  accessNotice?: string | null,
 }) {
   console.log('AppSelectorClient Render:', { userName, userRole, enabledModules });
   const apps = Object.values(APP_CONFIGS).filter(app => {
@@ -62,6 +64,23 @@ export default function AppSelectorClient({
         <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '1rem' }}>
           Select an application to manage
         </p>
+        {accessNotice && (
+          <div
+            role="status"
+            style={{
+              margin: '18px auto 0',
+              maxWidth: '560px',
+              color: '#fff',
+              background: 'rgba(231, 76, 60, 0.22)',
+              border: '1px solid rgba(255,255,255,0.2)',
+              borderRadius: '8px',
+              padding: '10px 14px',
+              fontSize: '.9rem',
+            }}
+          >
+            {accessNotice}
+          </div>
+        )}
       </div>
 
       <div style={{

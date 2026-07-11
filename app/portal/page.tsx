@@ -9,7 +9,16 @@ import SubscriptionExpiredModal from '@/components/layout/SubscriptionExpiredMod
 
 import { headers } from 'next/headers';
 
-export default async function SuperAdminPortal() {
+type PortalSearchParams = {
+  moduleAccess?: string;
+  module?: string;
+};
+
+export default async function SuperAdminPortal({
+  searchParams,
+}: {
+  searchParams?: Promise<PortalSearchParams>;
+}) {
   const session = await auth();
 
   if (!session?.user) {
@@ -83,6 +92,15 @@ export default async function SuperAdminPortal() {
     isExpired = isTenantSubscriptionExpired(sub);
   }
 
+  const resolvedSearchParams = await searchParams;
+  const moduleAccess = resolvedSearchParams?.moduleAccess;
+  const accessNotice =
+    moduleAccess === 'denied'
+      ? 'That module is not enabled for your active branch or account.'
+      : moduleAccess === 'invalid'
+        ? 'That application link is no longer valid.'
+        : null;
+
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
       {isExpired && <SubscriptionExpiredModal isExpired={isExpired} role={role} />}
@@ -90,6 +108,7 @@ export default async function SuperAdminPortal() {
         userName={session.user.name || 'Admin'} 
         userRole={role} 
         enabledModules={enabledModules} 
+        accessNotice={accessNotice}
       />
     </div>
   );

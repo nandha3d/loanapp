@@ -8,7 +8,7 @@ workflows:
       groups:
         - base_config  # For environment variables like API_BASE_URL
       vars:
-        API_BASE_URL: "https://your-production-domain.com/api/v1" # Override in Codemagic UI if needed
+        API_BASE_URL: "https://app.animazon.in/api/v1" # Override in Codemagic UI if needed
       flutter: stable
       xcode: latest
     triggering:

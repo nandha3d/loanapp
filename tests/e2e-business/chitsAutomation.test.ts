@@ -529,6 +529,69 @@ test('CHIT-AUC-004 live room opens, extends on bid, closes, and confirms', async
   assert.equal(confirmed.winnerMemberId, members[0]!.id);
 });
 
+test('CHIT-AUC-005 shared bid service persists idempotency and voice source/transcript', async () => {
+  const { groupId, members } = await activeGroup({
+    key: 'bid-service',
+    offsetStart: 1750,
+    auctionType: 'open_live',
+  });
+  const auction = await firstAuction(groupId);
+  await api({
+    importPath: routes.chitAuctionRoom,
+    path: `/api/v1/chits/${groupId}/auctions/${auction.id}/room`,
+    params: { id: groupId, auctionId: auction.id },
+    body: { action: 'open', durationMinutes: 5, autoExtendSeconds: 60 },
+  });
+
+  const idempotencyKey = `${runId}-idem-1`;
+  const firstAttempt = expectOk<{ id: string }>(await api({
+    importPath: routes.chitAuctionBids,
+    path: `/api/v1/chits/${groupId}/auctions/${auction.id}/bids`,
+    params: { id: groupId, auctionId: auction.id },
+    body: { memberId: members[0]!.id, prizeAmount: 80_000, idempotencyKey },
+  }), 'first bid with idempotency key');
+  const retryAttempt = expectOk<{ id: string }>(await api({
+    importPath: routes.chitAuctionBids,
+    path: `/api/v1/chits/${groupId}/auctions/${auction.id}/bids`,
+    params: { id: groupId, auctionId: auction.id },
+    body: { memberId: members[0]!.id, prizeAmount: 80_000, idempotencyKey },
+  }), 'retried bid with same idempotency key');
+  assert.equal(retryAttempt.id, firstAttempt.id, 'retry with same idempotency key returns the original bid');
+  assert.equal(
+    await prisma.chitBid.count({ where: { auctionId: auction.id, idempotencyKey } }),
+    1,
+    'idempotency key never creates a duplicate bid',
+  );
+
+  const voiceBid = expectOk<{ id: string; source: string; transcript: string | null }>(await api({
+    importPath: routes.chitAuctionBids,
+    path: `/api/v1/chits/${groupId}/auctions/${auction.id}/bids`,
+    params: { id: groupId, auctionId: auction.id },
+    body: {
+      memberId: members[1]!.id,
+      prizeAmount: 78_000,
+      source: 'voice',
+      transcript: `${runId} eighty thousand`,
+    },
+  }), 'voice-sourced bid');
+  assert.equal(voiceBid.source, 'voice', 'voice bid records source=voice, not the tap default');
+  assert.equal(voiceBid.transcript, `${runId} eighty thousand`, 'voice bid transcript is stored on its own column');
+  const voiceBidRow = await prisma.chitBid.findUniqueOrThrow({ where: { id: voiceBid.id } });
+  assert.equal(voiceBidRow.remarks, null, 'voice transcript must not be mislabeled into remarks');
+});
+
+test('CHIT-AUC-006 retired legacy period-based routes return 410 Gone', async () => {
+  const { groupId } = await activeGroup({ key: 'retired-route', offsetStart: 1780 });
+  const auction = await firstAuction(groupId);
+  const response = await api({
+    importPath: routes.chitAuctionStateRetired,
+    method: 'GET',
+    path: `/api/v1/chits/${groupId}/auctions/${auction.id}/state`,
+    params: { id: groupId, auctionId: auction.id },
+  });
+  expectError(response, [410], 'legacy period-based state route is retired');
+});
+
 test('CHIT-SEC-001 enforces tenant, branch, and role boundaries around chit routes', async () => {
   const tenantBRead = await api({
     importPath: routes.chitById,

@@ -72,6 +72,8 @@
     "test:e2e-chits-ui": "npx playwright test -c tests/e2e/new-modules/playwright.config.ts 01-chits.spec.ts --project=chromium",
     "test:e2e-business-phase5": "npm run test:e2e-risk && npm run test:e2e-cron && npm run test:e2e-gold && npm run test:e2e-payments-nach && npm run test:e2e-mobile-api && npm run test:e2e-special-modules",
     "test:e2e-ui-critical": "node scripts/run-loantrack-ui-e2e.mjs",
+    "test:e2e-auth-compat": "node scripts/run-loantrack-ui-e2e.mjs --auth-compat",
+    "test:e2e-agent-portal": "node scripts/run-loantrack-agent-portal-e2e.mjs",
     "test:e2e-ui-critical-headed": "node scripts/run-loantrack-ui-e2e.mjs --headed",
     "test:e2e-final": "npm run test:e2e-business-core && npm run test:e2e-business-core-phase4 && npm run test:e2e-business-phase5 && npm run test:e2e-ui-critical"
   },

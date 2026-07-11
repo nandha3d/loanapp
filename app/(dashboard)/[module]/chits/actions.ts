@@ -28,6 +28,7 @@ import {
   openAuctionRoom,
   secondsRemaining,
 } from '@/lib/chits/liveAuction';
+import { placeChitBid } from '@/lib/chits/bidService';
 import { releaseChitPrizePayout } from '@/lib/chits/payout';
 import { assertCanReleasePrizePayout } from '@/lib/chits/security';
 import {
@@ -612,70 +613,17 @@ export async function addAuctionBid(auctionId: string, memberId: string, prizeAm
   }
   const member = await prisma.chitMember.findFirst({ where: { id: memberId, chitGroupId: auction.chitGroupId } });
   if (!member) throw new Error('Member not found in this chit group');
-  if (member.hasWon) throw new Error('This member has already won in this group');
-  if (member.subscriberStatus !== 'active') throw new Error(`A ${member.subscriberStatus} ticket cannot bid`);
-
-  assertValidPrizeAmount({
-    chitValue: Number(auction.chitGroup.chitValue),
-    prizeAmount,
-    maxDiscountPct: auction.chitGroup.maxDiscountPct ? Number(auction.chitGroup.maxDiscountPct) : null,
-    minDiscountPct: auction.chitGroup.minDiscountPct ? Number(auction.chitGroup.minDiscountPct) : null,
-    commissionPct: Number(auction.chitGroup.commissionPct),
-  });
-  const bidDiscount = Number(auction.chitGroup.chitValue) - prizeAmount;
 
   const bid = await prisma.$transaction(async (tx) => {
-    // Live room: lazily close on expiry, require an open room, apply anti-snipe extension.
-    if (auction.chitGroup.auctionType === 'open_live') {
-      await closeRoomIfExpired(tx, auctionId);
-      const fresh = await tx.chitAuction.findUnique({
-        where: { id: auctionId },
-        select: { roomStatus: true, biddingClosesAt: true, autoExtendSeconds: true },
-      });
-      if (!fresh || !isRoomOpen(fresh)) throw new Error('Bidding room is not open');
-      const extendedClose = antiSnipeExtension(fresh);
-      if (extendedClose) {
-        await tx.chitAuction.update({
-          where: { id: auctionId },
-          data: { biddingClosesAt: extendedClose, roomStatus: 'extended' },
-        });
-      }
-    }
-
-    // Bid increment step; exact-cap bids always accepted so cap ties can form.
-    if (auction.chitGroup.bidIncrement) {
-      const capDiscount = auction.chitGroup.maxDiscountPct
-        ? roundMoney((Number(auction.chitGroup.chitValue) * Number(auction.chitGroup.maxDiscountPct)) / 100)
-        : null;
-      const highest = await tx.chitBid.aggregate({
-        where: { auctionId, status: 'valid' },
-        _max: { bidDiscount: true },
-      });
-      const currentHighest = highest._max.bidDiscount ? Number(highest._max.bidDiscount) : 0;
-      const atCap = capDiscount != null && bidDiscount === capDiscount;
-      if (!atCap && currentHighest > 0 && bidDiscount < currentHighest + Number(auction.chitGroup.bidIncrement)) {
-        throw new Error(`Bid discount must exceed the current highest (${currentHighest}) by at least ${Number(auction.chitGroup.bidIncrement)}`);
-      }
-    }
-
-    const created = await tx.chitBid.create({
-      data: {
-        tenantId: scope.tenantId,
-        branchId: auction.chitGroup.branchId,
-        auctionId,
-        chitGroupId: auction.chitGroupId,
-        memberId,
-        bidAmount: prizeAmount,
-        bidDiscount,
-        remarks,
-        createdById: scope.userId || undefined,
-      },
+    return placeChitBid(tx, {
+      auction,
+      member,
+      prizeAmount,
+      remarks,
+      source: 'tap',
+      createdById: scope.userId || undefined,
+      tenantId: scope.tenantId,
     });
-    await tx.chitAuction.update({
-      where: { id: auction.id },
-      data: { status: auction.status === 'pending' ? 'in_progress' : auction.status, startedAt: auction.startedAt ?? new Date() },
-    });
-    return created;
   });
   revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}`));
   return bid;

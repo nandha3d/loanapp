@@ -777,25 +777,31 @@ class _PokerTable extends ConsumerWidget {
         final h = box.maxHeight;
         final cx = w / 2;
         final cy = h / 2;
-        final rx = w * 0.40;
-        final ry = h * 0.38;
+        final rx = w * 0.34;
+        final ry = h * 0.31;
         // Shrink avatars as the ring grows.
         final avatar = (n <= 8 ? 30.0 : (n <= 14 ? 24.0 : 18.0));
 
         return Stack(
           children: [
-            // Felt oval.
+            // Felt oval with exact 2712/1536 natural aspect ratio.
             Center(
-              child: Container(
-                width: w * 0.82,
-                height: h * 0.78,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF14532D), // deep felt green (const)
-                  borderRadius: BorderRadius.all(Radius.elliptical(w, h)),
-                  border: Border.all(color: AppColors.inkBorder, width: 6),
-                  boxShadow: const [
-                    BoxShadow(color: Color(0x66000000), blurRadius: 24, spreadRadius: 2),
-                  ],
+              child: AspectRatio(
+                aspectRatio: 2712 / 1536,
+                child: Container(
+                  width: w * 0.90,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF14532D),
+                    image: const DecorationImage(
+                      image: AssetImage('assets/images/poker_table.png'),
+                      fit: BoxFit.cover,
+                    ),
+                    borderRadius: BorderRadius.all(Radius.elliptical(w, h)),
+                    border: Border.all(color: AppColors.inkBorder, width: 6),
+                    boxShadow: const [
+                      BoxShadow(color: Color(0x66000000), blurRadius: 24, spreadRadius: 2),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -857,21 +863,41 @@ class _SeatChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final isLeader = state.currentBest?.memberId == seat.memberId;
     final border = isLeader ? AppColors.primary : AppColors.inkBorder;
+    final isOnline = seat.active && !seat.passed;
     return GestureDetector(
       onTap: onTap,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: border, width: isLeader ? 3 : 1.5),
-              boxShadow: isLeader
-                  ? [BoxShadow(color: AppColors.primary.withAlpha(120), blurRadius: 12)]
-                  : null,
-            ),
-            child: _SeatAvatar(seat: seat, radius: radius),
+          Stack(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: border, width: isLeader ? 3 : 1.5),
+                  boxShadow: isLeader
+                      ? [BoxShadow(color: AppColors.primary.withAlpha(120), blurRadius: 12)]
+                      : null,
+                ),
+                child: _SeatAvatar(seat: seat, radius: radius),
+              ),
+              if (isOnline)
+                Positioned(
+                  bottom: 2,
+                  right: 2,
+                  child: Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF22C55E),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFF0F172A), width: 2),
+                      boxShadow: const [BoxShadow(color: Color(0xFF22C55E), blurRadius: 4)],
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 2),
           Text(
