@@ -1,0 +1,54 @@
+name: Deliver APK to Release
+
+# Re-publishes an already-built APK artifact from a previous build-apk run
+# as a GitHub Release asset, so it can be downloaded without Actions API
+# access (artifact downloads require an authenticated API call; release
+# assets are plain github.com downloads).
+
+on:
+  push:
+    branches: [claude/github-web-editing-lkc19k]
+    paths: ['.github/workflows/deliver-apk.yml']
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Workflow run ID whose loantrack-release-apk artifact to publish"
+        required: true
+        default: "29097103988"
+      tag:
+        description: "Release tag to create/update"
+        required: true
+        default: "apk-live-room-m2"
+
+env:
+  RUN_ID: ${{ inputs.run_id || '29097103988' }}
+  TAG: ${{ inputs.tag || 'apk-live-room-m2' }}
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: loantrack-release-apk
+          run-id: ${{ inputs.run_id || '29097103988' }}
+          github-token: ${{ github.token }}
+          path: apk
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -laR apk
+          FILE=$(find apk -name '*.apk' | head -1)
+          echo "Publishing $FILE"
+          gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
+          gh release create "$TAG" "$FILE" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "LoanTrack APK — live room M2" \
+            --notes "APK from build-apk run $RUN_ID. Poker-table live auction + M2 room chat/admission/audio proof." \
+            --latest=false

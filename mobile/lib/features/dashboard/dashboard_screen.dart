@@ -18,6 +18,7 @@ import 'package:loantrack/data/repositories/dashboard_repository.dart';
 import 'package:loantrack/features/collection/collection_screen.dart'
     show collectionTodayProvider, refreshCollectionViews;
 import 'package:loantrack/features/collection/quick_collect_sheet.dart';
+import 'package:loantrack/features/dashboard/widgets/chit_dashboard_body.dart';
 import 'package:loantrack/features/dashboard/widgets/collection_trend_card.dart';
 import 'package:loantrack/features/onboarding/onboarding_overlay.dart';
 import 'package:loantrack/features/onboarding/location_permission_overlay.dart';
@@ -36,7 +37,11 @@ class DashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authControllerProvider).user;
-    final summary = ref.watch(dashboardSummaryProvider);
+    // Chit tenants get the chit-funds home (groups, auctions, subscriptions)
+    // — the lending dashboard talks about loans/routes they don't have. Only
+    // one of the two providers is watched, so only one API call fires.
+    final isChit = AppType.userIsChit(user);
+    final summary = isChit ? null : ref.watch(dashboardSummaryProvider);
 
     // First-run tour (U1) - no-ops once the seen flag is stored.
     if (!_onboardingRequested && user != null) {
@@ -52,6 +57,8 @@ class DashboardScreen extends ConsumerWidget {
     }
     final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
+    final chitSummary =
+        isChit ? ref.watch(chitDashboardSummaryProvider) : null;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -75,17 +82,30 @@ class DashboardScreen extends ConsumerWidget {
       ),
       body: RefreshIndicator(
         color: AppColors.primary,
-        onRefresh: () async => ref.refresh(dashboardSummaryProvider.future),
-        child: summary.when(
-          loading: () => const _LoadingSkeleton(),
-          error: (err, _) => _ErrorState(message: err.toString()),
-          data: (s) => _DashboardBody(
-            summary: s,
-            fmt: fmt,
-            userName: user?.name ?? '',
-            t: t,
-          ),
-        ),
+        onRefresh: () async => isChit
+            ? ref.refresh(chitDashboardSummaryProvider.future)
+            : ref.refresh(dashboardSummaryProvider.future),
+        child: isChit
+            ? chitSummary!.when(
+                loading: () => const _LoadingSkeleton(),
+                error: (err, _) => _ErrorState(message: err.toString()),
+                data: (s) => ChitDashboardBody(
+                  summary: s,
+                  fmt: fmt,
+                  userName: user?.name ?? '',
+                  t: t,
+                ),
+              )
+            : summary!.when(
+                loading: () => const _LoadingSkeleton(),
+                error: (err, _) => _ErrorState(message: err.toString()),
+                data: (s) => _DashboardBody(
+                  summary: s,
+                  fmt: fmt,
+                  userName: user?.name ?? '',
+                  t: t,
+                ),
+              ),
       ),
       bottomNavigationBar: const AppBottomNav(currentRoute: '/dashboard'),
     );
