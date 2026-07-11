@@ -13,6 +13,26 @@ Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Release builds paint a bare gray box (RenderErrorBox) when a widget
+  // build throws, which users report as a "blank page" with nothing to act
+  // on. Render the exception and stack instead so a screenshot of the
+  // failure is enough to debug it.
+  ErrorWidget.builder = (details) => Directionality(
+        textDirection: TextDirection.ltr,
+        child: Material(
+          color: const Color(0xFF7F1D1D),
+          child: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Screen failed to render\n\n'
+                '${details.exceptionAsString()}\n\n${details.stack ?? ''}',
+                style: const TextStyle(color: Colors.white, fontSize: 11),
+              ),
+            ),
+          ),
+        ),
+      );
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
