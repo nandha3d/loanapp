@@ -1,9 +1,10 @@
 name: Deliver APK to Release
 
-# Re-publishes an already-built APK artifact from a previous build-apk run
-# as a GitHub Release asset, so it can be downloaded without Actions API
-# access (artifact downloads require an authenticated API call; release
-# assets are plain github.com downloads).
+# Re-publishes a built APK artifact from a build-apk run as a GitHub Release
+# asset, so it can be downloaded without Actions API access (artifact
+# downloads require an authenticated API call; release assets are plain
+# github.com downloads). Waits for the build run to finish first, so it can
+# be triggered in the same push that kicked the build.
 
 on:
   push:
@@ -12,17 +13,17 @@ on:
   workflow_dispatch:
     inputs:
       run_id:
-        description: "Workflow run ID whose loantrack-release-apk artifact to publish"
+        description: "build-apk run ID whose loantrack-release-apk artifact to publish"
         required: true
-        default: "29097103988"
+        default: "29132841728"
       tag:
         description: "Release tag to create/update"
         required: true
-        default: "apk-live-room-m2"
+        default: "apk-chit-dashboard"
 
 env:
-  RUN_ID: ${{ inputs.run_id || '29097103988' }}
-  TAG: ${{ inputs.tag || 'apk-live-room-m2' }}
+  RUN_ID: ${{ inputs.run_id || '29132841728' }}
+  TAG: ${{ inputs.tag || 'apk-chit-dashboard' }}
 
 permissions:
   contents: write
@@ -32,12 +33,27 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: loantrack-release-apk
-          run-id: ${{ inputs.run_id || '29097103988' }}
-          github-token: ${{ github.token }}
-          path: apk
+      - name: Wait for build run to complete
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in $(seq 1 120); do
+            STATUS=$(gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json status,conclusion -q '.status + "/" + .conclusion')
+            echo "poll $i: $STATUS"
+            case "$STATUS" in
+              completed/success) exit 0 ;;
+              completed/*) echo "build run failed: $STATUS"; exit 1 ;;
+            esac
+            sleep 30
+          done
+          echo "timed out waiting for run $RUN_ID"; exit 1
+
+      - name: Download artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            -n loantrack-release-apk -D apk
 
       - name: Publish release
         env:
@@ -49,6 +65,6 @@ jobs:
           gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
           gh release create "$TAG" "$FILE" \
             --repo "$GITHUB_REPOSITORY" \
-            --title "LoanTrack APK — live room M2" \
-            --notes "APK from build-apk run $RUN_ID. Poker-table live auction + M2 room chat/admission/audio proof." \
+            --title "LoanTrack APK — chit home dashboard" \
+            --notes "APK from build-apk run $RUN_ID. Chit-funds home dashboard + live auction + M2 room features." \
             --latest=false

@@ -587,6 +587,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                         periodNumber: auction.periodNumber,
                         members: members,
                         isAdmin: true,
+                        chitValue: (group['chitValue'] as num?)?.toDouble(),
                       ),
                     ),
                   ).then((_) => _refresh());
@@ -761,6 +762,9 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                                           periodNumber: a.periodNumber,
                                           members: m,
                                           isAdmin: true,
+                                          chitValue:
+                                              (group['chitValue'] as num?)
+                                                  ?.toDouble(),
                                         ),
                                       ),
                                     ).then((_) => _refresh());
