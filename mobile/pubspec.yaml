@@ -1,7 +1,7 @@
 name: loantrack
 description: LoanTrack — microlending & chit fund mobile app for field agents and admins.
 publish_to: 'none'
-version: 0.1.0+22
+version: 0.1.1+23
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
