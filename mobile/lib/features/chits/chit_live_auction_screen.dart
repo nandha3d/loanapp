@@ -99,7 +99,7 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
       if (!mounted) return;
       setState(() {
         _live = state;
-        _secondsAtPoll = (state['secondsRemaining'] as num?)?.toInt() ?? 0;
+        _secondsAtPoll = _numOrNull(state['secondsRemaining'])?.toInt() ?? 0;
         _polledAt = DateTime.now();
       });
       _announceLeader(state);
@@ -122,8 +122,8 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
     if (id == null || id == _lastAnnouncedBidId) return;
     _lastAnnouncedBidId = id;
     final name = (highest['memberName'] as String?) ?? '';
-    final chitValue = (state['chitValue'] as num?)?.toDouble() ?? 0;
-    final discount = (highest['bidDiscount'] as num?)?.toDouble() ?? 0;
+    final chitValue = _numOrNull(state['chitValue']) ?? 0;
+    final discount = _numOrNull(highest['bidDiscount']) ?? 0;
     ref.speak('$name ${_speakAmount(chitValue - discount)}');
   }
 
@@ -372,17 +372,16 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
 
   // ── Live state helpers ─────────────────────────────────────────────────
   double get _chitValue =>
-      (_live?['chitValue'] as num?)?.toDouble() ?? widget.chitValue ?? 0;
+      _numOrNull(_live?['chitValue']) ?? widget.chitValue ?? 0;
 
   double? get _highestDiscount {
     final h = _live?['highestBid'] as Map<String, dynamic>?;
-    final d = h?['bidDiscount'] as num?;
-    return d?.toDouble();
+    return _numOrNull(h?['bidDiscount']);
   }
 
   double get _minNextPrize {
     // Prize must go DOWN. Prefer the server's min next discount; else step ₹1.
-    final minNextDiscount = (_live?['minNextDiscount'] as num?)?.toDouble();
+    final minNextDiscount = _numOrNull(_live?['minNextDiscount']);
     if (minNextDiscount != null && _chitValue > 0) {
       return (_chitValue - minNextDiscount).clamp(0, _chitValue).toDouble();
     }
@@ -399,10 +398,10 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
   Map<String, dynamic>? get _winner =>
       _live?['winner'] as Map<String, dynamic>?;
 
-  int get _presentCount => (_live?['presentCount'] as num?)?.toInt() ?? 0;
+  int get _presentCount => _numOrNull(_live?['presentCount'])?.toInt() ?? 0;
   int get _totalMembers =>
-      (_live?['totalMembers'] as num?)?.toInt() ?? widget.members.length;
-  int get _bidCount => (_live?['bidCount'] as num?)?.toInt() ?? _bids.length;
+      _numOrNull(_live?['totalMembers'])?.toInt() ?? widget.members.length;
+  int get _bidCount => _numOrNull(_live?['bidCount'])?.toInt() ?? _bids.length;
 
   List<Map<String, dynamic>> get _bids =>
       (_live?['bids'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
@@ -434,7 +433,7 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
       final matches = (m.ticketNo != null && t == m.ticketNo) ||
           (b['memberName'] == m.customerName);
       if (!matches) continue;
-      final d = (b['bidDiscount'] as num?)?.toDouble() ?? 0;
+      final d = _numOrNull(b['bidDiscount']) ?? 0;
       if (bestDiscount == null || d > bestDiscount) bestDiscount = d;
     }
     if (bestDiscount == null) return null;
@@ -878,6 +877,12 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
     );
   }
 }
+
+/// Numeric fields can arrive as JSON strings when a server payload passes a
+/// Prisma Decimal through unconverted — a bare `as num?` cast throws on those
+/// and blanks the whole screen in release. Parse tolerantly instead.
+double? _numOrNull(dynamic v) =>
+    v is num ? v.toDouble() : (v is String ? double.tryParse(v) : null);
 
 String _speakAmount(double amount) {
   if (amount <= 0) return 'zero rupees';
@@ -1936,7 +1941,7 @@ class _MinutesPanel extends ConsumerWidget {
                 final t = DateTime.tryParse(b['bidTime'] as String? ?? '')
                         ?.toLocal() ??
                     DateTime.now();
-                final discount = (b['bidDiscount'] as num?)?.toDouble() ?? 0;
+                final discount = _numOrNull(b['bidDiscount']) ?? 0;
                 final prize = chitValue - discount;
                 final name = (b['memberName'] as String?) ?? '';
                 final ticket = b['ticketNo'] ?? '—';

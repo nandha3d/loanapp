@@ -19,6 +19,11 @@ import 'package:loantrack/data/services/upload_service.dart';
 import 'package:loantrack/features/chits/chit_live_auction_screen.dart';
 import 'package:loantrack/shared/widgets/skeleton.dart';
 
+/// Decimal columns (chitValue etc.) arrive as JSON strings from the raw
+/// Prisma payload, so a bare `as num?` cast throws — parse tolerantly.
+double? _asDouble(dynamic v) =>
+    v is num ? v.toDouble() : (v is String ? double.tryParse(v) : null);
+
 final _detailProvider =
     FutureProvider.autoDispose.family<Map<String, dynamic>, String>((ref, id) {
   return ref.watch(chitServiceProvider).getById(id);
@@ -587,7 +592,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                         periodNumber: auction.periodNumber,
                         members: members,
                         isAdmin: true,
-                        chitValue: (group['chitValue'] as num?)?.toDouble(),
+                        chitValue: _asDouble(group['chitValue']),
                       ),
                     ),
                   ).then((_) => _refresh());
@@ -763,8 +768,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                                           members: m,
                                           isAdmin: true,
                                           chitValue:
-                                              (group['chitValue'] as num?)
-                                                  ?.toDouble(),
+                                              _asDouble(group['chitValue']),
                                         ),
                                       ),
                                     ).then((_) => _refresh());

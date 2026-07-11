@@ -49,15 +49,16 @@ class _ChitGroupFormScreenState extends ConsumerState<ChitGroupFormScreen> {
   void initState() {
     super.initState();
     final d = widget.editData;
+    // Decimal columns arrive as JSON strings in the raw group payload — a
+    // bare `as num` cast on them throws and blanks the screen in release.
+    String moneyText(dynamic v) {
+      final n = v is num ? v.toDouble() : double.tryParse('$v');
+      return n == null ? '' : n.toStringAsFixed(0);
+    }
+
     _nameCtrl = TextEditingController(text: d?['name'] as String? ?? '');
-    _chitValueCtrl = TextEditingController(
-        text: d?['chitValue'] != null
-            ? (d!['chitValue'] as num).toStringAsFixed(0)
-            : '');
-    _monthlyCtrl = TextEditingController(
-        text: d?['monthlyContrib'] != null
-            ? (d!['monthlyContrib'] as num).toStringAsFixed(0)
-            : '');
+    _chitValueCtrl = TextEditingController(text: moneyText(d?['chitValue']));
+    _monthlyCtrl = TextEditingController(text: moneyText(d?['monthlyContrib']));
     _totalMembersCtrl =
         TextEditingController(text: d?['totalMembers']?.toString() ?? '5');
     _commissionCtrl =
