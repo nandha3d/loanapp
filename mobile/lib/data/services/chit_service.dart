@@ -633,11 +633,11 @@ class ChitService {
   // ── Live-room chat + admission (M2) ─────────────────────────────────────
   Future<List<RoomMessage>> roomMessages(
     String groupId,
-    int period, {
+    String auctionId, {
     String? sinceMessageId,
   }) async {
     final res = await _dio.get<Map<String, dynamic>>(
-      Endpoints.chitAuctionMessages(groupId, period),
+      Endpoints.chitAuctionMessages(groupId, auctionId),
       queryParameters: {
         if (sinceMessageId != null) 'since': sinceMessageId,
       },
@@ -651,12 +651,12 @@ class ChitService {
 
   Future<RoomMessage> sendRoomMessage(
     String groupId,
-    int period, {
+    String auctionId, {
     required String body,
     bool toOrganizer = false,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
-      Endpoints.chitAuctionMessages(groupId, period),
+      Endpoints.chitAuctionMessages(groupId, auctionId),
       data: {
         'body': body,
         'visibility': toOrganizer ? 'organizer' : 'public',
