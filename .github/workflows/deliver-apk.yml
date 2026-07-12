@@ -3,8 +3,9 @@ name: Deliver APK to Release
 # Re-publishes a built APK artifact from a build-apk run as a GitHub Release
 # asset, so it can be downloaded without Actions API access (artifact
 # downloads require an authenticated API call; release assets are plain
-# github.com downloads). Waits for the build run to finish first, so it can
-# be triggered in the same push that kicked the build.
+# github.com downloads). Resolves the newest build-apk run on
+# merged-all-branches by itself and waits for it to finish, so a push here
+# in the same breath as the build-triggering merge just works.
 
 on:
   push:
@@ -13,17 +14,16 @@ on:
   workflow_dispatch:
     inputs:
       run_id:
-        description: "build-apk run ID whose loantrack-release-apk artifact to publish"
-        required: true
-        default: "29132841728"
+        description: "build-apk run ID to publish (blank = newest on merged-all-branches)"
+        required: false
+        default: ""
       tag:
         description: "Release tag to create/update"
         required: true
-        default: "apk-chit-dashboard"
+        default: "apk-latest"
 
 env:
-  RUN_ID: ${{ inputs.run_id || '29132841728' }}
-  TAG: ${{ inputs.tag || 'apk-chit-dashboard' }}
+  TAG: ${{ inputs.tag || 'apk-latest' }}
 
 permissions:
   contents: write
@@ -33,10 +33,19 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - name: Wait for build run to complete
+      - name: Resolve build run and wait for it
         env:
           GH_TOKEN: ${{ github.token }}
+          INPUT_RUN_ID: ${{ inputs.run_id }}
         run: |
+          RUN_ID="$INPUT_RUN_ID"
+          if [ -z "$RUN_ID" ]; then
+            RUN_ID=$(gh run list --repo "$GITHUB_REPOSITORY" \
+              --workflow build-apk.yml --branch merged-all-branches \
+              --limit 1 --json databaseId -q '.[0].databaseId')
+          fi
+          echo "RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
+          echo "Waiting on build-apk run $RUN_ID"
           for i in $(seq 1 120); do
             STATUS=$(gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json status,conclusion -q '.status + "/" + .conclusion')
             echo "poll $i: $STATUS"
@@ -65,6 +74,6 @@ jobs:
           gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
           gh release create "$TAG" "$FILE" \
             --repo "$GITHUB_REPOSITORY" \
-            --title "LoanTrack APK — chit home dashboard" \
-            --notes "APK from build-apk run $RUN_ID. Chit-funds home dashboard + live auction + M2 room features." \
+            --title "LoanTrack APK (latest)" \
+            --notes "APK from build-apk run $RUN_ID." \
             --latest=false
