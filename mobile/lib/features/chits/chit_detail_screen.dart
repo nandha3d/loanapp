@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:dio/dio.dart';
+import 'package:loantrack/core/auth/auth_controller.dart';
 import 'package:loantrack/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +16,7 @@ import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/data/local/chit_payment_queue.dart';
 import 'package:loantrack/data/models/chit.dart';
+import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/data/services/chit_service.dart';
 import 'package:loantrack/data/services/upload_service.dart';
 import 'package:loantrack/features/chits/chit_live_auction_screen.dart';
@@ -244,13 +247,37 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
     setState(() => _busy = false);
   }
 
+  /// Turns a raw DioException / ApiException into the server's human message
+  /// (e.g. "Cannot activate chit group. Missing/invalid: …") instead of the
+  /// developer-facing "DioException [bad response]: …" dump.
+  String _msg(Object e) {
+    if (e is ApiException) return e.message;
+    if (e is DioException) return ApiException.fromDio(e).message;
+    return e.toString();
+  }
+
   Future<void> _activateGroup() async {
     setState(() => _busy = true);
     try {
       await ref.read(chitServiceProvider).activate(widget.id);
       _refresh();
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = _msg(e));
+    }
+    setState(() => _busy = false);
+  }
+
+  /// Set a member's agreement status (sign / verify / reject). Admin-gated
+  /// on the server; signing agreements is the pre-condition for activation.
+  Future<void> _setAgreement(String memberId, String status) async {
+    setState(() => _busy = true);
+    try {
+      await ref
+          .read(chitServiceProvider)
+          .updateAgreement(widget.id, memberId, status: status);
+      _refresh();
+    } catch (e) {
+      setState(() => _error = _msg(e));
     }
     setState(() => _busy = false);
   }
@@ -261,7 +288,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
       await fn();
       _refresh();
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = _msg(e));
     }
     setState(() => _busy = false);
   }
@@ -671,6 +698,11 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
     final subscriptions = ref.watch(_subscriptionsProvider(widget.id));
     final fmt = ref.watch(currencyFmtProvider);
     final t = T.of(ref);
+    // Agreement signing / verification is staff-only (server enforces
+    // ['admin','superadmin','developer']); agents can view but not act.
+    final currentUser = ref.watch(authControllerProvider).user;
+    final isAdmin =
+        currentUser != null && currentUser.role != UserRole.agent;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -797,7 +829,18 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                             }
                             return Column(
                               children: list
-                                  .map((m) => _MemberTile(member: m))
+                                  .map((m) => _MemberTile(
+                                        member: m,
+                                        groupStatus: status,
+                                        isAdmin: isAdmin,
+                                        busy: _busy,
+                                        onSign: () =>
+                                            _setAgreement(m.id, 'signed'),
+                                        onVerify: () =>
+                                            _setAgreement(m.id, 'verified'),
+                                        onReject: () =>
+                                            _setAgreement(m.id, 'rejected'),
+                                      ))
                                   .toList(),
                             );
                           },
@@ -1021,11 +1064,68 @@ class _AuctionTile extends StatelessWidget {
 }
 
 class _MemberTile extends StatelessWidget {
-  const _MemberTile({required this.member});
+  const _MemberTile({
+    required this.member,
+    required this.groupStatus,
+    required this.isAdmin,
+    required this.busy,
+    required this.onSign,
+    required this.onVerify,
+    required this.onReject,
+  });
   final ChitMember member;
+  final String groupStatus;
+  final bool isAdmin;
+  final bool busy;
+  final VoidCallback onSign;
+  final VoidCallback onVerify;
+  final VoidCallback onReject;
 
   @override
   Widget build(BuildContext context) {
+    final status = member.agreementStatus;
+    final draft = groupStatus == 'draft';
+
+    // Agreement status → chip label + colours (or "Won" once settled).
+    String label;
+    Color fg;
+    Color bg;
+    if (member.hasWon) {
+      label = 'Won';
+      fg = AppColors.success;
+      bg = AppColors.successBg;
+    } else {
+      switch (status) {
+        case 'verified':
+          label = 'Verified';
+          fg = AppColors.success;
+          bg = AppColors.successBg;
+          break;
+        case 'signed':
+          label = 'Signed';
+          fg = AppColors.info;
+          bg = AppColors.infoBg;
+          break;
+        case 'rejected':
+          label = 'Rejected';
+          fg = AppColors.danger;
+          bg = AppColors.dangerBg;
+          break;
+        default:
+          label = 'Pending';
+          fg = AppColors.warning;
+          bg = AppColors.warningBg;
+      }
+    }
+
+    // Signing is the pre-condition for activation, so it's only offered while
+    // the group is still a draft and the member isn't already finalised/won.
+    final canSign = isAdmin && draft && !member.hasWon && status != 'verified';
+    final canVerify = isAdmin && draft && status == 'signed';
+    final canReject =
+        isAdmin && draft && (status == 'signed' || status == 'verified');
+    final hasActions = canSign || canVerify || canReject;
+
     return ListTile(
       dense: true,
       leading: CircleAvatar(
@@ -1037,19 +1137,50 @@ class _MemberTile extends StatelessWidget {
       ),
       title: Text(member.customerName, style: AppTypography.body),
       subtitle: Text(member.customerCode, style: AppTypography.caption),
-      trailing: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: member.hasWon ? AppColors.successBg : AppColors.background,
-          borderRadius: BorderRadius.circular(AppTokens.radiusBadge),
-        ),
-        child: Text(
-          member.hasWon ? 'Won' : 'Pending',
-          style: AppTypography.caption.copyWith(
-            color: member.hasWon ? AppColors.success : AppColors.textSecondary,
-            fontWeight: FontWeight.w700,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(AppTokens.radiusBadge),
+            ),
+            child: Text(
+              label,
+              style: AppTypography.caption.copyWith(
+                color: fg,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
-        ),
+          if (hasActions)
+            PopupMenuButton<String>(
+              enabled: !busy,
+              padding: EdgeInsets.zero,
+              icon: const Icon(Icons.more_vert,
+                  size: 18, color: AppColors.textSecondary),
+              onSelected: (v) {
+                if (v == 'sign') onSign();
+                if (v == 'verify') onVerify();
+                if (v == 'reject') onReject();
+              },
+              itemBuilder: (_) => [
+                if (canSign)
+                  const PopupMenuItem(
+                      value: 'sign', child: Text('Mark Agreement Signed')),
+                if (canVerify)
+                  const PopupMenuItem(
+                      value: 'verify', child: Text('Verify Agreement')),
+                if (canReject)
+                  const PopupMenuItem(
+                    value: 'reject',
+                    child: Text('Reject Agreement',
+                        style: TextStyle(color: AppColors.danger)),
+                  ),
+              ],
+            ),
+        ],
       ),
     );
   }
