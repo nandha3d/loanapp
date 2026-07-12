@@ -1051,20 +1051,20 @@ class _PokerTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Same landscape wooden-table asset the web auction room renders, in the
-    // web's exact aspect ratio (2712×1536), with seats laid on the felt.
+    // The same real wooden-table photograph the web auction room uses, turned
+    // vertical to suit the portrait phone: a tall oval with seats around it.
     return Center(
       child: AspectRatio(
-        aspectRatio: 2712 / 1536,
+        aspectRatio: 1536 / 2712,
         child: LayoutBuilder(
           builder: (context, box) {
             final w = box.maxWidth;
             final h = box.maxHeight;
             final cx = w / 2;
             final cy = h / 2;
-            // Seats sit just inside the felt rail (mirrors the web ellipse).
-            final rx = w * 0.36;
-            final ry = h * 0.33;
+            // Tall ellipse: seats sit just inside the felt rail.
+            final rx = w * 0.34;
+            final ry = h * 0.40;
             // Seats shrink as the ring fills so 25 members still fit.
             final seatRadius = members.length <= 8
                 ? 22.0
@@ -1072,16 +1072,20 @@ class _PokerTable extends StatelessWidget {
             return Stack(
               clipBehavior: Clip.none,
               children: [
-                // The real poker-table photograph (shared with the web room).
+                // The real poker-table photograph (shared with the web room),
+                // rotated a quarter-turn so the oval stands vertically.
                 Positioned.fill(
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(20),
-                    child: ColorFiltered(
-                      colorFilter: const ColorFilter.mode(
-                          Color(0x14000000), BlendMode.darken),
-                      child: Image.asset(
-                        'assets/images/poker_table.png',
-                        fit: BoxFit.cover,
+                    child: RotatedBox(
+                      quarterTurns: 1,
+                      child: ColorFiltered(
+                        colorFilter: const ColorFilter.mode(
+                            Color(0x14000000), BlendMode.darken),
+                        child: Image.asset(
+                          'assets/images/poker_table.png',
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
                   ),
