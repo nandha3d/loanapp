@@ -607,6 +607,10 @@ const Map<String, Map<String, String>> kStrings = {
     'en': 'Chit Funds', 'ta': 'சீட்டு நிதி', 'hi': 'चिट फंड',
     'te': 'చిట్ ఫండ్', 'kn': 'ಚಿಟ್ ಫಂಡ್', 'ml': 'ചിറ്റ് ഫണ്ട്',
   },
+  'title.chit_detail': {
+    'en': 'Chit Group', 'ta': 'சீட்டுக் குழு', 'hi': 'चिट समूह',
+    'te': 'చిట్ గ్రూప్', 'kn': 'ಚಿಟ್ ಗುಂಪು', 'ml': 'ചിറ്റ് ഗ്രൂപ്പ്',
+  },
   'title.accounting': {
     'en': 'Accounting & P&L', 'ta': 'கணக்கியல் & லாபம்',
     'hi': 'लेखा और लाभ-हानि', 'te': 'అకౌంటింగ్ & P&L',

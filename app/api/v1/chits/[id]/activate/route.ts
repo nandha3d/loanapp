@@ -38,26 +38,33 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const invalidShareCount = Array.from(ticketShares.values()).filter((sum) => Math.abs(sum - 1) > 0.001).length;
     if (invalidShareCount) return fail('Each ticket share total must equal 1.00', 400);
 
-    validateChitGroupActivation({
-      chitType: group.chitType,
-      registrationNo: group.registrationNo,
-      registrationDate: group.registrationDate,
-      registrarOffice: group.registrarOffice,
-      bylawNo: group.bylawNo,
-      commencementCertificate: group.commencementCertificate,
-      approvedBankName: group.approvedBankName,
-      foremanName: group.foremanName,
-      commissionPct: Number(group.commissionPct),
-      foremanCommissionCapPct: group.foremanCommissionCapPct ? Number(group.foremanCommissionCapPct) : null,
-      maxDiscountPct: group.maxDiscountPct ? Number(group.maxDiscountPct) : null,
-      totalMembers: group.totalMembers,
-      actualMembers: members.length,
-      distinctTicketCount: ticketShares.size,
-      missingTicketCount: members.filter((member) => !member.ticketNo).length,
-      pendingAgreementCount: members.filter((member) => !['signed', 'verified'].includes(member.agreementStatus)).length,
-      hasForemanTicket: group.hasForemanTicket,
-      foremanTicketCount: members.filter((member) => member.isForemanTicket).length,
-    });
+    // Activation pre-conditions (unsigned agreements, missing compliance
+    // fields, ticket setup, …) are user-actionable — surface them as a 400
+    // with the descriptive message rather than a generic 500.
+    try {
+      validateChitGroupActivation({
+        chitType: group.chitType,
+        registrationNo: group.registrationNo,
+        registrationDate: group.registrationDate,
+        registrarOffice: group.registrarOffice,
+        bylawNo: group.bylawNo,
+        commencementCertificate: group.commencementCertificate,
+        approvedBankName: group.approvedBankName,
+        foremanName: group.foremanName,
+        commissionPct: Number(group.commissionPct),
+        foremanCommissionCapPct: group.foremanCommissionCapPct ? Number(group.foremanCommissionCapPct) : null,
+        maxDiscountPct: group.maxDiscountPct ? Number(group.maxDiscountPct) : null,
+        totalMembers: group.totalMembers,
+        actualMembers: members.length,
+        distinctTicketCount: ticketShares.size,
+        missingTicketCount: members.filter((member) => !member.ticketNo).length,
+        pendingAgreementCount: members.filter((member) => !['signed', 'verified'].includes(member.agreementStatus)).length,
+        hasForemanTicket: group.hasForemanTicket,
+        foremanTicketCount: members.filter((member) => member.isForemanTicket).length,
+      });
+    } catch (e: any) {
+      return fail(e?.message ?? 'Chit group cannot be activated yet', 400);
+    }
 
     const updated = await prisma.$transaction(async (tx) => {
       const existingSubscriptions = await tx.chitSubscription.count({ where: { member: { chitGroupId: id } } });
