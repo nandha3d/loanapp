@@ -88,7 +88,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authControllerProvider);
 
   return GoRouter(
-    initialLocation: '/dashboard',
+    // Start at the branded splash so the role-based entry redirect always runs
+    // on cold start (admins/superadmins → /portal, agents → /dashboard,
+    // developer → /admin). Starting directly at /dashboard skipped that
+    // redirect, stranding admins on the lending dashboard instead of the portal.
+    initialLocation: '/splash',
     refreshListenable: _AuthListenable(ref),
     redirect: (context, state) {
       final loc = state.matchedLocation;
