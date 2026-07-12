@@ -22,9 +22,6 @@ import 'package:loantrack/features/collection/voice_entry_controller.dart';
 // Table palette — the wooden auction table is deliberately fixed-color (not
 // themed): it mirrors the web live room so both screens read as one product.
 const _kFeltFrame = Color(0xFF111827);
-const _kWoodLight = Color(0xFF7C4A24);
-const _kWoodDark = Color(0xFF3E2312);
-const _kWoodRim = Color(0xFF9C6B3F);
 const _kHub = Color(0xFF0B1220);
 const _kHubBorder = Color(0xFF1E3A5F);
 const _kTimerCyan = Color(0xFF38BDF8);
@@ -1049,95 +1046,88 @@ class _PokerTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, box) {
-        final w = box.maxWidth;
-        final h = box.maxHeight;
-        final cx = w / 2;
-        final cy = h / 2;
-        final rx = w * 0.40;
-        final ry = h * 0.40;
-        // Seats shrink as the ring fills so 25 members still fit.
-        final seatRadius =
-            members.length <= 8 ? 24.0 : (members.length <= 14 ? 20.0 : 16.0);
-        return Stack(
-          children: [
-            // Table frame (dark surround like the web card).
-            Positioned.fill(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: _kFeltFrame,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: AppColors.inkBorder),
+    // Same landscape wooden-table asset the web auction room renders, in the
+    // web's exact aspect ratio (2712×1536), with seats laid on the felt.
+    return Center(
+      child: AspectRatio(
+        aspectRatio: 2712 / 1536,
+        child: LayoutBuilder(
+          builder: (context, box) {
+            final w = box.maxWidth;
+            final h = box.maxHeight;
+            final cx = w / 2;
+            final cy = h / 2;
+            // Seats sit just inside the felt rail (mirrors the web ellipse).
+            final rx = w * 0.36;
+            final ry = h * 0.33;
+            // Seats shrink as the ring fills so 25 members still fit.
+            final seatRadius = members.length <= 8
+                ? 22.0
+                : (members.length <= 14 ? 18.0 : 14.0);
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // The real poker-table photograph (shared with the web room).
+                Positioned.fill(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: ColorFiltered(
+                      colorFilter: const ColorFilter.mode(
+                          Color(0x14000000), BlendMode.darken),
+                      child: Image.asset(
+                        'assets/images/poker_table.png',
+                        fit: BoxFit.cover,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
-            // Wooden oval: rim + top-lit grain gradient.
-            Center(
-              child: Container(
-                width: w * 0.84,
-                height: h * 0.80,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.all(Radius.elliptical(w, h)),
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [_kWoodLight, _kWoodDark],
-                  ),
-                  border: Border.all(color: _kWoodRim, width: 7),
-                  boxShadow: const [
-                    BoxShadow(
-                        color: Color(0x99000000),
-                        blurRadius: 28,
-                        spreadRadius: 3),
-                  ],
-                ),
-                // Inner shadow ring gives the rail depth.
-                child: Container(
-                  margin: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.all(Radius.elliptical(w, h)),
-                    border:
-                        Border.all(color: const Color(0x66000000), width: 10),
+                // Dark radial vignette so seats/hub read over the wood,
+                // matching the web overlay (rgba(15,23,42,0.35 → 0.7)).
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      gradient: const RadialGradient(
+                        radius: 0.95,
+                        colors: [Color(0x590F172A), Color(0xB30F172A)],
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
-            // Center hub: period, digital countdown, chit value.
-            Center(
-              child: _CenterHub(
-                periodNumber: periodNumber,
-                chitValue: chitValue,
-                roomStatus: roomStatus,
-                seconds: seconds,
-                connecting: connecting,
-                sealed: sealed,
-                bidCount: bidCount,
-                winner: winner,
-                members: members,
-                memberPrize: memberPrize,
-              ),
-            ),
-            Positioned(
-              top: 16,
-              left: 16,
-              child: _CornerClock(now: DateTime.now()),
-            ),
-            for (var i = 0; i < members.length; i++)
-              _seat(
-                  cx,
-                  cy,
-                  rx,
-                  ry,
-                  -math.pi / 2 + (2 * math.pi * i / members.length),
-                  members[i],
-                  seatRadius),
-          ],
-        );
-      },
+                // Center hub: period, digital countdown, chit value.
+                Center(
+                  child: _CenterHub(
+                    periodNumber: periodNumber,
+                    chitValue: chitValue,
+                    roomStatus: roomStatus,
+                    seconds: seconds,
+                    connecting: connecting,
+                    sealed: sealed,
+                    bidCount: bidCount,
+                    winner: winner,
+                    members: members,
+                    memberPrize: memberPrize,
+                  ),
+                ),
+                Positioned(
+                  top: 12,
+                  left: 12,
+                  child: _CornerClock(now: DateTime.now()),
+                ),
+                for (var i = 0; i < members.length; i++)
+                  _seat(
+                      cx,
+                      cy,
+                      rx,
+                      ry,
+                      -math.pi / 2 + (2 * math.pi * i / members.length),
+                      members[i],
+                      seatRadius),
+              ],
+            );
+          },
+        ),
+      ),
     );
   }
 
