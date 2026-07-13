@@ -18,6 +18,13 @@ final _borrowerLoansProvider =
   return ref.watch(borrowerServiceProvider).getLoans();
 });
 
+/// Which modules this customer belongs to (loans / chits) — the dashboard
+/// routes on this instead of assuming every customer is a loan borrower.
+final _borrowerPortalProvider =
+    FutureProvider.autoDispose<BorrowerPortal>((ref) {
+  return ref.watch(borrowerServiceProvider).getPortal();
+});
+
 /// Borrower dashboard — mirrors the web BorrowerDashboardClient.tsx.
 /// 5 tabs: Dashboard, Schedule, History, Details, Calculator.
 class BorrowerDashboardScreen extends ConsumerStatefulWidget {
@@ -33,6 +40,10 @@ class _BorrowerDashboardScreenState
   int _tabIndex = 0;
   int _selectedLoanIdx = 0;
 
+  /// Which module view is showing when the customer has both loans and
+  /// chits. Null = auto (loans if any, else chits).
+  bool? _chitTab;
+
   // Calculator
   double _calcPrincipal = 50000;
   int _calcTenure = 24;
@@ -46,129 +57,79 @@ class _BorrowerDashboardScreenState
     return 'Good Evening';
   }
 
+  Future<void> _logout() async {
+    await ref.read(borrowerServiceProvider).logout();
+    if (mounted) context.go('/borrower/login');
+  }
+
   @override
   Widget build(BuildContext context) {
+    final portal = ref.watch(_borrowerPortalProvider);
     final loans = ref.watch(_borrowerLoansProvider);
     final fmt = ref.watch(currencyFmtProvider);
+
+    // Which module view to show. Auto: loans if the customer has any, else
+    // chits. When both exist a switcher lets them flip. If the portal call
+    // fails (older server), fall back to the loans-only behavior.
+    final p = portal.valueOrNull;
+    final showChits = p != null && p.hasChits && (_chitTab ?? !p.hasLoans);
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('My Loans'),
+        title: Text(showChits ? 'My Chit Funds' : 'My Loans'),
         centerTitle: true,
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await ref.read(borrowerServiceProvider).logout();
-              if (mounted) context.go('/borrower/login');
-            },
+            onPressed: _logout,
           ),
         ],
       ),
-      body: loans.when(
+      body: portal.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text(e.toString())),
-        data: (loanList) {
-          if (loanList.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.account_balance_wallet_outlined,
-                      size: 64, color: AppColors.textSecondary),
-                  const SizedBox(height: 16),
-                  const Text('No loans found'),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () async {
-                      await ref.read(borrowerServiceProvider).logout();
-                      if (mounted) context.go('/borrower/login');
-                    },
-                    child: const Text('Logout'),
-                  ),
-                ],
-              ),
+        error: (_, __) => _loansBody(loans, fmt),
+        data: (portal) {
+          if (!portal.hasLoans && !portal.hasChits) {
+            return _emptyState(
+              icon: Icons.person_off_outlined,
+              message: 'No active loans or chit memberships for this login.',
             );
           }
-
-          final loan = loanList[_selectedLoanIdx.clamp(0, loanList.length - 1)];
-
           return Column(
             children: [
-              // Loan selector (if multiple)
-              if (loanList.length > 1)
+              if (portal.hasLoans && portal.hasChits)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  child: DropdownButtonFormField<int>(
-                    value: _selectedLoanIdx,
-                    decoration: const InputDecoration(
-                        labelText: 'Select Loan', isDense: true),
-                    items: loanList.asMap().entries.map((e) {
-                      return DropdownMenuItem(
-                        value: e.key,
-                        child: Text(
-                            '${e.value.loanCode} — ${fmt.format(e.value.principalAmount)}'),
-                      );
-                    }).toList(),
-                    onChanged: (v) =>
-                        setState(() => _selectedLoanIdx = v ?? 0),
-                  ),
-                ),
-              // Tab bar
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _TabPill('Dashboard', 0),
-                      _TabPill('Schedule', 1),
-                      _TabPill('History', 2),
-                      _TabPill('Details', 3),
-                      _TabPill('Calculator', 4),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: SegmentedButton<bool>(
+                    segments: const [
+                      ButtonSegment(
+                        value: false,
+                        icon: Icon(Icons.account_balance_wallet_outlined),
+                        label: Text('Loans'),
+                      ),
+                      ButtonSegment(
+                        value: true,
+                        icon: Icon(Icons.groups_outlined),
+                        label: Text('Chit Funds'),
+                      ),
                     ],
+                    selected: {showChits},
+                    onSelectionChanged: (s) =>
+                        setState(() => _chitTab = s.first),
                   ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              // Tab content
               Expanded(
-                child: RefreshIndicator(
-                  color: AppColors.primary,
-                  onRefresh: () async =>
-                      ref.invalidate(_borrowerLoansProvider),
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      if (_tabIndex == 0) _DashboardTab(loan: loan, fmt: fmt),
-                      if (_tabIndex == 1) _ScheduleTab(loan: loan, fmt: fmt),
-                      if (_tabIndex == 2) _HistoryTab(loan: loan, fmt: fmt),
-                      if (_tabIndex == 3) _DetailsTab(loan: loan, fmt: fmt),
-                      if (_tabIndex == 4)
-                        _CalculatorTab(
-                          principal: _calcPrincipal,
-                          tenure: _calcTenure,
-                          rate: _calcRate,
-                          freq: _calcFreq,
-                          fmt: fmt,
-                          onChanged: (p, t, r, f) => setState(() {
-                            _calcPrincipal = p;
-                            _calcTenure = t;
-                            _calcRate = r;
-                            _calcFreq = f;
-                          }),
-                        ),
-                    ],
-                  ),
-                ),
+                child:
+                    showChits ? _chitBody(portal, fmt) : _loansBody(loans, fmt),
               ),
             ],
           );
         },
       ),
-      floatingActionButton: loans.valueOrNull != null &&
+      floatingActionButton: !showChits &&
+              loans.valueOrNull != null &&
               loans.valueOrNull!.isNotEmpty
           ? FloatingActionButton.extended(
               onPressed: () => context.push('/borrower/pay'),
@@ -178,6 +139,140 @@ class _BorrowerDashboardScreenState
               label: const Text('Pay Now'),
             )
           : null,
+    );
+  }
+
+  Widget _emptyState({required IconData icon, required String message}) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 64, color: AppColors.textSecondary),
+            const SizedBox(height: 16),
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _logout,
+              child: const Text('Logout'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── Chit membership view ───────────────────────────
+
+  Widget _chitBody(BorrowerPortal portal, NumberFormat fmt) {
+    return RefreshIndicator(
+      color: AppColors.primary,
+      onRefresh: () async => ref.invalidate(_borrowerPortalProvider),
+      child: portal.chitMemberships.isEmpty
+          ? ListView(
+              children: const [
+                Padding(
+                  padding: EdgeInsets.all(32),
+                  child: Center(child: Text('No chit memberships found')),
+                ),
+              ],
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: portal.chitMemberships.length,
+              itemBuilder: (_, i) =>
+                  _ChitMembershipCard(m: portal.chitMemberships[i], fmt: fmt),
+            ),
+    );
+  }
+
+  // ─── Loans view (previous whole-screen body) ────────
+
+  Widget _loansBody(AsyncValue<List<BorrowerLoan>> loans, NumberFormat fmt) {
+    return loans.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(child: Text(e.toString())),
+      data: (loanList) {
+        if (loanList.isEmpty) {
+          return _emptyState(
+            icon: Icons.account_balance_wallet_outlined,
+            message: 'No loans found',
+          );
+        }
+
+        final loan = loanList[_selectedLoanIdx.clamp(0, loanList.length - 1)];
+
+        return Column(
+          children: [
+            // Loan selector (if multiple)
+            if (loanList.length > 1)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: DropdownButtonFormField<int>(
+                  value: _selectedLoanIdx,
+                  decoration: const InputDecoration(
+                      labelText: 'Select Loan', isDense: true),
+                  items: loanList.asMap().entries.map((e) {
+                    return DropdownMenuItem(
+                      value: e.key,
+                      child: Text(
+                          '${e.value.loanCode} — ${fmt.format(e.value.principalAmount)}'),
+                    );
+                  }).toList(),
+                  onChanged: (v) => setState(() => _selectedLoanIdx = v ?? 0),
+                ),
+              ),
+            // Tab bar
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _TabPill('Dashboard', 0),
+                    _TabPill('Schedule', 1),
+                    _TabPill('History', 2),
+                    _TabPill('Details', 3),
+                    _TabPill('Calculator', 4),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Tab content
+            Expanded(
+              child: RefreshIndicator(
+                color: AppColors.primary,
+                onRefresh: () async => ref.invalidate(_borrowerLoansProvider),
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    if (_tabIndex == 0) _DashboardTab(loan: loan, fmt: fmt),
+                    if (_tabIndex == 1) _ScheduleTab(loan: loan, fmt: fmt),
+                    if (_tabIndex == 2) _HistoryTab(loan: loan, fmt: fmt),
+                    if (_tabIndex == 3) _DetailsTab(loan: loan, fmt: fmt),
+                    if (_tabIndex == 4)
+                      _CalculatorTab(
+                        principal: _calcPrincipal,
+                        tenure: _calcTenure,
+                        rate: _calcRate,
+                        freq: _calcFreq,
+                        fmt: fmt,
+                        onChanged: (p, t, r, f) => setState(() {
+                          _calcPrincipal = p;
+                          _calcTenure = t;
+                          _calcRate = r;
+                          _calcFreq = f;
+                        }),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -258,11 +353,13 @@ class _DashboardTab extends StatelessWidget {
           children: [
             Expanded(
               child: _BorrowerKpi(
-                  label: 'Outstanding', value: fmt.format(loan.outstandingBalance)),
+                  label: 'Outstanding',
+                  value: fmt.format(loan.outstandingBalance)),
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: _BorrowerKpi(label: 'Paid', value: fmt.format(loan.totalPaid)),
+              child: _BorrowerKpi(
+                  label: 'Paid', value: fmt.format(loan.totalPaid)),
             ),
           ],
         ),
@@ -362,8 +459,7 @@ class _ScheduleTab extends StatelessWidget {
                 ),
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: isPaid
                       ? AppColors.successBg
@@ -406,7 +502,8 @@ class _HistoryTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final paid = loan.instalments.where((i) => i.isPaid).toList()
-      ..sort((a, b) => (b.paidAt ?? b.dueDate).compareTo(a.paidAt ?? a.dueDate));
+      ..sort(
+          (a, b) => (b.paidAt ?? b.dueDate).compareTo(a.paidAt ?? a.dueDate));
 
     if (paid.isEmpty) {
       return const Center(
@@ -422,7 +519,8 @@ class _HistoryTab extends StatelessWidget {
         return ListTile(
           dense: true,
           leading: const Icon(Icons.check_circle, color: AppColors.success),
-          title: Text('EMI #${inst.instNo} — ${fmt.format(inst.receivedAmount)}',
+          title: Text(
+              'EMI #${inst.instNo} — ${fmt.format(inst.receivedAmount)}',
               style: AppTypography.body),
           subtitle: Text(
             inst.paidAt != null
@@ -462,7 +560,8 @@ class _DetailsTab extends StatelessWidget {
           _Row('Frequency', loan.frequency),
           _Row('Status', loan.status),
           if (loan.disbursedAt != null)
-            _Row('Disbursed', DateFormat('dd MMM yyyy').format(loan.disbursedAt!)),
+            _Row('Disbursed',
+                DateFormat('dd MMM yyyy').format(loan.disbursedAt!)),
           if (loan.collectionPoint != null)
             _Row('Collection Point', loan.collectionPoint!),
         ],
@@ -480,8 +579,7 @@ class _DetailsTab extends StatelessWidget {
               style: AppTypography.caption
                   .copyWith(color: AppColors.textSecondary)),
           Text(value,
-              style:
-                  AppTypography.body.copyWith(fontWeight: FontWeight.w600)),
+              style: AppTypography.body.copyWith(fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -576,8 +674,7 @@ class _CalculatorTab extends StatelessWidget {
           const Divider(height: 24),
           _ResultRow('Total Interest', fmt.format(totalInterest)),
           _ResultRow('Total Payable', fmt.format(totalPayable)),
-          _ResultRow(
-              'EMI ($freq)', fmt.format(emi)),
+          _ResultRow('EMI ($freq)', fmt.format(emi)),
         ],
       ),
     );
@@ -593,6 +690,133 @@ class _CalculatorTab extends StatelessWidget {
           Text(value,
               style: AppTypography.body.copyWith(
                   fontWeight: FontWeight.w700, color: AppColors.primary)),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Chit membership card ────────────────────────────
+
+class _ChitMembershipCard extends StatelessWidget {
+  const _ChitMembershipCard({required this.m, required this.fmt});
+  final BorrowerChitMembership m;
+  final NumberFormat fmt;
+
+  @override
+  Widget build(BuildContext context) {
+    final roomLive = m.nextAuctionRoomStatus == 'open' ||
+        m.nextAuctionRoomStatus == 'extended';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppTokens.radius),
+        boxShadow: AppTokens.shadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(m.groupName,
+                        style: AppTypography.sectionTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                    Text(
+                      '${m.groupCode != null ? '${m.groupCode} · ' : ''}'
+                      'Ticket ${m.ticketNo ?? '—'}',
+                      style: AppTypography.caption
+                          .copyWith(color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: m.hasWon ? AppColors.successBg : AppColors.infoBg,
+                  borderRadius: BorderRadius.circular(AppTokens.radiusBadge),
+                ),
+                child: Text(
+                  m.hasWon ? 'Prize won' : 'Active',
+                  style: AppTypography.caption.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: m.hasWon ? AppColors.success : AppColors.info,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _BorrowerKpi(
+                    label: 'Chit Value', value: fmt.format(m.chitValue)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _BorrowerKpi(
+                    label: 'Monthly', value: fmt.format(m.monthlyContrib)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _BorrowerKpi(
+                  label: 'Next Due',
+                  value: m.nextDueDate != null
+                      ? '${DateFormat('dd MMM').format(m.nextDueDate!)}\n${fmt.format(m.nextDueOutstanding)}'
+                      : 'Nothing due',
+                  isAlert: m.nextDueStatus == 'missed',
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _BorrowerKpi(
+                  label: 'Next Auction',
+                  value: m.nextAuctionPeriod != null
+                      ? 'Period ${m.nextAuctionPeriod}'
+                          '${m.nextAuctionDate != null ? '\n${DateFormat('dd MMM').format(m.nextAuctionDate!)}' : ''}'
+                      : '—',
+                ),
+              ),
+            ],
+          ),
+          if (roomLive) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.successBg,
+                borderRadius: BorderRadius.circular(AppTokens.radius),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.podcasts,
+                      size: 16, color: AppColors.success),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Auction room is LIVE — contact your organizer to bid',
+                    style: AppTypography.caption.copyWith(
+                        color: AppColors.success, fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

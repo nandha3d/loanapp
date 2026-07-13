@@ -70,6 +70,15 @@ class BorrowerService {
     return data;
   }
 
+  /// Module summary + chit memberships — drives module-aware routing.
+  Future<BorrowerPortal> getPortal() async {
+    final res = await _dio.get<Map<String, dynamic>>(Endpoints.borrowerPortal);
+    return unwrapEnvelope(
+      res,
+      (dynamic d) => BorrowerPortal.fromJson(d as Map<String, dynamic>),
+    );
+  }
+
   /// Fetch all loans for the authenticated borrower.
   Future<List<BorrowerLoan>> getLoans() async {
     final res = await _dio.get<Map<String, dynamic>>(Endpoints.borrowerLoans);

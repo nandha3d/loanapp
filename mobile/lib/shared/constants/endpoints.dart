@@ -247,6 +247,7 @@ class Endpoints {
   // Borrower portal
   static const String borrowerLogin = '/borrower/auth/login';
   static const String borrowerVerify = '/borrower/auth/verify';
+  static const String borrowerPortal = '/borrower/portal';
   static const String borrowerLoans = '/borrower/loans';
   static const String borrowerPay = '/borrower/pay';
   static const String borrowerLogout = '/borrower/auth/logout';

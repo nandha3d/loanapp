@@ -41,7 +41,9 @@ export default async function BorrowerDashboard() {
     },
   });
 
-  const chitMemberships = loans.length === 0 ? await getMyChitMemberships(session.customerId, session.tenantId) : [];
+  // Module-aware: a customer can belong to loans, chits, or both — never
+  // assume every login is a loan borrower.
+  const chitMemberships = await getMyChitMemberships(session.customerId, session.tenantId);
 
   if (loans.length === 0 && chitMemberships.length === 0) {
     redirect('/borrower/login');
@@ -80,6 +82,7 @@ export default async function BorrowerDashboard() {
         paymentSettings={paymentSettings}
         dict={dict}
       />
+      {chitMemberships.length > 0 && <ChitOnlyPanel memberships={chitMemberships} />}
     </>
   );
 }
