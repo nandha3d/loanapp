@@ -19,16 +19,46 @@ class BorrowerLoginScreen extends ConsumerStatefulWidget {
 
 class _BorrowerLoginScreenState extends ConsumerState<BorrowerLoginScreen> {
   final _phoneCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
   final _otpCtrl = TextEditingController();
+  bool _useOtp = false;
   bool _otpSent = false;
+  bool _obscure = true;
   bool _loading = false;
   String? _error;
 
   @override
   void dispose() {
     _phoneCtrl.dispose();
+    _passwordCtrl.dispose();
     _otpCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loginWithPassword() async {
+    final phone = _phoneCtrl.text.trim();
+    if (phone.length < 10) {
+      setState(() => _error = 'Enter a valid phone number');
+      return;
+    }
+    if (_passwordCtrl.text.isEmpty) {
+      setState(() => _error = 'Enter your password');
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      await ref
+          .read(borrowerServiceProvider)
+          .loginWithPassword(phone, _passwordCtrl.text);
+      if (mounted) context.go('/borrower/dashboard');
+      return;
+    } catch (e) {
+      setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+    }
+    setState(() => _loading = false);
   }
 
   Future<void> _sendOtp() async {
@@ -45,7 +75,7 @@ class _BorrowerLoginScreenState extends ConsumerState<BorrowerLoginScreen> {
       await ref.read(borrowerServiceProvider).login(phone);
       setState(() => _otpSent = true);
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
     }
     setState(() => _loading = false);
   }
@@ -61,14 +91,13 @@ class _BorrowerLoginScreenState extends ConsumerState<BorrowerLoginScreen> {
       _error = null;
     });
     try {
-      final result = await ref
+      await ref
           .read(borrowerServiceProvider)
           .verifyOtp(_phoneCtrl.text.trim(), otp);
-      // Store the borrower token and navigate to dashboard
-      // The token will be stored by the DioClient interceptor
       if (mounted) context.go('/borrower/dashboard');
+      return;
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
     }
     setState(() => _loading = false);
   }
@@ -103,9 +132,11 @@ class _BorrowerLoginScreenState extends ConsumerState<BorrowerLoginScreen> {
                         .copyWith(color: AppColors.textPrimary)),
                 const SizedBox(height: 8),
                 Text(
-                  _otpSent
-                      ? 'Enter the OTP sent to ${_phoneCtrl.text}'
-                      : 'Login with your registered phone number',
+                  _useOtp
+                      ? (_otpSent
+                          ? 'Enter the OTP sent to ${_phoneCtrl.text}'
+                          : 'First-time setup — verify your phone with an OTP')
+                      : 'Login with your registered phone number and password',
                   style: AppTypography.body
                       .copyWith(color: AppColors.textSecondary),
                   textAlign: TextAlign.center,
@@ -124,15 +155,75 @@ class _BorrowerLoginScreenState extends ConsumerState<BorrowerLoginScreen> {
                         style: AppTypography.caption
                             .copyWith(color: AppColors.danger)),
                   ),
-                if (!_otpSent) ...[
+                if (!_useOtp) ...[
                   TextField(
                     controller: _phoneCtrl,
                     decoration: InputDecoration(
                       labelText: 'Phone Number',
                       prefixIcon: const Icon(Icons.phone_outlined),
                       border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(AppTokens.radius),
+                        borderRadius: BorderRadius.circular(AppTokens.radius),
+                      ),
+                    ),
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    maxLength: 10,
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _passwordCtrl,
+                    obscureText: _obscure,
+                    decoration: InputDecoration(
+                      labelText: 'Password',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscure
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                        ),
+                        onPressed: () => setState(() => _obscure = !_obscure),
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppTokens.radius),
+                      ),
+                    ),
+                    onSubmitted: (_) => _loginWithPassword(),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _loading ? null : _loginWithPassword,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppTokens.radius),
+                        ),
+                      ),
+                      child: Text(_loading ? 'Logging in…' : 'Login'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: _loading
+                        ? null
+                        : () => setState(() {
+                              _useOtp = true;
+                              _error = null;
+                            }),
+                    child: const Text('First time or forgot password? Use OTP'),
+                  ),
+                ] else if (!_otpSent) ...[
+                  TextField(
+                    controller: _phoneCtrl,
+                    decoration: InputDecoration(
+                      labelText: 'Phone Number',
+                      prefixIcon: const Icon(Icons.phone_outlined),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppTokens.radius),
                       ),
                     ),
                     keyboardType: TextInputType.phone,
@@ -149,13 +240,21 @@ class _BorrowerLoginScreenState extends ConsumerState<BorrowerLoginScreen> {
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(AppTokens.radius),
+                          borderRadius: BorderRadius.circular(AppTokens.radius),
                         ),
                       ),
-                      child:
-                          Text(_loading ? 'Sending OTP…' : 'Send OTP'),
+                      child: Text(_loading ? 'Sending OTP…' : 'Send OTP'),
                     ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: _loading
+                        ? null
+                        : () => setState(() {
+                              _useOtp = false;
+                              _error = null;
+                            }),
+                    child: const Text('Login with password instead'),
                   ),
                 ] else ...[
                   TextField(
@@ -164,8 +263,7 @@ class _BorrowerLoginScreenState extends ConsumerState<BorrowerLoginScreen> {
                       labelText: 'OTP',
                       prefixIcon: const Icon(Icons.lock_outline),
                       border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(AppTokens.radius),
+                        borderRadius: BorderRadius.circular(AppTokens.radius),
                       ),
                     ),
                     keyboardType: TextInputType.number,
@@ -183,8 +281,7 @@ class _BorrowerLoginScreenState extends ConsumerState<BorrowerLoginScreen> {
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(AppTokens.radius),
+                          borderRadius: BorderRadius.circular(AppTokens.radius),
                         ),
                       ),
                       child: Text(_loading ? 'Verifying…' : 'Verify & Login'),
