@@ -21,7 +21,7 @@ export async function POST(
       where: {
         id,
         tenantId: ctx.tenantId,
-        appType: ctx.appType,
+        appType: 'chitfunds',
         ...scopedBranchWhere(ctx),
         deletedAt: null,
       },

@@ -21,7 +21,7 @@ export async function POST(
       where: {
         id: memberId,
         chitGroupId: id,
-        chitGroup: { tenantId: ctx.tenantId, appType: ctx.appType, ...scopedBranchWhere(ctx), deletedAt: null },
+        chitGroup: { tenantId: ctx.tenantId, appType: 'chitfunds', ...scopedBranchWhere(ctx), deletedAt: null },
       },
     });
     if (!member) return fail('Chit member not found', 404);

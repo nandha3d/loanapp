@@ -21,7 +21,7 @@ export async function GET(
     const scopeWhere = {
       id: auctionId,
       chitGroupId: id,
-      chitGroup: { tenantId: ctx.tenantId, appType: ctx.appType, ...scopedBranchWhere(ctx), deletedAt: null },
+      chitGroup: { tenantId: ctx.tenantId, appType: 'chitfunds', ...scopedBranchWhere(ctx), deletedAt: null },
     };
     const exists = await prisma.chitAuction.findFirst({ where: scopeWhere, select: { id: true } });
     if (!exists) return fail('Auction not found', 404);

@@ -19,7 +19,7 @@ export async function POST(
       tenantId: ctx.tenantId,
       subscription: {
         member: {
-          chitGroup: { id, tenantId: ctx.tenantId, appType: ctx.appType, deletedAt: null, ...scopedBranchWhere(ctx) },
+          chitGroup: { id, tenantId: ctx.tenantId, appType: 'chitfunds', deletedAt: null, ...scopedBranchWhere(ctx) },
         },
       },
     },

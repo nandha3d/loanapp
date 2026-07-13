@@ -12,7 +12,7 @@ export async function GET(
   const ctx = auth.context;
   const { id } = await params;
   const group = await prisma.chitGroup.findFirst({
-    where: { id, tenantId: ctx.tenantId, appType: ctx.appType, deletedAt: null, ...scopedBranchWhere(ctx) },
+    where: { id, tenantId: ctx.tenantId, appType: 'chitfunds', deletedAt: null, ...scopedBranchWhere(ctx) },
     select: { id: true },
   });
   if (!group) return fail('Chit group not found', 404);
@@ -46,7 +46,7 @@ export async function POST(
     where: {
       id: subscriptionId,
       member: {
-        chitGroup: { id, tenantId: ctx.tenantId, appType: ctx.appType, deletedAt: null, ...scopedBranchWhere(ctx) },
+        chitGroup: { id, tenantId: ctx.tenantId, appType: 'chitfunds', deletedAt: null, ...scopedBranchWhere(ctx) },
       },
     },
     include: { member: { include: { chitGroup: true } } },

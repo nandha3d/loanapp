@@ -31,7 +31,7 @@ export async function PATCH(
         chitGroupId: id,
         chitGroup: {
           tenantId: ctx.tenantId,
-          appType: ctx.appType,
+          appType: 'chitfunds',
           ...scopedBranchWhere(ctx),
           deletedAt: null,
         },
@@ -51,7 +51,7 @@ export async function PATCH(
       where: {
         id: documentId,
         tenantId: ctx.tenantId,
-        appType: ctx.appType,
+        appType: 'chitfunds',
         entityType: 'chit_security',
         entityId: security.id,
       },

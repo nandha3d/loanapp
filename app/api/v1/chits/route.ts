@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     const groups = await prisma.chitGroup.findMany({
       where: {
         tenantId: ctx.tenantId,
-        appType: ctx.appType,
+        appType: 'chitfunds',
         ...scopedBranchWhere(ctx),
         deletedAt: null,
       },
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
       const created = await tx.chitGroup.create({
         data: {
           tenantId: ctx.tenantId,
-          appType: ctx.appType,
+          appType: 'chitfunds',
           branchId: branchId || null,
           groupCode,
           name,
@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
           where: {
             id: customerId,
             tenantId: ctx.tenantId,
-            appType: ctx.appType,
+            appType: 'chitfunds',
             deletedAt: null,
             ...(branchId ? { branchId } : {}),
           },

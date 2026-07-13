@@ -25,7 +25,7 @@ export async function POST(
       where: {
         id: auctionId,
         chitGroupId: id,
-        chitGroup: { tenantId: ctx.tenantId, appType: ctx.appType, ...scopedBranchWhere(ctx), deletedAt: null },
+        chitGroup: { tenantId: ctx.tenantId, appType: 'chitfunds', ...scopedBranchWhere(ctx), deletedAt: null },
       },
       include: { chitGroup: true },
     });

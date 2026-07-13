@@ -33,7 +33,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           chitGroupId,
           chitGroup: {
             tenantId: ctx.tenantId,
-            appType: ctx.appType,
+            appType: 'chitfunds',
             ...scopedBranchWhere(ctx),
             deletedAt: null,
           },
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const existingReceipt = await (prisma as any).chitReceipt.findFirst({
         where: {
           tenantId: ctx.tenantId,
-          appType: ctx.appType,
+          appType: 'chitfunds',
           receiptType: 'collection',
           idempotencyKey,
         },
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const result = await prisma.$transaction(async (tx) => {
       return collectChitSubscriptionPayment(tx, {
         tenantId: ctx.tenantId,
-        appType: ctx.appType,
+        appType: 'chitfunds',
         branchId: sub.member.chitGroup.branchId,
         branchCode: sub.member.chitGroup.branch?.code,
         subscriptionId: sub.id,

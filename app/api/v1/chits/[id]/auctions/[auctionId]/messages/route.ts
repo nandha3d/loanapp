@@ -17,7 +17,7 @@ async function findAuction(ctx: any, id: string, auctionId: string) {
       chitGroupId: id,
       chitGroup: {
         tenantId: ctx.tenantId,
-        appType: ctx.appType,
+        appType: 'chitfunds',
         ...scopedBranchWhere(ctx),
         deletedAt: null,
       },

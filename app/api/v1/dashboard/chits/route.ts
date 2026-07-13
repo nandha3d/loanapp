@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
   const baseGroup: any = {
     tenantId: ctx.tenantId,
-    appType: ctx.appType,
+    appType: 'chitfunds',
     ...scopedBranchWhere(ctx),
     deletedAt: null,
   };
@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
         },
       }),
       prisma.approvalRequest.count({
-        where: { tenantId: ctx.tenantId, appType: ctx.appType, status: 'pending' },
+        where: { tenantId: ctx.tenantId, appType: 'chitfunds', status: 'pending' },
       }),
       prisma.chitSubscription.findMany({
         where: { member: memberScope, dueDate: { gte: today, lt: tomorrow } },
@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
       prisma.accountEntry.aggregate({
         where: {
           tenantId: ctx.tenantId,
-          appType: ctx.appType,
+          appType: 'chitfunds',
           type: 'collection',
           referenceType: 'chit_subscription',
           entryDate: { gte: today, lt: tomorrow },

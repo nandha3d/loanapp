@@ -22,7 +22,7 @@ export async function POST(
       where: {
         id: auctionId,
         chitGroupId: id,
-        chitGroup: { tenantId: ctx.tenantId, appType: ctx.appType, ...scopedBranchWhere(ctx), deletedAt: null },
+        chitGroup: { tenantId: ctx.tenantId, appType: 'chitfunds', ...scopedBranchWhere(ctx), deletedAt: null },
       },
       include: {
         chitGroup: { include: { branch: true } },
@@ -64,7 +64,7 @@ export async function POST(
 
     const updated = await prisma.$transaction(async (tx) => {
       const result = await finalizeAuctionInTx(tx, {
-        scope: { tenantId: ctx.tenantId, appType: ctx.appType, userId: ctx.userId },
+        scope: { tenantId: ctx.tenantId, appType: 'chitfunds', userId: ctx.userId },
         auction,
         group: auction.chitGroup,
         branchCode: auction.chitGroup.branch?.code,

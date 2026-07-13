@@ -21,7 +21,7 @@ export async function POST(
 
   try {
     const receipt = await prisma.chitReceipt.findFirst({
-      where: { id: receiptId, tenantId: ctx.tenantId, appType: ctx.appType, status: 'active', ...scopedBranchWhere(ctx) },
+      where: { id: receiptId, tenantId: ctx.tenantId, appType: 'chitfunds', status: 'active', ...scopedBranchWhere(ctx) },
     });
     if (!receipt) return fail('Receipt not found', 404);
     const result = await prisma.$transaction(async (tx) => {
@@ -33,7 +33,7 @@ export async function POST(
         data: {
           tenantId: ctx.tenantId,
           branchId: receipt.branchId,
-          appType: ctx.appType,
+          appType: 'chitfunds',
           receiptNo: reversalNo,
           receiptType: 'reversal',
           entityType: receipt.entityType,
@@ -66,7 +66,7 @@ export async function POST(
         if (receipt.branchId) {
           await reverseChitContributionFromBranch(tx, {
             tenantId: ctx.tenantId,
-            appType: ctx.appType,
+            appType: 'chitfunds',
             branchId: receipt.branchId,
             amount: Number(receipt.amount),
             refId: receipt.id,
@@ -77,7 +77,7 @@ export async function POST(
       await tx.accountEntry.create({
         data: {
           tenantId: ctx.tenantId,
-          appType: ctx.appType,
+          appType: 'chitfunds',
           entryDate: new Date(),
           type: 'reversal',
           category: receipt.paymentMode,

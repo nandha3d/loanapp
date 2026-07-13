@@ -16,7 +16,7 @@ export async function GET(
       where: {
         id: auctionId,
         chitGroupId: id,
-        chitGroup: { tenantId: ctx.tenantId, appType: ctx.appType, ...scopedBranchWhere(ctx), deletedAt: null },
+        chitGroup: { tenantId: ctx.tenantId, appType: 'chitfunds', ...scopedBranchWhere(ctx), deletedAt: null },
       },
     });
     if (!auction) return fail('Auction not found', 404);
@@ -46,7 +46,7 @@ export async function POST(
       where: {
         id: auctionId,
         chitGroupId: id,
-        chitGroup: { tenantId: ctx.tenantId, appType: ctx.appType, ...scopedBranchWhere(ctx), deletedAt: null },
+        chitGroup: { tenantId: ctx.tenantId, appType: 'chitfunds', ...scopedBranchWhere(ctx), deletedAt: null },
       },
       include: { chitGroup: true },
     });

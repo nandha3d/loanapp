@@ -26,7 +26,7 @@ async function loadScopedSecurity(
       chitGroupId: id,
       chitGroup: {
         tenantId: ctx.tenantId,
-        appType: ctx.appType,
+        appType: 'chitfunds',
         ...scopedBranchWhere(ctx),
         deletedAt: null,
       },
@@ -61,7 +61,7 @@ export async function GET(
     const documents = await prisma.chitDocument.findMany({
       where: {
         tenantId: ctx.tenantId,
-        appType: ctx.appType,
+        appType: 'chitfunds',
         entityType: 'chit_security',
         entityId: scoped.security.id,
       },
@@ -97,7 +97,7 @@ export async function POST(
       data: {
         tenantId: ctx.tenantId,
         branchId: scoped.auction.chitGroup.branchId,
-        appType: ctx.appType,
+        appType: 'chitfunds',
         entityType: 'chit_security',
         entityId: scoped.security.id,
         documentType,

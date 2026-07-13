@@ -23,7 +23,7 @@ export async function POST(
       tenantId: ctx.tenantId,
       subscription: {
         member: {
-          chitGroup: { id, tenantId: ctx.tenantId, appType: ctx.appType, deletedAt: null, ...scopedBranchWhere(ctx) },
+          chitGroup: { id, tenantId: ctx.tenantId, appType: 'chitfunds', deletedAt: null, ...scopedBranchWhere(ctx) },
         },
       },
     },
@@ -45,7 +45,7 @@ export async function POST(
       data: {
         tenantId: ctx.tenantId,
         branchId: penalty.branchId || penalty.subscription.member.chitGroup.branchId || undefined,
-        appType: ctx.appType,
+        appType: 'chitfunds',
         receiptNo,
         receiptType: 'penalty',
         entityType: 'penalty',
@@ -60,7 +60,7 @@ export async function POST(
     await tx.accountEntry.create({
       data: {
         tenantId: ctx.tenantId,
-        appType: ctx.appType,
+        appType: 'chitfunds',
         entryDate: new Date(),
         type: 'chit_penalty',
         category: body?.paymentMode || 'cash',
@@ -76,7 +76,7 @@ export async function POST(
     if (branchId) {
       await chitContributionToBranch(tx, {
         tenantId: ctx.tenantId,
-        appType: ctx.appType,
+        appType: 'chitfunds',
         branchId,
         amount,
         refId: penalty.id,

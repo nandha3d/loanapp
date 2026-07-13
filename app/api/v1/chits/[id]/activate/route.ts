@@ -22,7 +22,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   try {
     const group = await prisma.chitGroup.findFirst({
-      where: { id, tenantId: ctx.tenantId, appType: ctx.appType, ...scopedBranchWhere(ctx), deletedAt: null },
+      where: { id, tenantId: ctx.tenantId, appType: 'chitfunds', ...scopedBranchWhere(ctx), deletedAt: null },
     });
     if (!group) return fail('Chit group not found', 404);
     if (group.status === 'active') return fail('Chit group is already active', 409);
