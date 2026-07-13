@@ -66,9 +66,26 @@ export async function GET(
     const highestBid = bids.length
       ? bids.reduce((top, bid) => (bid.bidDiscount > top.bidDiscount ? bid : top), bids[0])
       : null;
-    const minNextDiscount = highestBid && auction.chitGroup.bidIncrement
-      ? roundMoney(highestBid.bidDiscount + Number(auction.chitGroup.bidIncrement))
-      : null;
+    // Minimum discount the NEXT bid must reach. For the very first bid this is
+    // the group's discount floor (min discount %, or commission % when no
+    // explicit floor is set) — otherwise clients would offer a ₹1 discount that
+    // the bid validator rejects. For later bids it's the current best plus the
+    // increment, but never below the floor.
+    const chitValueNum = Number(auction.chitGroup.chitValue);
+    const minPct = auction.chitGroup.minDiscountPct != null
+      ? Number(auction.chitGroup.minDiscountPct)
+      : auction.chitGroup.commissionPct != null
+        ? Number(auction.chitGroup.commissionPct)
+        : 0;
+    const floorDiscount = minPct > 0 ? roundMoney((chitValueNum * minPct) / 100) : 0;
+    const increment = auction.chitGroup.bidIncrement ? Number(auction.chitGroup.bidIncrement) : 0;
+    const minNextDiscount = highestBid
+      ? roundMoney(Math.max(highestBid.bidDiscount + increment, floorDiscount))
+      : floorDiscount > 0
+        ? floorDiscount
+        : increment > 0
+          ? increment
+          : null;
 
     return ok({
       roomStatus: auction.roomStatus,

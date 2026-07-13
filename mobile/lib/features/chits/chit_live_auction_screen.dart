@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,7 @@ import 'package:loantrack/core/a11y/voice_assist.dart';
 import 'package:loantrack/core/currency/currency_controller.dart';
 import 'package:loantrack/core/l10n/app_strings.dart'; // AppLangX.code extension
 import 'package:loantrack/core/l10n/language_controller.dart';
+import 'package:loantrack/core/network/api_exception.dart';
 import 'package:loantrack/core/network/authed_image.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
@@ -18,6 +20,15 @@ import 'package:loantrack/data/models/chit_live.dart' show RoomMessage;
 import 'package:loantrack/data/services/chit_service.dart';
 import 'package:loantrack/features/chits/voice_bid_parser.dart';
 import 'package:loantrack/features/collection/voice_entry_controller.dart';
+
+/// Turn a raw DioException / ApiException into the server's human message
+/// (e.g. "Bid discount must be at least 5%") instead of the developer-facing
+/// "DioException [bad response]: …" dump.
+String _cleanError(Object e) {
+  if (e is ApiException) return e.message;
+  if (e is DioException) return ApiException.fromDio(e).message;
+  return e.toString().replaceFirst('Exception: ', '');
+}
 
 // Table palette — the wooden auction table is deliberately fixed-color (not
 // themed): it mirrors the web live room so both screens read as one product.
@@ -142,7 +153,7 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
       await _poll();
     } catch (e) {
       if (mounted) {
-        setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+        setState(() => _error = _cleanError(e));
       }
     }
     if (mounted) setState(() => _busy = false);
@@ -1729,7 +1740,7 @@ class _RoomChatSheetState extends ConsumerState<_RoomChatSheet> {
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+        setState(() => _error = _cleanError(e));
       }
     }
   }
@@ -1749,7 +1760,7 @@ class _RoomChatSheetState extends ConsumerState<_RoomChatSheet> {
       await _load();
     } catch (e) {
       if (mounted) {
-        setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+        setState(() => _error = _cleanError(e));
       }
     }
     if (mounted) setState(() => _sending = false);

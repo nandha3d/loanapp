@@ -51,6 +51,9 @@ export async function POST(
     });
     return ok(bid);
   } catch (e: any) {
-    return fail(e?.message ?? 'Bid failed', 500);
+    // placeChitBid throws user-actionable business errors (invalid discount,
+    // room not open, member already won, bid-increment, …) — surface them as a
+    // 400 with the message rather than a generic 500.
+    return fail(e?.message ?? 'Bid failed', 400);
   }
 }
