@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
-import { closeRoomIfExpired, secondsRemaining } from '@/lib/chits/liveAuction';
+import { secondsRemaining } from '@/lib/chits/liveAuction';
+import { syncRoom, buildBellState } from '@/lib/chits/bell';
 import { roundMoney } from '@/lib/chits/calculations';
 import { startingDiscountAmount } from '@/lib/chits/validation';
 
@@ -27,10 +28,11 @@ export async function GET(
     const exists = await prisma.chitAuction.findFirst({ where: scopeWhere, select: { id: true } });
     if (!exists) return fail('Auction not found', 404);
 
-    // Lazy close runs before reading room state; polling clients guarantee a request
-    // lands within seconds of expiry, so no cron is needed.
+    // Lazy bell-evaluate + close runs before reading room state; polling clients
+    // guarantee a request lands within seconds of either being due, so no cron
+    // is needed.
     await prisma.$transaction(async (tx) => {
-      await closeRoomIfExpired(tx, auctionId);
+      await syncRoom(tx, auctionId);
     });
 
     const auction = await prisma.chitAuction.findFirst({
@@ -90,10 +92,12 @@ export async function GET(
     const waiting = auction.attendance
       .filter((entry) => entry.admissionStatus === 'waiting')
       .map((entry) => ({ memberId: entry.memberId, name: entry.member.customer.name, ticketNo: entry.member.ticketNo }));
+    const bell = await buildBellState(auction);
 
     return ok({
       roomAdmission: auction.chitGroup.roomAdmission,
       waiting,
+      bell,
       roomStatus: auction.roomStatus,
       auctionStatus: auction.status,
       auctionType: auction.chitGroup.auctionType,

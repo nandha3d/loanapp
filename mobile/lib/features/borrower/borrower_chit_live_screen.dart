@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -58,6 +59,9 @@ class _BorrowerChitLiveScreenState extends ConsumerState<BorrowerChitLiveScreen>
   bool _busy = false;
   String? _error;
   int _pollFailCount = 0;
+  int _lastBellsRung = 0;
+  String? _bellToast;
+  Timer? _bellToastTimer;
 
   final _discountCtrl = TextEditingController();
   final _messageCtrl = TextEditingController();
@@ -74,6 +78,7 @@ class _BorrowerChitLiveScreenState extends ConsumerState<BorrowerChitLiveScreen>
   void dispose() {
     _pollTimer?.cancel();
     _tickTimer?.cancel();
+    _bellToastTimer?.cancel();
     _discountCtrl.dispose();
     _messageCtrl.dispose();
     super.dispose();
@@ -92,6 +97,7 @@ class _BorrowerChitLiveScreenState extends ConsumerState<BorrowerChitLiveScreen>
         _pollFailCount = 0;
         _error = null;
       });
+      _announceBellIfRung(s);
     } catch (_) {
       // Transient — next tick retries. Only surface an error after repeated
       // failures so one dropped request doesn't flash a banner.
@@ -109,6 +115,24 @@ class _BorrowerChitLiveScreenState extends ConsumerState<BorrowerChitLiveScreen>
     final elapsed = DateTime.now().difference(_polledAt).inSeconds;
     final left = _secondsAtPoll - elapsed;
     return left < 0 ? 0 : left;
+  }
+
+  /// Chime (haptic + TTS) + banner when bellsRung increases since the last
+  /// poll — compare against the previous value so an unchanged count never
+  /// re-announces.
+  void _announceBellIfRung(CustomerLiveAuctionState s) {
+    final bell = s.bell;
+    if (bell.bellsRung > _lastBellsRung && bell.bellCount > 0) {
+      final phrase = bell.phrase(winnerTicketNo: s.currentHighestBid?.ticketNo);
+      HapticFeedback.heavyImpact();
+      ref.speak(phrase);
+      _bellToastTimer?.cancel();
+      setState(() => _bellToast = phrase);
+      _bellToastTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) setState(() => _bellToast = null);
+      });
+    }
+    _lastBellsRung = bell.bellsRung;
   }
 
   Future<void> _run(Future<void> Function() fn) async {
@@ -259,6 +283,20 @@ class _BorrowerChitLiveScreenState extends ConsumerState<BorrowerChitLiveScreen>
                 padding: const EdgeInsets.all(16),
                 children: [
                   if (_error != null) _ReconnectBanner(message: _error!),
+                  if (_bellToast != null)
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppColors.warning,
+                        borderRadius: BorderRadius.circular(AppTokens.radius),
+                      ),
+                      child: Text('🔔 $_bellToast',
+                          textAlign: TextAlign.center,
+                          style: AppTypography.body.copyWith(
+                              color: Colors.white, fontWeight: FontWeight.w800)),
+                    ),
                   _RoomStatusCard(state: s, displaySeconds: _displaySeconds, fmt: fmt),
                   const SizedBox(height: 12),
                   _buildBody(s, fmt, voice),

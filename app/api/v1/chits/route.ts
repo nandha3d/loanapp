@@ -119,6 +119,11 @@ export async function POST(req: NextRequest) {
           bidIncrement: body?.bidIncrement == null ? null : Number(body.bidIncrement),
           tieBreakRule: body?.tieBreakRule ?? 'EARLIEST_BID',
           hasForemanTicket: Boolean(body?.hasForemanTicket),
+          roomAdmission: body?.roomAdmission === 'approval' ? 'approval' : 'auto',
+          bellEnabled: body?.bellEnabled == null ? true : Boolean(body.bellEnabled),
+          bellIntervalSeconds: body?.bellIntervalSeconds == null ? 60 : Number(body.bellIntervalSeconds),
+          bellCount: body?.bellCount == null ? 3 : Number(body.bellCount),
+          bellAutoClose: body?.bellAutoClose == null ? true : Boolean(body.bellAutoClose),
           remarks: body?.remarks ?? null,
         },
       });

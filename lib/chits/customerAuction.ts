@@ -3,7 +3,8 @@
 // lookup here is scoped to the calling customer's own membership; never trust
 // a memberId supplied by the request body (mirrors lib/chits/customerPortal.ts).
 import prisma from '@/lib/db';
-import { closeRoomIfExpired, isRoomOpen, secondsRemaining } from './liveAuction';
+import { isRoomOpen, secondsRemaining } from './liveAuction';
+import { syncRoom, buildBellState } from './bell';
 import { roundMoney } from './calculations';
 import { startingDiscountAmount } from './validation';
 
@@ -30,7 +31,7 @@ export async function findOwnLiveAuction(customerId: string, tenantId: string, g
 
 export async function buildCustomerLiveState(groupId: string, auctionId: string, memberId: string) {
   await prisma.$transaction(async (tx) => {
-    await closeRoomIfExpired(tx, auctionId);
+    await syncRoom(tx, auctionId);
   });
 
   const auction = await prisma.chitAuction.findFirst({
@@ -117,6 +118,8 @@ export async function buildCustomerLiveState(groupId: string, auctionId: string,
     select: { id: true, senderName: true, body: true, createdAt: true },
   });
 
+  const bell = await buildBellState(auction);
+
   return {
     roomStatus: auction.roomStatus,
     auctionStatus: auction.status,
@@ -126,6 +129,7 @@ export async function buildCustomerLiveState(groupId: string, auctionId: string,
     biddingClosesAt: auction.biddingClosesAt,
     secondsRemaining: secondsRemaining(auction, now),
     autoExtendSeconds: auction.autoExtendSeconds,
+    bell,
     chitValue: chitValueNum,
     minDiscountPct: auction.chitGroup.minDiscountPct != null ? Number(auction.chitGroup.minDiscountPct) : null,
     maxDiscountPct: auction.chitGroup.maxDiscountPct != null ? Number(auction.chitGroup.maxDiscountPct) : null,

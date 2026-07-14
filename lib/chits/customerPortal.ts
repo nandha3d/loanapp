@@ -3,7 +3,8 @@
 // only ever surfaces here if it belongs to the requesting customerId; never
 // trust a memberId/groupId supplied by the caller without this ownership check.
 import prisma from '@/lib/db';
-import { closeRoomIfExpired, isRoomOpen, secondsRemaining } from './liveAuction';
+import { isRoomOpen, secondsRemaining } from './liveAuction';
+import { syncRoom } from './bell';
 
 export async function getMyChitMemberships(customerId: string, tenantId: string) {
   const members = await prisma.chitMember.findMany({
@@ -80,7 +81,7 @@ export async function getMyChitAuctionStatus(customerId: string, groupId: string
   if (!member) throw new Error('You are not a member of this chit group');
 
   await prisma.$transaction(async (tx) => {
-    await closeRoomIfExpired(tx, auctionId);
+    await syncRoom(tx, auctionId);
   });
 
   const auction = await prisma.chitAuction.findFirst({

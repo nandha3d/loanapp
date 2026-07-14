@@ -44,6 +44,9 @@ export async function openAuctionRoom(tx: any, params: {
       autoExtendSeconds: params.autoExtendSeconds ?? 0,
       status: 'in_progress',
       startedAt: now,
+      // Bell countdown starts fresh every time the room opens (doc 14).
+      bellAnchorAt: now,
+      bellsRung: 0,
     },
   });
 }

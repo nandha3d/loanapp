@@ -17,6 +17,7 @@ import {
   releasePrizePayout,
   retractLiveMemberBid,
   reviewChitSecurityDocument,
+  ringLiveBell,
   submitChitSecurity,
 } from '../../../actions';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -64,6 +65,15 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollFailCountRef = useRef(0);
   const [clockNow, setClockNow] = useState<Date | null>(null);
+  const prevBellsRungRef = useRef(0);
+  const [bellToast, setBellToast] = useState('');
+  const bellToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const bellPhrase = (n: number, count: number, ticketNo?: string | null) => {
+    if (n >= count) return ticketNo ? `Sold to ticket #${ticketNo}!` : 'Sold!';
+    if (n === count - 1) return 'Going twice!';
+    return 'Going once!';
+  };
 
   // Wall-clock corner display — client-only (null on first render) so SSR/CSR text never mismatches.
   useEffect(() => {
@@ -83,6 +93,30 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
         const state = await getLiveAuctionState(auction.id);
         pollFailCountRef.current = 0;
         setLive(state);
+        // Chime + toast when bellsRung increases since the last poll — compare
+        // against the previous value so an unchanged count never re-chimes.
+        const rung = state.bell?.bellsRung ?? 0;
+        const count = state.bell?.bellCount ?? 0;
+        if (rung > prevBellsRungRef.current && count > 0) {
+          setBellToast(bellPhrase(rung, count, state.highestBid?.ticketNo));
+          try {
+            const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+            if (AudioCtx) {
+              const ctx = new AudioCtx();
+              const osc = ctx.createOscillator();
+              const gain = ctx.createGain();
+              osc.frequency.value = 880;
+              gain.gain.setValueAtTime(0.15, ctx.currentTime);
+              gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+              osc.connect(gain).connect(ctx.destination);
+              osc.start();
+              osc.stop(ctx.currentTime + 0.4);
+            }
+          } catch { /* audio is a nicety, never block the room on it */ }
+          if (bellToastTimerRef.current) clearTimeout(bellToastTimerRef.current);
+          bellToastTimerRef.current = setTimeout(() => setBellToast(''), 3500);
+        }
+        prevBellsRungRef.current = rung;
         if (state.roomStatus === 'closed' && pollRef.current) {
           clearInterval(pollRef.current);
           pollRef.current = null;
@@ -100,6 +134,7 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
     pollRef.current = setInterval(tick, 1500);
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
+      if (bellToastTimerRef.current) clearTimeout(bellToastTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLive, locked, auction.id, auction.roomStatus]);
@@ -203,11 +238,36 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
                       </div>
                     )}
                     {hideBidAmounts && <div>{live?.bidCount ?? 0} sealed bid(s) received</div>}
+                    {live?.bell?.enabled && (
+                      <span className="badge badge-secondary" title="Going once / going twice / sold">
+                        🔔 {live.bell.bellsRung}/{live.bell.bellCount}
+                        {live.bell.bellsRung >= live.bell.bellCount && !live.bell.autoClose ? ' — awaiting manual close' : ''}
+                      </span>
+                    )}
                   </div>
-                  <button className="btn btn-danger btn-sm" disabled={busy === 'close-room'} onClick={() => run('close-room', () => closeLiveRoom(auction.id))}>
-                    {busy === 'close-room' ? 'Closing…' : 'Close room now'}
-                  </button>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {live?.bell?.enabled && (live?.bell?.bellsRung ?? 0) < (live?.bell?.bellCount ?? 0) && (
+                      <button className="btn btn-secondary btn-sm" disabled={busy === 'ring-bell'} onClick={() => run('ring-bell', () => ringLiveBell(auction.id))}>
+                        {busy === 'ring-bell' ? 'Ringing…' : '🔔 Ring bell'}
+                      </button>
+                    )}
+                    <button className="btn btn-danger btn-sm" disabled={busy === 'close-room'} onClick={() => run('close-room', () => closeLiveRoom(auction.id))}>
+                      {busy === 'close-room' ? 'Closing…' : 'Close room now'}
+                    </button>
+                  </div>
                 </div>
+
+                {bellToast && (
+                  <div
+                    style={{
+                      textAlign: 'center', padding: '10px 16px', marginBottom: '12px',
+                      background: 'linear-gradient(135deg, #7c2d12, #b45309)', color: '#fff',
+                      borderRadius: '10px', fontWeight: 700, fontSize: '1.1rem', letterSpacing: '0.3px',
+                    }}
+                  >
+                    🔔 {bellToast}
+                  </div>
+                )}
 
                 {/* Poker Table Visual Room with Avatars & Green Dot */}
                 <div style={{ position: 'relative', width: '100%', maxWidth: '1080px', aspectRatio: '2712 / 1536', borderRadius: '28px', overflow: 'hidden', border: '3px solid #334155', boxShadow: '0 24px 48px rgba(0,0,0,0.55)', margin: '28px auto 40px auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

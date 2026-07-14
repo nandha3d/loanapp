@@ -81,6 +81,9 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
   DateTime _polledAt = DateTime.now();
   String? _lastAnnouncedBidId;
   bool _announcedWinner = false;
+  int _lastBellsRung = 0;
+  String? _bellToast;
+  Timer? _bellToastTimer;
 
   @override
   void initState() {
@@ -96,6 +99,7 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
   void dispose() {
     _pollTimer?.cancel();
     _tickTimer?.cancel();
+    _bellToastTimer?.cancel();
     super.dispose();
   }
 
@@ -112,9 +116,41 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
       });
       _announceLeader(state);
       _announceWinnerIfAny(state);
+      _announceBellIfRung(state);
     } catch (_) {
       // transient — next tick retries
     }
+  }
+
+  /// Chime (haptic + TTS) + banner when bellsRung increases since the last
+  /// poll — compare against the previous value so an unchanged count never
+  /// re-announces.
+  void _announceBellIfRung(Map<String, dynamic> state) {
+    final bell = state['bell'] as Map<String, dynamic>?;
+    final rung = (bell?['bellsRung'] as num?)?.toInt() ?? 0;
+    final count = (bell?['bellCount'] as num?)?.toInt() ?? 0;
+    if (rung > _lastBellsRung && count > 0) {
+      final highest = state['highestBid'] as Map<String, dynamic>?;
+      final ticketNo = highest?['ticketNo'] as String?;
+      final phrase = rung >= count
+          ? (ticketNo != null ? 'Sold to ticket #$ticketNo!' : 'Sold!')
+          : (rung == count - 1 ? 'Going twice!' : 'Going once!');
+      HapticFeedback.heavyImpact();
+      ref.speak(phrase);
+      _bellToastTimer?.cancel();
+      setState(() => _bellToast = phrase);
+      _bellToastTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) setState(() => _bellToast = null);
+      });
+    }
+    _lastBellsRung = rung;
+  }
+
+  Future<void> _ringBell() async {
+    HapticFeedback.mediumImpact();
+    await _run(() => _svc
+        .roomAction(widget.groupId, widget.auctionId, action: 'ring')
+        .then((_) {}));
   }
 
   int get _displaySeconds {
@@ -944,6 +980,16 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
                         style: AppTypography.caption
                             .copyWith(color: AppColors.danger)),
                   ),
+                if (_bellToast != null)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    color: AppColors.warning,
+                    child: Text('🔔 $_bellToast',
+                        textAlign: TextAlign.center,
+                        style: AppTypography.body.copyWith(
+                            color: Colors.white, fontWeight: FontWeight.w800)),
+                  ),
                 _InfoStrip(
                   presentCount: _presentCount,
                   totalMembers: _totalMembers,
@@ -953,6 +999,8 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
                       widget.isAdmin && !_busy ? _showAttendanceSheet : null,
                   onBids: () => setState(() => _showMinutes = true),
                   onChat: _openChat,
+                  bell: _live?['bell'] as Map<String, dynamic>?,
+                  onRingBell: widget.isAdmin && !_busy ? _ringBell : null,
                 ),
                 Expanded(
                   child: _PokerTable(
@@ -1067,6 +1115,8 @@ class _InfoStrip extends StatelessWidget {
     required this.onAttendance,
     required this.onBids,
     required this.onChat,
+    this.bell,
+    this.onRingBell,
   });
   final int presentCount;
   final int totalMembers;
@@ -1075,9 +1125,14 @@ class _InfoStrip extends StatelessWidget {
   final VoidCallback? onAttendance;
   final VoidCallback onBids;
   final VoidCallback onChat;
+  final Map<String, dynamic>? bell;
+  final VoidCallback? onRingBell;
 
   @override
   Widget build(BuildContext context) {
+    final bellEnabled = bell?['enabled'] as bool? ?? false;
+    final bellsRung = (bell?['bellsRung'] as num?)?.toInt() ?? 0;
+    final bellCount = (bell?['bellCount'] as num?)?.toInt() ?? 0;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
       child: Row(
@@ -1093,6 +1148,14 @@ class _InfoStrip extends StatelessWidget {
             label: sealed ? '$bidCount sealed' : '$bidCount bids',
             onTap: onBids,
           ),
+          if (bellEnabled) ...[
+            const SizedBox(width: 8),
+            _chip(
+              icon: Icons.notifications_active_rounded,
+              label: '🔔 $bellsRung/$bellCount',
+              onTap: bellsRung < bellCount ? onRingBell : null,
+            ),
+          ],
           const Spacer(),
           _chip(
             icon: Icons.forum_rounded,

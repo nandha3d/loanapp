@@ -9,6 +9,49 @@ double? _dn(dynamic v) =>
 int _i(dynamic v) =>
     v == null ? 0 : (v is num ? v.toInt() : int.tryParse(v.toString()) ?? 0);
 
+/// Organizer bell ("going once / going twice / sold") state — shared shape
+/// returned by both the staff and customer live-room poll payloads.
+class ChitBellState {
+  const ChitBellState({
+    required this.enabled,
+    required this.bellsRung,
+    required this.bellCount,
+    required this.intervalSeconds,
+    required this.autoClose,
+  });
+
+  final bool enabled;
+  final int bellsRung;
+  final int bellCount;
+  final int intervalSeconds;
+  final bool autoClose;
+
+  bool get finalBellRung => bellsRung >= bellCount && bellCount > 0;
+
+  factory ChitBellState.fromJson(Map<String, dynamic>? j) {
+    if (j == null) {
+      return const ChitBellState(enabled: false, bellsRung: 0, bellCount: 0, intervalSeconds: 60, autoClose: true);
+    }
+    return ChitBellState(
+      enabled: (j['enabled'] as bool?) ?? false,
+      bellsRung: _i(j['bellsRung']),
+      bellCount: _i(j['bellCount']),
+      intervalSeconds: _i(j['intervalSeconds']),
+      autoClose: (j['autoClose'] as bool?) ?? true,
+    );
+  }
+
+  /// "Going once!" / "Going twice!" / "Sold to ticket #X!" — mirrors the
+  /// web's bellPhrase helper so the wording matches across clients.
+  String phrase({String? winnerTicketNo}) {
+    if (bellsRung >= bellCount) {
+      return winnerTicketNo != null ? 'Sold to ticket #$winnerTicketNo!' : 'Sold!';
+    }
+    if (bellsRung == bellCount - 1) return 'Going twice!';
+    return 'Going once!';
+  }
+}
+
 /// The current leading (lowest-prize) bid.
 class CurrentBest {
   const CurrentBest({
@@ -463,6 +506,7 @@ class CustomerLiveAuctionState {
     this.winnerIsMe = false,
     this.latestMessages = const [],
     this.seats = const [],
+    this.bell = const ChitBellState(enabled: false, bellsRung: 0, bellCount: 0, intervalSeconds: 60, autoClose: true),
   });
 
   final String roomStatus; // scheduled | open | extended | closed
@@ -487,6 +531,7 @@ class CustomerLiveAuctionState {
   final String? winnerTicketNo;
   final bool winnerIsMe;
   final List<RoomMessage> latestMessages;
+  final ChitBellState bell;
 
   bool get roomLive => roomStatus == 'open' || roomStatus == 'extended';
 
@@ -544,6 +589,7 @@ class CustomerLiveAuctionState {
           : seatsRaw
               .map((dynamic e) => CustomerSeat.fromJson(e as Map<String, dynamic>))
               .toList(growable: false),
+      bell: ChitBellState.fromJson(j['bell'] as Map<String, dynamic>?),
     );
   }
 }

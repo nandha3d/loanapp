@@ -1,7 +1,8 @@
 // Single source of truth for placing a chit-auction bid — shared by the staff
 // web dashboard action and the mobile REST route so both write bids the same
 // way (eligibility, discount limits, anti-snipe, source/transcript audit).
-import { antiSnipeExtension, closeRoomIfExpired, isRoomOpen } from './liveAuction';
+import { antiSnipeExtension, isRoomOpen } from './liveAuction';
+import { syncRoom } from './bell';
 import { assertValidPrizeAmount } from './validation';
 import { roundMoney } from './calculations';
 
@@ -63,9 +64,10 @@ export async function placeChitBid(tx: any, params: PlaceChitBidParams) {
   });
   const bidDiscount = Number(auction.chitGroup.chitValue) - prizeAmount;
 
-  // Live room: lazily close on expiry, require an open room, apply anti-snipe extension.
+  // Live room: lazily evaluate bells + close on expiry, require an open room,
+  // apply anti-snipe extension.
   if (auction.chitGroup.auctionType === 'open_live') {
-    await closeRoomIfExpired(tx, auction.id);
+    await syncRoom(tx, auction.id);
     const fresh = await tx.chitAuction.findUnique({
       where: { id: auction.id },
       select: { roomStatus: true, biddingClosesAt: true, autoExtendSeconds: true },
@@ -115,7 +117,12 @@ export async function placeChitBid(tx: any, params: PlaceChitBidParams) {
   });
   await tx.chitAuction.update({
     where: { id: auction.id },
-    data: { status: auction.status === 'pending' ? 'in_progress' : auction.status, startedAt: auction.startedAt ?? new Date() },
+    data: {
+      status: auction.status === 'pending' ? 'in_progress' : auction.status,
+      startedAt: auction.startedAt ?? new Date(),
+      // A new bid means the "going once/twice/sold" countdown starts over.
+      ...(auction.chitGroup.auctionType === 'open_live' ? { bellAnchorAt: new Date(), bellsRung: 0 } : {}),
+    },
   });
   return created;
 }

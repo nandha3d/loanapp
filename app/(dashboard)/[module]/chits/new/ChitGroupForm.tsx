@@ -42,6 +42,8 @@ export default function ChitGroupForm({
   const [startDate, setStartDate] = useState('');
   const [bidStartAtCommission, setBidStartAtCommission] = useState(true);
   const [commissionPct, setCommissionPct] = useState(5);
+  const [bellEnabled, setBellEnabled] = useState(true);
+  const [bellAutoClose, setBellAutoClose] = useState(true);
   const [hasForemanTicket, setHasForemanTicket] = useState(false);
   const [winnerInterestType, setWinnerInterestType] = useState('NONE');
   const [winnerInterestValue, setWinnerInterestValue] = useState(0);
@@ -454,6 +456,36 @@ export default function ChitGroupForm({
               <option value="approval">Organizer approves each joiner</option>
             </select>
             <p style={hintStyle}>With approval, subscribers wait in a lobby until you admit them.</p>
+          </div>
+          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+            <input type="hidden" name="bellEnabled" value={String(bellEnabled)} />
+            <input type="hidden" name="bellAutoClose" value={String(bellAutoClose)} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '.85rem' }}>
+              <input type="checkbox" checked={bellEnabled} onChange={(e) => setBellEnabled(e.target.checked)} />
+              Organizer bell (going once / going twice / sold)
+            </label>
+            {bellEnabled && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginTop: '8px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '.85rem' }}>
+                  Interval
+                  <input name="bellIntervalSeconds" type="number" className="form-control" style={{ width: '80px' }} defaultValue={60} min={5} />
+                  sec
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '.85rem' }}>
+                  Ring count
+                  <input name="bellCount" type="number" className="form-control" style={{ width: '70px' }} defaultValue={3} min={1} max={10} />
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '.85rem' }}>
+                  <input type="checkbox" checked={bellAutoClose} onChange={(e) => setBellAutoClose(e.target.checked)} />
+                  Auto-close room on final bell
+                </label>
+              </div>
+            )}
+            <p style={hintStyle}>
+              {bellEnabled
+                ? 'A new bid resets the countdown. This is a per-group default — set once here, not per auction.'
+                : 'The room stays open with no bell countdown; close it manually.'}
+            </p>
           </div>
           <div className="form-group">
             <label className="form-label">Winner interest</label>

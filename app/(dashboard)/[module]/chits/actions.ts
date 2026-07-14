@@ -23,11 +23,11 @@ import { finalizeAuctionInTx } from '@/lib/chits/finalize';
 import {
   antiSnipeExtension,
   closeAuctionRoom,
-  closeRoomIfExpired,
   isRoomOpen,
   openAuctionRoom,
   secondsRemaining,
 } from '@/lib/chits/liveAuction';
+import { syncRoom, ringBellManually, buildBellState } from '@/lib/chits/bell';
 import { placeChitBid } from '@/lib/chits/bidService';
 import { releaseChitPrizePayout } from '@/lib/chits/payout';
 import { assertCanReleasePrizePayout } from '@/lib/chits/security';
@@ -136,6 +136,10 @@ export async function createChitGroup(formData: FormData) {
   const winnerInterestValue = numberValue(formData, 'winnerInterestValue');
   const winnerInterestPeriods = numberValue(formData, 'winnerInterestPeriods');
   const roomAdmission = value(formData, 'roomAdmission') === 'approval' ? 'approval' : 'auto';
+  const bellEnabled = value(formData, 'bellEnabled') !== 'false';
+  const bellIntervalSeconds = numberValue(formData, 'bellIntervalSeconds', 60) ?? 60;
+  const bellCount = numberValue(formData, 'bellCount', 3) ?? 3;
+  const bellAutoClose = value(formData, 'bellAutoClose') !== 'false';
   validateChitConfig({
     auctionType: value(formData, 'auctionType') ?? 'open_manual',
     commissionBasis: value(formData, 'commissionBasis') ?? 'BID_DISCOUNT',
@@ -220,6 +224,10 @@ export async function createChitGroup(formData: FormData) {
         winnerInterestValue: winnerInterestType === 'NONE' ? null : winnerInterestValue,
         winnerInterestPeriods: winnerInterestType === 'NONE' ? null : winnerInterestPeriods,
         roomAdmission,
+        bellEnabled,
+        bellIntervalSeconds,
+        bellCount,
+        bellAutoClose,
         hasForemanTicket: value(formData, 'hasForemanTicket') === 'true',
         remarks: value(formData, 'remarks'),
       },
@@ -1045,7 +1053,7 @@ export async function openLiveRoom(auctionId: string, durationMinutes = 30, auto
   if (['confirmed', 'paid', 'cancelled'].includes(auction.status)) throw new Error('Auction is locked');
 
   await prisma.$transaction(async (tx) => {
-    await closeRoomIfExpired(tx, auctionId);
+    await syncRoom(tx, auctionId);
     const fresh = await tx.chitAuction.findUnique({ where: { id: auctionId }, select: { roomStatus: true } });
     if (fresh && ['open', 'extended'].includes(fresh.roomStatus)) throw new Error('Room is already open');
     await openAuctionRoom(tx, { auctionId, durationMinutes, autoExtendSeconds });
@@ -1082,8 +1090,24 @@ export async function closeLiveRoom(auctionId: string) {
   revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}`));
 }
 
-// Poll target for the web live auction room (2-3s interval). Lazily closes an
-// expired room, then returns server-clock-driven room state.
+// Manual bell ring — staff-only. Re-anchors the automatic bell countdown so
+// the next automatic ring lands exactly one interval after this one.
+export async function ringLiveBell(auctionId: string) {
+  const scope = await getWebChitScope();
+  assertChitRole(scope.role, ['admin', 'superadmin', 'developer']);
+  const auction = await prisma.chitAuction.findFirst({
+    where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
+  });
+  if (!auction) throw new Error('Auction not found');
+  await prisma.$transaction(async (tx) => {
+    await syncRoom(tx, auctionId);
+    await ringBellManually(tx, auctionId, scope.userId ?? null);
+  });
+  revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}`));
+}
+
+// Poll target for the web live auction room (2-3s interval). Lazily evaluates
+// bells + closes an expired room, then returns server-clock-driven room state.
 export async function getLiveAuctionState(auctionId: string) {
   const scope = await getWebChitScope();
   const exists = await prisma.chitAuction.findFirst({
@@ -1093,7 +1117,7 @@ export async function getLiveAuctionState(auctionId: string) {
   if (!exists) throw new Error('Auction not found');
 
   await prisma.$transaction(async (tx) => {
-    await closeRoomIfExpired(tx, auctionId);
+    await syncRoom(tx, auctionId);
   });
 
   const auction = await prisma.chitAuction.findFirst({
@@ -1178,6 +1202,7 @@ export async function getLiveAuctionState(auctionId: string) {
     select: { memberId: true, member: { select: { customer: { select: { name: true } } } } },
   });
   const waiting = waitingRows.map((w) => ({ memberId: w.memberId, name: w.member?.customer?.name ?? '—' }));
+  const bell = await buildBellState(auction);
 
   return {
     roomStatus: auction.roomStatus,
@@ -1185,6 +1210,7 @@ export async function getLiveAuctionState(auctionId: string) {
     serverTime: now.toISOString(),
     biddingClosesAt: auction.biddingClosesAt?.toISOString() ?? null,
     secondsRemaining: secondsRemaining(auction, now),
+    bell,
     bidCount: auction.bids.length,
     bids,
     recentBids: bids.slice(0, 20),

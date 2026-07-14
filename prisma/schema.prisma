@@ -1217,6 +1217,12 @@ model ChitGroup {
   // Live-room admission policy: 'auto' admits joiners instantly; 'approval'
   // parks them in a waiting room until the organizer admits/denies.
   roomAdmission           String        @default("auto") @map("room_admission")
+  // Organizer bell ("going once/twice/sold"): manual + automatic ring after a
+  // quiet interval; bellAutoClose closes the room on the final bell.
+  bellEnabled             Boolean       @default(true) @map("bell_enabled")
+  bellIntervalSeconds     Int           @default(60) @map("bell_interval_seconds")
+  bellCount               Int           @default(3) @map("bell_count")
+  bellAutoClose           Boolean       @default(true) @map("bell_auto_close")
   hasForemanTicket        Boolean       @default(false) @map("has_foreman_ticket")
   createdAt               DateTime      @default(now()) @map("created_at")
   updatedAt               DateTime      @updatedAt @map("updated_at")
@@ -1282,6 +1288,10 @@ model ChitAuction {
   biddingClosesAt  DateTime?               @map("bidding_closes_at")
   autoExtendSeconds Int                    @default(0) @map("auto_extend_seconds")
   roomStatus       String                  @default("scheduled") @map("room_status")
+  // Bell anchor resets on room open + every accepted bid; the lazy evaluator
+  // (lib/chits/bell.ts) derives bellsRung from wall-clock time since this.
+  bellAnchorAt     DateTime?               @map("bell_anchor_at")
+  bellsRung        Int                     @default(0) @map("bells_rung")
   winnerMemberId   String?                 @map("winner_member_id")
   prizeAmount      Decimal?                @map("prize_amount") @db.Decimal(14, 2)
   bidDiscount      Decimal?                @map("bid_discount") @db.Decimal(14, 2)

@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
-import { closeAuctionRoom, closeRoomIfExpired, openAuctionRoom } from '@/lib/chits/liveAuction';
+import { closeAuctionRoom, openAuctionRoom } from '@/lib/chits/liveAuction';
+import { syncRoom, ringBellManually } from '@/lib/chits/bell';
 import { createChitAudit } from '@/lib/chits/audit';
 
 // Open or close the live bidding room for an open_live auction. Closing (manual or
@@ -18,7 +19,7 @@ export async function POST(
   const { id, auctionId } = await params;
   const body = await req.json().catch(() => null) as any;
   const action = body?.action ? String(body.action) : '';
-  if (!['open', 'close'].includes(action)) return fail('action must be open or close', 400);
+  if (!['open', 'close', 'ring'].includes(action)) return fail('action must be open, close, or ring', 400);
 
   try {
     const auction = await prisma.chitAuction.findFirst({
@@ -33,8 +34,20 @@ export async function POST(
     if (auction.chitGroup.auctionType !== 'open_live') return fail('Live room is only available for open_live chits', 400);
     if (['confirmed', 'paid', 'cancelled'].includes(auction.status)) return fail('Auction is locked', 409);
 
+    if (action === 'ring') {
+      await prisma.$transaction(async (tx) => {
+        await syncRoom(tx, auctionId);
+        await ringBellManually(tx, auctionId, ctx.userId);
+      });
+      const fresh = await prisma.chitAuction.findUnique({
+        where: { id: auctionId },
+        select: { roomStatus: true, bellsRung: true, bellAnchorAt: true },
+      });
+      return ok({ roomStatus: fresh?.roomStatus, bellsRung: fresh?.bellsRung, bellAnchorAt: fresh?.bellAnchorAt });
+    }
+
     const updated = await prisma.$transaction(async (tx) => {
-      await closeRoomIfExpired(tx, auctionId);
+      await syncRoom(tx, auctionId);
       if (action === 'open') {
         const fresh = await tx.chitAuction.findUnique({ where: { id: auctionId }, select: { roomStatus: true } });
         if (fresh && ['open', 'extended'].includes(fresh.roomStatus)) throw new Error('Room is already open');

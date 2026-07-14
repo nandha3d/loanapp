@@ -113,6 +113,11 @@ export async function PUT(
     if (body?.frequencyInterval !== undefined) data.frequencyInterval = body.frequencyInterval == null ? null : Number(body.frequencyInterval);
     if (body?.frequencyWeekdays !== undefined) data.frequencyWeekdays = body.frequencyWeekdays;
     if (body?.bidStartAtCommission != null) data.bidStartAtCommission = Boolean(body.bidStartAtCommission);
+    if (body?.roomAdmission != null) data.roomAdmission = body.roomAdmission === 'approval' ? 'approval' : 'auto';
+    if (body?.bellEnabled != null) data.bellEnabled = Boolean(body.bellEnabled);
+    if (body?.bellIntervalSeconds != null) data.bellIntervalSeconds = Number(body.bellIntervalSeconds);
+    if (body?.bellCount != null) data.bellCount = Number(body.bellCount);
+    if (body?.bellAutoClose != null) data.bellAutoClose = Boolean(body.bellAutoClose);
     if (body?.auctionMode != null) data.auctionMode = body.auctionMode;
     if (body?.auctionDay !== undefined) data.auctionDay = body.auctionDay == null ? null : Number(body.auctionDay);
     if (body?.commissionBasis != null) data.commissionBasis = body.commissionBasis;
