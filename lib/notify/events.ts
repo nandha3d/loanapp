@@ -14,8 +14,12 @@ export type EventKey =
   | 'loan_overdue'
   | 'loan_closed'
   | 'penalty_accrued'
+  | 'chit_contribution_received'
+  | 'chit_subscription_due'
   | 'chit_auction_reminder_day'
-  | 'chit_auction_reminder_hour';
+  | 'chit_auction_reminder_hour'
+  | 'chit_auction_result'
+  | 'chit_dividend_posted';
 
 const MESSAGES: Record<EventKey, Record<string, (d: Record<string, string>) => string>> = {
   payment_received: {
@@ -48,6 +52,16 @@ const MESSAGES: Record<EventKey, Record<string, (d: Record<string, string>) => s
     ta: d => `வணக்கம் ${d.name}, கடன் ${d.loanCode}க்கு ₹${d.penalty} அபராதம் சேர்க்கப்பட்டது. -${d.orgName}`,
     hi: d => `नमस्ते ${d.name}, ऋण ${d.loanCode} पर ₹${d.penalty} जुर्माना जोड़ा गया। -${d.orgName}`,
   },
+  chit_contribution_received: {
+    en: d => `Hi ${d.name}, contribution of ₹${d.amount} received for ${d.groupName}, ticket ${d.ticketNo}. -${d.orgName}`,
+    ta: d => `Hi ${d.name}, contribution of ₹${d.amount} received for ${d.groupName}, ticket ${d.ticketNo}. -${d.orgName}`,
+    hi: d => `Hi ${d.name}, contribution of ₹${d.amount} received for ${d.groupName}, ticket ${d.ticketNo}. -${d.orgName}`,
+  },
+  chit_subscription_due: {
+    en: d => `Hi ${d.name}, chit subscription of ₹${d.amount} for ${d.groupName} is due on ${d.date}. -${d.orgName}`,
+    ta: d => `Hi ${d.name}, chit subscription of ₹${d.amount} for ${d.groupName} is due on ${d.date}. -${d.orgName}`,
+    hi: d => `Hi ${d.name}, chit subscription of ₹${d.amount} for ${d.groupName} is due on ${d.date}. -${d.orgName}`,
+  },
   chit_auction_reminder_day: {
     en: d => `Hi ${d.name}, chit auction for ${d.groupName} period ${d.periodNumber} is scheduled at ${d.scheduledAt}. Please join the live room. -${d.orgName}`,
     ta: d => `Hi ${d.name}, chit auction for ${d.groupName} period ${d.periodNumber} is scheduled at ${d.scheduledAt}. Please join the live room. -${d.orgName}`,
@@ -57,6 +71,16 @@ const MESSAGES: Record<EventKey, Record<string, (d: Record<string, string>) => s
     en: d => `Hi ${d.name}, chit auction for ${d.groupName} period ${d.periodNumber} starts at ${d.scheduledAt}. Please join the live room. -${d.orgName}`,
     ta: d => `Hi ${d.name}, chit auction for ${d.groupName} period ${d.periodNumber} starts at ${d.scheduledAt}. Please join the live room. -${d.orgName}`,
     hi: d => `Hi ${d.name}, chit auction for ${d.groupName} period ${d.periodNumber} starts at ${d.scheduledAt}. Please join the live room. -${d.orgName}`,
+  },
+  chit_auction_result: {
+    en: d => `Hi ${d.name}, ${d.winnerName} won the ${d.groupName} auction for period ${d.periodNumber}. Prize: ₹${d.prizeAmount}. -${d.orgName}`,
+    ta: d => `Hi ${d.name}, ${d.winnerName} won the ${d.groupName} auction for period ${d.periodNumber}. Prize: ₹${d.prizeAmount}. -${d.orgName}`,
+    hi: d => `Hi ${d.name}, ${d.winnerName} won the ${d.groupName} auction for period ${d.periodNumber}. Prize: ₹${d.prizeAmount}. -${d.orgName}`,
+  },
+  chit_dividend_posted: {
+    en: d => `Hi ${d.name}, dividend of ₹${d.dividendAmount} was posted for ${d.groupName}, period ${d.periodNumber}. -${d.orgName}`,
+    ta: d => `Hi ${d.name}, dividend of ₹${d.dividendAmount} was posted for ${d.groupName}, period ${d.periodNumber}. -${d.orgName}`,
+    hi: d => `Hi ${d.name}, dividend of ₹${d.dividendAmount} was posted for ${d.groupName}, period ${d.periodNumber}. -${d.orgName}`,
   },
 };
 
@@ -68,8 +92,12 @@ const WA_TEMPLATES: Record<EventKey, string> = {
   loan_overdue:         'lt_loan_overdue',
   loan_closed:          'lt_loan_closed',
   penalty_accrued:      'lt_penalty_accrued',
+  chit_contribution_received: 'lt_chit_contribution_received',
+  chit_subscription_due: 'lt_chit_subscription_due',
   chit_auction_reminder_day: 'lt_chit_auction_reminder_day',
   chit_auction_reminder_hour: 'lt_chit_auction_reminder_hour',
+  chit_auction_result: 'lt_chit_auction_result',
+  chit_dividend_posted: 'lt_chit_dividend_posted',
 };
 
 function interpolateTemplate(template: string, d: Record<string, string>): string {
