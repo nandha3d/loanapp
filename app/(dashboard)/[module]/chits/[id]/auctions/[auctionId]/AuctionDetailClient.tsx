@@ -10,6 +10,7 @@ import {
   decideRoomAdmission,
   drawAuctionWinner,
   getAuctionTimeline,
+  getAuctionWinnerSummary,
   getLiveAuctionState,
   markAuctionAttendance,
   markAuctionNoticeSent,
@@ -23,6 +24,7 @@ import {
 } from '../../../actions';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useRegisterBreadcrumbLabel } from '@/components/layout/BreadcrumbLabelContext';
+import DividendBreakdown from '@/components/chits/DividendBreakdown';
 
 interface Props {
   auction: any;
@@ -100,6 +102,7 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
   const [timeline, setTimeline] = useState<any>(null);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const timelinePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [winnerSummary, setWinnerSummary] = useState<any>(null);
 
   const bellPhrase = (n: number, count: number, ticketNo?: string | null) => {
     if (n >= count) return ticketNo ? `Sold to ticket #${ticketNo}!` : 'Sold!';
@@ -200,6 +203,28 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timelineOpen, auction.id]);
+
+  // Winner summary is static once confirmed — fetch once, no polling.
+  useEffect(() => {
+    if (!auction.winnerMemberId) return;
+    getAuctionWinnerSummary(auction.id).then(setWinnerSummary).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auction.id, auction.winnerMemberId]);
+
+  const copyWinnerSummary = () => {
+    if (!winnerSummary) return;
+    const lines = [
+      `${winnerSummary.groupName} — Period ${winnerSummary.periodNumber} Auction Result`,
+      `Winner: ${winnerSummary.winnerName ?? '—'} (Ticket ${winnerSummary.winnerTicketNo ?? '—'})`,
+      `Prize: ${formatCurrency(winnerSummary.prizeAmount, currencySymbol)}`,
+      `Bid discount: ${formatCurrency(winnerSummary.bidDiscount, currencySymbol)}`,
+      `Commission: ${formatCurrency(winnerSummary.commission, currencySymbol)}`,
+      ...(winnerSummary.gstAmount > 0 ? [`GST: ${formatCurrency(winnerSummary.gstAmount, currencySymbol)}`] : []),
+      `Dividend per ticket: ${formatCurrency(winnerSummary.dividend, currencySymbol)}`,
+      ...(winnerSummary.receiptNo ? [`Dividend receipt: ${winnerSummary.receiptNo}`] : []),
+    ];
+    navigator.clipboard?.writeText(lines.join('\n'));
+  };
 
   const run = async (label: string, fn: () => Promise<any>) => {
     setBusy(label);
@@ -797,17 +822,63 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
           {/* Winner + security + payout */}
           {auction.winnerMemberId && (
             <div className="card" style={{ marginBottom: '20px' }}>
-              <div className="card-header"><h3>🏆 Prize &amp; security</h3></div>
+              <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3>🏆 Prize &amp; security</h3>
+                {winnerSummary && (
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button className="btn btn-secondary btn-sm" onClick={copyWinnerSummary}>Copy</button>
+                    <button className="btn btn-secondary btn-sm" onClick={() => window.print()}>Print</button>
+                  </div>
+                )}
+              </div>
               <div style={{ padding: '16px' }}>
                 <p style={{ margin: '0 0 8px' }}>
                   Winner: <strong>{auction.winnerMember?.customer?.name}</strong> — prize {formatCurrency(Number(auction.prizeAmount), currencySymbol)}
                 </p>
-                <p style={{ margin: '0 0 12px', fontSize: '.82rem', color: 'var(--text-secondary)' }}>
-                  Commission {formatCurrency(Number(auction.commission ?? 0), currencySymbol)}
-                  {Number(auction.gstAmount) > 0 && ` · GST ${formatCurrency(Number(auction.gstAmount), currencySymbol)}`}
-                  {' · '}Dividend/ticket {formatCurrency(Number(auction.dividend ?? 0), currencySymbol)}
-                  {Number(auction.roundingIncome) > 0 && ` · rounding income ${formatCurrency(Number(auction.roundingIncome), currencySymbol)}`}
-                </p>
+                {winnerSummary ? (
+                  <div style={{ marginBottom: '14px', padding: '12px', background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                    <DividendBreakdown
+                      chitValue={winnerSummary.chitValue}
+                      prizeAmount={winnerSummary.prizeAmount}
+                      bidDiscount={winnerSummary.bidDiscount}
+                      commissionPct={winnerSummary.commissionPct}
+                      commissionBasis={winnerSummary.commissionBasis}
+                      commission={winnerSummary.commission}
+                      gstPct={winnerSummary.gstPct}
+                      gstAmount={winnerSummary.gstAmount}
+                      distributableDividend={winnerSummary.distributableDividend}
+                      dividendEligibleMembers={winnerSummary.dividendEligibleMembers}
+                      dividend={winnerSummary.dividend}
+                      roundingIncome={winnerSummary.roundingIncome}
+                      dividendPolicy={winnerSummary.dividendPolicy}
+                      dividendDistribution={winnerSummary.dividendDistribution}
+                      currencySymbol={currencySymbol}
+                    />
+                    {winnerSummary.receiptNo && (
+                      <p style={{ margin: '8px 0 0', fontSize: '.8rem', color: 'var(--success)' }}>Dividend receipt: {winnerSummary.receiptNo}</p>
+                    )}
+                    {winnerSummary.memberDividends?.length > 0 && (
+                      <details style={{ marginTop: '10px' }}>
+                        <summary style={{ cursor: 'pointer', fontSize: '.85rem', fontWeight: 600 }}>Per-member dividend ({winnerSummary.memberDividends.length})</summary>
+                        <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          {winnerSummary.memberDividends.map((m: any) => (
+                            <div key={m.ticketNo} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.8rem' }}>
+                              <span>{m.name} (Ticket {m.ticketNo ?? '—'})</span>
+                              <span>{formatCurrency(m.dividend, currencySymbol)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
+                  </div>
+                ) : (
+                  <p style={{ margin: '0 0 12px', fontSize: '.82rem', color: 'var(--text-secondary)' }}>
+                    Commission {formatCurrency(Number(auction.commission ?? 0), currencySymbol)}
+                    {Number(auction.gstAmount) > 0 && ` · GST ${formatCurrency(Number(auction.gstAmount), currencySymbol)}`}
+                    {' · '}Dividend/ticket {formatCurrency(Number(auction.dividend ?? 0), currencySymbol)}
+                    {Number(auction.roundingIncome) > 0 && ` · rounding income ${formatCurrency(Number(auction.roundingIncome), currencySymbol)}`}
+                  </p>
+                )}
                 <p style={{ margin: '0 0 12px' }}>
                   Security: <span className={`badge badge-${security?.status === 'approved' ? 'success' : security?.status === 'rejected' ? 'danger' : 'warning'}`}>{security?.status ?? 'pending'}</span>
                   {' '}· Payout: <span className={`badge badge-${auction.payoutStatus === 'paid' ? 'success' : auction.payoutStatus === 'ready' ? 'info' : 'warning'}`}>{auction.payoutStatus}</span>

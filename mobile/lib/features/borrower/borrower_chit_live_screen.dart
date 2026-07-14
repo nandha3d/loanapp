@@ -20,6 +20,7 @@ import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/data/models/chit_live.dart';
 import 'package:loantrack/data/services/borrower_chit_service.dart';
 import 'package:loantrack/features/chits/bid_amount_parser.dart';
+import 'package:loantrack/features/chits/dividend_breakdown.dart';
 import 'package:loantrack/features/collection/voice_entry_controller.dart';
 
 String _cleanError(Object e) {
@@ -62,6 +63,7 @@ class _BorrowerChitLiveScreenState extends ConsumerState<BorrowerChitLiveScreen>
   int _lastBellsRung = 0;
   String? _bellToast;
   Timer? _bellToastTimer;
+  bool _summaryShown = false;
 
   final _discountCtrl = TextEditingController();
   final _messageCtrl = TextEditingController();
@@ -98,6 +100,13 @@ class _BorrowerChitLiveScreenState extends ConsumerState<BorrowerChitLiveScreen>
         _error = null;
       });
       _announceBellIfRung(s);
+      // Fetch the full result exactly once per auction, on the transition to
+      // confirmed — not on every poll. (roomStatus can close before staff
+      // confirms the winner, so gate on auctionStatus, not roomStatus.)
+      if (['confirmed', 'paid', 'completed'].contains(s.auctionStatus) && !_summaryShown) {
+        _summaryShown = true;
+        _showSummarySheet();
+      }
     } catch (_) {
       // Transient — next tick retries. Only surface an error after repeated
       // failures so one dropped request doesn't flash a banner.
@@ -123,6 +132,15 @@ class _BorrowerChitLiveScreenState extends ConsumerState<BorrowerChitLiveScreen>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _TimelineSheet(groupId: widget.groupId, auctionId: widget.auctionId),
+    );
+  }
+
+  void _showSummarySheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _SummarySheet(groupId: widget.groupId, auctionId: widget.auctionId),
     );
   }
 
@@ -356,7 +374,7 @@ class _BorrowerChitLiveScreenState extends ConsumerState<BorrowerChitLiveScreen>
 
     // Admitted (or roomAdmission == 'auto', admitted immediately on join).
     if (s.roomStatus == 'closed') {
-      return _WinnerCard(state: s);
+      return _WinnerCard(state: s, onViewSummary: _showSummarySheet);
     }
     if (!s.roomLive) {
       return const _InfoCard(
@@ -1038,19 +1056,178 @@ class _TimelineSheetState extends ConsumerState<_TimelineSheet> {
   }
 }
 
-class _WinnerCard extends StatelessWidget {
-  const _WinnerCard({required this.state});
-  final CustomerLiveAuctionState state;
+/// Full post-win result sheet — "did I win," dividend, next due, full
+/// breakdown (doc 15). Fetched once when the auction reaches confirmed.
+class _SummarySheet extends ConsumerStatefulWidget {
+  const _SummarySheet({required this.groupId, required this.auctionId});
+  final String groupId;
+  final String auctionId;
+
+  @override
+  ConsumerState<_SummarySheet> createState() => _SummarySheetState();
+}
+
+class _SummarySheetState extends ConsumerState<_SummarySheet> {
+  Map<String, dynamic>? _summary;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final data = await ref
+          .read(borrowerChitServiceProvider)
+          .summary(widget.groupId, widget.auctionId);
+      if (!mounted) return;
+      setState(() {
+        _summary = data;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Result not available yet — check back after the organizer confirms.';
+        _loading = false;
+      });
+    }
+  }
+
+  void _copy(NumberFormat fmt) {
+    final s = _summary;
+    if (s == null) return;
+    final me = s['me'] as Map<String, dynamic>?;
+    final lines = [
+      '${s['groupName']} — Period ${s['periodNumber']} Auction Result',
+      'Winner: ${s['winnerName'] ?? '—'} (Ticket ${s['winnerTicketNo'] ?? '—'})',
+      'Prize: ${fmt.format(s['prizeAmount'])}',
+      'Dividend per ticket: ${fmt.format(s['dividend'])}',
+      if (me != null && me['iWon'] == true) 'You won!',
+      if (me != null && me['iWon'] != true) 'Your dividend: ${fmt.format(me['myDividend'])}',
+    ];
+    Clipboard.setData(ClipboardData(text: lines.join('\n')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Copied to clipboard')),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return _InfoCard(
-      icon: Icons.emoji_events,
-      color: state.winnerIsMe ? AppColors.success : AppColors.textSecondary,
-      title: state.winnerIsMe ? 'You won this round!' : 'Auction closed',
-      message: state.winnerIsMe
-          ? 'Congratulations — the organizer will confirm settlement shortly.'
-          : 'Ticket ${state.winnerTicketNo ?? '—'} won this round.',
+    final fmt = ref.watch(currencyFmtProvider);
+    return DraggableScrollableSheet(
+      initialChildSize: 0.7,
+      minChildSize: 0.4,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _error != null
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(_error!,
+                            textAlign: TextAlign.center, style: AppTypography.body),
+                      ),
+                    )
+                  : ListView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.all(20),
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('Auction result', style: AppTypography.sectionTitle),
+                            IconButton(
+                              icon: const Icon(Icons.copy_rounded, size: 20),
+                              onPressed: () => _copy(fmt),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Builder(builder: (context) {
+                          final me = _summary!['me'] as Map<String, dynamic>?;
+                          final iWon = me?['iWon'] == true;
+                          return Container(
+                            padding: const EdgeInsets.all(14),
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: iWon ? AppColors.successBg : AppColors.inkElevated,
+                              borderRadius: BorderRadius.circular(AppTokens.radius),
+                            ),
+                            child: Text(
+                              iWon
+                                  ? '🎉 You won! Prize ${fmt.format(_summary!['prizeAmount'])}'
+                                  : me != null
+                                      ? 'Ticket ${_summary!['winnerTicketNo'] ?? '—'} won — your dividend: ${fmt.format(me['myDividend'])}'
+                                      : 'Ticket ${_summary!['winnerTicketNo'] ?? '—'} won this round',
+                              style: AppTypography.body.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          );
+                        }),
+                        DividendBreakdown(
+                          chitValue: (_summary!['chitValue'] as num).toDouble(),
+                          prizeAmount: (_summary!['prizeAmount'] as num).toDouble(),
+                          bidDiscount: (_summary!['bidDiscount'] as num).toDouble(),
+                          commissionPct: (_summary!['commissionPct'] as num).toDouble(),
+                          commissionBasis: _summary!['commissionBasis'] as String,
+                          commission: (_summary!['commission'] as num).toDouble(),
+                          gstPct: (_summary!['gstPct'] as num?)?.toDouble(),
+                          gstAmount: (_summary!['gstAmount'] as num).toDouble(),
+                          distributableDividend:
+                              (_summary!['distributableDividend'] as num).toDouble(),
+                          dividendEligibleMembers:
+                              _summary!['dividendEligibleMembers'] as int,
+                          dividend: (_summary!['dividend'] as num).toDouble(),
+                          roundingIncome: (_summary!['roundingIncome'] as num).toDouble(),
+                          dividendPolicy: _summary!['dividendPolicy'] as String,
+                          dividendDistribution: _summary!['dividendDistribution'] as String,
+                          fmt: fmt,
+                        ),
+                      ],
+                    ),
+        );
+      },
+    );
+  }
+}
+
+class _WinnerCard extends StatelessWidget {
+  const _WinnerCard({required this.state, this.onViewSummary});
+  final CustomerLiveAuctionState state;
+  final VoidCallback? onViewSummary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _InfoCard(
+          icon: Icons.emoji_events,
+          color: state.winnerIsMe ? AppColors.success : AppColors.textSecondary,
+          title: state.winnerIsMe ? 'You won this round!' : 'Auction closed',
+          message: state.winnerIsMe
+              ? 'Congratulations — the organizer will confirm settlement shortly.'
+              : 'Ticket ${state.winnerTicketNo ?? '—'} won this round.',
+        ),
+        if (onViewSummary != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: TextButton.icon(
+              onPressed: onViewSummary,
+              icon: const Icon(Icons.receipt_long_rounded, size: 18),
+              label: const Text('View full result'),
+            ),
+          ),
+      ],
     );
   }
 }

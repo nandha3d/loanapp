@@ -247,6 +247,16 @@ class ChitService {
     return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
   }
 
+  /// Post-win summary (prize/discount/commission/GST/dividend breakdown +
+  /// every member's dividend) — staff audience. 404 (thrown) until the
+  /// auction is confirmed.
+  Future<Map<String, dynamic>> summary(String groupId, String auctionId) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.chitAuctionSummary(groupId, auctionId),
+    );
+    return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
+  }
+
   /// Open or close the live bidding room (action: 'open' | 'close').
   Future<Map<String, dynamic>> roomAction(
     String groupId,

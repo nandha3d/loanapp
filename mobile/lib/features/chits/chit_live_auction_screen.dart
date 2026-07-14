@@ -18,6 +18,7 @@ import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/data/models/chit.dart';
 import 'package:loantrack/data/models/chit_live.dart' show RoomMessage;
 import 'package:loantrack/data/services/chit_service.dart';
+import 'package:loantrack/features/chits/dividend_breakdown.dart';
 import 'package:loantrack/features/chits/voice_bid_parser.dart';
 import 'package:loantrack/features/collection/voice_entry_controller.dart';
 
@@ -187,6 +188,14 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
     _announcedWinner = true;
     final name = (winner['name'] as String?) ?? '';
     if (name.isNotEmpty) ref.speak('Winner $name');
+    // Fetch the full result exactly once per auction, on the transition to
+    // confirmed — not on every poll.
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _StaffSummarySheet(groupId: widget.groupId, auctionId: widget.auctionId),
+    );
   }
 
   Future<void> _run(Future<void> Function() fn) async {
@@ -2225,6 +2234,146 @@ class _StaffTimelineSheetState extends ConsumerState<_StaffTimelineSheet> {
                 ),
             ],
           ),
+        );
+      },
+    );
+  }
+}
+
+/// Full post-win result sheet — full breakdown + every member's dividend,
+/// staff audience (doc 15). Fetched once when the auction reaches confirmed.
+class _StaffSummarySheet extends ConsumerStatefulWidget {
+  const _StaffSummarySheet({required this.groupId, required this.auctionId});
+  final String groupId;
+  final String auctionId;
+
+  @override
+  ConsumerState<_StaffSummarySheet> createState() => _StaffSummarySheetState();
+}
+
+class _StaffSummarySheetState extends ConsumerState<_StaffSummarySheet> {
+  Map<String, dynamic>? _summary;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final data = await ref
+          .read(chitServiceProvider)
+          .summary(widget.groupId, widget.auctionId);
+      if (!mounted) return;
+      setState(() {
+        _summary = data;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Result not available yet.';
+        _loading = false;
+      });
+    }
+  }
+
+  void _copy(NumberFormat fmt) {
+    final s = _summary;
+    if (s == null) return;
+    final lines = [
+      '${s['groupName']} — Period ${s['periodNumber']} Auction Result',
+      'Winner: ${s['winnerName'] ?? '—'} (Ticket ${s['winnerTicketNo'] ?? '—'})',
+      'Prize: ${fmt.format(s['prizeAmount'])}',
+      'Bid discount: ${fmt.format(s['bidDiscount'])}',
+      'Commission: ${fmt.format(s['commission'])}',
+      'Dividend per ticket: ${fmt.format(s['dividend'])}',
+      if (s['receiptNo'] != null) 'Dividend receipt: ${s['receiptNo']}',
+    ];
+    Clipboard.setData(ClipboardData(text: lines.join('\n')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Copied to clipboard')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fmt = ref.watch(currencyFmtProvider);
+    return DraggableScrollableSheet(
+      initialChildSize: 0.7,
+      minChildSize: 0.4,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _error != null
+                  ? Center(child: Text(_error!, style: AppTypography.body))
+                  : ListView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.all(20),
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('Auction result', style: AppTypography.sectionTitle),
+                            IconButton(
+                              icon: const Icon(Icons.copy_rounded, size: 20),
+                              onPressed: () => _copy(fmt),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          '🏆 ${_summary!['winnerName'] ?? '—'} (Ticket ${_summary!['winnerTicketNo'] ?? '—'}) — ${fmt.format(_summary!['prizeAmount'])}',
+                          style: AppTypography.body.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 12),
+                        DividendBreakdown(
+                          chitValue: (_summary!['chitValue'] as num).toDouble(),
+                          prizeAmount: (_summary!['prizeAmount'] as num).toDouble(),
+                          bidDiscount: (_summary!['bidDiscount'] as num).toDouble(),
+                          commissionPct: (_summary!['commissionPct'] as num).toDouble(),
+                          commissionBasis: _summary!['commissionBasis'] as String,
+                          commission: (_summary!['commission'] as num).toDouble(),
+                          gstPct: (_summary!['gstPct'] as num?)?.toDouble(),
+                          gstAmount: (_summary!['gstAmount'] as num).toDouble(),
+                          distributableDividend:
+                              (_summary!['distributableDividend'] as num).toDouble(),
+                          dividendEligibleMembers:
+                              _summary!['dividendEligibleMembers'] as int,
+                          dividend: (_summary!['dividend'] as num).toDouble(),
+                          roundingIncome: (_summary!['roundingIncome'] as num).toDouble(),
+                          dividendPolicy: _summary!['dividendPolicy'] as String,
+                          dividendDistribution: _summary!['dividendDistribution'] as String,
+                          fmt: fmt,
+                        ),
+                        if ((_summary!['memberDividends'] as List?)?.isNotEmpty ?? false) ...[
+                          const SizedBox(height: 16),
+                          Text('Per-member dividend', style: AppTypography.sectionTitle),
+                          const SizedBox(height: 8),
+                          for (final m in (_summary!['memberDividends'] as List))
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 3),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text('${m['name']} (Ticket ${m['ticketNo'] ?? '—'})',
+                                      style: AppTypography.caption),
+                                  Text(fmt.format(m['dividend']), style: AppTypography.caption),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ],
+                    ),
         );
       },
     );

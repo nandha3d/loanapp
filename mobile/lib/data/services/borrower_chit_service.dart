@@ -44,6 +44,15 @@ class BorrowerChitService {
     return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
   }
 
+  /// Post-win summary — "did I win," my dividend, my next due — member
+  /// audience. 404 (thrown) until the auction is confirmed.
+  Future<Map<String, dynamic>> summary(String groupId, String auctionId) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.borrowerChitAuctionSummary(groupId, auctionId),
+    );
+    return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
+  }
+
   Future<String> join(String groupId, String auctionId) async {
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.borrowerChitAuctionJoin(groupId, auctionId),

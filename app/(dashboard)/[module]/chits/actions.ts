@@ -29,6 +29,7 @@ import {
 } from '@/lib/chits/liveAuction';
 import { syncRoom, ringBellManually, buildBellState } from '@/lib/chits/bell';
 import { buildAuctionTimeline } from '@/lib/chits/timeline';
+import { buildWinnerSummary } from '@/lib/chits/winnerSummary';
 import { placeChitBid } from '@/lib/chits/bidService';
 import { releaseChitPrizePayout } from '@/lib/chits/payout';
 import { assertCanReleasePrizePayout } from '@/lib/chits/security';
@@ -1118,6 +1119,19 @@ export async function ringLiveBell(auctionId: string) {
 
 // Poll target for the web live auction room (2-3s interval). Lazily evaluates
 // bells + closes an expired room, then returns server-clock-driven room state.
+// Full post-win summary (staff audience) — prize/discount/commission/GST/
+// dividend breakdown plus every member's dividend and, for cash-payout
+// groups, the receipt number. Null while the auction isn't confirmed yet.
+export async function getAuctionWinnerSummary(auctionId: string) {
+  const scope = await getWebChitScope();
+  const exists = await prisma.chitAuction.findFirst({
+    where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
+    select: { id: true },
+  });
+  if (!exists) throw new Error('Auction not found');
+  return buildWinnerSummary(auctionId, { audience: 'staff' });
+}
+
 // Full chronological auction activity feed — staff audience. Not part of the
 // hot 1.5-3s poll loop; called on-demand when the "Auction activity" panel
 // is expanded, and on a slower refresh interval while it stays open.
