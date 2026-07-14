@@ -1,6 +1,7 @@
 'use server';
 
 import prisma from '@/lib/db';
+import { calculateChitAccountingMetrics } from '@/lib/accounting/chitSummary';
 import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { auth } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
@@ -121,6 +122,7 @@ export async function addAccountEntry(formData: FormData) {
 }
 
 export async function getAccountingSummary(tenantId: string, appType: string, branchId?: string | null) {
+  const isChit = appType === 'chitfunds';
   // Get all entries for the tenant + active module
   const entries = await prisma.accountEntry.findMany({
     where: { tenantId, appType, ...(branchId ? { branchId } : {}) },
@@ -138,6 +140,7 @@ export async function getAccountingSummary(tenantId: string, appType: string, br
   let totalCollected = 0;
   let totalExpenses = 0;
   let chitPayouts = 0; // prize money paid out to chit winners (cash out)
+  let chitDividendPayouts = 0;
 
   for (const entry of entries) {
     const amt = Number(entry.amount);
@@ -160,14 +163,17 @@ export async function getAccountingSummary(tenantId: string, appType: string, br
       case 'chit_payout':
         chitPayouts += amt;
         break;
+      case 'chit_dividend_payout':
+        chitDividendPayouts += amt;
+        break;
     }
   }
 
   // Capital/cash balance uses NET disbursed (actual cash out). e.g. 10,000 − 900
   // (net out) + 100 (collected) = 9,200. Chit prize payouts are cash out too.
-  const currentCapital = capitalIn - capitalOut - netDisbursed + totalCollected - totalExpenses - chitPayouts;
+  const currentCapital = capitalIn - capitalOut - netDisbursed + totalCollected - totalExpenses - chitPayouts - chitDividendPayouts;
 
-  const loans = await prisma.loan.findMany({
+  const loans = isChit ? [] : await prisma.loan.findMany({
     where: { tenantId, appType, ...(branchId ? { branchId } : {}) },
     select: {
       startDate: true,
@@ -176,6 +182,43 @@ export async function getAccountingSummary(tenantId: string, appType: string, br
       totalPayable: true,
     },
   });
+
+  const chitScope = {
+    tenantId,
+    appType: 'chitfunds',
+    deletedAt: null,
+    ...(branchId ? { branchId } : {}),
+  };
+  const [chitGroups, chitSubscriptions, chitAuctions] = isChit
+    ? await Promise.all([
+        prisma.chitGroup.findMany({
+          where: chitScope,
+          select: { status: true, chitValue: true, startDate: true },
+        }),
+        prisma.chitSubscription.findMany({
+          where: { member: { chitGroup: chitScope } },
+          select: {
+            dueDate: true,
+            paidAt: true,
+            dueAmount: true,
+            dividendAmount: true,
+            interestAmount: true,
+            penaltyAmount: true,
+            paidAmount: true,
+          },
+        }),
+        prisma.chitAuction.findMany({
+          where: { chitGroup: chitScope },
+          select: {
+            auctionDate: true,
+            completedAt: true,
+            status: true,
+            prizeAmount: true,
+            dividend: true,
+          },
+        }),
+      ])
+    : [[], [], []];
 
   // Total Disbursed KPI = GROSS loan book (principal), e.g. 1,000 — not the net
   // cash (900). Profit = interest income recognized at disbursement: the upfront
@@ -224,13 +267,13 @@ export async function getAccountingSummary(tenantId: string, appType: string, br
   // Loan Book Outstanding = amount borrowers still owe (unpaid instalments on
   // live loans). This is the receivable asset — the cash you lent that is still
   // yours, just in someone else's hands.
-  const outstandingAgg = await prisma.instalment.aggregate({
+  const outstandingAgg = isChit ? null : await prisma.instalment.aggregate({
     where: { loan: { tenantId, appType, status: { in: ['active', 'overdue'] }, ...(branchId ? { branchId } : {}) } },
     _sum: { dueAmount: true, receivedAmount: true },
   });
   const loanOutstanding = Math.max(
     0,
-    Number(outstandingAgg._sum.dueAmount ?? 0) - Number(outstandingAgg._sum.receivedAmount ?? 0),
+    Number(outstandingAgg?._sum.dueAmount ?? 0) - Number(outstandingAgg?._sum.receivedAmount ?? 0),
   );
 
   const branchCashAvailable = Number(branchCashAgg._sum.balance ?? 0);
@@ -239,9 +282,14 @@ export async function getAccountingSummary(tenantId: string, appType: string, br
   const liquidCash = branchCashAvailable + agentFloat;
   // Net Worth (Capital) = cash on hand + receivable. Stays flat when you lend
   // (cash drops, receivable rises by the same amount).
-  const netWorth = liquidCash + loanOutstanding;
+  const chitMetrics = calculateChitAccountingMetrics({
+    groups: chitGroups,
+    subscriptions: chitSubscriptions,
+    auctions: chitAuctions,
+  });
+  const netWorth = liquidCash + (isChit ? chitMetrics.subscriptionReceivable : loanOutstanding);
 
-  return {
+  const commonSummary = {
     capitalIn,
     capitalOut,
     totalDisbursed,
@@ -257,7 +305,24 @@ export async function getAccountingSummary(tenantId: string, appType: string, br
     branchCashAvailable,
     agentFloat,
     releaseEntries,
-    loans,
     entries,
+  };
+
+  if (isChit) {
+    return {
+      ...commonSummary,
+      kind: 'chit' as const,
+      loans: [],
+      chitGroups,
+      chitSubscriptions,
+      chitAuctions,
+      chitMetrics,
+    };
+  }
+
+  return {
+    ...commonSummary,
+    kind: 'lending' as const,
+    loans,
   };
 }

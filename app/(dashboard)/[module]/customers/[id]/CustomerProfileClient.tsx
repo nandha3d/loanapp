@@ -46,6 +46,9 @@ export default function CustomerProfileClient({
   kycEnabled = false,
   tenantKycMethod = 'manual_upload',
   loansEnabled = true,
+  appType,
+  chitSummary,
+  chitMemberships = [],
 }: {
   customer: any;
   currencySymbol: string;
@@ -54,11 +57,31 @@ export default function CustomerProfileClient({
   kycEnabled?: boolean;
   tenantKycMethod?: string;
   loansEnabled?: boolean;
+  appType: string;
+  chitSummary?: {
+    activeChits: number;
+    totalContributed: number;
+    outstandingSubscriptionDue: number;
+    prizedChits: number;
+  };
+  chitMemberships?: Array<{
+    id: string;
+    groupId: string;
+    groupCode: string | null;
+    groupName: string;
+    groupStatus: string;
+    ticket: string;
+    subscriberStatus: string;
+    contributed: number;
+    outstandingSubscriptionDue: number;
+    hasWon: boolean;
+  }>;
 }) {
   const router = useRouter();
   useRegisterBreadcrumbLabel(customer.customerCode, customer.name);
   const d = dict.customerProfile;
-  const [activeTab, setActiveTab] = useState(loansEnabled ? 'loans' : 'kyc');
+  const isChit = appType === 'chitfunds';
+  const [activeTab, setActiveTab] = useState(isChit ? 'chits' : loansEnabled ? 'loans' : 'kyc');
   const [editRequestModal, setEditRequestModal] = useState(false);
   const [editRequestLoading, setEditRequestLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
@@ -240,7 +263,7 @@ export default function CustomerProfileClient({
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '16px', marginBottom: '8px' }}>
               <h1 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 900 }}>{customer.name}</h1>
               <div style={{ fontSize: '1rem', color: 'var(--text-light)', fontWeight: 600 }}>[{customer.customerCode}]</div>
-              <div style={{ 
+              {!isChit && <div style={{
                 display: 'flex', alignItems: 'center', gap: '6px', 
                 background: score >= 750 ? '#DCFCE7' : score >= 650 ? '#FEF3C7' : '#FEE2E2',
                 color: score >= 750 ? '#166534' : score >= 650 ? '#92400E' : '#991B1B',
@@ -249,7 +272,7 @@ export default function CustomerProfileClient({
               }}>
                 <span className="material-icons-outlined" style={{ fontSize: '16px' }}>stars</span>
                 {grade}
-              </div>
+              </div>}
             </div>
             <div className="profile-meta" style={{ display: 'flex', gap: '20px', fontSize: '.9rem', color: 'var(--text-secondary)' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -320,8 +343,29 @@ export default function CustomerProfileClient({
         </div>
       </div>
 
-      {/* Credit Summary Bar */}
+      {/* Module-aware customer summary */}
       <div className="stats-grid" style={{ marginBottom: '20px', gridTemplateColumns: 'repeat(4, 1fr)' }}>
+        {isChit ? (
+          <>
+            <div className="card" style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{chitSummary?.activeChits ?? 0}</div>
+              <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>Active Chits</div>
+            </div>
+            <div className="card" style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--success)' }}>{formatCurrency(chitSummary?.totalContributed ?? 0, currencySymbol)}</div>
+              <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>Total Contributed</div>
+            </div>
+            <div className="card" style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--warning)' }}>{formatCurrency(chitSummary?.outstandingSubscriptionDue ?? 0, currencySymbol)}</div>
+              <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>Outstanding Subscription Due</div>
+            </div>
+            <div className="card" style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{chitSummary?.prizedChits ?? 0}</div>
+              <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>Prized Chits</div>
+            </div>
+          </>
+        ) : (
+          <>
         <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px' }}>
           <CreditScoreGauge score={score} grade={grade} />
         </div>
@@ -337,21 +381,60 @@ export default function CustomerProfileClient({
           <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{stats.activeLoans} / {stats.closedLoans}</div>
           <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>{d.activeClosedLoans}</div>
         </div>
+          </>
+        )}
       </div>
 
       {/* Tabs */}
       <div className="card">
         <div className="tabs">
+          {isChit && (
+            <div className={`tab ${activeTab === 'chits' ? 'active' : ''}`} onClick={() => setActiveTab('chits')}>Chit Memberships</div>
+          )}
           {loansEnabled && (
             <div className={`tab ${activeTab === 'loans' ? 'active' : ''}`} onClick={() => setActiveTab('loans')}>{d.loanHistory}</div>
           )}
           <div className={`tab ${activeTab === 'kyc' ? 'active' : ''}`} onClick={() => setActiveTab('kyc')}>{d.kycDocuments}</div>
-          <div className={`tab ${activeTab === 'cheques' ? 'active' : ''}`} onClick={() => setActiveTab('cheques')}>{d.securityCheques}</div>
-          <div className={`tab ${activeTab === 'guarantors' ? 'active' : ''}`} onClick={() => setActiveTab('guarantors')}>{d.guarantors}</div>
+          {!isChit && <div className={`tab ${activeTab === 'cheques' ? 'active' : ''}`} onClick={() => setActiveTab('cheques')}>{d.securityCheques}</div>}
+          {!isChit && <div className={`tab ${activeTab === 'guarantors' ? 'active' : ''}`} onClick={() => setActiveTab('guarantors')}>{d.guarantors}</div>}
         </div>
 
+        {isChit && (
+          <div className={`tab-content ${activeTab === 'chits' ? 'active' : ''}`}>
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Group</th>
+                    <th>Ticket</th>
+                    <th>Subscriber Status</th>
+                    <th>Contributed</th>
+                    <th>Outstanding</th>
+                    <th>Prized</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {chitMemberships.map((membership) => (
+                    <tr key={membership.id}>
+                      <td><Link href={`/chits/${membership.groupId}`}><strong>{membership.groupCode || membership.groupName}</strong></Link></td>
+                      <td>{membership.ticket}</td>
+                      <td><span className={getBadgeClass(membership.subscriberStatus)} style={{ textTransform: 'capitalize' }}>{membership.subscriberStatus}</span></td>
+                      <td>{formatCurrency(membership.contributed, currencySymbol)}</td>
+                      <td>{formatCurrency(membership.outstandingSubscriptionDue, currencySymbol)}</td>
+                      <td>{membership.hasWon ? 'Yes' : 'No'}</td>
+                    </tr>
+                  ))}
+                  {chitMemberships.length === 0 && (
+                    <tr><td colSpan={6} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-light)' }}>No chit memberships found.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {/* Loans Tab */}
-        <div className={`tab-content ${activeTab === 'loans' ? 'active' : ''}`}>
+        {loansEnabled && <div className={`tab-content ${activeTab === 'loans' ? 'active' : ''}`}>
           <div className="table-wrapper">
             <table>
               <thead>
@@ -400,7 +483,7 @@ export default function CustomerProfileClient({
               </tbody>
             </table>
           </div>
-        </div>
+        </div>}
 
         {/* KYC Tab */}
         <div className={`tab-content ${activeTab === 'kyc' ? 'active' : ''}`}>

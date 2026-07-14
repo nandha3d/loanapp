@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { addAccountEntry } from './actions';
 import Modal from '@/components/Modal';
+import { calculateChitAccountingMetrics } from '@/lib/accounting/chitSummary';
 
 function formatCurrency(amount: number, symbol: string) {
   return `${symbol}${Math.abs(amount).toLocaleString('en-IN', { minimumFractionDigits: 0 })}`;
@@ -21,6 +22,7 @@ export default function AccountingClient({
   module,
 }: {
   summary: {
+    kind: 'lending' | 'chit';
     capitalIn: number;
     capitalOut: number;
     totalDisbursed: number;
@@ -44,6 +46,9 @@ export default function AccountingClient({
     }>;
     loans: any[];
     entries: any[];
+    chitGroups?: any[];
+    chitSubscriptions?: any[];
+    chitAuctions?: any[];
   };
   currencySymbol: string;
   dict: any;
@@ -76,6 +81,7 @@ export default function AccountingClient({
       case 'collection': return { label: 'Collection', icon: 'point_of_sale', color: 'var(--success)', sign: '+' };
       case 'expense': return { label: ac.expense || 'Expense', icon: 'receipt_long', color: 'var(--warning)', sign: '-' };
       case 'chit_payout': return { label: 'Chit Payout', icon: 'emoji_events', color: '#E67E22', sign: '-' };
+      case 'chit_dividend_payout': return { label: 'Chit Dividend Payout', icon: 'redeem', color: '#D97706', sign: '-' };
       case 'adjustment': return { label: 'Adjustment', icon: 'tune', color: 'var(--text-secondary)', sign: '±' };
       default: return { label: type, icon: 'help', color: 'var(--text-secondary)', sign: '' };
     }
@@ -172,6 +178,7 @@ export default function AccountingClient({
     let totalCollected = 0;
     let totalExpenses = 0;
     let releasedToAgents = 0;
+    let chitOutflows = 0;
 
     for (const entry of filteredEntries) {
       const amt = Number(entry.amount);
@@ -191,13 +198,17 @@ export default function AccountingClient({
         case 'expense':
           totalExpenses += amt;
           break;
+        case 'chit_payout':
+        case 'chit_dividend_payout':
+          chitOutflows += amt;
+          break;
       }
     }
     for (const release of filteredReleases) {
       releasedToAgents += Math.abs(Number(release.amount));
     }
 
-    const currentCapital = capitalIn - capitalOut - totalDisbursed + totalCollected - totalExpenses;
+    const currentCapital = capitalIn - capitalOut - totalDisbursed + totalCollected - totalExpenses - chitOutflows;
     const totalDeductions = filteredLoans.reduce((sum: number, loan: any) => sum + Number(loan.deduction), 0);
     const totalInterest = filteredLoans.reduce((sum: number, loan: any) => sum + Number(loan.totalPayable) - Number(loan.principal), 0);
     const projectedRevenue = totalDeductions + totalInterest;
@@ -217,6 +228,14 @@ export default function AccountingClient({
       projectedProfit,
     };
   }, [filteredEntries, filteredLoans, filteredReleases]);
+
+  const chitMetrics = useMemo(() => calculateChitAccountingMetrics({
+    groups: summary.chitGroups || [],
+    subscriptions: summary.chitSubscriptions || [],
+    auctions: summary.chitAuctions || [],
+    fromDate: fromDate || undefined,
+    toDate: toDate || undefined,
+  }), [summary.chitGroups, summary.chitSubscriptions, summary.chitAuctions, fromDate, toDate]);
 
   return (
     <div>
@@ -303,7 +322,7 @@ export default function AccountingClient({
           <div>
             <div className="kpi-value">{formatCurrency(summary.netWorth, currencySymbol)}</div>
             <div className="kpi-label">{ac.netWorth || 'Net Worth (Capital)'}</div>
-            <div style={{ fontSize: '.68rem', color: 'var(--text-light)', marginTop: '2px' }}>Liquid Cash + Loan Outstanding</div>
+            <div style={{ fontSize: '.68rem', color: 'var(--text-light)', marginTop: '2px' }}>{summary.kind === 'chit' ? 'Liquid Cash + Subscription Receivable' : 'Liquid Cash + Loan Outstanding'}</div>
           </div>
         </div>
         <div className="kpi-card">
@@ -328,6 +347,35 @@ export default function AccountingClient({
             <div className="kpi-label">{ac.agentCashField || 'Agent Cash (field)'}</div>
           </div>
         </div>
+        {summary.kind === 'chit' ? (
+          <>
+        <div className="kpi-card">
+          <div className="kpi-icon blue"><span className="material-icons-outlined">groups</span></div>
+          <div><div className="kpi-value">{formatCurrency(chitMetrics.activeChitValue, currencySymbol)}</div><div className="kpi-label">Active Chit Value</div></div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-icon green"><span className="material-icons-outlined">payments</span></div>
+          <div><div className="kpi-value">{formatCurrency(chitMetrics.contributionsCollected, currencySymbol)}</div><div className="kpi-label">Contributions Collected</div></div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-icon orange"><span className="material-icons-outlined">request_quote</span></div>
+          <div><div className="kpi-value">{formatCurrency(chitMetrics.subscriptionReceivable, currencySymbol)}</div><div className="kpi-label">Subscription Receivable</div></div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-icon orange"><span className="material-icons-outlined">emoji_events</span></div>
+          <div><div className="kpi-value">{formatCurrency(chitMetrics.prizePayouts, currencySymbol)}</div><div className="kpi-label">Prize Payouts</div></div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-icon green"><span className="material-icons-outlined">redeem</span></div>
+          <div><div className="kpi-value">{formatCurrency(chitMetrics.dividendsDistributed, currencySymbol)}</div><div className="kpi-label">Dividends Distributed</div></div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-icon blue"><span className="material-icons-outlined">group_work</span></div>
+          <div><div className="kpi-value">{chitMetrics.activeGroups}</div><div className="kpi-label">Active Groups</div></div>
+        </div>
+          </>
+        ) : (
+          <>
         <div className="kpi-card">
           <div className="kpi-icon blue"><span className="material-icons-outlined">request_quote</span></div>
           <div>
@@ -368,6 +416,8 @@ export default function AccountingClient({
             <div className="kpi-label">{ac.projectedProfit || 'Projected Profit'}</div>
           </div>
         </div>
+          </>
+        )}
       </div>
 
       {/* Capital Flow Summary */}
@@ -394,25 +444,25 @@ export default function AccountingClient({
                 <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Agent Float</div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--primary)' }}>{formatCurrency(summary.agentFloat, currencySymbol)}</div>
               </div>
-              <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+              {summary.kind === 'lending' && <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{ac.totalDeductions || 'Total Deductions (Upfront Fees)'}</div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--success)' }}>{formatCurrency(metrics.totalDeductions, currencySymbol)}</div>
-              </div>
-              <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+              </div>}
+              {summary.kind === 'lending' && <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{ac.totalInterest || 'Total Interest'}</div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--success)' }}>{formatCurrency(metrics.totalInterest, currencySymbol)}</div>
-              </div>
-              <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+              </div>}
+              {summary.kind === 'lending' && <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{ac.projectedRevenue || 'Projected Revenue'}</div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--primary)' }}>{formatCurrency(metrics.projectedRevenue, currencySymbol)}</div>
                 <div style={{ fontSize: '.7rem', color: 'var(--text-light)', marginTop: '2px' }}>{ac.deductionsInterest || 'Deductions + Interest'}</div>
-              </div>
+              </div>}
               <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{ac.expenses || 'Expenses'}</div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--warning)' }}>-{formatCurrency(metrics.totalExpenses, currencySymbol)}</div>
               </div>
             </div>
-            <div style={{ padding: '16px', background: metrics.projectedProfit >= 0 ? 'rgba(16, 185, 129, 0.06)' : 'rgba(239, 68, 68, 0.06)', borderRadius: 'var(--radius-sm)', border: `1px solid ${metrics.projectedProfit >= 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            {summary.kind === 'lending' && <div style={{ padding: '16px', background: metrics.projectedProfit >= 0 ? 'rgba(16, 185, 129, 0.06)' : 'rgba(239, 68, 68, 0.06)', borderRadius: 'var(--radius-sm)', border: `1px solid ${metrics.projectedProfit >= 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{ac.projectedProfitLabel || 'Projected Profit'}</div>
                 <div style={{ fontSize: '.7rem', color: 'var(--text-light)' }}>{ac.projectedRevenueMinusExpenses || 'Projected Revenue − Expenses'}</div>
@@ -420,7 +470,7 @@ export default function AccountingClient({
               <div style={{ fontSize: '1.4rem', fontWeight: 800, color: metrics.projectedProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}>
                 {metrics.projectedProfit >= 0 ? '' : '-'}{formatCurrency(metrics.projectedProfit, currencySymbol)}
               </div>
-            </div>
+            </div>}
           </div>
         </div>
 

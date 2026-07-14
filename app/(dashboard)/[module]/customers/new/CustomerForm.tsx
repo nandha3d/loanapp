@@ -7,6 +7,7 @@ import { createRoute } from '../../settings/actions';
 import { usePathname, useRouter } from 'next/navigation';
 
 interface CustomerFormProps {
+  appType: string;
   routes: any[];
   agents?: any[];
   customer?: any;
@@ -15,10 +16,11 @@ interface CustomerFormProps {
   viewerRole?: string;
 }
 
-export default function CustomerForm({ routes: initialRoutes, customer, onSuccess, dict, viewerRole }: CustomerFormProps) {
+export default function CustomerForm({ appType, routes: initialRoutes, customer, onSuccess, dict, viewerRole }: CustomerFormProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [loading, setLoading] = useState(false);
+  const isChit = appType === 'chitfunds';
   const isAgentViewer = viewerRole === 'agent';
   const [localRoutes, setLocalRoutes] = useState(initialRoutes);
   const [selectedRouteId, setSelectedRouteId] = useState(customer?.routeId || '');
@@ -267,6 +269,8 @@ export default function CustomerForm({ routes: initialRoutes, customer, onSucces
           </div>
         </div>
 
+        {!isChit && (
+          <>
         {/* --- Company / Business Details --- */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '24px 0 12px' }}>
           <h4 style={{ margin: 0, fontSize: '.9rem', fontWeight: 600 }}>🏢 Company / Business Details</h4>
@@ -391,6 +395,8 @@ export default function CustomerForm({ routes: initialRoutes, customer, onSucces
             </div>
           </div>
         )}
+          </>
+        )}
 
         {/* --- Collection Points --- */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '24px 0 12px' }}>
@@ -483,6 +489,8 @@ export default function CustomerForm({ routes: initialRoutes, customer, onSucces
         </label>
 
 
+        {!isChit && (
+          <>
         {/* --- Guarantors / Surety --- */}
         <h4 style={{ margin: '24px 0 12px', fontSize: '.9rem', fontWeight: 600 }}>🤝 {dict.customers.guarantors}</h4>
         {guarantors.map((g, index) => (
@@ -541,6 +549,8 @@ export default function CustomerForm({ routes: initialRoutes, customer, onSucces
         <button type="button" className="btn btn-secondary btn-sm" onClick={addGuarantor} style={{ padding: '8px 14px' }}>
           <span className="material-icons-outlined" style={{ fontSize: '14px' }}>person_add</span> Add Guarantor
         </button>
+          </>
+        )}
 
         {/* --- Submit --- */}
         <div className="form-actions" style={{ marginTop: '24px' }}>
