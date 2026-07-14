@@ -60,26 +60,37 @@ export default function Topbar({
     return dict.sidebar.dashboard;
   }
 
+  // Segments with no index page of their own — fold into the previous crumb
+  // instead of rendering as a separate dead-end link (e.g. .../chits/{id}/auctions/{auctionId}
+  // has no page at .../chits/{id}/auctions, so 'auctions' contributes no crumb).
+  const COLLAPSE_SEGMENTS = new Set(['auctions']);
+
   function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
     const parts = pathname.split('/').filter(Boolean);
     const crumbs: BreadcrumbItem[] = [{ label: dict.sidebar.dashboard, href: '/dashboard' }];
-    
-    if (parts[0] && parts[0] !== 'dashboard') {
-      const id = parts[0];
-      const label = (dict.sidebar as any)[id] || id.charAt(0).toUpperCase() + id.slice(1);
-      
-      if (parts.length > 1) {
-        crumbs.push({ label, href: `/${parts[0]}` });
-        if (parts[1] === 'new') {
-          crumbs.push({ label: dict.loans.newLoan });
-        } else {
-          crumbs.push({ label: breadcrumbLabels[parts[1]] || parts[1] });
-        }
+
+    if (!parts[0] || parts[0] === 'dashboard') return crumbs;
+
+    let hrefAcc = '';
+    for (let i = 0; i < parts.length; i++) {
+      const seg = parts[i];
+      hrefAcc += `/${seg}`;
+      if (COLLAPSE_SEGMENTS.has(seg)) continue;
+
+      const isLast = i === parts.length - 1;
+      let label: string;
+      if (i === 0) {
+        label = (dict.sidebar as any)[seg] || seg.charAt(0).toUpperCase() + seg.slice(1);
+      } else if (seg === 'new') {
+        label = dict.loans.newLoan;
       } else {
-        crumbs.push({ label });
+        label = breadcrumbLabels[seg] || seg;
       }
+
+      // Every crumb except the current page gets a link back to it.
+      crumbs.push(isLast ? { label } : { label, href: hrefAcc });
     }
-    
+
     return crumbs;
   }
 

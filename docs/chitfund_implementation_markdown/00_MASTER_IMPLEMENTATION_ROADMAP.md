@@ -46,6 +46,34 @@ Implement these markdown files in the below order. Do not skip the order because
 
 File names keep their historical step numbers; follow the Order column. Step 11 must land before the auction/collection steps because they read its configuration fields. `IMPLEMENTATION_STATUS_GAP_ANALYSIS.md` records what the current codebase already implements versus this roadmap.
 
+## Post-live-room feature batch (Steps 13–23, added 2026-07-14)
+
+After Step 12 (live auction room) shipped, the client requested 11 further improvements. Each has its own detailed spec doc; implement in the phases below (**not** file-number order — later docs depend on schema/engine work from earlier ones in the same phase).
+
+| Doc | Feature | Depends on |
+|---|---|---|
+| `13_BID_FLOOR_COMMISSION.md` | Bid starts from commission amount, per-group toggle | none |
+| `14_ORGANIZER_BELL_ENGINE.md` | Manual + automatic bell ("going once/twice/sold"), configurable interval/count/auto-close | none |
+| `15_WINNER_SUMMARY.md` | Full post-win summary for staff + every member | 22a (DividendBreakdown) |
+| `16_CUSTOM_FREQUENCY_ENGINE.md` | Daily/weekly/bi-weekly/monthly/custom frequency, fixes a month-overflow date bug | none |
+| `17_AUCTION_TIMELINE.md` | Complete chronological bid/bell/open/extend/close history | 14 (bell events) |
+| `18_AUTO_ATTENDANCE_LOGIN.md` | Auto-mark attendance on any borrower-portal login on auction day | none |
+| `19_CUSTOMER_PAYMENT_PROOF.md` | Customer uploads payment proof/UTR; staff approve/reject queue | none |
+| `20_NAV_BREADCRUMB_FIX.md` | Fix: auction room back/breadcrumb lands on chit home instead of the group page | none |
+| `21_CHIT_CASHFLOW_REPORTS.md` | Fixes a cash-flow report bug (chit payouts excluded from outflow); adds in/out + 40-group portfolio reports | none |
+| `22_DIVIDEND_DETAIL_CURRENT_PERIOD_VIEWS.md` | Step-by-step dividend breakdown component; current-period-first borrower views with overdue accordion | 16 (`periodWindow`) |
+| `23_WHATSAPP_AUTOMATION.md` | WhatsApp inbound payments+proof, outbound automation, bidding by WhatsApp (Meta Cloud API) | 14, 15, 18, 19 |
+
+### Phased rollout (one migration per phase, all additive/nullable)
+
+- **Phase 0** (no schema): `20_NAV_BREADCRUMB_FIX.md`, `21_CHIT_CASHFLOW_REPORTS.md`.
+- **Phase 1** (migration A — config): `16_CUSTOM_FREQUENCY_ENGINE.md` → `13_BID_FLOOR_COMMISSION.md`.
+- **Phase 2** (migration B — live room): `14_ORGANIZER_BELL_ENGINE.md` → `17_AUCTION_TIMELINE.md` → `15_WINNER_SUMMARY.md` + `22_DIVIDEND_DETAIL_CURRENT_PERIOD_VIEWS.md` Part A.
+- **Phase 3** (migration C — payments): `22_DIVIDEND_DETAIL_CURRENT_PERIOD_VIEWS.md` Part B → `19_CUSTOMER_PAYMENT_PROOF.md`.
+- **Phase 4** (migration D — automation): `18_AUTO_ATTENDANCE_LOGIN.md` → `23_WHATSAPP_AUTOMATION.md` (outbound → inbound → WA bids).
+
+User decisions locked into these specs: nav fix returns to the chit **group** page (not the groups list); bell auto-close after the final bell is a **per-group toggle**; WhatsApp covers **all three** of inbound payments, outbound automation, and WA bidding; attendance auto-marks on **any borrower-portal login on auction day**, in addition to the existing room-join marking.
+
 ## Target business flow after all steps
 
 1. Admin creates a registered chit group with full compliance details.

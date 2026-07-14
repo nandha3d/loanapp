@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from '@/components/layout/DashboardLink';
 import {
   addAuctionBid,
   closeLiveRoom,
@@ -40,6 +41,8 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
   const router = useRouter();
   const group = auction.chitGroup;
   useRegisterBreadcrumbLabel(group.groupCode ?? group.id, group.name);
+  useRegisterBreadcrumbLabel(group.id, group.name);
+  useRegisterBreadcrumbLabel(auction.id, `Period ${auction.periodNumber}`);
   const isDrawType = ['lottery', 'fixed_rotation'].includes(group.auctionType);
   const isLive = group.auctionType === 'open_live';
   const isSealed = group.auctionType === 'sealed';
@@ -127,6 +130,13 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
 
   return (
     <>
+      <div style={{ marginBottom: '16px' }}>
+        <Link href={`/chits/${group.groupCode ?? group.id}`} className="btn btn-ghost btn-sm">
+          <span className="material-icons-outlined" style={{ fontSize: '16px' }}>arrow_back</span>
+          Back to {group.name}
+        </Link>
+      </div>
+
       {error && <div className="alert alert-danger" style={{ marginBottom: '16px', padding: '10px 14px', background: '#fff0f0', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', color: 'var(--danger)' }}>{error}</div>}
 
       {/* Summary */}

@@ -36,7 +36,7 @@ export async function buildCashFlow(params: ReportBuilderParams): Promise<Report
 
     if (['collection', 'capital_add'].includes(e.type)) {
       item.inflow += amount;
-    } else if (['loan_disburse', 'expense', 'capital_withdraw'].includes(e.type)) {
+    } else if (['loan_disburse', 'expense', 'capital_withdraw', 'chit_payout', 'chit_dividend_payout'].includes(e.type)) {
       item.outflow += amount;
     }
   });

@@ -351,9 +351,21 @@ export default async function AnalyticsPage({
     ],
     chitfunds: [
       { slug: 'chit-group-ledger', name: 'Chit Group Ledger' },
+      { slug: 'chit-subscriber-ledger', name: 'Subscriber Ledger' },
+      { slug: 'chit-auction-register', name: 'Auction Register' },
       { slug: 'auction-bid-history', name: 'Auction Bid History' },
+      { slug: 'chit-subscription-due', name: 'Subscription Due Report' },
+      { slug: 'chit-agreement-pending-report', name: 'Agreement Pending Report' },
+      { slug: 'chit-dividend-register', name: 'Dividend Register' },
+      { slug: 'chit-foreman-commission-report', name: 'Foreman Commission Report' },
+      { slug: 'chit-receipt-register', name: 'Receipt Register' },
+      { slug: 'chit-payout-report', name: 'Payout Report' },
+      { slug: 'chit-default-report', name: 'Defaults Report' },
+      { slug: 'chit-security-pending-report', name: 'Security Pending Report' },
       { slug: 'prized-subscriber-report', name: 'Prized Subscriber Report' },
       { slug: 'vacant-chit-report', name: 'Vacant Chit Report' },
+      { slug: 'chit-group-report', name: 'Chit Group Report' },
+      { slug: 'chit-auction-report', name: 'Chit Auction Report' },
     ],
   };
 

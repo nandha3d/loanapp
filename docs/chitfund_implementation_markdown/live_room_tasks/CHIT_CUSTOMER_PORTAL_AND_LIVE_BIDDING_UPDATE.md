@@ -25,7 +25,7 @@ This update introduces:
 
 # 2. Current State
 
-## 2.1 Staff Web
+## 2.1 Staff Web 
 
 The current web application supports:
 
