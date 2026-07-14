@@ -239,6 +239,9 @@ class Endpoints {
       '/chits/$id/auctions/$period/join';
   static String chitAuctionAdmit(String id, int period) =>
       '/chits/$id/auctions/$period/admit';
+  // Staff waiting-room admit/deny, auction-cuid based (canonical live-room family).
+  static String chitAuctionAdmission(String id, String auctionId) =>
+      '/chits/$id/auctions/$auctionId/admission';
 
   // Dashboard extended fields
   static const String dashboardVerifyUpi = '/collection/verify';
@@ -251,4 +254,14 @@ class Endpoints {
   static const String borrowerLoans = '/borrower/loans';
   static const String borrowerPay = '/borrower/pay';
   static const String borrowerLogout = '/borrower/auth/logout';
+
+  // Borrower/customer self-service live chit auction
+  static String borrowerChitAuctionLive(String groupId, String auctionId) =>
+      '/borrower/chits/$groupId/auctions/$auctionId/live';
+  static String borrowerChitAuctionJoin(String groupId, String auctionId) =>
+      '/borrower/chits/$groupId/auctions/$auctionId/join';
+  static String borrowerChitAuctionBids(String groupId, String auctionId) =>
+      '/borrower/chits/$groupId/auctions/$auctionId/bids';
+  static String borrowerChitAuctionMessages(String groupId, String auctionId) =>
+      '/borrower/chits/$groupId/auctions/$auctionId/messages';
 }

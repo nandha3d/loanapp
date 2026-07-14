@@ -331,3 +331,177 @@ class LiveAuctionState {
     );
   }
 }
+
+/// Anonymized leading bid shown to customers — ticket number only, no name.
+class CustomerHighestBid {
+  const CustomerHighestBid({
+    required this.ticketNo,
+    required this.bidAmount,
+    required this.bidDiscount,
+  });
+  final String? ticketNo;
+  final double bidAmount;
+  final double bidDiscount;
+
+  factory CustomerHighestBid.fromJson(Map<String, dynamic> j) => CustomerHighestBid(
+        ticketNo: j['ticketNo'] as String?,
+        bidAmount: _d(j['bidAmount']),
+        bidDiscount: _d(j['bidDiscount']),
+      );
+}
+
+/// One of the customer's own bids in this auction.
+class CustomerOwnBid {
+  const CustomerOwnBid({
+    required this.id,
+    required this.bidAmount,
+    required this.bidDiscount,
+    required this.source,
+    required this.createdAt,
+  });
+  final String id;
+  final double bidAmount;
+  final double bidDiscount;
+  final String source; // tap | voice | remote
+  final DateTime createdAt;
+
+  factory CustomerOwnBid.fromJson(Map<String, dynamic> j) => CustomerOwnBid(
+        id: (j['id'] as String?) ?? '',
+        bidAmount: _d(j['bidAmount']),
+        bidDiscount: _d(j['bidDiscount']),
+        source: (j['source'] as String?) ?? 'tap',
+        createdAt: DateTime.tryParse((j['createdAt'] as String?) ?? '')?.toLocal() ??
+            DateTime.now(),
+      );
+}
+
+/// The authenticated customer's own seat in this room.
+class CustomerMembership {
+  const CustomerMembership({
+    required this.memberId,
+    required this.ticketNo,
+    required this.hasWon,
+    required this.subscriberStatus,
+    required this.admissionStatus,
+  });
+  final String memberId;
+  final String? ticketNo;
+  final bool hasWon;
+  final String subscriberStatus;
+  final String admissionStatus; // not_joined | waiting | admitted | denied
+
+  bool get isWaiting => admissionStatus == 'waiting';
+  bool get isAdmitted => admissionStatus == 'admitted';
+  bool get isDenied => admissionStatus == 'denied';
+  bool get notJoined => admissionStatus == 'not_joined';
+
+  factory CustomerMembership.fromJson(Map<String, dynamic> j) => CustomerMembership(
+        memberId: (j['memberId'] as String?) ?? '',
+        ticketNo: j['ticketNo'] as String?,
+        hasWon: (j['hasWon'] as bool?) ?? false,
+        subscriberStatus: (j['subscriberStatus'] as String?) ?? 'active',
+        admissionStatus: (j['admissionStatus'] as String?) ?? 'not_joined',
+      );
+}
+
+/// Customer-facing live-room snapshot — GET /borrower/chits/:id/auctions/:auctionId/live.
+class CustomerLiveAuctionState {
+  const CustomerLiveAuctionState({
+    required this.roomStatus,
+    required this.auctionStatus,
+    required this.auctionType,
+    required this.roomAdmission,
+    required this.serverTime,
+    required this.receivedAt,
+    required this.secondsRemaining,
+    required this.autoExtendSeconds,
+    required this.chitValue,
+    required this.membership,
+    required this.myBids,
+    required this.isRoomOpen,
+    this.minDiscountPct,
+    this.maxDiscountPct,
+    this.bidIncrement,
+    this.minNextDiscount,
+    this.currentHighestBid,
+    this.myLatestBid,
+    this.winnerTicketNo,
+    this.winnerIsMe = false,
+    this.latestMessages = const [],
+  });
+
+  final String roomStatus; // scheduled | open | extended | closed
+  final String auctionStatus; // pending | in_progress | confirmed | paid | cancelled
+  final String auctionType;
+  final String roomAdmission; // auto | approval
+  final DateTime serverTime;
+  final DateTime receivedAt;
+  final int secondsRemaining;
+  final int autoExtendSeconds;
+  final double chitValue;
+  final double? minDiscountPct;
+  final double? maxDiscountPct;
+  final double? bidIncrement;
+  final double? minNextDiscount;
+  final CustomerHighestBid? currentHighestBid;
+  final CustomerMembership membership;
+  final List<CustomerOwnBid> myBids;
+  final CustomerOwnBid? myLatestBid;
+  final bool isRoomOpen;
+  final String? winnerTicketNo;
+  final bool winnerIsMe;
+  final List<RoomMessage> latestMessages;
+
+  bool get roomLive => roomStatus == 'open' || roomStatus == 'extended';
+
+  /// Countdown adjusted for device clock skew, same pattern as [LiveAuctionState].
+  int displaySeconds(DateTime deviceNow) {
+    final elapsed = deviceNow.difference(receivedAt).inSeconds;
+    final left = secondsRemaining - elapsed;
+    return left < 0 ? 0 : left;
+  }
+
+  factory CustomerLiveAuctionState.fromJson(Map<String, dynamic> j) {
+    final bidsRaw = j['myBids'] as List<dynamic>?;
+    final myBids = bidsRaw == null
+        ? const <CustomerOwnBid>[]
+        : bidsRaw
+            .map((dynamic e) => CustomerOwnBid.fromJson(e as Map<String, dynamic>))
+            .toList(growable: false);
+    final messagesRaw = j['latestMessages'] as List<dynamic>?;
+    final winner = j['winner'] as Map<String, dynamic>?;
+
+    return CustomerLiveAuctionState(
+      roomStatus: (j['roomStatus'] as String?) ?? 'scheduled',
+      auctionStatus: (j['auctionStatus'] as String?) ?? 'pending',
+      auctionType: (j['auctionType'] as String?) ?? 'open_live',
+      roomAdmission: (j['roomAdmission'] as String?) ?? 'auto',
+      serverTime: DateTime.tryParse((j['serverTime'] as String?) ?? '')?.toUtc() ??
+          DateTime.now().toUtc(),
+      receivedAt: DateTime.now(),
+      secondsRemaining: _i(j['secondsRemaining']),
+      autoExtendSeconds: _i(j['autoExtendSeconds']),
+      chitValue: _d(j['chitValue']),
+      minDiscountPct: _dn(j['minDiscountPct']),
+      maxDiscountPct: _dn(j['maxDiscountPct']),
+      bidIncrement: _dn(j['bidIncrement']),
+      minNextDiscount: _dn(j['minNextDiscount']),
+      currentHighestBid: j['currentHighestBid'] == null
+          ? null
+          : CustomerHighestBid.fromJson(j['currentHighestBid'] as Map<String, dynamic>),
+      membership: CustomerMembership.fromJson(
+          (j['myMembership'] as Map<String, dynamic>?) ?? const {},
+        ),
+      myBids: myBids,
+      myLatestBid: myBids.isEmpty ? null : myBids.first,
+      isRoomOpen: (j['isRoomOpen'] as bool?) ?? false,
+      winnerTicketNo: winner?['ticketNo'] as String?,
+      winnerIsMe: (winner?['isMe'] as bool?) ?? false,
+      latestMessages: messagesRaw == null
+          ? const []
+          : messagesRaw
+              .map((dynamic e) => RoomMessage.fromJson(e as Map<String, dynamic>))
+              .toList(growable: false),
+    );
+  }
+}

@@ -176,6 +176,7 @@ class BorrowerChitMembership {
     required this.monthlyContrib,
     required this.durationMonths,
     required this.groupStatus,
+    this.nextAuctionId,
     this.nextAuctionPeriod,
     this.nextAuctionDate,
     this.nextAuctionRoomStatus,
@@ -196,6 +197,7 @@ class BorrowerChitMembership {
   final double monthlyContrib;
   final int durationMonths;
   final String groupStatus;
+  final String? nextAuctionId;
   final int? nextAuctionPeriod;
   final DateTime? nextAuctionDate;
   final String? nextAuctionRoomStatus;
@@ -225,6 +227,7 @@ class BorrowerChitMembership {
       monthlyContrib: n(group['monthlyContrib']) ?? 0,
       durationMonths: n(group['durationMonths'])?.toInt() ?? 0,
       groupStatus: (group['status'] as String?) ?? 'active',
+      nextAuctionId: auction?['id'] as String?,
       nextAuctionPeriod: n(auction?['periodNumber'])?.toInt(),
       nextAuctionDate: DateTime.tryParse(
         (auction?['scheduledAt'] ?? auction?['auctionDate'] ?? '') as String,

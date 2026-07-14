@@ -12,6 +12,7 @@ import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/data/models/borrower.dart';
 import 'package:loantrack/data/services/borrower_service.dart';
+import 'package:loantrack/features/borrower/borrower_chit_live_screen.dart';
 
 final _borrowerLoansProvider =
     FutureProvider.autoDispose<List<BorrowerLoan>>((ref) {
@@ -816,27 +817,27 @@ class _ChitMembershipCard extends StatelessWidget {
               ),
             ],
           ),
-          if (roomLive) ...[
+          if (roomLive && m.nextAuctionId != null) ...[
             const SizedBox(height: 10),
-            Container(
+            SizedBox(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.successBg,
-                borderRadius: BorderRadius.circular(AppTokens.radius),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.podcasts,
-                      size: 16, color: AppColors.success),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Auction room is LIVE — contact your organizer to bid',
-                    style: AppTypography.caption.copyWith(
-                        color: AppColors.success, fontWeight: FontWeight.w700),
-                  ),
-                ],
+              child: FilledButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => BorrowerChitLiveScreen(
+                        groupId: m.groupId,
+                        auctionId: m.nextAuctionId!,
+                        groupName: m.groupName,
+                        fallbackChitValue: m.chitValue,
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.podcasts, size: 18),
+                label: const Text('Join Live Auction'),
+                style: FilledButton.styleFrom(backgroundColor: AppColors.success),
               ),
             ),
           ],

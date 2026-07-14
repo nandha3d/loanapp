@@ -54,9 +54,9 @@
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>LoanTrack needs photo access to upload KYC documents</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>LoanTrack uses the microphone for voice entry of collection amounts</string>
+	<string>LoanTrack uses the microphone for voice entry of collection amounts and chit auction bids</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>LoanTrack uses speech recognition to let you record collections by voice</string>
+	<string>LoanTrack uses speech recognition to let you record collections and place chit auction bids by voice</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

@@ -378,6 +378,103 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
     );
   }
 
+  List<Map<String, dynamic>> get _waiting =>
+      ((_live?['waiting'] as List?) ?? const <dynamic>[])
+          .whereType<Map<dynamic, dynamic>>()
+          .map((row) => Map<String, dynamic>.from(row))
+          .toList(growable: false);
+
+  Future<void> _decideAdmission(String memberId, String decision) async {
+    await _run(() => _svc.decideAdmission(
+          widget.groupId,
+          widget.auctionId,
+          memberId: memberId,
+          decision: decision,
+        ));
+  }
+
+  void _showWaitingRoomSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.hourglass_top_rounded),
+                    const SizedBox(width: 8),
+                    Text('Waiting Room', style: AppTypography.sectionTitle),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Members here asked to join and need your admit/deny.',
+                  style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 12),
+                if (_waiting.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Text('No one is waiting right now.'),
+                  )
+                else
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.6),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: _waiting.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (_, index) {
+                        final row = _waiting[index];
+                        final memberId = row['memberId'] as String? ?? '';
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.person_outline),
+                          title: Text(row['name'] as String? ?? '—'),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                tooltip: 'Deny',
+                                icon: const Icon(Icons.close, color: AppColors.danger),
+                                onPressed: _busy
+                                    ? null
+                                    : () async {
+                                        await _decideAdmission(memberId, 'deny');
+                                        setSheetState(() {});
+                                      },
+                              ),
+                              IconButton(
+                                tooltip: 'Admit',
+                                icon: const Icon(Icons.check, color: AppColors.success),
+                                onPressed: _busy
+                                    ? null
+                                    : () async {
+                                        await _decideAdmission(memberId, 'admit');
+                                        setSheetState(() {});
+                                      },
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // ── Live state helpers ─────────────────────────────────────────────────
   double get _chitValue =>
       _numOrNull(_live?['chitValue']) ?? widget.chitValue ?? 0;
@@ -816,6 +913,16 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
               tooltip: 'Attendance',
               icon: const Icon(Icons.how_to_reg_rounded),
               onPressed: _busy ? null : _showAttendanceSheet,
+            ),
+          if (widget.isAdmin)
+            IconButton(
+              tooltip: 'Waiting Room',
+              icon: Badge(
+                label: Text('${_waiting.length}'),
+                isLabelVisible: _waiting.isNotEmpty,
+                child: const Icon(Icons.hourglass_top_rounded),
+              ),
+              onPressed: _busy ? null : _showWaitingRoomSheet,
             ),
           IconButton(
             tooltip: 'Minutes',

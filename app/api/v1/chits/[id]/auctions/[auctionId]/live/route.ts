@@ -87,7 +87,13 @@ export async function GET(
           ? increment
           : null;
 
+    const waiting = auction.attendance
+      .filter((entry) => entry.admissionStatus === 'waiting')
+      .map((entry) => ({ memberId: entry.memberId, name: entry.member.customer.name, ticketNo: entry.member.ticketNo }));
+
     return ok({
+      roomAdmission: auction.chitGroup.roomAdmission,
+      waiting,
       roomStatus: auction.roomStatus,
       auctionStatus: auction.status,
       auctionType: auction.chitGroup.auctionType,

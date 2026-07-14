@@ -256,6 +256,19 @@ class ChitService {
     return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
   }
 
+  /// Organizer admit/deny for a customer waiting in the room lobby.
+  Future<void> decideAdmission(
+    String groupId,
+    String auctionId, {
+    required String memberId,
+    required String decision, // 'admit' | 'deny'
+  }) async {
+    await _dio.post<Map<String, dynamic>>(
+      Endpoints.chitAuctionAdmission(groupId, auctionId),
+      data: {'memberId': memberId, 'decision': decision},
+    );
+  }
+
   /// Resolve a lottery/fixed_rotation period via the audited draw.
   Future<Map<String, dynamic>> drawWinner(
       String groupId, String auctionId) async {
