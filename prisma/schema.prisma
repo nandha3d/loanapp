@@ -1191,6 +1191,9 @@ model ChitGroup {
   foremanCommissionCapPct Decimal?      @map("foreman_commission_cap_pct") @db.Decimal(5, 2)
   maxDiscountPct          Decimal?      @map("max_discount_pct") @db.Decimal(5, 2)
   auctionFrequency        String        @default("monthly") @map("auction_frequency")
+  frequencyUnit           String?       @map("frequency_unit")     // 'day' | 'week' | 'month' — overrides auctionFrequency preset when set
+  frequencyInterval       Int?          @map("frequency_interval") // every N units
+  frequencyWeekdays       String?       @map("frequency_weekdays") // CSV of 0-6 (Sun-Sat), only for unit='day'|'week'
   auctionMode             String        @default("offline") @map("auction_mode")
   auctionDay              Int?          @map("auction_day")
   auctionTime             String?       @map("auction_time")
@@ -1205,6 +1208,7 @@ model ChitGroup {
   dividendDistribution    String        @default("ADJUST_NEXT_DUE") @map("dividend_distribution")
   dividendRounding        Int           @default(0) @map("dividend_rounding")
   minDiscountPct          Decimal?      @map("min_discount_pct") @db.Decimal(5, 2)
+  bidStartAtCommission    Boolean       @default(true) @map("bid_start_at_commission")
   bidIncrement            Decimal?      @map("bid_increment") @db.Decimal(14, 2)
   tieBreakRule            String        @default("EARLIEST_BID") @map("tie_break_rule")
   winnerInterestType      String        @default("NONE") @map("winner_interest_type")

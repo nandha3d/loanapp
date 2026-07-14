@@ -19,6 +19,7 @@ export type PlaceChitBidParams = {
       maxDiscountPct: unknown;
       minDiscountPct: unknown;
       commissionPct: unknown;
+      bidStartAtCommission?: boolean | null;
       bidIncrement: unknown;
       branchId: string | null;
     };
@@ -58,6 +59,7 @@ export async function placeChitBid(tx: any, params: PlaceChitBidParams) {
     maxDiscountPct: auction.chitGroup.maxDiscountPct ? Number(auction.chitGroup.maxDiscountPct) : null,
     minDiscountPct: auction.chitGroup.minDiscountPct ? Number(auction.chitGroup.minDiscountPct) : null,
     commissionPct: Number(auction.chitGroup.commissionPct),
+    bidStartAtCommission: auction.chitGroup.bidStartAtCommission,
   });
   const bidDiscount = Number(auction.chitGroup.chitValue) - prizeAmount;
 

@@ -5,6 +5,7 @@
 import prisma from '@/lib/db';
 import { closeRoomIfExpired, isRoomOpen, secondsRemaining } from './liveAuction';
 import { roundMoney } from './calculations';
+import { startingDiscountAmount } from './validation';
 
 export async function findOwnLiveAuction(customerId: string, tenantId: string, groupId: string, auctionId: string) {
   const member = await prisma.chitMember.findFirst({
@@ -85,12 +86,11 @@ export async function buildCustomerLiveState(groupId: string, auctionId: string,
   }));
 
   const chitValueNum = Number(auction.chitGroup.chitValue);
-  const minPct = auction.chitGroup.minDiscountPct != null
-    ? Number(auction.chitGroup.minDiscountPct)
-    : auction.chitGroup.commissionPct != null
-      ? Number(auction.chitGroup.commissionPct)
-      : 0;
-  const floorDiscount = minPct > 0 ? roundMoney((chitValueNum * minPct) / 100) : 0;
+  const floorDiscount = startingDiscountAmount(chitValueNum, {
+    minDiscountPct: auction.chitGroup.minDiscountPct != null ? Number(auction.chitGroup.minDiscountPct) : null,
+    bidStartAtCommission: auction.chitGroup.bidStartAtCommission,
+    commissionPct: auction.chitGroup.commissionPct != null ? Number(auction.chitGroup.commissionPct) : null,
+  });
   const increment = auction.chitGroup.bidIncrement ? Number(auction.chitGroup.bidIncrement) : 0;
   const minNextDiscount = highestBid
     ? roundMoney(Math.max(Number(highestBid.bidDiscount) + increment, floorDiscount))

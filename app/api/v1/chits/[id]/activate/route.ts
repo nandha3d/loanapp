@@ -3,15 +3,7 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { validateChitGroupActivation } from '@/lib/chits/validation';
-
-function nextPeriodDate(startDate: Date, period: number, frequency: string) {
-  const dueDate = new Date(startDate);
-  if (frequency === 'daily') dueDate.setDate(dueDate.getDate() + period - 1);
-  else if (frequency === 'weekly') dueDate.setDate(dueDate.getDate() + (period - 1) * 7);
-  else if (frequency === 'fortnightly') dueDate.setDate(dueDate.getDate() + (period - 1) * 14);
-  else dueDate.setMonth(dueDate.getMonth() + period - 1);
-  return dueDate;
-}
+import { parseFrequency, nextPeriodDate } from '@/lib/chits/frequency';
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireMobileContext(req);
@@ -66,6 +58,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return fail(e?.message ?? 'Chit group cannot be activated yet', 400);
     }
 
+    const freq = parseFrequency(group);
     const updated = await prisma.$transaction(async (tx) => {
       const existingSubscriptions = await tx.chitSubscription.count({ where: { member: { chitGroupId: id } } });
       const existingAuctions = await tx.chitAuction.count({ where: { chitGroupId: id } });
@@ -77,7 +70,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               data: {
                 memberId: member.id,
                 periodNumber: period,
-                dueDate: nextPeriodDate(group.startDate, period, group.auctionFrequency),
+                dueDate: nextPeriodDate(group.startDate, period, freq),
                 dueAmount: amount,
                 baseDueAmount: amount,
                 status: 'upcoming',
@@ -88,12 +81,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
       if (!existingAuctions) {
         for (let period = 1; period <= group.totalMembers; period++) {
+          const periodDate = nextPeriodDate(group.startDate, period, freq);
           await tx.chitAuction.create({
             data: {
               chitGroupId: id,
               periodNumber: period,
-              auctionDate: nextPeriodDate(group.startDate, period, group.auctionFrequency),
-              scheduledAt: nextPeriodDate(group.startDate, period, group.auctionFrequency),
+              auctionDate: periodDate,
+              scheduledAt: periodDate,
               status: 'pending',
             },
           });

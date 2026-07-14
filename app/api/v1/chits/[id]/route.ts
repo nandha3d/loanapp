@@ -102,7 +102,17 @@ export async function PUT(
     if (body?.fixedDiscountPct !== undefined) data.fixedDiscountPct = body.fixedDiscountPct == null ? null : Number(body.fixedDiscountPct);
     if (body?.chitType != null) data.chitType = body.chitType;
     if (body?.auctionType != null) data.auctionType = body.auctionType;
+    const changesFrequency =
+      body?.auctionFrequency != null || body?.frequencyUnit !== undefined ||
+      body?.frequencyInterval !== undefined || body?.frequencyWeekdays !== undefined;
+    if (changesFrequency && existing.status === 'active') {
+      return fail('Frequency cannot be changed after activation — subscriptions/auctions are already scheduled', 409);
+    }
     if (body?.auctionFrequency != null) data.auctionFrequency = body.auctionFrequency;
+    if (body?.frequencyUnit !== undefined) data.frequencyUnit = body.frequencyUnit;
+    if (body?.frequencyInterval !== undefined) data.frequencyInterval = body.frequencyInterval == null ? null : Number(body.frequencyInterval);
+    if (body?.frequencyWeekdays !== undefined) data.frequencyWeekdays = body.frequencyWeekdays;
+    if (body?.bidStartAtCommission != null) data.bidStartAtCommission = Boolean(body.bidStartAtCommission);
     if (body?.auctionMode != null) data.auctionMode = body.auctionMode;
     if (body?.auctionDay !== undefined) data.auctionDay = body.auctionDay == null ? null : Number(body.auctionDay);
     if (body?.commissionBasis != null) data.commissionBasis = body.commissionBasis;

@@ -34,6 +34,7 @@ import { assertCanReleasePrizePayout } from '@/lib/chits/security';
 import {
   assertValidCommissionPct,
   assertValidPrizeAmount,
+  startingDiscountAmount,
   validateChitConfig,
   validateChitGroupActivation,
 } from '@/lib/chits/validation';
@@ -44,6 +45,7 @@ import {
   validateFileBytes,
 } from '@/lib/fileUpload';
 import { generateCode } from '@/lib/utils';
+import { parseFrequency, nextPeriodDate } from '@/lib/chits/frequency';
 
 function value(formData: FormData, key: string) {
   const raw = formData.get(key);
@@ -62,15 +64,6 @@ function dateValue(formData: FormData, key: string) {
   if (!raw) return null;
   const date = new Date(raw);
   return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function nextPeriodDate(startDate: Date, period: number, frequency: string) {
-  const dueDate = new Date(startDate);
-  if (frequency === 'daily') dueDate.setDate(dueDate.getDate() + period - 1);
-  else if (frequency === 'weekly') dueDate.setDate(dueDate.getDate() + (period - 1) * 7);
-  else if (frequency === 'fortnightly') dueDate.setDate(dueDate.getDate() + (period - 1) * 14);
-  else dueDate.setMonth(dueDate.getMonth() + period - 1);
-  return dueDate;
 }
 
 function scheduledDateTime(baseDate: Date, auctionTime?: string | null) {
@@ -197,6 +190,9 @@ export async function createChitGroup(formData: FormData) {
         chitType: value(formData, 'chitType') ?? 'unregistered',
         auctionType: value(formData, 'auctionType') ?? 'open_manual',
         auctionFrequency: value(formData, 'auctionFrequency') ?? 'monthly',
+        frequencyUnit: value(formData, 'frequencyUnit'),
+        frequencyInterval: numberValue(formData, 'frequencyInterval'),
+        frequencyWeekdays: value(formData, 'frequencyWeekdays'),
         auctionMode: value(formData, 'auctionMode') ?? 'offline',
         auctionDay: numberValue(formData, 'auctionDay'),
         auctionTime,
@@ -211,6 +207,7 @@ export async function createChitGroup(formData: FormData) {
         foremanCommissionCapPct,
         maxDiscountPct,
         minDiscountPct,
+        bidStartAtCommission: value(formData, 'bidStartAtCommission') !== 'false',
         fixedDiscountPct: numberValue(formData, 'fixedDiscountPct'),
         commissionBasis: value(formData, 'commissionBasis') ?? 'BID_DISCOUNT',
         gstPct: numberValue(formData, 'gstPct'),
@@ -349,6 +346,7 @@ export async function activateChitGroup(groupId: string) {
     foremanTicketCount: members.filter((member) => member.isForemanTicket).length,
   });
 
+  const freq = parseFrequency(group);
   await prisma.$transaction(async (tx) => {
     const existingSubscriptions = await tx.chitSubscription.count({
       where: { member: { chitGroupId: group.id } },
@@ -357,7 +355,7 @@ export async function activateChitGroup(groupId: string) {
     const periodCount = group.totalMembers;
     if (!existingSubscriptions) {
       for (let period = 1; period <= periodCount; period++) {
-        const dueDate = nextPeriodDate(group.startDate, period, group.auctionFrequency);
+        const dueDate = nextPeriodDate(group.startDate, period, freq);
         for (const member of members) {
           await tx.chitSubscription.create({
             data: {
@@ -374,7 +372,7 @@ export async function activateChitGroup(groupId: string) {
     }
     if (!existingAuctions) {
       for (let period = 1; period <= periodCount; period++) {
-        const auctionDate = nextPeriodDate(group.startDate, period, group.auctionFrequency);
+        const auctionDate = nextPeriodDate(group.startDate, period, freq);
         await tx.chitAuction.create({
           data: {
             chitGroupId: group.id,
@@ -1136,7 +1134,22 @@ export async function getLiveAuctionState(auctionId: string) {
     ? bids.reduce((top, bid) => (bid.bidDiscount > top.bidDiscount ? bid : top), bids[0])
     : null;
   const minStep = auction.chitGroup.bidIncrement ? Number(auction.chitGroup.bidIncrement) : 0;
-  const minNextPrize = Math.max(1, (highestBid?.bidAmount ?? Number(auction.chitGroup.chitValue)) - minStep);
+  const chitValueNum = Number(auction.chitGroup.chitValue);
+  // Bug fix (doc 13): with no bids yet, the floor must come from the group's
+  // discount floor (min discount % / commission %), matching the customer app
+  // and the hard validator — not chitValue-minus-increment, which let staff
+  // web display/accept an effective ₹(increment) discount on the opening bid.
+  const minNextPrize = highestBid
+    ? Math.max(1, highestBid.bidAmount - minStep)
+    : Math.max(
+        1,
+        chitValueNum -
+          startingDiscountAmount(chitValueNum, {
+            minDiscountPct: auction.chitGroup.minDiscountPct != null ? Number(auction.chitGroup.minDiscountPct) : null,
+            bidStartAtCommission: auction.chitGroup.bidStartAtCommission,
+            commissionPct: auction.chitGroup.commissionPct != null ? Number(auction.chitGroup.commissionPct) : null,
+          }),
+      );
   const allBids = bids.slice(0, 200);
   const memberBids = allBids.reduce<Record<string, typeof allBids>>((acc, bid) => {
     acc[bid.memberId] = acc[bid.memberId] ?? [];
@@ -1312,6 +1325,8 @@ export async function updateChitGroup(id: string, formData: FormData) {
     commissionPct: numberValue(formData, 'commissionPct', Number(group.commissionPct)),
     foremanCommissionCapPct: numberValue(formData, 'foremanCommissionCapPct', group.foremanCommissionCapPct ? Number(group.foremanCommissionCapPct) : undefined),
     maxDiscountPct: numberValue(formData, 'maxDiscountPct', group.maxDiscountPct ? Number(group.maxDiscountPct) : undefined),
+    minDiscountPct: numberValue(formData, 'minDiscountPct', group.minDiscountPct ? Number(group.minDiscountPct) : undefined),
+    bidStartAtCommission: value(formData, 'bidStartAtCommission') != null ? value(formData, 'bidStartAtCommission') === 'true' : group.bidStartAtCommission,
     registrationNo: value(formData, 'registrationNo') ?? group.registrationNo,
     registrarOffice: value(formData, 'registrarOffice') ?? group.registrarOffice,
     bylawNo: value(formData, 'bylawNo') ?? group.bylawNo,

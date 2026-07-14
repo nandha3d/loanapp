@@ -7,20 +7,44 @@ const DIVIDEND_DISTRIBUTIONS: ChitDividendDistribution[] = ['ADJUST_NEXT_DUE', '
 const TIE_BREAK_RULES: ChitTieBreakRule[] = ['EARLIEST_BID', 'LOTTERY_AMONG_TIED'];
 const WINNER_INTEREST_TYPES: ChitWinnerInterestType[] = ['NONE', 'FIXED', 'PERCENT'];
 
+// Single source of truth for "what's the minimum bid discount %, if any" —
+// co-located with assertValidPrizeAmount since every caller that computes a
+// minimum-next-bid figure (the hard validator here, the customer live-state
+// builder, the staff live-room poll) must agree on the same number or staff
+// and customers see different "starting bid" figures for the same auction.
+export function effectiveMinDiscountPct(group: {
+  minDiscountPct?: number | null;
+  bidStartAtCommission?: boolean | null;
+  commissionPct?: number | null;
+}): number | null {
+  if (group.minDiscountPct != null) return group.minDiscountPct; // explicit always wins
+  if (group.bidStartAtCommission !== false && group.commissionPct != null) return group.commissionPct;
+  return null;
+}
+
+export function startingDiscountAmount(
+  chitValue: number,
+  group: Parameters<typeof effectiveMinDiscountPct>[0],
+): number {
+  const pct = effectiveMinDiscountPct(group);
+  return pct != null ? Math.round((chitValue * pct) / 100 * 100) / 100 : 0;
+}
+
 export function assertValidPrizeAmount(params: {
   chitValue: number;
   prizeAmount: number;
   maxDiscountPct?: number | null;
   minDiscountPct?: number | null;
   commissionPct?: number | null;
+  bidStartAtCommission?: boolean | null;
 }) {
-  const { chitValue, prizeAmount, maxDiscountPct, minDiscountPct, commissionPct } = params;
+  const { chitValue, prizeAmount, maxDiscountPct } = params;
   if (prizeAmount <= 0) throw new Error('Prize amount must be greater than zero');
   if (prizeAmount > chitValue) throw new Error('Prize amount cannot exceed chit value');
 
   const discount = chitValue - prizeAmount;
   const discountPct = chitValue > 0 ? (discount / chitValue) * 100 : 0;
-  const minPct = minDiscountPct ?? commissionPct ?? null;
+  const minPct = effectiveMinDiscountPct(params);
   if (minPct != null && discountPct < minPct) {
     throw new Error(`Bid discount must be at least ${minPct}%`);
   }

@@ -17,6 +17,7 @@ import {
 import { formatCurrency, formatDate } from '@/lib/utils';
 import Link from '@/components/layout/DashboardLink';
 import { useRegisterBreadcrumbLabel } from '@/components/layout/BreadcrumbLabelContext';
+import { parseFrequency, frequencyLabel } from '@/lib/chits/frequency';
 
 interface ChitGroupDetailClientProps {
   group: any;
@@ -195,7 +196,7 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
         </div>
         <div className="kpi-card">
           <div className="kpi-icon blue"><span className="material-icons-outlined">payments</span></div>
-          <div><div className="kpi-value">{formatCurrency(Number(group.monthlyContrib), currencySymbol)}</div><div className="kpi-label">Installment ({group.auctionFrequency})</div></div>
+          <div><div className="kpi-value">{formatCurrency(Number(group.monthlyContrib), currencySymbol)}</div><div className="kpi-label">Installment ({frequencyLabel(parseFrequency(group))})</div></div>
         </div>
         <div className="kpi-card">
           <div className="kpi-icon orange"><span className="material-icons-outlined">groups</span></div>

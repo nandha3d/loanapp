@@ -4,6 +4,7 @@ import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { closeRoomIfExpired, secondsRemaining } from '@/lib/chits/liveAuction';
 import { roundMoney } from '@/lib/chits/calculations';
+import { startingDiscountAmount } from '@/lib/chits/validation';
 
 // Live auction room poll — clients call this every 2-3 seconds. Countdown must be
 // driven by serverTime/secondsRemaining, never the device clock. Sealed groups get
@@ -67,17 +68,16 @@ export async function GET(
       ? bids.reduce((top, bid) => (bid.bidDiscount > top.bidDiscount ? bid : top), bids[0])
       : null;
     // Minimum discount the NEXT bid must reach. For the very first bid this is
-    // the group's discount floor (min discount %, or commission % when no
-    // explicit floor is set) — otherwise clients would offer a ₹1 discount that
-    // the bid validator rejects. For later bids it's the current best plus the
-    // increment, but never below the floor.
+    // the group's discount floor (doc 13: minDiscountPct, or commission % when
+    // bidStartAtCommission is on) — otherwise clients would offer a ₹1 discount
+    // that the bid validator rejects. For later bids it's the current best plus
+    // the increment, but never below the floor.
     const chitValueNum = Number(auction.chitGroup.chitValue);
-    const minPct = auction.chitGroup.minDiscountPct != null
-      ? Number(auction.chitGroup.minDiscountPct)
-      : auction.chitGroup.commissionPct != null
-        ? Number(auction.chitGroup.commissionPct)
-        : 0;
-    const floorDiscount = minPct > 0 ? roundMoney((chitValueNum * minPct) / 100) : 0;
+    const floorDiscount = startingDiscountAmount(chitValueNum, {
+      minDiscountPct: auction.chitGroup.minDiscountPct != null ? Number(auction.chitGroup.minDiscountPct) : null,
+      bidStartAtCommission: auction.chitGroup.bidStartAtCommission,
+      commissionPct: auction.chitGroup.commissionPct != null ? Number(auction.chitGroup.commissionPct) : null,
+    });
     const increment = auction.chitGroup.bidIncrement ? Number(auction.chitGroup.bidIncrement) : 0;
     const minNextDiscount = highestBid
       ? roundMoney(Math.max(highestBid.bidDiscount + increment, floorDiscount))
