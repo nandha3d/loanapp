@@ -113,11 +113,21 @@ import {
 
 // Module: wallet / NPA
 import { buildWalletFloatLedger } from './builders/wallet-float-ledger';
+import {
+  buildInsuranceExpiryReport,
+  buildSeizureRepoReport,
+  buildVehicleHypothecationReport,
+} from './builders/auto-finance-reports';
 import { buildNpaClassificationReport } from './builders/npa-classification-report';
 
 export type ReportBuilder = (params: ReportBuilderParams) => Promise<ReportPayload>;
 
 export const reportRegistry: Record<string, ReportBuilder> = {
+  // Module: auto finance
+  'vehicle-hypothecation-report': buildVehicleHypothecationReport,
+  'insurance-expiry-report': buildInsuranceExpiryReport,
+  'seizure-repo-report': buildSeizureRepoReport,
+
   // Loan
   'loan-register': buildLoanRegister,
   'loan-status-report': buildLoanStatusReport,

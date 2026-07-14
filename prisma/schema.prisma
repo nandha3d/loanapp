@@ -1299,6 +1299,8 @@ model ChitAuction {
   closedAt         DateTime?               @map("closed_at")
   reminder1DayAt   DateTime?               @map("reminder_1day_at")
   reminder1HourAt  DateTime?               @map("reminder_1hour_at")
+  resultNotifiedAt DateTime?               @map("result_notified_at")
+  dividendNotifiedAt DateTime?             @map("dividend_notified_at")
   bids             ChitBid[]
   attendance       ChitAuctionAttendance[]
   events           ChitAuctionEvent[]
@@ -1380,6 +1382,8 @@ model ChitSubscription {
   paidAmount       Decimal       @default(0.00) @map("paid_amount") @db.Decimal(14, 2)
   status           String        @default("upcoming")
   paidAt           DateTime?     @map("paid_at")
+  reminderDayBeforeAt DateTime?  @map("reminder_day_before_at")
+  reminderDueDayAt DateTime?     @map("reminder_due_day_at")
   collectorId      String?       @map("collector_id")
   paymentMode      String?       @map("payment_mode")
   lastReceiptNo    String?       @map("last_receipt_no")

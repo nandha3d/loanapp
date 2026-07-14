@@ -12,6 +12,8 @@ import Link from '@/components/layout/DashboardLink';
 import { serverFetch } from '@/lib/api-client/server';
 import { getDictionary } from '@/lib/i18n';
 import { modulePath } from '@/types/modules';
+import { getReportsForAppType } from '@/lib/reports/catalog';
+import type { AppType } from '@/lib/appConfig';
 
 export default async function AnalyticsPage({
   searchParams,
@@ -338,145 +340,18 @@ export default async function AnalyticsPage({
     } catch { /* tolerate pre-migration */ }
   }
 
-  const moduleReportsByAppType: Record<string, { slug: string; name: string }[]> = {
-    autofinance: [
-      { slug: 'vehicle-hypothecation-report', name: 'Vehicle Hypothecation Report' },
-      { slug: 'insurance-expiry-report', name: 'Insurance Expiry Report' },
-      { slug: 'seizure-repo-report', name: 'Seizure & Repo Report' },
-    ],
-    goldloan: [
-      { slug: 'gold-pledge-register', name: 'Gold Pledge Register' },
-      { slug: 'auction-eligibility-report', name: 'Auction Eligibility Report' },
-      { slug: 'appraiser-valuation-log', name: 'Appraiser Valuation Log' },
-    ],
-    chitfunds: [
-      { slug: 'chit-group-ledger', name: 'Chit Group Ledger' },
-      { slug: 'chit-subscriber-ledger', name: 'Subscriber Ledger' },
-      { slug: 'chit-auction-register', name: 'Auction Register' },
-      { slug: 'auction-bid-history', name: 'Auction Bid History' },
-      { slug: 'chit-subscription-due', name: 'Subscription Due Report' },
-      { slug: 'chit-agreement-pending-report', name: 'Agreement Pending Report' },
-      { slug: 'chit-dividend-register', name: 'Dividend Register' },
-      { slug: 'chit-foreman-commission-report', name: 'Foreman Commission Report' },
-      { slug: 'chit-receipt-register', name: 'Receipt Register' },
-      { slug: 'chit-payout-report', name: 'Payout Report' },
-      { slug: 'chit-default-report', name: 'Defaults Report' },
-      { slug: 'chit-security-pending-report', name: 'Security Pending Report' },
-      { slug: 'prized-subscriber-report', name: 'Prized Subscriber Report' },
-      { slug: 'vacant-chit-report', name: 'Vacant Chit Report' },
-      { slug: 'chit-group-report', name: 'Chit Group Report' },
-      { slug: 'chit-auction-report', name: 'Chit Auction Report' },
-    ],
-  };
-
-  const reportCategories = [
-    {
-      category: 'Loan & Portfolio',
-      reports: [
-        { slug: 'loan-register', name: 'Loan Register' },
-        { slug: 'loan-status-report', name: 'Loan Status Report' },
-        { slug: 'loan-type-report', name: 'Loan Type Report' },
-        { slug: 'loan-maturity-report', name: 'Loan Maturity Report' },
-      ],
-    },
-    {
-      category: 'Collection Operations',
-      reports: [
-        { slug: 'daily-collection', name: 'Daily Collection Report' },
-        { slug: 'collection-efficiency', name: 'Collection Efficiency' },
-        { slug: 'agent-collection-report', name: 'Agent Collection Report' },
-        { slug: 'route-collection-report', name: 'Route Collection Report' },
-        { slug: 'todays-emi-report', name: "Today's EMI Report" },
-      ],
-    },
-    {
-      category: 'Customer Register',
-      reports: [
-        { slug: 'customer-register', name: 'Customer Register' },
-        { slug: 'customer-loan-history', name: 'Customer Loan History' },
-        { slug: 'repeat-borrowers', name: 'Repeat Borrowers' },
-        { slug: 'inactive-customers', name: 'Inactive Customers' },
-        { slug: 'top-borrowers', name: 'Top Borrowers' },
-      ],
-    },
-    {
-      category: 'Agent Operations',
-      reports: [
-        { slug: 'agent-performance', name: 'Agent Performance' },
-        { slug: 'agent-attendance', name: 'Agent Attendance' },
-        { slug: 'missed-visit-report', name: 'Missed Visit Report' },
-        { slug: 'commission-report', name: 'Commission Report' },
-      ],
-    },
-    {
-      category: 'Financial & Accounting',
-      reports: [
-        { slug: 'cash-flow', name: 'Cash Flow' },
-        { slug: 'disbursement', name: 'Disbursement Report' },
-        { slug: 'interest-income', name: 'Interest Income' },
-        { slug: 'penalty-income-report', name: 'Penalty Income' },
-        { slug: 'outstanding-balance', name: 'Outstanding Balance' },
-        { slug: 'profit-report', name: 'Profit Report' },
-      ],
-    },
-    {
-      category: 'Branch Monitoring',
-      reports: [
-        { slug: 'branch-performance', name: 'Branch Performance' },
-        { slug: 'branch-comparison', name: 'Branch Comparison' },
-      ],
-    },
-    {
-      category: 'GPS & Field Tracking',
-      reports: [
-        { slug: 'gps-route', name: 'GPS Route Log' },
-        { slug: 'travel-distance', name: 'Travel Distance Report' },
-        { slug: 'customer-visit-history', name: 'Customer Visit History' },
-        { slug: 'missed-gps-checkin', name: 'Missed GPS Check-in' },
-      ],
-    },
-    {
-      category: 'System & Audit Logs',
-      reports: [
-        { slug: 'notification-report', name: 'Notification Report' },
-        { slug: 'audit-activity', name: 'Audit Activity Log' },
-        { slug: 'login-history-report', name: 'Login History' },
-      ],
-    },
-    {
-      category: 'Payments & Reconciliations',
-      reports: [
-        { slug: 'payment-by-mode', name: 'Payment by Mode' },
-        { slug: 'failed-payments', name: 'Failed Payments' },
-        { slug: 'refund-report', name: 'Refund Report' },
-        { slug: 'duplicate-payments', name: 'Duplicate Payments' },
-        { slug: 'cancelled-payments', name: 'Cancelled Payments' },
-      ],
-    },
-    {
-      category: 'Risk & NPA',
-      reports: [
-        { slug: 'npa-classification-report', name: 'NPA Classification Report' },
-      ],
-    },
-    ...(moduleReportsByAppType[appType]
-      ? [{ category: 'Module Reports', reports: moduleReportsByAppType[appType] }]
-      : []),
-    { category: 'Wallet / Float', reports: [{ slug: 'wallet-float-ledger', name: 'Wallet Float Ledger' }] },
-    ...(subscription?.premiumAccountingEnabled
-      ? [
-          {
-            category: 'Premium Accounting Statements',
-            reports: [
-              { slug: 'day-book', name: 'Day Book' },
-              { slug: 'cash-book', name: 'Cash Book' },
-              { slug: 'ledger-report', name: 'Ledger Report' },
-              { slug: 'bank-book', name: 'Bank Book' },
-            ],
-          },
-        ]
-      : []),
-  ];
+  const reportsForApp = getReportsForAppType(appType as AppType, {
+    premiumAccountingEnabled: Boolean(subscription?.premiumAccountingEnabled),
+  });
+  const reportCategories = Array.from(
+    reportsForApp.reduce((categories, report) => {
+      const reports = categories.get(report.category) ?? [];
+      reports.push({ slug: report.slug, name: report.name });
+      categories.set(report.category, reports);
+      return categories;
+    }, new Map<string, { slug: string; name: string }[]>()),
+    ([category, reports]) => ({ category, reports }),
+  );
 
   const accountingLinks = subscription?.premiumAccountingEnabled
     ? [

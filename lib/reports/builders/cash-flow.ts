@@ -1,6 +1,14 @@
 import prisma from '../../db';
 import { ReportBuilderParams, ReportPayload } from '../types';
 
+export function classifyCashFlowEntryType(type: string): 'inflow' | 'outflow' | null {
+  if (['collection', 'capital_add'].includes(type)) return 'inflow';
+  if (['loan_disburse', 'chit_payout', 'chit_dividend_payout', 'expense', 'capital_withdraw'].includes(type)) {
+    return 'outflow';
+  }
+  return null;
+}
+
 export async function buildCashFlow(params: ReportBuilderParams): Promise<ReportPayload> {
   const { tenantId, appType, from, to, branchId } = params;
 
@@ -34,9 +42,10 @@ export async function buildCashFlow(params: ReportBuilderParams): Promise<Report
     const item = groupMap.get(key)!;
     const amount = Number(e.amount);
 
-    if (['collection', 'capital_add'].includes(e.type)) {
+    const direction = classifyCashFlowEntryType(e.type);
+    if (direction === 'inflow') {
       item.inflow += amount;
-    } else if (['loan_disburse', 'expense', 'capital_withdraw', 'chit_payout', 'chit_dividend_payout'].includes(e.type)) {
+    } else if (direction === 'outflow') {
       item.outflow += amount;
     }
   });

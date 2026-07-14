@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { manageBranchAgent, setBranchAgentStatus } from '../../../admin/actions';
 import GoldMasterClient from './gold-master/GoldMasterClient';
+import { isLendingAppType, normalizeSettingsTab } from '@/lib/moduleCapabilities';
 
 export default function SettingsClient({
   routes, packages, users, settings, currencySymbol, dict, currentUser, subscription, bureauCredential,
@@ -20,8 +21,17 @@ export default function SettingsClient({
 }) {
   const d = dict.settings;
   const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
+  const modulePrefix = pathname.split('/')[1] || 'microlending';
+  const effAppType = appType || modulePrefix;
+  const isLendingModule = isLendingAppType(effAppType);
   // Tab survives reloads via ?tab= (history.replaceState avoids a server round-trip).
-  const [activeTab, setActiveTabState] = useState(searchParams.get('tab') || 'routes');
+  const [activeTab, setActiveTabState] = useState(() => normalizeSettingsTab(
+    effAppType,
+    searchParams.get('tab'),
+    subscription || {},
+  ));
   const [selectedEvent, setSelectedEvent] = useState('payment_received');
   const [selectedLang, setSelectedLang] = useState('en');
   const setActiveTab = (tab: string) => {
@@ -31,10 +41,6 @@ export default function SettingsClient({
     window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
   };
   const [loading, setLoading] = useState(false);
-  const pathname = usePathname();
-  const router = useRouter();
-  const modulePrefix = pathname.split('/')[1] || 'microlending';
-  const effAppType = appType || modulePrefix;
 
   // Scoped agent management (Users tab)
   const canManageAgents = viewerRole === 'admin' || viewerRole === 'superadmin' || viewerRole === 'developer';
@@ -148,8 +154,12 @@ export default function SettingsClient({
     <div className="card">
       <div className="tabs">
         <div className={`tab ${activeTab === 'routes' ? 'active' : ''}`} onClick={() => setActiveTab('routes')}>{d.tabRoutes}</div>
-        <div className={`tab ${activeTab === 'penalty' ? 'active' : ''}`} onClick={() => setActiveTab('penalty')}>{d.tabPenalty}</div>
-        <div className={`tab ${activeTab === 'packages' ? 'active' : ''}`} onClick={() => setActiveTab('packages')}>{d.tabPackages}</div>
+        {isLendingModule && (
+          <>
+            <div className={`tab ${activeTab === 'penalty' ? 'active' : ''}`} onClick={() => setActiveTab('penalty')}>{d.tabPenalty}</div>
+            <div className={`tab ${activeTab === 'packages' ? 'active' : ''}`} onClick={() => setActiveTab('packages')}>{d.tabPackages}</div>
+          </>
+        )}
         {effAppType === 'goldloan' && (
           <div className={`tab ${activeTab === 'goldmaster' ? 'active' : ''}`} onClick={() => setActiveTab('goldmaster')}>Gold Master</div>
         )}
@@ -159,10 +169,10 @@ export default function SettingsClient({
           <div className={`tab ${activeTab === 'notifications' ? 'active' : ''}`} onClick={() => setActiveTab('notifications')}>Notifications</div>
         )}
         <div className={`tab ${activeTab === 'bulk' ? 'active' : ''}`} onClick={() => setActiveTab('bulk')}>{d.tabBulk}</div>
-        {subscription?.bureauEnabled && (
+        {isLendingModule && subscription?.bureauEnabled && (
           <div className={`tab ${activeTab === 'bureau' ? 'active' : ''}`} onClick={() => setActiveTab('bureau')}>Bureau Connect</div>
         )}
-        {subscription?.npaEnabled && (
+        {isLendingModule && subscription?.npaEnabled && (
           <div className={`tab ${activeTab === 'npa' ? 'active' : ''}`} onClick={() => setActiveTab('npa')}>NPA Classification</div>
         )}
         {currentUser?.role === 'developer' && (
@@ -486,7 +496,8 @@ export default function SettingsClient({
       </div>
 
       {/* Penalty Tab */}
-      <div className={`tab-content ${activeTab === 'penalty' ? 'active' : ''}`}>
+      {isLendingModule && (
+        <div className={`tab-content ${activeTab === 'penalty' ? 'active' : ''}`}>
         <div className="card-header"><h3>⚡ {d.penaltyTitle}</h3></div>
         <form onSubmit={handlePenaltySubmit} style={{maxWidth:'500px'}}>
           <div className="form-group">
@@ -505,10 +516,12 @@ export default function SettingsClient({
             <span className="material-icons-outlined" style={{fontSize:'16px'}}>save</span> {loading ? d.saving : d.save}
           </button>
         </form>
-      </div>
+        </div>
+      )}
 
       {/* Packages Tab */}
-      <div className={`tab-content ${activeTab === 'packages' ? 'active' : ''}`}>
+      {isLendingModule && (
+        <div className={`tab-content ${activeTab === 'packages' ? 'active' : ''}`}>
         <div className="card-header">
           <h3>📦 {d.packagesTitle}</h3>
           <button className="btn btn-primary btn-sm" onClick={() => setIsPackageModalOpen(true)}>
@@ -536,7 +549,8 @@ export default function SettingsClient({
             </tbody>
           </table>
         </div>
-      </div>
+        </div>
+      )}
 
       {/* System Tab */}
       {currentUser?.role === 'developer' && (
@@ -602,7 +616,8 @@ export default function SettingsClient({
                 </div>
               </div>
 
-              <div style={{borderTop:'1px solid var(--border)', paddingTop:'20px', marginTop:'12px'}}>
+              {isLendingModule && (
+                <div style={{borderTop:'1px solid var(--border)', paddingTop:'20px', marginTop:'12px'}}>
                 <h4 style={{fontSize:'.95rem', fontWeight:700, marginBottom:'12px'}}>📝 {d.loanCodePrefixes}</h4>
                 <p style={{fontSize:'.8rem', color:'var(--text-light)', marginBottom:'16px'}}>{d.loanCodePrefixesDesc}</p>
                 <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px'}}>
@@ -623,7 +638,8 @@ export default function SettingsClient({
                     <input type="text" name="loan_prefix_monthly" className="form-control" style={{width:'100px'}} defaultValue={settings.loan_prefix_monthly || 'ML'} maxLength={4} />
                   </div>
                 </div>
-              </div>
+                </div>
+              )}
             </div>
             <div style={{marginTop:'20px'}}>
               <button type="submit" className="btn btn-primary" disabled={loading}>
@@ -1308,7 +1324,7 @@ export default function SettingsClient({
       </div>
 
       {/* Bureau Connect Tab */}
-      {subscription?.bureauEnabled && (
+      {isLendingModule && subscription?.bureauEnabled && (
         <div className={`tab-content ${activeTab === 'bureau' ? 'active' : ''}`}>
           <div className="card-header">
             <h3>🏦 Credit Bureau Connect Settings</h3>
@@ -1443,7 +1459,7 @@ export default function SettingsClient({
       )}
 
       {/* NPA Classification Tab */}
-      {subscription?.npaEnabled && (
+      {isLendingModule && subscription?.npaEnabled && (
         <div className={`tab-content ${activeTab === 'npa' ? 'active' : ''}`}>
           <div className="card-header">
             <h3>📊 NPA Classification Engine (RBI IRACP)</h3>

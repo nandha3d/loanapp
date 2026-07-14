@@ -35,7 +35,9 @@ export default async function AccountingPage({
       <div style={{ marginBottom: '20px' }}>
         <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 700 }}>📊 Accounting & P&L</h2>
         <p style={{ margin: '4px 0 0', fontSize: '.85rem', color: 'var(--text-secondary)' }}>
-          Track capital flow, loan disbursements, collections, and expenses.
+          {appType === 'chitfunds'
+            ? 'Track capital flow, chit contributions, auction payouts, dividends, and expenses.'
+            : 'Track capital flow, loan disbursements, collections, and expenses.'}
         </p>
       </div>
       <AccountingClient summary={serializedSummary} currencySymbol={currencySymbol} dict={dict} premiumEnabled={premiumEnabled} module={module} />
