@@ -35,7 +35,14 @@ export async function buildCustomerLiveState(groupId: string, auctionId: string,
   const auction = await prisma.chitAuction.findFirst({
     where: { id: auctionId, chitGroupId: groupId },
     include: {
-      chitGroup: true,
+      chitGroup: {
+        include: {
+          members: {
+            select: { id: true, ticketNo: true, hasWon: true, customer: { select: { name: true, profilePhoto: true } } },
+            orderBy: { memberNumber: 'asc' },
+          },
+        },
+      },
       bids: { where: { status: { in: ['valid', 'winning'] } }, include: { member: true }, orderBy: { bidTime: 'desc' } },
       winnerMember: { include: { customer: { select: { name: true } } } },
     },
@@ -58,6 +65,24 @@ export async function buildCustomerLiveState(groupId: string, auctionId: string,
   const highestBid = bids.length
     ? bids.reduce((top, bid) => (Number(bid.bidDiscount) > Number(top.bidDiscount) ? bid : top), bids[0])
     : null;
+
+  // Best bid per member this round, for the seat display — same "who's
+  // leading" view every member sees sitting at a real chit auction table.
+  const bestDiscountByMember = new Map<string, number>();
+  for (const bid of bids) {
+    const current = bestDiscountByMember.get(bid.memberId) ?? -1;
+    if (Number(bid.bidDiscount) > current) bestDiscountByMember.set(bid.memberId, Number(bid.bidDiscount));
+  }
+  const seats = auction.chitGroup.members.map((m) => ({
+    memberId: m.id,
+    ticketNo: m.ticketNo,
+    name: m.customer.name,
+    profilePhoto: m.customer.profilePhoto,
+    hasWon: m.hasWon,
+    isMe: m.id === memberId,
+    isLeader: highestBid != null && highestBid.memberId === m.id,
+    latestDiscount: bestDiscountByMember.get(m.id) ?? null,
+  }));
 
   const chitValueNum = Number(auction.chitGroup.chitValue);
   const minPct = auction.chitGroup.minDiscountPct != null
@@ -118,6 +143,7 @@ export async function buildCustomerLiveState(groupId: string, auctionId: string,
     },
     myBids,
     myLatestBid: myBids[0] ?? null,
+    seats,
     isRoomOpen: isRoomOpen(auction, now),
     winner: auction.winnerMember
       ? { memberId: auction.winnerMemberId, ticketNo: auction.winnerMember.ticketNo, isMe: auction.winnerMemberId === memberId }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import 'package:loantrack/core/currency/currency_controller.dart';
 import 'package:loantrack/core/l10n/app_strings.dart';
 import 'package:loantrack/core/l10n/language_controller.dart';
 import 'package:loantrack/core/network/api_exception.dart';
+import 'package:loantrack/core/network/authed_image.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
 import 'package:loantrack/core/theme/app_typography.dart';
@@ -321,7 +323,11 @@ class _BorrowerChitLiveScreenState extends ConsumerState<BorrowerChitLiveScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _LeadingBidCard(state: s, fmt: fmt),
+        _CustomerPokerTable(
+          state: s,
+          displaySeconds: _displaySeconds,
+          onTapMySeat: () => _quickBid(s.minNextDiscount ?? 0),
+        ),
         const SizedBox(height: 12),
         _BidEntryCard(
           state: s,
@@ -520,35 +526,192 @@ class _JoinCard extends StatelessWidget {
   }
 }
 
-class _LeadingBidCard extends StatelessWidget {
-  const _LeadingBidCard({required this.state, required this.fmt});
+// ───────────────────── Poker table (customer view) ─────────────────────
+// Same wooden-table visual the staff live room uses — every member seated
+// around the oval, the current leader glowing — so a customer bidding from
+// their phone feels like they're sitting at the same live auction, not
+// filling out a form. Read-only for other seats; tapping your own seat
+// places an instant minimum bid (same "tap to bid" gesture staff get).
+
+const _kCustomerFeltFrame = Color(0xFF111827);
+
+class _CustomerPokerTable extends StatelessWidget {
+  const _CustomerPokerTable({
+    required this.state,
+    required this.displaySeconds,
+    required this.onTapMySeat,
+  });
   final CustomerLiveAuctionState state;
-  final NumberFormat fmt;
+  final int displaySeconds;
+  final VoidCallback onTapMySeat;
 
   @override
   Widget build(BuildContext context) {
-    final best = state.currentHighestBid;
+    final seats = state.seats;
     return Container(
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: _kCustomerFeltFrame,
         borderRadius: BorderRadius.circular(AppTokens.radius),
-        boxShadow: AppTokens.shadow,
+      ),
+      padding: const EdgeInsets.all(10),
+      child: AspectRatio(
+        aspectRatio: seats.isEmpty ? 16 / 9 : 1536 / 2200,
+        child: LayoutBuilder(
+          builder: (context, box) {
+            final w = box.maxWidth;
+            final h = box.maxHeight;
+            final cx = w / 2;
+            final cy = h / 2;
+            final rx = w * 0.34;
+            final ry = h * 0.40;
+            final seatRadius = seats.length <= 8 ? 22.0 : (seats.length <= 14 ? 18.0 : 14.0);
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned.fill(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: RotatedBox(
+                      quarterTurns: 1,
+                      child: ColorFiltered(
+                        colorFilter: const ColorFilter.mode(Color(0x14000000), BlendMode.darken),
+                        child: Image.asset('assets/images/poker_table.png', fit: BoxFit.cover),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      gradient: const RadialGradient(
+                        radius: 0.95,
+                        colors: [Color(0x590F172A), Color(0xB30F172A)],
+                      ),
+                    ),
+                  ),
+                ),
+                Center(child: _CustomerCenterHub(state: state, displaySeconds: displaySeconds)),
+                for (var i = 0; i < seats.length; i++)
+                  _seat(cx, cy, rx, ry, -math.pi / 2 + (2 * math.pi * i / seats.length), seats[i], seatRadius),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _seat(double cx, double cy, double rx, double ry, double angle, CustomerSeat seat, double radius) {
+    final x = cx + rx * math.cos(angle);
+    final y = cy + ry * math.sin(angle);
+    return Positioned(
+      left: x - 46,
+      top: y - radius - 18,
+      width: 92,
+      child: _CustomerSeatChip(seat: seat, radius: radius, onTap: seat.isMe ? onTapMySeat : null),
+    );
+  }
+}
+
+class _CustomerCenterHub extends StatelessWidget {
+  const _CustomerCenterHub({required this.state, required this.displaySeconds});
+  final CustomerLiveAuctionState state;
+  final int displaySeconds;
+
+  @override
+  Widget build(BuildContext context) {
+    final mins = (displaySeconds ~/ 60).toString().padLeft(2, '0');
+    final secs = (displaySeconds % 60).toString().padLeft(2, '0');
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      decoration: BoxDecoration(
+        color: AppColors.inkElevated,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.inkBorder),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text('Current leading bid', style: AppTypography.caption.copyWith(color: AppColors.textSecondary)),
-          const SizedBox(height: 6),
-          if (best == null)
-            Text('No bids yet', style: AppTypography.sectionTitle)
-          else
-            Text('Ticket ${best.ticketNo ?? '—'} · discount ${fmt.format(best.bidDiscount)}',
-                style: AppTypography.sectionTitle),
-          if (state.minNextDiscount != null) ...[
-            const SizedBox(height: 4),
-            Text('Minimum next discount: ${fmt.format(state.minNextDiscount!)}', style: AppTypography.caption),
-          ],
+          Text(
+            state.roomStatus == 'extended' ? 'ANTI-SNIPE' : 'BIDDING OPEN',
+            style: AppTypography.tiny.copyWith(color: AppColors.onInkMuted, fontWeight: FontWeight.w800, letterSpacing: 1),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '$mins:$secs',
+            style: AppTypography.sectionTitle.copyWith(
+              color: AppColors.onInk,
+              fontSize: 30,
+              fontWeight: FontWeight.w800,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text('Your ticket ${state.membership.ticketNo ?? '—'}',
+              style: AppTypography.tiny.copyWith(color: AppColors.onInkMuted)),
+        ],
+      ),
+    );
+  }
+}
+
+class _CustomerSeatChip extends ConsumerWidget {
+  const _CustomerSeatChip({required this.seat, required this.radius, required this.onTap});
+  final CustomerSeat seat;
+  final double radius;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final border = seat.isMe
+        ? AppColors.success
+        : seat.isLeader
+            ? AppColors.primary
+            : AppColors.inkBorder;
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: border, width: seat.isMe || seat.isLeader ? 3 : 1.5),
+              boxShadow: seat.isMe || seat.isLeader
+                  ? [BoxShadow(color: border.withValues(alpha: 0.45), blurRadius: 12)]
+                  : null,
+            ),
+            child: CircleAvatar(
+              radius: radius,
+              backgroundColor: seat.hasWon ? AppColors.inkElevated : const Color(0xFF2A2D35),
+              foregroundImage: (seat.profilePhoto == null || seat.profilePhoto!.isEmpty)
+                  ? null
+                  : authedImage(ref, seat.profilePhoto!),
+              child: Text(
+                seat.name.isEmpty ? '?' : seat.name[0].toUpperCase(),
+                style: AppTypography.body.copyWith(color: seat.hasWon ? AppColors.onInkMuted : AppColors.onInk),
+              ),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            seat.isMe ? 'You' : (seat.ticketNo ?? '—'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.tiny.copyWith(
+              color: seat.isMe ? AppColors.success : AppColors.onInk,
+              fontWeight: seat.isMe ? FontWeight.w800 : FontWeight.w600,
+            ),
+          ),
+          if (seat.latestDiscount != null)
+            Text(
+              '₹${seat.latestDiscount!.toStringAsFixed(0)}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.tiny.copyWith(color: AppColors.onInkMuted),
+            ),
         ],
       ),
     );

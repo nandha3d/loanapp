@@ -404,6 +404,40 @@ class CustomerMembership {
       );
 }
 
+/// One seat at the table, as a customer sees it — same roster the staff
+/// poker table shows, minus staff-only controls.
+class CustomerSeat {
+  const CustomerSeat({
+    required this.memberId,
+    required this.ticketNo,
+    required this.name,
+    required this.hasWon,
+    required this.isMe,
+    required this.isLeader,
+    this.profilePhoto,
+    this.latestDiscount,
+  });
+  final String memberId;
+  final String? ticketNo;
+  final String name;
+  final bool hasWon;
+  final bool isMe;
+  final bool isLeader;
+  final String? profilePhoto;
+  final double? latestDiscount;
+
+  factory CustomerSeat.fromJson(Map<String, dynamic> j) => CustomerSeat(
+        memberId: (j['memberId'] as String?) ?? '',
+        ticketNo: j['ticketNo'] as String?,
+        name: (j['name'] as String?) ?? '—',
+        hasWon: (j['hasWon'] as bool?) ?? false,
+        isMe: (j['isMe'] as bool?) ?? false,
+        isLeader: (j['isLeader'] as bool?) ?? false,
+        profilePhoto: j['profilePhoto'] as String?,
+        latestDiscount: _dn(j['latestDiscount']),
+      );
+}
+
 /// Customer-facing live-room snapshot — GET /borrower/chits/:id/auctions/:auctionId/live.
 class CustomerLiveAuctionState {
   const CustomerLiveAuctionState({
@@ -428,6 +462,7 @@ class CustomerLiveAuctionState {
     this.winnerTicketNo,
     this.winnerIsMe = false,
     this.latestMessages = const [],
+    this.seats = const [],
   });
 
   final String roomStatus; // scheduled | open | extended | closed
@@ -439,6 +474,7 @@ class CustomerLiveAuctionState {
   final int secondsRemaining;
   final int autoExtendSeconds;
   final double chitValue;
+  final List<CustomerSeat> seats;
   final double? minDiscountPct;
   final double? maxDiscountPct;
   final double? bidIncrement;
@@ -469,6 +505,7 @@ class CustomerLiveAuctionState {
             .map((dynamic e) => CustomerOwnBid.fromJson(e as Map<String, dynamic>))
             .toList(growable: false);
     final messagesRaw = j['latestMessages'] as List<dynamic>?;
+    final seatsRaw = j['seats'] as List<dynamic>?;
     final winner = j['winner'] as Map<String, dynamic>?;
 
     return CustomerLiveAuctionState(
@@ -501,6 +538,11 @@ class CustomerLiveAuctionState {
           ? const []
           : messagesRaw
               .map((dynamic e) => RoomMessage.fromJson(e as Map<String, dynamic>))
+              .toList(growable: false),
+      seats: seatsRaw == null
+          ? const []
+          : seatsRaw
+              .map((dynamic e) => CustomerSeat.fromJson(e as Map<String, dynamic>))
               .toList(growable: false),
     );
   }
