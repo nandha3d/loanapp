@@ -7,7 +7,7 @@ import { closeRoomIfExpired, isRoomOpen, secondsRemaining } from './liveAuction'
 
 export async function getMyChitMemberships(customerId: string, tenantId: string) {
   const members = await prisma.chitMember.findMany({
-    where: { customerId, chitGroup: { tenantId, deletedAt: null } },
+    where: { customerId, chitGroup: { tenantId, appType: 'chitfunds', deletedAt: null } },
     include: {
       chitGroup: {
         select: {
@@ -121,7 +121,7 @@ export async function getMyChitAuctionStatus(customerId: string, groupId: string
 
 export async function getMyChitContributions(customerId: string, tenantId: string) {
   const members = await prisma.chitMember.findMany({
-    where: { customerId, chitGroup: { tenantId, deletedAt: null } },
+    where: { customerId, chitGroup: { tenantId, appType: 'chitfunds', deletedAt: null } },
     select: { id: true, ticketNo: true, chitGroup: { select: { id: true, name: true } } },
   });
   if (!members.length) return [];
@@ -155,7 +155,7 @@ export async function getMyChitContributions(customerId: string, tenantId: strin
 
 export async function getMyChitReceipts(customerId: string, tenantId: string) {
   const members = await prisma.chitMember.findMany({
-    where: { customerId, chitGroup: { tenantId, deletedAt: null } },
+    where: { customerId, chitGroup: { tenantId, appType: 'chitfunds', deletedAt: null } },
     select: { id: true, subscriptions: { select: { id: true } } },
   });
   const subscriptionIds = members.flatMap((m) => m.subscriptions.map((s) => s.id));
