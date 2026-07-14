@@ -5,6 +5,7 @@
 import prisma from '@/lib/db';
 import { isRoomOpen, secondsRemaining } from './liveAuction';
 import { syncRoom } from './bell';
+import { parseFrequency, periodWindow } from './frequency';
 
 export async function getMyChitMemberships(customerId: string, tenantId: string) {
   const members = await prisma.chitMember.findMany({
@@ -154,6 +155,74 @@ export async function getMyChitContributions(customerId: string, tenantId: strin
   });
 }
 
+type Contribution = Awaited<ReturnType<typeof getMyChitContributions>>[number];
+
+export type GroupedChitContributions = {
+  groupId: string;
+  groupName: string;
+  current: Contribution | null;
+  overdue: Contribution[];
+  upcoming: Contribution[];
+  history: Contribution[];
+};
+
+// Buckets a member's flat period list into current / overdue / upcoming /
+// history per chit group, using doc 16's frequency-aware periodWindow so a
+// daily chit's "current" period is a one-day window, not a whole month.
+export async function getMyChitContributionsGrouped(
+  customerId: string,
+  tenantId: string
+): Promise<GroupedChitContributions[]> {
+  const flat = await getMyChitContributions(customerId, tenantId);
+  if (!flat.length) return [];
+
+  const groupIds = Array.from(new Set(flat.map((c) => c.groupId)));
+  const groups = await prisma.chitGroup.findMany({
+    where: { id: { in: groupIds } },
+    select: {
+      id: true,
+      startDate: true,
+      auctionFrequency: true,
+      frequencyUnit: true,
+      frequencyInterval: true,
+      frequencyWeekdays: true,
+    },
+  });
+  const groupById = new Map(groups.map((g) => [g.id, g]));
+
+  const byGroup = new Map<string, Contribution[]>();
+  for (const c of flat) {
+    if (!byGroup.has(c.groupId)) byGroup.set(c.groupId, []);
+    byGroup.get(c.groupId)!.push(c);
+  }
+
+  const today = new Date();
+  return Array.from(byGroup.entries()).map(([groupId, periods]) => {
+    const group = groupById.get(groupId);
+    const freq = parseFrequency(group || {});
+    const startDate = group?.startDate ?? today;
+
+    const unpaid = periods.filter((p) => p.status !== 'paid');
+    const current =
+      unpaid.find((p) => {
+        const { from, to } = periodWindow(startDate, p.periodNumber, freq);
+        return today >= from && today < to;
+      }) ??
+      unpaid[0] ??
+      null;
+
+    const overdue = unpaid.filter((p) => {
+      if (p === current) return false;
+      const { to } = periodWindow(startDate, p.periodNumber, freq);
+      return today >= to;
+    });
+    const upcoming = unpaid.filter((p) => p !== current && !overdue.includes(p));
+    const history = periods.filter((p) => p.status === 'paid');
+
+    return { groupId, groupName: periods[0].groupName, current, overdue, upcoming, history };
+  });
+}
+
 export async function getMyChitReceipts(customerId: string, tenantId: string) {
   const members = await prisma.chitMember.findMany({
     where: { customerId, chitGroup: { tenantId, appType: 'chitfunds', deletedAt: null } },
@@ -173,6 +242,8 @@ export async function getMyChitReceipts(customerId: string, tenantId: string) {
     receiptType: r.receiptType,
     amount: Number(r.amount),
     paymentMode: r.paymentMode,
+    referenceNo: r.referenceNo,
+    entityId: r.entityId,
     issuedAt: r.issuedAt.toISOString(),
   }));
 }

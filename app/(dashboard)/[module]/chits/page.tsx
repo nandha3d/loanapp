@@ -100,9 +100,16 @@ export default async function ChitsPage({
       <div className="card">
         <div className="card-header">
           <h3>💰 {dict.chits.chitFundGroups}</h3>
-          <Link href="/chits/new" className="btn btn-primary btn-sm">
-            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>add</span> {dict.chits.newChitGroup}
-          </Link>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {userRole !== 'agent' && (
+              <Link href="/chits/payments" className="btn btn-ghost btn-sm">
+                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>receipt_long</span> Payment proofs
+              </Link>
+            )}
+            <Link href="/chits/new" className="btn btn-primary btn-sm">
+              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>add</span> {dict.chits.newChitGroup}
+            </Link>
+          </div>
         </div>
 
         <form method="GET" className="filter-bar" style={{ marginBottom: '16px' }}>

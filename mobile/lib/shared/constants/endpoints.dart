@@ -272,4 +272,9 @@ class Endpoints {
       '/borrower/chits/$groupId/auctions/$auctionId/timeline';
   static String borrowerChitAuctionSummary(String groupId, String auctionId) =>
       '/borrower/chits/$groupId/auctions/$auctionId/summary';
+
+  // Doc 22b/19: grouped contributions + payment proof intents, borrower upload.
+  static const String borrowerUpload = '/borrower/upload';
+  static const String borrowerChitContributions = '/borrower/chits/contributions';
+  static const String borrowerChitPaymentIntents = '/borrower/chits/payment-intents';
 }

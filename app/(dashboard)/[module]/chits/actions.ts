@@ -15,8 +15,14 @@ import {
   canApproveChitSecurity,
   canCollectChits,
   getWebChitScope,
+  isTenantWideRole,
   scopedChitGroupWhere,
 } from '@/lib/chits/access';
+import {
+  approveChitPaymentIntent,
+  listChitPaymentIntentsForStaff,
+  rejectChitPaymentIntent,
+} from '@/lib/chits/paymentIntents';
 import { getTopBids, getWinningBid } from '@/lib/chits/auction';
 import { drawLotteryWinner, formatDrawEvidence } from '@/lib/chits/lottery';
 import { finalizeAuctionInTx } from '@/lib/chits/finalize';
@@ -601,8 +607,9 @@ export async function markAuctionAttendance(auctionId: string, memberId: string,
       status,
       proxyName: proxyName || null,
       markedById: scope.userId || undefined,
+      markedVia: 'staff',
     },
-    update: { status, proxyName: proxyName || null, markedById: scope.userId || undefined, markedAt: new Date() },
+    update: { status, proxyName: proxyName || null, markedById: scope.userId || undefined, markedAt: new Date(), markedVia: 'staff' },
   });
   revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}`));
 }
@@ -1415,4 +1422,60 @@ export async function updateChitGroup(id: string, formData: FormData) {
   revalidatePath(modulePath(scope.appType, '/chits'));
   revalidatePath(modulePath(scope.appType, `/chits/${id}`));
   redirect(modulePath(scope.appType, `/chits/${id}`));
+}
+
+// ─── Doc 19: customer payment proof queue ────────────────────────────
+
+export async function listChitPaymentIntentsQueue(status: string | null = 'pending', chitGroupId?: string | null) {
+  const scope = await getWebChitScope();
+  if (!canCollectChits(scope.role)) throw new Error('Forbidden');
+  return listChitPaymentIntentsForStaff({
+    tenantId: scope.tenantId,
+    branchId: scope.branchId,
+    isTenantWide: isTenantWideRole(scope.role),
+    status,
+    chitGroupId: chitGroupId || null,
+  });
+}
+
+export async function approveChitPaymentIntentAction(intentId: string, confirmedAmount: number) {
+  const scope = await getWebChitScope();
+  if (!canCollectChits(scope.role)) throw new Error('Forbidden');
+  if (!Number.isFinite(confirmedAmount) || confirmedAmount <= 0) throw new Error('Confirmed amount must be positive');
+
+  const intent = await prisma.chitPaymentIntent.findFirst({ where: { id: intentId, tenantId: scope.tenantId } });
+  if (!intent) throw new Error('Payment intent not found');
+  const member = await prisma.chitMember.findUnique({
+    where: { id: intent.memberId },
+    select: { chitGroupId: true, chitGroup: { select: { branch: { select: { code: true } } } } },
+  });
+
+  const result = await approveChitPaymentIntent({
+    tenantId: scope.tenantId,
+    appType: scope.appType,
+    branchCode: member?.chitGroup.branch?.code,
+    intentId,
+    confirmedAmount,
+    reviewerId: scope.userId as string,
+  });
+
+  if (member) {
+    revalidatePath(modulePath(scope.appType, `/chits/${member.chitGroupId}`));
+  }
+  revalidatePath(modulePath(scope.appType, '/chits/payments'));
+  return result;
+}
+
+export async function rejectChitPaymentIntentAction(intentId: string, reason: string) {
+  const scope = await getWebChitScope();
+  if (!canCollectChits(scope.role)) throw new Error('Forbidden');
+  if (!reason || !reason.trim()) throw new Error('A rejection reason is required');
+
+  await rejectChitPaymentIntent({
+    tenantId: scope.tenantId,
+    intentId,
+    reason: reason.trim(),
+    reviewerId: scope.userId as string,
+  });
+  revalidatePath(modulePath(scope.appType, '/chits/payments'));
 }

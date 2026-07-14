@@ -5,6 +5,7 @@ import { cookies } from 'next/headers';
 import { getTenantIdFromHost } from '@/lib/tenant';
 import { checkRateLimit, getClientIp, routeKey } from '@/lib/rateLimit';
 import { BORROWER_OTP_TTL_SECONDS, generateBorrowerOtp, hashBorrowerOtp, verifyBorrowerOtp } from '@/lib/borrowerOtp';
+import { markAttendanceOnLogin } from '@/lib/chits/attendanceAuto';
 import bcryptjs from 'bcryptjs';
 
 function getBorrowerJwtSecret(): Uint8Array {
@@ -106,6 +107,10 @@ export async function POST(request: Request) {
       });
 
       cookieStore.delete('borrower_otp');
+
+      // Doc 18 — auto-mark attendance if a chit auction is scheduled today.
+      // Fire-and-forget: never blocks or fails the login response.
+      markAttendanceOnLogin(customer.id, customer.tenantId).catch(() => {});
 
       return NextResponse.json({ success: true });
     }
@@ -221,6 +226,10 @@ export async function POST(request: Request) {
 
       cookieStore.delete('borrower_otp');
 
+      // Doc 18 — auto-mark attendance if a chit auction is scheduled today.
+      // Fire-and-forget: never blocks or fails the login response.
+      markAttendanceOnLogin(customer.id, customer.tenantId).catch(() => {});
+
       return NextResponse.json({ success: true });
     }
 
@@ -268,6 +277,10 @@ export async function POST(request: Request) {
       });
 
       cookieStore.delete('borrower_otp');
+
+      // Doc 18 — auto-mark attendance if a chit auction is scheduled today.
+      // Fire-and-forget: never blocks or fails the login response.
+      markAttendanceOnLogin(customer.id, customer.tenantId).catch(() => {});
 
       return NextResponse.json({ success: true });
     }

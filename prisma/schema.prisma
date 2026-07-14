@@ -1449,6 +1449,11 @@ model ChitAuctionAttendance {
   remarks    String?     @db.Text
   markedById String?     @map("marked_by_id")
   markedAt   DateTime    @default(now()) @map("marked_at")
+  // How this row was created: 'staff' (manual), 'room_join' (opened the live
+  // room), 'login' (any borrower-portal login on auction day), 'whatsapp'
+  // (doc 23). Existing pre-feature rows default to 'staff' since manual
+  // marking was the only path before this.
+  markedVia  String      @default("staff") @map("marked_via")
   auction    ChitAuction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
   member     ChitMember  @relation(fields: [memberId], references: [id])
 
@@ -1476,6 +1481,33 @@ model ChitRoomMessage {
 
   @@index([auctionId, createdAt])
   @@map("chit_room_messages")
+}
+
+// Customer-filed "I've paid" claim awaiting staff review before any money
+// posts. Shared with doc 23's WhatsApp inbound path via `source`.
+model ChitPaymentIntent {
+  id              String    @id @default(cuid())
+  tenantId        String    @map("tenant_id")
+  branchId        String?   @map("branch_id")
+  memberId        String    @map("member_id")
+  subscriptionId  String    @map("subscription_id")
+  amount          Decimal?  @map("amount") @db.Decimal(14, 2)
+  paymentMode     String    @default("upi") @map("payment_mode")
+  referenceNo     String?   @map("reference_no")
+  proofDocumentId String?   @map("proof_document_id")
+  source          String    @default("portal") @map("source")
+  status          String    @default("pending")
+  reviewedById    String?   @map("reviewed_by_id")
+  reviewedAt      DateTime? @map("reviewed_at")
+  rejectionReason String?   @map("rejection_reason") @db.Text
+  receiptNo       String?   @map("receipt_no")
+  waMessageId     String?   @map("wa_message_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@index([tenantId, branchId, status])
+  @@index([memberId])
+  @@index([subscriptionId])
+  @@map("chit_payment_intents")
 }
 
 model ChitReceipt {

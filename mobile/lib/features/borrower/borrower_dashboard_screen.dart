@@ -13,6 +13,7 @@ import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/data/models/borrower.dart';
 import 'package:loantrack/data/services/borrower_service.dart';
 import 'package:loantrack/features/borrower/borrower_chit_live_screen.dart';
+import 'package:loantrack/features/borrower/borrower_chit_contributions_screen.dart';
 
 final _borrowerLoansProvider =
     FutureProvider.autoDispose<List<BorrowerLoan>>((ref) {
@@ -817,30 +818,49 @@ class _ChitMembershipCard extends StatelessWidget {
               ),
             ],
           ),
-          if (roomLive && m.nextAuctionId != null) ...[
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => BorrowerChitLiveScreen(
-                        groupId: m.groupId,
-                        auctionId: m.nextAuctionId!,
-                        groupName: m.groupName,
-                        fallbackChitValue: m.chitValue,
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const BorrowerChitContributionsScreen(),
                       ),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.podcasts, size: 18),
-                label: const Text('Join Live Auction'),
-                style: FilledButton.styleFrom(backgroundColor: AppColors.success),
+                    );
+                  },
+                  icon: const Icon(Icons.receipt_long, size: 16),
+                  label: const Text('Contributions'),
+                  style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
+                ),
               ),
-            ),
-          ],
+              if (roomLive && m.nextAuctionId != null) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => BorrowerChitLiveScreen(
+                            groupId: m.groupId,
+                            auctionId: m.nextAuctionId!,
+                            groupName: m.groupName,
+                            fallbackChitValue: m.chitValue,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.podcasts, size: 18),
+                    label: const Text('Join Live'),
+                    style: FilledButton.styleFrom(backgroundColor: AppColors.success),
+                  ),
+                ),
+              ],
+            ],
+          ),
         ],
       ),
     );

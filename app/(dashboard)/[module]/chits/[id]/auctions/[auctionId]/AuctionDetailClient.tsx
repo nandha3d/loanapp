@@ -240,6 +240,14 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
 
   const attendanceOf = (memberId: string) =>
     auction.attendance.find((entry: any) => entry.memberId === memberId)?.status ?? null;
+  const attendanceEntryOf = (memberId: string) =>
+    auction.attendance.find((entry: any) => entry.memberId === memberId) ?? null;
+  const viaLabel = (via?: string | null, admissionStatus?: string | null) => {
+    if (via === 'room_join') return admissionStatus === 'none' ? 'via login' : 'via room';
+    if (via === 'login') return 'via login';
+    if (via === 'whatsapp') return 'via WhatsApp';
+    return 'via staff';
+  };
 
   const eligibleBidders = group.members.filter((m: any) => !m.hasWon && m.subscriberStatus === 'active');
   const bidDiscountPreview = Number(group.chitValue) - bidPrize;
@@ -781,17 +789,20 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
             <div className="card-header"><h3>🙋 Attendance</h3></div>
             <div className="table-wrapper" style={{ maxHeight: '340px', overflowY: 'auto' }}>
               <table>
-                <thead><tr><th>Ticket</th><th>{d.member}</th><th>{d.status}</th></tr></thead>
+                <thead><tr><th>Ticket</th><th>{d.member}</th><th>{d.status}</th><th>Via</th></tr></thead>
                 <tbody>
                   {group.members.map((m: any) => {
                     const status = attendanceOf(m.id);
+                    const entry = attendanceEntryOf(m.id);
                     return (
                       <tr key={m.id}>
                         <td>{m.ticketNo ?? m.memberNumber}</td>
                         <td>{m.customer.name}</td>
                         <td>
                           {locked ? (
-                            <span className={`badge badge-${status === 'present' ? 'success' : status === 'proxy' ? 'info' : 'secondary'}`}>{status ?? '—'}</span>
+                            <span className={`badge badge-${status === 'present' ? 'success' : status === 'proxy' ? 'info' : 'secondary'}`}>
+                              {entry?.admissionStatus === 'none' ? 'present (portal only)' : (status ?? '—')}
+                            </span>
                           ) : (
                             <div style={{ display: 'flex', gap: '4px' }}>
                               {['present', 'absent', 'proxy'].map((option) => (
@@ -810,6 +821,11 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
                               ))}
                             </div>
                           )}
+                        </td>
+                        <td>
+                          {entry ? (
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{viaLabel(entry.markedVia, entry.admissionStatus)}</span>
+                          ) : '—'}
                         </td>
                       </tr>
                     );

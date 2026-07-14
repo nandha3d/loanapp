@@ -17,7 +17,8 @@ import {
 import { formatCurrency, formatDate } from '@/lib/utils';
 import Link from '@/components/layout/DashboardLink';
 import { useRegisterBreadcrumbLabel } from '@/components/layout/BreadcrumbLabelContext';
-import { parseFrequency, frequencyLabel } from '@/lib/chits/frequency';
+import { parseFrequency, frequencyLabel, periodWindow } from '@/lib/chits/frequency';
+import PaymentIntentsQueue from '@/components/chits/PaymentIntentsQueue';
 
 interface ChitGroupDetailClientProps {
   group: any;
@@ -55,6 +56,7 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
+  const [subTab, setSubTab] = useState<'current' | 'overdue' | 'all'>('current');
 
   const isDrawType = ['lottery', 'fixed_rotation'].includes(group.auctionType);
   const completedAuctions = group.auctions.filter((a: any) => ['confirmed', 'paid', 'completed'].includes(a.status));
@@ -374,9 +376,27 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
         )}
       </div>
 
+      {/* Doc 19: customer-submitted payment proofs awaiting review, scoped to this group */}
+      <div className="card">
+        <div className="card-header"><h3>🧾 Payment proofs</h3></div>
+        <PaymentIntentsQueue chitGroupId={group.id} currencySymbol={currencySymbol} />
+      </div>
+
       {/* Subscription Payments */}
       <div className="card">
         <div className="card-header"><h3>💳 {d.memberPayments}</h3></div>
+        <div style={{ display: 'flex', gap: '8px', padding: '0 16px 12px' }}>
+          {(['current', 'overdue', 'all'] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              className={`btn btn-sm ${subTab === tab ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => setSubTab(tab)}
+            >
+              {tab === 'current' ? 'Current' : tab === 'overdue' ? 'Overdue' : 'All'}
+            </button>
+          ))}
+        </div>
         <div className="table-wrapper">
           <table>
             <thead>
@@ -397,7 +417,16 @@ export default function ChitGroupDetailClient({ group, currencySymbol, dict }: C
             </thead>
             <tbody>
               {group.members.flatMap((m: any) =>
-                m.subscriptions.map((s: any) => {
+                m.subscriptions
+                  .filter((s: any) => {
+                    if (subTab === 'all') return true;
+                    if (s.status === 'paid') return false;
+                    const freq = parseFrequency(group);
+                    const { to } = periodWindow(new Date(group.startDate), s.periodNumber, freq);
+                    const isOverdue = new Date() >= to;
+                    return subTab === 'overdue' ? isOverdue : !isOverdue;
+                  })
+                  .map((s: any) => {
                   const b = subscriptionBreakdown(s);
                   return (
                   <tr key={s.id}>

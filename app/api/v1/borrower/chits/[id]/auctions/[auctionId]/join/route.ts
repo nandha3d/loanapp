@@ -34,20 +34,34 @@ export async function POST(
     if (member.hasWon) return fail('This ticket has already won and cannot rejoin', 400);
 
     const admissionStatus = auction.chitGroup.roomAdmission === 'approval' ? 'waiting' : 'admitted';
-    const attendance = await prisma.chitAuctionAttendance.upsert({
+    const existing = await prisma.chitAuctionAttendance.findUnique({
       where: { auctionId_memberId: { auctionId, memberId: member.id } },
-      create: {
-        tenantId: borrower.tenantId,
-        branchId: auction.chitGroup.branchId,
-        auctionId,
-        memberId: member.id,
-        status: 'present',
-        admissionStatus,
-      },
-      // Re-tapping Join after the first time must not clobber a staff
-      // admit/deny decision — leave the existing row untouched.
-      update: {},
     });
+
+    let attendance;
+    if (!existing) {
+      attendance = await prisma.chitAuctionAttendance.create({
+        data: {
+          tenantId: borrower.tenantId,
+          branchId: auction.chitGroup.branchId,
+          auctionId,
+          memberId: member.id,
+          status: 'present',
+          admissionStatus,
+          markedVia: 'room_join',
+        },
+      });
+    } else if (existing.admissionStatus === 'none') {
+      // Doc 18: a login-only mark ('none') escalates to waiting/admitted on
+      // an actual room join — but a staff decision (waiting/admitted/denied)
+      // must never be touched here.
+      attendance = await prisma.chitAuctionAttendance.update({
+        where: { id: existing.id },
+        data: { admissionStatus, status: 'present', markedVia: 'room_join' },
+      });
+    } else {
+      attendance = existing;
+    }
     return ok({ admissionStatus: attendance.admissionStatus });
   } catch (e: any) {
     return fail(e?.message ?? 'Join failed', 500);

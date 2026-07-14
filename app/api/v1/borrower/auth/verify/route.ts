@@ -3,6 +3,7 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { normalizeBorrowerOtpInput, verifyBorrowerOtp } from '@/lib/borrowerOtp';
 import { issueBorrowerMobileToken, verifyBorrowerChallenge } from '@/lib/api/borrower-mobile';
+import { markAttendanceOnLogin } from '@/lib/chits/attendanceAuto';
 
 function getBorrowerOtpSecret(): string {
   const secret = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET || process.env.MOBILE_JWT_SECRET;
@@ -64,6 +65,8 @@ export async function POST(req: NextRequest) {
       customerId: customer.id,
       role: 'borrower',
     });
+
+    markAttendanceOnLogin(customer.id, customer.tenantId).catch(() => {});
 
     return ok({
       token,
