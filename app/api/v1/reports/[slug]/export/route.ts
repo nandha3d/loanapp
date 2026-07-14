@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { createElement } from 'react';
 import { requireApiContext, ADMIN_API_ROLES } from '@/lib/apiAuth';
-import { reportRegistry } from '@/lib/reports/registry';
+import { getReportDefinitionForAppType } from '@/lib/reports/catalog';
+import type { AppType } from '@/lib/appConfig';
 import { toCSV } from '@/lib/reports/csv';
 import { toWorkbook } from '@/lib/reports/excel';
 import { TableReportPDF } from '@/lib/reports/pdf';
@@ -19,9 +20,9 @@ export async function GET(
     const context = 'context' in authResult ? authResult.context : (authResult as any);
 
     const { slug } = await params;
-    const builder = reportRegistry[slug];
+    const definition = getReportDefinitionForAppType(context.appType as AppType, slug);
 
-    if (!builder) {
+    if (!definition) {
       return new NextResponse(`Report builder for slug '${slug}' not found`, { status: 404 });
     }
 
@@ -46,7 +47,7 @@ export async function GET(
     const paymentStatus = searchParams.get('paymentStatus') || undefined;
     const loanId = searchParams.get('loanId') || undefined;
 
-    const payload = await builder({
+    const payload = await definition.builder({
       tenantId: context.tenantId,
       appType: context.appType,
       from,
