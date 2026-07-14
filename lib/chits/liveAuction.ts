@@ -32,10 +32,11 @@ export async function openAuctionRoom(tx: any, params: {
   durationMinutes: number;
   autoExtendSeconds?: number;
   now?: Date;
+  openedById?: string | null;
 }) {
   const now = params.now ?? new Date();
   if (!(params.durationMinutes > 0)) throw new Error('Room duration must be greater than zero');
-  return tx.chitAuction.update({
+  const updated = await tx.chitAuction.update({
     where: { id: params.auctionId },
     data: {
       roomStatus: 'open',
@@ -49,6 +50,16 @@ export async function openAuctionRoom(tx: any, params: {
       bellsRung: 0,
     },
   });
+  await tx.chitAuctionEvent.create({
+    data: {
+      auctionId: params.auctionId,
+      type: 'open',
+      message: 'Room opened',
+      createdById: params.openedById ?? undefined,
+      createdAt: now,
+    },
+  });
+  return updated;
 }
 
 // Transaction-safe lazy close: re-reads the row inside the caller's transaction so two
@@ -71,17 +82,24 @@ export async function closeRoomIfExpired(tx: any, auctionId: string, now = new D
       status: fresh.status === 'in_progress' ? 'completed' : fresh.status,
     },
   });
+  await tx.chitAuctionEvent.create({
+    data: { auctionId, type: 'close', message: 'Auto-closed (time expired)', createdAt: now },
+  });
   return 'closed' as ChitRoomStatus;
 }
 
-export async function closeAuctionRoom(tx: any, auctionId: string) {
+export async function closeAuctionRoom(
+  tx: any,
+  auctionId: string,
+  opts: { reason?: string; closedById?: string | null } = {},
+) {
   const fresh = await tx.chitAuction.findUnique({
     where: { id: auctionId },
     select: { id: true, roomStatus: true, status: true },
   });
   if (!fresh) throw new Error('Auction not found');
   if (!['open', 'extended'].includes(fresh.roomStatus)) throw new Error('Room is not open');
-  return tx.chitAuction.update({
+  const updated = await tx.chitAuction.update({
     where: { id: auctionId },
     data: {
       roomStatus: 'closed',
@@ -89,4 +107,13 @@ export async function closeAuctionRoom(tx: any, auctionId: string) {
       status: fresh.status === 'in_progress' ? 'completed' : fresh.status,
     },
   });
+  await tx.chitAuctionEvent.create({
+    data: {
+      auctionId,
+      type: 'close',
+      message: opts.reason ?? 'Manually closed',
+      createdById: opts.closedById ?? undefined,
+    },
+  });
+  return updated;
 }

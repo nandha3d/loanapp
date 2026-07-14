@@ -79,6 +79,14 @@ export async function placeChitBid(tx: any, params: PlaceChitBidParams) {
         where: { id: auction.id },
         data: { biddingClosesAt: extendedClose, roomStatus: 'extended' },
       });
+      await tx.chitAuctionEvent.create({
+        data: {
+          auctionId: auction.id,
+          type: 'extend',
+          message: 'Anti-snipe extension',
+          amount: fresh.autoExtendSeconds,
+        },
+      });
     }
   }
 

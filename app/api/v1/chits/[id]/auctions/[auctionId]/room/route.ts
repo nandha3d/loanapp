@@ -56,6 +56,7 @@ export async function POST(
           auctionId,
           durationMinutes,
           autoExtendSeconds: Number(body?.autoExtendSeconds) || 0,
+          openedById: ctx.userId,
         });
         await createChitAudit(tx, {
           tenantId: ctx.tenantId,
@@ -67,7 +68,7 @@ export async function POST(
         });
         return result;
       }
-      const result = await closeAuctionRoom(tx, auctionId);
+      const result = await closeAuctionRoom(tx, auctionId, { closedById: ctx.userId });
       await createChitAudit(tx, {
         tenantId: ctx.tenantId,
         userId: ctx.userId,

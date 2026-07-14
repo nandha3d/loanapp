@@ -60,10 +60,7 @@ export async function evaluateBells(tx: any, auctionId: string, now = new Date()
   }
 
   if (due >= g.bellCount && g.bellAutoClose) {
-    await closeAuctionRoom(tx, auctionId);
-    await tx.chitAuctionEvent.create({
-      data: { auctionId, type: 'close', message: 'Auto-closed (sold on the final bell)' },
-    });
+    await closeAuctionRoom(tx, auctionId, { reason: 'Auto-closed (sold on the final bell)' });
   }
 
   return { ...fresh, bellsRung: due };
@@ -102,10 +99,7 @@ export async function ringBellManually(tx: any, auctionId: string, byUserId: str
   });
 
   if (nextCount >= fresh.chitGroup.bellCount && fresh.chitGroup.bellAutoClose) {
-    await closeAuctionRoom(tx, auctionId);
-    await tx.chitAuctionEvent.create({
-      data: { auctionId, type: 'close', message: 'Auto-closed (sold on the final bell)' },
-    });
+    await closeAuctionRoom(tx, auctionId, { reason: 'Auto-closed (sold on the final bell)' });
   }
 }
 

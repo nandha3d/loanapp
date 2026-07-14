@@ -153,6 +153,16 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
         .then((_) {}));
   }
 
+  void _showTimelineSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) =>
+          _StaffTimelineSheet(groupId: widget.groupId, auctionId: widget.auctionId),
+    );
+  }
+
   int get _displaySeconds {
     final elapsed = DateTime.now().difference(_polledAt).inSeconds;
     final left = _secondsAtPoll - elapsed;
@@ -964,6 +974,11 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
             tooltip: 'Minutes',
             icon: Icon(_showMinutes ? Icons.close : Icons.receipt_long_rounded),
             onPressed: () => setState(() => _showMinutes = !_showMinutes),
+          ),
+          IconButton(
+            tooltip: 'Auction activity',
+            icon: const Icon(Icons.history_rounded),
+            onPressed: _showTimelineSheet,
           ),
         ],
       ),
@@ -2083,6 +2098,138 @@ class _RoomChatSheetState extends ConsumerState<_RoomChatSheet> {
 }
 
 // ───────────────────────── Minutes ─────────────────────────
+
+/// Full chronological "Auction activity" bottom sheet — bids/bells/opens/
+/// extends/passes/winner + organizer chat, staff audience (doc 17). Distinct
+/// from [_MinutesPanel], which stays the lightweight bid-only view.
+class _StaffTimelineSheet extends ConsumerStatefulWidget {
+  const _StaffTimelineSheet({required this.groupId, required this.auctionId});
+  final String groupId;
+  final String auctionId;
+
+  @override
+  ConsumerState<_StaffTimelineSheet> createState() => _StaffTimelineSheetState();
+}
+
+class _StaffTimelineSheetState extends ConsumerState<_StaffTimelineSheet> {
+  List<dynamic> _entries = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final data = await ref
+          .read(chitServiceProvider)
+          .timeline(widget.groupId, widget.auctionId);
+      if (!mounted) return;
+      setState(() {
+        _entries = (data['entries'] as List<dynamic>?) ?? const [];
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Could not load activity';
+        _loading = false;
+      });
+    }
+  }
+
+  String _icon(Map<String, dynamic> e) {
+    if (e['kind'] == 'message') return '💬';
+    if (e['kind'] == 'bid') return e['bidStatus'] == 'retracted' ? '↩' : '💰';
+    switch (e['type']) {
+      case 'bell':
+        return '🔔';
+      case 'open':
+      case 'close':
+        return '🚪';
+      case 'extend':
+        return '⏱';
+      case 'pass':
+        return '↩';
+      case 'winner':
+        return '🏆';
+      default:
+        return '•';
+    }
+  }
+
+  String _text(Map<String, dynamic> e) {
+    if (e['kind'] == 'message') {
+      final priv = e['visibility'] == 'organizer' ? ' (private)' : '';
+      return '${e['senderName'] ?? 'Member'}$priv: ${e['body'] ?? ''}';
+    }
+    if (e['kind'] == 'bid') {
+      final name = e['memberName'] ?? 'Member';
+      final prefix = e['bidStatus'] == 'retracted' ? 'Bid retracted' : 'Bid';
+      return '$name — $prefix discount ${e['bidDiscount'] ?? 0}';
+    }
+    final who = e['actorName'] != null ? ' — ${e['actorName']}' : '';
+    return '${(e['message'] as String?) ?? (e['type'] as String? ?? '')}$who';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.3,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text('Auction activity', style: AppTypography.sectionTitle),
+              ),
+              if (_loading) const Expanded(child: Center(child: CircularProgressIndicator())),
+              if (_error != null)
+                Expanded(child: Center(child: Text(_error!, style: AppTypography.caption))),
+              if (!_loading && _error == null)
+                Expanded(
+                  child: _entries.isEmpty
+                      ? const Center(child: Text('No activity yet.'))
+                      : ListView.separated(
+                          controller: scrollController,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: _entries.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (context, i) {
+                            final e = _entries[i] as Map<String, dynamic>;
+                            final time = DateTime.tryParse(e['createdAt'] as String? ?? '');
+                            return ListTile(
+                              dense: true,
+                              leading: Text(_icon(e), style: const TextStyle(fontSize: 18)),
+                              title: Text(_text(e), style: AppTypography.body),
+                              trailing: time == null
+                                  ? null
+                                  : Text(
+                                      '${time.toLocal().hour.toString().padLeft(2, '0')}:${time.toLocal().minute.toString().padLeft(2, '0')}',
+                                      style: AppTypography.caption,
+                                    ),
+                            );
+                          },
+                        ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
 
 class _MinutesPanel extends ConsumerWidget {
   const _MinutesPanel({required this.bids, required this.chitValue});

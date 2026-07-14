@@ -9,6 +9,7 @@ import {
   confirmAuction,
   decideRoomAdmission,
   drawAuctionWinner,
+  getAuctionTimeline,
   getLiveAuctionState,
   markAuctionAttendance,
   markAuctionNoticeSent,
@@ -36,6 +37,33 @@ const securityDocumentLabels: Record<string, string> = {
   guarantor_kyc: 'Guarantor KYC',
   security_cheque: 'Security cheque',
 };
+
+function timelineIcon(entry: any): string {
+  if (entry.kind === 'message') return '💬';
+  if (entry.kind === 'bid') return entry.bidStatus === 'retracted' ? '↩' : '💰';
+  switch (entry.type) {
+    case 'bell': return '🔔';
+    case 'open': case 'close': return '🚪';
+    case 'extend': return '⏱';
+    case 'pass': return '↩';
+    case 'winner': return '🏆';
+    default: return '•';
+  }
+}
+
+function timelineText(entry: any, currencySymbol: string): string {
+  const who = entry.actorName ? ` — ${entry.actorName}` : '';
+  if (entry.kind === 'message') {
+    return `${entry.senderName ?? 'Member'}${entry.visibility === 'organizer' ? ' (private)' : ''}: ${entry.body ?? ''}`;
+  }
+  if (entry.kind === 'bid') {
+    if (entry.bidAmount == null) return `${entry.memberName ?? 'Member'} bid a sealed amount`;
+    const prefix = entry.bidStatus === 'retracted' ? 'Bid retracted' : 'Bid';
+    return `${entry.memberName ?? 'Member'} — ${prefix} ${currencySymbol}${Number(entry.bidAmount).toLocaleString('en-IN')} (discount ${currencySymbol}${Number(entry.bidDiscount ?? 0).toLocaleString('en-IN')})`;
+  }
+  // event
+  return `${entry.message ?? entry.type}${who}`;
+}
 
 export default function AuctionDetailClient({ auction, security, securityDocuments, currencySymbol, dict }: Props) {
   const d = dict.chits;
@@ -68,6 +96,10 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
   const prevBellsRungRef = useRef(0);
   const [bellToast, setBellToast] = useState('');
   const bellToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [timelineOpen, setTimelineOpen] = useState(false);
+  const [timeline, setTimeline] = useState<any>(null);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+  const timelinePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const bellPhrase = (n: number, count: number, ticketNo?: string | null) => {
     if (n >= count) return ticketNo ? `Sold to ticket #${ticketNo}!` : 'Sold!';
@@ -138,6 +170,36 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLive, locked, auction.id, auction.roomStatus]);
+
+  // Auction activity timeline: fetched on-demand when the panel is expanded,
+  // then refreshed on a slower interval while it stays open — deliberately
+  // NOT part of the hot 1.5s room poll, to avoid adding load there.
+  const fetchTimeline = async () => {
+    setTimelineLoading(true);
+    try {
+      const data = await getAuctionTimeline(auction.id);
+      setTimeline(data);
+    } catch {
+      // transient — next interval tick retries
+    }
+    setTimelineLoading(false);
+  };
+
+  useEffect(() => {
+    if (!timelineOpen) {
+      if (timelinePollRef.current) {
+        clearInterval(timelinePollRef.current);
+        timelinePollRef.current = null;
+      }
+      return;
+    }
+    fetchTimeline();
+    timelinePollRef.current = setInterval(fetchTimeline, 7000);
+    return () => {
+      if (timelinePollRef.current) clearInterval(timelinePollRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timelineOpen, auction.id]);
 
   const run = async (label: string, fn: () => Promise<any>) => {
     setBusy(label);
@@ -445,6 +507,36 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
           </div>
         </div>
       )}
+
+      {/* Auction activity timeline (doc 17) — every bid, bell, open/extend/
+          close, pass, winner, in one chronological feed. Fetched on-demand
+          when expanded, not part of the hot room poll. */}
+      <details
+        className="card"
+        style={{ marginBottom: '20px', padding: '16px' }}
+        onToggle={(e) => setTimelineOpen((e.target as HTMLDetailsElement).open)}
+      >
+        <summary style={{ cursor: 'pointer', fontWeight: 700, fontSize: '1.05rem' }}>
+          📜 Auction activity{timeline?.entries?.length ? ` (${timeline.entries.length})` : ''}
+        </summary>
+        {timelineOpen && (
+          <div style={{ marginTop: '12px' }}>
+            {timelineLoading && !timeline && <div style={{ color: 'var(--text-secondary)', fontSize: '.85rem' }}>Loading…</div>}
+            {timeline?.entries?.length === 0 && <div style={{ color: 'var(--text-secondary)', fontSize: '.85rem' }}>No activity yet.</div>}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '360px', overflowY: 'auto' }}>
+              {(timeline?.entries ?? []).map((entry: any) => (
+                <div key={`${entry.kind}-${entry.id}`} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', fontSize: '.82rem', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                  <span>{timelineIcon(entry)}</span>
+                  <span style={{ color: 'var(--text-secondary)', minWidth: '64px' }}>
+                    {new Date(entry.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </span>
+                  <span style={{ flex: 1 }}>{timelineText(entry, currencySymbol)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </details>
 
       {/* Waiting room + live chat (M2) */}
       {isLive && !locked && (

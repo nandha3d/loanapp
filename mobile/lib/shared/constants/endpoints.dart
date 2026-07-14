@@ -129,6 +129,8 @@ class Endpoints {
       '/chits/$id/auctions/$auctionId/room';
   static String chitAuctionDraw(String id, String auctionId) =>
       '/chits/$id/auctions/$auctionId/draw';
+  static String chitAuctionTimeline(String id, String auctionId) =>
+      '/chits/$id/auctions/$auctionId/timeline';
   static String chitReceiptReverse(String receiptId) =>
       '/chits/receipts/$receiptId/reverse';
   static String chitPenalties(String id) => '/chits/$id/penalties';
@@ -264,4 +266,6 @@ class Endpoints {
       '/borrower/chits/$groupId/auctions/$auctionId/bids';
   static String borrowerChitAuctionMessages(String groupId, String auctionId) =>
       '/borrower/chits/$groupId/auctions/$auctionId/messages';
+  static String borrowerChitAuctionTimeline(String groupId, String auctionId) =>
+      '/borrower/chits/$groupId/auctions/$auctionId/timeline';
 }

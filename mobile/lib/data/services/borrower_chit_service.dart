@@ -33,6 +33,17 @@ class BorrowerChitService {
     );
   }
 
+  /// Full chronological auction activity feed, scoped to this member's
+  /// audience (organizer-only chat and, if sealed, other members' bid
+  /// amounts are excluded server-side). Fetched on-demand, not part of the
+  /// hot room poll.
+  Future<Map<String, dynamic>> timeline(String groupId, String auctionId) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.borrowerChitAuctionTimeline(groupId, auctionId),
+    );
+    return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
+  }
+
   Future<String> join(String groupId, String auctionId) async {
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.borrowerChitAuctionJoin(groupId, auctionId),

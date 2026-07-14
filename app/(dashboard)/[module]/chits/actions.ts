@@ -28,6 +28,7 @@ import {
   secondsRemaining,
 } from '@/lib/chits/liveAuction';
 import { syncRoom, ringBellManually, buildBellState } from '@/lib/chits/bell';
+import { buildAuctionTimeline } from '@/lib/chits/timeline';
 import { placeChitBid } from '@/lib/chits/bidService';
 import { releaseChitPrizePayout } from '@/lib/chits/payout';
 import { assertCanReleasePrizePayout } from '@/lib/chits/security';
@@ -662,6 +663,15 @@ export async function retractLiveMemberBid(auctionId: string, memberId: string) 
       where: { id: last.id },
       data: { status: 'retracted', kind: 'retracted' },
     });
+    await tx.chitAuctionEvent.create({
+      data: {
+        auctionId,
+        type: 'pass',
+        message: 'Bid retracted',
+        memberId,
+        createdById: scope.userId,
+      },
+    });
     await createChitAudit(tx, {
       tenantId: scope.tenantId,
       userId: scope.userId,
@@ -1056,7 +1066,7 @@ export async function openLiveRoom(auctionId: string, durationMinutes = 30, auto
     await syncRoom(tx, auctionId);
     const fresh = await tx.chitAuction.findUnique({ where: { id: auctionId }, select: { roomStatus: true } });
     if (fresh && ['open', 'extended'].includes(fresh.roomStatus)) throw new Error('Room is already open');
-    await openAuctionRoom(tx, { auctionId, durationMinutes, autoExtendSeconds });
+    await openAuctionRoom(tx, { auctionId, durationMinutes, autoExtendSeconds, openedById: scope.userId });
     await createChitAudit(tx, {
       tenantId: scope.tenantId,
       userId: scope.userId,
@@ -1077,7 +1087,7 @@ export async function closeLiveRoom(auctionId: string) {
   });
   if (!auction) throw new Error('Auction not found');
   await prisma.$transaction(async (tx) => {
-    await closeAuctionRoom(tx, auctionId);
+    await closeAuctionRoom(tx, auctionId, { closedById: scope.userId });
     await createChitAudit(tx, {
       tenantId: scope.tenantId,
       userId: scope.userId,
@@ -1108,6 +1118,21 @@ export async function ringLiveBell(auctionId: string) {
 
 // Poll target for the web live auction room (2-3s interval). Lazily evaluates
 // bells + closes an expired room, then returns server-clock-driven room state.
+// Full chronological auction activity feed — staff audience. Not part of the
+// hot 1.5-3s poll loop; called on-demand when the "Auction activity" panel
+// is expanded, and on a slower refresh interval while it stays open.
+export async function getAuctionTimeline(auctionId: string) {
+  const scope = await getWebChitScope();
+  const exists = await prisma.chitAuction.findFirst({
+    where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope) },
+    select: { id: true },
+  });
+  if (!exists) throw new Error('Auction not found');
+  const timeline = await buildAuctionTimeline(auctionId, { audience: 'staff' });
+  if (!timeline) throw new Error('Auction not found');
+  return timeline;
+}
+
 export async function getLiveAuctionState(auctionId: string) {
   const scope = await getWebChitScope();
   const exists = await prisma.chitAuction.findFirst({

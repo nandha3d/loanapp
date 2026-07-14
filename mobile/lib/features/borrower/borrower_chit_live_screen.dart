@@ -117,6 +117,15 @@ class _BorrowerChitLiveScreenState extends ConsumerState<BorrowerChitLiveScreen>
     return left < 0 ? 0 : left;
   }
 
+  void _showTimelineSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _TimelineSheet(groupId: widget.groupId, auctionId: widget.auctionId),
+    );
+  }
+
   /// Chime (haptic + TTS) + banner when bellsRung increases since the last
   /// poll — compare against the previous value so an unchanged count never
   /// re-announces.
@@ -380,7 +389,7 @@ class _BorrowerChitLiveScreenState extends ConsumerState<BorrowerChitLiveScreen>
         ),
         if (s.myBids.isNotEmpty) ...[
           const SizedBox(height: 12),
-          _MyBidHistory(state: s, fmt: fmt),
+          _MyBidHistory(state: s, fmt: fmt, onViewAll: _showTimelineSheet),
         ],
         const SizedBox(height: 12),
         _MessagesCard(state: s, controller: _messageCtrl, onSend: _sendMessage),
@@ -852,9 +861,10 @@ class _BidEntryCard extends StatelessWidget {
 }
 
 class _MyBidHistory extends StatelessWidget {
-  const _MyBidHistory({required this.state, required this.fmt});
+  const _MyBidHistory({required this.state, required this.fmt, this.onViewAll});
   final CustomerLiveAuctionState state;
   final NumberFormat fmt;
+  final VoidCallback? onViewAll;
 
   @override
   Widget build(BuildContext context) {
@@ -868,7 +878,17 @@ class _MyBidHistory extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('My bids', style: AppTypography.sectionTitle),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('My bids', style: AppTypography.sectionTitle),
+              if (onViewAll != null)
+                TextButton(
+                  onPressed: onViewAll,
+                  child: Text('Full activity', style: AppTypography.caption),
+                ),
+            ],
+          ),
           const SizedBox(height: 8),
           for (final b in state.myBids)
             Padding(
@@ -883,6 +903,137 @@ class _MyBidHistory extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// Full chronological "Auction activity" bottom sheet — bids/bells/opens/
+/// extends/passes/winner, in one feed (doc 17). Opt-in deeper view; the
+/// always-visible [_MyBidHistory] stays the lightweight "my bids only" view.
+class _TimelineSheet extends ConsumerStatefulWidget {
+  const _TimelineSheet({required this.groupId, required this.auctionId});
+  final String groupId;
+  final String auctionId;
+
+  @override
+  ConsumerState<_TimelineSheet> createState() => _TimelineSheetState();
+}
+
+class _TimelineSheetState extends ConsumerState<_TimelineSheet> {
+  List<dynamic> _entries = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final data = await ref
+          .read(borrowerChitServiceProvider)
+          .timeline(widget.groupId, widget.auctionId);
+      if (!mounted) return;
+      setState(() {
+        _entries = (data['entries'] as List<dynamic>?) ?? const [];
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Could not load activity';
+        _loading = false;
+      });
+    }
+  }
+
+  String _icon(Map<String, dynamic> e) {
+    if (e['kind'] == 'message') return '💬';
+    if (e['kind'] == 'bid') return e['bidStatus'] == 'retracted' ? '↩' : '💰';
+    switch (e['type']) {
+      case 'bell':
+        return '🔔';
+      case 'open':
+      case 'close':
+        return '🚪';
+      case 'extend':
+        return '⏱';
+      case 'pass':
+        return '↩';
+      case 'winner':
+        return '🏆';
+      default:
+        return '•';
+    }
+  }
+
+  String _text(Map<String, dynamic> e) {
+    if (e['kind'] == 'message') {
+      return '${e['senderName'] ?? 'Member'}: ${e['body'] ?? ''}';
+    }
+    if (e['kind'] == 'bid') {
+      final name = e['memberName'] ?? 'Member';
+      if (e['bidAmount'] == null) return '$name bid a sealed amount';
+      final prefix = e['bidStatus'] == 'retracted' ? 'Bid retracted' : 'Bid';
+      return '$name — $prefix discount ${e['bidDiscount'] ?? 0}';
+    }
+    return (e['message'] as String?) ?? (e['type'] as String? ?? '');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.3,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text('Auction activity', style: AppTypography.sectionTitle),
+              ),
+              if (_loading) const Expanded(child: Center(child: CircularProgressIndicator())),
+              if (_error != null)
+                Expanded(child: Center(child: Text(_error!, style: AppTypography.caption))),
+              if (!_loading && _error == null)
+                Expanded(
+                  child: _entries.isEmpty
+                      ? const Center(child: Text('No activity yet.'))
+                      : ListView.separated(
+                          controller: scrollController,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: _entries.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (context, i) {
+                            final e = _entries[i] as Map<String, dynamic>;
+                            final time = DateTime.tryParse(e['createdAt'] as String? ?? '');
+                            return ListTile(
+                              dense: true,
+                              leading: Text(_icon(e), style: const TextStyle(fontSize: 18)),
+                              title: Text(_text(e), style: AppTypography.body),
+                              trailing: time == null
+                                  ? null
+                                  : Text(
+                                      '${time.toLocal().hour.toString().padLeft(2, '0')}:${time.toLocal().minute.toString().padLeft(2, '0')}',
+                                      style: AppTypography.caption,
+                                    ),
+                            );
+                          },
+                        ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

@@ -237,6 +237,16 @@ class ChitService {
     return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
   }
 
+  /// Full chronological auction activity feed (bids, bells, open/extend/
+  /// close, passes, winner) — staff audience. Fetched on-demand, not part of
+  /// the hot room poll.
+  Future<Map<String, dynamic>> timeline(String groupId, String auctionId) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.chitAuctionTimeline(groupId, auctionId),
+    );
+    return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
+  }
+
   /// Open or close the live bidding room (action: 'open' | 'close').
   Future<Map<String, dynamic>> roomAction(
     String groupId,

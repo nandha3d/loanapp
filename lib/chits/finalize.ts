@@ -170,6 +170,16 @@ export async function finalizeAuctionInTx(tx: any, params: {
     },
   });
   await tx.chitMember.update({ where: { id: selectedBid.memberId }, data: { hasWon: true, wonAt: new Date() } });
+  await tx.chitAuctionEvent.create({
+    data: {
+      auctionId: auction.id,
+      type: 'winner',
+      message: `${params.winnerName} won at ${calc.prizeAmount}`,
+      memberId: selectedBid.memberId,
+      amount: calc.prizeAmount,
+      createdById: scope.userId || undefined,
+    },
+  });
   await tx.chitSecurity.create({
     data: {
       tenantId: scope.tenantId,
