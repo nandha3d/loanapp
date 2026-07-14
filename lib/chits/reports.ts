@@ -3,6 +3,8 @@ export const CHIT_REPORT_SLUGS = [
   'chit-auction-report',
   'chit-subscription-due',
   'chit-group-ledger',
+  'chit-cash-flow',
+  'chit-group-portfolio',
   'chit-subscriber-ledger',
   'chit-auction-register',
   'chit-bid-history',

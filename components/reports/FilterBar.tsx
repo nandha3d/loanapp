@@ -17,6 +17,7 @@ export type FilterValues = {
   paymentMode?: string;
   paymentStatus?: string;
   loanId?: string;
+  groupId?: string;
 };
 
 interface FilterBarProps {
@@ -42,6 +43,7 @@ export default function FilterBar({ supportedFilters, filters: initialFilters, o
     maxAmount: initialFilters.maxAmount || '',
     paymentMode: initialFilters.paymentMode || '',
     paymentStatus: initialFilters.paymentStatus || '',
+    groupId: initialFilters.groupId || '',
   });
 
   const [branches, setBranches] = useState<any[]>([]);
@@ -50,6 +52,7 @@ export default function FilterBar({ supportedFilters, filters: initialFilters, o
   const [statuses, setStatuses] = useState<string[]>([]);
   const [frequencies, setFrequencies] = useState<string[]>([]);
   const [paymentModes, setPaymentModes] = useState<string[]>([]);
+  const [chitGroups, setChitGroups] = useState<any[]>([]);
 
   // Fetch filter options dynamically
   useEffect(() => {
@@ -65,6 +68,7 @@ export default function FilterBar({ supportedFilters, filters: initialFilters, o
             setStatuses(data.data.statuses || []);
             setFrequencies(data.data.frequencies || []);
             setPaymentModes(data.data.paymentModes || []);
+            setChitGroups(data.data.chitGroups || []);
           }
         }
       } catch (err) {
@@ -174,6 +178,14 @@ export default function FilterBar({ supportedFilters, filters: initialFilters, o
           <select name="paymentMode" className="form-control" style={{ width: 'auto' }} value={filters.paymentMode} onChange={handleChange}>
             <option value="">{d.allModes || 'All Modes'}</option>
             {paymentModes.map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
+        )}
+
+        {/* Chit group select (searchable — 40+ groups is common) */}
+        {isSupported('groupId') && (
+          <select name="groupId" className="form-control" style={{ width: 'auto' }} value={filters.groupId} onChange={handleChange}>
+            <option value="">{d.allGroups || 'All Groups'}</option>
+            {chitGroups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
           </select>
         )}
 

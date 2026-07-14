@@ -39,6 +39,7 @@ export async function GET(
     const paymentMode = searchParams.get('paymentMode') || undefined;
     const paymentStatus = searchParams.get('paymentStatus') || undefined;
     const loanId = searchParams.get('loanId') || undefined;
+    const groupId = searchParams.get('groupId') || undefined;
 
     const payload = await definition.builder({
       tenantId: context.tenantId,
@@ -57,6 +58,7 @@ export async function GET(
       paymentMode,
       paymentStatus,
       loanId,
+      groupId,
     });
 
     return apiSuccess(payload);

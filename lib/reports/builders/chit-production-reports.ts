@@ -15,7 +15,7 @@ function groupWhere(params: ReportBuilderParams) {
     appType: params.appType,
     deletedAt: null,
     ...(params.branchId ? { branchId: params.branchId } : {}),
-    ...(params.routeId ? { id: params.routeId } : {}),
+    ...(params.groupId ? { id: params.groupId } : {}),
     ...(params.status ? { status: params.status } : {}),
   };
 }

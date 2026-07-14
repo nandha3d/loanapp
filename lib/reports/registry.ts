@@ -110,6 +110,8 @@ import {
   buildChitSubscriberLedger,
   buildVacantChitReport,
 } from './builders/chit-production-reports';
+import { buildChitCashFlow } from './builders/chit-cash-flow';
+import { buildChitGroupPortfolio } from './builders/chit-group-portfolio';
 
 // Module: wallet / NPA
 import { buildWalletFloatLedger } from './builders/wallet-float-ledger';
@@ -224,6 +226,8 @@ export const reportRegistry: Record<string, ReportBuilder> = {
   'chit-auction-report': buildChitAuctionReport,
   'chit-subscription-due': buildChitSubscriptionDue,
   'chit-group-ledger': buildChitGroupLedger,
+  'chit-cash-flow': buildChitCashFlow,
+  'chit-group-portfolio': buildChitGroupPortfolio,
   'chit-subscriber-ledger': buildChitSubscriberLedger,
   'chit-auction-register': buildChitAuctionRegister,
   'auction-bid-history': buildChitBidHistory,

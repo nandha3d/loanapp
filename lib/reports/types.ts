@@ -33,6 +33,7 @@ export interface ReportBuilderParams {
   paymentMode?: string;
   paymentStatus?: string;
   loanId?: string;
+  groupId?: string; // chit group scoping (chit-cash-flow, chit-group-portfolio, etc.)
 }
 
 export function getReportLabel(key: string, dict?: any): string {

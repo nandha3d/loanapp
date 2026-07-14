@@ -11,7 +11,7 @@ export async function GET(req: Request) {
 
     const { tenantId, appType } = context;
 
-    const [branches, agents, loans, payments] = await Promise.all([
+    const [branches, agents, loans, payments, chitGroups] = await Promise.all([
       prisma.branch.findMany({
         where: { tenantId },
         select: { id: true, name: true },
@@ -28,6 +28,13 @@ export async function GET(req: Request) {
         where: { tenantId },
         select: { paymentMode: true },
       }),
+      appType === 'chitfunds'
+        ? prisma.chitGroup.findMany({
+            where: { tenantId, appType, deletedAt: null },
+            select: { id: true, name: true, groupCode: true },
+            orderBy: { name: 'asc' },
+          })
+        : Promise.resolve([]),
     ]);
 
     const loanTypes = Array.from(new Set(loans.map(l => l.loanType).filter(Boolean)));
@@ -42,6 +49,7 @@ export async function GET(req: Request) {
       statuses,
       frequencies,
       paymentModes,
+      chitGroups: chitGroups.map((g) => ({ id: g.id, name: g.groupCode ? `${g.name} (${g.groupCode})` : g.name })),
     });
   } catch (error: any) {
     return apiError(error.message, 500);

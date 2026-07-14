@@ -265,6 +265,13 @@ export default async function AnalyticsPage({
       'cash-book': ['date', 'branch'],
       'ledger-report': ['date', 'branch'],
       'bank-book': ['date', 'branch'],
+      'chit-cash-flow': ['date', 'branch', 'groupId'],
+      'chit-group-portfolio': ['branch', 'status', 'groupId'],
+      'chit-group-ledger': ['branch', 'status', 'groupId'],
+      'chit-subscriber-ledger': ['branch', 'status', 'groupId'],
+      'chit-auction-register': ['branch', 'status', 'groupId'],
+      'auction-bid-history': ['date', 'branch', 'groupId'],
+      'chit-subscription-due': ['branch', 'groupId'],
     };
 
     const titleConfig: Record<string, string> = {
