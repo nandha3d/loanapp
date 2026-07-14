@@ -703,6 +703,29 @@ class _ChitMembershipCard extends StatelessWidget {
   final BorrowerChitMembership m;
   final NumberFormat fmt;
 
+  Color get _statusColor {
+    if (m.groupStatus == 'active') return AppColors.success;
+    if (m.groupStatus == 'completed') return AppColors.info;
+    if (m.groupStatus == 'cancelled') return AppColors.danger;
+    return AppColors.textSecondary;
+  }
+
+  Color get _statusBg {
+    if (m.groupStatus == 'active') return AppColors.successBg;
+    if (m.groupStatus == 'completed') return AppColors.infoBg;
+    if (m.groupStatus == 'cancelled') return AppColors.dangerBg;
+    return AppColors.background;
+  }
+
+  String get _statusLabel {
+    if (m.groupStatus == 'active') return 'Active';
+    if (m.groupStatus == 'completed') return 'Completed';
+    if (m.groupStatus == 'cancelled') return 'Cancelled';
+    return m.groupStatus.isEmpty
+        ? 'Draft'
+        : m.groupStatus[0].toUpperCase() + m.groupStatus.substring(1);
+  }
+
   @override
   Widget build(BuildContext context) {
     final roomLive = m.nextAuctionRoomStatus == 'open' ||
@@ -742,14 +765,14 @@ class _ChitMembershipCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: m.hasWon ? AppColors.successBg : AppColors.infoBg,
+                  color: m.hasWon ? AppColors.successBg : _statusBg,
                   borderRadius: BorderRadius.circular(AppTokens.radiusBadge),
                 ),
                 child: Text(
-                  m.hasWon ? 'Prize won' : 'Active',
+                  m.hasWon ? 'Prize won' : _statusLabel,
                   style: AppTypography.caption.copyWith(
                     fontWeight: FontWeight.w700,
-                    color: m.hasWon ? AppColors.success : AppColors.info,
+                    color: m.hasWon ? AppColors.success : _statusColor,
                   ),
                 ),
               ),
