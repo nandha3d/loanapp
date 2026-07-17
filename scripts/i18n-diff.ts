@@ -48,17 +48,19 @@ const dart = readFileSync(
   'utf8',
 );
 const LANGS = ['en', 'ta', 'hi', 'te', 'kn', 'ml'] as const;
-// Blocks look like: 'group.key': { en: '...', ta: '...', ... },
-const blockRe = /'([^']+)'\s*:\s*\{([\s\S]*?)\n\s*\}/g;
+// Blocks look like: 'group.key': { 'en': '...', 'ta': '...', ... }, and may
+// be single-line ('lt.product': { 'en': 'Product Finance' },) — the exact
+// shape that tends to be missing translations, so it MUST be matched.
+const blockRe = /'([^']+)'\s*:\s*\{([^{}]*)\}/g;
 const missingByLang: Record<string, string[]> = Object.fromEntries(LANGS.map((l) => [l, []]));
 let blocks = 0;
 for (const m of dart.matchAll(blockRe)) {
   const key = m[1];
   const body = m[2];
-  if (!/(en|ta|hi|te|kn|ml)\s*:/.test(body)) continue; // not a language block
+  if (!/'(en|ta|hi|te|kn|ml)'\s*:/.test(body)) continue; // not a language block
   blocks++;
   for (const lang of LANGS) {
-    if (!new RegExp(`(^|[,{\\s])${lang}\\s*:`).test(body)) missingByLang[lang].push(key);
+    if (!new RegExp(`'${lang}'\\s*:`).test(body)) missingByLang[lang].push(key);
   }
 }
 console.log(`mobile: ${blocks} key blocks`);

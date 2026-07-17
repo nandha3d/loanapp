@@ -1014,7 +1014,10 @@ const Map<String, Map<String, String>> kStrings = {
     'hi': 'संपत्ति आधारित', 'te': 'ఆస్తి ఆధారిత',
     'kn': 'ಆಸ್ತಿ ಆಧಾರಿತ', 'ml': 'വസ്തു അടിസ്ഥാനം',
   },
-  'lt.product': { 'en': 'Product Finance' },
+  'lt.product': {
+    'en': 'Product Finance', 'ta': 'பொருள் நிதி', 'hi': 'प्रोडक्ट फाइनेंस',
+    'te': 'ప్రొడక్ట్ ఫైనాన్స్', 'kn': 'ಪ್ರಾಡಕ್ಟ್ ಫೈನಾನ್ಸ್', 'ml': 'പ്രൊഡക്ട് ഫിനാൻസ്',
+  },
 
   // ── Gold Loan Fields ────────────────────────────────────────────────
   'fld.gold_weight': {
@@ -1064,15 +1067,42 @@ const Map<String, Map<String, String>> kStrings = {
     'hi': 'भूमि', 'te': 'భూమి',
     'kn': 'ಭೂಮಿ', 'ml': 'ഭൂമി',
   },
-  'fld.product_name': { 'en': 'Product Name' },
-  'fld.product_category': { 'en': 'Category' },
-  'fld.product_brand': { 'en': 'Brand' },
-  'fld.product_model_no': { 'en': 'Model No' },
-  'fld.product_serial_no': { 'en': 'Serial / IMEI' },
-  'fld.product_dealer': { 'en': 'Dealer' },
-  'fld.product_invoice_no': { 'en': 'Invoice No' },
-  'fld.product_invoice_amount': { 'en': 'Invoice Amount (₹)' },
-  'fld.product_down_payment': { 'en': 'Down Payment (₹)' },
+  'fld.product_name': {
+    'en': 'Product Name', 'ta': 'பொருளின் பெயர்', 'hi': 'उत्पाद का नाम',
+    'te': 'ఉత్పత్తి పేరు', 'kn': 'ಉತ್ಪನ್ನದ ಹೆಸರು', 'ml': 'ഉൽപ്പന്നത്തിന്റെ പേര്',
+  },
+  'fld.product_category': {
+    'en': 'Category', 'ta': 'வகை', 'hi': 'श्रेणी',
+    'te': 'వర్గం', 'kn': 'ವರ್ಗ', 'ml': 'വിഭാഗം',
+  },
+  'fld.product_brand': {
+    'en': 'Brand', 'ta': 'பிராண்ட்', 'hi': 'ब्रांड',
+    'te': 'బ్రాండ్', 'kn': 'ಬ್ರ್ಯಾಂಡ್', 'ml': 'ബ്രാൻഡ്',
+  },
+  'fld.product_model_no': {
+    'en': 'Model No', 'ta': 'மாடல் எண்', 'hi': 'मॉडल नंबर',
+    'te': 'మోడల్ నంబర్', 'kn': 'ಮಾಡೆಲ್ ಸಂಖ್ಯೆ', 'ml': 'മോഡൽ നമ്പർ',
+  },
+  'fld.product_serial_no': {
+    'en': 'Serial / IMEI', 'ta': 'சீரியல் / IMEI', 'hi': 'सीरियल / IMEI',
+    'te': 'సీరియల్ / IMEI', 'kn': 'ಸೀರಿಯಲ್ / IMEI', 'ml': 'സീരിയൽ / IMEI',
+  },
+  'fld.product_dealer': {
+    'en': 'Dealer', 'ta': 'டீலர்', 'hi': 'डीलर',
+    'te': 'డీలర్', 'kn': 'ಡೀಲರ್', 'ml': 'ഡീലർ',
+  },
+  'fld.product_invoice_no': {
+    'en': 'Invoice No', 'ta': 'விலைப்பட்டியல் எண்', 'hi': 'इनवॉइस नंबर',
+    'te': 'ఇన్వాయిస్ నంబర్', 'kn': 'ಇನ್‌ವಾಯ್ಸ್ ಸಂಖ್ಯೆ', 'ml': 'ഇൻവോയ്സ് നമ്പർ',
+  },
+  'fld.product_invoice_amount': {
+    'en': 'Invoice Amount (₹)', 'ta': 'விலைப்பட்டியல் தொகை (₹)', 'hi': 'इनवॉइस राशि (₹)',
+    'te': 'ఇన్వాయిస్ మొత్తం (₹)', 'kn': 'ಇನ್‌ವಾಯ್ಸ್ ಮೊತ್ತ (₹)', 'ml': 'ഇൻവോയ്സ് തുക (₹)',
+  },
+  'fld.product_down_payment': {
+    'en': 'Down Payment (₹)', 'ta': 'முன்பணம் (₹)', 'hi': 'डाउन पेमेंट (₹)',
+    'te': 'డౌన్ పేమెంట్ (₹)', 'kn': 'ಡೌನ್ ಪೇಮೆಂಟ್ (₹)', 'ml': 'ഡൗൺ പേയ്മെന്റ് (₹)',
+  },
 
   // ── Relations ───────────────────────────────────────────────────────
   'rel.father': {
@@ -1703,35 +1733,119 @@ const Map<String, Map<String, String>> kStrings = {
     'en': 'Action', 'ta': 'செயல்', 'hi': 'कार्रवाई',
     'te': 'చర్య', 'kn': 'ಕ್ರಿಯೆ', 'ml': 'നടപടി',
   },
-  'loan.lbl_principal': { 'en': 'Principal', 'ta': 'அசல்' },
-  'loan.lbl_repayable': { 'en': 'Repayable', 'ta': 'திரும்பச் செலுத்த வேண்டியது' },
-  'loan.lbl_disbursed': { 'en': 'Disbursed', 'ta': 'வழங்கப்பட்டது' },
-  'loan.lbl_frequency': { 'en': 'Frequency', 'ta': 'தவணை முறை' },
-  'loan.lbl_tenure': { 'en': 'Tenure', 'ta': 'கால அளவு' },
-  'loan.lbl_start_date': { 'en': 'Start Date', 'ta': 'தொடங்கும் தேதி' },
-  'loan.lbl_per_inst': { 'en': 'Per Inst.', 'ta': 'தவணை ஒன்றுக்கு' },
-  'loan.lbl_collected': { 'en': 'Collected', 'ta': 'வசூலிக்கப்பட்டது' },
-  'loan.lbl_outstanding': { 'en': 'Outstanding', 'ta': 'நிலுவை' },
-  'loan.lbl_paid_period': { 'en': 'Paid Period', 'ta': 'செலுத்திய காலம்' },
-  'loan.lbl_remaining': { 'en': 'Remaining', 'ta': 'மீதம்' },
-  'loan.val_days': { 'en': 'Days', 'ta': 'நாட்கள்' },
-  'loan.actual': { 'en': 'Actual', 'ta': 'உண்மையான' },
-  'loan.distributed': { 'en': 'Distributed', 'ta': 'பகிரப்பட்டது' },
-  'loan.show_restructured_rate': { 'en': 'Show Restructured Rate', 'ta': 'மாற்றியமைக்கப்பட்ட தவணையைக் காட்டு' },
-  'loan.edit_title': { 'en': 'Request Loan Edit', 'ta': 'கடன் திருத்தம் கோரிக்கை' },
-  'loan.edit_reason': { 'en': 'Reason for change', 'ta': 'மாற்றத்திற்கான காரணம்' },
-  'loan.edit_submit': { 'en': 'Submit for approval', 'ta': 'ஒப்புதலுக்கு சமர்ப்பி' },
-  'loan.edit_submitted': { 'en': 'Edit request submitted for approval', 'ta': 'திருத்தக் கோரிக்கை ஒப்புதலுக்கு சமர்ப்பிக்கப்பட்டது' },
-  'loan.fld_penalty_rate': { 'en': 'Penalty rate (%)', 'ta': 'அபராத விகிதம் (%)' },
-  'loan.fld_voucher': { 'en': 'Voucher reference', 'ta': 'வவுச்சர் குறிப்பு' },
-  'loan.fld_loan_type': { 'en': 'Loan type', 'ta': 'கடன் வகை' },
-  'loan.fld_collateral': { 'en': 'Collateral details', 'ta': 'பிணை விவரங்கள்' },
+  'loan.lbl_principal': {
+    'en': 'Principal', 'ta': 'அசல்', 'hi': 'मूलधन',
+    'te': 'అసలు', 'kn': 'ಅಸಲು', 'ml': 'മുതൽ',
+  },
+  'loan.lbl_repayable': {
+    'en': 'Repayable', 'ta': 'திரும்பச் செலுத்த வேண்டியது', 'hi': 'चुकाने योग्य',
+    'te': 'తిరిగి చెల్లించాల్సినది', 'kn': 'ಮರುಪಾವತಿಸಬೇಕಾದದ್ದು', 'ml': 'തിരിച്ചടയ്ക്കേണ്ടത്',
+  },
+  'loan.lbl_disbursed': {
+    'en': 'Disbursed', 'ta': 'வழங்கப்பட்டது', 'hi': 'वितरित',
+    'te': 'పంపిణీ చేయబడింది', 'kn': 'ವಿತರಿಸಲಾಗಿದೆ', 'ml': 'വിതരണം ചെയ്തു',
+  },
+  'loan.lbl_frequency': {
+    'en': 'Frequency', 'ta': 'தவணை முறை', 'hi': 'आवृत्ति',
+    'te': 'ఫ్రీక్వెన్సీ', 'kn': 'ಆವರ್ತನ', 'ml': 'ആവൃത്തി',
+  },
+  'loan.lbl_tenure': {
+    'en': 'Tenure', 'ta': 'கால அளவு', 'hi': 'अवधि',
+    'te': 'కాలవ్యవధి', 'kn': 'ಅವಧಿ', 'ml': 'കാലാവധി',
+  },
+  'loan.lbl_start_date': {
+    'en': 'Start Date', 'ta': 'தொடங்கும் தேதி', 'hi': 'प्रारंभ तिथि',
+    'te': 'ప్రారంభ తేదీ', 'kn': 'ಪ್ರಾರಂಭ ದಿನಾಂಕ', 'ml': 'ആരംഭ തീയതി',
+  },
+  'loan.lbl_per_inst': {
+    'en': 'Per Inst.', 'ta': 'தவணை ஒன்றுக்கு', 'hi': 'प्रति किस्त',
+    'te': 'ఒక్కో వాయిదా', 'kn': 'ಪ್ರತಿ ಕಂತು', 'ml': 'ഓരോ തവണയ്ക്ക്',
+  },
+  'loan.lbl_collected': {
+    'en': 'Collected', 'ta': 'வசூலிக்கப்பட்டது', 'hi': 'वसूल किया गया',
+    'te': 'వసూలు చేయబడింది', 'kn': 'ವಸೂಲಿಯಾಗಿದೆ', 'ml': 'പിരിച്ചത്',
+  },
+  'loan.lbl_outstanding': {
+    'en': 'Outstanding', 'ta': 'நிலுவை', 'hi': 'बकाया',
+    'te': 'బకాయి', 'kn': 'ಬಾಕಿ', 'ml': 'കുടിശ്ശിക',
+  },
+  'loan.lbl_paid_period': {
+    'en': 'Paid Period', 'ta': 'செலுத்திய காலம்', 'hi': 'भुगतान अवधि',
+    'te': 'చెల్లించిన కాలం', 'kn': 'ಪಾವತಿಸಿದ ಅವಧಿ', 'ml': 'അടച്ച കാലയളവ്',
+  },
+  'loan.lbl_remaining': {
+    'en': 'Remaining', 'ta': 'மீதம்', 'hi': 'शेष',
+    'te': 'మిగిలినది', 'kn': 'ಉಳಿದಿದೆ', 'ml': 'ബാക്കി',
+  },
+  'loan.val_days': {
+    'en': 'Days', 'ta': 'நாட்கள்', 'hi': 'दिन',
+    'te': 'రోజులు', 'kn': 'ದಿನಗಳು', 'ml': 'ദിവസങ്ങൾ',
+  },
+  'loan.actual': {
+    'en': 'Actual', 'ta': 'உண்மையான', 'hi': 'वास्तविक',
+    'te': 'వాస్తవం', 'kn': 'ವಾಸ್ತವಿಕ', 'ml': 'യഥാർത്ഥം',
+  },
+  'loan.distributed': {
+    'en': 'Distributed', 'ta': 'பகிரப்பட்டது', 'hi': 'वितरित किया गया',
+    'te': 'పంపిణీ చేయబడింది', 'kn': 'ಹಂಚಲಾಗಿದೆ', 'ml': 'വിതരണം ചെയ്തു',
+  },
+  'loan.show_restructured_rate': {
+    'en': 'Show Restructured Rate', 'ta': 'மாற்றியமைக்கப்பட்ட தவணையைக் காட்டு', 'hi': 'पुनर्गठित दर दिखाएं',
+    'te': 'పునర్నిర్మించిన రేటు చూపించు', 'kn': 'ಪುನರ್ರಚಿತ ದರ ತೋರಿಸಿ', 'ml': 'പുനഃക്രമീകരിച്ച നിരക്ക് കാണിക്കുക',
+  },
+  'loan.edit_title': {
+    'en': 'Request Loan Edit', 'ta': 'கடன் திருத்தம் கோரிக்கை', 'hi': 'ऋण संपादन अनुरोध',
+    'te': 'రుణ సవరణ అభ్యర్థన', 'kn': 'ಸಾಲ ತಿದ್ದುಪಡಿ ವಿನಂತಿ', 'ml': 'വായ്പ തിരുത്തൽ അഭ്യർത്ഥന',
+  },
+  'loan.edit_reason': {
+    'en': 'Reason for change', 'ta': 'மாற்றத்திற்கான காரணம்', 'hi': 'बदलाव का कारण',
+    'te': 'మార్పుకు కారణం', 'kn': 'ಬದಲಾವಣೆಗೆ ಕಾರಣ', 'ml': 'മാറ്റത്തിന്റെ കാരണം',
+  },
+  'loan.edit_submit': {
+    'en': 'Submit for approval', 'ta': 'ஒப்புதலுக்கு சமர்ப்பி', 'hi': 'अनुमोदन के लिए भेजें',
+    'te': 'ఆమోదానికి సమర్పించండి', 'kn': 'ಅನುಮೋದನೆಗೆ ಸಲ್ಲಿಸಿ', 'ml': 'അംഗീകാരത്തിനായി സമർപ്പിക്കുക',
+  },
+  'loan.edit_submitted': {
+    'en': 'Edit request submitted for approval', 'ta': 'திருத்தக் கோரிக்கை ஒப்புதலுக்கு சமர்ப்பிக்கப்பட்டது', 'hi': 'संपादन अनुरोध अनुमोदन के लिए भेजा गया',
+    'te': 'సవరణ అభ్యర్థన ఆమోదానికి సమర్పించబడింది', 'kn': 'ತಿದ್ದುಪಡಿ ವಿನಂತಿ ಅನುಮೋದನೆಗೆ ಸಲ್ಲಿಸಲಾಗಿದೆ', 'ml': 'തിരുത്തൽ അഭ്യർത്ഥന അംഗീകാരത്തിനായി സമർപ്പിച്ചു',
+  },
+  'loan.fld_penalty_rate': {
+    'en': 'Penalty rate (%)', 'ta': 'அபராத விகிதம் (%)', 'hi': 'जुर्माना दर (%)',
+    'te': 'జరిమానా రేటు (%)', 'kn': 'ದಂಡ ದರ (%)', 'ml': 'പിഴ നിരക്ക് (%)',
+  },
+  'loan.fld_voucher': {
+    'en': 'Voucher reference', 'ta': 'வவுச்சர் குறிப்பு', 'hi': 'वाउचर संदर्भ',
+    'te': 'వోచర్ రిఫరెన్స్', 'kn': 'ವೋಚರ್ ಉಲ್ಲೇಖ', 'ml': 'വൗച്ചർ റഫറൻസ്',
+  },
+  'loan.fld_loan_type': {
+    'en': 'Loan type', 'ta': 'கடன் வகை', 'hi': 'ऋण प्रकार',
+    'te': 'రుణ రకం', 'kn': 'ಸಾಲದ ವಿಧ', 'ml': 'വായ്പ തരം',
+  },
+  'loan.fld_collateral': {
+    'en': 'Collateral details', 'ta': 'பிணை விவரங்கள்', 'hi': 'गिरवी विवरण',
+    'te': 'తాకట్టు వివరాలు', 'kn': 'ಅಡಮಾನ ವಿವರಗಳು', 'ml': 'ഈട് വിവരങ്ങൾ',
+  },
 
-  'admin.agent_tracking': { 'en': 'Agent Tracking', 'ta': 'ஏஜென்ட் கண்காணிப்பு' },
-  'admin.just_now': { 'en': 'Just now', 'ta': 'இப்போது' },
-  'admin.mins_ago': { 'en': 'mins ago', 'ta': 'நிமிடங்களுக்கு முன்' },
-  'admin.last_seen': { 'en': 'Last Seen', 'ta': 'கடைசியாக பார்த்தது' },
-  'admin.no_agents_active': { 'en': 'No active agents found', 'ta': 'செயலில் உள்ள ஏஜென்ட்கள் இல்லை' },
+  'admin.agent_tracking': {
+    'en': 'Agent Tracking', 'ta': 'ஏஜென்ட் கண்காணிப்பு', 'hi': 'एजेंट ट्रैकिंग',
+    'te': 'ఏజెంట్ ట్రాకింగ్', 'kn': 'ಏಜೆಂಟ್ ಟ್ರ್ಯಾಕಿಂಗ್', 'ml': 'ഏജന്റ് ട്രാക്കിംഗ്',
+  },
+  'admin.just_now': {
+    'en': 'Just now', 'ta': 'இப்போது', 'hi': 'अभी-अभी',
+    'te': 'ఇప్పుడే', 'kn': 'ಈಗಷ್ಟೇ', 'ml': 'ഇപ്പോൾ',
+  },
+  'admin.mins_ago': {
+    'en': 'mins ago', 'ta': 'நிமிடங்களுக்கு முன்', 'hi': 'मिनट पहले',
+    'te': 'నిమిషాల క్రితం', 'kn': 'ನಿಮಿಷಗಳ ಹಿಂದೆ', 'ml': 'മിനിറ്റ് മുമ്പ്',
+  },
+  'admin.last_seen': {
+    'en': 'Last Seen', 'ta': 'கடைசியாக பார்த்தது', 'hi': 'अंतिम बार देखा गया',
+    'te': 'చివరిసారి చూసింది', 'kn': 'ಕೊನೆಯದಾಗಿ ಕಂಡದ್ದು', 'ml': 'അവസാനം കണ്ടത്',
+  },
+  'admin.no_agents_active': {
+    'en': 'No active agents found', 'ta': 'செயலில் உள்ள ஏஜென்ட்கள் இல்லை', 'hi': 'कोई सक्रिय एजेंट नहीं मिला',
+    'te': 'యాక్టివ్ ఏజెంట్లు లేరు', 'kn': 'ಸಕ್ರಿಯ ಏಜೆಂಟ್‌ಗಳಿಲ್ಲ', 'ml': 'സജീവ ഏജന്റുമാരില്ല',
+  },
   'admin.online': { 'en': 'Online', 'ta': 'ஆன்லைன்', 'hi': 'ऑनलाइन', 'te': 'ఆన్‌లైన్', 'kn': 'ಆನ್‌ಲೈನ್', 'ml': 'ഓൺലൈൻ' },
   'admin.offline': { 'en': 'Offline', 'ta': 'ஆஃப்லைன்', 'hi': 'ऑफ़लाइन', 'te': 'ఆఫ్‌లైన్', 'kn': 'ಆಫ್‌ಲೈನ್', 'ml': 'ഓഫ്‌ലൈൻ' },
   'admin.online_suffix': { 'en': 'online', 'ta': 'ஆன்லைனில்', 'hi': 'ऑनलाइन', 'te': 'ఆన్‌లైన్', 'kn': 'ಆನ್‌ಲೈನ್', 'ml': 'ഓൺലൈൻ' },
