@@ -1,7 +1,8 @@
-import 'dart:math' as math;
+import 'dart:typed_data';
+
+import 'package:printing/printing.dart';
 
 import 'package:loantrack/core/currency/currency_controller.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -51,13 +52,6 @@ class _BorrowerDashboardScreenState
   int _calcTenure = 24;
   double _calcRate = 12;
   String _calcFreq = 'monthly';
-
-  String _greeting() {
-    final h = DateTime.now().hour;
-    if (h < 12) return 'Good Morning';
-    if (h < 17) return 'Good Afternoon';
-    return 'Good Evening';
-  }
 
   Future<void> _logout() async {
     await ref.read(borrowerServiceProvider).logout();
@@ -538,13 +532,29 @@ class _HistoryTab extends StatelessWidget {
 
 // ─── Details Tab ─────────────────────────────────────
 
-class _DetailsTab extends StatelessWidget {
+class _DetailsTab extends ConsumerWidget {
   const _DetailsTab({required this.loan, required this.fmt});
   final BorrowerLoan loan;
   final NumberFormat fmt;
 
+  Future<void> _downloadStatement(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final bytes =
+          await ref.read(borrowerServiceProvider).statementPdf(loan.id);
+      await Printing.sharePdf(
+        bytes: Uint8List.fromList(bytes),
+        filename: 'statement-${loan.loanCode}.pdf',
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not download statement: $e')),
+      );
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -566,6 +576,15 @@ class _DetailsTab extends StatelessWidget {
                 DateFormat('dd MMM yyyy').format(loan.disbursedAt!)),
           if (loan.collectionPoint != null)
             _Row('Collection Point', loan.collectionPoint!),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _downloadStatement(context, ref),
+              icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+              label: const Text('Download statement (PDF)'),
+            ),
+          ),
         ],
       ),
     );
@@ -826,7 +845,7 @@ class _ChitMembershipCard extends StatelessWidget {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
+                      MaterialPageRoute<void>(
                         builder: (_) => const BorrowerChitContributionsScreen(),
                       ),
                     );
@@ -843,7 +862,7 @@ class _ChitMembershipCard extends StatelessWidget {
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(
+                        MaterialPageRoute<void>(
                           builder: (_) => BorrowerChitLiveScreen(
                             groupId: m.groupId,
                             auctionId: m.nextAuctionId!,

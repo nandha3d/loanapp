@@ -20,6 +20,7 @@ import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/data/services/chit_service.dart';
 import 'package:loantrack/data/services/upload_service.dart';
 import 'package:loantrack/features/chits/chit_live_auction_screen.dart';
+import 'package:loantrack/features/chits/chit_payment_intents_screen.dart';
 import 'package:loantrack/shared/widgets/skeleton.dart';
 
 /// Decimal columns (chitValue etc.) arrive as JSON strings from the raw
@@ -100,7 +101,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
     double amount = sub.outstanding;
     String paymentMode = 'cash';
     String referenceNo = '';
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
@@ -299,7 +300,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
         .toList();
     String? memberId;
     double prize = 0;
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
@@ -371,7 +372,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
     String guarantorPhone = '';
     var documentsFuture =
         ref.read(chitServiceProvider).securityDocuments(widget.id, auction.id);
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
@@ -583,13 +584,118 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
     );
   }
 
+  /// Audit 03 parity: edit member details (ticket no + nominee). The service
+  /// method existed but had no UI; mirrors the web Edit-member modal.
+  void _showEditMemberSheet(ChitMember member) {
+    final ticketCtrl = TextEditingController(text: member.ticketNo ?? '');
+    final nomineeCtrl = TextEditingController(text: member.nomineeName ?? '');
+    final nomineePhoneCtrl =
+        TextEditingController(text: member.nomineePhone ?? '');
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(
+            20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Edit member — ${member.customerName}',
+                style: AppTypography.sectionTitle),
+            const SizedBox(height: 14),
+            TextField(
+              controller: ticketCtrl,
+              decoration: const InputDecoration(
+                  labelText: 'Ticket no', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: nomineeCtrl,
+              decoration: const InputDecoration(
+                  labelText: 'Nominee name', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: nomineePhoneCtrl,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(
+                  labelText: 'Nominee phone', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Cancel')),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    await _runAction(() async {
+                      await ref.read(chitServiceProvider).updateMember(
+                            widget.id,
+                            member.id,
+                            ticketNo: ticketCtrl.text.trim().isEmpty
+                                ? null
+                                : ticketCtrl.text.trim(),
+                            nomineeName: nomineeCtrl.text.trim().isEmpty
+                                ? null
+                                : nomineeCtrl.text.trim(),
+                            nomineePhone: nomineePhoneCtrl.text.trim().isEmpty
+                                ? null
+                                : nomineePhoneCtrl.text.trim(),
+                          );
+                    });
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Audit 03 parity: reschedule a pending/notice-sent auction (web had a
+  /// modal for this; mobile had none). Resets the reminder stamps server-side.
+  Future<void> _rescheduleAuction(ChitAuction auction) async {
+    final current =
+        auction.scheduledAt ?? auction.auctionDate ?? DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: current.isAfter(DateTime.now()) ? current : DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(current),
+    );
+    if (time == null || !mounted) return;
+    final scheduledAt =
+        DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    await _runAction(() async {
+      await ref
+          .read(chitServiceProvider)
+          .rescheduleAuction(widget.id, auction.id, scheduledAt);
+    });
+  }
+
   void _showAuctionManageSheet(ChitAuction auction, Map<String, dynamic> group,
       List<ChitMember> members) {
     final auctionType = (group['auctionType'] as String?) ?? 'open_manual';
     final isDrawType =
         auctionType == 'lottery' || auctionType == 'fixed_rotation';
     final locked = ['confirmed', 'paid', 'cancelled'].contains(auction.status);
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
@@ -632,6 +738,15 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                 onTap: () {
                   Navigator.pop(ctx);
                   _showAddBidSheet(auction, members);
+                },
+              ),
+            if (['pending', 'notice_sent'].contains(auction.status))
+              ListTile(
+                leading: const Icon(Icons.event, color: AppColors.info),
+                title: const Text('Reschedule auction'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _rescheduleAuction(auction);
                 },
               ),
             if (isDrawType && !locked)
@@ -716,6 +831,14 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                 if (v == 'edit') {
                   context.push('/chits/${widget.id}/edit',
                       extra: detail.valueOrNull);
+                } else if (v == 'payment_proofs') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) =>
+                          ChitPaymentIntentsScreen(groupId: widget.id),
+                    ),
+                  );
                 } else if (v == 'activate') {
                   _activateGroup();
                 } else if (v == 'cancel') {
@@ -724,6 +847,8 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
               },
               itemBuilder: (_) => [
                 const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                const PopupMenuItem(
+                    value: 'payment_proofs', child: Text('Payment proofs')),
                 if ((detail.valueOrNull?['status'] as String?) == 'draft')
                   const PopupMenuItem(
                       value: 'activate', child: Text('Activate Group')),
@@ -840,6 +965,7 @@ class _ChitDetailScreenState extends ConsumerState<ChitDetailScreen> {
                                             _setAgreement(m.id, 'verified'),
                                         onReject: () =>
                                             _setAgreement(m.id, 'rejected'),
+                                        onEdit: () => _showEditMemberSheet(m),
                                       ))
                                   .toList(),
                             );
@@ -1072,6 +1198,7 @@ class _MemberTile extends StatelessWidget {
     required this.onSign,
     required this.onVerify,
     required this.onReject,
+    required this.onEdit,
   });
   final ChitMember member;
   final String groupStatus;
@@ -1080,6 +1207,7 @@ class _MemberTile extends StatelessWidget {
   final VoidCallback onSign;
   final VoidCallback onVerify;
   final VoidCallback onReject;
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -1124,7 +1252,7 @@ class _MemberTile extends StatelessWidget {
     final canVerify = isAdmin && draft && status == 'signed';
     final canReject =
         isAdmin && draft && (status == 'signed' || status == 'verified');
-    final hasActions = canSign || canVerify || canReject;
+    final hasActions = canSign || canVerify || canReject || isAdmin;
 
     return ListTile(
       dense: true,
@@ -1164,8 +1292,12 @@ class _MemberTile extends StatelessWidget {
                 if (v == 'sign') onSign();
                 if (v == 'verify') onVerify();
                 if (v == 'reject') onReject();
+                if (v == 'edit') onEdit();
               },
               itemBuilder: (_) => [
+                if (isAdmin)
+                  const PopupMenuItem(
+                      value: 'edit', child: Text('Edit member')),
                 if (canSign)
                   const PopupMenuItem(
                       value: 'sign', child: Text('Mark Agreement Signed')),
@@ -1236,19 +1368,6 @@ class _SubscriptionTile extends StatelessWidget {
   final NumberFormat fmt;
   final VoidCallback onPay;
   final VoidCallback onMiss;
-
-  Color get _statusColor {
-    switch (sub.status) {
-      case 'paid':
-        return AppColors.success;
-      case 'missed':
-        return AppColors.danger;
-      case 'partial':
-        return AppColors.warning;
-      default:
-        return AppColors.textSecondary;
-    }
-  }
 
   @override
   Widget build(BuildContext context) {

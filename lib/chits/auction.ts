@@ -44,3 +44,32 @@ export function generateAuctionMinutes(input: {
 export function previewAuctionCalculation(input: ChitAuctionCalculationInput) {
   return calculateChitAuction(input);
 }
+
+// Shared reschedule core used by the web action and the mobile v1 route.
+// Caller must have already verified the auction belongs to its scope.
+export async function rescheduleAuctionInTx(tx: any, params: {
+  tenantId: string;
+  userId?: string | null;
+  auctionId: string;
+  scheduledAt: Date;
+}) {
+  const { createChitAudit } = await import('./audit');
+  await tx.chitAuction.update({
+    where: { id: params.auctionId },
+    data: {
+      scheduledAt: params.scheduledAt,
+      auctionDate: params.scheduledAt,
+      // Reset reminder idempotency stamps so the cron re-sends for the new slot.
+      reminder1DayAt: null,
+      reminder1HourAt: null,
+    },
+  });
+  await createChitAudit(tx, {
+    tenantId: params.tenantId,
+    userId: params.userId,
+    action: 'reschedule_auction',
+    entityType: 'chit_auction',
+    entityId: params.auctionId,
+    newValue: { scheduledAt: params.scheduledAt.toISOString() },
+  });
+}

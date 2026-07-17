@@ -23,7 +23,7 @@ import {
   listChitPaymentIntentsForStaff,
   rejectChitPaymentIntent,
 } from '@/lib/chits/paymentIntents';
-import { getTopBids, getWinningBid } from '@/lib/chits/auction';
+import { getTopBids, getWinningBid, rescheduleAuctionInTx } from '@/lib/chits/auction';
 import { drawLotteryWinner, formatDrawEvidence } from '@/lib/chits/lottery';
 import { finalizeAuctionInTx } from '@/lib/chits/finalize';
 import {
@@ -563,22 +563,11 @@ export async function rescheduleAuction(auctionId: string, scheduledAtIso: strin
   }
 
   await prisma.$transaction(async (tx) => {
-    await tx.chitAuction.update({
-      where: { id: auction.id },
-      data: {
-        scheduledAt,
-        auctionDate: scheduledAt,
-        reminder1DayAt: null,
-        reminder1HourAt: null,
-      },
-    });
-    await createChitAudit(tx, {
+    await rescheduleAuctionInTx(tx, {
       tenantId: scope.tenantId,
       userId: scope.userId,
-      action: 'reschedule_auction',
-      entityType: 'chit_auction',
-      entityId: auction.id,
-      newValue: { scheduledAt: scheduledAt.toISOString() },
+      auctionId: auction.id,
+      scheduledAt,
     });
   });
   revalidatePath(modulePath(scope.appType, `/chits/${auction.chitGroupId}`));

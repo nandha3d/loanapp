@@ -133,6 +133,12 @@ class Endpoints {
       '/chits/$id/auctions/$auctionId/timeline';
   static String chitAuctionSummary(String id, String auctionId) =>
       '/chits/$id/auctions/$auctionId/summary';
+  static String chitAuctionReschedule(String id, String auctionId) =>
+      '/chits/$id/auctions/$auctionId/reschedule';
+  // Staff review queue for customer "I've paid" claims (audit 03 parity).
+  static const String chitPaymentIntents = '/chits/payment-intents';
+  static String chitPaymentIntent(String intentId) =>
+      '/chits/payment-intents/$intentId';
   static String chitReceiptReverse(String receiptId) =>
       '/chits/receipts/$receiptId/reverse';
   static String chitPenalties(String id) => '/chits/$id/penalties';
@@ -277,4 +283,6 @@ class Endpoints {
   static const String borrowerUpload = '/borrower/upload';
   static const String borrowerChitContributions = '/borrower/chits/contributions';
   static const String borrowerChitPaymentIntents = '/borrower/chits/payment-intents';
+  // Loan statement PDF (raw bytes, audit 03 parity with the web portal).
+  static const String borrowerStatement = '/borrower/statement';
 }

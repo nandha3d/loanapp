@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:loantrack/core/network/dio_client.dart';
 import 'package:loantrack/data/models/chit.dart';
+import 'package:loantrack/data/models/chit_contribution.dart';
 import 'package:loantrack/data/models/chit_live.dart';
 import 'package:loantrack/shared/constants/endpoints.dart';
 
@@ -765,11 +766,53 @@ class ChitService {
     String auctionId,
     DateTime scheduledAt,
   ) async {
-    final res = await _dio.patch<Map<String, dynamic>>(
-      Endpoints.chitAuctionSchedule(groupId, auctionId),
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.chitAuctionReschedule(groupId, auctionId),
       data: {'scheduledAt': scheduledAt.toUtc().toIso8601String()},
     );
     return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
+  }
+
+  // ─── Customer payment-proof review queue (audit 03 parity) ────────────
+
+  Future<List<ChitStaffPaymentIntent>> paymentIntents({
+    String status = 'pending',
+    String? groupId,
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      Endpoints.chitPaymentIntents,
+      queryParameters: {
+        'status': status,
+        if (groupId != null) 'groupId': groupId,
+      },
+    );
+    return unwrapEnvelope(res, (dynamic d) {
+      final map = d as Map<String, dynamic>;
+      return ((map['intents'] as List<dynamic>?) ?? [])
+          .map((dynamic e) => ChitStaffPaymentIntent.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false);
+    });
+  }
+
+  /// Approving posts through the same collectChitSubscriptionPayment path as
+  /// a manual collection (idempotency key `chit-intent:<id>` server-side).
+  Future<String?> approvePaymentIntent(String intentId, double confirmedAmount) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.chitPaymentIntent(intentId),
+      data: {'action': 'approve', 'confirmedAmount': confirmedAmount},
+    );
+    return unwrapEnvelope(
+      res,
+      (dynamic d) => (d as Map<String, dynamic>)['receiptNo'] as String?,
+    );
+  }
+
+  Future<void> rejectPaymentIntent(String intentId, String reason) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.chitPaymentIntent(intentId),
+      data: {'action': 'reject', 'rejectionReason': reason},
+    );
+    unwrapEnvelope(res, (_) => null);
   }
 
   /// Poll the live state (hot path). Named liveAuctionState to avoid clashing

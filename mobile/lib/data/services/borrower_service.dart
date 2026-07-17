@@ -111,6 +111,21 @@ class BorrowerService {
     return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
   }
 
+  /// Loan statement PDF (raw bytes) — audit 03 parity with the web portal's
+  /// statement download. Feed the bytes to Printing.sharePdf/layoutPdf.
+  Future<List<int>> statementPdf(String loanId) async {
+    final res = await _dio.get<List<int>>(
+      Endpoints.borrowerStatement,
+      queryParameters: {'loanId': loanId},
+      options: Options(responseType: ResponseType.bytes),
+    );
+    final data = res.data;
+    if (res.statusCode != 200 || data == null || data.isEmpty) {
+      throw Exception('Statement download failed (${res.statusCode})');
+    }
+    return data;
+  }
+
   /// Logout the borrower session.
   Future<void> logout() async {
     await _dio.post<Map<String, dynamic>>(Endpoints.borrowerLogout);

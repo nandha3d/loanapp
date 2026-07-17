@@ -117,6 +117,80 @@ class ChitReceiptSummary {
   }
 }
 
+/// Staff-side view of a customer "I've paid" claim — richer than the
+/// borrower's own [ChitPaymentIntent] (member/group/period context plus the
+/// duplicate-reference advisory flag). Mirrors
+/// lib/chits/paymentIntents.ts#listChitPaymentIntentsForStaff.
+class ChitStaffPaymentIntent {
+  const ChitStaffPaymentIntent({
+    required this.id,
+    required this.status,
+    required this.paymentMode,
+    required this.createdAt,
+    required this.memberName,
+    required this.groupId,
+    required this.groupName,
+    required this.isDuplicateReference,
+    this.amount,
+    this.referenceNo,
+    this.ticketNo,
+    this.memberPhone,
+    this.periodNumber,
+    this.periodDueAmount,
+    this.periodPaidAmount,
+    this.proofUrl,
+    this.rejectionReason,
+    this.receiptNo,
+  });
+
+  final String id;
+  final String status;
+  final String paymentMode;
+  final DateTime createdAt;
+  final String memberName;
+  final String groupId;
+  final String groupName;
+  final bool isDuplicateReference;
+  final double? amount;
+  final String? referenceNo;
+  final String? ticketNo;
+  final String? memberPhone;
+  final int? periodNumber;
+  final double? periodDueAmount;
+  final double? periodPaidAmount;
+  final String? proofUrl;
+  final String? rejectionReason;
+  final String? receiptNo;
+
+  double? get periodOutstanding => periodDueAmount == null
+      ? null
+      : (periodDueAmount! - (periodPaidAmount ?? 0)).clamp(0, double.infinity);
+
+  factory ChitStaffPaymentIntent.fromJson(Map<String, dynamic> json) {
+    final period = json['period'] as Map<String, dynamic>?;
+    return ChitStaffPaymentIntent(
+      id: json['id'] as String,
+      status: (json['status'] as String?) ?? 'pending',
+      paymentMode: (json['paymentMode'] as String?) ?? 'upi',
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      memberName: (json['memberName'] as String?) ?? '-',
+      groupId: (json['groupId'] as String?) ?? '',
+      groupName: (json['groupName'] as String?) ?? '',
+      isDuplicateReference: (json['isDuplicateReference'] as bool?) ?? false,
+      amount: json['amount'] != null ? _num(json['amount']) : null,
+      referenceNo: json['referenceNo'] as String?,
+      ticketNo: json['ticketNo'] as String?,
+      memberPhone: json['memberPhone'] as String?,
+      periodNumber: period != null ? (period['periodNumber'] as num?)?.toInt() : null,
+      periodDueAmount: period != null ? _num(period['dueAmount']) : null,
+      periodPaidAmount: period != null ? _num(period['paidAmount']) : null,
+      proofUrl: json['proofUrl'] as String?,
+      rejectionReason: json['rejectionReason'] as String?,
+      receiptNo: json['receiptNo'] as String?,
+    );
+  }
+}
+
 class ChitPaymentIntent {
   const ChitPaymentIntent({
     required this.id,

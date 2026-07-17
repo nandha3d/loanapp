@@ -11,6 +11,7 @@ import 'package:loantrack/core/theme/app_typography.dart';
 import 'package:loantrack/data/local/chit_payment_queue.dart';
 import 'package:loantrack/data/models/chit.dart';
 import 'package:loantrack/data/services/chit_service.dart';
+import 'package:loantrack/features/chits/chit_payment_intents_screen.dart';
 import 'package:loantrack/shared/widgets/bottom_nav.dart';
 import 'package:loantrack/shared/widgets/empty_state.dart';
 import 'package:loantrack/shared/widgets/skeleton.dart';
@@ -37,6 +38,18 @@ class ChitsScreen extends ConsumerWidget {
         title: Text(t.x('title.chits')),
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.receipt_long_outlined),
+            tooltip: 'Payment proofs',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => const ChitPaymentIntentsScreen(),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             onPressed: () => ref.invalidate(_chitGroupsProvider),
