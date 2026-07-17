@@ -97,6 +97,22 @@ const nextConfig: NextConfig = {
           { key: 'Cache-Control', value: 'private, max-age=30, stale-while-revalidate=60' },
         ],
       },
+      // Static public assets (fonts, images). Filenames never change without a
+      // rename, so cache hard — this also makes them edge-cacheable when a CDN
+      // (e.g. Cloudflare) sits in front. Without this they were served through
+      // Node with no cache header at all on every page view.
+      {
+        source: '/fonts/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
+      {
+        source: '/assets/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
       {
         source: '/(.*)',
         headers: securityHeaders,

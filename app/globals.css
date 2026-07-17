@@ -1,12 +1,14 @@
 /* ===== LoanTrack Design System ===== */
 /* Ported exactly from prototype — DO NOT change colors */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+/* Inter is self-hosted via next/font (app/layout.tsx) — no external CSS import. */
 
 @font-face {
   font-family: 'Material Icons Outlined';
   font-style: normal;
   font-weight: 400;
-  src: url('/fonts/MaterialIconsOutlined-Regular.otf') format('opentype');
+  /* woff2 is ~55% smaller than the otf; otf kept as fallback for old engines. */
+  src: url('/fonts/MaterialIconsOutlined-Regular.woff2') format('woff2'),
+       url('/fonts/MaterialIconsOutlined-Regular.otf') format('opentype');
   font-display: block;
 }
 
@@ -22,7 +24,7 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 14px; }
-body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; min-height: 100vh; }
+body { font-family: var(--font-inter, 'Inter'), sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; min-height: 100vh; }
 a { color: var(--primary-dark); text-decoration: none; }
 a:hover { text-decoration: underline; }
 

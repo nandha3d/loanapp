@@ -60,6 +60,7 @@ class _BorrowerChitLiveScreenState extends ConsumerState<BorrowerChitLiveScreen>
   bool _busy = false;
   String? _error;
   int _pollFailCount = 0;
+  int _lastTickSeconds = -1;
   int _lastBellsRung = 0;
   String? _bellToast;
   Timer? _bellToastTimer;
@@ -73,7 +74,16 @@ class _BorrowerChitLiveScreenState extends ConsumerState<BorrowerChitLiveScreen>
     super.initState();
     _poll();
     _pollTimer = Timer.periodic(const Duration(milliseconds: 2500), (_) => _poll());
-    _tickTimer = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
+    // Countdown tick: only rebuild when the displayed second actually changes.
+    // The old unconditional setState rebuilt this entire (large) screen every
+    // second even when the room was closed and nothing on screen moved.
+    _tickTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      final s = _displaySeconds;
+      if (s != _lastTickSeconds && mounted) {
+        _lastTickSeconds = s;
+        setState(() {});
+      }
+    });
   }
 
   @override
@@ -640,7 +650,7 @@ class _CustomerPokerTable extends StatelessWidget {
                       quarterTurns: 1,
                       child: ColorFiltered(
                         colorFilter: const ColorFilter.mode(Color(0x14000000), BlendMode.darken),
-                        child: Image.asset('assets/images/poker_table.png', fit: BoxFit.cover),
+                        child: Image.asset('assets/images/poker_table.webp', fit: BoxFit.cover),
                       ),
                     ),
                   ),

@@ -79,6 +79,7 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
 
   // Server-authoritative countdown: seed on each poll, tick down locally.
   int _secondsAtPoll = 0;
+  int _lastTickSeconds = -1;
   DateTime _polledAt = DateTime.now();
   String? _lastAnnouncedBidId;
   bool _announcedWinner = false;
@@ -92,8 +93,15 @@ class _ChitLiveAuctionScreenState extends ConsumerState<ChitLiveAuctionScreen> {
     _poll();
     _pollTimer =
         Timer.periodic(const Duration(milliseconds: 2500), (_) => _poll());
-    _tickTimer =
-        Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
+    // Countdown tick: only rebuild when the displayed second actually
+    // changes — never rebuild this whole screen while the room is idle.
+    _tickTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      final s = _displaySeconds;
+      if (s != _lastTickSeconds && mounted) {
+        _lastTickSeconds = s;
+        setState(() {});
+      }
+    });
   }
 
   @override
@@ -1288,7 +1296,7 @@ class _PokerTable extends StatelessWidget {
                         colorFilter: const ColorFilter.mode(
                             Color(0x14000000), BlendMode.darken),
                         child: Image.asset(
-                          'assets/images/poker_table.png',
+                          'assets/images/poker_table.webp',
                           fit: BoxFit.cover,
                         ),
                       ),

@@ -1,7 +1,18 @@
 import type { Metadata, Viewport } from 'next';
+import { Inter } from 'next/font/google';
 import MonitorBanner from '@/components/MonitorBanner';
 import { withBasePath } from '@/lib/public-path';
 import './globals.css';
+
+// Self-hosted at build time by next/font — removes the render-blocking
+// fonts.googleapis.com CSS chain (2 external round-trips before first paint)
+// and serves the woff2 from our own origin with immutable caching.
+const inter = Inter({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
+  display: 'swap',
+  variable: '--font-inter',
+});
 
 export const metadata: Metadata = {
   title: 'LoanTrack — Micro-Lending Management System',
@@ -23,9 +34,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className={inter.variable}>
       <head>
         <link rel="icon" href={withBasePath('/assets/logo.svg')} />
+        <link
+          rel="preload"
+          href={withBasePath('/fonts/MaterialIconsOutlined-Regular.woff2')}
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
       </head>
       <body suppressHydrationWarning>
         <MonitorBanner />

@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:crypto/crypto.dart';
@@ -99,7 +98,23 @@ class AuthedImageProvider extends ImageProvider<AuthedImageProvider> {
       }
     }
     final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
-    return decode(buffer);
+    // Cap the decoded bitmap at 800px on the longest side. Uploaded photos are
+    // 1200-1600px+; decoding them full-size costs 8-16 MB of RAM *each* while
+    // they render as 24-64px avatars in lists — dozens of them at once is what
+    // OOM-killed the app. 800px stays sharper than any layout slot we render
+    // into while bounding each decode to ≤ ~2.5 MB.
+    return decode(buffer, getTargetSize: (int intrinsicW, int intrinsicH) {
+      const maxDim = 800;
+      if (intrinsicW <= maxDim && intrinsicH <= maxDim) {
+        return ui.TargetImageSize(width: intrinsicW, height: intrinsicH);
+      }
+      final scale =
+          intrinsicW >= intrinsicH ? maxDim / intrinsicW : maxDim / intrinsicH;
+      return ui.TargetImageSize(
+        width: (intrinsicW * scale).round(),
+        height: (intrinsicH * scale).round(),
+      );
+    });
   }
 
   @override
