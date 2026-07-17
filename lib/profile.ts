@@ -22,7 +22,9 @@ function otpBucket(now = Date.now()) {
 }
 
 function generateProfileOtp(userId: string, email: string, bucket: number): string {
-  const secret = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET || 'fallback-secret';
+  // No fallback: with a public constant, OTPs would be forgeable by anyone.
+  const secret = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET;
+  if (!secret) throw new Error('NEXTAUTH_SECRET or AUTH_SECRET is required for profile OTP generation');
   const raw = createHmac('sha256', secret)
     .update(`profile-password:${userId}:${email.toLowerCase()}:${bucket}`)
     .digest('hex');

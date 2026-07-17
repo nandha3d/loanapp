@@ -1826,7 +1826,10 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                           {paymentSettings?.upiQrUrl ? "Scan Lender's Verified QR Code" : "Scan to Pay via UPI App"}
                         </span>
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '4px', fontFamily: 'monospace' }}>
-                          UPI ID: {paymentSettings?.upiId || 'loantrack@ybl'} • ₹{parseFloat(paymentAmount).toLocaleString('en-IN')}
+                          {/* Never show a placeholder VPA — a real payment to it would be lost. */}
+                          {paymentSettings?.upiId
+                            ? <>UPI ID: {paymentSettings.upiId} • ₹{parseFloat(paymentAmount).toLocaleString('en-IN')}</>
+                            : <>UPI not configured — contact your branch • ₹{parseFloat(paymentAmount).toLocaleString('en-IN')}</>}
                         </div>
                       </div>
                     </div>

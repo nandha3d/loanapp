@@ -10,7 +10,12 @@ async function main() {
   const branch = await prisma.branch.findFirst({ where: { tenantId: tenant.id, code: 'HQ' } });
   if (!branch) throw new Error('Branch not found');
 
-  const superPassword = await bcrypt.hash('super123', 12);
+  // Never bake a default password into the script — require it explicitly.
+  const rawPassword = process.env.SUPERADMIN_PASSWORD;
+  if (!rawPassword || rawPassword.length < 8) {
+    throw new Error('Set SUPERADMIN_PASSWORD (min 8 chars) before running this script.');
+  }
+  const superPassword = await bcrypt.hash(rawPassword, 12);
 
   // Use a random phone to avoid unique constraint if it already exists
   const superadmin = await prisma.user.upsert({

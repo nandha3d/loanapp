@@ -221,6 +221,8 @@ export async function rejectEntry(id: string, note: string) {
   const userId = session?.user?.id!;
   requireRole(role, ['superadmin', 'developer']);
   const tenantId = await getDefaultTenantId();
+  const entry = await prisma.journalEntry.findFirst({ where: { id, tenantId }, select: { id: true } });
+  if (!entry) return { error: 'not_found' };
   await prisma.journalEntry.update({ where: { id }, data: { status: 'rejected' } });
   await prisma.accountingApproval.updateMany({ where: { entityId: id, status: 'pending' }, data: { status: 'rejected', approvedById: userId, reviewNote: note, reviewedAt: new Date() } });
   await writeAuditLog({ tenantId, userId, action: 'reject', entityType: 'journal_entry', entityId: id, reason: note });
