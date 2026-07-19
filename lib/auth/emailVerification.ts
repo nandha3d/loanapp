@@ -8,7 +8,11 @@ import { sendEmail, type EmailResult } from '@/lib/notify/channels/email';
 const TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
 function secret(): string {
-  return process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET ?? 'fallback-secret';
+  // No public-constant fallback: a known signing key makes activation tokens
+  // forgeable by anyone.
+  const s = process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET;
+  if (!s) throw new Error('NEXTAUTH_SECRET or AUTH_SECRET is required for email verification tokens');
+  return s;
 }
 
 function b64url(input: Buffer | string): string {
