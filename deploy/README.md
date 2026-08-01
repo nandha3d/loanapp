@@ -2,6 +2,24 @@
 
 Files in this folder support Phase 1 infrastructure (INFRA-01, INFRA-02, INFRA-05).
 
+## Production server
+
+| | |
+|---|---|
+| Provider / location | Hostinger VPS — India, Mumbai 2 |
+| Hostname | `srv1731573.hstgr.cloud` |
+| IPv4 | `187.127.177.121` |
+| OS | Ubuntu 24.04 (OpenLiteSpeed + Node.js image) |
+| SSH user | `root` (key auth) |
+| Backups | Hostinger snapshot, weekly — see `backup-db.sh` for the DB-level dump |
+
+Both hosts are served by this one box; the app forks on the `Host` header — see
+[../docs/multi-domain-architecture.md](../docs/multi-domain-architecture.md).
+
+> Weekly snapshots mean up to 7 days of data loss on a restore. `backup-db.sh`
+> (daily mysqldump) is the actual recovery path for the database — verify it is
+> installed in cron before relying on the provider schedule.
+
 ## Files
 
 | File | Purpose | Audit ref |
