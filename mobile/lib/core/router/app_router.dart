@@ -40,6 +40,7 @@ import 'package:loantrack/features/loans/gold_reports_screen.dart';
 import 'package:loantrack/features/loans/loan_detail_screen.dart';
 import 'package:loantrack/features/loans/loans_screen.dart';
 import 'package:loantrack/features/loans/new_loan_screen.dart';
+import 'package:loantrack/features/loans/route_customers_screen.dart';
 import 'package:loantrack/features/more/more_screen.dart';
 import 'package:loantrack/features/notifications/notifications_screen.dart';
 import 'package:loantrack/features/npa/npa_screen.dart';
@@ -282,6 +283,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, __) => const LoansScreen(),
         routes: [
           GoRoute(path: 'new', builder: (_, __) => const NewLoanScreen()),
+          // Auto Finance route/area manager — accounts grouped by beat.
+          GoRoute(
+            path: 'routes',
+            builder: (_, __) => const RouteCustomersScreen(),
+          ),
           GoRoute(
             path: ':id',
             builder: (_, state) =>

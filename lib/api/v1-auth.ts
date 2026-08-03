@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { SignJWT, jwtVerify } from 'jose';
 import { fail } from './v1-envelope';
+import { checkLoginWindow } from '../autofinance/operations';
 
 const ALG = 'HS256';
 const ISSUER = 'loantrack';
@@ -29,6 +30,26 @@ export type MobileTokenClaims = {
 
 const ACCESS_TOKEN_TTL = '1h';
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+/**
+ * Enforces the Auto Finance allowed-login-window on the mobile field app.
+ *
+ * Applied when a token is minted (login, 2FA, Google, refresh) rather than on
+ * every request, so the guard costs nothing on the hot path. Access tokens
+ * live 1h and refresh is re-checked, which bounds how far past the window an
+ * already-signed-in agent can keep working.
+ *
+ * Returns a 403 response when the window is closed, or null to continue.
+ */
+export function loginWindowFailure(
+  user: { role: string; allowedLoginStart?: string | null; allowedLoginEnd?: string | null },
+  now: Date = new Date(),
+) {
+  // Owners are exempt — see lib/auth.ts for the same carve-out.
+  if (user.role === 'superadmin' || user.role === 'developer') return null;
+  const result = checkLoginWindow(user, now);
+  return result.allowed ? null : fail(result.message ?? 'Login is not allowed at this time.', 403);
+}
 
 export async function issueMobileToken(claims: MobileTokenClaims): Promise<string> {
   return await new SignJWT({ ...claims })

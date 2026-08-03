@@ -116,6 +116,8 @@ export const hi = {
     customers: 'ग्राहक',
     loans: 'ऋण',
     vehicles: 'वाहन',
+    pendingTasks: 'लंबित कार्य',
+    financePartners: 'ब्रोकर और डीलर',
     chits: 'चिट फंड',
     penalties: 'दंड',
     approvals: 'अनुमोदन',

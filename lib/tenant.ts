@@ -226,7 +226,7 @@ export const getCurrentTenantId = cache(async (): Promise<string> => {
   const headerStore = await headers();
   const requestedTenantId = await getTenantIdFromHost(headerStore.get('host'));
   const pathname = headerStore.get('x-loantrack-path') || '';
-  const { page } = parseModulePath(pathname);
+  const { module, page } = parseModulePath(pathname);
 
   if (!isTenantHostAllowedForSession({
     requestedTenantId,
@@ -240,11 +240,17 @@ export const getCurrentTenantId = cache(async (): Promise<string> => {
     ? user.tenantId
     : requestedTenantId || user?.tenantId || await getFallbackDefaultTenantId();
 
+  const isServerAction = Boolean(headerStore.get('next-action'));
+  const isBillingPath = pathname.startsWith('/portal/billing') || page.startsWith('/subscription');
+  // UI layouts render the payment wall/redirect before their children. Server
+  // Actions remain guarded even when they originate from one of those routes.
+  const isProtectedUiShell = !isServerAction && (
+    Boolean(module) || pathname.startsWith('/portal') || pathname.startsWith('/admin')
+  );
+
   if (
-    !page.startsWith('/subscription') &&
-    !pathname.startsWith('/portal') &&
-    !pathname.startsWith('/admin') &&
-    !page.startsWith('/branch-requests')
+    !TENANT_BYPASS_ROLES.has(user?.role || '') &&
+    (isServerAction || (!isBillingPath && !isProtectedUiShell))
   ) {
     await assertTenantSubscriptionAccess(tenantId);
   }

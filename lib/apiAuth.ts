@@ -2,6 +2,7 @@ import { auth } from '@/lib/auth';
 import { getCurrentTenantId, getUserAppType } from '@/lib/tenant';
 import { getActiveBranchId } from '@/lib/branch';
 import { apiError } from '@/lib/utils';
+import { isSubscriptionAccessError } from '@/lib/subscription';
 
 export const ADMIN_API_ROLES = ['admin', 'superadmin', 'developer'];
 export const AUTHENTICATED_API_ROLES = ['admin', 'superadmin', 'developer', 'agent'];
@@ -25,7 +26,15 @@ export async function requireApiContext(allowedRoles: string[] = AUTHENTICATED_A
   const role = (session.user as { role?: string })?.role || '';
   if (!allowedRoles.includes(role)) return { response: apiError('Forbidden', 403) };
 
-  const tenantId = await getCurrentTenantId();
+  let tenantId: string;
+  try {
+    tenantId = await getCurrentTenantId();
+  } catch (error) {
+    if (isSubscriptionAccessError(error)) {
+      return { response: apiError(error.message, error.statusCode) };
+    }
+    throw error;
+  }
   const appType = await getUserAppType();
   const branchId = await getActiveBranchId();
 

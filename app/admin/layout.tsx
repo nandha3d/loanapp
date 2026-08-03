@@ -4,6 +4,8 @@ import { SessionProvider } from 'next-auth/react';
 import Link from 'next/link';
 import LogoutButton from '@/components/ui/LogoutButton';
 import prisma from '@/lib/db';
+import { getDefaultTenantId } from '@/lib/tenant';
+import { getSubscription, getTenantSubscriptionAccessState } from '@/lib/subscription';
 
 export default async function AdminLayout({
   children,
@@ -11,10 +13,19 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const session = await auth();
-  const userRole = (session?.user as any)?.role;
+  const userRole = (session?.user as { role?: string } | undefined)?.role;
 
   if (userRole !== 'superadmin' && userRole !== 'developer' && userRole !== 'admin') {
     redirect('/login');
+  }
+
+  if (userRole !== 'developer') {
+    const tenantId = await getDefaultTenantId();
+    const subscription = await getSubscription(tenantId);
+    const access = getTenantSubscriptionAccessState(subscription);
+    if (access.blocked) {
+      redirect(`/portal/billing?reason=${encodeURIComponent(access.reason || 'payment_required')}`);
+    }
   }
 
   const userName = session?.user?.name || (userRole === 'developer' ? 'Developer' : userRole === 'superadmin' ? 'Super Admin' : 'Branch Admin');

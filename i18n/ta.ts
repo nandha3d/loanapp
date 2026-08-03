@@ -116,6 +116,8 @@ export const ta = {
     customers: 'வாடிக்கையாளர்கள்',
     loans: 'கடன்கள்',
     vehicles: 'வாகனங்கள்',
+    pendingTasks: 'நிலுவைப் பணிகள்',
+    financePartners: 'தரகர்கள் & விற்பனையாளர்கள்',
     chits: 'சீட்டு குழுக்கள்',
     penalties: 'அபராதங்கள்',
     approvals: 'அங்கீகாரங்கள்',

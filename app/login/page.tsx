@@ -85,7 +85,14 @@ function LoginForm() {
       });
 
       if (result?.error) {
-        setError('Invalid credentials. If you just registered, verify your email using the activation link we sent before signing in.');
+        // NextAuth surfaces the authorize() failure on `code` or `error`
+        // depending on the path taken, so check both.
+        const reason = `${(result as { code?: string }).code ?? ''} ${result.error}`;
+        setError(
+          reason.includes('LOGIN_WINDOW_CLOSED')
+            ? 'Your account is outside its allowed login hours. Contact your administrator if you need access now.'
+            : 'Invalid credentials. If you just registered, verify your email using the activation link we sent before signing in.',
+        );
         setLoading(false);
         return;
       }

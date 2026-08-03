@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import 'package:loantrack/core/auth/auth_controller.dart';
 import 'package:loantrack/core/l10n/language_controller.dart';
+import 'package:loantrack/data/models/user.dart';
 import 'package:loantrack/core/network/authed_image.dart';
 import 'package:loantrack/core/theme/app_colors.dart';
 import 'package:loantrack/core/theme/app_tokens.dart';
@@ -47,6 +49,17 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/dashboard'),
         ),
+        actions: [
+          // Auto Finance agents work a geographical beat, so give them a
+          // direct jump into the route/area manager.
+          if (ref.watch(authControllerProvider).user?.appType ==
+              AppType.autofinance)
+            IconButton(
+              tooltip: 'Routes',
+              icon: const Icon(Icons.map_outlined),
+              onPressed: () => context.push('/loans/routes'),
+            ),
+        ],
       ),
       body: async.when(
         loading: () => ListView.separated(

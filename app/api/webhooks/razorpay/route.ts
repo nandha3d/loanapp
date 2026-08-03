@@ -1,58 +1,77 @@
+import crypto from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
+import { calculateVerticalSubscriptionPricing } from '@/lib/pricing';
 import { verifyRazorpayWebhookSignature } from '@/lib/razorpay';
-import { normalizeRazorpaySubscriptionStatus } from '@/lib/subscription';
-import { getPlanLimits } from '@/lib/planCatalog';
-import { PLAN_PRICING } from '@/lib/plans';
+import {
+  normalizeEnabledModules,
+  normalizeRazorpaySubscriptionStatus,
+} from '@/lib/subscription';
 import { checkRateLimit, getClientIp, routeKey } from '@/lib/rateLimit';
-import crypto from 'node:crypto';
 
 type RazorpayPaymentEntity = {
-  amount?: number; // in paise
-  tax?: number;    // in paise
+  id?: string;
+  amount?: number; // paise; this is the total captured from the customer
 };
 
 type RazorpaySubscriptionEntity = {
   id?: string;
   current_end?: number;
   status?: string;
+  notes?: Record<string, string | undefined>;
 };
 
 type RazorpayWebhookPayload = {
   event?: string;
   payload?: {
-    subscription?: {
-      entity?: RazorpaySubscriptionEntity;
-    };
-    payment?: {
-      entity?: RazorpayPaymentEntity;
-    };
+    subscription?: { entity?: RazorpaySubscriptionEntity };
+    payment?: { entity?: RazorpayPaymentEntity };
   };
 };
 
-// This endpoint handles PLATFORM subscription billing only (platform's own
-// Razorpay account, keys from env). Borrower self-pay (mCollect-B) settles into
-// each *tenant's* own Razorpay account and is handled by the per-tenant endpoint
-// `/api/webhooks/razorpay/collections` with that tenant's webhook secret.
+// Platform subscription billing only. Borrower collection webhooks are handled
+// separately at /api/webhooks/razorpay/collections using each tenant's keys.
 const HANDLED_EVENTS = new Set([
+  'subscription.authenticated',
   'subscription.activated',
   'subscription.charged',
+  'subscription.pending',
   'subscription.halted',
   'subscription.cancelled',
+  'subscription.completed',
+  'subscription.expired',
 ]);
 
-export async function POST(request: NextRequest) {
-  // Rate limit: 300 requests per IP per 10 minutes.
-  // Intentionally generous so no legitimate Razorpay delivery is ever blocked.
-  const ip = getClientIp(request);
-  const rl = await checkRateLimit(routeKey('webhook:razorpay', ip), { limit: 300, windowMs: 10 * 60 * 1000 });
-  if (!rl.allowed) {
-    return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+function addOneMonth(date: Date): Date {
+  const result = new Date(date);
+  result.setMonth(result.getMonth() + 1);
+  return result;
+}
+
+function stringList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string');
+  if (typeof value !== 'string') return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === 'string')
+      : [];
+  } catch {
+    return [];
   }
+}
+
+export async function POST(request: NextRequest) {
+  const ip = getClientIp(request);
+  const rateLimit = await checkRateLimit(routeKey('webhook:razorpay', ip), {
+    limit: 300,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (!rateLimit.allowed) return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
 
   const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
   if (!webhookSecret) {
-    return NextResponse.json({ error: 'RAZORPAY_WEBHOOK_SECRET is not configured' }, { status: 500 });
+    return NextResponse.json({ error: 'Webhook is not configured' }, { status: 500 });
   }
 
   const rawBody = await request.text();
@@ -73,143 +92,192 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, ignored: true });
   }
 
-  // ── Idempotency: deduplicate on the Razorpay event ID ────────────────────
-  let razorpayEventId = request.headers.get('x-razorpay-event-id') ?? null;
-  if (!razorpayEventId) {
-    const payloadHash = crypto.createHash('sha256').update(rawBody).digest('hex');
-    razorpayEventId = `fallback_${event}_${payloadHash}`;
-  }
-  if (razorpayEventId) {
-    const existing = await prisma.webhookEvent.findUnique({
-      where: { provider_eventId: { provider: 'razorpay', eventId: razorpayEventId } },
-    });
-    if (existing) {
-      return NextResponse.json({ ok: true, duplicate: true });
-    }
-  }
-  // ─────────────────────────────────────────────────────────────────────────
-
   const subscription = payload.payload?.subscription?.entity;
   const razorpaySubId = subscription?.id;
-  if (!razorpaySubId) {
+  if (!razorpaySubId || !razorpaySubId.startsWith('sub_')) {
     return NextResponse.json({ error: 'Missing Razorpay subscription id' }, { status: 400 });
   }
 
-  const data: {
-    status: string;
-    currentPeriodEnd?: Date;
-    gracePeriodEnd?: Date;
-  } = {
-    status: normalizeRazorpaySubscriptionStatus(event),
-  };
+  const headerEventId = request.headers.get('x-razorpay-event-id');
+  const eventId = headerEventId && headerEventId.length <= 255
+    ? headerEventId
+    : `fallback_${event}_${crypto.createHash('sha256').update(rawBody).digest('hex')}`;
+  const eventPayload = JSON.stringify({ event, razorpaySubId });
 
-  if (subscription?.current_end) {
-    data.currentPeriodEnd = new Date(subscription.current_end * 1000);
-  }
-
-  // Grace Period handling for halted subscriptions
-  if (event === 'subscription.halted') {
-    data.status = 'past_due';
-    
-    // Get plan details to determine grace period
-    const existingSub = await prisma.tenantSubscription.findUnique({
-      where: { razorpaySubId },
-    });
-    
-    let graceDays = 7;
-    if (existingSub && existingSub.plan) {
-      graceDays = (await getPlanLimits(existingSub.plan)).gracePeriodDays || 7;
-    }
-    
-    const graceEnd = new Date();
-    graceEnd.setDate(graceEnd.getDate() + graceDays);
-    data.gracePeriodEnd = graceEnd;
-  }
-
-  const updatedCount = await prisma.tenantSubscription.updateMany({
-    where: { razorpaySubId },
-    data,
+  // Reserve the event before mutating billing state. This closes the race where
+  // two simultaneous Razorpay retries could otherwise create duplicate invoices.
+  const existingEvent = await prisma.webhookEvent.findUnique({
+    where: { provider_eventId: { provider: 'razorpay', eventId } },
   });
-
-  // Apply plan-specific limits if the subscription exists
-  if (updatedCount.count > 0) {
-    const existingSub = await prisma.tenantSubscription.findUnique({
-      where: { razorpaySubId },
-    });
-    
-    if (existingSub && existingSub.plan) {
-      // Catalog-first: numeric limits come from SubscriptionPlanCatalog;
-      // modules/grace fall back to lib/plans.ts until the gated catalog
-      // migration adds those columns. See lib/planCatalog.ts.
-      const limits = await getPlanLimits(existingSub.plan);
-      await prisma.tenantSubscription.update({
-        where: { id: existingSub.id },
-        data: {
-          maxActiveLoans: limits.maxActiveLoans,
-          maxAgents: limits.maxAgents,
-          maxBranches: limits.maxBranches,
-          enabledModules: JSON.stringify(limits.enabledModules),
-        }
+  const processingIsFresh = existingEvent?.status === 'processing' &&
+    Date.now() - existingEvent.processedAt.getTime() < 5 * 60 * 1000;
+  if (existingEvent?.status === 'processed' || processingIsFresh) {
+    return NextResponse.json({ ok: true, duplicate: true });
+  }
+  try {
+    if (existingEvent) {
+      await prisma.webhookEvent.update({
+        where: { id: existingEvent.id },
+        data: { status: 'processing', payload: eventPayload },
+      });
+    } else {
+      await prisma.webhookEvent.create({
+        data: { provider: 'razorpay', eventId, event, payload: eventPayload, status: 'processing' },
       });
     }
+  } catch {
+    // Another request won the unique-key race and is already handling it.
+    return NextResponse.json({ ok: true, duplicate: true });
   }
 
-  // Record this event to prevent future duplicate processing
-  if (razorpayEventId) {
-    await prisma.webhookEvent.create({
-      data: {
-        provider: 'razorpay',
-        eventId: razorpayEventId,
-        event,
-        payload: rawBody,
-        status: 'processed',
-      },
-    }).catch(() => {}); // non-blocking — don't fail the response
-  }
-
-  // ── Invoice Generation ───────────────────────────────────────────────────
-  if (event === 'subscription.charged') {
-    const tenantSub = await prisma.tenantSubscription.findUnique({
+  try {
+    const tenantIdFromNotes = subscription.notes?.tenant_id;
+    let tenantSub = await prisma.tenantSubscription.findUnique({
       where: { razorpaySubId },
+      include: { tenant: { select: { customDomain: true } } },
     });
-    if (tenantSub) {
-      // Create invoice record. Source of truth for the amount, in order:
-      //   1. the actual Razorpay payment (paise → rupees)
-      //   2. the catalog monthlyPrice for the plan (DB-driven)
-      //   3. lib/plans.ts PLAN_PRICING (last-resort fallback)
-      const paymentEntity = payload.payload?.payment?.entity;
-      const catalogRow = await prisma.subscriptionPlanCatalog
-        .findUnique({ where: { plan: tenantSub.plan ?? '' } })
-        .catch(() => null);
-      const planPricing = PLAN_PRICING[tenantSub.plan ?? ''] ?? PLAN_PRICING['basic'];
-      const baseAmount = catalogRow?.monthlyPrice ?? planPricing.amount;
-      const invoiceAmount = paymentEntity?.amount != null
-        ? Math.round(paymentEntity.amount / 100)
-        : baseAmount;
-      const invoiceTax = paymentEntity?.tax != null
-        ? Math.round(paymentEntity.tax / 100)
-        : Math.round(baseAmount * 0.18);
-      const invoiceTotal = invoiceAmount + invoiceTax;
+
+    // Recovery path for subscriptions created before the ID was persisted, or
+    // when the database write failed after Razorpay successfully created it.
+    if (!tenantSub && tenantIdFromNotes) {
+      tenantSub = await prisma.tenantSubscription.findUnique({
+        where: { tenantId: tenantIdFromNotes },
+        include: { tenant: { select: { customDomain: true } } },
+      });
+      if (tenantSub) {
+        // Never let a late event from an old/cancelled subscription replace a
+        // newer subscription already linked to this tenant.
+        if (tenantSub.razorpaySubId && tenantSub.razorpaySubId !== razorpaySubId) {
+          await prisma.webhookEvent.update({
+            where: { provider_eventId: { provider: 'razorpay', eventId } },
+            data: { status: 'processed' },
+          });
+          return NextResponse.json({ ok: true, ignored: true, reason: 'stale_subscription' });
+        }
+        tenantSub = await prisma.tenantSubscription.update({
+          where: { id: tenantSub.id },
+          data: { razorpaySubId },
+          include: { tenant: { select: { customDomain: true } } },
+        });
+      }
+    }
+
+    if (!tenantSub) throw new Error('No tenant subscription matches the Razorpay event');
+
+    if (tenantSub.plan === 'lifetime' || tenantSub.tenant.customDomain) {
+      await prisma.webhookEvent.update({ where: { provider_eventId: { provider: 'razorpay', eventId } }, data: { status: 'processed' } });
+      return NextResponse.json({ ok: true, ignored: true, reason: 'lifetime_workspace' });
+    }
+
+    const normalizedStatus = normalizeRazorpaySubscriptionStatus(event);
+    const updateData: {
+      status: string;
+      currentPeriodEnd?: Date;
+      gracePeriodEnd?: Date | null;
+      trialEndsAt?: Date | null;
+      plan?: string;
+      maxActiveLoans?: number;
+      maxAgents?: number;
+      maxBranches?: number;
+      basePlanPrice?: number;
+      modulesPrice?: number;
+      addonsPrice?: number;
+      totalMonthlyPrice?: number;
+    } = { status: normalizedStatus };
+
+    if (subscription.current_end) {
+      updateData.currentPeriodEnd = new Date(subscription.current_end * 1000);
+    } else if (event === 'subscription.charged') {
+      // A signed charged event proves payment even if current_end is omitted.
+      updateData.currentPeriodEnd = addOneMonth(new Date());
+    }
+
+    if (event === 'subscription.halted' || event === 'subscription.pending') {
+      const graceEnd = new Date();
+      graceEnd.setDate(graceEnd.getDate() + 7);
+      updateData.gracePeriodEnd = graceEnd;
+    } else if (event === 'subscription.charged' || event === 'subscription.activated') {
+      updateData.gracePeriodEnd = null;
+    }
+    if (event === 'subscription.charged') updateData.trialEndsAt = null;
+
+    // Only a successful activation/charge changes plan limits. The desired plan
+    // comes from notes written by our server, and the signed webhook is verified.
+    if (event === 'subscription.activated' || event === 'subscription.charged') {
+      const requestedPlan = subscription.notes?.loantrack_plan || tenantSub.plan;
+      const catalog = await prisma.subscriptionPlanCatalog.findFirst({
+        where: { plan: requestedPlan, isActive: true, monthlyPrice: { gt: 0 } },
+      });
+      if (!catalog) throw new Error('Razorpay event references an unavailable SaaS plan');
+
+      const enabledModules = normalizeEnabledModules(tenantSub.enabledModules);
+      const selectedAddons = stringList(tenantSub.selectedAddons);
+      const addonRows = selectedAddons.length
+        ? await prisma.addonCatalog.findMany({
+            where: { addon: { in: selectedAddons }, isActive: true },
+            select: { monthlyPrice: true },
+          })
+        : [];
+      const addonsPrice = addonRows.reduce((sum, addon) => sum + addon.monthlyPrice, 0);
+      const pricing = calculateVerticalSubscriptionPricing(
+        catalog.monthlyPrice,
+        enabledModules,
+        addonsPrice,
+      );
+      Object.assign(updateData, {
+        plan: catalog.plan,
+        maxActiveLoans: catalog.maxActiveLoans,
+        maxAgents: catalog.maxAgents,
+        maxBranches: catalog.maxBranches,
+        basePlanPrice: pricing.basePlanPrice,
+        modulesPrice: pricing.modulesPrice,
+        addonsPrice: pricing.addonsPrice,
+        totalMonthlyPrice: pricing.totalMonthlyPrice,
+      });
+    }
+
+    const updatedSub = await prisma.tenantSubscription.update({
+      where: { id: tenantSub.id },
+      data: updateData,
+    });
+
+    if (event === 'subscription.charged') {
+      const payment = payload.payload?.payment?.entity;
+      const capturedTotal = payment?.amount != null
+        ? payment.amount / 100
+        : updatedSub.totalMonthlyPrice;
       await prisma.billingInvoice.create({
         data: {
-          tenantId: tenantSub.tenantId,
-          subscriptionId: tenantSub.id,
-          amount: invoiceAmount,
-          tax: invoiceTax,
-          total: invoiceTotal,
+          tenantId: updatedSub.tenantId,
+          subscriptionId: updatedSub.id,
+          amount: capturedTotal,
+          tax: 0,
+          total: capturedTotal,
           status: 'paid',
           dueDate: new Date(),
           paidAt: new Date(),
-          billingPeriod: new Date().toISOString().slice(0, 7), // YYYY-MM
-        }
+          razorpayId: payment?.id,
+          billingPeriod: new Date().toISOString().slice(0, 7),
+        },
       });
     }
-  }
 
-  return NextResponse.json({
-    ok: true,
-    event,
-    razorpaySubId,
-    subscriptionsUpdated: updatedCount.count,
-  });
+    await prisma.webhookEvent.update({
+      where: { provider_eventId: { provider: 'razorpay', eventId } },
+      data: { status: 'processed' },
+    });
+
+    return NextResponse.json({ ok: true, event, razorpaySubId, subscriptionsUpdated: 1 });
+  } catch (error) {
+    console.error('Razorpay webhook processing failed', {
+      event,
+      razorpaySubId,
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+    await prisma.webhookEvent.update({
+      where: { provider_eventId: { provider: 'razorpay', eventId } },
+      data: { status: 'failed' },
+    }).catch(() => undefined);
+    return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
+  }
 }

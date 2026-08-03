@@ -103,10 +103,13 @@ function RegisterForm() {
         const res = await fetch('/api/pricing');
         const data = await res.json();
         if (data.success) {
-          setCatalog(data);
-          // Set default plan to first active plan in catalog
-          if (data.plans?.length > 0) {
-            setSelectedPlan(data.plans[0].plan);
+          const paidPlans = (data.plans || []).filter((plan: any) => Number(plan.monthlyPrice) > 0);
+          setCatalog({ ...data, plans: paidPlans });
+          // SaaS is trial-then-paid; zero-price legacy plans are never offered.
+          if (paidPlans.length > 0) {
+            setSelectedPlan(paidPlans[0].plan);
+          } else {
+            setError('No paid subscription plans are currently available.');
           }
         } else {
           setError('Failed to load pricing information');
@@ -616,7 +619,7 @@ function RegisterForm() {
           {step === 3 && (
             <div>
               <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: '24px' }}>
-                Select a subscription plan that fits your business scale. The selected plan is billed once for each active vertical.
+                Select a subscription plan that fits your business scale. Your free trial starts after registration; payment is required when it ends.
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
                 {catalog.plans.map((p: any) => {
@@ -649,6 +652,9 @@ function RegisterForm() {
                       <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '8px 0 16px', minHeight: '36px' }}>
                         {p.description}
                       </p>
+                      <div style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--primary)', marginBottom: '12px' }}>
+                        {Number(p.trialDays) > 0 ? `${p.trialDays}-day free trial` : '14-day free trial'}
+                      </div>
                       <div style={{ borderTop: '1px solid var(--border)', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.78rem', color: 'var(--text-secondary)', textAlign: 'left', flexGrow: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <span className="material-icons-outlined" style={{ fontSize: '14px', color: 'var(--success)' }}>check</span>
@@ -752,6 +758,9 @@ function RegisterForm() {
 
                   {/* Pricing Quote Table */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.85rem' }}>
+                    <div style={{ padding: '10px 12px', borderRadius: '8px', background: 'var(--bg-light)', color: 'var(--text-secondary)' }}>
+                      No payment is taken today. Access pauses at the end of the free trial until subscription payment is completed.
+                    </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span>Base Vertical Subscription ({selectedPlan.toUpperCase()})</span>
                       <strong style={{ color: 'var(--text-primary)' }}>₹{quote.base}/mo</strong>

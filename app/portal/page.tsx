@@ -4,8 +4,8 @@ import AppSelectorClient from './AppSelectorClient';
 import prisma from '@/lib/db';
 import { getDefaultTenantId } from '@/lib/tenant';
 import { mergeModuleLists, modulePath, normalizeModuleList } from '@/types/modules';
-import { getSubscription, isTenantSubscriptionExpired } from '@/lib/subscription';
-import SubscriptionExpiredModal from '@/components/layout/SubscriptionExpiredModal';
+import { getSubscription, getTenantSubscriptionAccessState } from '@/lib/subscription';
+import SubscriptionPaywall from '@/components/layout/SubscriptionPaywall';
 
 import { headers } from 'next/headers';
 
@@ -53,6 +53,14 @@ export default async function SuperAdminPortal({
   } catch (err) {
     // No default tenant found
   }
+
+  if (tenantId && role !== 'developer') {
+    const subscription = await getSubscription(tenantId);
+    const access = getTenantSubscriptionAccessState(subscription);
+    if (access.blocked) {
+      return <SubscriptionPaywall access={access} role={role} />;
+    }
+  }
   
   let enabledModules: string[] = [];
   
@@ -86,12 +94,6 @@ export default async function SuperAdminPortal({
     redirect(modulePath('microlending', '/dashboard'));
   }
 
-  let isExpired = false;
-  if (tenantId && role !== 'developer') {
-    const sub = await getSubscription(tenantId);
-    isExpired = isTenantSubscriptionExpired(sub);
-  }
-
   const resolvedSearchParams = await searchParams;
   const moduleAccess = resolvedSearchParams?.moduleAccess;
   const accessNotice =
@@ -103,7 +105,6 @@ export default async function SuperAdminPortal({
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
-      {isExpired && <SubscriptionExpiredModal isExpired={isExpired} role={role} />}
       <AppSelectorClient 
         userName={session.user.name || 'Admin'} 
         userRole={role} 

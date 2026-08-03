@@ -42,7 +42,7 @@ export type PublicPricing = {
 
 // Plans surfaced on the public pricing page. Internal states (`trial`,
 // `lifetime`) are intentionally excluded — they are never catalog rows.
-const PUBLIC_PLAN_ORDER = ['free', 'collector', 'basic', 'business', 'enterprise'];
+const PUBLIC_PLAN_ORDER = ['collector', 'basic', 'business', 'enterprise'];
 
 /** Fallback built from lib/plans.ts when the catalog cannot be read. */
 function fallbackPricing(): PublicPricing {
@@ -74,7 +74,7 @@ export const getPublicPricing = cache(async (): Promise<PublicPricing> => {
   try {
     const [plans, modules, addons] = await Promise.all([
       prisma.subscriptionPlanCatalog.findMany({
-        where: { isActive: true },
+        where: { isActive: true, monthlyPrice: { gt: 0 } },
         orderBy: { sortOrder: 'asc' },
       }),
       prisma.modulePriceCatalog.findMany({

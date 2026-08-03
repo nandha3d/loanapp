@@ -116,6 +116,8 @@ export const ml = {
     customers: 'ഉപഭോക്താക്കൾ',
     loans: 'വായ്പകൾ',
     vehicles: 'വാഹനങ്ങൾ',
+    pendingTasks: 'തീർപ്പാക്കാത്ത ജോലികൾ',
+    financePartners: 'ബ്രോക്കർമാരും ഡീലർമാരും',
     chits: 'ചിറ്റ് ഗ്രൂപ്പുകൾ',
     penalties: 'പിഴകൾ',
     approvals: 'അംഗീകാരങ്ങൾ',

@@ -11,13 +11,35 @@ export function verifyRazorpayWebhookSignature(body: string, secret: string, sig
   return crypto.timingSafeEqual(expectedBuffer, signatureBuffer);
 }
 
-export function buildRazorpaySubscriptionRequest(planId: string, tenantId: string) {
+type RazorpaySubscriptionOptions = {
+  razorpayPlanId?: string;
+  startAt?: number;
+};
+
+type RazorpaySubscriptionResult = {
+  id: string;
+  short_url: string | null;
+  status: string;
+};
+
+function getPlatformRazorpayAuth(): string {
+  const keyId = process.env.RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  if (!keyId || !keySecret) throw new Error('Razorpay keys not configured');
+  return Buffer.from(`${keyId}:${keySecret}`).toString('base64');
+}
+
+export function buildRazorpaySubscriptionRequest(
+  planId: string,
+  tenantId: string,
+  options: RazorpaySubscriptionOptions = {},
+) {
   const planIdMap: Record<string, string | undefined> = {
     basic: process.env.RAZORPAY_PLAN_BASIC,
     business: process.env.RAZORPAY_PLAN_BUSINESS,
     enterprise: process.env.RAZORPAY_PLAN_ENTERPRISE,
   };
-  const razorpayPlanId = planIdMap[planId] ?? planId;
+  const razorpayPlanId = options.razorpayPlanId ?? planIdMap[planId] ?? planId;
 
   if (!razorpayPlanId.startsWith('plan_')) {
     throw new Error(`No Razorpay plan ID configured for plan "${planId}". Set RAZORPAY_PLAN_${planId.toUpperCase()} in your environment.`);
@@ -27,10 +49,65 @@ export function buildRazorpaySubscriptionRequest(planId: string, tenantId: strin
     plan_id: razorpayPlanId,
     total_count: parseInt(process.env.RAZORPAY_SUB_TOTAL_COUNT ?? '120', 10) || 120,
     customer_notify: 1,
+    ...(options.startAt && Number.isInteger(options.startAt) ? { start_at: options.startAt } : {}),
     notes: {
       tenant_id: tenantId,
+      ...(options.razorpayPlanId ? { loantrack_plan: planId } : {}),
     },
   };
+}
+
+/**
+ * Razorpay Plans are immutable. A platform plan is therefore created from the
+ * tenant's complete recurring price (base plan + verticals + add-ons) before
+ * the subscription is created, preventing a client-supplied amount override.
+ */
+export async function createRazorpayPlan(input: {
+  tenantId: string;
+  planId: string;
+  displayName: string;
+  amountRupees: number;
+}): Promise<string> {
+  if (!Number.isFinite(input.amountRupees) || input.amountRupees <= 0) {
+    throw new Error('Subscription amount must be greater than zero');
+  }
+
+  if (process.env.RAZORPAY_MOCK_CHECKOUT === 'true') {
+    return `plan_mock_${input.planId}_${Math.round(input.amountRupees * 100)}`;
+  }
+
+  const res = await fetch('https://api.razorpay.com/v1/plans', {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${getPlatformRazorpayAuth()}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      period: 'monthly',
+      interval: 1,
+      item: {
+        name: `LoanTrack ${input.displayName}`.slice(0, 100),
+        description: 'LoanTrack SaaS monthly subscription',
+        amount: Math.round(input.amountRupees * 100),
+        currency: 'INR',
+      },
+      notes: {
+        tenant_id: input.tenantId,
+        loantrack_plan: input.planId,
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    console.error('Razorpay plan creation failed', { status: res.status });
+    throw new Error('Unable to prepare the subscription price with Razorpay');
+  }
+
+  const data = await res.json();
+  if (typeof data.id !== 'string' || !data.id.startsWith('plan_')) {
+    throw new Error('Razorpay returned an invalid plan');
+  }
+  return data.id;
 }
 
 /**
@@ -89,12 +166,13 @@ export async function createRazorpayPaymentLink(input: {
   return { id: data.id ?? null, shortUrl: data.short_url ?? internalUrl, mock: false };
 }
 
-export async function createRazorpaySubscription(planId: string, tenantId: string, email?: string, phone?: string) {
-  const keyId = process.env.RAZORPAY_KEY_ID;
-  const keySecret = process.env.RAZORPAY_KEY_SECRET;
-
+export async function createRazorpaySubscription(
+  planId: string,
+  tenantId: string,
+  options: RazorpaySubscriptionOptions = {},
+): Promise<RazorpaySubscriptionResult> {
   if (process.env.RAZORPAY_MOCK_CHECKOUT === 'true') {
-    const request = buildRazorpaySubscriptionRequest(planId, tenantId);
+    const request = buildRazorpaySubscriptionRequest(planId, tenantId, options);
     return {
       id: `mock_sub_${tenantId}_${request.plan_id}`,
       short_url: `/portal/billing/mock-checkout?subscription=mock_sub_${encodeURIComponent(tenantId)}`,
@@ -102,32 +180,45 @@ export async function createRazorpaySubscription(planId: string, tenantId: strin
     };
   }
 
-  if (!keyId || !keySecret) {
-    throw new Error('Razorpay keys not configured');
-  }
-
-  const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
-  const requestBody = buildRazorpaySubscriptionRequest(planId, tenantId);
+  const requestBody = buildRazorpaySubscriptionRequest(planId, tenantId, options);
 
   const res = await fetch('https://api.razorpay.com/v1/subscriptions', {
     method: 'POST',
     headers: {
-      'Authorization': `Basic ${auth}`,
+      Authorization: `Basic ${getPlatformRazorpayAuth()}`,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify(requestBody)
   });
 
   if (!res.ok) {
-    const errorText = await res.text();
-    console.error('Razorpay Error:', errorText);
+    console.error('Razorpay subscription creation failed', { status: res.status });
     throw new Error('Failed to create Razorpay subscription');
   }
 
   const data = await res.json();
+  if (typeof data.id !== 'string' || !data.id.startsWith('sub_')) {
+    throw new Error('Razorpay returned an invalid subscription');
+  }
   return {
     id: data.id,
-    short_url: data.short_url,
-    status: data.status,
+    short_url: typeof data.short_url === 'string' ? data.short_url : null,
+    status: typeof data.status === 'string' ? data.status : 'created',
+  };
+}
+
+export async function getRazorpaySubscription(subscriptionId: string): Promise<RazorpaySubscriptionResult | null> {
+  if (!subscriptionId.startsWith('sub_')) return null;
+
+  const res = await fetch(`https://api.razorpay.com/v1/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+    headers: { Authorization: `Basic ${getPlatformRazorpayAuth()}` },
+  });
+  if (!res.ok) return null;
+
+  const data = await res.json();
+  return {
+    id: data.id,
+    short_url: typeof data.short_url === 'string' ? data.short_url : null,
+    status: typeof data.status === 'string' ? data.status : 'created',
   };
 }

@@ -10,6 +10,9 @@ import { VerifyUpiButton, BulkVerifyUpiButton } from './DashboardActions';
 import CollectionTrendChart from './CollectionTrendChart';
 import { ensurePendingPenaltiesForMissedLoans } from '@/lib/penalties';
 import { getDictionary } from '@/lib/i18n';
+import HpOperationsWidgets from '@/components/autofinance/HpOperationsWidgets';
+import { getTodayDueList, getPromisedCustomers } from '@/lib/autofinance/dashboard';
+import { getDayClosingSnapshot, getDayClosingGate } from '../operations/actions';
 
 type DashboardInstalment = {
   id: string;
@@ -1214,8 +1217,38 @@ export default async function DashboardPage() {
   };
   const activeModes = Object.entries(data.todayByMode).filter(([, amt]) => amt > 0);
 
+  // Auto Finance operations strip: today's due list, promise-to-pay follow-ups,
+  // the EMI calculator and the day-closing gate. Loaded only for that module,
+  // and tolerant of a workspace that has not run the HP migration yet.
+  let hpOps: {
+    dueToday: Awaited<ReturnType<typeof getTodayDueList>>;
+    promises: Awaited<ReturnType<typeof getPromisedCustomers>>;
+    closing: Awaited<ReturnType<typeof getDayClosingSnapshot>> | null;
+    gate: { blocked: boolean; message: string | null };
+  } | null = null;
+
+  if (appType === 'autofinance') {
+    const [dueToday, promises, closing, gate] = await Promise.all([
+      getTodayDueList(tenantId, appType).catch(() => []),
+      getPromisedCustomers(tenantId, appType).catch(() => []),
+      getDayClosingSnapshot().catch(() => null),
+      getDayClosingGate().catch(() => ({ blocked: false, pendingDate: null, message: null })),
+    ]);
+    hpOps = { dueToday, promises, closing, gate };
+  }
+
   return (
     <>
+      {hpOps && (
+        <HpOperationsWidgets
+          dueToday={hpOps.dueToday}
+          promises={hpOps.promises}
+          closing={hpOps.closing}
+          gateBlocked={hpOps.gate.blocked}
+          gateMessage={hpOps.gate.message}
+          currencySymbol={branding.currencySymbol ?? '₹'}
+        />
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '12px' }}>
       {/* Combined Today's Collection Progress Card */}
       <Link href="/collection" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>

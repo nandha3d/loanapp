@@ -17,6 +17,7 @@ import 'package:loantrack/features/loans/gold_servicing_sheet.dart';
 import 'package:loantrack/features/loans/property_servicing_sheet.dart';
 import 'package:loantrack/features/loans/product_servicing_sheet.dart';
 import 'package:loantrack/features/loans/widgets/nach_panel.dart';
+import 'package:loantrack/features/loans/widgets/quick_put_bill_card.dart';
 import 'package:loantrack/core/network/authed_image.dart';
 import 'package:loantrack/data/models/collection_entry.dart';
 import 'package:loantrack/data/services/approval_service.dart';
@@ -183,6 +184,18 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
       controller: _scrollCtrl,
       padding: const EdgeInsets.all(16),
       children: [
+        // Auto Finance: instant call / WhatsApp / receipt right at the top,
+        // so a field agent never scrolls to take cash. The module comes from
+        // the session — Loan itself does not carry appType.
+        if (ref.watch(authControllerProvider).user?.appType ==
+            AppType.autofinance) ...[
+          QuickPutBillCard(
+            loan: loan,
+            dueNow: _dueNowForLoan(loan),
+            onCompleted: () => ref.invalidate(loanDetailProvider(loan.id)),
+          ),
+          const SizedBox(height: 14),
+        ],
         _buildSummaryCards(loan, fmt, progress, paid),
         const SizedBox(height: 10),
         _LoanPillRow(loan: loan),

@@ -116,6 +116,8 @@ export const te = {
     customers: 'వినియోగదారులు',
     loans: 'రుణాలు',
     vehicles: 'వాహనాలు',
+    pendingTasks: 'పెండింగ్ పనులు',
+    financePartners: 'బ్రోకర్లు & డీలర్లు',
     chits: 'చిట్ గ్రూపులు',
     penalties: 'జరిమానాలు',
     approvals: 'ఆమోదాలు',

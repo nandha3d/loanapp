@@ -1,35 +1,152 @@
 'use server';
 
-import { auth } from '@/lib/auth';
-import { getDefaultTenantId } from '@/lib/tenant';
-import { createRazorpaySubscription } from '@/lib/razorpay';
 import { redirect } from 'next/navigation';
+import { auth } from '@/lib/auth';
+import prisma from '@/lib/db';
+import { calculateVerticalSubscriptionPricing } from '@/lib/pricing';
+import {
+  createRazorpayPlan,
+  createRazorpaySubscription,
+  getRazorpaySubscription,
+} from '@/lib/razorpay';
+import { getSubscription, normalizeEnabledModules } from '@/lib/subscription';
+import { getDefaultTenantId } from '@/lib/tenant';
 
-export async function initiateCheckout(planId: string) {
-  const session = await auth();
-  if (!session?.user) throw new Error('Unauthorized');
+type CheckoutResult = { error: string } | undefined;
 
-  const role = (session.user as any)?.role;
-  if (role !== 'superadmin' && role !== 'developer' && role !== 'admin') {
-    throw new Error('Forbidden');
-  }
-
-  const tenantId = await getDefaultTenantId();
-
-  // Lifetime tenants never go through checkout.
-  const { getSubscription } = await import('@/lib/subscription');
-  const current = await getSubscription(tenantId);
-  if (current?.plan === 'lifetime') {
-    throw new Error('Lifetime plan — no checkout required.');
-  }
-
+function parseStringList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string');
+  if (typeof value !== 'string') return [];
   try {
-    const sub = await createRazorpaySubscription(planId, tenantId);
-    if (sub.short_url) {
-      redirect(sub.short_url);
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === 'string')
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function validateCheckoutUrl(value: string | null): string | null {
+  if (!value) return null;
+  if (process.env.RAZORPAY_MOCK_CHECKOUT === 'true' && value.startsWith('/portal/billing/')) {
+    return value;
+  }
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.hostname === 'rzp.io' ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function initiateCheckout(planId: string): Promise<CheckoutResult> {
+  const session = await auth();
+  if (!session?.user) return { error: 'Please sign in again to continue.' };
+
+  const sessionUser = session.user as { role?: string; tenantId?: string | null };
+  const role = sessionUser.role;
+  if (role !== 'superadmin' && role !== 'developer' && role !== 'admin') {
+    return { error: 'Only a workspace owner or administrator can manage billing.' };
+  }
+  if (!/^[a-z0-9_-]{1,50}$/i.test(planId)) return { error: 'Invalid subscription plan.' };
+
+  // Billing must remain reachable after the normal tenant resolver begins
+  // returning HTTP 402 for Server Actions. Non-developers can only bill the
+  // tenant embedded in their authenticated session.
+  const tenantId = role === 'developer'
+    ? await getDefaultTenantId()
+    : sessionUser.tenantId;
+  if (!tenantId) return { error: 'No workspace is associated with this account.' };
+  const current = await getSubscription(tenantId);
+  if (!current) return { error: 'No subscription is configured for this workspace.' };
+  if (current.plan === 'lifetime' || current.tenant?.customDomain) {
+    return { error: 'This custom-domain workspace has lifetime access and does not require checkout.' };
+  }
+  if (current.status === 'authenticated' && current.razorpaySubId) {
+    return { error: 'Razorpay payment authorization is already complete. Your first charge is scheduled for the end of the trial.' };
+  }
+  if (
+    current.status === 'active' &&
+    current.razorpaySubId &&
+    current.currentPeriodEnd &&
+    current.currentPeriodEnd >= new Date()
+  ) {
+    return { error: 'A recurring subscription is already active. Contact support before changing its plan.' };
+  }
+
+  let checkoutUrl: string | null = null;
+  try {
+    // Reuse an unfinished Razorpay subscription so retries do not create
+    // multiple mandates for the same tenant.
+    if (current.razorpaySubId?.startsWith('sub_')) {
+      const existing = await getRazorpaySubscription(current.razorpaySubId);
+      if (existing && ['created', 'pending', 'halted'].includes(existing.status)) {
+        checkoutUrl = validateCheckoutUrl(existing.short_url);
+        if (!checkoutUrl) {
+          return { error: 'The existing Razorpay checkout link is unavailable. Please contact support.' };
+        }
+      } else if (existing && ['authenticated', 'active'].includes(existing.status)) {
+        return { error: 'This recurring payment is already authorized in Razorpay.' };
+      }
+    }
+
+    if (!checkoutUrl) {
+      const catalog = await prisma.subscriptionPlanCatalog.findFirst({
+        where: { plan: planId, isActive: true, monthlyPrice: { gt: 0 } },
+      });
+      if (!catalog) return { error: 'That paid plan is no longer available.' };
+
+      const enabledModules = normalizeEnabledModules(current.enabledModules);
+      const selectedAddons = parseStringList(current.selectedAddons);
+      const addonRows = selectedAddons.length
+        ? await prisma.addonCatalog.findMany({
+            where: { addon: { in: selectedAddons }, isActive: true },
+            select: { monthlyPrice: true },
+          })
+        : [];
+      const addonsPrice = addonRows.reduce((sum, addon) => sum + addon.monthlyPrice, 0);
+      const pricing = calculateVerticalSubscriptionPricing(
+        catalog.monthlyPrice,
+        enabledModules,
+        addonsPrice,
+      );
+
+      const razorpayPlanId = await createRazorpayPlan({
+        tenantId,
+        planId: catalog.plan,
+        displayName: catalog.displayName,
+        amountRupees: pricing.totalMonthlyPrice,
+      });
+      const now = Date.now();
+      const trialEnd = current.trialEndsAt?.getTime() ?? 0;
+      const startAt = trialEnd > now + 5 * 60 * 1000
+        ? Math.floor(trialEnd / 1000)
+        : undefined;
+      const subscription = await createRazorpaySubscription(catalog.plan, tenantId, {
+        razorpayPlanId,
+        startAt,
+      });
+
+      await prisma.tenantSubscription.update({
+        where: { tenantId },
+        data: { razorpaySubId: subscription.id },
+      });
+      checkoutUrl = validateCheckoutUrl(subscription.short_url);
     }
   } catch (error) {
-    console.error('Checkout error:', error);
-    throw new Error('Failed to initiate checkout');
+    console.error('Checkout initialization failed', {
+      tenantId,
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+    return { error: 'Payment checkout could not be started. Please try again or contact support.' };
   }
+
+  if (!checkoutUrl) {
+    return { error: 'Razorpay did not provide a valid checkout link. Please try again.' };
+  }
+
+  // redirect() throws by design in Next.js, so it must remain outside the
+  // checkout error handler.
+  redirect(checkoutUrl);
 }

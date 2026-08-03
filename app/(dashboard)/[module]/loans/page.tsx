@@ -1,4 +1,5 @@
 import { serverFetch } from '@/lib/api-client/server';
+import prisma from '@/lib/db';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { formatCurrency, formatDate, getBadgeClass, parsePagination, paginatedResponse, getPaginationPages, calcPercentage } from '@/lib/utils';
 import Link from '@/components/layout/DashboardLink';
@@ -7,6 +8,21 @@ import { getActiveBranchId } from '@/lib/branch';
 
 import { auth } from '@/lib/auth';
 import { notFound } from 'next/navigation';
+
+/** Shape the Auto Finance grid view reads off each loan row. */
+type LoanCard = {
+  id: string;
+  loanCode: string;
+  status: string;
+  paidCount: number;
+  totalInstalments: number;
+  totalPayable: number | string;
+  totalCollected: number | string;
+  customer: { name: string; phone: string };
+  vehicle: {
+    registrationNo: string; make: string; model: string; repoFlag: boolean;
+  } | null;
+};
 
 export default async function LoansPage({
   searchParams
@@ -31,6 +47,24 @@ export default async function LoansPage({
   const dir: 'asc' | 'desc' = resolvedParams.dir === 'asc' ? 'asc' : 'desc';
   const { page, limit, skip } = parsePagination(resolvedParams);
 
+  // Auto Finance universal directory: extra filter axes + a grid/list toggle.
+  const isAutoFinance = appType === 'autofinance';
+  const vehicleType = isAutoFinance ? (resolvedParams.vehicleType || '') : '';
+  const dealerId = isAutoFinance ? (resolvedParams.dealerId || '') : '';
+  const brokerId = isAutoFinance ? (resolvedParams.brokerId || '') : '';
+  const seized = isAutoFinance ? (resolvedParams.seized || '') : '';
+  const view = isAutoFinance && resolvedParams.view === 'grid' ? 'grid' : 'table';
+
+  const partners = isAutoFinance
+    ? await prisma.financePartner.findMany({
+      where: { tenantId, appType, status: 'active', deletedAt: null },
+      select: { id: true, name: true, type: true },
+      orderBy: { name: 'asc' },
+    }).catch(() => [])
+    : [];
+  const brokers = partners.filter((p) => p.type === 'broker');
+  const dealers = partners.filter((p) => p.type === 'dealer');
+
   // Whitelist of sortable columns → Prisma orderBy. Keeps the URL param safe
   // (no arbitrary field injection) and centralises the column→field mapping.
   const orderByMap: Record<string, any> = {
@@ -52,6 +86,11 @@ export default async function LoansPage({
     if (q) p.set('q', q);
     if (status) p.set('status', status);
     if (frequency) p.set('frequency', frequency);
+    if (vehicleType) p.set('vehicleType', vehicleType);
+    if (dealerId) p.set('dealerId', dealerId);
+    if (brokerId) p.set('brokerId', brokerId);
+    if (seized) p.set('seized', seized);
+    if (isAutoFinance) p.set('view', view);
     if (sort) p.set('sort', sort);
     p.set('dir', dir);
     for (const [k, v] of Object.entries(overrides)) p.set(k, v);
@@ -66,6 +105,10 @@ export default async function LoansPage({
     dir,
     page: String(page),
     limit: String(limit),
+    ...(vehicleType ? { vehicleType } : {}),
+    ...(dealerId ? { dealerId } : {}),
+    ...(brokerId ? { brokerId } : {}),
+    ...(seized ? { seized } : {}),
   };
   const qs = new URLSearchParams(queryParams).toString();
   const res = await serverFetch<any>(`/loans?${qs}`);
@@ -126,12 +169,84 @@ export default async function LoansPage({
           <option value="weekly">{dict.loansList.weekly}</option>
           <option value="monthly">{dict.loansList.monthly}</option>
         </select>
+        {/* Auto Finance universal directory: status × vehicle type × dealer ×
+            broker × seized, all combinable in one pass. */}
+        {isAutoFinance && (
+          <>
+            <select name="vehicleType" className="form-control" style={{ width: 'auto' }} defaultValue={vehicleType}>
+              <option value="">All vehicle types</option>
+              <option value="two_wheeler">Two Wheeler</option>
+              <option value="three_wheeler">Three Wheeler</option>
+              <option value="four_wheeler">Four Wheeler</option>
+              <option value="commercial">Commercial</option>
+            </select>
+            <select name="dealerId" className="form-control" style={{ width: 'auto' }} defaultValue={dealerId}>
+              <option value="">All dealers</option>
+              {dealers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <select name="brokerId" className="form-control" style={{ width: 'auto' }} defaultValue={brokerId}>
+              <option value="">All brokers</option>
+              {brokers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <select name="seized" className="form-control" style={{ width: 'auto' }} defaultValue={seized}>
+              <option value="">Seized &amp; not</option>
+              <option value="true">Seized only</option>
+              <option value="false">Not seized</option>
+            </select>
+            <input type="hidden" name="view" value={view} />
+          </>
+        )}
         <button type="submit" className="btn btn-secondary">{dict.loansList.filter}</button>
-        {(q || status || frequency) && (
+        {(q || status || frequency || vehicleType || dealerId || brokerId || seized) && (
           <Link href="/loans" className="btn btn-ghost">{dict.loansList.clear}</Link>
+        )}
+        {isAutoFinance && (
+          <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: '4px' }}>
+            <Link href={`/loans?${buildQuery({ view: 'table', page: '1' })}`}
+              className={`btn btn-sm ${view === 'table' ? 'btn-primary' : 'btn-secondary'}`} title="List view">
+              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>view_list</span>
+            </Link>
+            <Link href={`/loans?${buildQuery({ view: 'grid', page: '1' })}`}
+              className={`btn btn-sm ${view === 'grid' ? 'btn-primary' : 'btn-secondary'}`} title="Grid view">
+              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>grid_view</span>
+            </Link>
+          </span>
         )}
       </form>
 
+      {isAutoFinance && view === 'grid' ? (
+        <div style={{ display: 'grid', gap: '12px', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
+          {loans.length === 0 && (
+            <p style={{ color: 'var(--text-light)' }}>{dict.loansList.noLoans ?? 'No loans found.'}</p>
+          )}
+          {(loans as LoanCard[]).map((l) => {
+            const pct = calcPercentage(l.paidCount, l.totalInstalments);
+            const balance = Number(l.totalPayable || 0) - Number(l.totalCollected || 0);
+            return (
+              <Link key={l.id} href={`/loans/${l.loanCode}`}
+                className="card"
+                style={{ padding: '14px', textDecoration: 'none', color: 'inherit', borderLeft: `4px solid ${l.vehicle?.repoFlag ? 'var(--danger)' : 'var(--primary)'}` }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                  <strong style={{ fontSize: '.95rem' }}>{l.vehicle?.registrationNo || l.loanCode}</strong>
+                  <span className={`badge ${getBadgeClass(l.status)}`}>{l.vehicle?.repoFlag ? 'seized' : l.status}</span>
+                </div>
+                <div style={{ fontSize: '.78rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                  {l.vehicle ? `${l.vehicle.make} ${l.vehicle.model}` : '—'}
+                </div>
+                <div style={{ fontSize: '.82rem', marginTop: '8px' }}>{l.customer.name}</div>
+                <div style={{ fontSize: '.74rem', color: 'var(--text-light)' }}>{l.customer.phone}</div>
+                <div style={{ marginTop: '10px', height: '6px', background: 'var(--bg)', borderRadius: '3px', overflow: 'hidden' }}>
+                  <div style={{ width: `${pct}%`, height: '100%', background: 'var(--primary)' }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.74rem', marginTop: '6px' }}>
+                  <span>{l.paidCount}/{l.totalInstalments} paid</span>
+                  <strong>{formatCurrency(balance, currencySymbol)}</strong>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      ) : (
       <div className="table-wrapper">
         <table>
           <thead>
@@ -214,6 +329,7 @@ export default async function LoansPage({
           </tbody>
         </table>
       </div>
+      )}
 
       {total > 0 && (
         <div className="pagination">

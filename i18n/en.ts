@@ -116,6 +116,8 @@ export const en = {
     customers: 'Customers',
     loans: 'Loans',
     vehicles: 'Vehicles',
+    pendingTasks: 'Pending Tasks',
+    financePartners: 'Brokers & Dealers',
     chits: 'Chit Groups',
     penalties: 'Penalties',
     approvals: 'Approvals',

@@ -32,11 +32,18 @@ export async function POST(request: Request) {
     } = body;
 
     // Validate fields
-    if (!businessName || !ownerPhone || !selectedPlan) {
+    if (!businessName || !ownerPhone || (!standaloneClaim && !selectedPlan)) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
         { status: 400 }
       );
+    }
+
+    if (!standaloneClaim && (typeof selectedPlan !== 'string' || selectedPlan.length > 50)) {
+      return NextResponse.json({ success: false, error: 'Invalid subscription plan' }, { status: 400 });
+    }
+    if (!Array.isArray(selectedModules) || !Array.isArray(selectedAddons)) {
+      return NextResponse.json({ success: false, error: 'Invalid module or add-on selection' }, { status: 400 });
     }
 
     let googleId = directGoogleId;
@@ -122,13 +129,13 @@ export async function POST(request: Request) {
     const slug = await generateTenantSlug(businessName, finalModules);
 
     // Fetch plan details from catalog (skipped for a standalone lifetime claim).
-    const planCatalog = await prisma.subscriptionPlanCatalog.findUnique({
-      where: { plan: selectedPlan }
-    });
+    const planCatalog = standaloneClaim
+      ? null
+      : await prisma.subscriptionPlanCatalog.findUnique({ where: { plan: selectedPlan } });
 
-    if (!planCatalog && !standaloneClaim) {
+    if (!standaloneClaim && (!planCatalog || !planCatalog.isActive || planCatalog.monthlyPrice <= 0)) {
       return NextResponse.json(
-        { success: false, error: `Selected plan "${selectedPlan}" not found in catalog` },
+        { success: false, error: 'Select an active paid SaaS plan' },
         { status: 400 }
       );
     }
@@ -170,14 +177,9 @@ export async function POST(request: Request) {
       });
 
       // 3. Create TenantSubscription (lifetime + unlimited for a standalone claim).
-      // Paid plans get a free trial, then must subscribe (trial gate enforced in
-      // assertTenantSubscriptionAccess). Free plan stays free; standalone=lifetime.
-      const PAID_PLANS = ['basic', 'business', 'enterprise'];
-      const trialDays = standaloneClaim
-        ? 0
-        : PAID_PLANS.includes(selectedPlan)
-          ? (((planCatalog as any)?.trialDays ?? 0) || 14)
-          : 0;
+      // Every SaaS plan gets a time-limited trial. Only a custom-domain
+      // standalone claim is lifetime-free.
+      const trialDays = standaloneClaim ? 0 : (planCatalog!.trialDays || 14);
       const trialEndsAt = trialDays > 0
         ? (() => { const d = new Date(); d.setDate(d.getDate() + trialDays); d.setHours(23,59,59,999); return d; })()
         : null;

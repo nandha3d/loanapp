@@ -195,6 +195,18 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
             return null;
           }
 
+          // ── Allowed login window (Auto Finance collection agents) ────────────
+          // Owners are exempt so a mis-set window can never lock the workspace
+          // out of its own admin console.
+          if (user.role !== 'superadmin' && user.role !== 'developer') {
+            const { checkLoginWindow } = await import('./autofinance/operations');
+            const windowCheck = checkLoginWindow(user);
+            if (!windowCheck.allowed) {
+              console.warn(`[AUTH_WARN] Outside login window (${windowCheck.window}) for user: ${username}`);
+              throw new Error('LOGIN_WINDOW_CLOSED');
+            }
+          }
+
           // ── 2FA Verification ─────────────────────────────────────────────────
           if (user.totpSecret) {
             const totpCode = credentials.totpCode as string;

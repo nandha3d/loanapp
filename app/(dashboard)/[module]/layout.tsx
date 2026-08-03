@@ -15,13 +15,11 @@ import {
   isModuleKey,
   isRouteEnabledForModules,
   mergeModuleLists,
-  modulePath,
   normalizeModuleList,
   parseModulePath,
   type ModuleKey,
 } from '@/types/modules';
-import { getSubscription, isTenantSubscriptionExpired } from '@/lib/subscription';
-import SubscriptionExpiredModal from '@/components/layout/SubscriptionExpiredModal';
+import { getSubscription, getTenantSubscriptionAccessState } from '@/lib/subscription';
 import TrialBanner from '@/components/TrialBanner';
 import OnboardingTour from '@/components/onboarding/OnboardingTour';
 import MobileBottomNav from '@/components/layout/MobileBottomNav';
@@ -52,6 +50,14 @@ export default async function DashboardLayout({
 
   const requestedModule: ModuleKey = module;
   const tenantId = await getDefaultTenantId();
+  const sub = await getSubscription(tenantId);
+  const access = getTenantSubscriptionAccessState(sub);
+  if (role !== 'developer' && access.blocked) {
+    const canManageBilling = role === 'superadmin' || role === 'admin';
+    redirect(canManageBilling
+      ? `/portal/billing?reason=${encodeURIComponent(access.reason || 'payment_required')}`
+      : '/portal?billing=required');
+  }
   const appConfig = getAppConfig(requestedModule);
   const dict = await getDictionary(tenantId);
   const lang = await getCurrentLanguage(tenantId);
@@ -112,9 +118,6 @@ export default async function DashboardLayout({
       }
     }
   }
-
-  const sub = await getSubscription(tenantId);
-  const isExpired = isTenantSubscriptionExpired(sub);
 
   // Pending-approvals count for the Sidebar badge (admins/superadmins only).
   // Scope to the active branch when one is selected; superadmin "all"/none =
@@ -186,7 +189,6 @@ export default async function DashboardLayout({
             branchSwitcher={<BranchSwitcher branches={branches} activeBranchId={activeBranchId} />}
           />
           <div className="page-content fade-up" style={{ position: 'relative' }}>
-            <SubscriptionExpiredModal isExpired={isExpired} role={role} />
             <TrialBanner sub={sub} />
             <OnboardingTour module={requestedModule} role={role} />
             <WebPushManager

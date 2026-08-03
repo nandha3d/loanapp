@@ -21,6 +21,8 @@ const AGENT_BLOCKED = [
 const BARE_EXCLUSIVE: Record<string, string> = {
   '/chits': 'chitfunds',
   '/vehicles': 'autofinance',
+  '/finance-partners': 'autofinance',
+  '/pending-tasks': 'autofinance',
 };
 
 function bareExclusiveModule(pathname: string): string | null {

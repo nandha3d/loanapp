@@ -47,9 +47,25 @@ export async function GET(req: NextRequest) {
         { loanCode: { contains: q } },
         { customer: { name: { contains: q } } },
         { customer: { customerCode: { contains: q } } },
+        { customer: { phone: { contains: q } } },
+        // Auto Finance: field staff search by partial vehicle number.
+        { vehicle: { registrationNo: { contains: q } } },
       ],
     });
   }
+
+  // Auto Finance universal directory filters. Each is independent so the panel
+  // can combine status × vehicle type × dealer × broker × seized.
+  const vehicleType = searchParams.get('vehicleType');
+  const brokerId = searchParams.get('brokerId');
+  const dealerId = searchParams.get('dealerId');
+  const seized = searchParams.get('seized');
+
+  if (vehicleType) where.AND.push({ vehicle: { vehicleType } });
+  if (brokerId) where.brokerId = brokerId;
+  if (dealerId) where.dealerId = dealerId;
+  if (seized === 'true') where.AND.push({ vehicle: { repoFlag: true } });
+  if (seized === 'false') where.AND.push({ vehicle: { repoFlag: false } });
 
   if (where.AND.length === 0) delete where.AND;
 
@@ -83,7 +99,9 @@ export async function GET(req: NextRequest) {
           take: limit,
           orderBy,
           include: {
-            customer: { select: { id: true, name: true, customerCode: true, phone: true, profilePhoto: true } },
+            customer: { select: { id: true, name: true, customerCode: true, phone: true, profilePhoto: true, route: { select: { id: true, name: true } } } },
+            // Auto Finance grid/list views show the financed vehicle inline.
+            vehicle: { select: { id: true, registrationNo: true, make: true, model: true, vehicleType: true, repoFlag: true } },
             instalments: {
               where: { status: { in: ['upcoming', 'partial', 'missed'] } },
               orderBy: { dueDate: 'asc' },
@@ -105,7 +123,8 @@ export async function GET(req: NextRequest) {
       const rows = await prisma.loan.findMany({
         where,
         include: {
-          customer: { select: { id: true, name: true, customerCode: true, phone: true, profilePhoto: true } },
+          customer: { select: { id: true, name: true, customerCode: true, phone: true, profilePhoto: true, route: { select: { id: true, name: true } } } },
+          vehicle: { select: { id: true, registrationNo: true, make: true, model: true, vehicleType: true, repoFlag: true } },
           instalments: {
             where: { status: { in: ['upcoming', 'partial', 'missed'] } },
             orderBy: { dueDate: 'asc' },
@@ -210,6 +229,36 @@ export async function POST(req: NextRequest) {
       if (dup) return fail(`Voucher reference "${voucherRef}" already used`, 409);
     }
 
+    // Auto Finance (HP): broker/dealer must belong to this tenant and be of the
+    // right kind, otherwise a crafted id could link a loan across tenants.
+    const brokerId: string | null = body.brokerId || null;
+    const dealerId: string | null = body.dealerId || null;
+    for (const [id, kind] of [[brokerId, 'broker'], [dealerId, 'dealer']] as const) {
+      if (!id) continue;
+      const partner = await prisma.financePartner.findFirst({
+        where: { id, tenantId: ctx.tenantId, type: kind, deletedAt: null },
+        select: { id: true },
+      });
+      if (!partner) return fail(`Selected ${kind} not found`, 404);
+    }
+
+    // Vehicle registration is unique per tenant+module; reject early so the
+    // wizard reports a clean error instead of failing after the loan is made.
+    const vehicleInput: any = body.vehicle;
+    if (vehicleInput?.registrationNo) {
+      const existingVehicle = await prisma.vehicle.findFirst({
+        where: {
+          tenantId: ctx.tenantId,
+          appType: ctx.appType,
+          registrationNo: String(vehicleInput.registrationNo).trim().toUpperCase(),
+        },
+        select: { id: true },
+      });
+      if (existingVehicle) {
+        return fail(`Vehicle ${vehicleInput.registrationNo} is already registered`, 409);
+      }
+    }
+
     const { calculateLoanPreview } = await import('@/lib/loanCalculator');
     const preview = calculateLoanPreview({
       principal,
@@ -281,6 +330,28 @@ export async function POST(req: NextRequest) {
       guarantorId = g.id;
     }
 
+    // HP deals commonly carry two or three guarantors. Only the first is the
+    // loan's guarantor of record; the rest are attached to the customer so they
+    // show up on the Customer 360° guarantors tab.
+    const extraGuarantors = Array.isArray(body.additionalGuarantors)
+      ? (body.additionalGuarantors as Array<Record<string, string>>)
+      : [];
+    if (extraGuarantors.length > 0) {
+      const { encryptAadharNumber } = await import('@/lib/pii');
+      await prisma.guarantor.createMany({
+        data: extraGuarantors
+          .filter((g) => g?.name && g?.phone)
+          .map((g) => ({
+            customerId,
+            name: g.name,
+            phone: g.phone,
+            aadharNumber: g.aadharNumber ? encryptAadharNumber(g.aadharNumber) : null,
+            address: g.address || null,
+            relation: g.relation || null,
+          })),
+      });
+    }
+
     const chequeData = cheques
       .filter((c) => c.bankName && c.chequeNumber)
       .map((c) => ({
@@ -320,6 +391,8 @@ export async function POST(req: NextRequest) {
         totalInstalments: tenure,
         createdById: ctx.userId,
         status,
+        brokerId,
+        dealerId,
         instalments: {
           create: preview.schedule.map((i: any) => ({
             instalmentNo: i.instalmentNo,
@@ -474,6 +547,80 @@ export async function POST(req: NextRequest) {
         });
       } catch (e) {
         console.error('[PRODUCT_ITEM] persist failed for loan', loan.id, e);
+      }
+    }
+
+    // Auto Finance (HP): financial configuration + the financed vehicle, both
+    // created in the same origination call so the 4-step wizard is one
+    // transaction from the operator's point of view. Best-effort like the other
+    // module side-tables — a failure here must not orphan the loan.
+    const autoFinanceInput: any = body.autoFinance;
+    if (autoFinanceInput && typeof autoFinanceInput === 'object') {
+      try {
+        await prisma.autoFinanceDetail.create({
+          data: {
+            tenantId: ctx.tenantId,
+            loanId: loan.id,
+            vehicleValue: autoFinanceInput.vehicleValue != null ? Number(autoFinanceInput.vehicleValue) : null,
+            downPayment: autoFinanceInput.downPayment != null ? Number(autoFinanceInput.downPayment) : null,
+            interestMethod: autoFinanceInput.interestMethod === 'diminishing' ? 'diminishing' : 'flat',
+            interestRate: autoFinanceInput.interestRate != null ? Number(autoFinanceInput.interestRate) : null,
+            roundOffEmi: Boolean(autoFinanceInput.roundOffEmi),
+            gracePeriodDays: Number(autoFinanceInput.gracePeriodDays) || 0,
+            penaltyPerDay: Number(autoFinanceInput.penaltyPerDay) || 0,
+            handLoanAmount: Number(autoFinanceInput.handLoanAmount) || 0,
+            insuranceCharge: Number(autoFinanceInput.insuranceCharge) || 0,
+            documentCharge: Number(autoFinanceInput.documentCharge) || 0,
+            brokerCommission: Number(autoFinanceInput.brokerCommission) || 0,
+            payoutMode1: autoFinanceInput.payoutMode1 || null,
+            payoutAmount1: autoFinanceInput.payoutAmount1 != null ? Number(autoFinanceInput.payoutAmount1) : null,
+            payoutMode2: autoFinanceInput.payoutMode2 || null,
+            payoutAmount2: autoFinanceInput.payoutAmount2 != null ? Number(autoFinanceInput.payoutAmount2) : null,
+          },
+        });
+      } catch (e) {
+        console.error('[AUTO_FINANCE_DETAIL] persist failed for loan', loan.id, e);
+      }
+    }
+
+    if (vehicleInput && typeof vehicleInput === 'object' && vehicleInput.registrationNo) {
+      try {
+        const vehicle = await prisma.vehicle.create({
+          data: {
+            tenantId: ctx.tenantId,
+            appType: ctx.appType,
+            customerId,
+            loanId: loan.id,
+            registrationNo: String(vehicleInput.registrationNo).trim().toUpperCase(),
+            make: vehicleInput.make || '—',
+            model: vehicleInput.model || '—',
+            year: vehicleInput.year != null ? Number(vehicleInput.year) : null,
+            vehicleType: vehicleInput.vehicleType || 'two_wheeler',
+            engineNo: vehicleInput.engineNo || null,
+            chassisNo: vehicleInput.chassisNo || null,
+            color: vehicleInput.color || null,
+            rcDocPath: vehicleInput.rcDocPath || null,
+            insurancePath: vehicleInput.insurancePath || null,
+            insuranceExpiry: vehicleInput.insuranceExpiry ? new Date(vehicleInput.insuranceExpiry) : null,
+            status: 'active',
+          },
+        });
+
+        const photos: any[] = Array.isArray(vehicleInput.photos) ? vehicleInput.photos : [];
+        const photoRows = photos
+          .filter((p) => p?.path)
+          .map((p) => ({
+            tenantId: ctx.tenantId,
+            vehicleId: vehicle.id,
+            kind: p.kind || 'vehicle',
+            path: String(p.path),
+            caption: p.caption || null,
+          }));
+        if (photoRows.length > 0) {
+          await prisma.vehiclePhoto.createMany({ data: photoRows });
+        }
+      } catch (e) {
+        console.error('[AUTO_FINANCE_VEHICLE] persist failed for loan', loan.id, e);
       }
     }
 

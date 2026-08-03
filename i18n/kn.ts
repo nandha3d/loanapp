@@ -116,6 +116,8 @@ export const kn = {
     customers: 'ಗ್ರಾಹಕರು',
     loans: 'ಸಾಲಗಳು',
     vehicles: 'ವಾಹನಗಳು',
+    pendingTasks: 'ಬಾಕಿ ಕಾರ್ಯಗಳು',
+    financePartners: 'ಬ್ರೋಕರ್ ಮತ್ತು ಡೀಲರ್',
     chits: 'ಚಿಟ್ ಗುಂಪುಗಳು',
     penalties: 'ದಂಡಗಳು',
     approvals: 'ಅನುಮೋದನೆಗಳು',

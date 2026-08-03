@@ -1,39 +1,31 @@
 import Link from 'next/link';
 import { PLAN_LABELS } from '@/lib/plans';
-
-const PAID = ['basic', 'business', 'enterprise'];
+import { getEffectiveTrialEndsAt, type TenantSubscriptionAccess } from '@/lib/subscription';
+import { formatDate } from '@/lib/utils';
 
 /**
- * Sticky banner shown to a paid-plan tenant that is still inside its free trial
- * (no active paid period yet). Counts down the days and links to checkout.
- * Renders nothing for free/lifetime plans or once a paid period is active.
+ * Sticky banner for a SaaS tenant that is still inside its free trial. The
+ * enclosing layout blocks expired trials before this component is rendered.
  */
-export default function TrialBanner({ sub }: { sub: any }) {
-  if (!sub || !PAID.includes(sub.plan)) return null;
+export default function TrialBanner({ sub }: { sub: TenantSubscriptionAccess | null }) {
+  if (!sub || sub.plan === 'lifetime' || sub.tenant?.customDomain) return null;
 
-  const now = Date.now();
-  const periodEnd = sub.currentPeriodEnd ? new Date(sub.currentPeriodEnd).getTime() : 0;
-  if (periodEnd > now) return null; // already paid → not in trial
-
-  const trialEnd = sub.trialEndsAt ? new Date(sub.trialEndsAt).getTime() : 0;
-  if (!trialEnd || trialEnd <= now) return null; // not in trial (expiry handled by the modal)
-
-  const daysLeft = Math.ceil((trialEnd - now) / (24 * 60 * 60 * 1000));
-  const urgent = daysLeft <= 3;
+  const effectiveTrialEnd = getEffectiveTrialEndsAt(sub);
+  if (!effectiveTrialEnd) return null;
 
   return (
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
       flexWrap: 'wrap',
-      background: urgent ? 'linear-gradient(135deg,#b91c1c,#dc2626)' : 'linear-gradient(135deg,#b45309,#d97706)',
+      background: 'linear-gradient(135deg,#b45309,#d97706)',
       color: '#fff', padding: '10px 16px', borderRadius: '10px', marginBottom: '16px',
       fontSize: '0.9rem', boxShadow: '0 2px 10px rgba(0,0,0,0.12)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <span className="material-icons-outlined" style={{ fontSize: '20px' }}>hourglass_bottom</span>
         <span>
-          Free trial of <strong>{PLAN_LABELS[sub.plan] || sub.plan}</strong> —{' '}
-          <strong>{daysLeft} day{daysLeft === 1 ? '' : 's'} left</strong>. Subscribe to keep access.
+          Free trial of <strong>{PLAN_LABELS[sub.plan] || sub.plan}</strong> ends on{' '}
+          <strong>{formatDate(effectiveTrialEnd)}</strong>. Subscribe to keep access.
         </span>
       </div>
       <Link href="/portal/billing" style={{

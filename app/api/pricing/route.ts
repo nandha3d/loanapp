@@ -8,7 +8,9 @@ export async function GET() {
   try {
     const [plans, modules, addons] = await Promise.all([
       prisma.subscriptionPlanCatalog.findMany({
-        where: { isActive: true },
+        // SaaS registration is trial-then-paid. Zero-price legacy plans are
+        // intentionally not offered; custom-domain installs use `lifetime`.
+        where: { isActive: true, monthlyPrice: { gt: 0 } },
         orderBy: { sortOrder: 'asc' }
       }),
       prisma.modulePriceCatalog.findMany({

@@ -58,7 +58,7 @@ assert.equal(isTenantTrialExpired({
   plan: 'growth',
   status: 'active',
   trialEndsAt: new Date('2026-01-01T00:00:00.000Z'),
-}, new Date('2026-01-02T00:00:00.000Z')), false);
+}, new Date('2026-01-02T00:00:00.000Z')), true);
 
 assert.equal(normalizeRazorpaySubscriptionStatus('subscription.activated'), 'active');
 assert.equal(normalizeRazorpaySubscriptionStatus('subscription.charged'), 'active');

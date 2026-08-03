@@ -52,6 +52,14 @@ model Tenant {
   customerGeocodes      CustomerGeocode[]
   goldCollaterals       GoldLoanCollateral[]
 
+  // Auto Finance (HP)
+  financePartners     FinancePartner[]
+  autoFinanceDetails  AutoFinanceDetail[]
+  vehicleRecoveries   VehicleRecovery[]
+  vehiclePhotos       VehiclePhoto[]
+  dayClosingLogs      DayClosingLog[]
+  customerCallLogs    CustomerCallLog[]
+
   nachMandates NachMandate[]
 
   // Premium accounting
@@ -100,6 +108,8 @@ model Branch {
   journalEntries        JournalEntry[]
   bankAccounts          BankAccount[]
   goldCollaterals       GoldLoanCollateral[]
+  financePartners       FinancePartner[]
+  dayClosingLogs        DayClosingLog[]
 
   @@unique([tenantId, code])
   @@index([superadminId], map: "branches_superadmin_id_fkey")
@@ -149,6 +159,10 @@ model User {
   bypassVehicleApproval    Boolean            @default(false) @map("bypass_vehicle_approval")
   autoReleaseFloat         Boolean            @default(false) @map("auto_release_float")
   feeConfirmationMandatory Boolean            @default(false) @map("fee_confirmation_mandatory")
+  // Auto Finance: allowed login window for collection agents, stored as
+  // "HH:MM" in tenant-local time. Both null (the default) = no restriction.
+  allowedLoginStart        String?            @map("allowed_login_start")
+  allowedLoginEnd          String?            @map("allowed_login_end")
   approvalRequestsMade     ApprovalRequest[]  @relation("Requester")
   approvalRequestsReviewed ApprovalRequest[]  @relation("Reviewer")
   auditLogs                AuditLog[]
@@ -178,6 +192,10 @@ model User {
   tenant                   Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   vehicleRepoFlags   Vehicle[]           @relation("VehicleRepoFlag")
+  vehicleSeizures    VehicleRecovery[]   @relation("VehicleSeizedBy")
+  vehicleReleases    VehicleRecovery[]   @relation("VehicleReleasedBy")
+  dayClosings        DayClosingLog[]     @relation("DayClosedBy")
+  customerCallLogs   CustomerCallLog[]   @relation("CallLoggedBy")
   accountEntries     AccountEntry[]
   agentHandovers     CashHandover[]      @relation("AgentHandovers")
   adminHandovers     CashHandover[]      @relation("AdminHandovers")
@@ -347,6 +365,7 @@ model Customer {
   route                   Route?                    @relation(fields: [routeId], references: [id])
   tenant                  Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   guarantors              Guarantor[]
+  callLogs                CustomerCallLog[]
   kycDocuments            KycDocument[]
   loans                   Loan[]
   penalties               Penalty[]
@@ -488,6 +507,11 @@ model Loan {
   provisioningCategory String              @default("standard") @map("provisioning_category")
   isSecured            Boolean             @default(false) @map("is_secured")
   totalPayable         Decimal             @default(0.00) @map("total_payable") @db.Decimal(12, 2)
+  // Auto Finance (HP): sourcing partners. Kept on Loan rather than the 1:1
+  // detail table so the universal directory can filter loans by broker/dealer
+  // without a join through auto_finance_details.
+  brokerId             String?             @map("broker_id")
+  dealerId             String?             @map("dealer_id")
   collectionEntries    CollectionEntry[]
   instalments          Instalment[]
   collaterals          LoanCollateral[]
@@ -509,10 +533,17 @@ model Loan {
   goldCollateral       GoldLoanCollateral?
   propertyCollateral   PropertyCollateral?
   productFinanceItem   ProductFinanceItem?
+  autoFinanceDetail    AutoFinanceDetail?
+  vehicleRecoveries    VehicleRecovery[]
+  callLogs             CustomerCallLog[]
+  broker               FinancePartner?     @relation("LoanBroker", fields: [brokerId], references: [id])
+  dealer               FinancePartner?     @relation("LoanDealer", fields: [dealerId], references: [id])
   bankRepledges        BankRepledge[]
   nachMandate          NachMandate?
 
   @@unique([tenantId, loanCode])
+  @@index([brokerId], map: "loans_broker_id_fkey")
+  @@index([dealerId], map: "loans_dealer_id_fkey")
   // ⚡ Bolt: Added composite index on tenantId, appType, and status to optimize active loan queries and dashboard aggregations
   @@index([tenantId, appType, status])
   @@index([branchId], map: "loans_branch_id_fkey")
@@ -1158,12 +1189,218 @@ model Vehicle {
   loan            Loan?     @relation(fields: [loanId], references: [id])
   repoFlaggedBy   User?     @relation("VehicleRepoFlag", fields: [repoFlaggedById], references: [id])
   tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  recoveries      VehicleRecovery[]
+  photos          VehiclePhoto[]
 
   @@unique([tenantId, appType, registrationNo])
   @@index([customerId])
   @@index([repoFlag])
   @@index([repoFlaggedById], map: "vehicles_repo_flagged_by_id_fkey")
   @@map("vehicles")
+}
+
+// ---------------------------------------------------------------------------
+// Auto Finance (Hire Purchase) — origination, recovery and daily operations.
+// All models are tenant + appType scoped like the rest of the module tables.
+// ---------------------------------------------------------------------------
+
+/// Brokers and dealers who source HP business. One table with a `type`
+/// discriminator so the origination wizard can fill both dropdowns in a query.
+model FinancePartner {
+  id             String    @id @default(cuid())
+  tenantId       String    @map("tenant_id")
+  branchId       String?   @map("branch_id")
+  appType        String    @default("autofinance") @map("app_type")
+  /// 'broker' | 'dealer'
+  type           String
+  name           String
+  phone          String?
+  address        String?   @db.Text
+  /// Default commission %, overridable per loan in the origination wizard.
+  commissionRate Decimal?  @map("commission_rate") @db.Decimal(6, 2)
+  notes          String?   @db.Text
+  status         String    @default("active")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  tenant       Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch       Branch? @relation(fields: [branchId], references: [id])
+  brokerLoans  Loan[]  @relation("LoanBroker")
+  dealerLoans  Loan[]  @relation("LoanDealer")
+
+  @@unique([tenantId, appType, type, name])
+  @@index([tenantId, appType, type, status])
+  @@index([branchId], map: "finance_partners_branch_id_fkey")
+  @@map("finance_partners")
+}
+
+/// HP-specific financial configuration for a loan. 1:1 with Loan, mirroring
+/// GoldLoanCollateral / PropertyCollateral / ProductFinanceItem so the shared
+/// Loan table does not grow a column per module.
+model AutoFinanceDetail {
+  id       String @id @default(cuid())
+  tenantId String @map("tenant_id")
+  loanId   String @unique @map("loan_id")
+
+  // Step 2 — financial configuration
+  vehicleValue   Decimal? @map("vehicle_value") @db.Decimal(14, 2)
+  downPayment    Decimal? @map("down_payment") @db.Decimal(14, 2)
+  /// 'flat' | 'diminishing'
+  interestMethod String   @default("flat") @map("interest_method")
+  interestRate   Decimal? @map("interest_rate") @db.Decimal(6, 2)
+  /// Whether the computed EMI was rounded to the nearest rupee on origination.
+  roundOffEmi    Boolean  @default(false) @map("round_off_emi")
+
+  // Step 3 — charges, penalties and payouts
+  gracePeriodDays  Int      @default(0) @map("grace_period_days")
+  penaltyPerDay    Decimal  @default(0.00) @map("penalty_per_day") @db.Decimal(12, 2)
+  /// Insurance / RTO money advanced on top of the vehicle finance.
+  handLoanAmount   Decimal  @default(0.00) @map("hand_loan_amount") @db.Decimal(12, 2)
+  insuranceCharge  Decimal  @default(0.00) @map("insurance_charge") @db.Decimal(12, 2)
+  documentCharge   Decimal  @default(0.00) @map("document_charge") @db.Decimal(12, 2)
+  brokerCommission Decimal  @default(0.00) @map("broker_commission") @db.Decimal(12, 2)
+
+  // Disbursement payment splitter (up to two modes)
+  payoutMode1   String?  @map("payout_mode_1")
+  payoutAmount1 Decimal? @map("payout_amount_1") @db.Decimal(12, 2)
+  payoutMode2   String?  @map("payout_mode_2")
+  payoutAmount2 Decimal? @map("payout_amount_2") @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  loan   Loan   @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("auto_finance_details")
+}
+
+/// A seizure episode for a financed vehicle. Replaces the flat `repoFlag`
+/// boolean with an auditable yard/charges/release trail. A vehicle may be
+/// seized and released more than once, so this is a history table.
+model VehicleRecovery {
+  id             String    @id @default(cuid())
+  tenantId       String    @map("tenant_id")
+  vehicleId      String    @map("vehicle_id")
+  loanId         String    @map("loan_id")
+  seizedAt       DateTime  @map("seized_at")
+  seizedById     String?   @map("seized_by_id")
+  /// Free-text agent/recovery-team name when the seizer is not a system user.
+  seizedByName   String?   @map("seized_by_name")
+  yardLocation   String    @map("yard_location")
+  seizingCharges Decimal   @default(0.00) @map("seizing_charges") @db.Decimal(12, 2)
+  remarks        String?   @db.Text
+  /// 'seized' | 'released' | 'sold'
+  status         String    @default("seized")
+  releasedAt     DateTime? @map("released_at")
+  releasedById   String?   @map("released_by_id")
+  /// Payment that settled the seizing charges when the vehicle was released.
+  releasePaymentId String? @map("release_payment_id")
+  releaseRemarks   String? @map("release_remarks") @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  tenant     Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  vehicle    Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  loan       Loan    @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  seizedBy   User?   @relation("VehicleSeizedBy", fields: [seizedById], references: [id])
+  releasedBy User?   @relation("VehicleReleasedBy", fields: [releasedById], references: [id])
+
+  @@index([tenantId, status])
+  @@index([vehicleId])
+  @@index([loanId])
+  @@index([seizedById], map: "vehicle_recoveries_seized_by_id_fkey")
+  @@index([releasedById], map: "vehicle_recoveries_released_by_id_fkey")
+  @@map("vehicle_recoveries")
+}
+
+/// Asset photographs for the Customer 360° "Asset Photos" tab.
+model VehiclePhoto {
+  id         String   @id @default(cuid())
+  tenantId   String   @map("tenant_id")
+  vehicleId  String   @map("vehicle_id")
+  /// 'vehicle' | 'rc' | 'customer' | 'seizure' | 'other'
+  kind       String   @default("vehicle")
+  path       String
+  caption    String?
+  uploadedAt DateTime @default(now()) @map("uploaded_at")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([vehicleId, kind])
+  @@map("vehicle_photos")
+}
+
+/// End-of-day reconciliation. Staff cannot open the next day's pending list
+/// until the previous business day has a closed row.
+model DayClosingLog {
+  id           String   @id @default(cuid())
+  tenantId     String   @map("tenant_id")
+  branchId     String?  @map("branch_id")
+  appType      String   @default("autofinance") @map("app_type")
+  businessDate DateTime @map("business_date") @db.Date
+
+  openingCash    Decimal @default(0.00) @map("opening_cash") @db.Decimal(14, 2)
+  collectedCash  Decimal @default(0.00) @map("collected_cash") @db.Decimal(14, 2)
+  disbursedCash  Decimal @default(0.00) @map("disbursed_cash") @db.Decimal(14, 2)
+  expectedClosing Decimal @default(0.00) @map("expected_closing") @db.Decimal(14, 2)
+  /// Cash the closing user actually counted; difference drives the variance.
+  countedClosing Decimal @default(0.00) @map("counted_closing") @db.Decimal(14, 2)
+  variance       Decimal @default(0.00) @db.Decimal(14, 2)
+
+  receiptCount   Int     @default(0) @map("receipt_count")
+  remarks        String? @db.Text
+  closedById     String? @map("closed_by_id")
+  closedAt       DateTime @default(now()) @map("closed_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch   Branch? @relation(fields: [branchId], references: [id])
+  closedBy User?   @relation("DayClosedBy", fields: [closedById], references: [id])
+
+  @@unique([tenantId, appType, branchId, businessDate])
+  @@index([tenantId, appType, businessDate])
+  @@index([branchId], map: "day_closing_logs_branch_id_fkey")
+  @@index([closedById], map: "day_closing_logs_closed_by_id_fkey")
+  @@map("day_closing_logs")
+}
+
+/// Call / follow-up log. `promisedDate` powers the "Promised Customers" (PTP)
+/// dashboard widget and the mobile remark + next-promise flow.
+model CustomerCallLog {
+  id         String   @id @default(cuid())
+  tenantId   String   @map("tenant_id")
+  appType    String   @default("autofinance") @map("app_type")
+  customerId String   @map("customer_id")
+  loanId     String?  @map("loan_id")
+  /// 'call' | 'visit' | 'whatsapp' | 'sms' | 'note'
+  channel    String   @default("call")
+  /// 'promised' | 'no_answer' | 'refused' | 'wrong_number' | 'paid' | 'other'
+  outcome    String   @default("other")
+  remarks    String?  @db.Text
+  /// Promise-to-pay date captured from the agent.
+  promisedDate   DateTime? @map("promised_date") @db.Date
+  promisedAmount Decimal?  @map("promised_amount") @db.Decimal(12, 2)
+  /// Set once a payment lands on/after the promise, so the widget can drop it.
+  fulfilledAt    DateTime? @map("fulfilled_at")
+  loggedById String?  @map("logged_by_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  loan     Loan?    @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  loggedBy User?    @relation("CallLoggedBy", fields: [loggedById], references: [id])
+
+  @@index([tenantId, appType, promisedDate])
+  @@index([customerId])
+  @@index([loanId])
+  @@index([loggedById], map: "customer_call_logs_logged_by_id_fkey")
+  @@map("customer_call_logs")
 }
 
 model ChitGroup {
