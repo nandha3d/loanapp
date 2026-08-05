@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:loantrack/data/local/offline_queue.dart';
-import 'package:loantrack/data/services/chit_service.dart';
+import 'package:zolofund/data/local/offline_queue.dart';
+import 'package:zolofund/data/services/chit_service.dart';
 
 const _boxName = 'chit_payment_queue';
 const _mutationType = 'chit.payment';

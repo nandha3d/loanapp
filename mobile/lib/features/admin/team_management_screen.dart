@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/services/admin_service.dart';
-import 'package:loantrack/shared/widgets/app_button.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/services/admin_service.dart';
+import 'package:zolofund/shared/widgets/app_button.dart';
 
 class TeamManagementScreen extends ConsumerStatefulWidget {
   const TeamManagementScreen({super.key, this.isSuperadmin = false});

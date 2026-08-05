@@ -138,7 +138,7 @@ export async function sendGenericPasswordOtp(context: AccountContext) {
   }
 
   const otp = generateAccountOtp(user.id, user.email, otpBucket());
-  const brandName = user.tenant?.name || 'LoanTrack';
+  const brandName = user.tenant?.name || 'ZoloFund';
   const result = await sendEmail(
     context.tenantId,
     user.email,

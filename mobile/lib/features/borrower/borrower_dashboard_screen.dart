@@ -2,19 +2,19 @@ import 'dart:typed_data';
 
 import 'package:printing/printing.dart';
 
-import 'package:loantrack/core/currency/currency_controller.dart';
+import 'package:zolofund/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/models/borrower.dart';
-import 'package:loantrack/data/services/borrower_service.dart';
-import 'package:loantrack/features/borrower/borrower_chit_live_screen.dart';
-import 'package:loantrack/features/borrower/borrower_chit_contributions_screen.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/models/borrower.dart';
+import 'package:zolofund/data/services/borrower_service.dart';
+import 'package:zolofund/features/borrower/borrower_chit_live_screen.dart';
+import 'package:zolofund/features/borrower/borrower_chit_contributions_screen.dart';
 
 final _borrowerLoansProvider =
     FutureProvider.autoDispose<List<BorrowerLoan>>((ref) {

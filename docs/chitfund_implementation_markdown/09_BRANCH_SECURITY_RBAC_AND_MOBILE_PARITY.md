@@ -252,7 +252,7 @@ Test cases:
 ## Implementation prompt for coding agent
 
 ```txt
-Implement Step 9 for the LoanTrack chit-fund module.
+Implement Step 9 for the ZoloFund chit-fund module.
 
 Audit every chit web server action and mobile API route for tenant, appType, branch, module, role, and deletedAt security. Create shared chit access helpers if needed. Replace unsafe findUnique-by-id flows with scoped findFirst validation before update/delete/posting.
 

@@ -1,6 +1,6 @@
-# LoanTrack vs Vasool — Parity-&-Ahead Implementation Doc Set
+# ZoloFund vs Vasool — Parity-&-Ahead Implementation Doc Set
 
-> **Mission:** Make LoanTrack *strictly ahead of [vasool.app](https://vasool.app) on every single element*,
+> **Mission:** Make ZoloFund *strictly ahead of [vasool.app](https://vasool.app) on every single element*,
 > and rework pricing to win head-to-head — **without hardcoding anything** and **without changing the current
 > structure unless the change is explicitly signed off**.
 

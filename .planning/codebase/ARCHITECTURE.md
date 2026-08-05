@@ -6,7 +6,7 @@
 
 ## System Overview
 
-LoanTrack is a **multi-tenant SaaS** micro-lending management platform supporting three vertical applications:
+ZoloFund is a **multi-tenant SaaS** micro-lending management platform supporting three vertical applications:
 1. **Micro Lending** — Loans, collections, penalties, customers, routes
 2. **Auto Finance** — Vehicle financing, EMI tracking, repo flagging
 3. **Chit Funds** — Group chits, auctions, member subscriptions
@@ -28,7 +28,7 @@ All three apps share a **single MySQL database** with **row-level tenant isolati
 │  - Tenant slug extraction from subdomain                 │
 │  - Auth token validation (NextAuth JWT)                  │
 │  - Role-based route protection                           │
-│  - Header injection (x-loantrack-tenant-slug)            │
+│  - Header injection (x-zolofund-tenant-slug)            │
 └────────────────────────┬────────────────────────────────┘
                          │
 ┌────────────────────────▼────────────────────────────────┐
@@ -89,7 +89,7 @@ localhost            →  Fallback to Tenant(slug='default')
 **Flow:**
 1. Middleware extracts slug from `Host` header
 2. Slug resolved to `Tenant.id` via DB lookup
-3. `x-loantrack-tenant-slug` header injected
+3. `x-zolofund-tenant-slug` header injected
 4. Server-side code uses `getCurrentTenantId()` (cached per request)
 5. All queries filtered by `tenantId` + `appType`
 

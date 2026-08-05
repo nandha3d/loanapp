@@ -1,4 +1,4 @@
-# LoanTrack Manual Verification Checklist
+# ZoloFund Manual Verification Checklist
 
 This file is not for automation. Use it after automation passes.
 

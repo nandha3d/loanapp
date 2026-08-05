@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     let code = '';
     let isUnique = false;
     let attempts = 0;
-    const appPrefix = process.env.APP_NAME || 'LOANTRACK';
+    const appPrefix = process.env.APP_NAME || 'ZOLOFUND';
     
     // Clean up the name for the code
     const cleanName = name

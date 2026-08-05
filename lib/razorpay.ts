@@ -86,8 +86,8 @@ export async function createRazorpayPlan(input: {
       period: 'monthly',
       interval: 1,
       item: {
-        name: `LoanTrack ${input.displayName}`.slice(0, 100),
-        description: 'LoanTrack SaaS monthly subscription',
+        name: `ZoloFund ${input.displayName}`.slice(0, 100),
+        description: 'ZoloFund SaaS monthly subscription',
         amount: Math.round(input.amountRupees * 100),
         currency: 'INR',
       },

@@ -3,11 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import 'package:loantrack/core/network/dio_client.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/shared/constants/endpoints.dart';
+import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/shared/constants/endpoints.dart';
 
 /// Bottom sheet to record a cash collection from an agent / route.
 class CollectCashSheet extends ConsumerStatefulWidget {

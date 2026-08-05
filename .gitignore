@@ -58,7 +58,7 @@ scratch/
 scratch.js
 database/
 tmp/
-loantrack_export*.sql
+zolofund_export*.sql
 # test / build reports
 playwright-report/
 test-results/
@@ -95,7 +95,7 @@ mobile/.vscode/
 !.devcontainer/*.yml
 *.apk
 *.html
-loantrack_marketing_page_en.html
+zolofund_marketing_page_en.html
 
 # Flutter: ignore GENERATED dart only — hand-written *.dart source IS committed.
 mobile/**/*.g.dart
@@ -111,7 +111,7 @@ mobile/windows/flutter/generated_plugins.cmake
 mobile/nuget.exe
 *.exe
 
-# SQL: ignore DB DUMPS only (loantrack_export*.sql / *backup*.sql above).
+# SQL: ignore DB DUMPS only (zolofund_export*.sql / *backup*.sql above).
 # Prisma migrations and docs/*.sql ARE committed.
 
 # Playwright

@@ -193,7 +193,7 @@ Gate everything behind `CHIT_LIVE_AUCTION_ENABLED` (see Step 0 roadmap). With th
 ## Implementation prompt for coding agent
 
 ```txt
-Implement Step 12 for the LoanTrack chit-fund module.
+Implement Step 12 for the ZoloFund chit-fund module.
 
 Add live auction room fields to ChitAuction (biddingOpensAt, biddingClosesAt, autoExtendSeconds, roomStatus). Build lib/chits/liveAuction.ts with openRoom, closeRoomIfExpired, extendOnAntiSnipe, and a transaction-safe close that selects the provisional winner via getWinningBid honoring the group's tieBreakRule. Build lib/chits/lottery.ts with the seed-audited drawLotteryWinner and a draw API route that records evidence in audit log and minutes.
 

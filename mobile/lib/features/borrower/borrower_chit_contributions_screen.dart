@@ -5,11 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
-import 'package:loantrack/core/currency/currency_controller.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/models/chit_contribution.dart';
-import 'package:loantrack/data/services/borrower_chit_service.dart';
+import 'package:zolofund/core/currency/currency_controller.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/models/chit_contribution.dart';
+import 'package:zolofund/data/services/borrower_chit_service.dart';
 
 final _contributionsProvider = FutureProvider.autoDispose<
     ({List<ChitContributionGroup> groups, List<ChitReceiptSummary> receipts})>((ref) {

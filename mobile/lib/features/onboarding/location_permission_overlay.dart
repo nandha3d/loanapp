@@ -4,8 +4,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-import 'package:loantrack/core/gps/gps_service.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
+import 'package:zolofund/core/gps/gps_service.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
 
 const _kPrefsBox = 'prefs';
 const _kAskedKey = 'location_always_prompt_seen_v1';
@@ -35,7 +35,7 @@ Future<void> maybeRequestCorePermissions(BuildContext context) async {
           icon: Icon(Icons.verified_user_outlined, color: AppColors.primary),
           title: const Text('App permissions'),
           content: const Text(
-            'LoanTrack needs a few permissions to work in the field:\n\n'
+            'ZoloFund needs a few permissions to work in the field:\n\n'
             '• Location — collection visits and route tracking\n'
             '• Camera & Photos — customer photos and KYC documents\n'
             '• Phone & SMS — call or message customers in one tap\n'

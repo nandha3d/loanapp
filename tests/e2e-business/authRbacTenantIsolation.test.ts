@@ -12,12 +12,12 @@ import { skip, test, run } from './helpers/harness';
 import {
   createCustomerFixture,
   createLoanFixture,
-  seedLoanTrackScenario,
-  type LoanTrackScenario,
-} from './helpers/seedLoanTrack';
+  seedZoloFundScenario,
+  type ZoloFundScenario,
+} from './helpers/seedZoloFund';
 import { APP_TYPE, disconnectTestDb, getPrisma, getRunId } from './helpers/testDb';
 
-let scenario: LoanTrackScenario;
+let scenario: ZoloFundScenario;
 let adminToken = '';
 let agentToken = '';
 
@@ -249,7 +249,7 @@ skip(
 async function main() {
   const runId = getRunId();
   try {
-    scenario = await seedLoanTrackScenario(runId);
+    scenario = await seedZoloFundScenario(runId);
     await run();
   } finally {
     await cleanupRunData(runId);

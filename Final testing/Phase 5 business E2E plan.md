@@ -1,4 +1,4 @@
-# Phase 5 LoanTrack Business E2E Automation Plan
+# Phase 5 ZoloFund Business E2E Automation Plan
 
 ## Summary
 Add Phase 5 API/service-level business automation under the existing `tests/e2e-business` harness. Keep all tests additive, use `TEST_DATABASE_URL` only, seed deterministic `RUN_ID` data, avoid demo data, mock or locally sign provider payloads, and record unsupported/current-code defects as known gaps in the shared evidence writer.

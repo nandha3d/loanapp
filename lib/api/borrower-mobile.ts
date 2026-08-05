@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { SignJWT, jwtVerify } from 'jose';
 
 const ALG = 'HS256';
-const ISSUER = 'loantrack';
+const ISSUER = 'zolofund';
 const BORROWER_AUDIENCE = 'borrower-mobile';
 const CHALLENGE_AUDIENCE = 'borrower-mobile-otp';
 

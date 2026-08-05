@@ -11,7 +11,7 @@ datasource db {
 
 model Tenant {
   id                    String                  @id @default(cuid())
-  name                  String                  @default("LoanTrack")
+  name                  String                  @default("ZoloFund")
   slug                  String                  @unique @default("default")
   customDomain          String?                 @unique @map("custom_domain")
   status                String                  @default("active")

@@ -3,20 +3,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:go_router/go_router.dart';
 
-import 'package:loantrack/core/a11y/ui_prefs.dart';
-import 'package:loantrack/core/a11y/voice_assist.dart';
-import 'package:loantrack/core/auth/auth_controller.dart';
-import 'package:loantrack/core/l10n/app_strings.dart';
-import 'package:loantrack/core/l10n/language_controller.dart';
-import 'package:loantrack/core/network/dio_client.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/models/route_model.dart';
-import 'package:loantrack/data/models/user.dart';
-import 'package:loantrack/data/services/settings_service.dart';
-import 'package:loantrack/shared/widgets/bottom_nav.dart';
-import 'package:loantrack/shared/widgets/skeleton.dart';
+import 'package:zolofund/core/a11y/ui_prefs.dart';
+import 'package:zolofund/core/a11y/voice_assist.dart';
+import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/core/l10n/app_strings.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/models/route_model.dart';
+import 'package:zolofund/data/models/user.dart';
+import 'package:zolofund/data/services/settings_service.dart';
+import 'package:zolofund/shared/widgets/bottom_nav.dart';
+import 'package:zolofund/shared/widgets/skeleton.dart';
 
 final _routesProvider = FutureProvider.autoDispose<List<AppRoute>>((ref) {
   return ref.watch(settingsServiceProvider).routes();
@@ -527,7 +527,7 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 24),
           Center(
-            child: Text('LoanTrack v0.1.0', style: AppTypography.caption),
+            child: Text('ZoloFund v0.1.0', style: AppTypography.caption),
           ),
           const SizedBox(height: 16),
         ],

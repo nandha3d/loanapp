@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:loantrack/core/l10n/language_controller.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/local/collection_queue.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/local/collection_queue.dart';
 
 /// App-wide connectivity / pending-sync banner. Driven by the existing
 /// collection sync state so it needs no new plumbing. Renders nothing when

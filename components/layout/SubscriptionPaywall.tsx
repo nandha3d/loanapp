@@ -64,7 +64,7 @@ export default function SubscriptionPaywall({
           Workspace access is paused
         </h1>
         <p style={{ margin: '0 auto', color: '#475569', lineHeight: 1.65, maxWidth: '460px' }}>
-          {access.message || 'Complete your subscription payment to continue using LoanTrack.'}
+          {access.message || 'Complete your subscription payment to continue using ZoloFund.'}
         </p>
         <p style={{ margin: '12px auto 0', color: '#64748b', lineHeight: 1.55, fontSize: '.9rem' }}>
           No application data or operations are available until the subscription is active.

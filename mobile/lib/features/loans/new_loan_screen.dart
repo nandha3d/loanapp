@@ -7,24 +7,24 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
-import 'package:loantrack/core/auth/auth_controller.dart';
-import 'package:loantrack/core/network/authed_image.dart';
-import 'package:loantrack/core/currency/currency_controller.dart';
-import 'package:loantrack/core/l10n/language_controller.dart';
-import 'package:loantrack/shared/utils/photo_crop.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/models/customer.dart';
-import 'package:loantrack/data/models/loan_calc.dart';
-import 'package:loantrack/data/models/user.dart';
-import 'package:loantrack/data/repositories/customer_repository.dart';
-import 'package:loantrack/data/services/loan_service.dart';
-import 'package:loantrack/data/services/gold_service.dart';
-import 'package:loantrack/features/loans/loans_screen.dart' show loansProvider;
-import 'package:loantrack/data/services/upload_service.dart';
-import 'package:loantrack/shared/widgets/app_button.dart';
-import 'package:loantrack/shared/widgets/app_text_field.dart';
+import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/core/network/authed_image.dart';
+import 'package:zolofund/core/currency/currency_controller.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/shared/utils/photo_crop.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/models/customer.dart';
+import 'package:zolofund/data/models/loan_calc.dart';
+import 'package:zolofund/data/models/user.dart';
+import 'package:zolofund/data/repositories/customer_repository.dart';
+import 'package:zolofund/data/services/loan_service.dart';
+import 'package:zolofund/data/services/gold_service.dart';
+import 'package:zolofund/features/loans/loans_screen.dart' show loansProvider;
+import 'package:zolofund/data/services/upload_service.dart';
+import 'package:zolofund/shared/widgets/app_button.dart';
+import 'package:zolofund/shared/widgets/app_text_field.dart';
 
 class _ChequeEntry {
   _ChequeEntry()

@@ -761,7 +761,7 @@ async function runXMTests(baseline: Awaited<ReturnType<typeof seedBaseline>>) {
 
 async function main() {
   console.log('='.repeat(60));
-  console.log('LoanTrack Dashboard KPI — Full E2E Test Suite');
+  console.log('ZoloFund Dashboard KPI — Full E2E Test Suite');
   console.log('='.repeat(60));
   console.log('');
 

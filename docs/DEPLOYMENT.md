@@ -1,6 +1,6 @@
-# LoanTrack Deployment & Operations Guide
+# ZoloFund Deployment & Operations Guide
 
-This guide provides instructions for deploying and maintaining the LoanTrack application in a production environment.
+This guide provides instructions for deploying and maintaining the ZoloFund application in a production environment.
 
 ## 1. Production Deployment
 
@@ -70,7 +70,7 @@ npm run start | pino-pretty
 
 ```bash
 # Sample backup script
-mysqldump -u root loantrack | gzip > /backups/loantrack-$(date +%F).sql.gz
+mysqldump -u root zolofund | gzip > /backups/zolofund-$(date +%F).sql.gz
 ```
 
 ### File Backups

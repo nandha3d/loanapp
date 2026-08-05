@@ -132,7 +132,7 @@ async function main() {
   const tenant = await prisma.tenant.upsert({
     where: { slug: 'default' },
     update: {},
-    create: { name: 'LoanTrack', slug: 'default', status: 'active' },
+    create: { name: 'ZoloFund', slug: 'default', status: 'active' },
   });
   console.log('✅ Tenant:', tenant.id);
 
@@ -303,7 +303,7 @@ async function main() {
 
   // ── App settings ──────────────────────────────────────────────────────────────
   const defaultSettings: { key: string; value: string; group: string }[] = [
-    { key: 'app_name',                value: 'LoanTrack',                     group: 'branding' },
+    { key: 'app_name',                value: 'ZoloFund',                     group: 'branding' },
     { key: 'app_tagline',             value: 'Micro-Lending Management System', group: 'branding' },
     { key: 'logo_url',                value: '/assets/logo.svg',              group: 'branding' },
     { key: 'primary_color',           value: '#F5A623',                       group: 'branding' },
@@ -431,7 +431,7 @@ async function main() {
             channel,
             lang,
             body,
-            subject: channel === 'push' ? 'LoanTrack Alert' : null,
+            subject: channel === 'push' ? 'ZoloFund Alert' : null,
             isActive: true,
           },
         });

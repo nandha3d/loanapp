@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:loantrack/features/collection/voice_amount_parser.dart';
+import 'package:zolofund/features/collection/voice_amount_parser.dart';
 
 void main() {
   const synonyms = <String, List<String>>{

@@ -3,13 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'package:loantrack/core/currency/currency_controller.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/models/collection_entry.dart';
-import 'package:loantrack/data/models/loan.dart';
-import 'package:loantrack/features/collection/quick_collect_sheet.dart';
+import 'package:zolofund/core/currency/currency_controller.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/models/collection_entry.dart';
+import 'package:zolofund/data/models/loan.dart';
+import 'package:zolofund/features/collection/quick_collect_sheet.dart';
 
 /// Auto Finance "Put Bill" card.
 ///

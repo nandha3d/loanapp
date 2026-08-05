@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:loantrack/core/network/dio_client.dart';
-import 'package:loantrack/data/models/agent_location.dart';
-import 'package:loantrack/shared/constants/endpoints.dart';
+import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/data/models/agent_location.dart';
+import 'package:zolofund/shared/constants/endpoints.dart';
 
 final liveAgentLocationsProvider = FutureProvider.autoDispose<List<AgentLocation>>((ref) async {
   final dio = ref.watch(dioProvider);

@@ -322,7 +322,7 @@ export async function manageMasterUser(formData: FormData, actorOverride?: Actio
 
         // Initialize default settings for branding & system
         const defaultSettings = [
-          { key: 'app_name', value: name || 'LoanTrack', group: 'branding' },
+          { key: 'app_name', value: name || 'ZoloFund', group: 'branding' },
           { key: 'app_tagline', value: 'Micro-Lending Management System', group: 'branding' },
           { key: 'logo_url', value: '/assets/logo.svg', group: 'branding' },
           { key: 'primary_color', value: '#F5A623', group: 'branding' },

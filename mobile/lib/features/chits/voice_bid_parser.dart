@@ -8,8 +8,8 @@
 /// otherwise they show a "Did you mean?" chooser. Tap is always the fallback.
 library;
 
-import 'package:loantrack/data/models/chit.dart';
-import 'package:loantrack/features/collection/voice_amount_parser.dart';
+import 'package:zolofund/data/models/chit.dart';
+import 'package:zolofund/features/collection/voice_amount_parser.dart';
 
 class VoiceBidCandidate {
   const VoiceBidCandidate({required this.member, required this.score});

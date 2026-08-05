@@ -10,12 +10,12 @@ import { cleanupRunData } from './helpers/cleanup';
 import { writeKnownGapsReport } from './helpers/evidenceWriter';
 import { knownGap, run, test } from './helpers/harness';
 import { knownGapCatalog } from './helpers/knownGaps';
-import { createCustomerFixture, createLoanFixture, seedLoanTrackScenario, type LoanTrackScenario } from './helpers/seedLoanTrack';
+import { createCustomerFixture, createLoanFixture, seedZoloFundScenario, type ZoloFundScenario } from './helpers/seedZoloFund';
 import { APP_TYPE, disconnectTestDb, getPrisma, getRunId } from './helpers/testDb';
 
 process.env.TZ = 'UTC';
 
-let scenario: LoanTrackScenario;
+let scenario: ZoloFundScenario;
 let adminToken = '';
 let riskLoanId = '';
 let npaLoanId = '';
@@ -222,7 +222,7 @@ knownGap(
 async function main() {
   const runId = getRunId();
   try {
-    scenario = await seedLoanTrackScenario(runId);
+    scenario = await seedZoloFundScenario(runId);
     adminToken = await issueMobileTokenForSetup(scenario.users.adminA1);
     const summary = await run();
     writeKnownGapsReport({

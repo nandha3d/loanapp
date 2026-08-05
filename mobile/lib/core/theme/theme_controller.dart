@@ -2,10 +2,10 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:loantrack/core/auth/auth_controller.dart';
-import 'package:loantrack/core/network/dio_client.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/shared/constants/endpoints.dart';
+import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/shared/constants/endpoints.dart';
 
 /// Tenant colour theme, picked by the superadmin in the web app
 /// (Settings → Theme) and served to every authenticated role by

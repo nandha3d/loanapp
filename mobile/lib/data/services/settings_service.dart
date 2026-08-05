@@ -1,10 +1,10 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:loantrack/core/network/dio_client.dart';
-import 'package:loantrack/data/models/analytics.dart';
-import 'package:loantrack/data/models/route_model.dart';
-import 'package:loantrack/shared/constants/endpoints.dart';
+import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/data/models/analytics.dart';
+import 'package:zolofund/data/models/route_model.dart';
+import 'package:zolofund/shared/constants/endpoints.dart';
 
 class SettingsService {
   SettingsService(this._dio);

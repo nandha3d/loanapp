@@ -55,7 +55,7 @@ extension AppLangX on AppLang {
 const Map<String, Map<String, String>> kStrings = {
   // ── App-wide ───────────────────────────────────────────────────────────
   'app.name': {
-    'en': 'LoanTrack',
+    'en': 'ZoloFund',
     'ta': 'லோன்ட்ராக்',
     'hi': 'लोनट्रैक',
     'te': 'లోన్‌ట్రాక్',
@@ -2157,7 +2157,7 @@ const Map<String, Map<String, String>> kStrings = {
     'te': 'ఖాతా', 'kn': 'ಖಾತೆ', 'ml': 'അക്കൗണ്ട്',
   },
   'lock.title': {
-    'en': 'LoanTrack is locked',
+    'en': 'ZoloFund is locked',
     'ta': 'லோன்ட்ராக் பூட்டப்பட்டுள்ளது',
     'hi': 'लोनट्रैक लॉक है',
     'te': 'లోన్‌ట్రాక్ లాక్ చేయబడింది',
@@ -3297,7 +3297,7 @@ const Map<String, Map<String, String>> kStrings = {
     'te': 'యూజర్ పేరు లేదా ఈమెయిల్', 'kn': 'ಬಳಕೆದಾರಹೆಸರು ಅಥವಾ ಇಮೇಲ್', 'ml': 'ഉപയോക്തൃനാമം അല്ലെങ്കിൽ ഇമെയിൽ',
   },
   'auth.biometric_prompt': {
-    'en': 'Authenticate to access LoanTrack', 'ta': 'லோன்ட்ராக் அணுக சரிபார்க்கவும்', 'hi': 'लोनट्रैक एक्सेस करने के लिए सत्यापित करें',
+    'en': 'Authenticate to access ZoloFund', 'ta': 'லோன்ட்ராக் அணுக சரிபார்க்கவும்', 'hi': 'लोनट्रैक एक्सेस करने के लिए सत्यापित करें',
     'te': 'లోన్‌ట్రాక్ యాక్సెస్ చేయడానికి ప్రామాణీకరించండి', 'kn': 'ಲೋನ್‌ಟ್ರ್ಯಾಕ್ ಪ್ರವೇಶಿಸಲು ದೃಢೀಕರಿಸಿ', 'ml': 'ലോൺട്രാക്ക് പ്രവേശിക്കാൻ സ്ഥിരീകരിക്കുക',
   },
   'gold.field.packet': {

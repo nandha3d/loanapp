@@ -1,4 +1,4 @@
-# Codemagic CI/CD configuration for LoanTrack mobile app
+# Codemagic CI/CD configuration for ZoloFund mobile app
 workflows:
   ios-simulator-build:
     name: iOS Simulator Build (Unsigned)

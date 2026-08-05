@@ -1,9 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:loantrack/core/network/dio_client.dart';
-import 'package:loantrack/data/models/superadmin_profile.dart' show ProfileAccount;
-import 'package:loantrack/shared/constants/endpoints.dart';
+import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/data/models/superadmin_profile.dart' show ProfileAccount;
+import 'package:zolofund/shared/constants/endpoints.dart';
 
 /// Self-service account profile for non-superadmin roles (admin, agent,
 /// developer). Deliberately separate from ProfileService, which is

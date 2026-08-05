@@ -152,7 +152,7 @@ function LoginForm() {
     <div className="login-wrapper">
       <div className="login-card">
         <div className="login-logo">
-          <img src={withBasePath('/assets/logo.svg')} alt="LoanTrack" />
+          <img src={withBasePath('/assets/logo.svg')} alt="ZoloFund" />
           <h1>Loan<span>Track</span></h1>
         </div>
         <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '.85rem', marginBottom: '28px' }}>
@@ -253,7 +253,7 @@ function LoginForm() {
 
         {registerAllowed && (
           <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '.85rem', color: 'var(--text-secondary)' }}>
-            New to LoanTrack? <a href={withBasePath('/register')} style={{ color: 'var(--primary)', fontWeight: 600 }}>Register Business</a>
+            New to ZoloFund? <a href={withBasePath('/register')} style={{ color: 'var(--primary)', fontWeight: 600 }}>Register Business</a>
           </p>
         )}
       </div>

@@ -4,7 +4,7 @@ import { fail } from './v1-envelope';
 import { checkLoginWindow } from '../autofinance/operations';
 
 const ALG = 'HS256';
-const ISSUER = 'loantrack';
+const ISSUER = 'zolofund';
 const AUDIENCE = 'mobile';
 
 function getSecret(): Uint8Array {

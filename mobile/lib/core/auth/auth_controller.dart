@@ -5,11 +5,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
 
-import 'package:loantrack/core/network/dio_client.dart';
-import 'package:loantrack/data/models/user.dart';
-import 'package:loantrack/data/repositories/auth_repository.dart';
-import 'package:loantrack/data/services/auth_service.dart';
-import 'package:loantrack/data/services/fcm_service.dart';
+import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/data/models/user.dart';
+import 'package:zolofund/data/repositories/auth_repository.dart';
+import 'package:zolofund/data/services/auth_service.dart';
+import 'package:zolofund/data/services/fcm_service.dart';
 
 enum AuthStage { unknown, unauthenticated, pendingTotp, locked, authenticated }
 
@@ -223,7 +223,7 @@ class AuthController extends StateNotifier<AuthState> {
         return true;
       }
       final ok = await _localAuth.authenticate(
-        localizedReason: 'Unlock LoanTrack',
+        localizedReason: 'Unlock ZoloFund',
         options: const AuthenticationOptions(stickyAuth: true),
       );
       if (ok) {

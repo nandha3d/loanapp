@@ -108,7 +108,7 @@ export function getTenantSubscriptionAccessState(
     return {
       blocked: true,
       reason: 'trial_expired',
-      message: 'Your free trial has ended. Complete payment to continue using LoanTrack.',
+      message: 'Your free trial has ended. Complete payment to continue using ZoloFund.',
       effectiveTrialEndsAt,
     };
   }

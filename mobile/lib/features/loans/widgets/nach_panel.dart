@@ -1,14 +1,14 @@
-import 'package:loantrack/core/currency/currency_controller.dart';
+import 'package:zolofund/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/models/nach.dart';
-import 'package:loantrack/data/services/nach_service.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/models/nach.dart';
+import 'package:zolofund/data/services/nach_service.dart';
 
 /// e-NACH Auto-Debit panel — embedded in the loan detail screen.
 /// Self-contained: reads/writes mandates via NachService.
@@ -189,7 +189,7 @@ class _NachPanelState extends ConsumerState<NachPanel> {
     final options = <String, dynamic>{
       'key': key,
       'order_id': orderId,
-      'name': 'LoanTrack',
+      'name': 'ZoloFund',
       'description': 'e-NACH mandate authorisation',
       'prefill': {
         if (widget.customerPhone != null) 'contact': widget.customerPhone,

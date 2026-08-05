@@ -260,7 +260,7 @@ Recommended access:
 ## Implementation prompt for coding agent
 
 ```txt
-Implement Step 8 for the LoanTrack chit-fund module.
+Implement Step 8 for the ZoloFund chit-fund module.
 
 Fix the mismatch between chit report UI slugs and report registry/builders. Add new chit reports: group ledger, subscriber ledger, auction register, bid history, prized subscriber report, dividend register, foreman commission report, default report, payout report, security pending report, agreement pending report, and receipt register.
 

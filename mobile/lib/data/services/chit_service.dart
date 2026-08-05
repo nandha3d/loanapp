@@ -1,11 +1,11 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:loantrack/core/network/dio_client.dart';
-import 'package:loantrack/data/models/chit.dart';
-import 'package:loantrack/data/models/chit_contribution.dart';
-import 'package:loantrack/data/models/chit_live.dart';
-import 'package:loantrack/shared/constants/endpoints.dart';
+import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/data/models/chit.dart';
+import 'package:zolofund/data/models/chit_contribution.dart';
+import 'package:zolofund/data/models/chit_live.dart';
+import 'package:zolofund/shared/constants/endpoints.dart';
 
 class ChitService {
   ChitService(this._dio);

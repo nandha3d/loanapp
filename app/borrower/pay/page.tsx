@@ -42,7 +42,7 @@ export default async function BorrowerPayPage({
   if (!hasPsp && upiMap['upi_id'] && !paid && !expired) {
     const built = await buildUpiQrDataUrl({
       vpa: upiMap['upi_id'],
-      payeeName: tenant?.name ?? 'LoanTrack',
+      payeeName: tenant?.name ?? 'ZoloFund',
       amount,
       note: `Loan ${loan?.loanCode ?? ''}`,
       ref: token,

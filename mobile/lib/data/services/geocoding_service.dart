@@ -27,7 +27,7 @@ class GeocodingService {
             connectTimeout: const Duration(seconds: 12),
             receiveTimeout: const Duration(seconds: 12),
             headers: const {
-              'User-Agent': 'LoanTrack/1.0 (com.loantrack.app)',
+              'User-Agent': 'ZoloFund/1.0 (com.zolofund.app)',
               'Accept': 'application/json',
             },
           ),

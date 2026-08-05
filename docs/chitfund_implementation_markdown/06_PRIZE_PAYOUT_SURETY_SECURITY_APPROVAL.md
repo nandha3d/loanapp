@@ -388,7 +388,7 @@ Admin mobile can optionally:
 ## Implementation prompt for coding agent
 
 ```txt
-Implement Step 6 for the LoanTrack chit-fund module.
+Implement Step 6 for the ZoloFund chit-fund module.
 
 Add ChitSecurity workflow and prize payout approval. Auction confirmation should set payoutStatus = security_pending and must not post cash payout. Add web security approval page and API routes to submit, verify, approve/reject security. Add payout release route that requires approved security and payoutStatus = ready, then creates account entry, branch wallet debit, ChitReceipt payout voucher, and audit log.
 

@@ -16,7 +16,7 @@ async function main() {
     {
       plan: 'free',
       displayName: 'Free',
-      description: 'Test out LoanTrack features for free',
+      description: 'Test out ZoloFund features for free',
       monthlyPrice: 0,
       maxBranches: 1,
       maxAgents: 1,

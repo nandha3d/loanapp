@@ -1,5 +1,5 @@
 /**
- * Shared E2E helpers for the LoanTrack web app (non-accounting modules).
+ * Shared E2E helpers for the ZoloFund web app (non-accounting modules).
  */
 import { Page, expect } from '@playwright/test';
 

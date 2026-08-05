@@ -338,7 +338,7 @@ Avoid repeatedly decrementing `dueAmount` without clear audit. If existing code 
 ## Implementation prompt for coding agent
 
 ```txt
-Implement Step 5 for the LoanTrack chit-fund module.
+Implement Step 5 for the ZoloFund chit-fund module.
 
 Replace the direct winner-only auction process with a full auction workflow. Add ChitBid and ChitAuctionAttendance usage, auction detail page, bid entry, attendance marking, bid history, winning bid selection, auction confirmation, and minutes generation.
 

@@ -16,7 +16,7 @@ async function main() {
   const tenant = await prisma.tenant.upsert({
     where: { slug: 'default' },
     update: {},
-    create: { name: 'LoanTrack', slug: 'default' },
+    create: { name: 'ZoloFund', slug: 'default' },
   });
   const branch = await prisma.branch.upsert({
     where: { tenantId_code: { tenantId: tenant.id, code: 'CHIT-DEMO' } },

@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
-import 'package:loantrack/data/local/offline_queue.dart';
+import 'package:zolofund/data/local/offline_queue.dart';
 
 void main() {
   group('isTerminalSyncError', () {

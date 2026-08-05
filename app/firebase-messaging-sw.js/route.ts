@@ -32,7 +32,7 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage(function (payload) {
   const n = payload.notification || {};
   const data = payload.data || {};
-  self.registration.showNotification(n.title || 'LoanTrack', {
+  self.registration.showNotification(n.title || 'ZoloFund', {
     body: n.body || '',
     icon: '/og.png',
     badge: '/og.png',

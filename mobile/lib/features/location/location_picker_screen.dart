@@ -3,11 +3,11 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 
-import 'package:loantrack/core/gps/gps_service.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/services/geocoding_service.dart';
+import 'package:zolofund/core/gps/gps_service.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/services/geocoding_service.dart';
 
 /// Result returned by [LocationPickerScreen].
 class PickedLocation {
@@ -147,7 +147,7 @@ class _LocationPickerScreenState extends ConsumerState<LocationPickerScreen> {
             children: [
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.loantrack.app',
+                userAgentPackageName: 'com.zolofund.app',
               ),
             ],
           ),

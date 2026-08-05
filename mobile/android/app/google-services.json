@@ -9,7 +9,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:895293019400:android:30f0d5db0186033c4988bd",
         "android_client_info": {
-          "package_name": "com.loantrack.app"
+          "package_name": "com.zolofund.app"
         }
       },
       "oauth_client": [
@@ -17,7 +17,7 @@
           "client_id": "895293019400-gvj4r3760op41qfaocafs2slp4qisvao.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.loantrack.app",
+            "package_name": "com.zolofund.app",
             "certificate_hash": "6546a47458c9b4f0cadfa8723e8cf440d4165eb6"
           }
         },

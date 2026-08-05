@@ -7,15 +7,15 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:loantrack/data/services/auth_service.dart';
-import 'package:loantrack/data/services/borrower_service.dart';
-import 'package:loantrack/data/services/chit_service.dart';
-import 'package:loantrack/data/services/collection_run_service.dart';
-import 'package:loantrack/data/services/loan_service.dart';
-import 'package:loantrack/data/services/nach_service.dart';
-import 'package:loantrack/data/services/vehicles_service.dart';
-import 'package:loantrack/data/services/wallet_service.dart';
-import 'package:loantrack/shared/constants/endpoints.dart';
+import 'package:zolofund/data/services/auth_service.dart';
+import 'package:zolofund/data/services/borrower_service.dart';
+import 'package:zolofund/data/services/chit_service.dart';
+import 'package:zolofund/data/services/collection_run_service.dart';
+import 'package:zolofund/data/services/loan_service.dart';
+import 'package:zolofund/data/services/nach_service.dart';
+import 'package:zolofund/data/services/vehicles_service.dart';
+import 'package:zolofund/data/services/wallet_service.dart';
+import 'package:zolofund/shared/constants/endpoints.dart';
 
 class _ContractAdapter implements HttpClientAdapter {
   final requests = <String>[];

@@ -5,7 +5,7 @@ import { borrowerLoginAndVerify, issueMobileTokenForSetup } from './helpers/auth
 import { expectError, expectOk, routeRequest, routes, type Envelope } from './helpers/apiClient';
 import { run, test } from './helpers/harness';
 import { writeKnownGapEvidence } from './helpers/evidenceWriter';
-import { createCustomerFixture, seedLoanTrackScenario, type LoanTrackScenario } from './helpers/seedLoanTrack';
+import { createCustomerFixture, seedZoloFundScenario, type ZoloFundScenario } from './helpers/seedZoloFund';
 
 // Customer self-service live chit auction (join → admit/deny → bid), the
 // feature behind the mobile "Join Live Auction" button. Exercises the new
@@ -18,7 +18,7 @@ const CHIT_APP = 'chitfunds';
 const runId = getRunId();
 const prisma = getPrisma();
 
-let scenario: LoanTrackScenario;
+let scenario: ZoloFundScenario;
 let adminToken = '';
 
 type StaffApiOptions = {
@@ -437,7 +437,7 @@ test('CUSTBID-006 a member who already won cannot re-join', async () => {
 
 async function main() {
   try {
-    scenario = await seedLoanTrackScenario(runId);
+    scenario = await seedZoloFundScenario(runId);
     await enableChitfundsForTenantA();
     adminToken = await issueMobileTokenForSetup({ ...scenario.users.adminA1, appType: CHIT_APP });
     const summary = await run();

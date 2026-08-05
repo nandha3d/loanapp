@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:loantrack/data/models/user.dart';
+import 'package:zolofund/data/models/user.dart';
 
-import 'package:loantrack/core/auth/auth_controller.dart';
-import 'package:loantrack/core/l10n/language_controller.dart';
-import 'package:loantrack/core/network/dio_client.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/shared/constants/endpoints.dart';
+import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/shared/constants/endpoints.dart';
 
 /// Immersive app-selector landing — the mobile twin of the web `/portal`
 /// page. Superadmins/admins land here after login: a dark gradient hub with
@@ -298,7 +298,7 @@ class _TopBar extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 12, 16, 0),
       child: Row(
         children: [
-          // LoanTrack wordmark, small.
+          // ZoloFund wordmark, small.
           Text.rich(
             TextSpan(
               style: AppTypography.sectionTitle.copyWith(color: Colors.white),

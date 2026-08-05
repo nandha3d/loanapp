@@ -1,5 +1,5 @@
-import 'package:loantrack/features/collection/collection_screen.dart';
-import 'package:loantrack/core/currency/currency_controller.dart';
+import 'package:zolofund/features/collection/collection_screen.dart';
+import 'package:zolofund/core/currency/currency_controller.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -8,24 +8,24 @@ import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
-import 'package:loantrack/core/a11y/voice_assist.dart';
-import 'package:loantrack/data/services/upload_service.dart';
-import 'package:loantrack/features/collection/qr_scan_screen.dart';
-import 'package:loantrack/core/gps/gps_service.dart';
-import 'package:loantrack/core/l10n/language_controller.dart';
-import 'package:loantrack/core/l10n/app_strings.dart';
-import 'package:loantrack/core/network/api_exception.dart';
-import 'package:loantrack/core/network/authed_image.dart';
-import 'package:loantrack/core/network/dio_client.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/local/collection_queue.dart';
-import 'package:loantrack/data/models/collection_entry.dart';
-import 'package:loantrack/data/services/collection_service.dart';
-import 'package:loantrack/data/services/payment_service.dart';
-import 'package:loantrack/features/collection/voice_entry_controller.dart';
-import 'package:loantrack/features/collection/voice_amount_parser.dart';
+import 'package:zolofund/core/a11y/voice_assist.dart';
+import 'package:zolofund/data/services/upload_service.dart';
+import 'package:zolofund/features/collection/qr_scan_screen.dart';
+import 'package:zolofund/core/gps/gps_service.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/l10n/app_strings.dart';
+import 'package:zolofund/core/network/api_exception.dart';
+import 'package:zolofund/core/network/authed_image.dart';
+import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/local/collection_queue.dart';
+import 'package:zolofund/data/models/collection_entry.dart';
+import 'package:zolofund/data/services/collection_service.dart';
+import 'package:zolofund/data/services/payment_service.dart';
+import 'package:zolofund/features/collection/voice_entry_controller.dart';
+import 'package:zolofund/features/collection/voice_amount_parser.dart';
 
 class QuickCollectSheet extends ConsumerStatefulWidget {
   const QuickCollectSheet({super.key, required this.row, this.scopeRows});

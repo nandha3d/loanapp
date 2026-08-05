@@ -81,7 +81,7 @@ export default async function DashboardLayout({
   }
 
   const headerStore = await headers();
-  const pathname = headerStore.get('x-loantrack-path') || '';
+  const pathname = headerStore.get('x-zolofund-path') || '';
   const pagePath = pathname ? parseModulePath(pathname).page : '';
   const isSharedProfileRoute = pagePath === '/profile';
 

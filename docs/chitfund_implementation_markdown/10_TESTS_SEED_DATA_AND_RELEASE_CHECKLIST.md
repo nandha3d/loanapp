@@ -419,7 +419,7 @@ npm run test:e2e-ui-critical
 ## Implementation prompt for coding agent
 
 ```txt
-Implement Step 10 for the LoanTrack chit-fund module.
+Implement Step 10 for the ZoloFund chit-fund module.
 
 Add the complete chit test suite under tests/chits, seed script scripts/seed-chit-demo.ts, QA evidence template under Testing/qa_evidence/chitfunds, and package.json scripts. Cover calculations, compliance activation, collections/receipts/reversals, auction workflow, security/payout approval, reports, and tenant/branch security.
 

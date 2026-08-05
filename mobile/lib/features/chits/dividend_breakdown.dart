@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
 
 /// Shared step-by-step dividend calculation display — the mobile counterpart
 /// of components/chits/DividendBreakdown.tsx (doc 22a). Used by the winner

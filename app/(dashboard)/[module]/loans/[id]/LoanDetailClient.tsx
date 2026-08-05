@@ -159,7 +159,7 @@ export default function LoanDetailClient({
   userId,
   receiptPdfEnabled = false,
   upiId = '',
-  payeeName = 'LoanTrack',
+  payeeName = 'ZoloFund',
   goldServicing = null,
 }: {
   loan: any;

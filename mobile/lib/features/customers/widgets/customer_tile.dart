@@ -3,14 +3,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:loantrack/core/network/authed_image.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/models/customer.dart';
-import 'package:loantrack/core/l10n/language_controller.dart';
-import 'package:loantrack/core/auth/auth_controller.dart';
-import 'package:loantrack/data/models/user.dart';
-import 'package:loantrack/shared/widgets/app_badge.dart';
+import 'package:zolofund/core/network/authed_image.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/models/customer.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/data/models/user.dart';
+import 'package:zolofund/shared/widgets/app_badge.dart';
 
 class CustomerTile extends ConsumerWidget {
   const CustomerTile({super.key, required this.customer, required this.onTap});

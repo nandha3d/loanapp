@@ -33,7 +33,7 @@ jobs:
           UPLOADS=/home/loantrack/uploads
           echo "[uploads] ensuring $UPLOADS exists"
           mkdir -p "$UPLOADS"
-          chown -R loantrack:loantrack "$UPLOADS" 2>/dev/null || true
+          chown -R zolofund:zolofund "$UPLOADS" 2>/dev/null || true
           cd /home/loantrack/app
           if [ -d private/uploads ]; then
             echo "[uploads] migrating surviving files from private/uploads"

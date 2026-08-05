@@ -373,7 +373,7 @@ export const en = {
   },
   affiliatePage: {
     title: 'Affiliate Partner Network',
-    subtitle: 'Promote LoanTrack to other lending professionals, grow the community, and unlock premium lifetime rewards.',
+    subtitle: 'Promote ZoloFund to other lending professionals, grow the community, and unlock premium lifetime rewards.',
     partnerLinkTitle: 'Your Shareable Partner Link',
     partnerLinkDesc: 'Share this link in emails, WhatsApp groups, or direct messages.',
     copied: 'Copied',

@@ -1,4 +1,4 @@
-# LoanTrack Automation Test Sketch — Penalty, Overdue, NPA, Foreclosure, Settlement
+# ZoloFund Automation Test Sketch — Penalty, Overdue, NPA, Foreclosure, Settlement
 
 This Markdown file is written as a direct implementation sketch/prompt for Codex.
 
@@ -28,7 +28,7 @@ Codex can create helpers similar to these:
 ```text
 tests/helpers/testDb.ts
 tests/helpers/apiClient.ts
-tests/helpers/seedLoanTrack.ts
+tests/helpers/seedZoloFund.ts
 tests/helpers/assertMoney.ts
 tests/helpers/authTokens.ts
 tests/helpers/cleanup.ts

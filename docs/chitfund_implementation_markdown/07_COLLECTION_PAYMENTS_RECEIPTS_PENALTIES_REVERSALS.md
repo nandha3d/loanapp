@@ -362,7 +362,7 @@ mobile/lib/features/chits/chit_detail_screen.dart
 ## Implementation prompt for coding agent
 
 ```txt
-Implement Step 7 for the LoanTrack chit-fund module.
+Implement Step 7 for the ZoloFund chit-fund module.
 
 Create shared collection and receipt helpers under lib/chits. Update web and mobile payment flows to use ADD_PAYMENT or SET_TOTAL_PAID explicitly. Every collection must create a ChitReceipt, account entry, and branch wallet credit. Add payment mode, reference number, notes, collector, and last receipt fields.
 

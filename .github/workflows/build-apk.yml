@@ -47,12 +47,12 @@ jobs:
             echo "::error::ANDROID_KEYSTORE_BASE64 secret missing — release build needs the keystore for Google Sign-In to work."
             exit 1
           fi
-          echo "$KEYSTORE_BASE64" | base64 -d > android/app/loantrack-release.jks
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/zolofund-release.jks
           cat > android/key.properties <<EOF
           storePassword=$STORE_PASSWORD
           keyPassword=$KEY_PASSWORD
           keyAlias=$KEY_ALIAS
-          storeFile=loantrack-release.jks
+          storeFile=zolofund-release.jks
           EOF
 
       - name: Build release APK
@@ -63,7 +63,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: loantrack-release-apk
+          name: zolofund-release-apk
           path: mobile/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 30

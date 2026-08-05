@@ -397,7 +397,7 @@ main().finally(() => prisma.$disconnect());
 ## Implementation prompt for coding agent
 
 ```txt
-Implement Step 1 for the LoanTrack chit-fund module.
+Implement Step 1 for the ZoloFund chit-fund module.
 
 Update prisma/schema.prisma by extending the existing ChitGroup, ChitMember, ChitAuction, and ChitSubscription models and adding ChitDocument, ChitBid, ChitAuctionAttendance, ChitReceipt, ChitSecurity, and ChitPenalty models as described in 01_DATABASE_MIGRATIONS_AND_SCHEMA.md.
 

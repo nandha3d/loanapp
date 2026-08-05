@@ -8,7 +8,7 @@ import { findUserUniqueConflicts } from '@/lib/userUniqueness';
 export async function POST(request: Request) {
   try {
     // Self-registration is disabled once a client's custom domain is claimed.
-    const host = request.headers.get('x-loantrack-host') || request.headers.get('host');
+    const host = request.headers.get('x-zolofund-host') || request.headers.get('host');
     const { getCustomDomainTenantId, isStandaloneDomainHost } = await import('@/lib/tenant');
     if (await getCustomDomainTenantId(host)) {
       return NextResponse.json({ success: false, error: 'Registration is disabled on this domain.' }, { status: 403 });

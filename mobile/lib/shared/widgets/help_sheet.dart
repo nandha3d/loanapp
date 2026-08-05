@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'package:loantrack/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
 
 /// In-app contextual help (U5): a bottom sheet with 3–5 illustrated steps
 /// per screen plus a contact-support action. Static content — works offline.

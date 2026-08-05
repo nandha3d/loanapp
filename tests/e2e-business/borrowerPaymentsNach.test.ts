@@ -4,7 +4,7 @@ import path from 'node:path';
 import { disconnectTestDb, getPrisma, getRunId } from './helpers/testDb';
 import { cleanupRunData } from './helpers/cleanup';
 import { borrowerLoginAndVerify, issueMobileTokenForSetup } from './helpers/authTokens';
-import { createCustomerFixture, createLoanFixture, seedLoanTrackScenario, type LoanTrackScenario } from './helpers/seedLoanTrack';
+import { createCustomerFixture, createLoanFixture, seedZoloFundScenario, type ZoloFundScenario } from './helpers/seedZoloFund';
 import { routeRequest, expectOk, routes, type Envelope } from './helpers/apiClient';
 import { assertMoneyEqual } from './helpers/assertMoney';
 import { configureTenantWebhookSecret, collectionPaidPayload, nachPayload, signedRazorpayPayload } from './helpers/webhookFixtures';
@@ -16,7 +16,7 @@ const runId = getRunId();
 const prisma = getPrisma();
 const webhookSecret = `${runId}-webhook-secret`;
 
-let scenario: LoanTrackScenario;
+let scenario: ZoloFundScenario;
 let adminToken = '';
 let borrowerToken = '';
 let loanId = '';
@@ -341,7 +341,7 @@ knownGap('PAY-GAP-004 duplicate loan-level collection replay can allocate to the
 
 async function main() {
   try {
-    scenario = await seedLoanTrackScenario(runId);
+    scenario = await seedZoloFundScenario(runId);
     await configureTenantWebhookSecret(scenario.tenantA.id, webhookSecret);
     adminToken = await issueMobileTokenForSetup(scenario.users.adminA1);
     const summary = await run();

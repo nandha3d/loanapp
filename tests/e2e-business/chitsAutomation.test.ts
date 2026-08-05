@@ -6,14 +6,14 @@ import { expectError, expectOk, routeRequest, routes, type Envelope } from './he
 import { assertMoneyEqual } from './helpers/assertMoney';
 import { knownGap, run, test } from './helpers/harness';
 import { writeKnownGapEvidence } from './helpers/evidenceWriter';
-import { createCustomerFixture, seedLoanTrackScenario, type LoanTrackScenario } from './helpers/seedLoanTrack';
+import { createCustomerFixture, seedZoloFundScenario, type ZoloFundScenario } from './helpers/seedZoloFund';
 import { knownGapCatalog } from './helpers/knownGaps';
 
 const CHIT_APP = 'chitfunds';
 const runId = getRunId();
 const prisma = getPrisma();
 
-let scenario: LoanTrackScenario;
+let scenario: ZoloFundScenario;
 let adminToken = '';
 let agentToken = '';
 let branchA2AdminToken = '';
@@ -691,7 +691,7 @@ knownGap('MOD-GAP-001 disabled chitfunds module is not enforced at API boundary'
 
 async function main() {
   try {
-    scenario = await seedLoanTrackScenario(runId);
+    scenario = await seedZoloFundScenario(runId);
     await enableChitfundsForTenantA();
     adminToken = await issueMobileTokenForSetup({ ...scenario.users.adminA1, appType: CHIT_APP });
     agentToken = await issueMobileTokenForSetup({ ...scenario.users.agentA1, appType: CHIT_APP });

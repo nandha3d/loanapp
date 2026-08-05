@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:loantrack/core/network/dio_client.dart';
-import 'package:loantrack/core/gps/gps_service.dart';
+import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/core/gps/gps_service.dart';
 
 const _kQueueBox = 'gps_ping_queue';
 const _kQueueKey = 'pending';

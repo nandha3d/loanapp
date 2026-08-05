@@ -1,4 +1,4 @@
-# LoanTrack Reports — Master Index & Build Spec
+# ZoloFund Reports — Master Index & Build Spec
 
 > **Goal.** Every report a lending platform needs (the 14-section operator list) + our own module
 > reports (gold, property, product-finance, chit, wallet), each with a **table rendered on screen first**

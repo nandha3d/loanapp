@@ -7,9 +7,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 
-import 'package:loantrack/app.dart';
-import 'package:loantrack/core/network/dio_client.dart';
-import 'package:loantrack/shared/widgets/app_button.dart';
+import 'package:zolofund/app.dart';
+import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/shared/widgets/app_button.dart';
 
 class _EnvelopeAdapter implements HttpClientAdapter {
   @override

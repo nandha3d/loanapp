@@ -202,7 +202,7 @@ loanapp/
 
 ```
 Request → middleware extracts subdomain slug
-        → sets x-loantrack-tenant-slug header
+        → sets x-zolofund-tenant-slug header
         → server code calls getCurrentTenantId()
         → resolves from header or falls back to session tenant
         → all queries use this tenantId

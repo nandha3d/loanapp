@@ -20,7 +20,7 @@ type Step = {
 
 const ADMIN_STEPS: Step[] = [
   {
-    title: 'Welcome to LoanTrack 👋',
+    title: 'Welcome to ZoloFund 👋',
     body: "Let's set your business up in a few steps. Each step takes you to the right screen — do the action there, then press Next.",
     page: '/dashboard',
   },

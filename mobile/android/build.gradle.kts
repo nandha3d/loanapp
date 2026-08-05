@@ -32,7 +32,7 @@ fun Project.injectNamespaceIfMissing() {
         val current = androidExtension.javaClass.getMethod("getNamespace")
             .invoke(androidExtension) as? String
         if (current.isNullOrEmpty()) {
-            val ns = "com.loantrack." + name.replace(Regex("[^A-Za-z0-9_]"), "_")
+            val ns = "com.zolofund." + name.replace(Regex("[^A-Za-z0-9_]"), "_")
             androidExtension.javaClass
                 .getMethod("setNamespace", String::class.java)
                 .invoke(androidExtension, ns)

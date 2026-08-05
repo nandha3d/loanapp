@@ -1,6 +1,6 @@
 # Chit Fund Module Agent Guide
 
-This guide is the module-only context for LoanTrack chit fund work. Use it before
+This guide is the module-only context for ZoloFund chit fund work. Use it before
 editing chit fund web pages, API routes, shared services, Prisma schema, mobile
 screens, or tests.
 

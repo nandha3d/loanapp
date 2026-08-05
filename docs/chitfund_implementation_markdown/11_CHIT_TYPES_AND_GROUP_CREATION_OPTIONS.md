@@ -236,7 +236,7 @@ Sensible defaults so a small operator can create a working group by filling only
 ## Implementation prompt for coding agent
 
 ```txt
-Implement Step 11 for the LoanTrack chit-fund module.
+Implement Step 11 for the ZoloFund chit-fund module.
 
 Add chit variant configuration to ChitGroup: chitType, auctionType, fixedDiscountPct, commissionBasis, gstPct, dividendPolicy, dividendDistribution, dividendRounding, minDiscountPct, bidIncrement, tieBreakRule, hasForemanTicket; add ticketShare and isForemanTicket to ChitMember and the vacant subscriberStatus. Store config enums as UPPERCASE tokens matching lib/chits/types.ts unions; statuses stay lowercase.
 

@@ -304,7 +304,7 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
           let hostTenantId: string | null = null;
           try {
             const h = await (await import('next/headers')).headers();
-            const host = h.get('x-loantrack-host') || h.get('host');
+            const host = h.get('x-zolofund-host') || h.get('host');
             hostTenantId = await resolveLoginTenantId(host);
           } catch { /* no host context — fall back to global lookup */ }
 

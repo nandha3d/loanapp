@@ -2,14 +2,14 @@
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:loantrack/data/models/collection_entry.dart';
-import 'package:loantrack/data/models/collection_run.dart';
-import 'package:loantrack/data/models/customer.dart';
-import 'package:loantrack/data/models/instalment.dart';
-import 'package:loantrack/data/models/loan.dart';
-import 'package:loantrack/data/models/user.dart';
-import 'package:loantrack/data/models/vehicle.dart';
-import 'package:loantrack/data/models/wallet.dart';
+import 'package:zolofund/data/models/collection_entry.dart';
+import 'package:zolofund/data/models/collection_run.dart';
+import 'package:zolofund/data/models/customer.dart';
+import 'package:zolofund/data/models/instalment.dart';
+import 'package:zolofund/data/models/loan.dart';
+import 'package:zolofund/data/models/user.dart';
+import 'package:zolofund/data/models/vehicle.dart';
+import 'package:zolofund/data/models/wallet.dart';
 
 void main() {
   group('MOB-MODEL contract tests', () {

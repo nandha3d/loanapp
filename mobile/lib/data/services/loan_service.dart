@@ -1,11 +1,11 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:loantrack/core/network/api_exception.dart';
-import 'package:loantrack/core/network/dio_client.dart';
-import 'package:loantrack/data/models/loan.dart';
-import 'package:loantrack/data/models/loan_calc.dart';
-import 'package:loantrack/shared/constants/endpoints.dart';
+import 'package:zolofund/core/network/api_exception.dart';
+import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/data/models/loan.dart';
+import 'package:zolofund/data/models/loan_calc.dart';
+import 'package:zolofund/shared/constants/endpoints.dart';
 
 class LoanService {
   LoanService(this._dio);

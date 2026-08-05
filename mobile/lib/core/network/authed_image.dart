@@ -10,7 +10,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
-import 'package:loantrack/core/network/dio_client.dart';
+import 'package:zolofund/core/network/dio_client.dart';
 
 /// [ImageProvider] that fetches through the shared Dio client so the
 /// Authorization / tenant headers (and the 401 refresh flow) apply to image

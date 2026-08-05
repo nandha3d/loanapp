@@ -35,7 +35,7 @@ function InvoiceDocument({ invoice }: { invoice: any }) {
       React.createElement(
         View,
         { style: styles.row },
-        React.createElement(Text, { style: styles.label }, 'LoanTrack Subscription - Monthly'),
+        React.createElement(Text, { style: styles.label }, 'ZoloFund Subscription - Monthly'),
         React.createElement(Text, { style: styles.value }, `${Number(invoice.amount).toFixed(2)} INR`),
       ),
       React.createElement(

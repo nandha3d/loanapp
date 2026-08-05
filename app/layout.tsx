@@ -15,7 +15,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'LoanTrack — Micro-Lending Management System',
+  title: 'ZoloFund — Micro-Lending Management System',
   description: 'Complete micro-lending management platform with customer onboarding, loan tracking, collection management, and penalty engine.',
 };
 

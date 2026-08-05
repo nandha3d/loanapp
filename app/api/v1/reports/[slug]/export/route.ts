@@ -77,7 +77,7 @@ export async function GET(
       from,
       to,
       branchName: branding.appTagline || 'All Branches',
-      appName: branding.appName || 'LoanTrack',
+      appName: branding.appName || 'ZoloFund',
       currencySymbol,
     };
 

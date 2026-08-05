@@ -7,9 +7,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pretty_dio_logger/pretty_dio_logger.dart';
 
-import 'package:loantrack/core/auth/auth_storage.dart';
-import 'package:loantrack/core/a11y/ui_prefs.dart';
-import 'package:loantrack/core/network/api_exception.dart';
+import 'package:zolofund/core/auth/auth_storage.dart';
+import 'package:zolofund/core/a11y/ui_prefs.dart';
+import 'package:zolofund/core/network/api_exception.dart';
 
 /// Base URL — override via --dart-define=API_BASE_URL=...
 /// Release builds default to production; debug builds use local development.

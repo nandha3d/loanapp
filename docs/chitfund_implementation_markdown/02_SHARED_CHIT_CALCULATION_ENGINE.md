@@ -366,7 +366,7 @@ assertEqual(pay.status, 'paid', 'payment status');
 ## Implementation prompt for coding agent
 
 ```txt
-Implement Step 2 for the LoanTrack chit-fund module.
+Implement Step 2 for the ZoloFund chit-fund module.
 
 Create lib/chits/types.ts, lib/chits/calculations.ts, and lib/chits/validation.ts. Move all auction, commission, discount, dividend, and payment delta calculations into these shared functions.
 

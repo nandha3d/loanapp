@@ -30,8 +30,8 @@ voice-entry + offline + GPS.
   app", "Credit bureau + RBI NPA built-in", "Free plan available" (Vasool has no free tier).
 - **Reviews flywheel:** in-app review prompt after a successful collection streak (Flutter `in_app_review`),
   gated/config-driven; never spammy.
-- **Comparison page:** a public "LoanTrack vs Vasool" page on the marketing site (reuse analysis in
-  `docs/vasool-vs-loantrack.html`) — honest, lead with free tier + multi-product + compliance.
+- **Comparison page:** a public "ZoloFund vs Vasool" page on the marketing site (reuse analysis in
+  `docs/vasool-vs-zolofund.html`) — honest, lead with free tier + multi-product + compliance.
 
 ## Dependencies
 - §01 voice + §02 offline must ship (or be demoable) before headlining them in store creatives.

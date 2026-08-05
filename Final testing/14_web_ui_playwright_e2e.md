@@ -1,4 +1,4 @@
-# LoanTrack Automation Test Sketch — Web UI Playwright E2E, Critical User Journeys
+# ZoloFund Automation Test Sketch — Web UI Playwright E2E, Critical User Journeys
 
 This Markdown file is written as a direct implementation sketch/prompt for Codex.
 
@@ -28,7 +28,7 @@ Codex can create helpers similar to these:
 ```text
 tests/helpers/testDb.ts
 tests/helpers/apiClient.ts
-tests/helpers/seedLoanTrack.ts
+tests/helpers/seedZoloFund.ts
 tests/helpers/assertMoney.ts
 tests/helpers/authTokens.ts
 tests/helpers/cleanup.ts
@@ -94,5 +94,5 @@ Manual UX verification is still required for page layout, form comfort, visual d
 ## Suggested npm script
 
 ```json
-"test:e2e-ui-critical": "npx playwright test e2e/loantrack-critical-flow.spec.ts"
+"test:e2e-ui-critical": "npx playwright test e2e/zolofund-critical-flow.spec.ts"
 ```

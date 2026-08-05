@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
 
     if (user) {
       const otp = generateOtp(email, timeBucket());
-      const brandName = await getSetting(user.tenantId, 'app_name', 'LoanTrack');
+      const brandName = await getSetting(user.tenantId, 'app_name', 'ZoloFund');
       await sendEmail(
         user.tenantId,
         email,

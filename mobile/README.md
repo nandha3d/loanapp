@@ -1,6 +1,6 @@
-# LoanTrack Mobile (Flutter)
+# ZoloFund Mobile (Flutter)
 
-Native Android + iOS client for the LoanTrack microlending / chit fund platform. Built per `../LoanTrack_Flutter_Project.md` (spec) and `../design.md` (visual tokens).
+Native Android + iOS client for the ZoloFund microlending / chit fund platform. Built per `../ZoloFund_Flutter_Project.md` (spec) and `../design.md` (visual tokens).
 
 ## Status
 
@@ -15,15 +15,15 @@ Native Android + iOS client for the LoanTrack microlending / chit fund platform.
 ## First-time setup
 
 This repo has the `mobile/ios` and `mobile/android` directories generated using:
-- **Bundle ID / Application ID**: `com.loantrack.app` (standardized across Android and iOS)
-- **App Display Name**: `LoanTrack`
+- **Bundle ID / Application ID**: `com.zolofund.app` (standardized across Android and iOS)
+- **App Display Name**: `ZoloFund`
 - **iOS Deployment Target**: `15.0`
 
 If you ever need to regenerate the native folders (preserving your existing `lib/` and `pubspec.yaml`), run:
 
 ```powershell
 # 1) Generate native folders
-flutter create . --project-name loantrack --org com.loantrack --platforms=android,ios
+flutter create . --project-name zolofund --org com.zolofund --platforms=android,ios
 
 # 2) Install dependencies
 flutter pub get
@@ -97,7 +97,7 @@ lib/
 
 ## Deviations from the spec
 
-These are conscious choices that differ from `LoanTrack_Flutter_Project.md`. Confirmed with the user.
+These are conscious choices that differ from `ZoloFund_Flutter_Project.md`. Confirmed with the user.
 
 1. **Package versions = latest stable** as of 2026-05, not the version ranges pinned in spec §2.1.
 2. **No freezed / no Retrofit / no build_runner.** Models are hand-written immutable Dart classes with `fromJson`. `AuthService` calls Dio directly. Saves a codegen step at the cost of slightly more boilerplate — easy to migrate later if needed.

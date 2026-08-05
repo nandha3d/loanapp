@@ -343,7 +343,7 @@ chit_document
 ## Implementation prompt for coding agent
 
 ```txt
-Implement Step 3 for the LoanTrack chit-fund module.
+Implement Step 3 for the ZoloFund chit-fund module.
 
 Add compliance and registration workflow to chit groups. Update web create/edit/detail pages, server actions, and mobile APIs. Create activateChitGroup server action and POST /api/v1/chits/[id]/activate route. Draft groups should be allowed, but activation must be blocked until registration, registrar, by-law, commencement certificate, approved bank, foreman, commission cap, max discount, and full member count are complete.
 

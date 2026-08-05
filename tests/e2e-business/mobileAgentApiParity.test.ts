@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { disconnectTestDb, getPrisma, getRunId } from './helpers/testDb';
 import { cleanupRunData } from './helpers/cleanup';
-import { createCustomerFixture, createLoanFixture, seedLoanTrackScenario, type LoanTrackScenario } from './helpers/seedLoanTrack';
+import { createCustomerFixture, createLoanFixture, seedZoloFundScenario, type ZoloFundScenario } from './helpers/seedZoloFund';
 import { loginMobile } from './helpers/authTokens';
 import { routeRequest, expectOk, routes, type Envelope } from './helpers/apiClient';
 import { assertMoneyEqual } from './helpers/assertMoney';
@@ -15,7 +15,7 @@ import { knownGapCatalog } from './helpers/knownGaps';
 const runId = getRunId();
 const prisma = getPrisma();
 
-let scenario: LoanTrackScenario;
+let scenario: ZoloFundScenario;
 let agent: MobileClient;
 let agentLoanId = '';
 let otherBranchLoanId = '';
@@ -212,7 +212,7 @@ knownGap('MOB-GAP-001 duplicate loan-level collection replay remains P0 tracked'
 
 async function main() {
   try {
-    scenario = await seedLoanTrackScenario(runId);
+    scenario = await seedZoloFundScenario(runId);
     const summary = await run();
     await writeKnownGapEvidence(runId, summary, 'tests/e2e-business/mobileAgentApiParity.test.ts');
   } finally {

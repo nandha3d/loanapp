@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import 'package:loantrack/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
 
 /// Typography scale — verbatim from design.md.
 /// Base 14px = 1rem. All sizes computed from that base.

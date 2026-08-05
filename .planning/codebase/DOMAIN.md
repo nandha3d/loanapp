@@ -6,7 +6,7 @@
 
 ## Domain Overview
 
-LoanTrack manages three financial service verticals on a shared multi-tenant platform:
+ZoloFund manages three financial service verticals on a shared multi-tenant platform:
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -37,7 +37,7 @@ LoanTrack manages three financial service verticals on a shared multi-tenant pla
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | String (CUID) | Primary key |
-| `name` | String | Display name (default: "LoanTrack") |
+| `name` | String | Display name (default: "ZoloFund") |
 | `slug` | String | Subdomain identifier (unique) |
 | `status` | String | `active`, `suspended` |
 | `deletedAt` | DateTime? | Soft delete |

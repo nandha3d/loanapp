@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This roadmap converts the existing LoanTrack chit-fund MVP into a production-ready chit-fund operations module suitable for Tamil Nadu-style chit fund businesses.
+This roadmap converts the existing ZoloFund chit-fund MVP into a production-ready chit-fund operations module suitable for Tamil Nadu-style chit fund businesses.
 
 The current app already has:
 

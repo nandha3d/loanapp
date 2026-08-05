@@ -1,4 +1,4 @@
-import 'package:loantrack/core/currency/currency_controller.dart';
+import 'package:zolofund/core/currency/currency_controller.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,15 +7,15 @@ import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
-import 'package:loantrack/core/l10n/language_controller.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/models/analytics.dart';
-import 'package:loantrack/data/services/analytics_service.dart';
-import 'package:loantrack/shared/widgets/bottom_nav.dart';
-import 'package:loantrack/shared/widgets/empty_state.dart';
-import 'package:loantrack/shared/widgets/skeleton.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/models/analytics.dart';
+import 'package:zolofund/data/services/analytics_service.dart';
+import 'package:zolofund/shared/widgets/bottom_nav.dart';
+import 'package:zolofund/shared/widgets/empty_state.dart';
+import 'package:zolofund/shared/widgets/skeleton.dart';
 
 final _rangeFilterProvider = StateProvider.autoDispose<int>((ref) => 30);
 
@@ -38,7 +38,7 @@ class AnalyticsScreen extends ConsumerWidget {
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                pw.Text('LoanTrack Analytics Report',
+                pw.Text('ZoloFund Analytics Report',
                     style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
                 pw.SizedBox(height: 8),
                 pw.Text('Generated on ${DateFormat('dd MMM yyyy HH:mm').format(DateTime.now())}',
@@ -77,7 +77,7 @@ class AnalyticsScreen extends ConsumerWidget {
 
     await Printing.sharePdf(
       bytes: await pdf.save(),
-      filename: 'loantrack_analytics_${DateTime.now().millisecondsSinceEpoch}.pdf',
+      filename: 'zolofund_analytics_${DateTime.now().millisecondsSinceEpoch}.pdf',
     );
   }
 

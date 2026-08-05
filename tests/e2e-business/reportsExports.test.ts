@@ -22,14 +22,14 @@ import {
   createCustomerFixture,
   createLoanFixture,
   phoneForRun,
-  seedLoanTrackScenario,
-  type LoanTrackScenario,
-} from './helpers/seedLoanTrack';
+  seedZoloFundScenario,
+  type ZoloFundScenario,
+} from './helpers/seedZoloFund';
 import { APP_TYPE, disconnectTestDb, getPrisma, getRunId } from './helpers/testDb';
 
 process.env.TZ = 'UTC';
 
-let scenario: LoanTrackScenario;
+let scenario: ZoloFundScenario;
 let adminToken = '';
 let agentToken = '';
 let adminA2Token = '';
@@ -715,7 +715,7 @@ knownGap(
 async function main() {
   const runId = getRunId();
   try {
-    scenario = await seedLoanTrackScenario(runId);
+    scenario = await seedZoloFundScenario(runId);
     adminToken = await issueMobileTokenForSetup(scenario.users.adminA1);
     agentToken = await issueMobileTokenForSetup(scenario.users.agentA1);
     adminA2Token = await issueMobileTokenForSetup(scenario.users.adminA2);

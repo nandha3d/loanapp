@@ -408,7 +408,7 @@ export async function generate2faSecret() {
 
   const secret = generateSecret();
   const username = (session.user as any).username;
-  const otpauth = generateURI({ secret, label: username, issuer: 'LoanTrack' });
+  const otpauth = generateURI({ secret, label: username, issuer: 'ZoloFund' });
   const qrCodeUrl = await QRCode.toDataURL(otpauth);
 
   return { secret, qrCodeUrl };

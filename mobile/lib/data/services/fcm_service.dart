@@ -5,7 +5,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb, TargetPlatform, defaultTargetPlatform;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:loantrack/core/network/dio_client.dart';
+import 'package:zolofund/core/network/dio_client.dart';
 
 class FcmService {
   FcmService(this._dio);

@@ -1,4 +1,4 @@
-# LoanTrack Automation Test Sketch — Mobile Agent Integration, Offline Sync, GPS, API Parity
+# ZoloFund Automation Test Sketch — Mobile Agent Integration, Offline Sync, GPS, API Parity
 
 This Markdown file is written as a direct implementation sketch/prompt for Codex.
 
@@ -28,7 +28,7 @@ Codex can create helpers similar to these:
 ```text
 tests/helpers/testDb.ts
 tests/helpers/apiClient.ts
-tests/helpers/seedLoanTrack.ts
+tests/helpers/seedZoloFund.ts
 tests/helpers/assertMoney.ts
 tests/helpers/authTokens.ts
 tests/helpers/cleanup.ts
@@ -75,7 +75,7 @@ Implement automated tests for mobile agent API parity and Flutter integration fl
 
 ## Implementation sketch for Codex
 
-1. If Flutter source is included, add/extend `integration_test/loantrack_agent_flow_test.dart`. If only APK is present, create backend mobile API parity tests first and document manual APK testing separately.
+1. If Flutter source is included, add/extend `integration_test/zolofund_agent_flow_test.dart`. If only APK is present, create backend mobile API parity tests first and document manual APK testing separately.
 2. Build API parity tests using `/api/v1/...` routes consumed by mobile.
 3. Use fake/mock connectivity layer in Flutter integration tests for offline/online transition if available.
 4. For local queue, inspect mobile storage implementation and assert queued item count before/after sync.

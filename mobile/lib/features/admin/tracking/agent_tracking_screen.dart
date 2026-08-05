@@ -1,4 +1,4 @@
-import 'package:loantrack/core/currency/currency_controller.dart';
+import 'package:zolofund/core/currency/currency_controller.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -8,15 +8,15 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 
-import 'package:loantrack/core/l10n/language_controller.dart';
-import 'package:loantrack/core/network/authed_image.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/models/agent_location.dart';
-import 'package:loantrack/features/admin/tracking/tracking_provider.dart';
-import 'package:loantrack/shared/widgets/bottom_nav.dart';
-import 'package:loantrack/shared/widgets/empty_state.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/network/authed_image.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/models/agent_location.dart';
+import 'package:zolofund/features/admin/tracking/tracking_provider.dart';
+import 'package:zolofund/shared/widgets/bottom_nav.dart';
+import 'package:zolofund/shared/widgets/empty_state.dart';
 
 class AgentTrackingScreen extends ConsumerStatefulWidget {
   const AgentTrackingScreen({super.key});
@@ -223,7 +223,7 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen> {
                   children: [
                     TileLayer(
                       urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.loantrack.app',
+                      userAgentPackageName: 'com.zolofund.app',
                     ),
                     // Route the agent actually travelled (ping trail).
                     if (trail.length >= 2)

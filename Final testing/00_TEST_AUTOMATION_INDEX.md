@@ -1,4 +1,4 @@
-# LoanTrack Complete Automation Test Sketches — Index
+# ZoloFund Complete Automation Test Sketches — Index
 
 Use these files as Codex implementation prompts. Each file covers one automation type/module.
 
@@ -26,7 +26,7 @@ Build this one P0 test first:
 
 `tenant + branch + admin + agent + customer approval + loan approval + disbursement + collection + wallet + handover + reports + audit logs`
 
-This single flow validates the most important LoanTrack business behaviour: money movement and data correctness.
+This single flow validates the most important ZoloFund business behaviour: money movement and data correctness.
 
 ## Automation vs manual principle
 

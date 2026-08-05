@@ -5,9 +5,9 @@ import { buildMetadata } from '../_components/seo';
 import { BreadcrumbJsonLd } from '../_components/JsonLd';
 
 export const metadata = buildMetadata({
-  title: 'About LoanTrack — Modern Loan Management Software',
+  title: 'About ZoloFund — Modern Loan Management Software',
   description:
-    'LoanTrack is on a mission to bring modern, affordable loan tracking and management software to India\'s micro-lenders, NBFCs and chit-fund operators.',
+    'ZoloFund is on a mission to bring modern, affordable loan tracking and management software to India\'s micro-lenders, NBFCs and chit-fund operators.',
   path: '/about-us',
   keywords: ['loan software company', 'lending software India', 'loan management system'],
 });
@@ -47,7 +47,7 @@ export default function AboutPage() {
                 better — and so do their customers.
               </p>
               <p className="mk-lead">
-                LoanTrack brings GPS-verified collection, multi-module lending and real
+                ZoloFund brings GPS-verified collection, multi-module lending and real
                 accounting into one platform, so any lender can run a tight, transparent and
                 compliant operation from day one.
               </p>
@@ -101,7 +101,7 @@ export default function AboutPage() {
               </p>
             </div>
             <div className="mk-grid" style={{ gap: 16 }}>
-              <div className="mk-card"><div className="mk-card__ic mk-ic--amber"><Users /></div><h3 className="mk-h3">Customer-led roadmap</h3><p>The lenders who use LoanTrack shape what we build next.</p></div>
+              <div className="mk-card"><div className="mk-card__ic mk-ic--amber"><Users /></div><h3 className="mk-h3">Customer-led roadmap</h3><p>The lenders who use ZoloFund shape what we build next.</p></div>
               <div className="mk-card"><div className="mk-card__ic mk-ic--green"><Shield /></div><h3 className="mk-h3">Security &amp; compliance first</h3><p>RBI-aligned rules and serious data protection, baked in.</p></div>
             </div>
           </div>

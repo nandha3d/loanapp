@@ -66,7 +66,7 @@ export async function sendVerificationEmail(params: {
   const token = signVerifyToken(params.userId);
   const link = `${appBaseUrl()}/api/auth/verify-email?token=${encodeURIComponent(token)}`;
   const { getSetting } = await import('@/lib/tenant');
-  const brandName = await getSetting(params.tenantId, 'app_name', 'LoanTrack');
+  const brandName = await getSetting(params.tenantId, 'app_name', 'ZoloFund');
   return sendEmail(
     params.tenantId,
     params.email,

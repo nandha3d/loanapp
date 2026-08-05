@@ -2,10 +2,10 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:loantrack/core/auth/auth_storage.dart';
-import 'package:loantrack/core/network/api_exception.dart';
-import 'package:loantrack/data/models/user.dart';
-import 'package:loantrack/data/services/auth_service.dart';
+import 'package:zolofund/core/auth/auth_storage.dart';
+import 'package:zolofund/core/network/api_exception.dart';
+import 'package:zolofund/data/models/user.dart';
+import 'package:zolofund/data/services/auth_service.dart';
 
 class AuthRepository {
   AuthRepository(this._service, this._storage);

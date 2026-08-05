@@ -1,27 +1,27 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
-import 'package:loantrack/core/auth/auth_controller.dart';
-import 'package:loantrack/core/currency/currency_controller.dart';
+import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
-import 'package:loantrack/core/l10n/language_controller.dart';
-import 'package:loantrack/core/network/api_exception.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/local/chit_payment_queue.dart';
-import 'package:loantrack/data/models/chit.dart';
-import 'package:loantrack/data/models/user.dart';
-import 'package:loantrack/data/services/chit_service.dart';
-import 'package:loantrack/data/services/upload_service.dart';
-import 'package:loantrack/features/chits/chit_live_auction_screen.dart';
-import 'package:loantrack/features/chits/chit_payment_intents_screen.dart';
-import 'package:loantrack/shared/widgets/skeleton.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/network/api_exception.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/local/chit_payment_queue.dart';
+import 'package:zolofund/data/models/chit.dart';
+import 'package:zolofund/data/models/user.dart';
+import 'package:zolofund/data/services/chit_service.dart';
+import 'package:zolofund/data/services/upload_service.dart';
+import 'package:zolofund/features/chits/chit_live_auction_screen.dart';
+import 'package:zolofund/features/chits/chit_payment_intents_screen.dart';
+import 'package:zolofund/shared/widgets/skeleton.dart';
 
 /// Decimal columns (chitValue etc.) arrive as JSON strings from the raw
 /// Prisma payload, so a bare `as num?` cast throws — parse tolerantly.

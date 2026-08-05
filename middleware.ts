@@ -275,12 +275,12 @@ function nextWithTenantHeaders(
     requestHeaders.delete('next-url');
     requestHeaders.set('accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8');
   }
-  if (tenantSlug) requestHeaders.set('x-loantrack-tenant-slug', tenantSlug);
-  requestHeaders.set('x-loantrack-path', request.nextUrl.pathname);
+  if (tenantSlug) requestHeaders.set('x-zolofund-tenant-slug', tenantSlug);
+  requestHeaders.set('x-zolofund-path', request.nextUrl.pathname);
   const activeBranch = request.cookies.get('active_branch_id')?.value;
-  if (activeBranch) requestHeaders.set('x-loantrack-active-branch', activeBranch);
+  if (activeBranch) requestHeaders.set('x-zolofund-active-branch', activeBranch);
   const host = request.headers.get('host');
-  if (host) requestHeaders.set('x-loantrack-host', host);
+  if (host) requestHeaders.set('x-zolofund-host', host);
   
   return NextResponse.next({ request: { headers: requestHeaders } });
 }

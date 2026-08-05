@@ -273,7 +273,7 @@ These fields should be available for later reports:
 ## Implementation prompt for coding agent
 
 ```txt
-Implement Step 4 for the LoanTrack chit-fund module.
+Implement Step 4 for the ZoloFund chit-fund module.
 
 Add subscriber agreement, nominee, ticket, fraction, and member status workflow. Update ChitMember fields as per schema, then update web member table/detail actions, mobile API response, and Flutter models/screens. Add server actions to update member details, mark agreement signed, verify/reject agreement, and substitute member without deleting history.
 

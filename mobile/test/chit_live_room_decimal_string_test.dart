@@ -6,9 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 
-import 'package:loantrack/data/models/chit.dart';
-import 'package:loantrack/data/services/chit_service.dart';
-import 'package:loantrack/features/chits/chit_live_auction_screen.dart';
+import 'package:zolofund/data/models/chit.dart';
+import 'package:zolofund/data/services/chit_service.dart';
+import 'package:zolofund/features/chits/chit_live_auction_screen.dart';
 
 /// Regression: Prisma Decimal columns serialize to JSON *strings*
 /// ("100000"), and a bare `as num?` cast on one throws a TypeError, which

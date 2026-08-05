@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
-import 'package:loantrack/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
 
 const _kPrefsBox = 'prefs';
 const _kSeenKey = 'onboarding_seen_v1';

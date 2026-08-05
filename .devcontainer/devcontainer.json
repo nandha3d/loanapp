@@ -1,11 +1,11 @@
 {
-  "name": "LoanTrack",
+  "name": "ZoloFund",
   "dockerComposeFile": "docker-compose.yml",
   "service": "app",
   "workspaceFolder": "/workspaces/loanapp",
   "forwardPorts": [3000],
   "portsAttributes": {
-    "3000": { "label": "LoanTrack web", "onAutoForward": "notify" }
+    "3000": { "label": "ZoloFund web", "onAutoForward": "notify" }
   },
   "postCreateCommand": "bash .devcontainer/post-create.sh",
   "customizations": {

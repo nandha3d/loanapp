@@ -62,7 +62,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" \
-            -n loantrack-release-apk -D apk
+            -n zolofund-release-apk -D apk
 
       - name: Publish release
         env:
@@ -74,6 +74,6 @@ jobs:
           gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
           gh release create "$TAG" "$FILE" \
             --repo "$GITHUB_REPOSITORY" \
-            --title "LoanTrack APK (latest)" \
+            --title "ZoloFund APK (latest)" \
             --notes "APK from build-apk run $RUN_ID." \
             --latest=false

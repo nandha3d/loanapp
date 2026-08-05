@@ -1,6 +1,6 @@
-import 'package:loantrack/data/models/customer.dart';
-import 'package:loantrack/data/models/instalment.dart';
-import 'package:loantrack/data/models/penalty.dart';
+import 'package:zolofund/data/models/customer.dart';
+import 'package:zolofund/data/models/instalment.dart';
+import 'package:zolofund/data/models/penalty.dart';
 
 /// "Extend term" default projection — same server-side calc the web page's
 /// heatmap tail cells use (see lib/restructure.ts#computeExtendedSchedule):

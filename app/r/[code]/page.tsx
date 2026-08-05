@@ -74,7 +74,7 @@ export default function ReferralRedirectPage({
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent'
         }}>
-          Welcome to LoanTrack
+          Welcome to ZoloFund
         </h1>
         <p style={{
           fontSize: '0.9rem',

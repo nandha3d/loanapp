@@ -560,7 +560,7 @@ export default function SettingsClient({
             <div className="settings-list" style={{maxWidth:'600px'}}>
               <div className="settings-item">
                 <div className="si-info"><h4>{d.appName}</h4><p>{d.appNameDesc}</p></div>
-                <input type="text" name="app_name" className="form-control" style={{width:'200px'}} defaultValue={settings.app_name || 'LoanTrack'} required />
+                <input type="text" name="app_name" className="form-control" style={{width:'200px'}} defaultValue={settings.app_name || 'ZoloFund'} required />
               </div>
               <div className="settings-item">
                 <div className="si-info"><h4>{d.currency}</h4><p>{d.currencyDesc}</p></div>

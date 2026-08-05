@@ -1,10 +1,10 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:loantrack/core/auth/auth_storage.dart';
-import 'package:loantrack/core/network/dio_client.dart';
-import 'package:loantrack/data/models/borrower.dart';
-import 'package:loantrack/shared/constants/endpoints.dart';
+import 'package:zolofund/core/auth/auth_storage.dart';
+import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/data/models/borrower.dart';
+import 'package:zolofund/shared/constants/endpoints.dart';
 
 class BorrowerService {
   BorrowerService(this._dio, [this._storage]);

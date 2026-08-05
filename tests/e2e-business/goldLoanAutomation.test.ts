@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { disconnectTestDb, getPrisma, getRunId } from './helpers/testDb';
 import { cleanupRunData } from './helpers/cleanup';
-import { createCustomerFixture, createLoanFixture, seedLoanTrackScenario, type LoanTrackScenario } from './helpers/seedLoanTrack';
+import { createCustomerFixture, createLoanFixture, seedZoloFundScenario, type ZoloFundScenario } from './helpers/seedZoloFund';
 import { issueMobileTokenForSetup } from './helpers/authTokens';
 import { routeRequest, expectOk, routes, type Envelope } from './helpers/apiClient';
 import { assertGoldValuation, assertOrnamentTotals } from './helpers/assertGold';
@@ -14,7 +14,7 @@ import { writeKnownGapEvidence } from './helpers/evidenceWriter';
 const runId = getRunId();
 const prisma = getPrisma();
 
-let scenario: LoanTrackScenario;
+let scenario: ZoloFundScenario;
 let adminToken = '';
 let agentToken = '';
 let goldLoanId = '';
@@ -296,7 +296,7 @@ knownGap('GOLD-GAP-001 direct gold receipt PDF route lacks mobile bearer-token h
 
 async function main() {
   try {
-    scenario = await seedLoanTrackScenario(runId);
+    scenario = await seedZoloFundScenario(runId);
     adminToken = await issueMobileTokenForSetup({ ...scenario.users.adminA1, appType: 'goldloans' });
     agentToken = await issueMobileTokenForSetup({ ...scenario.users.agentA1, appType: 'goldloans' });
     await seedGoldFixture();

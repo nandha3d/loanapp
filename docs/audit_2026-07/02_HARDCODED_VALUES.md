@@ -22,8 +22,8 @@
 
 ## B. Money-routing fallback — FIX REQUIRED
 
-### B1. Default UPI VPA `'loantrack@ybl'` — HIGH (payments misroute)
-- `app/borrower/dashboard/BorrowerDashboardClient.tsx:1829` — `paymentSettings?.upiId || 'loantrack@ybl'`. A tenant that never configured UPI shows borrowers a QR that pays a **placeholder VPA** — real money to the wrong account.
+### B1. Default UPI VPA `'zolofund@ybl'` — HIGH (payments misroute)
+- `app/borrower/dashboard/BorrowerDashboardClient.tsx:1829` — `paymentSettings?.upiId || 'zolofund@ybl'`. A tenant that never configured UPI shows borrowers a QR that pays a **placeholder VPA** — real money to the wrong account.
 - **Fix:** no fallback — when the tenant has no `upiId`, hide the QR block and show "Online payment not configured — contact your branch."
 
 ## C. Hard-coded hosts / URLs
@@ -61,7 +61,7 @@ The tenant setting `currency_symbol` exists (`getSetting(tenantId,'currency_symb
 ## Implementation checklist
 
 1. Remove `'fallback-secret'` (2 files) — throw like `borrowerAuth.ts`.
-2. Remove `'loantrack@ybl'` fallback — hide QR + message when unset.
+2. Remove `'zolofund@ybl'` fallback — hide QR + message when unset.
 3. `create-superadmin.js` → require env password.
 4. `referral_base_url` AppSetting for the 2 affiliate components.
 5. Currency threading: `winnerSummary.ts`, `notify/events.ts`, `sms.ts`, chit+borrower surfaces (with doc 04).

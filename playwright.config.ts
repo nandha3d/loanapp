@@ -9,9 +9,9 @@ export const STORAGE = {
 };
 
 const BASE_URL = process.env.E2E_BASE_URL || 'http://localhost:3000';
-const isLoanTrackCriticalUi = process.env.LOANTRACK_E2E_UI === '1';
-const isAuthCompatibility = process.env.LOANTRACK_E2E_AUTH_COMPAT === '1';
-const usesManagedServer = isLoanTrackCriticalUi || isAuthCompatibility;
+const isZoloFundCriticalUi = process.env.ZOLOFUND_E2E_UI === '1';
+const isAuthCompatibility = process.env.ZOLOFUND_E2E_AUTH_COMPAT === '1';
+const usesManagedServer = isZoloFundCriticalUi || isAuthCompatibility;
 const baseUrlPort = new URL(BASE_URL).port || '3000';
 const criticalDatabaseUrl = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL;
 const criticalUiServerEnv = {
@@ -42,8 +42,8 @@ const criticalUiServerEnv = {
  */
 export default defineConfig({
   testDir: './e2e',
-  testMatch: isAuthCompatibility ? /loantrack-auth-compat\.spec\.ts/ : undefined,
-  testIgnore: usesManagedServer ? [] : [/loantrack-.*\.spec\.ts/],
+  testMatch: isAuthCompatibility ? /zolofund-auth-compat\.spec\.ts/ : undefined,
+  testIgnore: usesManagedServer ? [] : [/zolofund-.*\.spec\.ts/],
   /* Run tests in files in parallel */
   fullyParallel: !usesManagedServer,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
@@ -79,9 +79,9 @@ export default defineConfig({
       name: 'webkit',
       use: { ...devices['Desktop Safari'] },
     },
-  ] : isLoanTrackCriticalUi ? [
+  ] : isZoloFundCriticalUi ? [
     {
-      name: 'loantrack-critical-chromium',
+      name: 'zolofund-critical-chromium',
       use: { ...devices['Desktop Chrome'] },
     },
   ] : [
@@ -126,7 +126,7 @@ export default defineConfig({
   webServer: usesManagedServer ? {
     command: `npm run dev -- -p ${baseUrlPort}`,
     url: `${BASE_URL}/login`,
-    reuseExistingServer: process.env.LOANTRACK_E2E_REUSE_SERVER === '1',
+    reuseExistingServer: process.env.ZOLOFUND_E2E_REUSE_SERVER === '1',
     timeout: 180_000,
     env: criticalUiServerEnv,
   } : undefined,

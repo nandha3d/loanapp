@@ -5,7 +5,7 @@
 **Runner:** Playwright (`@playwright/test`), Chromium / Desktop Chrome
 **App under test:** Next.js 16 dev server (`next dev --webpack`) on `http://localhost:3000`
 **DB:** MySQL `loanapp` @ localhost:3306 (seeded test users + sample data)
-**Module pin:** `E2E_ACTIVE_BRANCH_ID=cmq8yymu4000478ejxg1ej0cc` (LoanTrack tenant → microlending branch)
+**Module pin:** `E2E_ACTIVE_BRANCH_ID=cmq8yymu4000478ejxg1ej0cc` (ZoloFund tenant → microlending branch)
 
 ---
 

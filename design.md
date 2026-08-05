@@ -1,7 +1,7 @@
 bash
 
 cat << 'EOF' > /mnt/user-data/outputs/DESIGN.md
-# LoanTrack Mobile — Design System
+# ZoloFund Mobile — Design System
 > Google Stitch DESIGN.md · Flutter Mobile App · Microlending & Chit Fund Platform
 > **All tokens extracted directly from app globals.css — DO NOT modify colors**
 
@@ -9,7 +9,7 @@ cat << 'EOF' > /mnt/user-data/outputs/DESIGN.md
 
 ## App Overview
 
-**Product:** LoanTrack — a microlending and chit fund management mobile app for field agents and branch administrators.
+**Product:** ZoloFund — a microlending and chit fund management mobile app for field agents and branch administrators.
 **Platform:** Mobile (Android + iOS)
 **Users:** Field agents (daily collection), branch admins, superadmins
 **App Type:** Finance / FinTech — professional, data-dense, amber-accented dark navigation
@@ -220,7 +220,7 @@ Use each prompt below independently in Google Stitch. Every prompt references th
 
 ### Screen 1 — Login Screen
 
-Design a mobile login screen for LoanTrack, a microlending finance app.
+Design a mobile login screen for ZoloFund, a microlending finance app.
 
 Background: full-screen dark gradient — linear-gradient(135deg, #1A1D23 0%, #2D1F0E 50%, #1A1D23 100%). Add two subtle circular amber glow effects: one rgba(245,166,35,0.15) in the top-right corner, one rgba(245,166,35,0.10) in the bottom-left.
 
@@ -243,7 +243,7 @@ Error state (shown above inputs when credentials fail): red banner background #F
 
 ### Screen 2 — Dashboard (Admin View)
 
-Design a mobile dashboard home screen for LoanTrack. Use Inter font throughout, background #F4F6F9.
+Design a mobile dashboard home screen for ZoloFund. Use Inter font throughout, background #F4F6F9.
 
 Top bar (white, border-bottom 1px solid #E2E8F0, height 64px, horizontal padding 16px):
 - Left: hamburger menu icon (opens dark sidebar)
@@ -277,7 +277,7 @@ Bottom navigation bar: white bg, border-top 1px #E2E8F0, shadow above, 5 items �
 
 ### Screen 3 — Customer List Screen
 
-Design a mobile customer list screen for LoanTrack. Font: Inter. Background: #F4F6F9.
+Design a mobile customer list screen for ZoloFund. Font: Inter. Background: #F4F6F9.
 
 App bar (white, border-bottom 1px #E2E8F0, height 64px, padding 0 16px):
 - Left: back arrow icon #1E293B
@@ -301,7 +301,7 @@ FAB (bottom-right, 56px circle, background #F5A623, white person-add icon, shado
 
 ### Screen 4 — Loan Detail Screen
 
-Design a mobile loan detail screen for LoanTrack. Font: Inter. Background: #F4F6F9.
+Design a mobile loan detail screen for ZoloFund. Font: Inter. Background: #F4F6F9.
 
 App bar (white, border-bottom 1px #E2E8F0, padding 0 16px):
 - Back arrow #1E293B left
@@ -337,7 +337,7 @@ Floating bottom bar (white, border-top 1px #E2E8F0, shadow-lg above, padding 16p
 
 ### Screen 5 — Collection Screen (Agent View)
 
-Design a mobile daily collection screen for a LoanTrack field agent. This is the most-used screen — optimise for speed and one-handed use. Font: Inter. Background: #F4F6F9.
+Design a mobile daily collection screen for a ZoloFund field agent. This is the most-used screen — optimise for speed and one-handed use. Font: Inter. Background: #F4F6F9.
 
 App bar (white, border-bottom 1px #E2E8F0, padding 0 16px, height 64px):
 - Left: hamburger icon
@@ -375,7 +375,7 @@ Collect bottom sheet (slides up on "Collect" tap): white sheet, border-radius 12
 
 ### Screen 6 — New Loan Form — Step 3 of 5 (Loan Terms)
 
-Design a mobile new loan form screen at step 3 of 5, "Loan Terms", for LoanTrack. Font: Inter. Background: #F4F6F9.
+Design a mobile new loan form screen at step 3 of 5, "Loan Terms", for ZoloFund. Font: Inter. Background: #F4F6F9.
 
 App bar (white, border-bottom 1px #E2E8F0, padding 0 16px):
 - Back arrow left
@@ -415,7 +415,7 @@ Bottom bar (white, border-top 1px #E2E8F0, padding 16px, flex row gap 12px):
 
 ### Screen 7 — Approvals Screen
 
-Design a mobile approvals queue screen for LoanTrack admin users. Font: Inter. Background: #F4F6F9.
+Design a mobile approvals queue screen for ZoloFund admin users. Font: Inter. Background: #F4F6F9.
 
 App bar (white, border-bottom 1px #E2E8F0, height 64px, padding 0 16px):
 - Back arrow left
@@ -445,7 +445,7 @@ Title "Approve Loan?" 1.05rem 700 centered, details 0.82rem #64748B centered, "A
 
 ### Screen 8 — Analytics Screen
 
-Design a mobile analytics and reporting screen for LoanTrack. Font: Inter. Background: #F4F6F9.
+Design a mobile analytics and reporting screen for ZoloFund. Font: Inter. Background: #F4F6F9.
 
 App bar (white, border-bottom 1px #E2E8F0, height 64px, padding 0 16px):
 - Hamburger left
@@ -472,7 +472,7 @@ Horizontal bar list (4 agents): agent name 0.82rem left, horizontal bar fills to
 
 ### Screen 9 — Notifications Screen
 
-Design a mobile notifications screen for LoanTrack. Font: Inter. Background: #F4F6F9.
+Design a mobile notifications screen for ZoloFund. Font: Inter. Background: #F4F6F9.
 
 App bar (white, border-bottom 1px #E2E8F0, height 64px, padding 0 16px):
 - Back arrow left (color #1E293B)
@@ -497,7 +497,7 @@ Bell icon 56px #94A3B8, "All caught up!" 1.1rem 600 #1E293B margin-top 16px, "Yo
 
 ### Screen 10 — Customer Detail Screen
 
-Design a mobile customer profile screen for LoanTrack showing full customer detail. Font: Inter.
+Design a mobile customer profile screen for ZoloFund showing full customer detail. Font: Inter.
 
 Header (background linear-gradient(135deg, #1A1D23, #2D1F0E), padding 32px 20px 24px, safe-area-top):
 - Back arrow white top-left, 3-dot menu white top-right

@@ -7,20 +7,20 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import 'package:loantrack/core/a11y/voice_assist.dart';
-import 'package:loantrack/core/currency/currency_controller.dart';
-import 'package:loantrack/core/l10n/app_strings.dart'; // AppLangX.code extension
-import 'package:loantrack/core/l10n/language_controller.dart';
-import 'package:loantrack/core/network/api_exception.dart';
-import 'package:loantrack/core/network/authed_image.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/models/chit.dart';
-import 'package:loantrack/data/models/chit_live.dart' show RoomMessage;
-import 'package:loantrack/data/services/chit_service.dart';
-import 'package:loantrack/features/chits/dividend_breakdown.dart';
-import 'package:loantrack/features/chits/voice_bid_parser.dart';
-import 'package:loantrack/features/collection/voice_entry_controller.dart';
+import 'package:zolofund/core/a11y/voice_assist.dart';
+import 'package:zolofund/core/currency/currency_controller.dart';
+import 'package:zolofund/core/l10n/app_strings.dart'; // AppLangX.code extension
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/network/api_exception.dart';
+import 'package:zolofund/core/network/authed_image.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/models/chit.dart';
+import 'package:zolofund/data/models/chit_live.dart' show RoomMessage;
+import 'package:zolofund/data/services/chit_service.dart';
+import 'package:zolofund/features/chits/dividend_breakdown.dart';
+import 'package:zolofund/features/chits/voice_bid_parser.dart';
+import 'package:zolofund/features/collection/voice_entry_controller.dart';
 
 /// Turn a raw DioException / ApiException into the server's human message
 /// (e.g. "Bid discount must be at least 5%") instead of the developer-facing

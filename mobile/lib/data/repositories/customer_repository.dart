@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:loantrack/data/models/customer.dart';
-import 'package:loantrack/data/services/customer_service.dart';
+import 'package:zolofund/data/models/customer.dart';
+import 'package:zolofund/data/services/customer_service.dart';
 
 class CustomerRepository {
   CustomerRepository(this._service);

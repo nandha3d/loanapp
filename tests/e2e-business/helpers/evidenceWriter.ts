@@ -58,7 +58,7 @@ export function writeKnownGapsReport(input: {
   }));
 
   const lines = [
-    '# LoanTrack E2E Business Known Gaps',
+    '# ZoloFund E2E Business Known Gaps',
     '',
     `RUN_ID: ${input.runId}`,
     `Generated: ${new Date().toISOString()}`,

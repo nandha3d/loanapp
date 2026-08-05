@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:loantrack/core/network/dio_client.dart';
+import 'package:zolofund/core/network/dio_client.dart';
 
 void main() {
   group('API base URL resolution', () {

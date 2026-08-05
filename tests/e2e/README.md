@@ -1,4 +1,4 @@
-# LoanTrack Web E2E (Playwright)
+# ZoloFund Web E2E (Playwright)
 
 Covers every web module: nav, forms (valid + invalid), actions, RBAC, negative paths.
 

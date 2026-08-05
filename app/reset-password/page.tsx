@@ -45,7 +45,7 @@ export default function ResetPasswordPage() {
     <div className="login-wrapper">
       <div className="login-card">
         <div className="login-logo">
-          <img src={withBasePath('/assets/logo.svg')} alt="LoanTrack" />
+          <img src={withBasePath('/assets/logo.svg')} alt="ZoloFund" />
           <h1>Loan<span>Track</span></h1>
         </div>
         <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '.85rem', marginBottom: '24px' }}>

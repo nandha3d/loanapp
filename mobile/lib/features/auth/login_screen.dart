@@ -6,15 +6,15 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
-import 'package:loantrack/core/auth/auth_controller.dart';
-import 'package:loantrack/core/l10n/language_controller.dart';
-import 'package:loantrack/core/a11y/ui_prefs.dart';
-import 'package:loantrack/core/network/dio_client.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/shared/widgets/app_button.dart';
-import 'package:loantrack/shared/widgets/app_text_field.dart';
+import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/a11y/ui_prefs.dart';
+import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/shared/widgets/app_button.dart';
+import 'package:zolofund/shared/widgets/app_text_field.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -421,7 +421,7 @@ class _LoginCard extends ConsumerWidget {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 const Text(
-                  'New to LoanTrack? ',
+                  'New to ZoloFund? ',
                   style:
                       TextStyle(color: AppColors.textSecondary, fontSize: 13),
                 ),

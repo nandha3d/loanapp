@@ -49,7 +49,7 @@ export async function resolveEmailConfig(tenantId: string): Promise<ResolvedEmai
   const port = Number((tPort || process.env.SMTP_PORT || '587').toString().trim()) || 587;
   const user = (tUser || process.env.SMTP_USER || '').trim();
   const pass = decryptField(tPass) || tPass || process.env.SMTP_PASS || '';
-  const fromName = (tFromName || process.env.SMTP_FROM_NAME || 'LoanTrack').trim();
+  const fromName = (tFromName || process.env.SMTP_FROM_NAME || 'ZoloFund').trim();
   // Many providers (Brevo/SES/Mailgun) require a verified From that differs from
   // the SMTP username, so allow an explicit override; otherwise reuse the user.
   const fromAddr = (process.env.SMTP_FROM || user).trim();

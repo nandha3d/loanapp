@@ -22,13 +22,13 @@
 | Doc | Area | Severity of worst finding |
 |---|---|---|
 | `01_TENANT_APPTYPE_DATA_ISOLATION.md` | Cross-tenant / cross-customer data isolation | **High** — borrower can fetch any same-tenant customer's KYC/proof file by filename; 3 cross-tenant write bugs in premium accounting |
-| `02_HARDCODED_VALUES.md` | Credentials, hosts, currency, magic numbers | **High** — `'fallback-secret'` JWT fallback; `loantrack@ybl` UPI fallback that can misroute real money |
+| `02_HARDCODED_VALUES.md` | Credentials, hosts, currency, magic numbers | **High** — `'fallback-secret'` JWT fallback; `zolofund@ybl` UPI fallback that can misroute real money |
 | `03_WEB_MOBILE_PARITY_GAPS.md` | Feature parity, both directions | **High (functional)** — borrowers submit payment proofs from mobile but staff cannot review them on mobile |
 | `04_LANGUAGE_COMPLETENESS_I18N.md` | i18n completeness, all languages, every word | Medium — te/kn/ml ~130–155 web keys short; entire chit + borrower surfaces hard-coded English on both platforms |
 
 ## Recommended implementation order (when we implement)
 
-1. **Security first** (doc 01 fixes + doc 02 items 1–2): file-access authorization, 3 tenant-guard fixes, remove `'fallback-secret'`, remove `loantrack@ybl` fallback. Small diffs, highest risk reduction.
+1. **Security first** (doc 01 fixes + doc 02 items 1–2): file-access authorization, 3 tenant-guard fixes, remove `'fallback-secret'`, remove `zolofund@ybl` fallback. Small diffs, highest risk reduction.
 2. **Parity critical path** (doc 03): mobile staff payment-proof queue — closes the broken borrower→staff loop for the live chit client. Then the quick wins: auction reschedule, winner-summary copy, member-edit sheet, borrower statement.
 3. **Language web** (doc 04 part A): fill te/kn/ml dictionary gaps; key up + translate the chit and borrower surfaces; thread tenant currency symbol through `winnerSummary.ts` and `notify/events.ts`.
 4. **Language mobile** (doc 04 part B): fill product-finance key gaps; key up + translate 4 chit screens + 5 borrower screens; currency via `currencyFmtProvider`; seed device language from tenant setting on first login.

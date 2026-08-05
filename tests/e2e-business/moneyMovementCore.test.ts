@@ -14,14 +14,14 @@ import { knownGap, skipNow, test, run } from './helpers/harness';
 import { knownGapCatalog } from './helpers/knownGaps';
 import {
   phoneForRun,
-  seedLoanTrackScenario,
-  type LoanTrackScenario,
-} from './helpers/seedLoanTrack';
+  seedZoloFundScenario,
+  type ZoloFundScenario,
+} from './helpers/seedZoloFund';
 import { APP_TYPE, disconnectTestDb, getPrisma, getRunId } from './helpers/testDb';
 
 process.env.TZ = 'UTC';
 
-let scenario: LoanTrackScenario;
+let scenario: ZoloFundScenario;
 let adminToken = '';
 let agentToken = '';
 
@@ -830,7 +830,7 @@ knownGap(
 async function main() {
   const runId = getRunId();
   try {
-    scenario = await seedLoanTrackScenario(runId);
+    scenario = await seedZoloFundScenario(runId);
     adminToken = (await loginMobile({
       username: scenario.users.adminA1.username,
       password: scenario.password,

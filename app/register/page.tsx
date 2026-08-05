@@ -412,7 +412,7 @@ function RegisterForm() {
         
         {/* Header */}
         <div className="login-logo" style={{ marginBottom: '16px' }}>
-          <img src={withBasePath('/assets/logo.svg')} alt="LoanTrack" />
+          <img src={withBasePath('/assets/logo.svg')} alt="ZoloFund" />
           <h1>Loan<span>Track</span></h1>
         </div>
         <h2 style={{ textAlign: 'center', fontSize: '1.2rem', marginBottom: '8px', color: 'var(--text-primary)' }}>
@@ -794,7 +794,7 @@ function RegisterForm() {
                   style={{ marginTop: '4px' }}
                 />
                 <label htmlFor="terms" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                  I accept the Terms of Service, privacy policy and authorize LoanTrack to set up my workspace trial database immediately.
+                  I accept the Terms of Service, privacy policy and authorize ZoloFund to set up my workspace trial database immediately.
                 </label>
               </div>
 

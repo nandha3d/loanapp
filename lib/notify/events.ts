@@ -213,7 +213,7 @@ export async function notify(params: NotifyParams): Promise<void> {
 
     const languages = ['en', 'ta', 'hi', 'te', 'kn', 'ml'];
     const l = languages.includes(lang) ? lang : 'en';
-    const appName = await getSetting(tenantId, 'app_name', 'LoanTrack');
+    const appName = await getSetting(tenantId, 'app_name', 'ZoloFund');
     const enrichedData = { orgName: appName, ...data };
 
     // Fetch database templates for this event
@@ -302,7 +302,7 @@ export async function notify(params: NotifyParams): Promise<void> {
       const customSubject = getTemplateSubject('push');
       const pushSubject = customSubject
         ? interpolateTemplate(customSubject, enrichedData)
-        : 'LoanTrack Alert';
+        : 'ZoloFund Alert';
 
       await sendPushToUsers([customerUserId], {
         title: pushSubject,
@@ -343,11 +343,11 @@ function emailHtml(event: EventKey, smsMessage: string, d: Record<string, string
   return `
     <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;background:#fff">
       <div style="border-bottom:2px solid #F5A623;padding-bottom:12px;margin-bottom:20px">
-        <span style="font-size:20px;font-weight:800;color:#F5A623">${d.orgName || 'LoanTrack'}</span>
+        <span style="font-size:20px;font-weight:800;color:#F5A623">${d.orgName || 'ZoloFund'}</span>
       </div>
       <p style="font-size:15px;color:#1A1A1A;line-height:1.6">${smsMessage.replace(/ -.*$/, '')}</p>
       <div style="margin-top:24px;padding-top:16px;border-top:1px solid #E5E7EB;font-size:11px;color:#9CA3AF">
-        This is an automated message from ${d.orgName || 'LoanTrack'}. Do not reply to this email.
+        This is an automated message from ${d.orgName || 'ZoloFund'}. Do not reply to this email.
       </div>
     </div>
   `;

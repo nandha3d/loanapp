@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 export const metadata = buildMetadata({
   title: 'Pricing — Loan Management Software Plans from ₹0',
   description:
-    'Simple, transparent pricing for LoanTrack loan management software. Start free, then scale to Collector, Basic, Business or Enterprise. No setup fees, no lock-in.',
+    'Simple, transparent pricing for ZoloFund loan management software. Start free, then scale to Collector, Basic, Business or Enterprise. No setup fees, no lock-in.',
   path: '/pricing',
   keywords: ['loan management software pricing', 'affordable loan software', 'microfinance software price', 'loan software cost India'],
 });

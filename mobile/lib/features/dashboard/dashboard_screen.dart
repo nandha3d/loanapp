@@ -1,32 +1,32 @@
-import 'package:loantrack/core/network/authed_image.dart';
-import 'package:loantrack/core/currency/currency_controller.dart';
+import 'package:zolofund/core/network/authed_image.dart';
+import 'package:zolofund/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import 'package:loantrack/core/a11y/voice_assist.dart';
-import 'package:loantrack/core/auth/auth_controller.dart';
-import 'package:loantrack/core/l10n/language_controller.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/models/collection_entry.dart';
-import 'package:loantrack/data/models/dashboard_summary.dart';
-import 'package:loantrack/data/models/user.dart';
-import 'package:loantrack/data/repositories/dashboard_repository.dart';
-import 'package:loantrack/features/collection/collection_screen.dart'
+import 'package:zolofund/core/a11y/voice_assist.dart';
+import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/models/collection_entry.dart';
+import 'package:zolofund/data/models/dashboard_summary.dart';
+import 'package:zolofund/data/models/user.dart';
+import 'package:zolofund/data/repositories/dashboard_repository.dart';
+import 'package:zolofund/features/collection/collection_screen.dart'
     show collectionTodayProvider, refreshCollectionViews;
-import 'package:loantrack/features/collection/quick_collect_sheet.dart';
-import 'package:loantrack/features/dashboard/widgets/chit_dashboard_body.dart';
-import 'package:loantrack/features/dashboard/widgets/collection_trend_card.dart';
-import 'package:loantrack/features/onboarding/onboarding_overlay.dart';
-import 'package:loantrack/features/onboarding/location_permission_overlay.dart';
-import 'package:loantrack/shared/widgets/bottom_nav.dart';
-import 'package:loantrack/shared/widgets/empty_state.dart';
-import 'package:loantrack/shared/widgets/skeleton.dart';
-import 'package:loantrack/features/dashboard/widgets/collect_cash_sheet.dart';
-import 'package:loantrack/features/dashboard/widgets/verify_upi_sheet.dart';
+import 'package:zolofund/features/collection/quick_collect_sheet.dart';
+import 'package:zolofund/features/dashboard/widgets/chit_dashboard_body.dart';
+import 'package:zolofund/features/dashboard/widgets/collection_trend_card.dart';
+import 'package:zolofund/features/onboarding/onboarding_overlay.dart';
+import 'package:zolofund/features/onboarding/location_permission_overlay.dart';
+import 'package:zolofund/shared/widgets/bottom_nav.dart';
+import 'package:zolofund/shared/widgets/empty_state.dart';
+import 'package:zolofund/shared/widgets/skeleton.dart';
+import 'package:zolofund/features/dashboard/widgets/collect_cash_sheet.dart';
+import 'package:zolofund/features/dashboard/widgets/verify_upi_sheet.dart';
 
 // Process-lifetime guard so rebuilds can't queue duplicate onboarding dialogs.
 bool _onboardingRequested = false;

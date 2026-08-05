@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:loantrack/data/models/chit_dashboard_summary.dart';
-import 'package:loantrack/data/models/dashboard_summary.dart';
-import 'package:loantrack/data/services/dashboard_service.dart';
+import 'package:zolofund/data/models/chit_dashboard_summary.dart';
+import 'package:zolofund/data/models/dashboard_summary.dart';
+import 'package:zolofund/data/services/dashboard_service.dart';
 
 class DashboardRepository {
   DashboardRepository(this._service);

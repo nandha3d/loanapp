@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { disconnectTestDb, getPrisma, getRunId } from './helpers/testDb';
 import { cleanupRunData } from './helpers/cleanup';
-import { createCustomerFixture, createLoanFixture, seedLoanTrackScenario, type LoanTrackScenario } from './helpers/seedLoanTrack';
+import { createCustomerFixture, createLoanFixture, seedZoloFundScenario, type ZoloFundScenario } from './helpers/seedZoloFund';
 import { issueMobileTokenForSetup } from './helpers/authTokens';
 import { routeRequest, expectOk, routes, type Envelope } from './helpers/apiClient';
 import { assertMoneyEqual } from './helpers/assertMoney';
@@ -14,7 +14,7 @@ import { knownGapCatalog } from './helpers/knownGaps';
 const runId = getRunId();
 const prisma = getPrisma();
 
-let scenario: LoanTrackScenario;
+let scenario: ZoloFundScenario;
 let chitAdminToken = '';
 let vehicleAdminToken = '';
 let chitCustomerIds: string[] = [];
@@ -270,7 +270,7 @@ knownGap('MOD-GAP-002 product repossession route is tenant-scoped but not appTyp
 
 async function main() {
   try {
-    scenario = await seedLoanTrackScenario(runId);
+    scenario = await seedZoloFundScenario(runId);
     chitAdminToken = await issueMobileTokenForSetup({ ...scenario.users.adminA1, appType: 'chitfunds' });
     vehicleAdminToken = await issueMobileTokenForSetup({ ...scenario.users.adminA1, appType: 'autofinance' });
     const summary = await run();
