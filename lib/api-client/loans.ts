@@ -22,6 +22,10 @@ export interface Loan {
   createdById: string;
   status: string;
   closedAt: string | null;
+  closureType?: string | null;
+  /** Interest-Only only: monthly rate, and principal still owed. See lib/interestOnly.ts. */
+  interestRate?: number | null;
+  outstandingPrincipal?: number | null;
   customer?: {
     id: string;
     name: string;

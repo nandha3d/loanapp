@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
+import { isInterestOnly } from './loanCalculator';
 
 export type AllocationInputInstalment = {
   id: string;
@@ -141,6 +142,32 @@ export function allocatePaymentsAcrossInstalments(
   });
 }
 
+/**
+ * Loan status implied by its schedule.
+ *
+ * `principalOutstanding` is only supplied for Interest-Only loans, where the
+ * instalments carry interest alone and the principal is a bullet settled at closure.
+ * Clearing every interest due therefore must NOT close the loan — without this guard
+ * an Interest-Only borrower who pays 12 months of interest would have their ₹10L
+ * principal marked repaid.
+ */
+export function resolveLoanStatus(input: {
+  paidCount: number;
+  waivedCount: number;
+  totalInstalments: number;
+  overdueAmount: number;
+  principalOutstanding?: number;
+}): 'active' | 'overdue' | 'closed' {
+  const scheduleSettled =
+    input.totalInstalments > 0 &&
+    input.paidCount + input.waivedCount === input.totalInstalments;
+
+  if (scheduleSettled && !(input.principalOutstanding && input.principalOutstanding > 0)) {
+    return 'closed';
+  }
+  return input.overdueAmount > 0 ? 'overdue' : 'active';
+}
+
 export function summarizeAllocations(allocations: AllocatedInstalment[]): ReallocationSummary {
   const paidCount = allocations.filter((item) => item.status === 'paid').length;
   const totalCollected = allocations.reduce((sum, item) => sum + item.receivedAmount, 0);
@@ -171,11 +198,15 @@ export async function reallocateLoanRepayments(
   loanId: string,
   now = new Date(),
 ): Promise<ReallocationSummary> {
-  const [instalments] = await Promise.all([
+  const [instalments, loan] = await Promise.all([
     tx.instalment.findMany({
       where: { loanId },
       orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
       select: { id: true, instalmentNo: true, dueDate: true, dueAmount: true, receivedAmount: true, receivedAt: true, status: true },
+    }),
+    tx.loan.findUnique({
+      where: { id: loanId },
+      select: { deductionType: true, principal: true, outstandingPrincipal: true },
     }),
   ]);
 
@@ -260,11 +291,19 @@ export async function reallocateLoanRepayments(
     });
   }
 
-  summary.loanStatus = (summary.paidCount + waived.length) === instalments.length && instalments.length > 0
-    ? 'closed'
-    : summary.overdueAmount > 0
-      ? 'overdue'
-      : 'active';
+  // Interest-Only loans keep the principal outside the schedule, so settling every
+  // interest due is not enough to close them — see resolveLoanStatus.
+  const principalOutstanding = isInterestOnly(loan?.deductionType)
+    ? asNumber(loan?.outstandingPrincipal ?? loan?.principal ?? 0)
+    : undefined;
+
+  summary.loanStatus = resolveLoanStatus({
+    paidCount: summary.paidCount,
+    waivedCount: waived.length,
+    totalInstalments: instalments.length,
+    overdueAmount: summary.overdueAmount,
+    principalOutstanding,
+  });
 
   await tx.loan.update({
     where: { id: loanId },

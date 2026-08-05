@@ -197,6 +197,52 @@ export async function renewLoan(formData: FormData) {
   }
 }
 
+/**
+ * Interest-Only principal servicing. `action` is 'part' (prepay some principal,
+ * which re-prices the remaining monthly dues) or 'close' (settle the outstanding
+ * principal plus any interest already due and close the loan).
+ */
+async function serviceInterestOnlyPrincipal(formData: FormData, action: 'part' | 'close') {
+  try {
+    const apiContext = await getApiRequestContext();
+    const loanId = formData.get('loanId') as string;
+
+    const loanRes = await apiFetch<any>(`/loans/${loanId}`, apiContext);
+    if (loanRes.error) return { success: false, error: loanRes.error };
+    const loanCode = loanRes.data?.loanCode;
+
+    const res = await apiFetch<any>(`/loans/${loanId}/principal`, {
+      method: 'POST',
+      body: JSON.stringify({
+        action,
+        // Ignored by the API on 'close' — it always settles the full amount itself
+        // so a stale figure in the browser can't under-collect.
+        amount: Number(formData.get('amount')) || 0,
+        paymentMode: (formData.get('paymentMode') as string) || 'cash',
+        remarks: (formData.get('remarks') as string) || '',
+      }),
+      ...apiContext,
+    });
+
+    if (res.error) return { success: false, error: res.error };
+
+    if (loanCode) revalidatePath(`/loans/${loanCode}`);
+    revalidatePath('/loans');
+    revalidatePath('/dashboard');
+    return { success: true, data: res.data };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Principal payment failed' };
+  }
+}
+
+export async function partPayPrincipal(formData: FormData) {
+  return serviceInterestOnlyPrincipal(formData, 'part');
+}
+
+export async function fullCloseLoan(formData: FormData) {
+  return serviceInterestOnlyPrincipal(formData, 'close');
+}
+
 export async function precloseLoanAdmin(formData: FormData) {
   try {
     const apiContext = await getApiRequestContext();

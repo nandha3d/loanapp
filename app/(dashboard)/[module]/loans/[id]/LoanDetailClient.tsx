@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import { formatCurrency, formatDate, getBadgeClass, calcPercentage } from '@/lib/utils';
-import { markInstalmentPaid, markLoanCollection, requestCollectionEdit, waiveLoanPenalty, settleLoanPenalty, closeLoan, renewLoan, precloseLoanAdmin, recordGoldServicing, recordBankRepledge } from './actions';
+import { markInstalmentPaid, markLoanCollection, requestCollectionEdit, waiveLoanPenalty, settleLoanPenalty, closeLoan, renewLoan, precloseLoanAdmin, recordGoldServicing, recordBankRepledge, partPayPrincipal, fullCloseLoan } from './actions';
 import { createSelfPayLinkAction } from '../../collection/runActions';
 import Link from '@/components/layout/DashboardLink';
 import { useRouter } from 'next/navigation';
@@ -353,6 +353,31 @@ export default function LoanDetailClient({
   const [chequeReturned, setChequeReturned] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // ── Interest-Only servicing ────────────────────────────────────────────────
+  // These loans carry interest-only instalments with the principal as a bullet, so
+  // the principal is settled through its own endpoint rather than the schedule.
+  const isInterestOnlyLoan = loan.deductionType === 'interest_only';
+  const monthlyRatePercent = Number(loan.interestRate ?? 0);
+  const outstandingPrincipal = Math.max(
+    0,
+    loan.outstandingPrincipal == null ? Number(loan.principal) : Number(loan.outstandingPrincipal),
+  );
+  const monthlyInterest = Math.round(outstandingPrincipal * (monthlyRatePercent / 100));
+  const interestCollected = Number(loan.totalCollected || 0);
+  // Only dues that have already come around are payable on exit — an upcoming
+  // month's interest hasn't been earned. Read from loan.instalments rather than
+  // displayInstalments: the latter is a view-mode projection that reassigns
+  // received amounts, so the closure figure would move when the user toggles
+  // Actual/Distributed. This mirrors summarizeInterestOnlyLoan (lib/interestOnly.ts)
+  // exactly, so what's shown here is what the API will collect.
+  const interestDueNow = loan.instalments
+    .filter((i: any) => i.status === 'missed' || i.status === 'partial')
+    .reduce((sum: number, i: any) => sum + Math.max(0, Number(i.dueAmount) - Number(i.receivedAmount)), 0);
+  const totalDueToClose = outstandingPrincipal + interestDueNow;
+
+  const [partPrincipalModal, setPartPrincipalModal] = useState(false);
+  const [fullClosureModal, setFullClosureModal] = useState(false);
+
   const [payAmount, setPayAmount] = useState(0);
   const [payMode, setPayMode] = useState('cash');
   const [payRemarks, setPayRemarks] = useState('');
@@ -578,6 +603,50 @@ export default function LoanDetailClient({
       router.push(dashboardPath(`/loans/${(result as any).newLoanId}`));
     } else {
       alert((result as any).error || d.failedToRenewLoan);
+    }
+  };
+
+  const handlePartPayPrincipal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (payAmount <= 0 || payAmount >= outstandingPrincipal) {
+      alert(`A part-payment must be between 0 and the outstanding principal of ${formatCurrency(outstandingPrincipal, currencySymbol)}. Use Full Closure to settle the loan.`);
+      return;
+    }
+    setLoading(true);
+    const fd = new FormData();
+    fd.set('loanId', loan.id);
+    fd.set('amount', String(payAmount));
+    fd.set('paymentMode', payMode);
+    fd.set('remarks', payRemarks);
+
+    const result = await partPayPrincipal(fd);
+    setLoading(false);
+    if (result.success) {
+      setPartPrincipalModal(false);
+      router.refresh();
+    } else {
+      alert((result as any).error || 'Failed to record the principal part-payment');
+    }
+  };
+
+  const handleFullClosure = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    const fd = new FormData();
+    fd.set('loanId', loan.id);
+    // The API recomputes and always collects the full amount; this is sent for the
+    // audit trail only.
+    fd.set('amount', String(totalDueToClose));
+    fd.set('paymentMode', payMode);
+    fd.set('remarks', payRemarks);
+
+    const result = await fullCloseLoan(fd);
+    setLoading(false);
+    if (result.success) {
+      setFullClosureModal(false);
+      router.refresh();
+    } else {
+      alert((result as any).error || 'Failed to close the loan');
     }
   };
 
@@ -1221,6 +1290,36 @@ export default function LoanDetailClient({
             )}
           </div>
 
+          {isInterestOnlyLoan && (
+            <div className="card" style={{ marginBottom: '20px' }}>
+              <div className="card-header">
+                <h3>🔁 {d.interestOnly || 'Interest-Only'}</h3>
+              </div>
+              <div style={{ padding: '0 16px 16px', display: 'grid', gap: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '.85rem' }}>{d.outstandingPrincipal || 'Outstanding Principal'}</span>
+                  <strong style={{ color: 'var(--primary-dark)' }}>{formatCurrency(outstandingPrincipal, currencySymbol)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '.85rem' }}>{d.monthlyInterest || 'Monthly Interest'}</span>
+                  <strong>{formatCurrency(monthlyInterest, currencySymbol)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '.85rem' }}>{d.monthlyInterestRate || 'Monthly Interest Rate (%)'}</span>
+                  <strong>{monthlyRatePercent}% ({monthlyRatePercent * 12}% {d.aprEquivalent || 'APR equivalent'})</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '.85rem' }}>{d.interestCollected || 'Interest Collected'}</span>
+                  <strong>{formatCurrency(interestCollected, currencySymbol)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', borderTop: '1px solid var(--border)', paddingTop: '10px' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '.85rem' }}>{d.totalDueToClose || 'Total due to close'}</span>
+                  <strong style={{ color: 'var(--danger)' }}>{formatCurrency(totalDueToClose, currencySymbol)}</strong>
+                </div>
+              </div>
+            </div>
+          )}
+
           {loan.status !== 'closed' && (
             <div className="card" style={{ marginBottom: '20px' }}>
               <div className="card-header">
@@ -1232,12 +1331,31 @@ export default function LoanDetailClient({
                 </Link>
                 {isAdmin && (
                   <>
-                    <button className="btn btn-warning" style={{ background: '#F59E0B', color: '#fff', border: 'none' }} onClick={() => {
-                      setPayAmount(outstanding);
-                      setPayMode('cash');
-                      setPayRemarks('Preclosure Full Settlement');
-                      setPrecloseModal(true);
-                    }}>Preclose & Settle</button>
+                    {isInterestOnlyLoan ? (
+                      /* Preclose is hidden here: it allocates a lump sum against one
+                         INSTALMENT, which on this model would land the principal on an
+                         interest row. Full Closure settles the bullet properly. */
+                      <>
+                        <button className="btn btn-secondary" onClick={() => {
+                          setPayAmount(0);
+                          setPayMode('cash');
+                          setPayRemarks('Principal part-payment');
+                          setPartPrincipalModal(true);
+                        }}>{d.principalPartPayment || 'Principal Part Payment'}</button>
+                        <button className="btn btn-warning" style={{ background: '#F59E0B', color: '#fff', border: 'none' }} onClick={() => {
+                          setPayMode('cash');
+                          setPayRemarks('Full closure — principal settled');
+                          setFullClosureModal(true);
+                        }}>{d.fullClosure || 'Full Closure'}</button>
+                      </>
+                    ) : (
+                      <button className="btn btn-warning" style={{ background: '#F59E0B', color: '#fff', border: 'none' }} onClick={() => {
+                        setPayAmount(outstanding);
+                        setPayMode('cash');
+                        setPayRemarks('Preclosure Full Settlement');
+                        setPrecloseModal(true);
+                      }}>Preclose & Settle</button>
+                    )}
                     <button className="btn btn-danger" onClick={() => setCloseModal(true)}>{d.closeLoan}</button>
                     <button className="btn btn-secondary" onClick={() => setRenewModal(true)}>{d.renewLoan}</button>
                   </>
@@ -1503,6 +1621,106 @@ export default function LoanDetailClient({
               <button className="btn btn-primary" onClick={handleSubmitPenalty} disabled={loading}>
                 <span className="material-icons-outlined" style={{ fontSize: '16px' }}>check</span>
                 {loading ? 'Processing...' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Interest-Only: principal part-payment. Reduces the outstanding principal,
+          which re-prices every still-upcoming monthly interest due. */}
+      {partPrincipalModal && (
+        <div className="modal-overlay show" onClick={(e) => { if (e.target === e.currentTarget) setPartPrincipalModal(false); }}>
+          <div className="modal">
+            <div className="modal-header">
+              <h3>💵 {d.principalPartPayment || 'Principal Part Payment'}</h3>
+              <button className="modal-close material-icons-outlined" onClick={() => setPartPrincipalModal(false)}>close</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ background: 'var(--bg-alt)', borderRadius: 'var(--radius-sm)', padding: '16px', marginBottom: '16px', border: '1px solid var(--border)' }}>
+                <p style={{ fontSize: '.85rem', color: 'var(--text-secondary)' }}>
+                  Outstanding principal is <strong>{formatCurrency(outstandingPrincipal, currencySymbol)}</strong> at {monthlyRatePercent}% / month
+                  (<strong>{formatCurrency(monthlyInterest, currencySymbol)}</strong> per month).
+                  Collecting a part-payment lowers the principal, and every remaining monthly due is re-priced on the new balance.
+                </p>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Amount ({currencySymbol})</label>
+                <input type="number" className="form-control" style={{ fontSize: '1.1rem', padding: '12px' }} value={payAmount} onChange={(e) => setPayAmount(Number(e.target.value))} min={0} max={outstandingPrincipal} />
+                {payAmount > 0 && payAmount < outstandingPrincipal && (
+                  <div style={{ marginTop: '8px', fontSize: '.85rem', color: 'var(--primary-dark)', fontWeight: 600 }}>
+                    New principal {formatCurrency(outstandingPrincipal - payAmount, currencySymbol)} → {formatCurrency(Math.round((outstandingPrincipal - payAmount) * (monthlyRatePercent / 100)), currencySymbol)} / month
+                  </div>
+                )}
+              </div>
+              <div className="form-group">
+                <label className="form-label">{d.paymentMode}</label>
+                <select className="form-control" style={{ fontSize: '1rem', padding: '12px' }} value={payMode} onChange={(e) => setPayMode(e.target.value)}>
+                  <option value="cash">{d.cash}</option>
+                  <option value="upi">{d.upi}</option>
+                  <option value="cheque">{d.cheque}</option>
+                  <option value="bank_transfer">{d.bankTransfer}</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Remarks / Reference</label>
+                <input type="text" className="form-control" style={{ fontSize: '1rem', padding: '12px' }} value={payRemarks} onChange={(e) => setPayRemarks(e.target.value)} />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setPartPrincipalModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handlePartPayPrincipal} disabled={loading || payAmount <= 0 || payAmount >= outstandingPrincipal}>
+                {loading ? 'Processing...' : 'Record Part Payment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Interest-Only: full closure — collects the principal bullet plus any
+          interest already due, then closes the loan. */}
+      {fullClosureModal && (
+        <div className="modal-overlay show" onClick={(e) => { if (e.target === e.currentTarget) setFullClosureModal(false); }}>
+          <div className="modal">
+            <div className="modal-header">
+              <h3>🏁 {d.fullClosure || 'Full Closure'}</h3>
+              <button className="modal-close material-icons-outlined" onClick={() => setFullClosureModal(false)}>close</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ background: '#FFFBEB', borderRadius: 'var(--radius-sm)', padding: '16px', marginBottom: '16px', border: '1px solid #FCD34D' }}>
+                <p style={{ fontSize: '.9rem', fontWeight: 600, color: '#92400E' }}>Collect the full principal and close</p>
+                <p style={{ fontSize: '.82rem', color: '#B45309', marginTop: '6px' }}>
+                  This collects <strong>{formatCurrency(totalDueToClose, currencySymbol)}</strong> — the outstanding principal
+                  of {formatCurrency(outstandingPrincipal, currencySymbol)}
+                  {interestDueNow > 0 && <> plus {formatCurrency(interestDueNow, currencySymbol)} of interest already due</>}.
+                  Any remaining monthly dues are waived and the loan is <strong>CLOSED</strong>.
+                </p>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">{d.totalDueToClose || 'Total due to close'} ({currencySymbol})</label>
+                <input type="number" className="form-control" style={{ fontSize: '1.1rem', padding: '12px' }} value={totalDueToClose} disabled />
+              </div>
+              <div className="form-group">
+                <label className="form-label">{d.paymentMode}</label>
+                <select className="form-control" style={{ fontSize: '1rem', padding: '12px' }} value={payMode} onChange={(e) => setPayMode(e.target.value)}>
+                  <option value="cash">{d.cash}</option>
+                  <option value="upi">{d.upi}</option>
+                  <option value="cheque">{d.cheque}</option>
+                  <option value="bank_transfer">{d.bankTransfer}</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Remarks / Reference</label>
+                <input type="text" className="form-control" style={{ fontSize: '1rem', padding: '12px' }} value={payRemarks} onChange={(e) => setPayRemarks(e.target.value)} />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setFullClosureModal(false)}>Cancel</button>
+              <button className="btn btn-warning" style={{ background: '#F59E0B', color: '#fff', border: 'none' }} onClick={handleFullClosure} disabled={loading || totalDueToClose <= 0}>
+                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>done_all</span>
+                {loading ? 'Processing...' : 'Collect & Close'}
               </button>
             </div>
           </div>

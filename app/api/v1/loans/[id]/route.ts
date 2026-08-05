@@ -4,7 +4,8 @@ import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { computeRestructure, restructuredAmountFor, computeExtendedSchedule } from '@/lib/restructure';
 import { calculateEndDate } from '@/lib/utils';
-import { calculateLoanPreview } from '@/lib/loanCalculator';
+import { calculateLoanPreview, isInterestOnly } from '@/lib/loanCalculator';
+import { isInterestOnlyEnabled } from '@/lib/features';
 import { validateGuarantorPhone } from '@/lib/guarantorPolicy';
 import { encryptAadharNumber, decryptAadharNumber } from '@/lib/pii';
 import { writeAudit } from '@/lib/audit';
@@ -296,6 +297,12 @@ export async function PUT(
       return fail(numericValidation.error, 400);
     }
 
+    // Same opt-in gate as origination, so an edit can't switch a loan onto a model
+    // the tenant isn't entitled to.
+    if (isInterestOnly(interestType) && !(await isInterestOnlyEnabled(ctx.tenantId))) {
+      return fail('Interest-Only is not enabled for this account', 403);
+    }
+
     const guarantorPhoneValidation = validateGuarantorPhone({
       customerPhone: loan.customer?.phone,
       guarantorPhone,
@@ -380,7 +387,14 @@ export async function PUT(
           collateralDetails,
           totalPayable,
           guarantorId: currentGuarantorId,
-          totalInstalments: tenure
+          totalInstalments: calculation.schedule.length,
+          // Keep servicing state in step with the edited terms. Switching a loan
+          // away from Interest-Only clears both so the columns never hold stale
+          // figures for a model that doesn't use them. An edit can only reach here
+          // before any money has moved (hasFinancialActivity guard above), so
+          // resetting outstanding principal to the new principal is safe.
+          interestRate: isInterestOnly(interestType) ? rate : null,
+          outstandingPrincipal: isInterestOnly(interestType) ? principal : null,
         }
       });
 

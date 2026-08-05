@@ -507,6 +507,14 @@ model Loan {
   provisioningCategory String              @default("standard") @map("provisioning_category")
   isSecured            Boolean             @default(false) @map("is_secured")
   totalPayable         Decimal             @default(0.00) @map("total_payable") @db.Decimal(12, 2)
+  // Interest-Only (deductionType 'interest_only'): the rate is quoted per MONTH and
+  // must survive origination, because interest is recomputed whenever the customer
+  // prepays principal. Every other model discards the rate and keeps only its result
+  // (deduction / totalPayable / perInstalment), so both stay nullable.
+  interestRate         Decimal?            @map("interest_rate") @db.Decimal(6, 3)
+  // Principal still owed. Mirrors gold_loan_collaterals.outstanding_principal (:928):
+  // null means "never serviced" and callers fall back to `principal`.
+  outstandingPrincipal Decimal?            @map("outstanding_principal") @db.Decimal(12, 2)
   // Auto Finance (HP): sourcing partners. Kept on Loan rather than the 1:1
   // detail table so the universal directory can filter loans by broker/dealer
   // without a join through auto_finance_details.

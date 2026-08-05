@@ -12,13 +12,16 @@ export default function LoanEditForm({
   currencySymbol,
   dict,
   userRole,
-  appType
+  appType,
+  interestOnlyEnabled
 }: {
   loan: any;
   currencySymbol: string;
   dict: any;
   userRole?: string;
   appType?: string;
+  /** Opt-in per tenant — see lib/features.ts. */
+  interestOnlyEnabled?: boolean;
 }) {
   const router = useRouter();
   const dashboardPath = useDashboardPath();
@@ -168,10 +171,33 @@ export default function LoanEditForm({
   // Removed static computed values, using calculatedData from API
 
   const isEmiAddition = interestType.startsWith('emi_');
-  const setCalcModel = (model: 'upfront' | 'emi') => {
+  const isInterestOnlyPlan = interestType === 'interest_only';
+  const setCalcModel = (model: 'upfront' | 'emi' | 'interest_only') => {
     if (model === 'upfront') setInterestType('upfront_fixed');
-    else setInterestType('emi_flat');
+    else if (model === 'emi') setInterestType('emi_flat');
+    else {
+      // Monthly rate → monthly schedule, same rule as origination.
+      setInterestType('interest_only');
+      setFrequency('monthly');
+    }
   };
+
+  const planButtonStyle = (active: boolean): React.CSSProperties => ({
+    flex: 1,
+    height: '100%',
+    borderRadius: 'calc(var(--radius-sm) - 2px)',
+    border: 'none',
+    background: active ? 'var(--primary)' : 'transparent',
+    color: active ? '#fff' : 'var(--text-secondary)',
+    fontWeight: 700,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
+    transition: 'all 0.2s ease',
+    boxShadow: active ? 'var(--shadow-sm)' : 'none',
+  });
 
   const loanTypeLabels: Record<string, string> = {
     cheque: appType === 'autofinance' ? 'Vehicle / Cheque' : (dict.loans.chequeBased || 'Cheque Based'),
@@ -406,63 +432,47 @@ export default function LoanEditForm({
         )}
 
         <div className="form-group">
-          <label className="form-label" style={{ fontWeight: '600' }}>Repayment Plan Model</label>
+          <label className="form-label" style={{ fontWeight: '600' }}>{dict.loans.repaymentPlanModel}</label>
           <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '4px', background: 'var(--bg-alt)', height: '54px', alignItems: 'center', marginBottom: '8px' }}>
-            <button 
-              type="button" 
-              onClick={() => setCalcModel('upfront')} 
-              style={{
-                flex: 1,
-                height: '100%',
-                borderRadius: 'calc(var(--radius-sm) - 2px)',
-                border: 'none',
-                background: !isEmiAddition ? 'var(--primary)' : 'transparent',
-                color: !isEmiAddition ? '#fff' : 'var(--text-secondary)',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                transition: 'all 0.2s ease',
-                boxShadow: !isEmiAddition ? 'var(--shadow-sm)' : 'none'
-              }}
+            <button
+              type="button"
+              onClick={() => setCalcModel('upfront')}
+              style={planButtonStyle(!isEmiAddition && !isInterestOnlyPlan)}
             >
-              <span>⬇️</span> Upfront
+              <span>⬇️</span> {dict.loans.upfront}
             </button>
-            
-            <button 
-              type="button" 
-              onClick={() => setCalcModel('emi')} 
-              style={{
-                flex: 1,
-                height: '100%',
-                borderRadius: 'calc(var(--radius-sm) - 2px)',
-                border: 'none',
-                background: isEmiAddition ? 'var(--primary)' : 'transparent',
-                color: isEmiAddition ? '#fff' : 'var(--text-secondary)',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                transition: 'all 0.2s ease',
-                boxShadow: isEmiAddition ? 'var(--shadow-sm)' : 'none'
-              }}
+
+            <button
+              type="button"
+              onClick={() => setCalcModel('emi')}
+              style={planButtonStyle(isEmiAddition)}
             >
-              <span>📈</span> EMI
+              <span>📈</span> {dict.loans.emi}
             </button>
+
+            {interestOnlyEnabled && (
+              <button
+                type="button"
+                onClick={() => setCalcModel('interest_only')}
+                style={planButtonStyle(isInterestOnlyPlan)}
+              >
+                <span>🔁</span> {dict.loans.interestOnly}
+              </button>
+            )}
           </div>
-          
+
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', background: 'var(--bg-alt)', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', marginBottom: '20px' }}>
-            {!isEmiAddition ? (
+            {isInterestOnlyPlan ? (
+              <span style={{ fontSize: '.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                {dict.loans.interestOnlyHint}
+              </span>
+            ) : !isEmiAddition ? (
               <>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '.9rem', cursor: 'pointer', fontWeight: 500 }}>
-                  <input type="radio" checked={interestType === 'upfront_fixed'} onChange={() => setInterestType('upfront_fixed')} style={{ accentColor: 'var(--primary)' }} /> Fixed Amount
+                  <input type="radio" checked={interestType === 'upfront_fixed'} onChange={() => setInterestType('upfront_fixed')} style={{ accentColor: 'var(--primary)' }} /> {dict.loans.fixedAmount}
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '.9rem', cursor: 'pointer', fontWeight: 500 }}>
-                  <input type="radio" checked={interestType === 'upfront_percentage'} onChange={() => setInterestType('upfront_percentage')} style={{ accentColor: 'var(--primary)' }} /> % Percentage
+                  <input type="radio" checked={interestType === 'upfront_percentage'} onChange={() => setInterestType('upfront_percentage')} style={{ accentColor: 'var(--primary)' }} /> {dict.loans.percentage}
                 </label>
               </>
             ) : (
@@ -481,11 +491,18 @@ export default function LoanEditForm({
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">
-              {interestType === 'upfront_percentage' || interestType.includes('emi_')
-                ? `Interest / Rate (%) *`
-                : `${dict.loans.deduction} Amount (${currencySymbol}) *`}
+              {isInterestOnlyPlan
+                ? `${dict.loans.monthlyInterestRate} *`
+                : interestType === 'upfront_percentage' || interestType.includes('emi_')
+                  ? `Interest / Rate (%) *`
+                  : `${dict.loans.deduction} Amount (${currencySymbol}) *`}
             </label>
-            <input type="number" name="deduction" className="form-control" value={deduction} onChange={e => setDeduction(e.target.value ? Number(e.target.value) : '')} required style={{ fontSize: '1.1rem', padding: '12px' }} />
+            <input type="number" name="deduction" className="form-control" step={isInterestOnlyPlan ? '0.001' : undefined} value={deduction} onChange={e => setDeduction(e.target.value ? Number(e.target.value) : '')} required style={{ fontSize: '1.1rem', padding: '12px' }} />
+            {isInterestOnlyPlan && deduction !== '' && (
+              <div style={{ marginTop: '8px', fontSize: '.85rem', color: 'var(--primary-dark)', fontWeight: 600 }}>
+                {deduction}% / month = {Number(deduction) * 12}% {dict.loans.aprEquivalent}
+              </div>
+            )}
           </div>
           <div className="form-group">
             <label className="form-label">{dict.loans.netDisbursed}</label>
@@ -496,10 +513,12 @@ export default function LoanEditForm({
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">{dict.loans.frequency} *</label>
+            {/* Interest-Only is monthly by definition — narrow the options rather
+                than disable the control, which would submit no frequency at all. */}
             <select name="frequency" className="form-control" value={frequency} onChange={e => { setFrequency(e.target.value); setDueDay(''); }} required style={{ fontSize: '1rem', padding: '12px' }}>
-              <option value="daily">{dict.creditInsights.daily}</option>
-              <option value="weekly">{dict.creditInsights.weekly}</option>
-              <option value="biweekly">Bi-weekly (14 days)</option>
+              {!isInterestOnlyPlan && <option value="daily">{dict.creditInsights.daily}</option>}
+              {!isInterestOnlyPlan && <option value="weekly">{dict.creditInsights.weekly}</option>}
+              {!isInterestOnlyPlan && <option value="biweekly">Bi-weekly (14 days)</option>}
               <option value="monthly">{dict.creditInsights.monthly}</option>
             </select>
           </div>

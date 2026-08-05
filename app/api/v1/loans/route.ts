@@ -6,6 +6,8 @@ import { getAgentRouteIds } from '@/lib/access';
 import { writeAudit } from '@/lib/audit';
 import { buildAgentCustomerAccessWhere, canAgentAccessCustomer, canCreateLoanForRole, validateLoanNumericInputs } from '@/lib/loanPolicy';
 import { getAgentBalance, disburseFromAgent, disburseFromBranch } from '@/lib/wallet';
+import { isInterestOnly } from '@/lib/loanCalculator';
+import { isInterestOnlyEnabled } from '@/lib/features';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -202,6 +204,12 @@ export async function POST(req: NextRequest) {
       penaltyRate,
     });
     if (!numeric.valid) return fail(numeric.error, 400);
+
+    // Interest-Only is opt-in per tenant. Enforced here and not only in the UI —
+    // the form is one of several ways into this route (mobile, API clients).
+    if (isInterestOnly(deductionType) && !(await isInterestOnlyEnabled(ctx.tenantId))) {
+      return fail('Interest-Only is not enabled for this account', 403);
+    }
     if (Number.isNaN(startDate.getTime())) {
       return fail('Invalid start date', 400);
     }
@@ -388,11 +396,17 @@ export async function POST(req: NextRequest) {
         penaltyRate,
         voucherRef,
         totalPayable: preview.totalPayable,
-        totalInstalments: tenure,
+        totalInstalments: preview.schedule.length,
         createdById: ctx.userId,
         status,
         brokerId,
         dealerId,
+        // Interest-Only servicing state. The rate must survive origination because
+        // interest is recomputed whenever principal is prepaid; every other model
+        // keeps only the rate's result, so both stay null for them.
+        ...(isInterestOnly(deductionType)
+          ? { interestRate: rate, outstandingPrincipal: principal }
+          : {}),
         instalments: {
           create: preview.schedule.map((i: any) => ({
             instalmentNo: i.instalmentNo,

@@ -4,7 +4,11 @@ export type InterestType =
   | 'upfront_fixed'
   | 'upfront_percentage'
   | 'emi_flat'
-  | 'emi_floating';
+  | 'emi_floating'
+  | 'interest_only';
+
+/** Months per year — the APR conversion factor for a monthly quoted rate. */
+export const MONTHS_PER_YEAR = 12;
 
 export type LoanCalculationInput = {
   principal: number;
@@ -27,7 +31,23 @@ export type LoanCalculationResult = {
     dueDate: Date;
     dueAmount: number;
   }>;
+  /** interest_only: one month's interest — the amount of every scheduled due. */
+  monthlyInterest?: number;
+  /** interest_only: the monthly rate annualised (2.5%/month → 30% APR). */
+  aprPercent?: number;
+  /** interest_only: the bullet principal settled at closure, outside the schedule. */
+  principalDueAtClosure?: number;
 };
+
+/**
+ * Interest-Only (Check/Gold Base): monthly dues are interest only and the principal
+ * is a bullet repaid at closure. Callers branch on this in several places — schedule
+ * shape, loan auto-close and outstanding-principal math all differ — so the check
+ * lives here rather than being restated as a string literal.
+ */
+export function isInterestOnly(interestType: InterestType | string | null | undefined): boolean {
+  return interestType === 'interest_only';
+}
 
 function assertFiniteAmount(value: number, message: string) {
   if (!Number.isFinite(value)) {
@@ -70,10 +90,16 @@ export function calculateLoanPreview(input: LoanCalculationInput): LoanCalculati
   if (Number.isNaN(startDate.getTime())) {
     throw new Error('Invalid start date.');
   }
+  // Interest-Only quotes a rate per MONTH, so a non-monthly schedule has no
+  // defined due amount. Reject rather than silently bill a monthly figure daily.
+  if (isInterestOnly(interestType) && frequency !== 'monthly') {
+    throw new Error('Interest-Only loans must use a monthly frequency.');
+  }
 
   let disbursedAmount = principal;
   let totalPayable = principal;
   let deduction = 0;
+  let monthlyInterest = 0;
 
   switch (interestType) {
     case 'upfront_fixed':
@@ -109,12 +135,29 @@ export function calculateLoanPreview(input: LoanCalculationInput): LoanCalculati
       }
       break;
     }
+    case 'interest_only': {
+      // `rate` is a MONTHLY percentage of the principal. The principal itself is a
+      // bullet settled at closure and is NOT part of the schedule, so nothing is
+      // netted off at disbursal — the customer receives the full principal.
+      monthlyInterest = Math.round(principal * (rate / 100));
+      deduction = 0;
+      disbursedAmount = principal;
+      totalPayable = principal + monthlyInterest * tenure;
+      break;
+    }
     default:
       disbursedAmount = principal;
       totalPayable = principal;
   }
 
-  const amounts = distributeInstalmentAmounts(totalPayable, tenure);
+  // Interest-Only bills the same interest every month, so the schedule is flat and
+  // sums to the INTEREST only. Every other model spreads `totalPayable` across the
+  // rows (last one absorbing the rounding remainder), so for those
+  // sum(schedule) === totalPayable — an invariant Interest-Only deliberately breaks
+  // because the principal is collected outside the schedule at closure.
+  const amounts = isInterestOnly(interestType)
+    ? Array.from({ length: tenure }, () => monthlyInterest)
+    : distributeInstalmentAmounts(totalPayable, tenure);
   const perInstalment = amounts[0] ?? 0;
   const dates = calculateInstalmentDates(startDate, frequency, tenure, input.dueDay);
 
@@ -129,5 +172,12 @@ export function calculateLoanPreview(input: LoanCalculationInput): LoanCalculati
       dueDate,
       dueAmount: amounts[index],
     })),
+    ...(isInterestOnly(interestType)
+      ? {
+          monthlyInterest,
+          aprPercent: rate * MONTHS_PER_YEAR,
+          principalDueAtClosure: principal,
+        }
+      : {}),
   };
 }
