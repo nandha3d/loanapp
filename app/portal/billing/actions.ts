@@ -5,9 +5,12 @@ import { auth } from '@/lib/auth';
 import prisma from '@/lib/db';
 import { calculateVerticalSubscriptionPricing } from '@/lib/pricing';
 import {
+  RazorpayApiError,
   createRazorpayPlan,
   createRazorpaySubscription,
+  getConfiguredRazorpayPlanId,
   getRazorpaySubscription,
+  normalizeRazorpayPlanId,
 } from '@/lib/razorpay';
 import { getSubscription, normalizeEnabledModules } from '@/lib/subscription';
 import { getDefaultTenantId } from '@/lib/tenant';
@@ -97,27 +100,38 @@ export async function initiateCheckout(planId: string): Promise<CheckoutResult> 
       });
       if (!catalog) return { error: 'That paid plan is no longer available.' };
 
-      const enabledModules = normalizeEnabledModules(current.enabledModules);
-      const selectedAddons = parseStringList(current.selectedAddons);
-      const addonRows = selectedAddons.length
-        ? await prisma.addonCatalog.findMany({
-            where: { addon: { in: selectedAddons }, isActive: true },
-            select: { monthlyPrice: true },
-          })
-        : [];
-      const addonsPrice = addonRows.reduce((sum, addon) => sum + addon.monthlyPrice, 0);
-      const pricing = calculateVerticalSubscriptionPricing(
-        catalog.monthlyPrice,
-        enabledModules,
-        addonsPrice,
-      );
+      // A plan pinned by an operator wins — first the one saved against this
+      // catalog row in Developer → Billing → Pricing, then the environment.
+      // Both name an existing, immutable Razorpay plan, so checkout needs no
+      // write access to the Plans API and retries stop littering the account
+      // with one new plan per attempt. Falls back to minting a plan from this
+      // tenant's computed total.
+      let razorpayPlanId =
+        normalizeRazorpayPlanId(catalog.razorpayPlanId) ??
+        getConfiguredRazorpayPlanId(catalog.plan);
+      if (!razorpayPlanId) {
+        const enabledModules = normalizeEnabledModules(current.enabledModules);
+        const selectedAddons = parseStringList(current.selectedAddons);
+        const addonRows = selectedAddons.length
+          ? await prisma.addonCatalog.findMany({
+              where: { addon: { in: selectedAddons }, isActive: true },
+              select: { monthlyPrice: true },
+            })
+          : [];
+        const addonsPrice = addonRows.reduce((sum, addon) => sum + addon.monthlyPrice, 0);
+        const pricing = calculateVerticalSubscriptionPricing(
+          catalog.monthlyPrice,
+          enabledModules,
+          addonsPrice,
+        );
 
-      const razorpayPlanId = await createRazorpayPlan({
-        tenantId,
-        planId: catalog.plan,
-        displayName: catalog.displayName,
-        amountRupees: pricing.totalMonthlyPrice,
-      });
+        razorpayPlanId = await createRazorpayPlan({
+          tenantId,
+          planId: catalog.plan,
+          displayName: catalog.displayName,
+          amountRupees: pricing.totalMonthlyPrice,
+        });
+      }
       const now = Date.now();
       const trialEnd = current.trialEndsAt?.getTime() ?? 0;
       const startAt = trialEnd > now + 5 * 60 * 1000
@@ -139,6 +153,18 @@ export async function initiateCheckout(planId: string): Promise<CheckoutResult> 
       tenantId,
       message: error instanceof Error ? error.message : 'Unknown error',
     });
+    // Billing is owner/admin-only, so the operator seeing this message is the
+    // person who can fix a misconfiguration. Saying "try again" for a rejected
+    // API key just sends them round the same loop.
+    if (error instanceof RazorpayApiError) {
+      if (error.code === 'KEYS_MISSING') {
+        return { error: 'Razorpay is not configured for this deployment. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET, then try again.' };
+      }
+      if (error.status === 401) {
+        return { error: 'Razorpay rejected the API credentials for this deployment. Verify RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET belong to the same live Razorpay account, then try again.' };
+      }
+      return { error: `Razorpay could not start this checkout: ${error.message}` };
+    }
     return { error: 'Payment checkout could not be started. Please try again or contact support.' };
   }
 

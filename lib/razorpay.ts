@@ -22,11 +22,78 @@ type RazorpaySubscriptionResult = {
   status: string;
 };
 
+/**
+ * A Razorpay API call that failed, carrying enough detail for the billing UI to
+ * tell an operator whether the problem is our configuration or Razorpay's side.
+ * The generic "try again" message that used to be shown for every failure hid
+ * unrecoverable errors such as rejected API keys.
+ */
+export class RazorpayApiError extends Error {
+  readonly status: number;
+  readonly code: string | undefined;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = 'RazorpayApiError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
+/**
+ * Turns a non-2xx Razorpay response into a RazorpayApiError, logging the
+ * description Razorpay returned. Only the error envelope is logged — it never
+ * echoes the API key or secret back to us.
+ */
+async function razorpayFailure(res: Response, action: string): Promise<RazorpayApiError> {
+  const body = await res.text().catch(() => '');
+  let code: string | undefined;
+  let description = '';
+  try {
+    const parsed = JSON.parse(body);
+    code = typeof parsed?.error?.code === 'string' ? parsed.error.code : undefined;
+    description = typeof parsed?.error?.description === 'string' ? parsed.error.description : '';
+  } catch {
+    // Razorpay occasionally returns HTML (gateway/maintenance pages).
+  }
+  console.error(`Razorpay ${action} failed`, { status: res.status, code, description });
+  return new RazorpayApiError(description || `Razorpay ${action} failed`, res.status, code);
+}
+
 function getPlatformRazorpayAuth(): string {
   const keyId = process.env.RAZORPAY_KEY_ID;
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
-  if (!keyId || !keySecret) throw new Error('Razorpay keys not configured');
+  if (!keyId || !keySecret) {
+    throw new RazorpayApiError('Razorpay keys not configured', 0, 'KEYS_MISSING');
+  }
   return Buffer.from(`${keyId}:${keySecret}`).toString('base64');
+}
+
+/**
+ * The Razorpay plan an operator pre-created in the dashboard for this SaaS plan.
+ *
+ * Preferred over creating a plan per checkout: Razorpay plans are immutable, so
+ * the create-on-demand path leaves a fresh plan on the account for every attempt
+ * and needs write access to the Plans API. Returns null when unset, which keeps
+ * the dynamic-plan path as the fallback.
+ */
+export function getConfiguredRazorpayPlanId(planId: string): string | null {
+  const configured: Record<string, string | undefined> = {
+    basic: process.env.RAZORPAY_PLAN_BASIC,
+    business: process.env.RAZORPAY_PLAN_BUSINESS,
+    enterprise: process.env.RAZORPAY_PLAN_ENTERPRISE,
+  };
+  return normalizeRazorpayPlanId(configured[planId]);
+}
+
+/**
+ * Accepts a plan ID only in Razorpay's `plan_…` form, so a blank or half-filled
+ * value from the pricing admin screen falls through to the next source instead
+ * of failing the checkout.
+ */
+export function normalizeRazorpayPlanId(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed && trimmed.startsWith('plan_') ? trimmed : null;
 }
 
 export function buildRazorpaySubscriptionRequest(
@@ -98,10 +165,7 @@ export async function createRazorpayPlan(input: {
     }),
   });
 
-  if (!res.ok) {
-    console.error('Razorpay plan creation failed', { status: res.status });
-    throw new Error('Unable to prepare the subscription price with Razorpay');
-  }
+  if (!res.ok) throw await razorpayFailure(res, 'plan creation');
 
   const data = await res.json();
   if (typeof data.id !== 'string' || !data.id.startsWith('plan_')) {
@@ -191,10 +255,7 @@ export async function createRazorpaySubscription(
     body: JSON.stringify(requestBody)
   });
 
-  if (!res.ok) {
-    console.error('Razorpay subscription creation failed', { status: res.status });
-    throw new Error('Failed to create Razorpay subscription');
-  }
+  if (!res.ok) throw await razorpayFailure(res, 'subscription creation');
 
   const data = await res.json();
   if (typeof data.id !== 'string' || !data.id.startsWith('sub_')) {
