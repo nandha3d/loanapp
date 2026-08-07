@@ -160,7 +160,14 @@ export function calculateInstalmentDates(startDate: Date, frequency: string, ten
     let monthOffset = startDate.getDate() > clampedDay ? 1 : 0;
 
     for (let i = 0; i < tenure; i++) {
-      const d = new Date(startYear, startMonth + monthOffset + i, clampedDay);
+      // Derive from a COPY of startDate rather than `new Date(y, m, d)`. The latter
+      // builds local midnight, but instalment dueDates are stored and read as UTC
+      // midnight (see the toDateStr helpers in the loan routes) — so east of UTC a
+      // due day of the 1st was persisting as the 31st of the previous month. Every
+      // sibling branch here already mutates a copy, which preserves the time-of-day
+      // and keeps the calendar date stable on any server timezone.
+      const d = new Date(startDate);
+      d.setFullYear(startYear, startMonth + monthOffset + i, clampedDay);
       dates.push(d);
     }
   }

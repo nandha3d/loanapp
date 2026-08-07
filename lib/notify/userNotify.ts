@@ -9,6 +9,12 @@ export type UserNotifyInput = {
   /** …or broadcast to a role within the tenant (optionally a branch). */
   targetRole?: string | null;
   branchId?: string | null;
+  /**
+   * When branch-scoping a role broadcast, also reach users of that role who have
+   * no branch assigned. Without this an admin whose `branchId` is null silently
+   * receives nothing, since every branch-scoped broadcast filters them out.
+   */
+  includeUnassignedBranch?: boolean;
   appType?: string;
   type: string;
   title: string;
@@ -33,12 +39,17 @@ export async function notifyUser(input: UserNotifyInput): Promise<void> {
     if (input.targetUserId) {
       userIds = [input.targetUserId];
     } else if (input.targetRole) {
+      const branchScope = !input.branchId
+        ? {}
+        : input.includeUnassignedBranch
+          ? { OR: [{ branchId: input.branchId }, { branchId: null }] }
+          : { branchId: input.branchId };
       const users = await prisma.user.findMany({
         where: {
           tenantId: input.tenantId,
           role: input.targetRole,
           status: 'active',
-          ...(input.branchId ? { branchId: input.branchId } : {}),
+          ...branchScope,
         },
         select: { id: true },
       });

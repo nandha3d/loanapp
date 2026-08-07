@@ -4,7 +4,7 @@ import ApprovalsClient from './ApprovalsClient';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { getDictionary } from '@/lib/i18n';
-import { getActiveBranchId } from '@/lib/branch';
+import { getActiveBranchId, branchOrUnassignedWhere } from '@/lib/branch';
 
 export default async function ApprovalsPage() {
   const session = await auth();
@@ -20,13 +20,17 @@ export default async function ApprovalsPage() {
   const dict = await getDictionary(tenantId);
   const activeBranchId = await getActiveBranchId();
   
+  // Branch scope shared by every query below so the list, the tabs and the
+  // sidebar badge always agree. A record that landed without a branch is
+  // reviewable by anyone in the tenant — excluding it made such records
+  // invisible to admins while superadmins (unscoped) still saw them.
+  const branchScope = branchOrUnassignedWhere(activeBranchId);
+
   const where: any = { tenantId, appType };
   if (userRole === 'agent') {
     where.requestedById = userId;
-  } else if (userRole === 'admin' && activeBranchId) {
-    where.requestedBy = {
-      branchId: activeBranchId
-    };
+  } else if (activeBranchId) {
+    where.requestedBy = branchScope;
   }
 
   const requests = await prisma.approvalRequest.findMany({ 
@@ -43,8 +47,7 @@ export default async function ApprovalsPage() {
   let pendingCustomers: any[] = [];
   let pendingVehicles: any[] = [];
   if (userRole !== 'agent') {
-    const loanWhere: any = { tenantId, appType, status: 'pending_review' };
-    if (activeBranchId) loanWhere.branchId = activeBranchId;
+    const loanWhere: any = { tenantId, appType, status: 'pending_review', ...branchScope };
     pendingLoans = await prisma.loan.findMany({
       where: loanWhere,
       include: {
@@ -54,8 +57,7 @@ export default async function ApprovalsPage() {
       orderBy: { createdAt: 'desc' },
     });
 
-    const customerWhere: any = { tenantId, appType, status: 'pending_review' };
-    if (activeBranchId) customerWhere.branchId = activeBranchId;
+    const customerWhere: any = { tenantId, appType, status: 'pending_review', ...branchScope };
     pendingCustomers = await prisma.customer.findMany({
       where: customerWhere,
       include: {
@@ -68,7 +70,7 @@ export default async function ApprovalsPage() {
     // have no branch column of their own).
     if (appType === 'autofinance') {
       const vehicleWhere: any = { tenantId, appType, status: 'pending_review', deletedAt: null };
-      if (activeBranchId) vehicleWhere.customer = { branchId: activeBranchId };
+      if (activeBranchId) vehicleWhere.customer = branchScope;
       pendingVehicles = await prisma.vehicle.findMany({
         where: vehicleWhere,
         include: {

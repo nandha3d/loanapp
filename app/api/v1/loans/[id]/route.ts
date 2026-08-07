@@ -11,6 +11,7 @@ import { encryptAadharNumber, decryptAadharNumber } from '@/lib/pii';
 import { writeAudit } from '@/lib/audit';
 import { validateLoanNumericInputs, buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 import { hasFinancialActivity } from '@/lib/repayments';
+import { modulePath } from '@/types/modules';
 
 export async function GET(
   req: NextRequest,
@@ -231,21 +232,19 @@ export async function PATCH(
     },
   });
 
-  await prisma.systemNotification
-    .create({
-      data: {
-        tenantId: ctx.tenantId,
-        branchId: loan.branchId,
-        appType: ctx.appType,
-        type: 'loan_edit_review',
-        icon: 'rate_review',
-        title: 'Loan edit pending review',
-        message: `Edit requested for loan ${loan.loanCode}.`,
-        link: '/approvals',
-        targetRole: 'admin',
-      },
-    })
-    .catch(() => {});
+  // Branch admins + tenant superadmins, one per-user row each (own read state)
+  // plus a push — not a single shared admin row.
+  const { notifyApprovers } = await import('@/lib/notify/approvers');
+  await notifyApprovers({
+    tenantId: ctx.tenantId,
+    branchId: loan.branchId,
+    appType: ctx.appType,
+    type: 'loan_edit_review',
+    icon: 'rate_review',
+    title: 'Loan edit pending review',
+    message: `Edit requested for loan ${loan.loanCode}.`,
+    link: modulePath(ctx.appType, '/approvals'),
+  });
 
   return ok({ requested: true, changes: proposed });
 }

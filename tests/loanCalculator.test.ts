@@ -131,8 +131,14 @@ assert.deepEqual(distributeInstalmentAmounts(1000, 3), [333, 333, 334]);
   r.schedule.forEach((i) => assert.equal(i.dueAmount, 25_000));
   assert.equal(r.schedule.reduce((s, i) => s + i.dueAmount, 0), 300_000);
 
-  // The manually chosen due day drives the schedule.
-  r.schedule.forEach((i) => assert.equal(new Date(i.dueDate).getDate(), 1));
+  // The manually chosen due day drives the schedule. Asserted in UTC as well as
+  // local: dueDates are persisted and read back as UTC midnight, so a local-midnight
+  // Date would store as the previous day east of UTC (IST turned "the 1st" into the
+  // 31st until lib/utils.ts calculateInstalmentDates was fixed).
+  r.schedule.forEach((i) => {
+    assert.equal(new Date(i.dueDate).getDate(), 1);
+    assert.equal(new Date(i.dueDate).getUTCDate(), 1, 'due day must survive the UTC round-trip');
+  });
 }
 
 {

@@ -9,7 +9,7 @@ import { getAppConfig } from '@/lib/appConfig';
 import { getThemePreset, THEME_SETTING_KEY } from '@/lib/themes';
 import { getDictionary, getCurrentLanguage } from '@/lib/i18n';
 import BranchSwitcher from '@/components/layout/BranchSwitcher';
-import { getActiveBranchId, getSuperadminBranches } from '@/lib/branch';
+import { getActiveBranchId, getSuperadminBranches, branchOrUnassignedWhere } from '@/lib/branch';
 import {
   ALL_MODULES,
   isModuleKey,
@@ -130,11 +130,14 @@ export default async function DashboardLayout({
         : role === 'admin'
           ? (await getActiveBranchId()) ?? undefined
           : undefined;
+    // Same scope the Approvals page uses (branch + unbranched records), so the
+    // badge never lights up for rows the page then filters out.
+    const branchScope = branchOrUnassignedWhere(scopeBranchId);
     const base = {
       tenantId,
       appType: requestedModule,
       status: 'pending_review',
-      ...(scopeBranchId ? { branchId: scopeBranchId } : {}),
+      ...branchScope,
     };
     const [pc, pl, pv, pr] = await Promise.all([
       prisma.customer.count({ where: base }),
@@ -146,12 +149,17 @@ export default async function DashboardLayout({
               appType: requestedModule,
               status: 'pending_review',
               deletedAt: null,
-              ...(scopeBranchId ? { customer: { branchId: scopeBranchId } } : {}),
+              ...(scopeBranchId ? { customer: branchScope } : {}),
             },
           })
         : Promise.resolve(0),
       prisma.approvalRequest.count({
-        where: { tenantId, appType: requestedModule, status: 'pending' },
+        where: {
+          tenantId,
+          appType: requestedModule,
+          status: 'pending',
+          ...(scopeBranchId ? { requestedBy: branchScope } : {}),
+        },
       }),
     ]);
     pendingApprovals = pc + pl + pv + pr;

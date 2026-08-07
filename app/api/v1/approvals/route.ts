@@ -1,7 +1,9 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
+import { requireMobileContext } from '@/lib/api/v1-auth';
+import { branchOrUnassignedWhere } from '@/lib/branchScope';
+import { modulePath } from '@/types/modules';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -11,9 +13,20 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const status = searchParams.get('status') ?? undefined;
 
+  // Mirrors the web Approvals page: branch admins see their branch plus any
+  // record that landed without a branch (reviewable by anyone in the tenant).
+  // Superadmin/developer stay tenant-wide.
+  const scopeBranchId =
+    ctx.role === 'superadmin' || ctx.role === 'developer' ? null : ctx.branchId;
+  const branchScope = branchOrUnassignedWhere(scopeBranchId);
+
   const where: any = { tenantId: ctx.tenantId, appType: ctx.appType };
   if (status) where.status = status;
-  if (ctx.role === 'agent') where.requestedById = ctx.userId;
+  if (ctx.role === 'agent') {
+    where.requestedById = ctx.userId;
+  } else if (scopeBranchId) {
+    where.requestedBy = branchScope;
+  }
 
   try {
     // 1. Fetch general approval requests
@@ -30,7 +43,7 @@ export async function GET(req: NextRequest) {
 
     // 2. Fetch pending customers and loans for admins if listing pending
     if (ctx.role !== 'agent' && (!status || status === 'pending')) {
-      const branchWhere = scopedBranchWhere(ctx);
+      const branchWhere = branchScope;
 
       const pendingCustomers = await prisma.customer.findMany({
         where: {
@@ -158,19 +171,19 @@ export async function POST(req: NextRequest) {
     if (entityType === 'customer') {
       const customer = await prisma.customer.findFirst({ where: { id: entityId, tenantId: ctx.tenantId } });
       if (customer) {
-        await prisma.systemNotification.create({
-          data: {
-            tenantId: ctx.tenantId,
-            branchId: customer.branchId,
-            appType: ctx.appType,
-            type: 'customer_edit_review',
-            icon: 'verified',
-            title: 'Customer edit pending review',
-            message: `Agent requested edits for customer ${customer.name}.`,
-            link: '/approvals',
-            targetRole: 'admin',
-          },
-        }).catch(() => {});
+        // Branch admins + tenant superadmins, one per-user row each (own read
+        // state) plus a push — not a single shared admin row.
+        const { notifyApprovers } = await import('@/lib/notify/approvers');
+        await notifyApprovers({
+          tenantId: ctx.tenantId,
+          branchId: customer.branchId,
+          appType: ctx.appType,
+          type: 'customer_edit_review',
+          icon: 'verified',
+          title: 'Customer edit pending review',
+          message: `Agent requested edits for customer ${customer.name}.`,
+          link: modulePath(ctx.appType, '/approvals'),
+        });
       }
     }
 
