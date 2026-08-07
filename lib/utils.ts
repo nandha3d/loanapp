@@ -152,23 +152,22 @@ export function calculateInstalmentDates(startDate: Date, frequency: string, ten
       dates.push(d);
     }
   } else if (frequency === 'monthly') {
-    // dueDay is 1-28 (day of month)
+    // dueDay is 1-28 (day of month).
+    //
+    // Built entirely in UTC. Instalment dueDates are stored and read back as UTC
+    // midnight (see the toDateStr helpers in the loan routes), so the local-time
+    // constructor this used to call — `new Date(y, m, d)` — produced local midnight
+    // and shifted every due date by a day: east of UTC a chosen day of the 1st
+    // persisted as the 31st of the previous month. Using UTC throughout makes the
+    // chosen day come back exactly, on a server in any timezone.
     const clampedDay = Math.min(28, Math.max(1, dueDay));
-    const startMonth = startDate.getMonth();
-    const startYear = startDate.getFullYear();
+    const startMonth = startDate.getUTCMonth();
+    const startYear = startDate.getUTCFullYear();
     // If the start date's day is already past the dueDay, start from next month
-    let monthOffset = startDate.getDate() > clampedDay ? 1 : 0;
+    const monthOffset = startDate.getUTCDate() > clampedDay ? 1 : 0;
 
     for (let i = 0; i < tenure; i++) {
-      // Derive from a COPY of startDate rather than `new Date(y, m, d)`. The latter
-      // builds local midnight, but instalment dueDates are stored and read as UTC
-      // midnight (see the toDateStr helpers in the loan routes) — so east of UTC a
-      // due day of the 1st was persisting as the 31st of the previous month. Every
-      // sibling branch here already mutates a copy, which preserves the time-of-day
-      // and keeps the calendar date stable on any server timezone.
-      const d = new Date(startDate);
-      d.setFullYear(startYear, startMonth + monthOffset + i, clampedDay);
-      dates.push(d);
+      dates.push(new Date(Date.UTC(startYear, startMonth + monthOffset + i, clampedDay)));
     }
   }
 
