@@ -52,12 +52,52 @@ jobs:
             cat ssh-keyscan.err
           fi
 
+          # `npm install` inside deploy.sh runs silently for minutes at a time. With
+          # no keepalive the channel idles out, and the resulting broken pipe used to
+          # SIGHUP deploy.sh mid-install — leaving the VPS with new code checked out
+          # but stale dependencies and no restart.
+          SSH_OPTS=(
+            -4 -i ~/.ssh/id_ed25519 -p "$VPS_PORT"
+            -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new
+            -o ConnectTimeout=20 -o TCPKeepAlive=yes
+            -o ServerAliveInterval=15 -o ServerAliveCountMax=40
+          )
+          REMOTE="$VPS_USER@$VPS_HOST"
+          APP_DIR=/home/loantrack/app
+
           echo "Running remote deploy preflight"
-          ssh -4 -i ~/.ssh/id_ed25519 -p "$VPS_PORT" \
-            -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
-            "$VPS_USER@$VPS_HOST" \
-            'set -euo pipefail
-             echo "connected: $(hostname) as $(whoami)"
-             test -d /home/loantrack/app || { echo "missing /home/loantrack/app"; exit 20; }
-             test -f /home/loantrack/app/deploy.sh || { echo "missing /home/loantrack/app/deploy.sh"; exit 21; }
-             bash /home/loantrack/app/deploy.sh'
+          # setsid+nohup detaches deploy.sh from this SSH session, so even if the
+          # connection still drops the deploy runs to completion; the exit code lands
+          # in a status file that the poll loop below reads back.
+          ssh "${SSH_OPTS[@]}" "$REMOTE" "
+            set -euo pipefail
+            echo \"connected: \$(hostname) as \$(whoami)\"
+            test -d $APP_DIR || { echo 'missing $APP_DIR'; exit 20; }
+            test -f $APP_DIR/deploy.sh || { echo 'missing $APP_DIR/deploy.sh'; exit 21; }
+            rm -f /tmp/deploy.log /tmp/deploy.status
+            setsid nohup bash -c 'bash $APP_DIR/deploy.sh > /tmp/deploy.log 2>&1; echo \$? > /tmp/deploy.status' >/dev/null 2>&1 &
+            echo 'deploy started detached'
+          "
+
+          echo "Waiting for the remote deploy to finish"
+          status=""
+          for _ in $(seq 1 80); do   # 80 x 15s = 20 min ceiling
+            sleep 15
+            status="$(ssh "${SSH_OPTS[@]}" "$REMOTE" 'cat /tmp/deploy.status 2>/dev/null || true' || true)"
+            [ -n "$status" ] && break
+            echo "  ... still deploying"
+          done
+
+          echo "===== remote deploy log ====="
+          ssh "${SSH_OPTS[@]}" "$REMOTE" 'cat /tmp/deploy.log 2>/dev/null || echo "(no log)"' || true
+          echo "============================="
+
+          if [ -z "$status" ]; then
+            echo "::error::Deploy did not finish within 20 minutes."
+            exit 1
+          fi
+          if [ "$status" != "0" ]; then
+            echo "::error::deploy.sh exited with status $status"
+            exit "$status"
+          fi
+          echo "Deploy completed successfully."
