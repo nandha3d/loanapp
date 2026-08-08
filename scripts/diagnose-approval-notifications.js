@@ -47,11 +47,22 @@ async function main() {
     const [customers, loans, requests] = await Promise.all([
       prisma.customer.findMany({
         where: { tenantId: tenant.id, status: 'pending_review' },
-        select: { name: true, customerCode: true, branchId: true, appType: true },
+        select: {
+          name: true,
+          customerCode: true,
+          branchId: true,
+          appType: true,
+          agent: { select: { branchId: true } },
+        },
       }),
       prisma.loan.findMany({
         where: { tenantId: tenant.id, status: 'pending_review' },
-        select: { loanCode: true, branchId: true, appType: true },
+        select: {
+          loanCode: true,
+          branchId: true,
+          appType: true,
+          createdBy: { select: { branchId: true } },
+        },
       }),
       prisma.approvalRequest.findMany({
         where: { tenantId: tenant.id, status: 'pending' },
@@ -65,11 +76,22 @@ async function main() {
     ]);
 
     const items = [
-      ...customers.map((c) => ({ label: `customer ${c.name} (${c.customerCode})`, branchId: c.branchId, appType: c.appType })),
-      ...loans.map((l) => ({ label: `loan ${l.loanCode}`, branchId: l.branchId, appType: l.appType })),
+      ...customers.map((c) => ({
+        label: `customer ${c.name} (${c.customerCode})`,
+        branchId: c.branchId,
+        filerBranchId: c.agent?.branchId ?? null,
+        appType: c.appType,
+      })),
+      ...loans.map((l) => ({
+        label: `loan ${l.loanCode}`,
+        branchId: l.branchId,
+        filerBranchId: l.createdBy?.branchId ?? null,
+        appType: l.appType,
+      })),
       ...requests.map((r) => ({
         label: `${r.requestType} on ${r.entityType} by ${r.requestedBy?.name ?? '?'}`,
         branchId: r.requestedBy?.branchId ?? null,
+        filerBranchId: r.requestedBy?.branchId ?? null,
         appType: r.appType,
       })),
     ];
@@ -77,11 +99,26 @@ async function main() {
     console.log('\n-- pending approvals and who they reach --');
     if (items.length === 0) console.log('  (none)');
     for (const item of items) {
-      // Same rule the app now uses: branch admins + unbranched admins.
-      const reach = admins.filter((a) => !item.branchId || !a.branchId || a.branchId === item.branchId);
+      // Mirrors lib/notify/approvers.ts: admins on the record's branch OR the
+      // filing agent's branch, plus unbranched admins. The two branches differ
+      // when an agent works a route belonging to another branch.
+      const targetBranches = [item.branchId, item.filerBranchId].filter(Boolean);
+      let reach = admins.filter(
+        (a) => targetBranches.length === 0 || !a.branchId || targetBranches.includes(a.branchId),
+      );
+      // Zero-reach falls back to every admin rather than dropping the approval.
+      const usedFallback = reach.length === 0 && admins.length > 0;
+      if (usedFallback) reach = admins;
+
       console.log(`  [${item.appType}] ${item.label}`);
-      console.log(`      branch: ${branchName(item.branchId)}`);
-      console.log(`      admins reached: ${reach.length ? reach.map((a) => a.name).join(', ') : 'NONE  <-- only superadmins see this'}`);
+      console.log(`      record branch: ${branchName(item.branchId)}`);
+      if (item.filerBranchId !== item.branchId) {
+        console.log(`      filed by staff on: ${branchName(item.filerBranchId)}`);
+      }
+      console.log(
+        `      admins reached: ${reach.length ? reach.map((a) => a.name).join(', ') : 'NONE'}` +
+          (usedFallback ? '  (via all-admin fallback)' : ''),
+      );
       console.log(`      superadmins reached: ${supers.map((s) => s.name).join(', ') || 'NONE'}`);
     }
   }
