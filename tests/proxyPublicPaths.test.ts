@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { getPublicOrigin, getRoleRedirectTarget, isPublicPath } from '../middleware';
+import { getPublicOrigin, getRoleRedirectTarget, isPublicPath } from '../proxy';
 import { normalizeLocalCallbackUrl } from '../lib/auth/callback-url';
 
 assert.equal(isPublicPath('/fonts/MaterialIconsOutlined-Regular.otf'), true);

@@ -285,7 +285,7 @@ function nextWithTenantHeaders(
   return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const tenantSlug = extractTenantSlugFromHost(request.headers.get('host'));
 

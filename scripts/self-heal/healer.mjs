@@ -15,7 +15,7 @@ const STATE_DIR = join(ROOT, 'scripts', 'self-heal', '.state');
 const RESULTS_PATH = join(ROOT, 'e2e-results', 'results.json');
 const MAX_RETRIES = Number(process.env.SELF_HEAL_MAX_RETRIES || 3);
 const RATE_LIMIT_MS = 10 * 60 * 1000;
-const SOURCE_DIRS = ['app/', 'lib/', 'components/', 'prisma/', 'scripts/', 'middleware.ts'];
+const SOURCE_DIRS = ['app/', 'lib/', 'components/', 'prisma/', 'scripts/', 'proxy.ts'];
 const TEST_DIRS = ['e2e/', 'tests/'];
 
 // Token budget: Playwright itself costs nothing — only what we paste into
