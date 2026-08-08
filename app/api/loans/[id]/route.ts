@@ -1,10 +1,10 @@
 import prisma from '@/lib/db';
-import { ADMIN_API_ROLES, isApiError, requireApiContext, scopedBranchWhere } from '@/lib/apiAuth';
+import { ADMIN_API_ROLES, isApiError, requireApiContext, scopedBranchReachWhere } from '@/lib/apiAuth';
 import { apiError, apiSuccess } from '@/lib/utils';
 
 async function findScopedLoan(id: string, context: any) {
   return prisma.loan.findFirst({
-    where: { id, tenantId: context.tenantId, appType: context.appType, ...scopedBranchWhere(context) },
+    where: { id, tenantId: context.tenantId, appType: context.appType, ...scopedBranchReachWhere(context, 'createdBy') },
     include: {
       customer: true,
       instalments: { orderBy: { instalmentNo: 'asc' } },

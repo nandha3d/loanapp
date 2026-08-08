@@ -53,6 +53,22 @@ export function scopedBranchWhere(context: ApiContext) {
   return context.branchId ? { branchId: context.branchId } : {};
 }
 
+/**
+ * Web-session twin of `lib/api/v1-auth.ts#scopedBranchReachWhere` — see there
+ * for why a record's branch and its filer's branch can differ. `filerRelation`
+ * is `agent` on Customer, `createdBy` on Loan.
+ */
+export function scopedBranchReachWhere(context: ApiContext, filerRelation: string) {
+  if (!context.branchId) return {};
+  return {
+    OR: [
+      { branchId: context.branchId },
+      { branchId: null },
+      { [filerRelation]: { branchId: context.branchId } },
+    ],
+  };
+}
+
 export function isApiError(result: ApiContextResult): result is { response: Response } {
   return Boolean(result.response);
 }

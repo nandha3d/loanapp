@@ -4,7 +4,7 @@ import { ok, fail } from '@/lib/api/v1-envelope';
 import {
   MobileTokenClaims,
   requireMobileContext,
-  scopedBranchWhere,
+  scopedBranchReachWhere,
 } from '@/lib/api/v1-auth';
 import {
   decryptAadharNumber,
@@ -56,7 +56,8 @@ async function findScopedCustomer(id: string, ctx: MobileTokenClaims) {
     // own customers whose branchId is null or differs from the agent's branch).
     where.AND = [buildAgentCustomerAccessWhere({ userId: ctx.userId })];
   } else {
-    Object.assign(where, scopedBranchWhere(ctx));
+    // Must match the list scope, or a listed customer 404s when opened.
+    where.AND = [scopedBranchReachWhere(ctx, 'agent')];
   }
   return prisma.customer.findFirst({
     where,

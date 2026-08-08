@@ -121,6 +121,46 @@ async function main() {
       );
       console.log(`      superadmins reached: ${supers.map((s) => s.name).join(', ') || 'NONE'}`);
     }
+
+    // What each admin actually SEES in the Customers / Loans lists. Mirrors
+    // scopedBranchReachWhere: own branch, unbranched records, plus records
+    // filed by staff on their branch.
+    console.log('\n-- list visibility per admin (customers / loans) --');
+    for (const a of admins) {
+      const reachWhere = a.branchId
+        ? {
+            OR: [
+              { branchId: a.branchId },
+              { branchId: null },
+              { agent: { branchId: a.branchId } },
+            ],
+          }
+        : {};
+      const loanReachWhere = a.branchId
+        ? {
+            OR: [
+              { branchId: a.branchId },
+              { branchId: null },
+              { createdBy: { branchId: a.branchId } },
+            ],
+          }
+        : {};
+      const strictWhere = a.branchId ? { branchId: a.branchId } : {};
+
+      const [cNew, cOld, lNew, lOld] = await Promise.all([
+        prisma.customer.count({ where: { tenantId: tenant.id, ...reachWhere } }),
+        prisma.customer.count({ where: { tenantId: tenant.id, ...strictWhere } }),
+        prisma.loan.count({ where: { tenantId: tenant.id, ...loanReachWhere } }),
+        prisma.loan.count({ where: { tenantId: tenant.id, ...strictWhere } }),
+      ]);
+      const [cAll, lAll] = await Promise.all([
+        prisma.customer.count({ where: { tenantId: tenant.id } }),
+        prisma.loan.count({ where: { tenantId: tenant.id } }),
+      ]);
+      console.log(`  ${a.name} (${branchName(a.branchId)})`);
+      console.log(`      customers: ${cNew}/${cAll} visible  (was ${cOld}/${cAll} before the reach fix)`);
+      console.log(`      loans:     ${lNew}/${lAll} visible  (was ${lOld}/${lAll} before the reach fix)`);
+    }
   }
 }
 

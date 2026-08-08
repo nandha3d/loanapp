@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
+import { requireMobileContext, scopedBranchReachWhere } from '@/lib/api/v1-auth';
 import { computeRestructure, restructuredAmountFor, computeExtendedSchedule } from '@/lib/restructure';
 import { calculateEndDate } from '@/lib/utils';
 import { calculateLoanPreview, isInterestOnly } from '@/lib/loanCalculator';
@@ -34,7 +34,9 @@ export async function GET(
     // Agents see only their own customers' loans (linkage), regardless of branch.
     loanWhere.customer = buildAgentCustomerAccessWhere({ userId: ctx.userId });
   } else {
-    Object.assign(loanWhere, scopedBranchWhere(ctx));
+    // AND, not Object.assign: the reach clause is itself an OR and would
+    // otherwise overwrite the id/loanCode OR above.
+    loanWhere.AND = [scopedBranchReachWhere(ctx, 'createdBy')];
   }
 
   const loan = await prisma.loan.findFirst({
@@ -165,7 +167,7 @@ export async function PATCH(
   const { id } = await params;
 
   const loan = await prisma.loan.findFirst({
-    where: { id, tenantId: ctx.tenantId, appType: ctx.appType, ...scopedBranchWhere(ctx) },
+    where: { id, tenantId: ctx.tenantId, appType: ctx.appType, ...scopedBranchReachWhere(ctx, 'createdBy') },
   });
   if (!loan) return fail('Loan not found', 404);
 

@@ -131,6 +131,35 @@ export function scopedBranchWhere(claims: MobileTokenClaims) {
   return claims.branchId ? { branchId: claims.branchId } : {};
 }
 
+/**
+ * Branch scope for records that carry a `branchId` AND were filed by a staff
+ * member — customers (`agent`) and loans (`createdBy`).
+ *
+ * A record does NOT always sit on its filer's branch: a customer inherits the
+ * branch of its ROUTE, so an agent on branch A working a route in branch B
+ * files records onto B. Matching the record's branch alone therefore hid those
+ * records from the very admin who manages the agent that created them, while
+ * superadmins — who are never branch-filtered — saw everything. That is the
+ * same defect already worked around for agents in the customers/loans list
+ * handlers, never applied to admins.
+ *
+ * Reaches: the admin's own branch, unbranched records (reviewable by anyone in
+ * the tenant), and records filed by staff sitting on the admin's branch.
+ */
+export function scopedBranchReachWhere(claims: MobileTokenClaims, filerRelation: string) {
+  if (claims.role === 'superadmin' || claims.role === 'developer') {
+    return {};
+  }
+  if (!claims.branchId) return {};
+  return {
+    OR: [
+      { branchId: claims.branchId },
+      { branchId: null },
+      { [filerRelation]: { branchId: claims.branchId } },
+    ],
+  };
+}
+
 export type MobileApiContext = MobileTokenClaims & {
   tenantSlug: string | null;
   requestedBranchId: string | null;

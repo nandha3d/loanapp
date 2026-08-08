@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail, parseCursorPaging } from '@/lib/api/v1-envelope';
-import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
+import { requireMobileContext, scopedBranchReachWhere } from '@/lib/api/v1-auth';
 import { getAgentRouteIds } from '@/lib/access';
 import { writeAudit } from '@/lib/audit';
 import { buildAgentCustomerAccessWhere, canAgentAccessCustomer, canCreateLoanForRole, validateLoanNumericInputs } from '@/lib/loanPolicy';
@@ -40,7 +40,9 @@ export async function GET(req: NextRequest) {
     // their customers' loans with branchId = null or in another branch.
     where.AND.push({ customer: buildAgentCustomerAccessWhere({ userId: ctx.userId }) });
   } else {
-    Object.assign(where, scopedBranchWhere(ctx));
+    // Also reach loans raised by this branch's staff — a loan takes the branch
+    // of its customer, which follows the ROUTE rather than the filing agent.
+    where.AND.push(scopedBranchReachWhere(ctx, 'createdBy'));
   }
 
   if (q) {
@@ -218,7 +220,9 @@ export async function POST(req: NextRequest) {
         id: customerId,
         tenantId: ctx.tenantId,
         appType: ctx.appType,
-        ...scopedBranchWhere(ctx),
+        // Match the list scope, or an admin could see a customer they then
+        // could not raise a loan for.
+        ...scopedBranchReachWhere(ctx, 'agent'),
       },
     });
     if (!customer) return fail('Customer not found', 404);

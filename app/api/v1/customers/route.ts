@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail, parseCursorPaging } from '@/lib/api/v1-envelope';
-import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
+import { requireMobileContext, scopedBranchReachWhere } from '@/lib/api/v1-auth';
 import { getAgentRouteIds } from '@/lib/access';
 import { encryptAadharNumber } from '@/lib/pii';
 import { getBranding } from '@/lib/tenant';
@@ -36,7 +36,9 @@ export async function GET(req: NextRequest) {
     // from the agent's home branch.
     where.AND.push(buildAgentCustomerAccessWhere({ userId: ctx.userId }));
   } else {
-    Object.assign(where, scopedBranchWhere(ctx));
+    // Reach records filed by this branch's agents too — a customer takes the
+    // branch of its ROUTE, which is not always the agent's own branch.
+    where.AND.push(scopedBranchReachWhere(ctx, 'agent'));
   }
 
   if (q) {
