@@ -361,6 +361,9 @@ export async function POST(req: NextRequest) {
           await notifyApprovers({
             tenantId: ctx.tenantId,
             branchId: resolvedBranchId,
+            // The customer takes its ROUTE's branch, which may not be the filing
+            // agent's — their admin must still be told.
+            requesterBranchId: ctx.branchId,
             appType: ctx.appType,
             type: 'approval_pending',
             icon: 'person_add',

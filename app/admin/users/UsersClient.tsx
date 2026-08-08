@@ -691,7 +691,11 @@ export default function UsersClient({
                             {user.email && <span> &middot; {user.email}</span>}
                           </div>
                         </td>
-                        <td><span className="badge badge-pending">{user.role}</span></td>
+                        <td>
+                          <span className="badge badge-pending">
+                            {user.role === 'admin' && user.isPrimaryAdmin ? 'primary admin' : user.role}
+                          </span>
+                        </td>
                         <td>{user.branch?.name || 'Global'}</td>
                         <td><span className={`badge ${user.status === 'active' ? 'badge-active' : 'badge-closed'}`}>{user.status}</span></td>
                         <td>
@@ -788,6 +792,33 @@ export default function UsersClient({
               <input name="age" type="number" className="form-control" defaultValue={editingUser?.age || ''} placeholder="Optional" />
             </div>
           </div>
+          {/* Admin-only: appointing a primary admin outranks the other admins in
+              the account, so only a superadmin/developer may do it. */}
+          {selectedRole === 'admin' && (viewerRole === 'superadmin' || viewerRole === 'developer') && (
+          <div style={{ marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px', marginBottom: '16px' }}>
+            <h4 style={{ fontSize: '.9rem', fontWeight: 600, marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary-dark)' }}>
+              <span className="material-icons-outlined" style={{ fontSize: '18px' }}>shield_person</span>
+              Admin Rank
+            </h4>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                name="isPrimaryAdmin"
+                value="true"
+                defaultChecked={!!editingUser?.isPrimaryAdmin}
+                style={{ marginTop: '3px' }}
+              />
+              <div>
+                <strong style={{ fontSize: '.85rem', display: 'block' }}>Primary Admin</strong>
+                <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>
+                  Ranks above the other admins: can create admins and agents and change their
+                  permissions. Cannot edit superadmins, other primary admins, or appoint one.
+                </span>
+              </div>
+            </label>
+          </div>
+          )}
+
           {/* Agent-only: these toggles are privilege downgrades meant for field
               agents. Other roles keep full privileges, so the block is hidden. */}
           {selectedRole === 'agent' && (

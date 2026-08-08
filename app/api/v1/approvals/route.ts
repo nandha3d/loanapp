@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
-import { branchOrUnassignedWhere } from '@/lib/branchScope';
+import { branchOrUnassignedWhere, branchReachWhere } from '@/lib/branchScope';
 import { modulePath } from '@/types/modules';
 
 export async function GET(req: NextRequest) {
@@ -43,14 +43,14 @@ export async function GET(req: NextRequest) {
 
     // 2. Fetch pending customers and loans for admins if listing pending
     if (ctx.role !== 'agent' && (!status || status === 'pending')) {
-      const branchWhere = branchScope;
-
       const pendingCustomers = await prisma.customer.findMany({
         where: {
           tenantId: ctx.tenantId,
           appType: ctx.appType,
           status: 'pending_review',
-          ...branchWhere,
+          // Also reach records filed by this branch's staff — a record takes the
+          // branch of its ROUTE, which can differ from the filing agent's branch.
+          ...branchReachWhere(scopeBranchId, 'agent'),
         },
         include: {
           agent: { select: { id: true, name: true, role: true } },
@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
           tenantId: ctx.tenantId,
           appType: ctx.appType,
           status: 'pending_review',
-          ...branchWhere,
+          ...branchReachWhere(scopeBranchId, 'createdBy'),
         },
         include: {
           customer: { select: { name: true } },
@@ -177,6 +177,7 @@ export async function POST(req: NextRequest) {
         await notifyApprovers({
           tenantId: ctx.tenantId,
           branchId: customer.branchId,
+          requesterBranchId: ctx.branchId,
           appType: ctx.appType,
           type: 'customer_edit_review',
           icon: 'verified',

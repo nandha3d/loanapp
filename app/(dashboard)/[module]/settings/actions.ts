@@ -2,6 +2,8 @@
 
 import prisma from '@/lib/db';
 import { getDefaultTenantId, setSetting, getUserAppType } from '@/lib/tenant';
+import { FEATURE_FLAG_KEYS } from '@/lib/features';
+import { canManageAdmins } from '@/lib/roles';
 import { revalidatePath } from 'next/cache';
 import { hash } from 'bcryptjs';
 import { auth } from '@/lib/auth';
@@ -84,6 +86,43 @@ export async function saveSystemSettings(formData: FormData) {
       action: 'update',
       entityType: 'settings',
       newValue: JSON.stringify({ category: 'system', changes: saved }),
+    },
+  });
+
+  revalidatePath('/settings');
+  return { success: true };
+}
+
+/**
+ * Per-tenant feature opt-ins (lib/features.ts). Superadmin-only: these change
+ * which products the tenant can originate, unlike the routine system settings a
+ * branch admin edits. Written through setSetting so the tenant settings cache
+ * invalidates immediately — a flag flipped directly in the DB needs an app
+ * restart to take effect.
+ */
+export async function saveFeatureFlags(formData: FormData) {
+  const session = await auth();
+  const role = (session?.user as any)?.role;
+  const userId = session?.user?.id;
+  if (!userId || !['superadmin', 'developer'].includes(role)) {
+    return { success: false, error: 'Unauthorized. Super Admin only.' };
+  }
+  const tenantId = await getDefaultTenantId();
+  const saved: Record<string, string> = {};
+
+  for (const key of FEATURE_FLAG_KEYS) {
+    const value = formData.get(key) === 'on' || formData.get(key) === 'true' ? '1' : '0';
+    await setSetting(tenantId, key, value, 'features');
+    saved[key] = value;
+  }
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId,
+      userId,
+      action: 'update',
+      entityType: 'settings',
+      newValue: JSON.stringify({ category: 'features', changes: saved }),
     },
   });
 
@@ -254,6 +293,15 @@ export async function createUser(formData: FormData) {
   }
   if (requestedRole === 'developer' && role !== 'developer') {
     return { success: false, error: 'Only a developer can create developer accounts' };
+  }
+  // A plain admin creating a peer admin was an escalation route: the new account
+  // carried the same rights with nobody able to constrain it. Minting an admin
+  // now requires primary-admin rank or above.
+  if (
+    requestedRole === 'admin' &&
+    !canManageAdmins({ role, isPrimaryAdmin: (session?.user as any)?.isPrimaryAdmin })
+  ) {
+    return { success: false, error: 'Only a Primary Admin or Super Admin can create admin accounts' };
   }
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();

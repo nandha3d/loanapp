@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
     await notifyApprovers({
       tenantId: ctx.tenantId,
       branchId: agent?.branchId ?? ctx.branchId,
+      requesterBranchId: ctx.branchId,
       appType: ctx.appType,
       type: 'cash_handover',
       icon: 'payments',

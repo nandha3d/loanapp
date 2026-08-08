@@ -8,26 +8,41 @@ import bcrypt from 'bcryptjs';
 import { checkLimit, normalizeEnabledModules, assertTenantSubscriptionAccess } from '@/lib/subscription';
 import { normalizeModuleList, type ModuleKey } from '@/types/modules';
 import { findUserUniqueConflicts } from '@/lib/userUniqueness';
+import { canManageAdmins, canManageUser, isPrimaryAdmin } from '@/lib/roles';
 
 // The mobile v1 API authenticates with a Bearer token (no NextAuth cookie),
 // so `auth()` is empty there. Routes that reuse these actions pass the
 // verified mobile context as an explicit actor instead.
-export type ActionActor = { id: string; role: string; tenantId: string };
+export type ActionActor = { id: string; role: string; tenantId: string; isPrimaryAdmin?: boolean };
 
 async function resolveActionActor(override?: ActionActor): Promise<ActionActor | null> {
-  if (override) return override;
+  if (override) {
+    // The v1 bearer token predates the primary-admin flag and does not carry it,
+    // so read it for the one role where it changes the outcome.
+    if (override.role === 'admin' && override.isPrimaryAdmin === undefined) {
+      const dbUser = await prisma.user.findUnique({
+        where: { id: override.id },
+        select: { isPrimaryAdmin: true },
+      });
+      return { ...override, isPrimaryAdmin: !!dbUser?.isPrimaryAdmin };
+    }
+    return override;
+  }
   const session = await auth();
   const u = session?.user as any;
   if (!u?.id) return null;
-  return { id: u.id, role: u.role, tenantId: u.tenantId };
+  return { id: u.id, role: u.role, tenantId: u.tenantId, isPrimaryAdmin: !!u.isPrimaryAdmin };
 }
 
 export async function manageMasterUser(formData: FormData, actorOverride?: ActionActor) {
   const actor = await resolveActionActor(actorOverride);
-  if (!actor || (actor.role !== 'superadmin' && actor.role !== 'developer')) {
-    return { success: false, error: 'Unauthorized. Super Admin or Developer only.' };
+  // Primary admins manage the admins and agents inside their own tenant; the
+  // narrower rules for them are enforced further down.
+  if (!actor || !canManageAdmins(actor)) {
+    return { success: false, error: 'Unauthorized. Primary Admin or above only.' };
   }
   const userRole = actor.role;
+  const actorIsPrimaryAdmin = isPrimaryAdmin(actor);
   const actorTenantId = actor.tenantId;
   const actorUserId = actor.id;
 
@@ -90,6 +105,10 @@ export async function manageMasterUser(formData: FormData, actorOverride?: Actio
   const bypassVehicleApproval = formData.get('bypassVehicleApproval') === 'true' || formData.get('bypassVehicleApproval') === 'on';
   const autoReleaseFloat = formData.get('autoReleaseFloat') === 'true' || formData.get('autoReleaseFloat') === 'on';
   const feeConfirmationMandatory = formData.get('feeConfirmationMandatory') === 'true' || formData.get('feeConfirmationMandatory') === 'on';
+  // Only meaningful on an admin, and only a superadmin may set it (guarded below).
+  const wantsPrimaryAdmin =
+    formData.get('isPrimaryAdmin') === 'true' || formData.get('isPrimaryAdmin') === 'on';
+  const nextIsPrimaryAdmin = role === 'admin' && wantsPrimaryAdmin;
 
   if (!name || !username || !phone || !role || !appType) {
     return { success: false, error: 'Missing required fields' };
@@ -132,6 +151,34 @@ export async function manageMasterUser(formData: FormData, actorOverride?: Actio
   // Only developers can create or edit developer accounts
   if (role === 'developer' && userRole !== 'developer') {
     return { success: false, error: 'Only a developer can manage developer accounts.' };
+  }
+
+  // A primary admin ranks below a superadmin: they may only touch admins and
+  // agents, only inside their own tenant, and may never mint an account at or
+  // above their own rank.
+  if (actorIsPrimaryAdmin) {
+    if (role !== 'admin' && role !== 'agent') {
+      return { success: false, error: 'Unauthorized: A Primary Admin can only manage admins and agents.' };
+    }
+    if (tenantId !== actorTenantId) {
+      return { success: false, error: 'Unauthorized: Target user belongs to another account.' };
+    }
+    if (id) {
+      const targetUser = await prisma.user.findFirst({
+        where: { id, tenantId: actorTenantId },
+        select: { id: true, role: true, isPrimaryAdmin: true },
+      });
+      if (!targetUser) return { success: false, error: 'User not found' };
+      // Strictly-lower rank only, so primary admins can never edit each other.
+      if (targetUser.id !== actorUserId && !canManageUser(actor, targetUser)) {
+        return { success: false, error: 'Unauthorized: You cannot modify this user.' };
+      }
+    }
+    // Promoting another admin to primary would create a peer who could then
+    // demote them. Only a superadmin appoints primary admins.
+    if (formData.get('isPrimaryAdmin') != null) {
+      return { success: false, error: 'Unauthorized: Only a Super Admin can appoint a Primary Admin.' };
+    }
   }
 
   const conflicts = await findUserUniqueConflicts({ username, phone, email: email || undefined }, id);
@@ -186,6 +233,7 @@ export async function manageMasterUser(formData: FormData, actorOverride?: Actio
       bypassVehicleApproval,
       autoReleaseFloat,
       feeConfirmationMandatory,
+      ...(actorIsPrimaryAdmin ? {} : { isPrimaryAdmin: nextIsPrimaryAdmin }),
     };
     if (password) {
       updateData.passwordHash = await bcrypt.hash(password, 10);
@@ -239,6 +287,7 @@ export async function manageMasterUser(formData: FormData, actorOverride?: Actio
           bypassVehicleApproval,
           autoReleaseFloat,
           feeConfirmationMandatory,
+          isPrimaryAdmin: actorIsPrimaryAdmin ? false : nextIsPrimaryAdmin,
         }
       });
       savedUserId = savedUser.id;

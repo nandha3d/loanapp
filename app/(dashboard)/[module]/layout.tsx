@@ -10,6 +10,7 @@ import { getThemePreset, THEME_SETTING_KEY } from '@/lib/themes';
 import { getDictionary, getCurrentLanguage } from '@/lib/i18n';
 import BranchSwitcher from '@/components/layout/BranchSwitcher';
 import { getActiveBranchId, getSuperadminBranches, branchOrUnassignedWhere } from '@/lib/branch';
+import { branchReachWhere } from '@/lib/branchScope';
 import {
   ALL_MODULES,
   isModuleKey,
@@ -137,11 +138,14 @@ export default async function DashboardLayout({
       tenantId,
       appType: requestedModule,
       status: 'pending_review',
-      ...branchScope,
     };
     const [pc, pl, pv, pr] = await Promise.all([
-      prisma.customer.count({ where: base }),
-      prisma.loan.count({ where: base }),
+      prisma.customer.count({
+        where: { ...base, ...branchReachWhere(scopeBranchId, 'agent') },
+      }),
+      prisma.loan.count({
+        where: { ...base, ...branchReachWhere(scopeBranchId, 'createdBy') },
+      }),
       requestedModule === 'autofinance'
         ? prisma.vehicle.count({
             where: {

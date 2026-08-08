@@ -123,9 +123,11 @@ export async function createVehicle(formData: FormData) {
 
   if (status === 'pending_review') {
     const { notifyApprovers } = await import('@/lib/notify/approvers');
+    const { getActiveBranchId } = await import('@/lib/branch');
     await notifyApprovers({
       tenantId,
       branchId: customer.branchId,
+      requesterBranchId: await getActiveBranchId(),
       appType,
       type: 'approval_pending',
       icon: 'directions_car',

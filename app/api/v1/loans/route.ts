@@ -644,6 +644,7 @@ export async function POST(req: NextRequest) {
       await notifyApprovers({
         tenantId: ctx.tenantId,
         branchId: loan.branchId,
+        requesterBranchId: ctx.branchId,
         appType: ctx.appType,
         type: 'approval_pending',
         icon: 'account_balance',

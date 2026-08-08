@@ -16,6 +16,13 @@ import { getSetting } from '@/lib/tenant';
 export const INTEREST_ONLY_FLAG = 'interest_only_enabled';
 
 /**
+ * Every flag the Settings → Features tab writes. A flag absent from this list is
+ * unreachable from the UI and can only be set by scripts/set-tenant-flag.js, so
+ * add new flags here as they land.
+ */
+export const FEATURE_FLAG_KEYS: readonly string[] = [INTEREST_ONLY_FLAG];
+
+/**
  * Interest-Only (Check/Gold Base) repayment model: monthly dues are interest only
  * and the principal is a bullet settled at closure. Enabled per client tenant.
  */

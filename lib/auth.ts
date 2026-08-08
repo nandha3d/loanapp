@@ -561,9 +561,10 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
           const prisma = (await import('./db')).default;
           let dbUser = await prisma.user.findUnique({
             where: { id: token.userId },
-            select: { 
-              role: true, 
-              appType: true, 
+            select: {
+              role: true,
+              isPrimaryAdmin: true,
+              appType: true,
               branchId: true,
               tenantId: true,
               phone: true,
@@ -625,6 +626,7 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
           // reassign dbUser, which loses the earlier narrowing.
           if (!dbUser) return null;
           (session.user as any).role = dbUser.role;
+          (session.user as any).isPrimaryAdmin = dbUser.isPrimaryAdmin;
           (session.user as any).appType = dbUser.appType;
           (session.user as any).branchId = dbUser.branchId;
           (session.user as any).tenantId = dbUser.tenantId;

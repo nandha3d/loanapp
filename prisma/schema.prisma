@@ -140,6 +140,11 @@ model User {
   username                 String
   passwordHash             String?            @map("password_hash")
   role                     String             @default("agent")
+  /// Ranks an admin ABOVE their peers: a primary admin manages the other admins
+  /// in their tenant (privileges, status, creation) without being a superadmin.
+  /// Modelled as a flag rather than a `role` value so that every existing
+  /// `role === 'admin'` guard keeps applying — a primary admin IS an admin.
+  isPrimaryAdmin           Boolean            @default(false) @map("is_primary_admin")
   appType                  String             @default("microlending") @map("app_type")
   status                   String             @default("active")
   avatar                   String?
@@ -216,6 +221,7 @@ model User {
   @@unique([tenantId, phone])
   @@unique([tenantId, email])
   @@index([branchId], map: "users_branch_id_fkey")
+  @@index([tenantId, isPrimaryAdmin], map: "users_tenant_id_is_primary_admin_idx")
   @@map("users")
 }
 

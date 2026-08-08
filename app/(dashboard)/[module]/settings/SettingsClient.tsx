@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { saveSystemSettings, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, deleteLoanPackage, assignAgentToRoute, removeAgentFromRoute, setPrimaryAgent, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections, saveUpiQrCode, saveNotificationSettings, saveBureauSettings, saveThemeSettings, saveNotificationTemplate } from './actions';
+import { saveSystemSettings, saveFeatureFlags, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, deleteLoanPackage, assignAgentToRoute, removeAgentFromRoute, setPrimaryAgent, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections, saveUpiQrCode, saveNotificationSettings, saveBureauSettings, saveThemeSettings, saveNotificationTemplate } from './actions';
 import { THEME_PRESETS, THEME_SETTING_KEY } from '@/lib/themes';
 import Modal from '@/components/Modal';
 import Link from 'next/link';
@@ -142,6 +142,14 @@ export default function SettingsClient({
     showToast(d.systemSaved);
   };
 
+  const handleFeaturesSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    const res = await saveFeatureFlags(new FormData(e.currentTarget));
+    setLoading(false);
+    showToast(res?.success ? 'Features updated' : res?.error || 'Could not update features');
+  };
+
   const handlePenaltySubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
@@ -177,6 +185,9 @@ export default function SettingsClient({
         )}
         {currentUser?.role === 'developer' && (
           <div className={`tab ${activeTab === 'system' ? 'active' : ''}`} onClick={() => setActiveTab('system')}>{d.tabSystem}</div>
+        )}
+        {(viewerRole === 'superadmin' || viewerRole === 'developer') && (
+          <div className={`tab ${activeTab === 'features' ? 'active' : ''}`} onClick={() => setActiveTab('features')}>Features</div>
         )}
         {(viewerRole === 'superadmin' || viewerRole === 'developer') && (
           <div className={`tab ${activeTab === 'theme' ? 'active' : ''}`} onClick={() => setActiveTab('theme')}>Theme</div>
@@ -1513,6 +1524,44 @@ export default function SettingsClient({
             </p>
           </div>
         </div>
+      )}
+
+      {/* Features Tab (superadmin) — per-tenant product opt-ins */}
+      {(viewerRole === 'superadmin' || viewerRole === 'developer') && (
+      <div className={`tab-content ${activeTab === 'features' ? 'active' : ''}`}>
+        <div className="card-header">
+          <div>
+            <h3>🧩 Features</h3>
+            <p style={{ fontSize: '.82rem', color: 'var(--text-secondary)', margin: '4px 0 0' }}>
+              Turn optional lending products on for this account. Changes apply immediately.
+            </p>
+          </div>
+        </div>
+        <form onSubmit={handleFeaturesSubmit}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '600px' }}>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                name="interest_only_enabled"
+                value="true"
+                defaultChecked={settings.interest_only_enabled === '1'}
+                style={{ marginTop: '3px' }}
+              />
+              <span>
+                <strong>Interest-Only loans</strong>
+                <span style={{ display: 'block', fontSize: '.82rem', color: 'var(--text-secondary)' }}>
+                  Customer receives the full principal, pays one month&apos;s interest on a fixed day
+                  each month, and settles the principal as a lump sum on closure. Adds the
+                  Interest-Only option to the loan form.
+                </span>
+              </span>
+            </label>
+          </div>
+          <button type="submit" className="btn btn-primary" disabled={loading} style={{ marginTop: '16px' }}>
+            {loading ? 'Saving…' : 'Save Features'}
+          </button>
+        </form>
+      </div>
       )}
 
       {/* Theme Tab (superadmin) */}

@@ -5,6 +5,7 @@ import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { getDictionary } from '@/lib/i18n';
 import { getActiveBranchId, branchOrUnassignedWhere } from '@/lib/branch';
+import { branchReachWhere } from '@/lib/branchScope';
 
 export default async function ApprovalsPage() {
   const session = await auth();
@@ -47,7 +48,14 @@ export default async function ApprovalsPage() {
   let pendingCustomers: any[] = [];
   let pendingVehicles: any[] = [];
   if (userRole !== 'agent') {
-    const loanWhere: any = { tenantId, appType, status: 'pending_review', ...branchScope };
+    // Reach records filed by this branch's staff too — a loan/customer takes the
+    // branch of its ROUTE, which can differ from the filing agent's branch.
+    const loanWhere: any = {
+      tenantId,
+      appType,
+      status: 'pending_review',
+      ...branchReachWhere(activeBranchId, 'createdBy'),
+    };
     pendingLoans = await prisma.loan.findMany({
       where: loanWhere,
       include: {
@@ -57,7 +65,12 @@ export default async function ApprovalsPage() {
       orderBy: { createdAt: 'desc' },
     });
 
-    const customerWhere: any = { tenantId, appType, status: 'pending_review', ...branchScope };
+    const customerWhere: any = {
+      tenantId,
+      appType,
+      status: 'pending_review',
+      ...branchReachWhere(activeBranchId, 'agent'),
+    };
     pendingCustomers = await prisma.customer.findMany({
       where: customerWhere,
       include: {

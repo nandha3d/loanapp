@@ -238,6 +238,7 @@ export async function PATCH(
   await notifyApprovers({
     tenantId: ctx.tenantId,
     branchId: loan.branchId,
+    requesterBranchId: ctx.branchId,
     appType: ctx.appType,
     type: 'loan_edit_review',
     icon: 'rate_review',

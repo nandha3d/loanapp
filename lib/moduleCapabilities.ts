@@ -30,7 +30,7 @@ export function getSettingsTabsForAppType(
   tabs.push('bulk');
   if (isLendingAppType(appType) && subscription.bureauEnabled) tabs.push('bureau');
   if (isLendingAppType(appType) && subscription.npaEnabled) tabs.push('npa');
-  tabs.push('system', 'theme', 'data', 'users', 'security');
+  tabs.push('system', 'features', 'theme', 'data', 'users', 'security');
   return tabs;
 }
 
