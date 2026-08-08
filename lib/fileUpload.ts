@@ -5,7 +5,71 @@
  * attacker renames a malicious file to .jpg and sets Content-Type: image/jpeg.
  */
 
-import path from 'path';
+import { randomUUID } from 'node:crypto';
+import { mkdir, open } from 'node:fs/promises';
+import path from 'node:path';
+
+export class UploadValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UploadValidationError';
+  }
+}
+
+const UPLOAD_EXTENSIONS: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'application/pdf': '.pdf',
+  'audio/mp4': '.m4a',
+  'audio/m4a': '.m4a',
+  'audio/x-m4a': '.m4a',
+  'audio/aac': '.aac',
+  'audio/webm': '.webm',
+  'audio/mpeg': '.mp3',
+};
+
+function assertSafeUploadSegment(value: string, label: string): void {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/.test(value)) {
+    throw new UploadValidationError(`Invalid upload ${label}`);
+  }
+}
+
+export function uploadExtensionForMime(mimeType: string): string {
+  const extension = UPLOAD_EXTENSIONS[mimeType];
+  if (!extension) throw new UploadValidationError('File type not allowed');
+  return extension;
+}
+
+export function buildUploadFileName(
+  mimeType: string,
+  options: { id?: string; prefix?: string } = {},
+): string {
+  const id = options.id ?? randomUUID();
+  const prefix = options.prefix ?? 'upload';
+  assertSafeUploadSegment(id, 'identifier');
+  assertSafeUploadSegment(prefix, 'prefix');
+  return `${prefix}_${id}${uploadExtensionForMime(mimeType)}`;
+}
+
+export function resolveTenantUploadPath(input: {
+  baseDir: string;
+  tenantId: string;
+  scopes?: string[];
+  fileName: string;
+}): string {
+  const base = path.resolve(input.baseDir);
+  const scopes = input.scopes ?? [];
+  assertSafeUploadSegment(input.tenantId, 'tenant');
+  for (const scope of scopes) assertSafeUploadSegment(scope, 'scope');
+  assertSafeUploadSegment(input.fileName, 'filename');
+
+  const target = path.resolve(base, input.tenantId, ...scopes, input.fileName);
+  if (!target.startsWith(`${base}${path.sep}`)) {
+    throw new UploadValidationError('Invalid upload path');
+  }
+  return target;
+}
 
 /**
  * Base directory for uploaded files (profile photos, KYC docs, QR codes…).
@@ -82,4 +146,48 @@ export function validateFileBytes(buffer: Buffer, mimeType: string): boolean {
     default:
       return false;
   }
+}
+
+export async function storeTenantUpload(input: {
+  tenantId: string;
+  mimeType: string;
+  buffer: Buffer;
+  scopes?: string[];
+  prefix?: string;
+}): Promise<{ fileName: string; url: string }> {
+  if (!ALLOWED_UPLOAD_MIME_TYPES.includes(input.mimeType)) {
+    throw new UploadValidationError('File type not allowed');
+  }
+  if (input.buffer.byteLength > maxUploadSizeFor(input.mimeType)) {
+    throw new UploadValidationError(
+      isAudioMime(input.mimeType)
+        ? 'Audio clip exceeds the 1 MB limit'
+        : 'File exceeds the 5 MB limit',
+    );
+  }
+  if (!validateFileBytes(input.buffer, input.mimeType)) {
+    throw new UploadValidationError('Invalid file signature');
+  }
+
+  const scopes = input.scopes ?? [];
+  const fileName = buildUploadFileName(input.mimeType, { prefix: input.prefix });
+  const target = resolveTenantUploadPath({
+    baseDir: uploadBaseDir(),
+    tenantId: input.tenantId,
+    scopes,
+    fileName,
+  });
+  await mkdir(path.dirname(target), { recursive: true });
+
+  const handle = await open(target, 'wx');
+  try {
+    await handle.writeFile(input.buffer);
+  } finally {
+    await handle.close();
+  }
+
+  return {
+    fileName,
+    url: `/api/files/${[input.tenantId, ...scopes, fileName].join('/')}`,
+  };
 }

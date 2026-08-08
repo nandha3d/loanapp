@@ -2,10 +2,8 @@
 
 import prisma from '@/lib/db';
 import { modulePath } from '@/types/modules';
-import { mkdir, writeFile } from 'fs/promises';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import path from 'path';
 import { calculateFixedDiscountPrize, roundMoney } from '@/lib/chits/calculations';
 import { collectChitSubscriptionPayment } from '@/lib/chits/collections';
 import { createChitAudit } from '@/lib/chits/audit';
@@ -49,7 +47,7 @@ import {
 import {
   ALLOWED_UPLOAD_MIME_TYPES,
   MAX_UPLOAD_SIZE_BYTES,
-  uploadBaseDir,
+  storeTenantUpload,
   validateFileBytes,
 } from '@/lib/fileUpload';
 import { generateCode } from '@/lib/utils';
@@ -100,12 +98,13 @@ async function saveChitDocumentFile(file: File, tenantId: string) {
   if (!validateFileBytes(buffer, file.type)) {
     throw new Error(`${file.name}: invalid file signature`);
   }
-  const ext = path.extname(file.name).replace(/[^a-zA-Z0-9.]/g, '').toLowerCase() || '.bin';
-  const safeName = `${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`;
-  const uploadDir = path.join(uploadBaseDir(), tenantId);
-  await mkdir(uploadDir, { recursive: true });
-  await writeFile(path.join(uploadDir, safeName), buffer);
-  return { url: `/api/files/${tenantId}/${safeName}`, fileName: file.name || safeName };
+  const stored = await storeTenantUpload({
+    tenantId,
+    mimeType: file.type,
+    buffer,
+    prefix: 'chit',
+  });
+  return { url: stored.url, fileName: file.name || stored.fileName };
 }
 
 async function loadScopedGroup(idOrCode: string) {

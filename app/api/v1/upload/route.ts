@@ -1,6 +1,4 @@
 import { NextRequest } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
 import {
@@ -12,7 +10,7 @@ import {
   ALLOWED_UPLOAD_MIME_TYPES,
   isAudioMime,
   maxUploadSizeFor,
-  uploadBaseDir,
+  storeTenantUpload,
   validateFileBytes,
 } from '@/lib/fileUpload';
 
@@ -55,13 +53,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const ext =
-    path.extname(file.name).replace(/[^a-zA-Z0-9.]/g, '').toLowerCase() ||
-    '.bin';
-  const safeName = `${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`;
-  const uploadDir = path.join(uploadBaseDir(), ctx.tenantId);
-  await mkdir(uploadDir, { recursive: true });
-
   const buffer = Buffer.from(await file.arrayBuffer());
   if (!validateFileBytes(buffer, file.type)) {
     return fail(
@@ -70,7 +61,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  await writeFile(path.join(uploadDir, safeName), buffer);
-  const url = `/api/files/${ctx.tenantId}/${safeName}`;
-  return ok({ url, filename: safeName, size: file.size });
+  const stored = await storeTenantUpload({
+    tenantId: ctx.tenantId,
+    mimeType: file.type,
+    buffer,
+  });
+  return ok({ url: stored.url, filename: stored.fileName, size: file.size });
 }

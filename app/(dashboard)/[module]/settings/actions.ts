@@ -10,14 +10,10 @@ import { auth } from '@/lib/auth';
 import { generateSecret, generateURI, verifySync } from 'otplib';
 import QRCode from 'qrcode';
 import { encryptAadharNumber, encryptField } from '@/lib/pii';
-import fs from 'fs';
-import path from 'path';
 import { getRouteDeletionBlockReason } from '@/lib/routePolicy';
 import { getActiveBranchId, getBranchEnabledModules } from '@/lib/branch';
 import { findUserUniqueConflicts } from '@/lib/userUniqueness';
-import { uploadBaseDir } from '@/lib/fileUpload';
-
-const UPLOAD_DIR = uploadBaseDir();
+import { storeTenantUpload } from '@/lib/fileUpload';
 
 export async function saveUpiQrCode(formData: FormData) {
   const session = await auth();
@@ -47,15 +43,25 @@ export async function saveUpiQrCode(formData: FormData) {
 
   // Save QR code image
   if (qrFile && qrFile.size > 0) {
-    const dir = path.join(UPLOAD_DIR, tenantId, 'settings');
-    fs.mkdirSync(dir, { recursive: true });
-    const ext = path.extname(qrFile.name).replace(/[^a-zA-Z0-9.]/g, '').toLowerCase() || '.png';
-    const safeName = `upi_qr_${Date.now()}${ext}`;
-    const filePath = path.join(dir, safeName);
-    const buffer = Buffer.from(await qrFile.arrayBuffer());
-    fs.writeFileSync(filePath, buffer);
-    const publicPath = `/api/files/${tenantId}/settings/${safeName}`;
-    await setSetting(tenantId, 'upi_qr_url', publicPath, 'payment');
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(qrFile.type)) {
+      return { success: false, error: 'UPI QR code must be a JPEG, PNG, or WebP image' };
+    }
+
+    try {
+      const stored = await storeTenantUpload({
+        tenantId,
+        mimeType: qrFile.type,
+        buffer: Buffer.from(await qrFile.arrayBuffer()),
+        scopes: ['settings'],
+        prefix: 'upi_qr',
+      });
+      await setSetting(tenantId, 'upi_qr_url', stored.url, 'payment');
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unable to save UPI QR code',
+      };
+    }
   }
 
   revalidatePath('/settings');
