@@ -9,6 +9,7 @@
  * single-page form used by the other five modules.
  */
 
+import { compressFormDataImages } from '@/lib/imageCompression';
 import { useMemo, useState } from 'react';
 import { createHpLoan } from '../actions';
 import { calculateHpQuote, calculateHpDisbursement, validatePayoutSplit } from '@/lib/autofinance/hp';
@@ -230,6 +231,8 @@ export default function HpOriginationWizard({
             setSubmitError(null);
             // The financed amount is derived, not typed — send it explicitly.
             if (quote) fd.set('principal', String(quote.principal));
+            // Shrink camera photos before they hit the Server Action body limit.
+            await compressFormDataImages(fd);
             const result = await createHpLoan(fd);
             if (result && 'error' in result) {
               setSubmitError(result.error);

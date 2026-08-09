@@ -59,7 +59,12 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     serverActions: {
-      bodySizeLimit: '4mb',
+      // Forms post camera photos and PDF documents inline. Images are shrunk
+      // client-side first (lib/imageCompression.ts), but PDFs cannot be, so this
+      // keeps headroom. Exceeding the limit is NOT a normal 413 — Next raises it
+      // as an uncaught exception that takes the whole server process down, so
+      // the limit must sit comfortably above real payloads.
+      bodySizeLimit: '15mb',
     },
   },
   images: {

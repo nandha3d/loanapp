@@ -1,5 +1,6 @@
 'use client';
 
+import { compressFormDataImages } from '@/lib/imageCompression';
 import { useState, useEffect } from 'react';
 import { updateLoan, requestLoanEdit } from '../../actions';
 import { useRouter } from 'next/navigation';
@@ -243,6 +244,9 @@ export default function LoanEditForm({
     if (guarantorPhoto) fd.set('guarantorPhoto', guarantorPhoto);
     fd.set('voucherRef', voucherRef);
     
+    // Shrink camera photos before they hit the Server Action body limit.
+    await compressFormDataImages(fd);
+
     if (userRole === 'agent') {
       if (!reason.trim()) {
         setError('Reason for edit request is required.');

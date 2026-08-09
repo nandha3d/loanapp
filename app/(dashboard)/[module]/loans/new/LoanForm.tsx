@@ -1,5 +1,6 @@
 'use client';
 
+import { compressFormDataImages } from '@/lib/imageCompression';
 import { useState, useEffect } from 'react';
 import { createLoan } from '../actions';
 import { resolveOrnamentLine, ornamentTotals } from '@/lib/gold/ornaments';
@@ -483,6 +484,8 @@ export default function LoanForm({
           if (isGoldModule || loanType === 'gold') fd.set('goldCollateralJson', buildGoldCollateralJson());
           if (isPropertyModule || loanType === 'property') fd.set('propertyCollateralJson', buildPropertyCollateralJson());
           if (isProductModule) fd.set('productItemJson', buildProductItemJson());
+          // Shrink camera photos before they hit the Server Action body limit.
+          await compressFormDataImages(fd);
           const result = await createLoan(fd);
           if (result && 'error' in result) {
             setLimitError(result.error);
