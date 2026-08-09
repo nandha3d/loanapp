@@ -1,5 +1,6 @@
 'use client';
 
+import { compressFormDataImages } from '@/lib/imageCompression';
 import { useState } from 'react';
 import { saveSystemSettings, saveFeatureFlags, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, deleteLoanPackage, assignAgentToRoute, removeAgentFromRoute, setPrimaryAgent, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections, saveUpiQrCode, saveNotificationSettings, saveBureauSettings, saveThemeSettings, saveNotificationTemplate } from './actions';
 import { THEME_PRESETS, THEME_SETTING_KEY } from '@/lib/themes';
@@ -673,7 +674,7 @@ export default function SettingsClient({
       {/* Payment / UPI Tab */}
       <div className={`tab-content ${activeTab === 'payment' ? 'active' : ''}`}>
         <div className="card-header"><h3>💳 {d.paymentSettings}</h3></div>
-        <form action={async (fd) => { await saveUpiQrCode(fd); showToast(d.paymentSaved); }} style={{maxWidth:'500px'}}>
+        <form action={async (fd) => { await compressFormDataImages(fd); await saveUpiQrCode(fd); showToast(d.paymentSaved); }} style={{maxWidth:'500px'}}>
           <div className="form-group">
             <label className="form-label">{d.upiId}</label>
             <input type="text" name="upiId" className="form-control" defaultValue={settings.upi_id || ''} placeholder={d.upiIdPlaceholder} />
