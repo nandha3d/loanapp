@@ -49,24 +49,17 @@ export async function requireApiContext(allowedRoles: string[] = AUTHENTICATED_A
   };
 }
 
+/**
+ * The one branch scope for web-session handlers. `context.branchId` is the
+ * caller's active branch (`getActiveBranchId`), already null for developers and
+ * for a superadmin on "All Branches" — those stay tenant-wide.
+ *
+ * A record belongs to exactly one branch: its own `branchId`. See
+ * `lib/branchScope.ts` for why the "reach" variant that also matched unbranched
+ * records and the filer's branch was removed.
+ */
 export function scopedBranchWhere(context: ApiContext) {
   return context.branchId ? { branchId: context.branchId } : {};
-}
-
-/**
- * Web-session twin of `lib/api/v1-auth.ts#scopedBranchReachWhere` — see there
- * for why a record's branch and its filer's branch can differ. `filerRelation`
- * is `agent` on Customer, `createdBy` on Loan.
- */
-export function scopedBranchReachWhere(context: ApiContext, filerRelation: string) {
-  if (!context.branchId) return {};
-  return {
-    OR: [
-      { branchId: context.branchId },
-      { branchId: null },
-      { [filerRelation]: { branchId: context.branchId } },
-    ],
-  };
 }
 
 export function isApiError(result: ApiContextResult): result is { response: Response } {

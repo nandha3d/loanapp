@@ -4,7 +4,7 @@ import {
   buildSystemNotificationWhere,
   type NotificationVisibilityInput,
 } from '../lib/notificationVisibility';
-import { branchReachWhere } from '../lib/branchScope';
+import { branchScopeWhere } from '../lib/branchScope';
 
 function read(path: string) {
   return readFileSync(path, 'utf8');
@@ -78,19 +78,22 @@ assert.match(
 );
 assert.match(approvers, /if \(reached === 0\)/, 'an approval reaching no admin falls back to every tenant admin');
 
-// A record takes the branch of its ROUTE, so the filing agent's branch can
-// differ. Both must reach the admin, or the approval is invisible to everyone
-// but superadmins.
+// NOTIFYING an admin is not the same as letting them SEE the record. A record
+// takes the branch of its ROUTE, so the filing agent's admin may be pinged
+// about a loan on another branch — but the approvals queue itself stays pinned
+// to the record's own branch, or one branch could approve another's records.
 assert.deepEqual(
-  branchReachWhere('branch-1', 'agent'),
-  { OR: [{ branchId: 'branch-1' }, { branchId: null }, { agent: { branchId: 'branch-1' } }] },
-  'reach covers the record branch, unbranched records, and records filed by this branch\'s staff',
+  branchScopeWhere('branch-1'),
+  { branchId: 'branch-1' },
+  'the approvals queue is scoped to the record branch alone',
 );
-assert.deepEqual(
-  branchReachWhere('branch-1'),
-  { OR: [{ branchId: 'branch-1' }, { branchId: null }] },
-  'without a filer relation the reach matches branchOrUnassignedWhere',
+assert.deepEqual(branchScopeWhere(null), {}, 'no active branch stays tenant-wide');
+
+const approvalsPage = read('app/(dashboard)/[module]/approvals/page.tsx');
+assert.doesNotMatch(
+  approvalsPage,
+  /ReachWhere|branchOrUnassignedWhere/,
+  'the approvals queue must not widen past the record branch',
 );
-assert.deepEqual(branchReachWhere(null, 'agent'), {}, 'no active branch stays tenant-wide');
 
 console.log('approval notification tests passed');

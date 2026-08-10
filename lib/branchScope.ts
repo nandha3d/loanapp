@@ -4,33 +4,32 @@
  */
 
 /**
- * Where-fragment matching a branch **plus** records that have no branch at all.
- * Unbranched rows are reviewable by anyone in the tenant, so scoping them out
- * left them visible to superadmins (unscoped) but invisible to branch admins.
- * Returns `{}` when no branch is active, i.e. tenant-wide.
- */
-export function branchOrUnassignedWhere(branchId?: string | null) {
-  if (!branchId) return {};
-  return { OR: [{ branchId }, { branchId: null }] };
-}
-
-/**
- * Like {@link branchOrUnassignedWhere}, but also reaches records filed by staff
- * sitting on `branchId`.
+ * Where-fragment restricting rows to a single branch. Returns `{}` when no
+ * branch is active, i.e. tenant-wide (superadmin with "All Branches", or a
+ * developer).
  *
- * A record's branch and its filer's branch can differ: a customer inherits the
- * BRANCH OF ITS ROUTE, so an agent on branch A working a route in branch B files
- * customers onto B. Scoping only by the record's own branch left those reachable
- * by no admin at all — branch A's admin (who manages the agent) was filtered out
- * by the record's branch, and branch B's admin may not exist. Only superadmins,
- * who are never branch-filtered, ever saw them.
+ * A record belongs to exactly ONE branch: its own `branchId`. Nothing else may
+ * widen that.
  *
- * `filerRelation` is the relation holding the staff member who filed the record
- * — `agent` on Customer, `createdBy` on Loan.
+ * This previously ORed in two extra arms — `{ branchId: null }` and
+ * `{ <filer>: { branchId } }` — to surface records an admin "should" supervise.
+ * Both leaked across branches:
+ *
+ *   - `{ branchId: null }` broadcast every unbranched customer/loan to EVERY
+ *     branch at once.
+ *   - `{ <filer>: { branchId } }` matched on the filer's CURRENT branch, so
+ *     branch A's admin saw branch B's records whenever the filing agent sat on
+ *     A — and moving an agent between branches silently moved their whole
+ *     history with them.
+ *
+ * The case those arms were reaching for is real (a customer inherits the branch
+ * of its ROUTE, so an agent can file onto a branch other than their own), but
+ * it is a DATA problem, not a visibility one: the record's `branchId` is the
+ * answer, and orphans are repaired by `scripts/backfill-customer-route-agent.js`.
+ * Records that are still unbranched stay visible to superadmins only, which is
+ * the safe direction to fail.
  */
-export function branchReachWhere(branchId?: string | null, filerRelation?: string) {
+export function branchScopeWhere(branchId?: string | null) {
   if (!branchId) return {};
-  const clauses: any[] = [{ branchId }, { branchId: null }];
-  if (filerRelation) clauses.push({ [filerRelation]: { branchId } });
-  return { OR: clauses };
+  return { branchId };
 }

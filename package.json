@@ -33,6 +33,7 @@
     "test:proxy-public": "tsx tests/proxyPublicPaths.test.ts",
     "test:ui-assets": "tsx tests/uiAssets.test.ts",
     "test:file-upload": "tsx tests/fileUpload.test.ts",
+    "test:origination-integrity": "tsx tests/originationIntegrity.test.ts",
     "ui-map:roles": "node scripts/check-role-ui-map.mjs",
     "db:validate": "npx prisma validate",
     "db:generate": "npx prisma generate",

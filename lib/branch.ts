@@ -64,7 +64,7 @@ export const getActiveBranchId = cache(async (): Promise<string | null> => {
   return user?.branchId ?? null;
 });
 
-export { branchOrUnassignedWhere } from './branchScope';
+export { branchScopeWhere } from './branchScope';
 
 export async function getBranchEnabledModules(branchId: string): Promise<ModuleKey[]> {
   const branch = await prisma.branch.findUnique({

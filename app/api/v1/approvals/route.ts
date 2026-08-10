@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
-import { branchOrUnassignedWhere, branchReachWhere } from '@/lib/branchScope';
+import { branchScopeWhere } from '@/lib/branchScope';
 import { modulePath } from '@/types/modules';
 
 export async function GET(req: NextRequest) {
@@ -13,12 +13,11 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const status = searchParams.get('status') ?? undefined;
 
-  // Mirrors the web Approvals page: branch admins see their branch plus any
-  // record that landed without a branch (reviewable by anyone in the tenant).
+  // Mirrors the web Approvals page: branch admins see only their own branch.
   // Superadmin/developer stay tenant-wide.
   const scopeBranchId =
     ctx.role === 'superadmin' || ctx.role === 'developer' ? null : ctx.branchId;
-  const branchScope = branchOrUnassignedWhere(scopeBranchId);
+  const branchScope = branchScopeWhere(scopeBranchId);
 
   const where: any = { tenantId: ctx.tenantId, appType: ctx.appType };
   if (status) where.status = status;
@@ -48,9 +47,9 @@ export async function GET(req: NextRequest) {
           tenantId: ctx.tenantId,
           appType: ctx.appType,
           status: 'pending_review',
-          // Also reach records filed by this branch's staff — a record takes the
-          // branch of its ROUTE, which can differ from the filing agent's branch.
-          ...branchReachWhere(scopeBranchId, 'agent'),
+          // Own branch only — a record takes the branch of its ROUTE, and only
+          // that branch's admin may review it.
+          ...branchScope,
         },
         include: {
           agent: { select: { id: true, name: true, role: true } },
@@ -91,7 +90,7 @@ export async function GET(req: NextRequest) {
           tenantId: ctx.tenantId,
           appType: ctx.appType,
           status: 'pending_review',
-          ...branchReachWhere(scopeBranchId, 'createdBy'),
+          ...branchScope,
         },
         include: {
           customer: { select: { name: true } },

@@ -123,43 +123,34 @@ async function main() {
     }
 
     // What each admin actually SEES in the Customers / Loans lists. Mirrors
-    // scopedBranchReachWhere: own branch, unbranched records, plus records
-    // filed by staff on their branch.
+    // scopedBranchWhere: the admin's own branch, nothing else. An admin with no
+    // branch is tenant-wide by design.
     console.log('\n-- list visibility per admin (customers / loans) --');
+    const [cAll, lAll, cOrphan, lOrphan] = await Promise.all([
+      prisma.customer.count({ where: { tenantId: tenant.id } }),
+      prisma.loan.count({ where: { tenantId: tenant.id } }),
+      prisma.customer.count({ where: { tenantId: tenant.id, branchId: null } }),
+      prisma.loan.count({ where: { tenantId: tenant.id, branchId: null } }),
+    ]);
     for (const a of admins) {
-      const reachWhere = a.branchId
-        ? {
-            OR: [
-              { branchId: a.branchId },
-              { branchId: null },
-              { agent: { branchId: a.branchId } },
-            ],
-          }
-        : {};
-      const loanReachWhere = a.branchId
-        ? {
-            OR: [
-              { branchId: a.branchId },
-              { branchId: null },
-              { createdBy: { branchId: a.branchId } },
-            ],
-          }
-        : {};
-      const strictWhere = a.branchId ? { branchId: a.branchId } : {};
-
-      const [cNew, cOld, lNew, lOld] = await Promise.all([
-        prisma.customer.count({ where: { tenantId: tenant.id, ...reachWhere } }),
-        prisma.customer.count({ where: { tenantId: tenant.id, ...strictWhere } }),
-        prisma.loan.count({ where: { tenantId: tenant.id, ...loanReachWhere } }),
-        prisma.loan.count({ where: { tenantId: tenant.id, ...strictWhere } }),
-      ]);
-      const [cAll, lAll] = await Promise.all([
-        prisma.customer.count({ where: { tenantId: tenant.id } }),
-        prisma.loan.count({ where: { tenantId: tenant.id } }),
+      const scope = a.branchId ? { branchId: a.branchId } : {};
+      const [c, l] = await Promise.all([
+        prisma.customer.count({ where: { tenantId: tenant.id, ...scope } }),
+        prisma.loan.count({ where: { tenantId: tenant.id, ...scope } }),
       ]);
       console.log(`  ${a.name} (${branchName(a.branchId)})`);
-      console.log(`      customers: ${cNew}/${cAll} visible  (was ${cOld}/${cAll} before the reach fix)`);
-      console.log(`      loans:     ${lNew}/${lAll} visible  (was ${lOld}/${lAll} before the reach fix)`);
+      console.log(`      customers: ${c}/${cAll} visible`);
+      console.log(`      loans:     ${l}/${lAll} visible`);
+      if (!a.branchId) console.log('      ⚠ no branch assigned — sees the whole tenant');
+    }
+
+    // Unbranched records reach no branch admin at all. That is deliberate — the
+    // alternative shows them to EVERY branch — but they need repairing.
+    if (cOrphan || lOrphan) {
+      console.log(
+        `\n  ⚠ ${cOrphan} customer(s) and ${lOrphan} loan(s) have no branch: superadmin-only.` +
+          '\n    Repair with scripts/backfill-customer-route-agent.js (fills branch + agent from the route).',
+      );
     }
   }
 }

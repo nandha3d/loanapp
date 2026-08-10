@@ -4,7 +4,7 @@ import { ok, fail } from '@/lib/api/v1-envelope';
 import {
   MobileTokenClaims,
   requireMobileContext,
-  scopedBranchReachWhere,
+  scopedBranchWhere,
 } from '@/lib/api/v1-auth';
 import {
   decryptAadharNumber,
@@ -56,8 +56,10 @@ async function findScopedCustomer(id: string, ctx: MobileTokenClaims) {
     // own customers whose branchId is null or differs from the agent's branch).
     where.AND = [buildAgentCustomerAccessWhere({ userId: ctx.userId })];
   } else {
-    // Must match the list scope, or a listed customer 404s when opened.
-    where.AND = [scopedBranchReachWhere(ctx, 'agent')];
+    // AND, not a spread: this object already matches on `OR: [{id}, {code}]`
+    // and a second top-level key would be fine today, but keeping the scope in
+    // AND keeps list and detail identical no matter what either grows into.
+    where.AND = [scopedBranchWhere(ctx)];
   }
   return prisma.customer.findFirst({
     where,

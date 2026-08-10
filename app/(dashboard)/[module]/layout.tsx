@@ -9,8 +9,8 @@ import { getAppConfig } from '@/lib/appConfig';
 import { getThemePreset, THEME_SETTING_KEY } from '@/lib/themes';
 import { getDictionary, getCurrentLanguage } from '@/lib/i18n';
 import BranchSwitcher from '@/components/layout/BranchSwitcher';
-import { getActiveBranchId, getSuperadminBranches, branchOrUnassignedWhere } from '@/lib/branch';
-import { branchReachWhere } from '@/lib/branchScope';
+import { getActiveBranchId, getSuperadminBranches } from '@/lib/branch';
+import { branchScopeWhere } from '@/lib/branchScope';
 import {
   ALL_MODULES,
   isModuleKey,
@@ -131,9 +131,9 @@ export default async function DashboardLayout({
         : role === 'admin'
           ? (await getActiveBranchId()) ?? undefined
           : undefined;
-    // Same scope the Approvals page uses (branch + unbranched records), so the
-    // badge never lights up for rows the page then filters out.
-    const branchScope = branchOrUnassignedWhere(scopeBranchId);
+    // Same scope the Approvals page uses, so the badge never lights up for rows
+    // the page then filters out.
+    const branchScope = branchScopeWhere(scopeBranchId);
     const base = {
       tenantId,
       appType: requestedModule,
@@ -141,10 +141,10 @@ export default async function DashboardLayout({
     };
     const [pc, pl, pv, pr] = await Promise.all([
       prisma.customer.count({
-        where: { ...base, ...branchReachWhere(scopeBranchId, 'agent') },
+        where: { ...base, ...branchScope },
       }),
       prisma.loan.count({
-        where: { ...base, ...branchReachWhere(scopeBranchId, 'createdBy') },
+        where: { ...base, ...branchScope },
       }),
       requestedModule === 'autofinance'
         ? prisma.vehicle.count({

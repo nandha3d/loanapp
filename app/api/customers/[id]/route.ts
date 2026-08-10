@@ -1,5 +1,5 @@
 import prisma from '@/lib/db';
-import { ADMIN_API_ROLES, AUTHENTICATED_API_ROLES, isApiError, requireApiContext, scopedBranchReachWhere } from '@/lib/apiAuth';
+import { ADMIN_API_ROLES, AUTHENTICATED_API_ROLES, isApiError, requireApiContext, scopedBranchWhere } from '@/lib/apiAuth';
 import { apiError, apiSuccess } from '@/lib/utils';
 import { decryptAadharNumber, encryptAadharNumber, maskAadharNumber } from '@/lib/pii';
 import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
@@ -13,12 +13,12 @@ async function findScopedCustomer(id: string, context: any) {
     appType: context.appType,
   };
 
-  // AND, not a spread: both scope clauses are themselves ORs and would
-  // otherwise overwrite the id/customerCode OR above.
+  // AND, not a spread: the agent clause is itself an OR and would otherwise
+  // overwrite the id/customerCode OR above.
   if (context.role === 'agent') {
     where.AND = [buildAgentCustomerAccessWhere({ userId: context.userId })];
   } else {
-    where.AND = [scopedBranchReachWhere(context, 'agent')];
+    where.AND = [scopedBranchWhere(context)];
   }
 
   return prisma.customer.findFirst({

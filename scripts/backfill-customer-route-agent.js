@@ -1,19 +1,20 @@
 #!/usr/bin/env node
 /**
- * Backfill Customer.agentId from the customer's route.
+ * Backfill Customer.branchId and Customer.agentId from the customer's route.
  *
- * Customer creation derives the collecting agent from the ROUTE
- * (`resolvedAgentId = route.assignedAgentId` in app/api/v1/customers/route.ts).
- * Customers filed before a route had an agent — or imported — can end up on a
- * route while carrying `agentId = null`.
+ * Customer creation derives both from the ROUTE (`resolvedBranchId =
+ * route.branchId ?? ctx.branchId`, `resolvedAgentId = route.assignedAgentId` in
+ * app/api/v1/customers/route.ts). Customers filed before a route had a branch or
+ * an agent — or imported — can end up on a route while carrying nulls.
  *
- * That orphan state matters for visibility: a branch admin reaches records on
- * their own branch, unbranched records, or records filed by staff on their
- * branch (lib/api/v1-auth.ts#scopedBranchReachWhere). A customer sitting on
- * ANOTHER branch with no agent matches none of those, so it is visible only to
- * superadmins.
+ * A null branch matters for visibility: a branch admin sees records on their own
+ * branch and nothing else (lib/api/v1-auth.ts#scopedBranchWhere), so an
+ * unbranched customer is visible to superadmins only. Broadcasting it to every
+ * branch instead would share customers across branches, so the repair is here,
+ * in the data.
  *
- * Only fills NULLs — never reassigns a customer that already has an agent.
+ * Only fills NULLs — never reassigns a customer that already has a branch or an
+ * agent.
  *
  * Usage (PowerShell):
  *   $env:TENANT='samurai-ml-af-cf'    # slug, customDomain, or tenant id
@@ -51,23 +52,30 @@ async function main() {
   const orphans = await prisma.customer.findMany({
     where: {
       tenantId: tenant.id,
-      agentId: null,
       routeId: { not: null },
+      OR: [{ agentId: null }, { branchId: null }],
       ...(CUSTOMER_CODE ? { customerCode: CUSTOMER_CODE } : {}),
     },
-    select: { id: true, customerCode: true, name: true, routeId: true, branchId: true },
+    select: { id: true, customerCode: true, name: true, routeId: true, branchId: true, agentId: true },
     orderBy: { customerCode: 'asc' },
   });
 
   if (orphans.length === 0) {
-    console.log('No customers on a route are missing an agent. Nothing to do.');
+    console.log('No customers on a route are missing a branch or an agent. Nothing to do.');
     return;
   }
 
   const routeIds = [...new Set(orphans.map((c) => c.routeId))];
   const routes = await prisma.route.findMany({
     where: { id: { in: routeIds }, tenantId: tenant.id },
-    select: { id: true, name: true, assignedAgentId: true, assignedAgent: { select: { name: true } } },
+    select: {
+      id: true,
+      name: true,
+      branchId: true,
+      assignedAgentId: true,
+      assignedAgent: { select: { name: true } },
+      branch: { select: { name: true } },
+    },
   });
   const routeById = new Map(routes.map((r) => [r.id, r]));
 
@@ -80,19 +88,31 @@ async function main() {
       skipped++;
       continue;
     }
-    if (!route.assignedAgentId) {
-      console.log(`  SKIP ${c.customerCode} ${c.name} — route "${route.name}" has no assigned agent`);
+
+    // Fill only what is missing, and only from what the route actually knows.
+    const data = {};
+    const parts = [];
+    if (!c.branchId && route.branchId) {
+      data.branchId = route.branchId;
+      parts.push(`branch ${route.branch?.name ?? route.branchId}`);
+    }
+    if (!c.agentId && route.assignedAgentId) {
+      data.agentId = route.assignedAgentId;
+      parts.push(`agent ${route.assignedAgent?.name ?? route.assignedAgentId}`);
+    }
+
+    if (parts.length === 0) {
+      const missing = [!c.branchId && 'branch', !c.agentId && 'agent'].filter(Boolean).join(' and ');
+      console.log(`  SKIP ${c.customerCode} ${c.name} — route "${route.name}" has no ${missing} to copy`);
       skipped++;
       continue;
     }
+
     console.log(
-      `  ${DRY_RUN ? 'WOULD SET' : 'SET'} ${c.customerCode} ${c.name} -> agent ${route.assignedAgent?.name} (route "${route.name}")`,
+      `  ${DRY_RUN ? 'WOULD SET' : 'SET'} ${c.customerCode} ${c.name} -> ${parts.join(', ')} (route "${route.name}")`,
     );
     if (!DRY_RUN) {
-      await prisma.customer.update({
-        where: { id: c.id },
-        data: { agentId: route.assignedAgentId },
-      });
+      await prisma.customer.update({ where: { id: c.id }, data });
     }
     fixed++;
   }

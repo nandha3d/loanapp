@@ -4,8 +4,8 @@ import ApprovalsClient from './ApprovalsClient';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { getDictionary } from '@/lib/i18n';
-import { getActiveBranchId, branchOrUnassignedWhere } from '@/lib/branch';
-import { branchReachWhere } from '@/lib/branchScope';
+import { getActiveBranchId } from '@/lib/branch';
+import { branchScopeWhere } from '@/lib/branchScope';
 
 export default async function ApprovalsPage() {
   const session = await auth();
@@ -22,10 +22,9 @@ export default async function ApprovalsPage() {
   const activeBranchId = await getActiveBranchId();
   
   // Branch scope shared by every query below so the list, the tabs and the
-  // sidebar badge always agree. A record that landed without a branch is
-  // reviewable by anyone in the tenant — excluding it made such records
-  // invisible to admins while superadmins (unscoped) still saw them.
-  const branchScope = branchOrUnassignedWhere(activeBranchId);
+  // sidebar badge always agree — and so an admin can only approve records that
+  // belong to their own branch.
+  const branchScope = branchScopeWhere(activeBranchId);
 
   const where: any = { tenantId, appType };
   if (userRole === 'agent') {
@@ -48,13 +47,14 @@ export default async function ApprovalsPage() {
   let pendingCustomers: any[] = [];
   let pendingVehicles: any[] = [];
   if (userRole !== 'agent') {
-    // Reach records filed by this branch's staff too — a loan/customer takes the
-    // branch of its ROUTE, which can differ from the filing agent's branch.
+    // Own branch only. A loan/customer takes the branch of its ROUTE, which can
+    // differ from the filing agent's — the record still belongs to that branch,
+    // and only that branch's admin may approve it.
     const loanWhere: any = {
       tenantId,
       appType,
       status: 'pending_review',
-      ...branchReachWhere(activeBranchId, 'createdBy'),
+      ...branchScope,
     };
     pendingLoans = await prisma.loan.findMany({
       where: loanWhere,
@@ -69,7 +69,7 @@ export default async function ApprovalsPage() {
       tenantId,
       appType,
       status: 'pending_review',
-      ...branchReachWhere(activeBranchId, 'agent'),
+      ...branchScope,
     };
     pendingCustomers = await prisma.customer.findMany({
       where: customerWhere,

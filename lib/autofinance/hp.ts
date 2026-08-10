@@ -192,7 +192,7 @@ export function validatePayoutSplit(
   const a2 = Number(amount2) || 0;
   if (a1 === 0 && a2 === 0) return { valid: true };
   const total = round2(a1 + a2);
-  if (Math.abs(total - round2(payout)) > 1) {
+  if (Math.abs(total - round2(payout)) > 0.01) {
     return {
       valid: false,
       message: `Payment split (${total}) does not match the payout amount (${round2(payout)}).`,

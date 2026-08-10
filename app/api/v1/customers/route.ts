@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail, parseCursorPaging } from '@/lib/api/v1-envelope';
-import { requireMobileContext, scopedBranchReachWhere } from '@/lib/api/v1-auth';
+import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { getAgentRouteIds } from '@/lib/access';
 import { encryptAadharNumber } from '@/lib/pii';
 import { getBranding } from '@/lib/tenant';
@@ -36,9 +36,10 @@ export async function GET(req: NextRequest) {
     // from the agent's home branch.
     where.AND.push(buildAgentCustomerAccessWhere({ userId: ctx.userId }));
   } else {
-    // Reach records filed by this branch's agents too — a customer takes the
-    // branch of its ROUTE, which is not always the agent's own branch.
-    where.AND.push(scopedBranchReachWhere(ctx, 'agent'));
+    // Strictly the caller's own branch. A customer takes the branch of its
+    // ROUTE, so it can sit on a branch other than its filing agent's — but that
+    // record still belongs to the route's branch and to nobody else.
+    where.AND.push(scopedBranchWhere(ctx));
   }
 
   if (q) {

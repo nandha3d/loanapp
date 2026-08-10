@@ -13,8 +13,11 @@ export type UserNotifyInput = {
   /**
    * Branches whose users should RECEIVE a role broadcast. Defaults to
    * `[branchId]`. Kept separate from `branchId` because the branch a record
-   * belongs to and the branches whose admins supervise it are not always the
-   * same — see `branchReachWhere` in lib/branchScope.ts.
+   * belongs to and the branches whose admins should be told about it are not
+   * always the same — a customer inherits the branch of its ROUTE, so the
+   * filing agent's admin may be worth pinging too. This widens who gets
+   * NOTIFIED only; who can SEE the record stays pinned to its own branch by
+   * `branchScopeWhere` in lib/branchScope.ts.
    */
   recipientBranchIds?: Array<string | null | undefined>;
   /**
