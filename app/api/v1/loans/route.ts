@@ -3,14 +3,16 @@ import prisma from '@/lib/db';
 import { ok, fail, parseCursorPaging } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { getAgentRouteIds } from '@/lib/access';
-import { writeAudit } from '@/lib/audit';
 import { buildAgentCustomerAccessWhere, canAgentAccessCustomer, canCreateLoanForRole, validateLoanNumericInputs } from '@/lib/loanPolicy';
-import { getAgentBalance, disburseFromAgent, disburseFromBranch } from '@/lib/wallet';
+import { InsufficientFloatError, disburseFromAgent, disburseFromBranch } from '@/lib/wallet';
 import { isInterestOnly } from '@/lib/loanCalculator';
 import { isInterestOnlyEnabled } from '@/lib/features';
 import { buildHpOriginationTerms } from '@/lib/autofinance/origination';
 import { validateGoldOrigination } from '@/lib/gold/origination';
 import { ornamentTotals, resolveOrnamentLine } from '@/lib/gold/ornaments';
+import { nextContractCode } from '@/lib/origination/contractNumber';
+
+class OriginationInputError extends Error {}
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -395,7 +397,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const { calculateEndDate, generateCode } = await import('@/lib/utils');
     let bypassLoanApproval = false;
     let autoReleaseFloat = true;
     if (ctx.role === 'agent') {
@@ -418,9 +419,6 @@ export async function POST(req: NextRequest) {
     const status = bypassLoanApproval ? 'active' : 'pending_review';
     const { getBranding } = await import('@/lib/tenant');
     const branding = await getBranding(ctx.tenantId);
-    const count = await prisma.loan.count({
-      where: { tenantId: ctx.tenantId, appType: ctx.appType },
-    });
     // Frequency-specific prefixes (DL/WL/BWL/ML); tenant prefix is the fallback
     // for any other/legacy frequency value.
     const FREQUENCY_PREFIX: Record<string, string> = {
@@ -429,17 +427,48 @@ export async function POST(req: NextRequest) {
       biweekly: 'BWL',
       monthly: 'ML',
     };
-    const loanCode = generateCode(
-      FREQUENCY_PREFIX[frequency] ?? branding.loanCodePrefix,
-      count + 1,
-      5,
-    );
-    const endDate = calculateEndDate(startDate, frequency, tenure);
+    const result = await prisma.$transaction(async (tx) => {
+      const loanCode = await nextContractCode(tx, {
+        tenantId: ctx.tenantId,
+        appType: ctx.appType,
+        prefix: FREQUENCY_PREFIX[frequency] ?? branding.loanCodePrefix,
+      });
 
-    let guarantorId: string | null = null;
-    if (guarantorInput?.name && guarantorInput?.phone) {
-      const { encryptAadharNumber } = await import('@/lib/pii');
-      const g = await prisma.guarantor.create({
+      if (goldOrigination) {
+        const existingGoldLoans = await tx.loan.findMany({
+          where: {
+            tenantId: ctx.tenantId,
+            appType: ctx.appType,
+            customerId,
+            status: { in: ['active', 'pending_review'] },
+            goldCollateral: { isNot: null },
+          },
+          select: { principal: true, outstandingPrincipal: true },
+        });
+        const existingExposure = existingGoldLoans.reduce(
+          (sum, existing) => sum + Number(existing.outstandingPrincipal ?? existing.principal),
+          0,
+        );
+        try {
+          goldOrigination.validation = validateGoldOrigination({
+            assessedValue: goldOrigination.assessedValue,
+            requestedPrincipal: principal,
+            totalPayableAtMaturity: preview.totalPayable,
+            repaymentModel: goldInput.repaymentModel === 'bullet' ? 'bullet' : 'amortizing',
+            requestedLtvPercent: goldInput.eligibleLtvPercent,
+            borrowerExistingConsumptionExposure: existingExposure,
+          });
+        } catch (error) {
+          throw new OriginationInputError(
+            error instanceof Error ? error.message : 'Invalid gold LTV',
+          );
+        }
+      }
+
+      let guarantorId: string | null = null;
+      if (guarantorInput?.name && guarantorInput?.phone) {
+        const { encryptAadharNumber } = await import('@/lib/pii');
+        const g = await tx.guarantor.create({
         data: {
           customerId,
           name: guarantorInput.name,
@@ -452,8 +481,8 @@ export async function POST(req: NextRequest) {
           photo: guarantorInput.photoUrl || null,
         },
       });
-      guarantorId = g.id;
-    }
+        guarantorId = g.id;
+      }
 
     // HP deals commonly carry two or three guarantors. Only the first is the
     // loan's guarantor of record; the rest are attached to the customer so they
@@ -463,7 +492,7 @@ export async function POST(req: NextRequest) {
       : [];
     if (extraGuarantors.length > 0) {
       const { encryptAadharNumber } = await import('@/lib/pii');
-      await prisma.guarantor.createMany({
+      await tx.guarantor.createMany({
         data: extraGuarantors
           .filter((g) => g?.name && g?.phone)
           .map((g) => ({
@@ -487,7 +516,7 @@ export async function POST(req: NextRequest) {
         imagePath: c.imageUrl || null,
       }));
 
-    const loan = await prisma.loan.create({
+    const loan = await tx.loan.create({
       data: {
         tenantId: ctx.tenantId,
         // Inherit the customer's branch when the creator has none (e.g. a
@@ -570,22 +599,22 @@ export async function POST(req: NextRequest) {
       include: { instalments: true, customer: true },
     });
 
-    await writeAudit({
-      tenantId: ctx.tenantId,
-      userId: ctx.userId,
-      action: 'create',
-      entityType: 'loan',
-      entityId: loan.id,
-      newValue: { loanCode, principal, customerId },
+    await tx.auditLog.create({
+      data: {
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
+        action: 'create',
+        entityType: 'loan',
+        entityId: loan.id,
+        newValue: JSON.stringify({ loanCode, principal, customerId }),
+      },
     });
 
-    // Gold/Silver pledge: persist the collateral header + ornament line items
-    // when the form sent a structured goldCollateral payload. Additive and
-    // best-effort — a gold failure must never roll back an already-created loan.
+    // Gold/Silver pledge: collateral and ornament rows are part of the same
+    // transaction as the loan, schedule, wallet debit and accounting entry.
     if (goldInput && typeof goldInput === 'object' && goldOrigination) {
-      try {
         const itemsInput = goldOrigination.items;
-        await prisma.goldLoanCollateral.create({
+        await tx.goldLoanCollateral.create({
           data: {
             tenantId: ctx.tenantId,
             branchId: loan.branchId,
@@ -648,16 +677,12 @@ export async function POST(req: NextRequest) {
               : {}),
           },
         });
-      } catch (e) {
-        console.error('[GOLD_COLLATERAL] persist failed for loan', loan.id, e);
-      }
     }
 
-    // Property collateral (mortgage). Additive, best-effort.
+    // Property collateral (mortgage).
     const propertyInput: any = body.propertyCollateral;
     if (propertyInput && typeof propertyInput === 'object') {
-      try {
-        await prisma.propertyCollateral.create({
+        await tx.propertyCollateral.create({
           data: {
             tenantId: ctx.tenantId,
             branchId: loan.branchId,
@@ -681,16 +706,12 @@ export async function POST(req: NextRequest) {
             photoPath: propertyInput.photoPath ?? null,
           },
         });
-      } catch (e) {
-        console.error('[PROPERTY_COLLATERAL] persist failed for loan', loan.id, e);
-      }
     }
 
-    // Product-finance item. Additive, best-effort.
+    // Product-finance item.
     const productInput: any = body.productItem ?? body.productFinanceItem;
     if (productInput && typeof productInput === 'object') {
-      try {
-        await prisma.productFinanceItem.create({
+        await tx.productFinanceItem.create({
           data: {
             tenantId: ctx.tenantId,
             branchId: loan.branchId,
@@ -713,18 +734,14 @@ export async function POST(req: NextRequest) {
             photoPath: productInput.photoPath ?? null,
           },
         });
-      } catch (e) {
-        console.error('[PRODUCT_ITEM] persist failed for loan', loan.id, e);
-      }
     }
 
     // Auto Finance (HP): financial configuration + the financed vehicle, both
     // created in the same origination call so the 4-step wizard is one
-    // transaction from the operator's point of view. Best-effort like the other
-    // module side-tables — a failure here must not orphan the loan.
+    // transaction from the operator's point of view. Any failure rolls the
+    // complete origination back.
     if (autoFinanceInput && typeof autoFinanceInput === 'object') {
-      try {
-        await prisma.autoFinanceDetail.create({
+        await tx.autoFinanceDetail.create({
           data: {
             tenantId: ctx.tenantId,
             loanId: loan.id,
@@ -748,14 +765,10 @@ export async function POST(req: NextRequest) {
             netPayout: hpTerms?.netPayout ?? null,
           },
         });
-      } catch (e) {
-        console.error('[AUTO_FINANCE_DETAIL] persist failed for loan', loan.id, e);
-      }
     }
 
     if (vehicleInput && typeof vehicleInput === 'object' && vehicleInput.registrationNo) {
-      try {
-        const vehicle = await prisma.vehicle.create({
+        const vehicle = await tx.vehicle.create({
           data: {
             tenantId: ctx.tenantId,
             appType: ctx.appType,
@@ -787,13 +800,64 @@ export async function POST(req: NextRequest) {
             caption: p.caption || null,
           }));
         if (photoRows.length > 0) {
-          await prisma.vehiclePhoto.createMany({ data: photoRows });
+          await tx.vehiclePhoto.createMany({ data: photoRows });
         }
-      } catch (e) {
-        console.error('[AUTO_FINANCE_VEHICLE] persist failed for loan', loan.id, e);
+    }
+
+    // Disburse cash from the float ledger. An agent physically hands the NET
+    // disbursed cash to the customer, so their float ALWAYS drops by that amount
+    // when the loan is active (not gated by autoReleaseFloat). Admin/superadmin
+    // loans draw from the branch cash pool. Note: `disbursedAmount` is already
+    // net of the upfront fee for upfront loans (= principal for EMI loans), so the
+    // upfront fee is never deducted from the float.
+    const shouldDisburse = loan.status === 'active' && (ctx.role === 'agent' || autoReleaseFloat);
+    if (shouldDisburse) {
+      const disburseAmt = Number(preview.disbursedAmount);
+      if (ctx.role === 'agent') {
+        await disburseFromAgent(tx, {
+          tenantId: ctx.tenantId,
+          appType: ctx.appType,
+          agentId: ctx.userId,
+          amount: disburseAmt,
+          loanId: loan.id,
+          byUserId: ctx.userId,
+        });
+      } else if (loan.branchId) {
+        await disburseFromBranch(tx, {
+          tenantId: ctx.tenantId,
+          appType: ctx.appType,
+          branchId: loan.branchId,
+          amount: disburseAmt,
+          loanId: loan.id,
+          byUserId: ctx.userId,
+        });
+      } else {
+        throw new OriginationInputError('Branch is required to fund an active loan');
       }
     }
 
+    if (loan.status === 'active') {
+      await tx.accountEntry.create({
+        data: {
+          tenantId: ctx.tenantId,
+          appType: ctx.appType,
+          branchId: ctx.branchId || undefined,
+          entryDate: startDate,
+          type: 'loan_disburse',
+          category: 'cash',
+          amount: preview.disbursedAmount,
+          description: `Loan ${loanCode} disbursed to customer`,
+          referenceId: loan.id,
+          referenceType: 'loan',
+          createdBy: ctx.userId,
+        },
+      });
+    }
+
+      return { loan, loanCode };
+    }, { isolationLevel: 'Serializable' });
+
+    const { loan, loanCode } = result;
     if (status === 'pending_review') {
       const { notifyApprovers } = await import('@/lib/notify/approvers');
       const { modulePath } = await import('@/types/modules');
@@ -810,77 +874,27 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Disburse cash from the float ledger. An agent physically hands the NET
-    // disbursed cash to the customer, so their float ALWAYS drops by that amount
-    // when the loan is active (not gated by autoReleaseFloat). Admin/superadmin
-    // loans draw from the branch cash pool. Note: `disbursedAmount` is already
-    // net of the upfront fee for upfront loans (= principal for EMI loans), so the
-    // upfront fee is never deducted from the float.
-    const shouldDisburse = loan.status === 'active' && (ctx.role === 'agent' || autoReleaseFloat);
-    if (shouldDisburse) {
-      try {
-        const disburseAmt = Number(preview.disbursedAmount);
-        if (ctx.role === 'agent') {
-          await prisma.$transaction((tx) =>
-            disburseFromAgent(tx, {
-              tenantId: ctx.tenantId,
-              appType: ctx.appType,
-              agentId: ctx.userId,
-              amount: disburseAmt,
-              loanId: loan.id,
-              byUserId: ctx.userId,
-            }),
-          );
-        } else if (loan.branchId) {
-          await prisma.$transaction((tx) =>
-            disburseFromBranch(tx, {
-              tenantId: ctx.tenantId,
-              appType: ctx.appType,
-              branchId: loan.branchId!,
-              amount: disburseAmt,
-              loanId: loan.id,
-              byUserId: ctx.userId,
-            }),
-          );
-        }
-      } catch (err) {
-        console.error('[wallet] disbursement debit failed:', err);
-      }
-    }
-
     if (loan.status === 'active') {
-      await prisma.accountEntry.create({
-        data: {
-          tenantId: ctx.tenantId,
-          appType: ctx.appType,
-          branchId: ctx.branchId || undefined,
-          entryDate: startDate,
-          type: 'loan_disburse',
-          category: 'cash',
-          amount: preview.disbursedAmount,
-          description: `Loan ${loanCode} disbursed to customer`,
-          referenceId: loan.id,
-          referenceType: 'loan',
-          createdBy: ctx.userId,
-        },
-      }).catch((error) => console.error('Failed to create accounting entry:', error));
-
       const { autoPostLoanDisburse } = await import('@/lib/accounting/autoPost');
-      autoPostLoanDisburse({
+      await autoPostLoanDisburse({
         tenantId: ctx.tenantId,
         loanId: loan.id,
         loanCode,
         amount: preview.disbursedAmount,
         date: startDate,
-        branchId: ctx.branchId || null,
+        branchId: loan.branchId,
         createdById: ctx.userId,
         category: 'cash',
-      }).catch(() => {});
+      });
     }
 
     return ok(loan);
   } catch (e: any) {
     console.error('[/api/v1/loans POST]', e);
+    if (e instanceof OriginationInputError) return fail(e.message, 400);
+    if (e instanceof InsufficientFloatError) {
+      return fail(`Insufficient float: available ${e.available}, required ${e.required}`, 409);
+    }
     return fail(e?.message ?? 'Loan create failed', 500);
   }
 }

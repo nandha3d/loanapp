@@ -10,6 +10,18 @@ export class InsufficientFloatError extends Error {
   }
 }
 
+export function calculateFloatBalance(
+  available: number,
+  delta: number,
+  hardBlock: boolean,
+): number {
+  const next = available + delta;
+  if (hardBlock && next < 0) {
+    throw new InsufficientFloatError(available, -delta);
+  }
+  return next;
+}
+
 type LedgerMeta = {
   type: 'release' | 'disburse' | 'collection' | 'inject' | 'deposit' | 'adjustment';
   refType?: string | null;
@@ -38,10 +50,7 @@ async function applyAgent(
     create: { tenantId, appType, agentId, balance: 0 },
     update: {},
   });
-  const next = Number(acct.balance) + delta;
-  if (hardBlock && next < 0) {
-    throw new InsufficientFloatError(Number(acct.balance), -delta);
-  }
+  const next = calculateFloatBalance(Number(acct.balance), delta, hardBlock);
   await tx.agentAccount.update({ where: { id: acct.id }, data: { balance: next } });
   await tx.walletTransaction.create({
     data: {
@@ -68,13 +77,14 @@ async function applyBranch(
   branchId: string,
   delta: number,
   meta: LedgerMeta,
+  hardBlock = false,
 ): Promise<number> {
   const acct = await tx.branchCashAccount.upsert({
     where: { tenantId_appType_branchId: { tenantId, appType, branchId } },
     create: { tenantId, appType, branchId, balance: 0 },
     update: {},
   });
-  const next = Number(acct.balance) + delta;
+  const next = calculateFloatBalance(Number(acct.balance), delta, hardBlock);
   await tx.branchCashAccount.update({ where: { id: acct.id }, data: { balance: next } });
   await tx.walletTransaction.create({
     data: {
@@ -267,12 +277,20 @@ export async function disburseFromBranch(
   input: { tenantId: string; appType: string; branchId: string; amount: number; loanId: string; byUserId?: string | null },
 ): Promise<number> {
   if (!(input.amount > 0)) return 0;
-  return applyBranch(tx, input.tenantId, input.appType, input.branchId, -input.amount, {
-    type: 'disburse',
-    refType: 'loan',
-    refId: input.loanId,
-    byUserId: input.byUserId,
-  });
+  return applyBranch(
+    tx,
+    input.tenantId,
+    input.appType,
+    input.branchId,
+    -input.amount,
+    {
+      type: 'disburse',
+      refType: 'loan',
+      refId: input.loanId,
+      byUserId: input.byUserId,
+    },
+    true,
+  );
 }
 
 /** Chit contribution received into the office — credits the branch cash pool. */

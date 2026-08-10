@@ -35,6 +35,8 @@
     "test:file-upload": "tsx tests/fileUpload.test.ts",
     "test:origination-integrity": "tsx tests/originationIntegrity.test.ts",
     "test:contract-number": "tsx tests/contractNumber.test.ts",
+    "test:origination-atomicity": "tsx tests/originationAtomicity.test.ts",
+    "test:wallet-integrity": "tsx tests/walletIntegrity.test.ts",
     "ui-map:roles": "node scripts/check-role-ui-map.mjs",
     "db:validate": "npx prisma validate",
     "db:generate": "npx prisma generate",
