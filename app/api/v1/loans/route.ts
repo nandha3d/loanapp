@@ -9,6 +9,8 @@ import { getAgentBalance, disburseFromAgent, disburseFromBranch } from '@/lib/wa
 import { isInterestOnly } from '@/lib/loanCalculator';
 import { isInterestOnlyEnabled } from '@/lib/features';
 import { buildHpOriginationTerms } from '@/lib/autofinance/origination';
+import { validateGoldOrigination } from '@/lib/gold/origination';
+import { ornamentTotals, resolveOrnamentLine } from '@/lib/gold/ornaments';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -328,6 +330,71 @@ export async function POST(req: NextRequest) {
           dueDay,
         });
 
+    const goldInput: any = body.goldCollateral;
+    let goldOrigination: null | {
+      items: any[];
+      grossWeightGrams: number;
+      netWeightGrams: number;
+      assessedValue: number;
+      validation: ReturnType<typeof validateGoldOrigination>;
+    } = null;
+    if (ctx.appType === 'goldloan' && (!goldInput || typeof goldInput !== 'object')) {
+      return fail('Gold or silver collateral is required for a gold loan', 400);
+    }
+    if (goldInput && typeof goldInput === 'object') {
+      const items = Array.isArray(goldInput.items) ? goldInput.items : [];
+      const totals = ornamentTotals(items);
+      const grossWeightGrams = items.length > 0
+        ? totals.totalGrossWeight
+        : Number(goldInput.grossWeightGrams ?? 0);
+      const netWeightGrams = items.length > 0
+        ? totals.totalNetWeight
+        : Number(goldInput.netWeightGrams ?? 0);
+      const assessedValue = totals.totalValue > 0
+        ? totals.totalValue
+        : Number(goldInput.assessedValue ?? 0);
+      if (!(grossWeightGrams > 0) || !(netWeightGrams > 0)) {
+        return fail('Gross and net collateral weights must be greater than zero', 400);
+      }
+      if (netWeightGrams > grossWeightGrams) {
+        return fail('Net collateral weight cannot exceed gross weight', 400);
+      }
+
+      const existingGoldLoans = await prisma.loan.findMany({
+        where: {
+          tenantId: ctx.tenantId,
+          appType: ctx.appType,
+          customerId,
+          status: { in: ['active', 'pending_review'] },
+          goldCollateral: { isNot: null },
+        },
+        select: { principal: true, outstandingPrincipal: true },
+      });
+      const existingExposure = existingGoldLoans.reduce(
+        (sum, existing) => sum + Number(existing.outstandingPrincipal ?? existing.principal),
+        0,
+      );
+      try {
+        const validation = validateGoldOrigination({
+          assessedValue,
+          requestedPrincipal: principal,
+          totalPayableAtMaturity: preview.totalPayable,
+          repaymentModel: goldInput.repaymentModel === 'bullet' ? 'bullet' : 'amortizing',
+          requestedLtvPercent: goldInput.eligibleLtvPercent,
+          borrowerExistingConsumptionExposure: existingExposure,
+        });
+        goldOrigination = {
+          items,
+          grossWeightGrams,
+          netWeightGrams,
+          assessedValue,
+          validation,
+        };
+      } catch (error) {
+        return fail(error instanceof Error ? error.message : 'Invalid gold LTV', 400);
+      }
+    }
+
     const { calculateEndDate, generateCode } = await import('@/lib/utils');
     let bypassLoanApproval = false;
     let autoReleaseFloat = true;
@@ -451,6 +518,35 @@ export async function POST(req: NextRequest) {
         status,
         brokerId,
         dealerId,
+        productFamily: hpTerms
+          ? 'hire_purchase'
+          : goldOrigination
+            ? 'gold_pledge'
+            : null,
+        ...(hpTerms
+          ? { termsSnapshot: {
+              version: 'HP_TERMS_V1',
+              vehicleValue: Number(autoFinanceInput.vehicleValue),
+              downPayment: Number(autoFinanceInput.downPayment ?? 0),
+              interestMethod: autoFinanceInput.interestMethod === 'diminishing' ? 'diminishing' : 'flat',
+              interestRate: rate,
+              tenureMonths: tenure,
+              totalInterest: hpTerms.totalInterest,
+              totalPayable: hpTerms.totalPayable,
+              grossPayout: hpTerms.grossPayout,
+              recoveredCharges: hpTerms.recoveredCharges,
+              netPayout: hpTerms.netPayout,
+            } }
+          : {}),
+        ...(goldOrigination
+          ? { policySnapshot: {
+              version: 'RBI_GOLD_SILVER_2025_V1',
+              maximumLtvPercent: goldOrigination.validation.maximumLtvPercent,
+              appliedLtvPercent: goldOrigination.validation.appliedLtvPercent,
+              eligibleAmount: goldOrigination.validation.eligibleAmount,
+              exposureForLtv: goldOrigination.validation.exposureForLtv,
+            } }
+          : {}),
         // Interest-Only servicing state. The rate must survive origination because
         // interest is recomputed whenever principal is prepaid; every other model
         // keeps only the rate's result, so both stay null for them.
@@ -486,12 +582,9 @@ export async function POST(req: NextRequest) {
     // Gold/Silver pledge: persist the collateral header + ornament line items
     // when the form sent a structured goldCollateral payload. Additive and
     // best-effort — a gold failure must never roll back an already-created loan.
-    const goldInput: any = body.goldCollateral;
-    if (goldInput && typeof goldInput === 'object') {
+    if (goldInput && typeof goldInput === 'object' && goldOrigination) {
       try {
-        const { ornamentTotals, resolveOrnamentLine } = await import('@/lib/gold/ornaments');
-        const itemsInput: any[] = Array.isArray(goldInput.items) ? goldInput.items : [];
-        const totals = ornamentTotals(itemsInput);
+        const itemsInput = goldOrigination.items;
         await prisma.goldLoanCollateral.create({
           data: {
             tenantId: ctx.tenantId,
@@ -500,14 +593,23 @@ export async function POST(req: NextRequest) {
             customerId,
             packetNo: goldInput.packetNo ?? null,
             ornamentDescription: goldInput.ornamentDescription ?? null,
-            grossWeightGrams: totals.totalGrossWeight,
-            netWeightGrams: totals.totalNetWeight,
+            grossWeightGrams: goldOrigination.grossWeightGrams,
+            netWeightGrams: goldOrigination.netWeightGrams,
             purityKarat: String(goldInput.purityKarat ?? itemsInput[0]?.purityKarat ?? '22K'),
             marketRatePerGram: goldInput.marketRatePerGram != null ? Number(goldInput.marketRatePerGram) : null,
-            assessedValue: totals.totalValue > 0
-              ? totals.totalValue
-              : (goldInput.assessedValue != null ? Number(goldInput.assessedValue) : null),
-            eligibleLtvPercent: goldInput.eligibleLtvPercent != null ? Number(goldInput.eligibleLtvPercent) : null,
+            assessedValue: goldOrigination.assessedValue,
+            eligibleLtvPercent: goldOrigination.validation.appliedLtvPercent,
+            eligibleAmount: goldOrigination.validation.eligibleAmount,
+            ltvAtOrigination: (goldOrigination.validation.exposureForLtv / goldOrigination.assessedValue) * 100,
+            policySnapshot: {
+              version: 'RBI_GOLD_SILVER_2025_V1',
+              purpose: 'consumption',
+              repaymentModel: goldInput.repaymentModel === 'bullet' ? 'bullet' : 'amortizing',
+              maximumLtvPercent: goldOrigination.validation.maximumLtvPercent,
+              appliedLtvPercent: goldOrigination.validation.appliedLtvPercent,
+              borrowerConsumptionExposure: goldOrigination.validation.borrowerConsumptionExposure,
+              exposureForLtv: goldOrigination.validation.exposureForLtv,
+            },
             storageLocation: goldInput.storageLocation ?? null,
             valuerName: goldInput.valuerName ?? null,
             valuationDate: goldInput.valuationDate ? new Date(goldInput.valuationDate) : null,
