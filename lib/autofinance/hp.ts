@@ -13,6 +13,8 @@ export type HpQuoteInput = {
   vehicleValue: number;
   /** Customer's own contribution. */
   downPayment: number;
+  /** Additional cash/insurance/RTO advance financed under the same contract. */
+  additionalFinancedAmount?: number;
   /** Annual interest rate in percent. */
   interestRate: number;
   /** 'flat' charges interest on the full principal for the whole tenure. */
@@ -35,7 +37,7 @@ export type HpScheduleRow = {
 };
 
 export type HpQuote = {
-  /** Amount actually financed (vehicleValue - downPayment). */
+  /** Amount financed (vehicle balance plus any additional contractual advance). */
   principal: number;
   totalInterest: number;
   totalPayable: number;
@@ -65,6 +67,7 @@ function settleRemainder(rows: HpScheduleRow[], totalPayable: number): void {
 export function calculateHpQuote(input: HpQuoteInput): HpQuote {
   const vehicleValue = Number(input.vehicleValue);
   const downPayment = Number(input.downPayment ?? 0);
+  const additionalFinancedAmount = Number(input.additionalFinancedAmount ?? 0);
   const rate = Number(input.interestRate ?? 0);
   const tenure = Number(input.tenureMonths);
   const method: InterestMethod = input.interestMethod === 'diminishing' ? 'diminishing' : 'flat';
@@ -78,6 +81,9 @@ export function calculateHpQuote(input: HpQuoteInput): HpQuote {
   if (downPayment >= vehicleValue) {
     throw new Error('Down payment must be less than the vehicle value.');
   }
+  if (!Number.isFinite(additionalFinancedAmount) || additionalFinancedAmount < 0) {
+    throw new Error('Additional financed amount cannot be negative.');
+  }
   if (!Number.isFinite(rate) || rate < 0) {
     throw new Error('Interest rate cannot be negative.');
   }
@@ -85,7 +91,7 @@ export function calculateHpQuote(input: HpQuoteInput): HpQuote {
     throw new Error('Tenure must be a positive whole number of months.');
   }
 
-  const principal = round2(vehicleValue - downPayment);
+  const principal = round2(vehicleValue - downPayment + additionalFinancedAmount);
   const schedule: HpScheduleRow[] = [];
 
   let emi: number;

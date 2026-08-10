@@ -114,6 +114,7 @@ export default function HpOriginationWizard({
       return calculateHpQuote({
         vehicleValue: value,
         downPayment: down,
+        additionalFinancedAmount: Number(handLoanAmount) || 0,
         interestRate: rate,
         interestMethod,
         tenureMonths: months,
@@ -122,18 +123,17 @@ export default function HpOriginationWizard({
     } catch {
       return null;
     }
-  }, [vehicleValue, downPayment, interestRate, interestMethod, tenureMonths, roundOffEmi]);
+  }, [vehicleValue, downPayment, handLoanAmount, interestRate, interestMethod, tenureMonths, roundOffEmi]);
 
   const disbursement = useMemo(() => {
     if (!quote) return null;
     return calculateHpDisbursement({
       principal: quote.principal,
-      handLoanAmount: Number(handLoanAmount) || 0,
       insuranceCharge: Number(insuranceCharge) || 0,
       documentCharge: Number(documentCharge) || 0,
       brokerCommission: Number(brokerCommission) || 0,
     });
-  }, [quote, handLoanAmount, insuranceCharge, documentCharge, brokerCommission]);
+  }, [quote, insuranceCharge, documentCharge, brokerCommission]);
 
   const splitCheck = useMemo(() => {
     if (!disbursement) return { valid: true };

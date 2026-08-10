@@ -108,6 +108,7 @@ export function buildHpOriginationTerms(input: HpOriginationInput): HpOriginatio
   const quote = calculateHpQuote({
     vehicleValue: input.vehicleValue,
     downPayment: input.downPayment ?? 0,
+    additionalFinancedAmount: handLoanAmount,
     interestRate: input.interestRate ?? 0,
     interestMethod: input.interestMethod ?? 'flat',
     tenureMonths: input.tenureMonths,
@@ -115,7 +116,6 @@ export function buildHpOriginationTerms(input: HpOriginationInput): HpOriginatio
   });
   const payout = calculateHpDisbursement({
     principal: quote.principal,
-    handLoanAmount,
     insuranceCharge,
     documentCharge,
     brokerCommission,

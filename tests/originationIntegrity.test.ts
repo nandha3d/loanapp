@@ -23,9 +23,10 @@ const hp = buildHpOriginationTerms({
   payoutAmount2: 29_000,
 });
 
-assert.equal(hp.principal, 80_000, 'server derives financed principal');
-assert.equal(hp.totalInterest, 19_200);
-assert.equal(hp.totalPayable, 99_200);
+assert.equal(hp.principal, 85_000, 'server finances the vehicle balance and hand-loan advance');
+assert.equal(hp.totalInterest, 20_400);
+assert.equal(hp.totalPayable, 105_400);
+assert.equal(hp.grossPayout, 85_000, 'the financed advance is not added to payout twice');
 assert.equal(hp.netPayout, 79_000);
 assert.equal(hp.schedule.length, 24);
 assert.equal(hp.schedule[0]?.dueDate.toISOString().slice(0, 10), '2026-09-10');
