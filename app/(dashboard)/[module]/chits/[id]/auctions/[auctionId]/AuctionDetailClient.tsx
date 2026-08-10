@@ -1,5 +1,6 @@
 'use client';
 
+import { compressFormDataImages } from '@/lib/imageCompression';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from '@/components/layout/DashboardLink';
@@ -966,7 +967,10 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
                       e.preventDefault();
                       const fd = new FormData(e.currentTarget);
                       fd.set('action', 'documents');
-                      run('security-documents', () => submitChitSecurity(auction.id, fd));
+                      run('security-documents', async () => {
+                        await compressFormDataImages(fd);
+                        return submitChitSecurity(auction.id, fd);
+                      });
                     }}
                   >
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
@@ -994,7 +998,10 @@ export default function AuctionDetailClient({ auction, security, securityDocumen
                         onSubmit={(e) => {
                           e.preventDefault();
                           const fd = new FormData(e.currentTarget);
-                          run('security', () => submitChitSecurity(auction.id, fd));
+                          run('security', async () => {
+                            await compressFormDataImages(fd);
+                            return submitChitSecurity(auction.id, fd);
+                          });
                         }}
                       >
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>

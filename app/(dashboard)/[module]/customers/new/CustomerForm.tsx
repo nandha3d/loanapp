@@ -5,6 +5,7 @@ import { saveCustomer } from '../actions';
 import Modal from '@/components/Modal';
 import { createRoute } from '../../settings/actions';
 import { usePathname, useRouter } from 'next/navigation';
+import { compressFormDataImages } from '@/lib/imageCompression';
 
 interface CustomerFormProps {
   appType: string;
@@ -139,6 +140,10 @@ export default function CustomerForm({ appType, routes: initialRoutes, customer,
     if (onSuccess) {
       formData.append('isPopup', 'true');
     }
+    // Camera photos are multi-MB each and this form has several file inputs
+    // (one of them `multiple`). Raw, they exceed the Server Action body limit,
+    // which Next throws as an uncaught exception and kills the server process.
+    await compressFormDataImages(formData);
     const res = await saveCustomer(formData);
     if (res?.success) {
       if (onSuccess && res.customer) {
