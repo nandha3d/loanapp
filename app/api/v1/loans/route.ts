@@ -8,6 +8,7 @@ import { buildAgentCustomerAccessWhere, canAgentAccessCustomer, canCreateLoanFor
 import { getAgentBalance, disburseFromAgent, disburseFromBranch } from '@/lib/wallet';
 import { isInterestOnly } from '@/lib/loanCalculator';
 import { isInterestOnlyEnabled } from '@/lib/features';
+import { buildHpOriginationTerms } from '@/lib/autofinance/origination';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -162,16 +163,47 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const customerId = String(body.customerId || '');
-    const principal = Number(body.principal);
-    const rate = Number(body.deduction ?? body.interestRate ?? 0);
-    const deductionType = String(
-      body.deductionType ?? body.interestType ?? 'upfront_fixed',
-    );
-    const tenure = Number(body.tenure);
-    const frequency = String(body.frequency || 'daily');
     const startDateStr = body.startDate || new Date().toISOString();
     const startDate = new Date(startDateStr);
-    const penaltyRate = Number(body.penaltyRate ?? 0);
+    const autoFinanceInput: any = body.autoFinance;
+    let hpTerms: ReturnType<typeof buildHpOriginationTerms> | null = null;
+    if (autoFinanceInput && typeof autoFinanceInput === 'object') {
+      try {
+        hpTerms = buildHpOriginationTerms({
+          vehicleValue: Number(autoFinanceInput.vehicleValue),
+          downPayment: Number(autoFinanceInput.downPayment ?? 0),
+          interestRate: Number(autoFinanceInput.interestRate ?? 0),
+          interestMethod: autoFinanceInput.interestMethod,
+          tenureMonths: Number(body.tenure),
+          roundOffEmi: Boolean(autoFinanceInput.roundOffEmi),
+          startDate,
+          firstDueDate: autoFinanceInput.firstDueDate ?? null,
+          dueDay: body.dueDay != null ? Number(body.dueDay) : null,
+          handLoanAmount: Number(autoFinanceInput.handLoanAmount ?? 0),
+          insuranceCharge: Number(autoFinanceInput.insuranceCharge ?? 0),
+          documentCharge: Number(autoFinanceInput.documentCharge ?? 0),
+          brokerCommission: Number(autoFinanceInput.brokerCommission ?? 0),
+          payoutMode1: autoFinanceInput.payoutMode1 ?? null,
+          payoutAmount1: autoFinanceInput.payoutAmount1,
+          payoutMode2: autoFinanceInput.payoutMode2 ?? null,
+          payoutAmount2: autoFinanceInput.payoutAmount2,
+        });
+      } catch (error) {
+        return fail(error instanceof Error ? error.message : 'Invalid HP terms', 400);
+      }
+    }
+    const principal = hpTerms?.principal ?? Number(body.principal);
+    const rate = hpTerms
+      ? Number(autoFinanceInput.interestRate ?? 0)
+      : Number(body.deduction ?? body.interestRate ?? 0);
+    const deductionType = hpTerms?.deductionType ?? String(
+      body.deductionType ?? body.interestType ?? 'upfront_fixed',
+    );
+    const tenure = hpTerms?.schedule.length ?? Number(body.tenure);
+    const frequency = hpTerms ? 'monthly' : String(body.frequency || 'daily');
+    const penaltyRate = hpTerms
+      ? Number(autoFinanceInput.penaltyPerDay ?? 0)
+      : Number(body.penaltyRate ?? 0);
     const loanType = String(body.loanType || 'cheque');
     const collateralDetails: string | null = body.collateralDetails ?? null;
     const voucherRef: string | null = body.voucherRef ?? null;
@@ -271,15 +303,30 @@ export async function POST(req: NextRequest) {
     }
 
     const { calculateLoanPreview } = await import('@/lib/loanCalculator');
-    const preview = calculateLoanPreview({
-      principal,
-      interestType: deductionType,
-      interestRate: rate,
-      tenure,
-      frequency,
-      startDate,
-      dueDay,
-    });
+    const preview = hpTerms
+      ? {
+          principal: hpTerms.principal,
+          deduction: hpTerms.deduction,
+          disbursedAmount: hpTerms.disbursedAmount,
+          totalPayable: hpTerms.totalPayable,
+          perInstalment: hpTerms.perInstalment,
+          schedule: hpTerms.schedule.map((row) => ({
+            instalmentNo: row.instalmentNo,
+            dueDate: row.dueDate,
+            dueAmount: row.dueAmount,
+            principalComponent: row.principalComponent,
+            interestComponent: row.interestComponent,
+          })),
+        }
+      : calculateLoanPreview({
+          principal,
+          interestType: deductionType,
+          interestRate: rate,
+          tenure,
+          frequency,
+          startDate,
+          dueDay,
+        });
 
     const { calculateEndDate, generateCode } = await import('@/lib/utils');
     let bypassLoanApproval = false;
@@ -415,6 +462,8 @@ export async function POST(req: NextRequest) {
             instalmentNo: i.instalmentNo,
             dueDate: new Date(i.dueDate),
             dueAmount: i.dueAmount,
+            principalComponent: i.principalComponent ?? null,
+            interestComponent: i.interestComponent ?? null,
             status: 'upcoming',
           })),
         },
@@ -571,7 +620,6 @@ export async function POST(req: NextRequest) {
     // created in the same origination call so the 4-step wizard is one
     // transaction from the operator's point of view. Best-effort like the other
     // module side-tables — a failure here must not orphan the loan.
-    const autoFinanceInput: any = body.autoFinance;
     if (autoFinanceInput && typeof autoFinanceInput === 'object') {
       try {
         await prisma.autoFinanceDetail.create({
@@ -593,6 +641,9 @@ export async function POST(req: NextRequest) {
             payoutAmount1: autoFinanceInput.payoutAmount1 != null ? Number(autoFinanceInput.payoutAmount1) : null,
             payoutMode2: autoFinanceInput.payoutMode2 || null,
             payoutAmount2: autoFinanceInput.payoutAmount2 != null ? Number(autoFinanceInput.payoutAmount2) : null,
+            grossPayout: hpTerms?.grossPayout ?? null,
+            recoveredCharges: hpTerms?.recoveredCharges ?? null,
+            netPayout: hpTerms?.netPayout ?? null,
           },
         });
       } catch (e) {

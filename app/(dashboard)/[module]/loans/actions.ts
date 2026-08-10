@@ -245,6 +245,7 @@ export async function createHpLoan(formData: FormData) {
         interestMethod: (formData.get('interestMethod') as string) || 'flat',
         interestRate: num('interestRate'),
         roundOffEmi: formData.get('roundOffEmi') === 'on',
+        firstDueDate: (formData.get('firstDueDate') as string) || null,
         gracePeriodDays: num('gracePeriodDays') ?? 0,
         penaltyPerDay: num('penaltyPerDay') ?? 0,
         handLoanAmount: num('handLoanAmount') ?? 0,
