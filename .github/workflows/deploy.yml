@@ -78,10 +78,28 @@ jobs:
             # A past root-run install left root-owned files under node_modules, so
             # npm could no longer unlink node_modules/.bin/* and every deploy died
             # with EACCES before installing anything. Take ownership back when sudo
-            # allows it; otherwise move the tree aside — both dirs are build output
-            # that deploy.sh regenerates, so losing them costs only install time.
+            # allows it; otherwise set the tree aside — node_modules and .next are
+            # both build output that deploy.sh regenerates, so the fallback costs
+            # only install time.
             echo 'paths not owned by the deploy user:'
             find $APP_DIR -maxdepth 1 ! -uid \$(id -u) -printf '%u %p\n' 2>/dev/null || true
+
+            # A tree we cannot delete has to land somewhere next build will not
+            # read: tsconfig excludes only the literal \"node_modules\", and its
+            # \"**/*.ts\" include still matched a node_modules.broken.* left in the
+            # checkout — the build then type-checked zod's own test files and
+            # failed. Prefer outside the checkout; fall back to a dot-prefixed
+            # name, which TypeScript's wildcard includes skip.
+            QUAR=$APP_DIR/..
+            [ -w \"\$QUAR\" ] || QUAR=$APP_DIR
+
+            for leftover in $APP_DIR/node_modules.broken.* $APP_DIR/.next.broken.*; do
+              [ -e \"\$leftover\" ] || continue
+              echo \"clearing leftover \$(basename \"\$leftover\")\"
+              rm -rf \"\$leftover\" 2>/dev/null \
+                || mv \"\$leftover\" \"\$QUAR/.broken-\$(basename \"\$leftover\")-\$(date +%s)\"
+            done
+
             for d in node_modules .next; do
               [ -d $APP_DIR/\$d ] || continue
               [ -n \"\$(find $APP_DIR/\$d ! -uid \$(id -u) -print -quit 2>/dev/null)\" ] || continue
@@ -89,9 +107,8 @@ jobs:
               if sudo -n chown -R \"\$(id -u):\$(id -g)\" $APP_DIR/\$d 2>/dev/null; then
                 echo \"  ownership of \$d restored\"
               else
-                rm -rf $APP_DIR/\$d.broken.* 2>/dev/null || true
-                mv $APP_DIR/\$d $APP_DIR/\$d.broken.\$(date +%s)
-                echo \"  no sudo — moved \$d aside, deploy.sh will rebuild it\"
+                mv $APP_DIR/\$d \"\$QUAR/.broken-\$d-\$(date +%s)\"
+                echo \"  no sudo — quarantined \$d, deploy.sh will rebuild it\"
               fi
             done
 
