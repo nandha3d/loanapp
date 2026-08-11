@@ -74,6 +74,27 @@ jobs:
             echo \"connected: \$(hostname) as \$(whoami)\"
             test -d $APP_DIR || { echo 'missing $APP_DIR'; exit 20; }
             test -f $APP_DIR/deploy.sh || { echo 'missing $APP_DIR/deploy.sh'; exit 21; }
+
+            # A past root-run install left root-owned files under node_modules, so
+            # npm could no longer unlink node_modules/.bin/* and every deploy died
+            # with EACCES before installing anything. Take ownership back when sudo
+            # allows it; otherwise move the tree aside — both dirs are build output
+            # that deploy.sh regenerates, so losing them costs only install time.
+            echo 'paths not owned by the deploy user:'
+            find $APP_DIR -maxdepth 1 ! -uid \$(id -u) -printf '%u %p\n' 2>/dev/null || true
+            for d in node_modules .next; do
+              [ -d $APP_DIR/\$d ] || continue
+              [ -n \"\$(find $APP_DIR/\$d ! -uid \$(id -u) -print -quit 2>/dev/null)\" ] || continue
+              echo \"repairing \$d — it holds files owned by another user\"
+              if sudo -n chown -R \"\$(id -u):\$(id -g)\" $APP_DIR/\$d 2>/dev/null; then
+                echo \"  ownership of \$d restored\"
+              else
+                rm -rf $APP_DIR/\$d.broken.* 2>/dev/null || true
+                mv $APP_DIR/\$d $APP_DIR/\$d.broken.\$(date +%s)
+                echo \"  no sudo — moved \$d aside, deploy.sh will rebuild it\"
+              fi
+            done
+
             rm -f /tmp/deploy.log /tmp/deploy.status
             setsid nohup bash -c 'bash $APP_DIR/deploy.sh > /tmp/deploy.log 2>&1; echo \$? > /tmp/deploy.status' >/dev/null 2>&1 &
             echo 'deploy started detached'
