@@ -11,6 +11,10 @@ import { buildHpOriginationTerms } from '@/lib/autofinance/origination';
 import { validateGoldOrigination } from '@/lib/gold/origination';
 import { ornamentTotals, resolveOrnamentLine } from '@/lib/gold/ornaments';
 import { nextContractCode } from '@/lib/origination/contractNumber';
+import {
+  AccountingConfigurationError,
+  postLoanOrigination,
+} from '@/lib/accounting/originationPosting';
 
 class OriginationInputError extends Error {}
 
@@ -565,6 +569,7 @@ export async function POST(req: NextRequest) {
               grossPayout: hpTerms.grossPayout,
               recoveredCharges: hpTerms.recoveredCharges,
               netPayout: hpTerms.netPayout,
+              payoutLegs: hpTerms.payoutLegs,
             } }
           : {}),
         ...(goldOrigination
@@ -804,15 +809,11 @@ export async function POST(req: NextRequest) {
         }
     }
 
-    // Disburse cash from the float ledger. An agent physically hands the NET
-    // disbursed cash to the customer, so their float ALWAYS drops by that amount
-    // when the loan is active (not gated by autoReleaseFloat). Admin/superadmin
-    // loans draw from the branch cash pool. Note: `disbursedAmount` is already
-    // net of the upfront fee for upfront loans (= principal for EMI loans), so the
-    // upfront fee is never deducted from the float.
+    // Only cash payout legs move the physical float. Bank, UPI, cheque and DD
+    // legs remain visible in the operational cash book and statutory journal.
     const shouldDisburse = loan.status === 'active' && (ctx.role === 'agent' || autoReleaseFloat);
     if (shouldDisburse) {
-      const disburseAmt = Number(preview.disbursedAmount);
+      const disburseAmt = hpTerms?.cashPayout ?? Number(preview.disbursedAmount);
       if (ctx.role === 'agent') {
         await disburseFromAgent(tx, {
           tenantId: ctx.tenantId,
@@ -837,20 +838,36 @@ export async function POST(req: NextRequest) {
     }
 
     if (loan.status === 'active') {
-      await tx.accountEntry.create({
-        data: {
+      const payoutLegs = hpTerms?.payoutLegs ?? [
+        { mode: 'cash', amount: Number(preview.disbursedAmount) },
+      ];
+      await tx.accountEntry.createMany({
+        data: payoutLegs.map((leg) => ({
           tenantId: ctx.tenantId,
           appType: ctx.appType,
-          branchId: ctx.branchId || undefined,
+          branchId: loan.branchId || undefined,
           entryDate: startDate,
           type: 'loan_disburse',
-          category: 'cash',
-          amount: preview.disbursedAmount,
-          description: `Loan ${loanCode} disbursed to customer`,
+          category: leg.mode,
+          amount: leg.amount,
+          description: `Loan ${loanCode} disbursed to customer via ${leg.mode}`,
           referenceId: loan.id,
           referenceType: 'loan',
           createdBy: ctx.userId,
-        },
+        })),
+      });
+      await postLoanOrigination(tx, {
+        tenantId: ctx.tenantId,
+        branchId: loan.branchId,
+        loanId: loan.id,
+        loanCode,
+        customerId,
+        createdById: ctx.userId,
+        entryDate: startDate,
+        principal,
+        disbursedAmount: Number(preview.disbursedAmount),
+        payoutLegs,
+        upfrontCreditKey: hpTerms ? 'processing_fee_income' : 'interest_income',
       });
     }
 
@@ -874,20 +891,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (loan.status === 'active') {
-      const { autoPostLoanDisburse } = await import('@/lib/accounting/autoPost');
-      await autoPostLoanDisburse({
-        tenantId: ctx.tenantId,
-        loanId: loan.id,
-        loanCode,
-        amount: preview.disbursedAmount,
-        date: startDate,
-        branchId: loan.branchId,
-        createdById: ctx.userId,
-        category: 'cash',
-      });
-    }
-
     return ok(loan);
   } catch (e: any) {
     console.error('[/api/v1/loans POST]', e);
@@ -895,6 +898,7 @@ export async function POST(req: NextRequest) {
     if (e instanceof InsufficientFloatError) {
       return fail(`Insufficient float: available ${e.available}, required ${e.required}`, 409);
     }
+    if (e instanceof AccountingConfigurationError) return fail(e.message, 409);
     return fail(e?.message ?? 'Loan create failed', 500);
   }
 }

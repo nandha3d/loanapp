@@ -1,3 +1,6 @@
+> **SUPERSEDED — do not follow.** This file was auto-generated and has drifted from the codebase.
+> The current, binding reference is `ENGINEERING_REFERENCE.md` at the repo root. Kept only as history.
+
 # DOMAIN.md — Business Domain Models & Relationships
 
 > Auto-generated from `loanapp` codebase analysis

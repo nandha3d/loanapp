@@ -39,8 +39,24 @@ export type HpOriginationTerms = {
   grossPayout: number;
   recoveredCharges: number;
   netPayout: number;
+  payoutLegs: Array<{ mode: string; amount: number }>;
+  cashPayout: number;
+  nonCashPayout: number;
   schedule: HpOriginationScheduleRow[];
 };
+
+const PAYOUT_MODES = new Set([
+  'cash',
+  'bank',
+  'bank_transfer',
+  'upi',
+  'online',
+  'neft',
+  'rtgs',
+  'imps',
+  'cheque',
+  'dd',
+]);
 
 function asNonNegative(value: number | null | undefined, label: string): number {
   const resolved = Number(value ?? 0);
@@ -89,9 +105,12 @@ function monthlyDueDates(input: HpOriginationInput): Date[] {
 
 function validatePayoutLeg(mode: string | null | undefined, amount: number | null | undefined, leg: number) {
   const resolvedAmount = asNonNegative(amount, `Payout amount ${leg}`);
-  const hasMode = Boolean(mode?.trim());
+  const normalizedMode = mode?.trim().toLowerCase() ?? '';
+  const hasMode = Boolean(normalizedMode);
   if (resolvedAmount > 0 && !hasMode) throw new Error(`Payout mode ${leg} is required.`);
-  if (hasMode && resolvedAmount <= 0) throw new Error(`Payout amount ${leg} must be greater than zero.`);
+  if (resolvedAmount > 0 && !PAYOUT_MODES.has(normalizedMode)) {
+    throw new Error(`Payout mode ${leg} is not supported.`);
+  }
   return resolvedAmount;
 }
 
@@ -128,6 +147,14 @@ export function buildHpOriginationTerms(input: HpOriginationInput): HpOriginatio
   const amount2 = validatePayoutLeg(input.payoutMode2, input.payoutAmount2, 2);
   const split = validatePayoutSplit(payout.netPayout, amount1, amount2);
   if (!split.valid) throw new Error(split.message);
+  const payoutLegs = [
+    amount1 > 0 ? { mode: input.payoutMode1!.trim().toLowerCase(), amount: amount1 } : null,
+    amount2 > 0 ? { mode: input.payoutMode2!.trim().toLowerCase(), amount: amount2 } : null,
+  ].filter((leg): leg is { mode: string; amount: number } => leg !== null);
+  if (payoutLegs.length === 0) payoutLegs.push({ mode: 'cash', amount: payout.netPayout });
+  const cashPayout = payoutLegs
+    .filter((leg) => leg.mode === 'cash')
+    .reduce((sum, leg) => sum + leg.amount, 0);
 
   const dates = monthlyDueDates(input);
   return {
@@ -141,6 +168,9 @@ export function buildHpOriginationTerms(input: HpOriginationInput): HpOriginatio
     grossPayout: payout.grossPayout,
     recoveredCharges: payout.recoveredCharges,
     netPayout: payout.netPayout,
+    payoutLegs,
+    cashPayout,
+    nonCashPayout: payout.netPayout - cashPayout,
     schedule: quote.schedule.map((row, index) => ({ ...row, dueDate: dates[index]! })),
   };
 }

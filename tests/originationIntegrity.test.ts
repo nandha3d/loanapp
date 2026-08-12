@@ -28,6 +28,8 @@ assert.equal(hp.totalInterest, 20_400);
 assert.equal(hp.totalPayable, 105_400);
 assert.equal(hp.grossPayout, 85_000, 'the financed advance is not added to payout twice');
 assert.equal(hp.netPayout, 79_000);
+assert.equal(hp.cashPayout, 29_000);
+assert.equal(hp.nonCashPayout, 50_000);
 assert.equal(hp.schedule.length, 24);
 assert.equal(hp.schedule[0]?.dueDate.toISOString().slice(0, 10), '2026-09-10');
 assert.equal(
@@ -76,6 +78,16 @@ assert.throws(
   }),
   /cannot be negative/i,
 );
+const defaultCashPayout = buildHpOriginationTerms({
+  vehicleValue: 100_000,
+  downPayment: 20_000,
+  interestRate: 12,
+  interestMethod: 'flat',
+  tenureMonths: 24,
+  startDate: '2026-08-10',
+  payoutMode1: 'cash',
+});
+assert.equal(defaultCashPayout.cashPayout, defaultCashPayout.netPayout);
 
 assert.equal(maximumConsumptionLtvPercent(250_000), 85);
 assert.equal(maximumConsumptionLtvPercent(250_000.01), 80);

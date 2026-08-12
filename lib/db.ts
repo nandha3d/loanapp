@@ -61,7 +61,8 @@ if (process.env.NODE_ENV !== 'production') {
       if (!hasAppType) {
         console.warn(
           `[scope] ${params.model}.${params.action} has no appType filter — ` +
-            `module data may leak across apps. Add ...appScope(appType) unless this is an intentional tenant-wide read.`,
+            `module data may leak across apps. Add appType to the where-clause unless ` +
+            `this is an intentional tenant-wide read (say so in a comment if it is).`,
         );
       }
     }

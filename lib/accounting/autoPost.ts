@@ -7,7 +7,7 @@
 import { prisma } from '@/lib/db';
 import { isPremiumAccountingEnabled, getOrCreateAccountingSettings } from './premium';
 import { bumpAccountBalance } from './balances';
-import { POSTING_DEFAULTS, type PostingKey } from './postingKeys';
+import { POSTING_DEFAULTS, buildDedupKey, isDuplicateJournalEntry, type PostingKey } from './postingKeys';
 import { isInterestOnly } from '@/lib/loanCalculator';
 
 type Tx = typeof prisma;
@@ -59,6 +59,13 @@ async function resolveCollectionCreditKey(loanId: string): Promise<PostingKey> {
   }
 }
 
+/**
+ * Legacy pre-check for entries written before `dedupKey` was populated, which
+ * carried their identity only in the narration tag. Rows written since then are
+ * protected by the UNIQUE index on `dedupKey` — see `isDuplicateJournalEntry`,
+ * which is the authoritative guard because the database enforces it atomically.
+ * This scan cannot: two concurrent callers can both read zero and both post.
+ */
 async function ensureJeNotDuplicate(tenantId: string, tag: string): Promise<boolean> {
   const existing = await prisma.journalEntry.count({
     where: { tenantId, narration: { contains: tag } },
@@ -105,6 +112,8 @@ export async function autoPostLoanDisburse(opts: {
         narration,
         status: 'posted',
         sourceType: 'loan_disburse',
+        sourceId: opts.loanId,
+        dedupKey: buildDedupKey('loan_disburse', opts.tenantId, opts.loanId),
         voucherType: 'Payment',
         branchId: opts.branchId ?? null,
         createdById: opts.createdById ?? (await getSystemUserId(opts.tenantId)),
@@ -120,6 +129,7 @@ export async function autoPostLoanDisburse(opts: {
     await bumpAccountBalance(prisma as any, lrId, opts.date, opts.amount, 0);
     await bumpAccountBalance(prisma as any, creditAcctId, opts.date, 0, opts.amount);
   } catch (e) {
+    if (isDuplicateJournalEntry(e)) return; // already posted — the unique index held
     console.error('[autoPost] loan disburse JE failed:', e);
   }
 }
@@ -175,6 +185,8 @@ export async function autoPostCollection(opts: {
         narration,
         status: 'posted',
         sourceType: 'collection',
+        sourceId: opts.entryId,
+        dedupKey: buildDedupKey('collection', opts.tenantId, opts.entryId),
         voucherType: 'Receipt',
         branchId: opts.branchId ?? null,
         createdById: opts.createdById ?? (await getSystemUserId(opts.tenantId)),
@@ -190,6 +202,7 @@ export async function autoPostCollection(opts: {
     await bumpAccountBalance(prisma as any, debitAcctId, opts.date, opts.amount, 0);
     await bumpAccountBalance(prisma as any, creditAcctId, opts.date, 0, opts.amount);
   } catch (e) {
+    if (isDuplicateJournalEntry(e)) return; // already posted — the unique index held
     console.error('[autoPost] collection JE failed:', e);
   }
 }
@@ -233,6 +246,8 @@ export async function autoPostExpense(opts: {
         narration,
         status: 'posted',
         sourceType: 'expense',
+        sourceId: opts.entryId,
+        dedupKey: buildDedupKey('expense', opts.tenantId, opts.entryId),
         voucherType: 'Payment',
         branchId: opts.branchId ?? null,
         createdById: opts.createdById ?? (await getSystemUserId(opts.tenantId)),
@@ -248,6 +263,7 @@ export async function autoPostExpense(opts: {
     await bumpAccountBalance(prisma as any, expId, opts.date, opts.amount, 0);
     await bumpAccountBalance(prisma as any, creditAcctId, opts.date, 0, opts.amount);
   } catch (e) {
+    if (isDuplicateJournalEntry(e)) return; // already posted — the unique index held
     console.error('[autoPost] expense JE failed:', e);
   }
 }
@@ -291,6 +307,8 @@ export async function autoPostCapitalAdd(opts: {
         narration,
         status: 'posted',
         sourceType: 'capital_add',
+        sourceId: opts.entryId,
+        dedupKey: buildDedupKey('capital_add', opts.tenantId, opts.entryId),
         voucherType: 'Receipt',
         branchId: opts.branchId ?? null,
         createdById: opts.createdById ?? (await getSystemUserId(opts.tenantId)),
@@ -306,6 +324,7 @@ export async function autoPostCapitalAdd(opts: {
     await bumpAccountBalance(prisma as any, debitAcctId, opts.date, opts.amount, 0);
     await bumpAccountBalance(prisma as any, capId, opts.date, 0, opts.amount);
   } catch (e) {
+    if (isDuplicateJournalEntry(e)) return; // already posted — the unique index held
     console.error('[autoPost] capital add JE failed:', e);
   }
 }
@@ -349,6 +368,8 @@ export async function autoPostCapitalWithdraw(opts: {
         narration,
         status: 'posted',
         sourceType: 'capital_withdraw',
+        sourceId: opts.entryId,
+        dedupKey: buildDedupKey('capital_withdraw', opts.tenantId, opts.entryId),
         voucherType: 'Payment',
         branchId: opts.branchId ?? null,
         createdById: opts.createdById ?? (await getSystemUserId(opts.tenantId)),
@@ -364,6 +385,7 @@ export async function autoPostCapitalWithdraw(opts: {
     await bumpAccountBalance(prisma as any, capId, opts.date, opts.amount, 0);
     await bumpAccountBalance(prisma as any, creditAcctId, opts.date, 0, opts.amount);
   } catch (e) {
+    if (isDuplicateJournalEntry(e)) return; // already posted — the unique index held
     console.error('[autoPost] capital withdraw JE failed:', e);
   }
 }

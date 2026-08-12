@@ -5,9 +5,14 @@
 // recurring bug class is a query that filters by `tenantId` but FORGETS
 // `appType`, so one module's list/accounting/wallet bleeds into another's view.
 //
-// Use `appScope(appType)` when building a where-clause for any model below, and
-// the dev-only tripwire in `lib/db.ts` will warn if a list/aggregate query on a
-// money-bearing scoped model omits it.
+// Put `appType` in the where-clause for every model below. The dev-only tripwire
+// in `lib/db.ts` warns if a list/aggregate query on a money-bearing scoped model
+// omits it.
+//
+// There is deliberately no `appScope(appType)` helper. One existed and reached
+// zero call sites, because `{ tenantId, appType }` is already the shortest and
+// most greppable spelling — a wrapper returning `{ appType }` earned nothing and
+// left the codebase advertising a convention nobody followed.
 
 /** Models that own an `app_type` column and must be filtered by it on reads. */
 export const SCOPED_MODELS = [
@@ -48,13 +53,3 @@ export const MONEY_SCOPED_MODELS = new Set<string>([
   'WalletTransaction',
 ]);
 
-/**
- * Spread into a Prisma where-clause to scope it to the active module. Trivial by
- * design — its value is making the intent explicit and greppable at every call
- * site, so the next person doesn't drop it.
- *
- *   where: { tenantId, ...appScope(appType), status: 'active' }
- */
-export function appScope(appType: string): { appType: string } {
-  return { appType };
-}

@@ -29,5 +29,8 @@ assert.match(post, /existingGoldLoans = await tx\.loan\.findMany/);
 assert.match(post, /isolationLevel:\s*'Serializable'/);
 assert.match(post, /InsufficientFloatError/);
 assert.match(post, /Branch is required to fund an active loan/);
+assert.match(post, /const disburseAmt = hpTerms\?\.cashPayout/);
+assert.match(post, /await postLoanOrigination\(tx,/);
+assert.doesNotMatch(post, /autoPostLoanDisburse/);
 
 console.log('origination atomicity contract tests passed');
