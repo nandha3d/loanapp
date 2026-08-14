@@ -606,6 +606,9 @@ Creates in-app `SystemNotification` rows and pushes to devices via FCM.
 - **NOTIF-6** — `notifyApprovers()` is the only correct way to raise an approval. It notifies admins on the **record's** branch *and* the **filing agent's** branch *and* unbranched admins; if that reaches nobody it falls back to every admin in the tenant; superadmins are always notified tenant-wide. An approval that reaches no admin is worse than one that reaches too many.
 - **NOTIF-7** — This wider *reach* never widens *visibility*. Who can SEE a record stays pinned to `branchScopeWhere` (SCOPE-3, SCOPE-10).
 - **NOTIF-8** — Both helpers swallow their own errors per stage (recipient resolution, in-app write, push dispatch) so one broken channel cannot take down the others.
+- **NOTIF-9** — Creating an `ApprovalRequest` and notifying approvers are **one step**. Every `approvalRequest.create` is paired with a `notifyApprovers()` call on the same path, unconditionally — never gated on the entity type, the request type, or how the request arrived. A request the queue holds but nobody was told about is invisible until someone happens to open the Approvals page. `tests/approvalNotifications.test.ts` guards the pairing.
+- **NOTIF-10** — Pass `branchId` (the record's branch) and `requesterBranchId` (the filer's) as two separate values. Collapsing them with `||` silently drops the admins of whichever branch lost.
+- **NOTIF-11** — Push (FCM) is **per-deployment configuration, not code**: without `FIREBASE_SERVICE_ACCOUNT_BASE64` server-side, `sendPushToUsers` is a documented no-op, and without `NEXT_PUBLIC_FIREBASE_*` + `NEXT_PUBLIC_FIREBASE_VAPID_KEY` no browser ever registers a `DeviceToken`. The in-app bell (30s poll) is then the only live channel. Verify both before diagnosing a missing notification as a code bug.
 
 ---
 
@@ -735,6 +738,7 @@ Each of these has shipped a bug in this repository.
 - **X-20** — Writing Next.js framework code from memory instead of reading `node_modules/next/dist/docs/` (NEXT-1); adding a `middleware.ts` (NEXT-2).
 - **X-21** — Committing a test that is not reachable from a CI runner script.
 - **X-22** — Lowering a coverage threshold or `--no-verify`-ing a hook to get green.
+- **X-23** — Creating an `ApprovalRequest` without a paired `notifyApprovers()` call, or gating that call on the entity/request type (NOTIF-9).
 
 ---
 

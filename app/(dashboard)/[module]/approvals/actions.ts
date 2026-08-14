@@ -448,12 +448,14 @@ export async function submitEditRequest(formData: FormData) {
   });
 
   // Notify everyone who can review (branch admins + tenant superadmins) so the
-  // request never lands only on one inbox.
-  const notifBranchId = agentBranchId || customer.branchId;
+  // request never lands only on one inbox. Both branches are passed, not one
+  // collapsed value: the customer takes its ROUTE's branch, which need not be
+  // the filing agent's, and NOTIF-6 wants the admins of both told.
   const { notifyApprovers } = await import('@/lib/notify/approvers');
   await notifyApprovers({
     tenantId,
-    branchId: notifBranchId,
+    branchId: customer.branchId,
+    requesterBranchId: agentBranchId,
     appType,
     type: 'customer_edit_review',
     icon: 'rate_review',

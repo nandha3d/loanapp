@@ -69,6 +69,48 @@ const customersRoute = read('app/api/v1/customers/route.ts');
 assert.match(customersRoute, /notifyApprovers/, 'customer submission notifies approvers');
 assert.match(customersRoute, /requesterBranchId: ctx\.branchId/, 'customer approval reaches the filing agent\'s branch admins too');
 
+// Every request filed through the generic approvals endpoint is announced, not
+// only customer edits. Gating the fan-out on one entity type left collection
+// and loan edit requests pending with no admin ever told (NOTIF-6).
+const approvalsRoute = read('app/api/v1/approvals/route.ts');
+assert.match(approvalsRoute, /notifyApprovers/, 'generic approval requests notify approvers');
+assert.doesNotMatch(
+  approvalsRoute,
+  /if \(entityType === 'customer'\)[\s\S]{0,600}notifyApprovers/,
+  'the approval fan-out must not be gated on a single entity type',
+);
+assert.match(
+  approvalsRoute,
+  /requesterBranchId: ctx\.branchId/,
+  'generic approvals reach the filing agent\'s branch admins too',
+);
+assert.match(
+  approvalsRoute,
+  /resolveApprovalTarget/,
+  'the record branch is resolved per entity type so approvals reach its own branch admins',
+);
+
+// A route-run cash variance is an approval like any other — raising the request
+// without announcing it left a cash discrepancy nobody was told about.
+const collectionRun = read('lib/collectionRun.ts');
+assert.match(collectionRun, /run_reconcile_variance/, 'a reconcile variance raises an approval request');
+assert.match(collectionRun, /notifyApprovers/, 'a reconcile variance notifies approvers');
+
+// The web edit-request action passes BOTH branches rather than collapsing them
+// to one with `||`, or the admin of whichever branch lost the coin toss is
+// never told.
+const approvalsActions = read('app/(dashboard)/[module]/approvals/actions.ts');
+assert.match(
+  approvalsActions,
+  /requesterBranchId: agentBranchId/,
+  'customer edit requests reach the filing agent\'s branch admins too',
+);
+assert.doesNotMatch(
+  approvalsActions,
+  /agentBranchId \|\| customer\.branchId/,
+  'the two branches must not be collapsed into one recipient branch',
+);
+
 const approvers = read('lib/notify/approvers.ts');
 assert.match(approvers, /includeUnassignedBranch: true/, 'unbranched admins can review every branch');
 assert.match(

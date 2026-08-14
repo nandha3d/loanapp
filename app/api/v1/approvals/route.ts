@@ -140,6 +140,113 @@ export async function GET(req: NextRequest) {
   }
 }
 
+/**
+ * The record's own branch plus a human label for it, resolved per entity type.
+ *
+ * An entity type we don't recognise still resolves — to a null branch — so the
+ * approval is announced on the filing agent's branch alone rather than not at
+ * all (NOTIF-6: an approval that reaches no admin is worse than one that
+ * reaches too many). Never throws; a failed lookup degrades to no branch.
+ */
+async function resolveApprovalTarget(
+  tenantId: string,
+  entityType: string,
+  entityId: string,
+): Promise<{ branchId: string | null; label: string | null }> {
+  try {
+    switch (entityType) {
+      case 'customer': {
+        const customer = await prisma.customer.findFirst({
+          where: { id: entityId, tenantId },
+          select: { branchId: true, name: true },
+        });
+        return { branchId: customer?.branchId ?? null, label: customer?.name ?? null };
+      }
+      case 'loan': {
+        const loan = await prisma.loan.findFirst({
+          where: { id: entityId, tenantId },
+          select: { branchId: true, loanCode: true, customer: { select: { name: true } } },
+        });
+        if (!loan) return { branchId: null, label: null };
+        return {
+          branchId: loan.branchId,
+          label: loan.customer?.name ? `${loan.loanCode} (${loan.customer.name})` : loan.loanCode,
+        };
+      }
+      case 'instalment': {
+        // Instalments carry no branch of their own — they inherit the loan's.
+        const instalment = await prisma.instalment.findFirst({
+          where: { id: entityId, loan: { tenantId } },
+          select: {
+            instalmentNo: true,
+            loan: { select: { branchId: true, loanCode: true, customer: { select: { name: true } } } },
+          },
+        });
+        if (!instalment?.loan) return { branchId: null, label: null };
+        const who = instalment.loan.customer?.name ? ` · ${instalment.loan.customer.name}` : '';
+        return {
+          branchId: instalment.loan.branchId,
+          label: `${instalment.loan.loanCode} #${instalment.instalmentNo}${who}`,
+        };
+      }
+      case 'vehicle': {
+        // Vehicles have no branch column; they follow their customer's.
+        const vehicle = await prisma.vehicle.findFirst({
+          where: { id: entityId, tenantId },
+          select: { registrationNo: true, customer: { select: { branchId: true, name: true } } },
+        });
+        if (!vehicle) return { branchId: null, label: null };
+        return {
+          branchId: vehicle.customer?.branchId ?? null,
+          label: vehicle.customer?.name
+            ? `${vehicle.registrationNo} (${vehicle.customer.name})`
+            : vehicle.registrationNo,
+        };
+      }
+      case 'collection_run': {
+        // `routeId` is a plain column here, not a relation — resolve the name
+        // with a second read rather than an include.
+        const run = await prisma.collectionRun.findFirst({
+          where: { id: entityId, tenantId },
+          select: { branchId: true, routeId: true },
+        });
+        if (!run) return { branchId: null, label: null };
+        const route = run.routeId
+          ? await prisma.route.findFirst({ where: { id: run.routeId }, select: { name: true } })
+          : null;
+        return { branchId: run.branchId, label: route?.name ?? null };
+      }
+      default:
+        return { branchId: null, label: null };
+    }
+  } catch (e) {
+    console.error('[/api/v1/approvals POST] target resolution failed', e);
+    return { branchId: null, label: null };
+  }
+}
+
+/** Per-request-type wording. Anything unlisted falls back to a generic phrasing. */
+const APPROVAL_NOTICE: Record<string, { type: string; icon: string; title: string; verb: string }> = {
+  customer_edit: {
+    type: 'customer_edit_review',
+    icon: 'verified',
+    title: 'Customer edit pending review',
+    verb: 'requested edits for customer',
+  },
+  loan_edit: {
+    type: 'loan_edit_review',
+    icon: 'request_quote',
+    title: 'Loan edit pending review',
+    verb: 'requested edits for loan',
+  },
+  edit_collection: {
+    type: 'collection_edit_review',
+    icon: 'edit_note',
+    title: 'Collection edit pending review',
+    verb: 'requested a collection amount change for',
+  },
+};
+
 export async function POST(req: NextRequest) {
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
@@ -167,25 +274,32 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    if (entityType === 'customer') {
-      const customer = await prisma.customer.findFirst({ where: { id: entityId, tenantId: ctx.tenantId } });
-      if (customer) {
-        // Branch admins + tenant superadmins, one per-user row each (own read
-        // state) plus a push — not a single shared admin row.
-        const { notifyApprovers } = await import('@/lib/notify/approvers');
-        await notifyApprovers({
-          tenantId: ctx.tenantId,
-          branchId: customer.branchId,
-          requesterBranchId: ctx.branchId,
-          appType: ctx.appType,
-          type: 'customer_edit_review',
-          icon: 'verified',
-          title: 'Customer edit pending review',
-          message: `Agent requested edits for customer ${customer.name}.`,
-          link: modulePath(ctx.appType, '/approvals'),
-        });
-      }
-    }
+    // EVERY request filed here is announced, whatever it is about. Gating this
+    // on one entity type left collection and loan edit requests sitting in the
+    // queue with nobody told they existed (NOTIF-6).
+    const target = await resolveApprovalTarget(ctx.tenantId, entityType, entityId);
+    const notice = APPROVAL_NOTICE[requestType] ?? {
+      type: 'approval_pending',
+      icon: 'rate_review',
+      title: 'Approval request pending review',
+      verb: `filed a ${String(requestType).replace(/_/g, ' ')} request for`,
+    };
+    const label = target.label ?? String(entityType).replace(/_/g, ' ');
+
+    // Branch admins + tenant superadmins, one per-user row each (own read
+    // state) plus a push — not a single shared admin row.
+    const { notifyApprovers } = await import('@/lib/notify/approvers');
+    await notifyApprovers({
+      tenantId: ctx.tenantId,
+      branchId: target.branchId,
+      requesterBranchId: ctx.branchId,
+      appType: ctx.appType,
+      type: notice.type,
+      icon: notice.icon,
+      title: notice.title,
+      message: `Agent ${notice.verb} ${label}.`,
+      link: modulePath(ctx.appType, '/approvals'),
+    });
 
     return ok(request);
   } catch (e: any) {
