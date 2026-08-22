@@ -7,6 +7,8 @@ import { formatDate } from '@/lib/utils';
 import Link from '@/components/layout/DashboardLink';
 import { getDictionary } from '@/lib/i18n';
 import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
+import { getActiveBranchId } from '@/lib/branch';
+import { branchScopeWhere } from '@/lib/branchScope';
 
 export default async function VehiclesPage({
   searchParams,
@@ -37,10 +39,15 @@ export default async function VehiclesPage({
   if (!session) redirect('/login');
 
   // Agents may view the registry, scoped to their own customers' vehicles.
-  const agentScope =
+  // Everyone else is scoped to the active branch. A vehicle has no branch column
+  // of its own, so it inherits its CUSTOMER's branch — the same rule the
+  // approvals queue applies (SCOPE-3).
+  const activeBranchId = await getActiveBranchId();
+  const customerScope =
     userRole === 'agent'
-      ? { customer: buildAgentCustomerAccessWhere({ userId: session.user!.id as string }) }
-      : {};
+      ? buildAgentCustomerAccessWhere({ userId: session.user!.id as string })
+      : branchScopeWhere(activeBranchId);
+  const agentScope = Object.keys(customerScope).length ? { customer: customerScope } : {};
 
   const resolvedParams = await searchParams;
   const q = resolvedParams.q || '';

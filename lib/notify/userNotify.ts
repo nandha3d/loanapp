@@ -24,6 +24,10 @@ export type UserNotifyInput = {
    * When branch-scoping a role broadcast, also reach users of that role who have
    * no branch assigned. Without this an admin whose `branchId` is null silently
    * receives nothing, since every branch-scoped broadcast filters them out.
+   *
+   * Also marks the broadcast as branch-aware: when no target branch resolves at
+   * all, recipients are narrowed to the unbranched users of that role rather
+   * than widened to the whole tenant.
    */
   includeUnassignedBranch?: boolean;
   appType?: string;
@@ -65,6 +69,14 @@ export async function notifyUser(input: UserNotifyInput): Promise<number> {
         const clauses: any[] = [{ branchId: { in: branchIds } }];
         if (input.includeUnassignedBranch) clauses.push({ branchId: null });
         branchScope = clauses.length > 1 ? { OR: clauses } : clauses[0];
+      } else if (input.includeUnassignedBranch) {
+        // No branch to aim at — the record itself is unbranched. Reach the
+        // unbranched (tenant-wide) users of this role and stop there: an empty
+        // scope here would broadcast to EVERY branch, and a branch admin cannot
+        // open an unbranched record anyway (SCOPE-4). A caller that genuinely
+        // wants everyone omits includeUnassignedBranch, as the superadmin
+        // fan-out in notifyApprovers does.
+        branchScope = { branchId: null };
       }
       const users = await prisma.user.findMany({
         where: {

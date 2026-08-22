@@ -241,6 +241,7 @@ export async function PATCH(
     tenantId: ctx.tenantId,
     branchId: loan.branchId,
     requesterBranchId: ctx.branchId,
+    requesterRole: ctx.role,
     appType: ctx.appType,
     type: 'loan_edit_review',
     icon: 'rate_review',

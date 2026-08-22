@@ -249,6 +249,8 @@ export async function createLoanPackage(formData: FormData) {
   await prisma.loanPackage.create({
     data: {
       tenantId,
+      // Owned by the branch that created it; null only for a tenant-wide actor.
+      branchId: await getActiveBranchId(),
       name: formData.get('name') as string,
       principal,
       deduction,

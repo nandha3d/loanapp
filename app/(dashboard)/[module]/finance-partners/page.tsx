@@ -6,6 +6,8 @@ import { requireModule } from '@/lib/moduleGate';
 import { modulePath } from '@/types/modules';
 import Link from '@/components/layout/DashboardLink';
 import PartnersClient from './PartnersClient';
+import { getActiveBranchId } from '@/lib/branch';
+import { branchScopeWhere } from '@/lib/branchScope';
 
 export default async function FinancePartnersPage() {
   const session = await auth();
@@ -36,8 +38,11 @@ export default async function FinancePartnersPage() {
 
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
 
+  // Brokers and dealers belong to the branch that onboarded them (SCOPE-3).
+  const activeBranchId = await getActiveBranchId();
+
   const partners = await prisma.financePartner.findMany({
-    where: { tenantId, appType, deletedAt: null },
+    where: { tenantId, appType, deletedAt: null, ...branchScopeWhere(activeBranchId) },
     orderBy: [{ type: 'asc' }, { name: 'asc' }],
     select: {
       id: true,

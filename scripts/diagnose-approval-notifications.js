@@ -52,7 +52,7 @@ async function main() {
           customerCode: true,
           branchId: true,
           appType: true,
-          agent: { select: { branchId: true } },
+          agent: { select: { branchId: true, role: true } },
         },
       }),
       prisma.loan.findMany({
@@ -61,7 +61,8 @@ async function main() {
           loanCode: true,
           branchId: true,
           appType: true,
-          createdBy: { select: { branchId: true } },
+          customer: { select: { customerCode: true, branchId: true } },
+          createdBy: { select: { branchId: true, role: true } },
         },
       }),
       prisma.approvalRequest.findMany({
@@ -70,7 +71,7 @@ async function main() {
           requestType: true,
           entityType: true,
           appType: true,
-          requestedBy: { select: { name: true, branchId: true } },
+          requestedBy: { select: { name: true, branchId: true, role: true } },
         },
       }),
     ]);
@@ -80,18 +81,25 @@ async function main() {
         label: `customer ${c.name} (${c.customerCode})`,
         branchId: c.branchId,
         filerBranchId: c.agent?.branchId ?? null,
+        filerRole: c.agent?.role ?? null,
         appType: c.appType,
       })),
       ...loans.map((l) => ({
         label: `loan ${l.loanCode}`,
         branchId: l.branchId,
         filerBranchId: l.createdBy?.branchId ?? null,
+        filerRole: l.createdBy?.role ?? null,
         appType: l.appType,
+        // A loan must sit on its customer's branch. Anything else is a
+        // mis-stamped row — repair with scripts/backfill-loan-branch.js.
+        subjectBranchId: l.customer?.branchId ?? null,
+        subjectLabel: l.customer?.customerCode ?? null,
       })),
       ...requests.map((r) => ({
         label: `${r.requestType} on ${r.entityType} by ${r.requestedBy?.name ?? '?'}`,
         branchId: r.requestedBy?.branchId ?? null,
         filerBranchId: r.requestedBy?.branchId ?? null,
+        filerRole: r.requestedBy?.role ?? null,
         appType: r.appType,
       })),
     ];
@@ -99,25 +107,32 @@ async function main() {
     console.log('\n-- pending approvals and who they reach --');
     if (items.length === 0) console.log('  (none)');
     for (const item of items) {
-      // Mirrors lib/notify/approvers.ts: admins on the record's branch OR the
-      // filing agent's branch, plus unbranched admins. The two branches differ
-      // when an agent works a route belonging to another branch.
-      const targetBranches = [item.branchId, item.filerBranchId].filter(Boolean);
-      let reach = admins.filter(
+      // Mirrors lib/notify/approvers.ts: admins on the RECORD's branch, plus
+      // unbranched admins, plus — only when an AGENT filed it — the agent's own
+      // branch. A non-agent filer's branch is ignored: a superadmin sits on one
+      // branch and files for all of them.
+      const agentBranchId = item.filerRole === 'agent' ? item.filerBranchId : null;
+      const targetBranches = [item.branchId, agentBranchId].filter(Boolean);
+      const reach = admins.filter(
         (a) => targetBranches.length === 0 || !a.branchId || targetBranches.includes(a.branchId),
       );
-      // Zero-reach falls back to every admin rather than dropping the approval.
-      const usedFallback = reach.length === 0 && admins.length > 0;
-      if (usedFallback) reach = admins;
 
       console.log(`  [${item.appType}] ${item.label}`);
       console.log(`      record branch: ${branchName(item.branchId)}`);
+      if (item.subjectBranchId !== undefined && item.subjectBranchId !== item.branchId) {
+        console.log(
+          `      !! MIS-STAMPED: customer ${item.subjectLabel} sits on ${branchName(item.subjectBranchId)}` +
+            ' — run scripts/backfill-loan-branch.js',
+        );
+      }
       if (item.filerBranchId !== item.branchId) {
-        console.log(`      filed by staff on: ${branchName(item.filerBranchId)}`);
+        console.log(
+          `      filed by ${item.filerRole ?? '?'} on: ${branchName(item.filerBranchId)}` +
+            (agentBranchId ? ' (also notified)' : ' (not notified — only agents widen the fan-out)'),
+        );
       }
       console.log(
-        `      admins reached: ${reach.length ? reach.map((a) => a.name).join(', ') : 'NONE'}` +
-          (usedFallback ? '  (via all-admin fallback)' : ''),
+        `      admins reached: ${reach.length ? reach.map((a) => a.name).join(', ') : 'NONE (superadmins only)'}`,
       );
       console.log(`      superadmins reached: ${supers.map((s) => s.name).join(', ') || 'NONE'}`);
     }

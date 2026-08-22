@@ -7,6 +7,8 @@ import { modulePath } from '@/types/modules';
 import { formatDate } from '@/lib/utils';
 import Link from '@/components/layout/DashboardLink';
 import { getDayClosingGate } from '../operations/actions';
+import { getActiveBranchId } from '@/lib/branch';
+import { branchScopeWhere } from '@/lib/branchScope';
 
 /**
  * Pending Task Manager — the operational punch list an Auto Finance office
@@ -89,7 +91,19 @@ export default async function PendingTasksPage({
   const idleCutoff = new Date(now);
   idleCutoff.setMonth(idleCutoff.getMonth() - monthsIdle);
 
-  const activeLoanWhere = { tenantId, appType, deletedAt: null, status: { in: ['active', 'overdue'] } };
+  // Every queue below is the ACTIVE BRANCH's work list — an admin chases their
+  // own branch's missing documents and dormant loans, not the tenant's (SCOPE-3).
+  const branchScope = branchScopeWhere(await getActiveBranchId());
+
+  const activeLoanWhere = {
+    tenantId, appType, deletedAt: null, status: { in: ['active', 'overdue'] },
+    ...branchScope,
+  };
+  const activeCustomerWhere = {
+    tenantId, appType, deletedAt: null, status: 'active',
+    loans: { some: activeLoanWhere }, lat: null,
+    ...branchScope,
+  };
 
   // Counts drive the tab badges; each is cheap and independent.
   const [docCount, gpsCount, terminationCount, dormantCount] = await Promise.all([
@@ -105,7 +119,7 @@ export default async function PendingTasksPage({
       },
     }).catch(() => 0),
     prisma.customer.count({
-      where: { tenantId, appType, deletedAt: null, status: 'active', loans: { some: activeLoanWhere }, lat: null },
+      where: activeCustomerWhere,
     }).catch(() => 0),
     prisma.loan.count({
       where: { ...activeLoanWhere, endDate: { lt: now } },
@@ -147,7 +161,7 @@ export default async function PendingTasksPage({
     }).catch(() => []);
   } else if (tab === 'gps') {
     rows = await prisma.customer.findMany({
-      where: { tenantId, appType, deletedAt: null, status: 'active', loans: { some: activeLoanWhere }, lat: null },
+      where: activeCustomerWhere,
       select: {
         id: true, name: true, customerCode: true, phone: true, address: true,
         route: { select: { name: true } },

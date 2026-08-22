@@ -138,8 +138,87 @@ export function scopedBranchWhere(claims: MobileTokenClaims) {
 
 export type MobileApiContext = MobileTokenClaims & {
   tenantSlug: string | null;
+  /**
+   * Branch the caller's own user record sits on, straight from the token.
+   * `branchId` above is the ACTIVE branch, which differs for a superadmin
+   * working another branch through the branch switcher. Reads use `branchId`;
+   * writes use `resolveWriteBranchId`. Nothing should use this directly.
+   */
+  homeBranchId: string | null;
   requestedBranchId: string | null;
 };
+
+/**
+ * Resolves the branch a v1 request acts on.
+ *
+ * Only a superadmin/developer may steer it, via `X-Branch-Id` — the branch
+ * switcher in the web dashboard, forwarded by `lib/api-client/server.ts`. The
+ * value is validated against the caller's tenant, so a forged header can never
+ * reach another tenant's branch. Everyone else is pinned to the branch in their
+ * token; their header is ignored outright.
+ *
+ * Before this, the web sent the caller's HOME branch. A superadmin sits on one
+ * branch and works all of them, so every record they created was stamped with
+ * their own branch no matter which branch they had selected — the other
+ * branch's records then surfaced in that one branch admin's lists.
+ *
+ * `null` means tenant-wide ("All Branches").
+ */
+async function resolveScopeBranchId(
+  claims: MobileTokenClaims,
+  requestedBranchId: string | null,
+): Promise<string | null> {
+  const privileged = claims.role === 'superadmin' || claims.role === 'developer';
+  if (!privileged) return claims.branchId;
+  if (!requestedBranchId || requestedBranchId === 'all') return null;
+  if (requestedBranchId === claims.branchId) return claims.branchId;
+
+  try {
+    const prisma = (await import('../db')).default;
+    const branch = await prisma.branch.findFirst({
+      where: { id: requestedBranchId, tenantId: claims.tenantId },
+      select: { id: true },
+    });
+    return branch?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The branch a newly created record must be stamped with.
+ *
+ * Order matters. A record belongs where its SUBJECT sits, not where its author
+ * sits: a loan for an Erode customer is an Erode loan even when a superadmin
+ * whose own user record sits on Head Office raises it. Getting this backwards
+ * is what put one branch's loans into another branch admin's list — and,
+ * because `scopedBranchWhere` matches the record's own branch, hid them from
+ * the admin who actually owns them.
+ *
+ * Falls back to the caller's active branch, then their home branch, then — when
+ * the tenant has exactly one branch — that branch, so records are never
+ * branchless. An unbranched record is visible to superadmins only.
+ */
+export async function resolveWriteBranchId(
+  ctx: MobileApiContext,
+  subjectBranchId?: string | null,
+): Promise<string | null> {
+  if (subjectBranchId) return subjectBranchId;
+  if (ctx.branchId) return ctx.branchId;
+  if (ctx.homeBranchId) return ctx.homeBranchId;
+
+  try {
+    const prisma = (await import('../db')).default;
+    const branches = await prisma.branch.findMany({
+      where: { tenantId: ctx.tenantId, status: 'active' },
+      select: { id: true },
+      take: 2,
+    });
+    return branches.length === 1 ? branches[0]!.id : null;
+  } catch {
+    return null;
+  }
+}
 
 export type MobileAuthResult =
   | { context: MobileApiContext; response?: never }
@@ -166,12 +245,16 @@ export async function requireMobileContext(req: NextRequest): Promise<MobileAuth
       requestedAppType && (privileged || requestedAppType === claims.appType)
         ? requestedAppType
         : claims.appType;
+    const requestedBranchId = req.headers.get('x-branch-id');
+    const branchId = await resolveScopeBranchId(claims, requestedBranchId);
     return {
       context: {
         ...claims,
         appType,
+        branchId,
+        homeBranchId: claims.branchId,
         tenantSlug: req.headers.get('x-tenant-slug'),
-        requestedBranchId: req.headers.get('x-branch-id'),
+        requestedBranchId,
       },
     };
   } catch {

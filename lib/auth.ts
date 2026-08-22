@@ -536,6 +536,19 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
       // apiToken already expired) or we're within 2 minutes of expiry.
       if (token.apiToken && (!token.apiTokenExp || Date.now() > (token.apiTokenExp as number) - 2 * 60 * 1000)) {
         try {
+          // Re-read the branch instead of re-signing the one captured at
+          // sign-in. v1 pins an admin/agent to the branch in their token, so a
+          // stale claim left them looking at the branch they were moved OFF:
+          // their customers and loans came from the old branch while the
+          // approvals page, which reads the branch from the DB, showed the new
+          // one. Bounded to one lookup per token refresh (~15 min).
+          const prisma = (await import('./db')).default;
+          const fresh = await prisma.user.findUnique({
+            where: { id: token.userId },
+            select: { branchId: true },
+          });
+          if (fresh) token.branchId = fresh.branchId;
+
           const { issueMobileToken } = await import('@/lib/api/v1-auth');
           const apiToken = await issueMobileToken({
             userId: token.userId,

@@ -128,6 +128,7 @@ export async function createVehicle(formData: FormData) {
       tenantId,
       branchId: customer.branchId,
       requesterBranchId: await getActiveBranchId(),
+      requesterRole: role,
       appType,
       type: 'approval_pending',
       icon: 'directions_car',

@@ -7,6 +7,8 @@ import { getDictionary } from '@/lib/i18n';
 import { modulePath } from '@/types/modules';
 import { getSubscription } from '@/lib/subscription';
 import { getActiveBranchId } from '@/lib/branch';
+import { branchScopeWhere } from '@/lib/branchScope';
+import { branchOrSharedWhere } from '@/lib/masterDataScope';
 import { serverFetch } from '@/lib/api-client/server';
 
 export default async function SettingsPage() {
@@ -20,17 +22,23 @@ export default async function SettingsPage() {
   const tenantId = await getDefaultTenantId();
   const dict = await getDictionary(tenantId);
   
+  // Routes, products and the staff picker all belong to the branch being
+  // administered — a branch admin configures their own branch, not the tenant
+  // (SCOPE-3). Packages additionally keep their tenant-wide rows visible.
+  const scopeBranchId = await getActiveBranchId();
+  const branchScope = branchScopeWhere(scopeBranchId);
+
   const [routes, rawPackages, users, settings, currentUser, subscription, bureauCredential, notificationTemplates] = await Promise.all([
-    prisma.route.findMany({ 
-      where: { tenantId, appType },
-      include: { 
-        assignedAgent: true, 
+    prisma.route.findMany({
+      where: { tenantId, appType, ...branchScope },
+      include: {
+        assignedAgent: true,
         _count: { select: { customers: true } },
         routeAgents: { include: { agent: { select: { id: true, name: true } } } }
       }
     }),
-    prisma.loanPackage.findMany({ where: { tenantId, appType } }),
-    prisma.user.findMany({ where: { tenantId, appType } }),
+    prisma.loanPackage.findMany({ where: { tenantId, appType, ...branchOrSharedWhere(scopeBranchId) } }),
+    prisma.user.findMany({ where: { tenantId, appType, ...branchScope } }),
     getTenantSettings(tenantId),
     prisma.user.findUnique({ where: { id: session?.user?.id } }),
     getSubscription(tenantId),

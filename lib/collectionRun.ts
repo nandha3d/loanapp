@@ -454,6 +454,7 @@ export async function reconcileRun(
       tenantId: actor.tenantId,
       branchId: run.branchId,
       requesterBranchId: actor.branchId,
+      requesterRole: actor.role,
       appType: actor.appType,
       type: 'run_variance_review',
       icon: 'account_balance_wallet',

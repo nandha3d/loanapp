@@ -142,6 +142,7 @@ export async function POST(req: NextRequest) {
         tenantId: ctx.tenantId,
         branchId: vehicle.customer?.branchId ?? ctx.branchId,
         requesterBranchId: ctx.branchId,
+        requesterRole: ctx.role,
         appType: ctx.appType,
         type: 'approval_pending',
         icon: 'directions_car',

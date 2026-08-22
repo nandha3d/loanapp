@@ -52,12 +52,20 @@ async function applyAgent(
   });
   const next = calculateFloatBalance(Number(acct.balance), delta, hardBlock);
   await tx.agentAccount.update({ where: { id: acct.id }, data: { balance: next } });
+  // Stamp the agent's branch on the ledger row. Without it every agent-side
+  // movement is unbranched, and the branch-scoped wallet view (which filters on
+  // `branchId`) shows an admin nothing at all for their own agents (SCOPE-3).
+  const agentUser = await tx.user.findUnique({
+    where: { id: agentId },
+    select: { branchId: true },
+  });
   await tx.walletTransaction.create({
     data: {
       tenantId,
       appType,
       accountKind: 'agent',
       agentId,
+      branchId: agentUser?.branchId ?? null,
       type: meta.type,
       amount: delta,
       balanceAfter: next,

@@ -293,6 +293,7 @@ export async function POST(req: NextRequest) {
       tenantId: ctx.tenantId,
       branchId: target.branchId,
       requesterBranchId: ctx.branchId,
+      requesterRole: ctx.role,
       appType: ctx.appType,
       type: notice.type,
       icon: notice.icon,

@@ -1,6 +1,7 @@
 import prisma from '@/lib/db';
 import { ADMIN_API_ROLES, isApiError, requireApiContext } from '@/lib/apiAuth';
 import { apiCreated, apiError, apiSuccess } from '@/lib/utils';
+import { branchOrSharedWhere } from '@/lib/masterDataScope';
 
 function computeDeduction(principal: number, deduction: number, deductionType: string) {
   return deductionType === 'percentage' ? Math.round((principal * deduction) / 100) : deduction;
@@ -13,7 +14,13 @@ export async function GET() {
     const { context } = authResult;
 
     const packages = await prisma.loanPackage.findMany({
-      where: { tenantId: context.tenantId, appType: context.appType, status: 'active' },
+      // A branch's own products plus any published tenant-wide (branchId null).
+      where: {
+        tenantId: context.tenantId,
+        appType: context.appType,
+        status: 'active',
+        ...branchOrSharedWhere(context.branchId),
+      },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -39,6 +46,8 @@ export async function POST(request: Request) {
     const pkg = await prisma.loanPackage.create({
       data: {
         tenantId: context.tenantId,
+        // Stamped with the branch that created it, so it stays that branch's.
+        branchId: context.branchId ?? null,
         name: body.name.trim(),
         principal,
         deduction,

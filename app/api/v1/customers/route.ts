@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail, parseCursorPaging } from '@/lib/api/v1-envelope';
-import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
+import { requireMobileContext, resolveWriteBranchId, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { getAgentRouteIds } from '@/lib/access';
 import { encryptAadharNumber } from '@/lib/pii';
 import { getBranding } from '@/lib/tenant';
@@ -253,7 +253,7 @@ export async function POST(req: NextRequest) {
     // consistent (fixes customers/loans landing with a null branch).
     let resolvedRouteId: string | null = body.routeId ?? null;
     let resolvedAgentId: string | null = body.agentId ?? null;
-    let resolvedBranchId: string | null = ctx.branchId;
+    let routeBranchId: string | null = null;
     if (ctx.role === 'agent') {
       const myRoutes = await getAgentRouteIds(ctx.userId);
       if (resolvedRouteId && !myRoutes.includes(resolvedRouteId)) {
@@ -268,10 +268,15 @@ export async function POST(req: NextRequest) {
       });
       if (!route) return fail('Selected route not found.', 400);
       resolvedAgentId = route.assignedAgentId ?? (ctx.role === 'agent' ? ctx.userId : null);
-      resolvedBranchId = route.branchId ?? ctx.branchId;
+      routeBranchId = route.branchId;
     } else if (ctx.role === 'agent') {
       resolvedAgentId = ctx.userId;
     }
+    // The route's branch owns the customer; the caller's ACTIVE branch is only
+    // the fallback for a routeless one. Never the caller's home branch — that is
+    // how a superadmin's customers landed on the superadmin's own branch and
+    // surfaced in that branch admin's list.
+    const resolvedBranchId = await resolveWriteBranchId(ctx, routeBranchId);
 
     // Retry loop to handle race conditions on customer code generation
     const MAX_RETRIES = 5;
@@ -365,8 +370,10 @@ export async function POST(req: NextRequest) {
             tenantId: ctx.tenantId,
             branchId: resolvedBranchId,
             // The customer takes its ROUTE's branch, which may not be the filing
-            // agent's — their admin must still be told.
+            // agent's — that agent's admin must still be told. Inert for any
+            // other role: an admin/superadmin files for every branch.
             requesterBranchId: ctx.branchId,
+            requesterRole: ctx.role,
             appType: ctx.appType,
             type: 'approval_pending',
             icon: 'person_add',

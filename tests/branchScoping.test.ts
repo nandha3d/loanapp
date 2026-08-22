@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { scopedBranchWhere } from '../lib/api/v1-auth';
+import { resolveWriteBranchId, scopedBranchWhere } from '../lib/api/v1-auth';
 import { branchScopeWhere } from '../lib/branchScope';
 
 function read(path: string) {
@@ -89,8 +89,110 @@ for (const file of [
   );
 }
 
+// ── The master-data exception stays an exception ─────────────────────────
+// `branchOrSharedWhere` deliberately ORs in `{ branchId: null }` — the exact
+// arm banned above — because a catalogue row has a real "every branch sells
+// this" state (SCOPE-11). It lives in its own file so the ban on the
+// transactional path stays literal, and it must not spread past loan packages.
+{
+  const { branchOrSharedWhere } = require('../lib/masterDataScope');
+  assert.deepEqual(branchOrSharedWhere(null), {}, 'no active branch stays tenant-wide');
+  assert.deepEqual(
+    branchOrSharedWhere(HQ),
+    { OR: [{ branchId: HQ }, { branchId: null }] },
+    'a branch sees its own products plus the tenant-wide ones',
+  );
+
+  const callers = [
+    'app/api/packages/route.ts',
+    'app/api/v1/packages/route.ts',
+    'app/(dashboard)/[module]/settings/page.tsx',
+  ];
+  for (const file of callers) {
+    assert.match(
+      code(file),
+      /prisma\.loanPackage\./,
+      `${file} may only use branchOrSharedWhere for loanPackage`,
+    );
+  }
+  // Anything outside that list reaching for it is the exception spreading.
+  const strays = SCOPED_READS.map(([f]) => f).filter((f) => /branchOrSharedWhere/.test(code(f)));
+  assert.deepEqual(strays, [], 'transactional reads must use branchScopeWhere, not the master-data helper');
+}
+
 // Tenant isolation is NOT relaxed by any of this.
 const v1Auth = read('lib/api/v1-auth.ts');
 assert.match(v1Auth, /claims\.role === 'superadmin'/, 'only owners bypass branch scoping');
 
-console.log('branch scoping tests passed');
+// ── A record is stamped with the branch of its SUBJECT ───────────────────
+// Scoping reads by the record's own branch only works if that branch is right
+// to begin with. A loan took `ctx.branchId ?? customer.branchId`, so every loan
+// a superadmin raised landed on the SUPERADMIN's branch: that branch's admin
+// saw loans belonging to other branches, and the branch that owned the customer
+// lost both the loan and its approval notification.
+async function assertWriteBranchOrder() {
+  assert.deepEqual(
+    await resolveWriteBranchId({ branchId: HQ, homeBranchId: HQ } as any, OTHER),
+    OTHER,
+    'the subject branch wins over the caller branch',
+  );
+  assert.deepEqual(
+    await resolveWriteBranchId({ branchId: OTHER, homeBranchId: HQ } as any, null),
+    OTHER,
+    'a subject with no branch falls back to the ACTIVE branch',
+  );
+  assert.deepEqual(
+    await resolveWriteBranchId({ branchId: null, homeBranchId: HQ } as any, null),
+    HQ,
+    'and only then to the caller home branch',
+  );
+}
+
+const v1LoansSrc = read('app/api/v1/loans/route.ts');
+assert.match(
+  v1LoansSrc,
+  /resolveWriteBranchId\(ctx, customer\.branchId\)/,
+  "a loan inherits its customer's branch",
+);
+assert.doesNotMatch(
+  code('app/api/v1/loans/route.ts'),
+  /branchId: ctx\.branchId \?\? customer\.branchId/,
+  "the raiser's branch must not win over the customer's",
+);
+assert.match(
+  read('app/api/v1/customers/route.ts'),
+  /resolveWriteBranchId\(ctx, routeBranchId\)/,
+  "a customer inherits its route's branch, then the active branch",
+);
+
+// ── The web dashboard drives v1 with the ACTIVE branch ───────────────────
+// Sending the session's home branch instead made a superadmin's branch switcher
+// inert on every v1 call: their writes were stamped with their own branch no
+// matter which branch was selected.
+const apiClientServer = read('lib/api-client/server.ts');
+assert.match(apiClientServer, /getActiveBranchId\(\)/, 'server fetches forward the active branch');
+assert.doesNotMatch(
+  code('lib/api-client/server.ts'),
+  /branchId: session\?\.user\?\.branchId/,
+  'the home branch must not be forwarded as the scope branch',
+);
+
+// Only an owner may steer the scope branch by header, and only to a branch of
+// their own tenant — otherwise X-Branch-Id is a cross-tenant read primitive.
+assert.match(
+  v1Auth,
+  /if \(!privileged\) return claims\.branchId;/,
+  'an agent/admin header can never change their branch',
+);
+assert.match(
+  v1Auth,
+  /findFirst\(\{\s*where: \{ id: requestedBranchId, tenantId: claims\.tenantId \}/,
+  'a requested branch is validated against the caller tenant',
+);
+
+assertWriteBranchOrder()
+  .then(() => console.log('branch scoping tests passed'))
+  .catch((e) => {
+    console.error(e);
+    process.exitCode = 1;
+  });

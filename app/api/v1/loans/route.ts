@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail, parseCursorPaging } from '@/lib/api/v1-envelope';
-import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
+import { requireMobileContext, resolveWriteBranchId, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { getAgentRouteIds } from '@/lib/access';
 import { buildAgentCustomerAccessWhere, canAgentAccessCustomer, canCreateLoanForRole, validateLoanNumericInputs } from '@/lib/loanPolicy';
 import { InsufficientFloatError, disburseFromAgent, disburseFromBranch } from '@/lib/wallet';
@@ -431,6 +431,11 @@ export async function POST(req: NextRequest) {
       biweekly: 'BWL',
       monthly: 'ML',
     };
+    // A loan belongs where its CUSTOMER sits, not where the person raising it
+    // sits. Resolved before the transaction so the lookup it may need never
+    // widens the write window.
+    const loanBranchId = await resolveWriteBranchId(ctx, customer.branchId);
+
     const result = await prisma.$transaction(async (tx) => {
       const loanCode = await nextContractCode(tx, {
         tenantId: ctx.tenantId,
@@ -523,10 +528,11 @@ export async function POST(req: NextRequest) {
     const loan = await tx.loan.create({
       data: {
         tenantId: ctx.tenantId,
-        // Inherit the customer's branch when the creator has none (e.g. a
-        // superadmin with no branch) so loans are never branchless and stay
-        // visible in branch-scoped views.
-        branchId: ctx.branchId ?? customer.branchId ?? null,
+        // The customer's branch, NOT the raiser's. Taking the raiser's first put
+        // every loan a superadmin raised onto the superadmin's own branch: that
+        // branch's admin saw loans belonging to other branches, and the owning
+        // branch's admin lost both the loan and its approval notification.
+        branchId: loanBranchId,
         appType: ctx.appType,
         loanCode,
         customerId,
@@ -882,6 +888,7 @@ export async function POST(req: NextRequest) {
         tenantId: ctx.tenantId,
         branchId: loan.branchId,
         requesterBranchId: ctx.branchId,
+        requesterRole: ctx.role,
         appType: ctx.appType,
         type: 'approval_pending',
         icon: 'account_balance',

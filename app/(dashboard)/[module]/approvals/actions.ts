@@ -450,12 +450,16 @@ export async function submitEditRequest(formData: FormData) {
   // Notify everyone who can review (branch admins + tenant superadmins) so the
   // request never lands only on one inbox. Both branches are passed, not one
   // collapsed value: the customer takes its ROUTE's branch, which need not be
-  // the filing agent's, and NOTIF-6 wants the admins of both told.
+  // the filing agent's, and NOTIF-6 wants the admins of both told. The filer's
+  // branch only counts when the filer is an AGENT — an admin or superadmin
+  // files for every branch, and pinging their own branch's admin about all of
+  // them is the cross-branch noise this call used to generate.
   const { notifyApprovers } = await import('@/lib/notify/approvers');
   await notifyApprovers({
     tenantId,
     branchId: customer.branchId,
     requesterBranchId: agentBranchId,
+    requesterRole: userRole,
     appType,
     type: 'customer_edit_review',
     icon: 'rate_review',

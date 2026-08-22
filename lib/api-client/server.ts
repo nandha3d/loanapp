@@ -1,4 +1,5 @@
 import { auth } from '@/lib/auth';
+import { getActiveBranchId } from '@/lib/branch';
 import { getUserAppType } from '@/lib/tenant';
 import { apiFetch, type ApiFetchOptions } from './index';
 
@@ -32,11 +33,17 @@ export async function getApiRequestContext(): Promise<ApiRequestContext> {
   if (!token) throw new Error('Unauthenticated');
 
   const appType = await getUserAppType();
+  // The ACTIVE branch, not the user's home branch. For a superadmin the two
+  // differ: they sit on one branch and work all of them through the branch
+  // switcher, so sending their home branch stamped every record they created
+  // with their own branch. `getActiveBranchId` is role-aware and
+  // DB-authoritative; v1 re-validates it against the tenant before honouring it.
+  const branchId = await getActiveBranchId();
 
   return {
     token,
     tenantSlug: session?.user?.tenantSlug ?? undefined,
-    branchId: session?.user?.branchId ?? undefined,
+    branchId: branchId ?? undefined,
     appType,
   };
 }

@@ -115,10 +115,53 @@ const approvers = read('lib/notify/approvers.ts');
 assert.match(approvers, /includeUnassignedBranch: true/, 'unbranched admins can review every branch');
 assert.match(
   approvers,
-  /recipientBranchIds: \[input\.branchId, requesterBranchId\]/,
-  'approvers are resolved from the record branch AND the filing agent branch',
+  /recipientBranchIds: \[input\.branchId, agentBranchId\]/,
+  'approvers are resolved from the record branch AND the filing AGENT branch',
 );
-assert.match(approvers, /if \(reached === 0\)/, 'an approval reaching no admin falls back to every tenant admin');
+
+// The filer's branch only widens the fan-out when the filer is an AGENT. An
+// admin or superadmin files for every branch — a superadmin sits on one branch
+// and works all of them — so honouring their branch pinged that one branch's
+// admin about every branch's approvals, none of which their queue (scoped to
+// the record's own branch) would let them open.
+assert.match(
+  approvers,
+  /requesterRole === 'agent' \? requesterBranchId : null/,
+  "a non-agent filer's branch must not widen the fan-out",
+);
+for (const [file, pattern] of [
+  ['app/api/v1/customers/route.ts', /requesterRole: ctx\.role/],
+  ['app/api/v1/loans/route.ts', /requesterRole: ctx\.role/],
+  ['app/api/v1/loans/[id]/route.ts', /requesterRole: ctx\.role/],
+  ['app/api/v1/approvals/route.ts', /requesterRole: ctx\.role/],
+  ['app/api/v1/vehicles/route.ts', /requesterRole: ctx\.role/],
+  ['app/api/v1/collection/handover/route.ts', /requesterRole: ctx\.role/],
+  ['app/(dashboard)/[module]/approvals/actions.ts', /requesterRole: userRole/],
+  ['app/(dashboard)/[module]/vehicles/actions.ts', /requesterRole: role/],
+  ['lib/collectionRun.ts', /requesterRole: actor\.role/],
+] as Array<[string, RegExp]>) {
+  assert.match(read(file), pattern, `${file} must declare the filer's role alongside their branch`);
+}
+
+// No all-admin fallback. Spraying every branch when nobody matched leaked a
+// customer's name and amounts to branches with no claim to them; the tenant's
+// superadmins are notified on every call, so nothing is dropped by removing it.
+assert.doesNotMatch(
+  approvers,
+  /if \(reached === 0\)\s*\{\s*await notifyUser/,
+  'a zero-reach approval must not fan out to every admin in the tenant',
+);
+assert.match(approvers, /if \(reached === 0\)[\s\S]{0,200}console\.warn/, 'zero reach is logged instead');
+
+// …and an empty branch list must not become "everyone" through the back door.
+// A branchless record has no branch to aim at; broadcasting it to every admin
+// is the same tenant-wide spray, just reached from the other side.
+const userNotify = read('lib/notify/userNotify.ts');
+assert.match(
+  userNotify,
+  /\} else if \(input\.includeUnassignedBranch\) \{[\s\S]{0,600}branchScope = \{ branchId: null \};/,
+  'a branch-aware broadcast with no target branch reaches unbranched users only',
+);
 
 // NOTIFYING an admin is not the same as letting them SEE the record. A record
 // takes the branch of its ROUTE, so the filing agent's admin may be pinged
