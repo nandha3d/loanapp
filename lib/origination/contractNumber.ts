@@ -16,24 +16,32 @@ export function formatContractCode(prefix: string, sequence: number, padLength =
   return `${normalizedPrefix}${String(sequence).padStart(padLength, '0')}`;
 }
 
-/** Increment and read happen in one database statement inside the caller's transaction. */
+/**
+ * Increment and read happen in one database statement inside the caller's transaction.
+ *
+ * The counter is keyed `(tenantId, prefix)` — tenant-wide, no module axis — because
+ * `Loan.loanCode` is unique on `(tenantId, loanCode)`. Adding `appType` here gave each
+ * module its own `DL` counter while the loans table still demanded one code per tenant,
+ * so the second module's insert failed on `loans_tenant_id_loan_code_key`, and because
+ * the increment shares the caller's transaction the rollback rewound the counter too —
+ * every retry asked for the same taken code forever. Do not re-add a scope axis that the
+ * uniqueness it feeds does not have.
+ */
 export async function nextContractCode(
   tx: SequenceTransaction,
-  input: { tenantId: string; appType: string; prefix: string; padLength?: number },
+  input: { tenantId: string; prefix: string; padLength?: number },
 ): Promise<string> {
   const prefix = input.prefix.trim().toUpperCase();
   formatContractCode(prefix, 1, input.padLength);
   const sequence = await tx.contractSequence.upsert({
     where: {
-      tenantId_appType_prefix: {
+      tenantId_prefix: {
         tenantId: input.tenantId,
-        appType: input.appType,
         prefix,
       },
     },
     create: {
       tenantId: input.tenantId,
-      appType: input.appType,
       prefix,
       currentValue: 1,
     },

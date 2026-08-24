@@ -327,7 +327,10 @@ Money paths are retried — by mobile clients on flaky networks, by cron re-runs
 
 Order of operations, all inside one Serializable transaction:
 
-1. `nextContractCode(tx, …)` — atomic upsert-increment on `ContractSequence`, keyed `(tenantId, appType, prefix)`. Frequency prefixes `DL`/`WL`/`BWL`/`ML`, falling back to the tenant's `loanCodePrefix`.
+1. `nextContractCode(tx, …)` — atomic upsert-increment on `ContractSequence`, keyed `(tenantId, prefix)`. Frequency prefixes `DL`/`WL`/`BWL`/`ML`, falling back to the tenant's `loanCodePrefix`.
+   - **ORIG-1** — The counter is **tenant-wide, never module-scoped**, because `Loan.loanCode` is unique on `(tenantId, loanCode)` with no `appType` axis. A sequence key MUST be a prefix of the uniqueness it feeds. This is a deliberate, documented exception to SCOPE-8 (`tests/contractNumber.test.ts` asserts it).
+   - **ORIG-2** — Because the increment runs inside the caller's transaction, a failed loan insert rewinds the counter. A code collision is therefore **permanent, not transient**: every retry re-requests the taken code. Never "just retry" an origination unique-constraint failure — find why the counter is behind the data.
+   - **ORIG-3** — Introducing or re-keying a sequence table MUST ship a backfill in the same migration, seeding `current_value` from `MAX()` of the numeric suffix of existing codes. `contract_sequences` originally shipped without one, defaulted to 0, and reissued `DL00001` on top of live loans.
 2. Re-validate module-specific policy against fresh reads (gold LTV exposure).
 3. Create guarantors, loan + instalments, security cheques.
 4. Write the audit log row.

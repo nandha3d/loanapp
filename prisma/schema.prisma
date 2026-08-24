@@ -474,16 +474,20 @@ model LoanPackage {
   @@map("loan_packages")
 }
 
+/// Tenant-wide contract number counter. Deliberately NOT scoped by appType: the
+/// code it issues lands in `Loan.loanCode`, whose uniqueness is `(tenantId,
+/// loanCode)` with no module axis. A per-module counter handed the same
+/// `DL00007` to two modules and the loan insert died on
+/// `loans_tenant_id_loan_code_key`. Keep this key a prefix of that one.
 model ContractSequence {
   id           String   @id @default(cuid())
   tenantId     String   @map("tenant_id")
-  appType      String   @map("app_type")
   prefix       String
   currentValue Int      @default(0) @map("current_value")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  @@unique([tenantId, appType, prefix])
+  @@unique([tenantId, prefix])
   @@map("contract_sequences")
 }
 

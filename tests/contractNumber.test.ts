@@ -12,12 +12,12 @@ async function main() {
     contractSequence: {
       async upsert(args: any) {
         assert.deepEqual(args.where, {
-          tenantId_appType_prefix: {
+          tenantId_prefix: {
             tenantId: 'tenant-1',
-            appType: 'autofinance',
             prefix: 'HP',
           },
         });
+        assert.ok(!('appType' in args.create), 'sequence must not be module-scoped');
         current = current === 0 ? args.create.currentValue : current + args.update.currentValue.increment;
         return { currentValue: current };
       },
@@ -27,7 +27,6 @@ async function main() {
   assert.equal(
     await nextContractCode(fakeTransaction as any, {
       tenantId: 'tenant-1',
-      appType: 'autofinance',
       prefix: 'HP',
     }),
     'HP00001',
@@ -35,7 +34,6 @@ async function main() {
   assert.equal(
     await nextContractCode(fakeTransaction as any, {
       tenantId: 'tenant-1',
-      appType: 'autofinance',
       prefix: 'HP',
     }),
     'HP00002',

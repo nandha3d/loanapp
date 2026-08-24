@@ -437,9 +437,10 @@ export async function POST(req: NextRequest) {
     const loanBranchId = await resolveWriteBranchId(ctx, customer.branchId);
 
     const result = await prisma.$transaction(async (tx) => {
+      // Tenant-wide, no appType: loan codes are unique per tenant, so the
+      // counter behind them must be too (see nextContractCode).
       const loanCode = await nextContractCode(tx, {
         tenantId: ctx.tenantId,
-        appType: ctx.appType,
         prefix: FREQUENCY_PREFIX[frequency] ?? branding.loanCodePrefix,
       });
 
