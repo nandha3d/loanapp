@@ -272,17 +272,30 @@ export default function WalletClient({
 
 function BranchRow({ pool, currencySymbol }: { pool: Pool; currencySymbol: string }) {
   const [busy, setBusy] = useState(false);
+  // Two-step confirmation, not window.confirm() — see AgentRow.
+  const [armed, setArmed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const tone = pool.balance < 0 ? tones.red : tones.green;
 
   return (
     <form
       action={async (fd) => {
         const amt = Number(fd.get('amount'));
-        if (!amt || amt <= 0) return;
-        if (!confirm(`Top up ${pool.branchName} by ${fmt(currencySymbol, amt)}?`)) return;
+        setError(null);
+        if (!amt || amt <= 0) {
+          setError('Enter an amount greater than zero.');
+          return;
+        }
+        if (!armed) {
+          setArmed(true);
+          return;
+        }
+        setArmed(false);
         setBusy(true);
         try {
           await injectBranchAction(fd);
+        } catch (e: any) {
+          setError(e?.message || 'Top-up failed. Please retry.');
         } finally {
           setBusy(false);
         }
@@ -329,15 +342,28 @@ function BranchRow({ pool, currencySymbol }: { pool: Pool; currencySymbol: strin
         className="btn btn-primary"
         style={{ justifyContent: 'center', whiteSpace: 'nowrap', width: '100%' }}
       >
-        <span className="material-icons-outlined" style={{ fontSize: 16 }}>{busy ? 'autorenew' : 'add_circle'}</span>
-        {busy ? 'Posting...' : 'Top up'}
+        <span className="material-icons-outlined" style={{ fontSize: 16 }}>{busy ? 'autorenew' : armed ? 'check' : 'add_circle'}</span>
+        {busy ? 'Posting...' : armed ? 'Confirm top up' : 'Top up'}
       </button>
+      {error && (
+        <div role="alert" style={{ gridColumn: '1 / -1', color: 'var(--danger)', fontSize: '.8rem', fontWeight: 600 }}>
+          {error}
+        </div>
+      )}
     </form>
   );
 }
 
 function AgentRow({ agent, currencySymbol }: { agent: Agent; currencySymbol: string }) {
   const [busy, setBusy] = useState(false);
+  // Two-step confirmation, deliberately NOT window.confirm(). A suppressed
+  // browser dialog (Firefox's "prevent this page from creating additional
+  // dialogs" sticks for the whole tab) makes confirm() return false silently,
+  // so the handler returned without ever calling the server — indistinguishable
+  // from a dead button. That is exactly how this shipped broken.
+  const [armed, setArmed] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [topUp, setTopUp] = useState<{ balance: number; shortfall: number; amount: number; note: string } | null>(null);
   const hasFloat = agent.balance > 0;
   const tone = hasFloat ? tones.green : tones.slate;
 
@@ -346,13 +372,22 @@ function AgentRow({ agent, currencySymbol }: { agent: Agent; currencySymbol: str
       action={async (fd) => {
         const op = String(fd.get('op') || 'release');
         const amt = Number(fd.get('amount'));
-        if (!amt || amt <= 0) return;
         const collect = op === 'collect';
-        if (collect && amt > agent.balance) {
-          alert(`${agent.name} only holds ${fmt(currencySymbol, agent.balance)} — cannot collect more.`);
+        setError(null);
+        if (!amt || amt <= 0) {
+          setError('Enter an amount greater than zero.');
           return;
         }
-        if (!confirm(`${collect ? 'Collect' : 'Release'} ${fmt(currencySymbol, amt)} ${collect ? 'from' : 'to'} ${agent.name}?`)) return;
+        if (collect && amt > agent.balance) {
+          setError(`${agent.name} only holds ${fmt(currencySymbol, agent.balance)} — cannot collect more.`);
+          return;
+        }
+        // First press arms, second press commits. Never silent.
+        if (armed !== op) {
+          setArmed(op);
+          return;
+        }
+        setArmed(null);
         setBusy(true);
         try {
           if (collect) {
@@ -362,17 +397,12 @@ function AgentRow({ agent, currencySymbol }: { agent: Agent; currencySymbol: str
             // Branch pool can't cover the release — offer a one-tap capital
             // top-up for the shortfall, then release in the same flow.
             if (res && 'lowCapital' in res && res.lowCapital) {
-              const ok = confirm(
-                `⚠ Low capital: the branch pool holds only ${fmt(currencySymbol, res.balance)}, ` +
-                `but this release needs ${fmt(currencySymbol, amt)}.\n\n` +
-                `Add ${fmt(currencySymbol, res.shortfall)} as capital now and release?`,
-              );
-              if (ok) {
-                fd.set('autoTopUp', '1');
-                await releaseFundsAction(fd);
-              }
+              setTopUp({ balance: res.balance, shortfall: res.shortfall, amount: amt, note: String(fd.get('note') || '') });
             }
           }
+        } catch (e: any) {
+          // Without this the rejection is swallowed and the button looks dead.
+          setError(e?.message || 'Request failed. Please retry.');
         } finally {
           setBusy(false);
         }
@@ -422,8 +452,8 @@ function AgentRow({ agent, currencySymbol }: { agent: Agent; currencySymbol: str
         className="btn btn-primary"
         style={{ justifyContent: 'center', whiteSpace: 'nowrap', width: '100%' }}
       >
-        <span className="material-icons-outlined" style={{ fontSize: 16 }}>{busy ? 'autorenew' : 'send'}</span>
-        {busy ? '...' : 'Release'}
+        <span className="material-icons-outlined" style={{ fontSize: 16 }}>{busy ? 'autorenew' : armed === 'release' ? 'check' : 'send'}</span>
+        {busy ? '...' : armed === 'release' ? 'Confirm release' : 'Release'}
       </button>
       <button
         type="submit"
@@ -434,26 +464,78 @@ function AgentRow({ agent, currencySymbol }: { agent: Agent; currencySymbol: str
         style={{ justifyContent: 'center', whiteSpace: 'nowrap', width: '100%' }}
         title={agent.balance <= 0 ? 'Agent holds no float' : 'Collect cash from this agent'}
       >
-        <span className="material-icons-outlined" style={{ fontSize: 16 }}>download</span>
-        Collect
+        <span className="material-icons-outlined" style={{ fontSize: 16 }}>{armed === 'collect' ? 'check' : 'download'}</span>
+        {armed === 'collect' ? 'Confirm collect' : 'Collect'}
       </button>
+
+      {(error || topUp) && (
+        <div style={{ gridColumn: '1 / -1' }}>
+          {error && (
+            <div role="alert" style={{ color: 'var(--danger)', fontSize: '.8rem', fontWeight: 600 }}>
+              {error}
+            </div>
+          )}
+          {topUp && (
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', fontSize: '.8rem' }}>
+              <span style={{ color: 'var(--warning)', fontWeight: 600 }}>
+                Branch pool holds {fmt(currencySymbol, topUp.balance)}, this release needs{' '}
+                {fmt(currencySymbol, topUp.amount)}.
+              </span>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={busy}
+                onClick={async () => {
+                  setError(null);
+                  setBusy(true);
+                  try {
+                    const fd2 = new FormData();
+                    fd2.set('agentId', agent.agentId);
+                    fd2.set('amount', String(topUp.amount));
+                    fd2.set('note', topUp.note);
+                    fd2.set('autoTopUp', '1');
+                    await releaseFundsAction(fd2);
+                    setTopUp(null);
+                  } catch (e: any) {
+                    setError(e?.message || 'Capital top-up failed.');
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                Add {fmt(currencySymbol, topUp.shortfall)} capital and release
+              </button>
+              <button type="button" className="btn" onClick={() => setTopUp(null)}>Cancel</button>
+            </div>
+          )}
+        </div>
+      )}
     </form>
   );
 }
 
 function HandoverRow({ handover, currencySymbol }: { handover: PendingHandover; currencySymbol: string }) {
   const [busy, setBusy] = useState(false);
+  // Two-step confirmation, not window.confirm() — see AgentRow.
+  const [armed, setArmed] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   return (
     <form
       action={async (fd) => {
         const op = String(fd.get('op'));
-        if (op === 'collect' && !confirm(`Collect ${fmt(currencySymbol, handover.amount)} from ${handover.agentName}?`)) return;
-        if (op === 'reject' && !confirm(`Reject this ${fmt(currencySymbol, handover.amount)} handover from ${handover.agentName}?`)) return;
+        setError(null);
+        if (armed !== op) {
+          setArmed(op);
+          return;
+        }
+        setArmed(null);
         setBusy(true);
         try {
           if (op === 'reject') await rejectHandoverAction(fd);
           else await collectHandoverAction(fd);
+        } catch (e: any) {
+          setError(e?.message || 'Request failed. Please retry.');
         } finally {
           setBusy(false);
         }
@@ -482,11 +564,16 @@ function HandoverRow({ handover, currencySymbol }: { handover: PendingHandover; 
       <div style={{ fontWeight: 800, color: 'var(--primary-dark)' }}>{fmt(currencySymbol, handover.amount)}</div>
       <button type="submit" name="op" value="collect" disabled={busy} className="btn btn-primary" style={{ justifyContent: 'center', whiteSpace: 'nowrap', width: '100%' }}>
         <span className="material-icons-outlined" style={{ fontSize: 16 }}>{busy ? 'autorenew' : 'download'}</span>
-        {busy ? '...' : 'Collect'}
+        {busy ? '...' : armed === 'collect' ? 'Confirm collect' : 'Collect'}
       </button>
       <button type="submit" name="op" value="reject" disabled={busy} className="btn btn-ghost" style={{ justifyContent: 'center', whiteSpace: 'nowrap', width: '100%', color: 'var(--danger)' }}>
-        Reject
+        {armed === 'reject' ? 'Confirm reject' : 'Reject'}
       </button>
+      {error && (
+        <div role="alert" style={{ gridColumn: '1 / -1', color: 'var(--danger)', fontSize: '.8rem', fontWeight: 600 }}>
+          {error}
+        </div>
+      )}
     </form>
   );
 }

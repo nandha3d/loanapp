@@ -36,52 +36,104 @@ export default function ApprovalsClient({
     return 'edits';
   });
 
+  // Two-step confirmation instead of window.confirm(). A browser that has
+  // suppressed dialogs (Firefox's "prevent this page from creating additional
+  // dialogs" sticks for the whole tab) makes confirm() return false silently,
+  // so these handlers returned without ever calling the server and the buttons
+  // looked dead. Never gate an action behind a dialog that can be switched off.
+  const [armed, setArmed] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  /** Returns true when the caller should proceed (second press). */
+  function confirmStep(key: string): boolean {
+    setActionError(null);
+    if (armed !== key) {
+      setArmed(key);
+      return false;
+    }
+    setArmed(null);
+    return true;
+  }
+
   async function handleLoanReview(loanId: string, action: 'approve' | 'reject') {
-    if (!confirm(`Are you sure you want to ${action} this loan?`)) return;
+    if (!confirmStep(`loan:${loanId}:${action}`)) return;
     setLoanLoading(loanId);
-    const fd = new FormData();
-    fd.set('loanId', loanId);
-    fd.set('action', action);
-    fd.set('reviewNotes', '');
-    const res = await reviewPendingLoan(fd);
-    setLoanLoading(null);
-    if (res.success) {
-      router.refresh();
-    } else {
-      alert(res.error);
+    try {
+      const fd = new FormData();
+      fd.set('loanId', loanId);
+      fd.set('action', action);
+      fd.set('reviewNotes', '');
+      const res = await reviewPendingLoan(fd);
+      if (res.success) {
+        router.refresh();
+      } else {
+        setActionError(res.error || 'Failed to process request');
+      }
+    } catch (e: any) {
+      // A thrown server action rejects the promise; without this the button
+      // just stops and the reason never reaches the user.
+      setActionError(e?.message || 'Request failed. Please retry.');
+    } finally {
+      setLoanLoading(null);
     }
   }
 
   async function handleCustomerReview(customerId: string, action: 'approve' | 'reject') {
-    if (!confirm(`Are you sure you want to ${action} this customer registration?`)) return;
+    if (!confirmStep(`customer:${customerId}:${action}`)) return;
     setCustomerLoading(customerId);
-    const res = action === 'approve'
-      ? await approveCustomerCreation(customerId)
-      : await rejectCustomerCreation(customerId);
-    setCustomerLoading(null);
-    if (res.success) {
-      router.refresh();
-    } else {
-      alert(res.error || 'Failed to process request');
+    try {
+      const res = action === 'approve'
+        ? await approveCustomerCreation(customerId)
+        : await rejectCustomerCreation(customerId);
+      if (res.success) {
+        router.refresh();
+      } else {
+        setActionError(res.error || 'Failed to process request');
+      }
+    } catch (e: any) {
+      setActionError(e?.message || 'Request failed. Please retry.');
+    } finally {
+      setCustomerLoading(null);
     }
   }
 
   async function handleVehicleReview(vehicleId: string, action: 'approve' | 'reject') {
-    if (!confirm(`Are you sure you want to ${action} this vehicle?`)) return;
+    if (!confirmStep(`vehicle:${vehicleId}:${action}`)) return;
     setVehicleLoading(vehicleId);
-    const res = action === 'approve'
-      ? await approveVehicleCreation(vehicleId)
-      : await rejectVehicleCreation(vehicleId);
-    setVehicleLoading(null);
-    if (res.success) {
-      router.refresh();
-    } else {
-      alert(res.error || 'Failed to process request');
+    try {
+      const res = action === 'approve'
+        ? await approveVehicleCreation(vehicleId)
+        : await rejectVehicleCreation(vehicleId);
+      if (res.success) {
+        router.refresh();
+      } else {
+        setActionError(res.error || 'Failed to process request');
+      }
+    } catch (e: any) {
+      setActionError(e?.message || 'Request failed. Please retry.');
+    } finally {
+      setVehicleLoading(null);
     }
   }
 
   return (
     <div style={{ padding: '24px' }}>
+      {actionError && (
+        <div
+          role="alert"
+          style={{
+            marginBottom: 16,
+            padding: '12px 16px',
+            borderRadius: 8,
+            background: 'var(--danger-bg)',
+            color: 'var(--danger)',
+            fontWeight: 600,
+            fontSize: '.85rem',
+          }}
+        >
+          {actionError}
+        </div>
+      )}
       <div className="page-header" style={{ marginBottom: '24px' }}>
         <div className="header-content">
           <h1 style={{ fontSize: '1.8rem', fontWeight: 700, margin: 0, color: 'var(--text)' }}>{d.title}</h1>
@@ -284,7 +336,7 @@ export default function ApprovalsClient({
                             disabled={customerLoading === cust.id}
                             onClick={() => handleCustomerReview(cust.id, 'approve')}
                           >
-                            {customerLoading === cust.id ? '...' : d.approve}
+                            {customerLoading === cust.id ? '...' : armed === `customer:${cust.id}:approve` ? 'Confirm' : d.approve}
                           </button>
                           <button
                             className="btn btn-sm"
@@ -292,7 +344,7 @@ export default function ApprovalsClient({
                             disabled={customerLoading === cust.id}
                             onClick={() => handleCustomerReview(cust.id, 'reject')}
                           >
-                            {d.reject}
+                            {armed === `customer:${cust.id}:reject` ? 'Confirm' : d.reject}
                           </button>
                         </div>
                       </td>
@@ -351,7 +403,7 @@ export default function ApprovalsClient({
                             disabled={loanLoading === loan.id}
                             onClick={() => handleLoanReview(loan.id, 'approve')}
                           >
-                            {loanLoading === loan.id ? '...' : d.approve}
+                            {loanLoading === loan.id ? '...' : armed === `loan:${loan.id}:approve` ? 'Confirm' : d.approve}
                           </button>
                           <button
                             className="btn btn-sm"
@@ -359,7 +411,7 @@ export default function ApprovalsClient({
                             disabled={loanLoading === loan.id}
                             onClick={() => handleLoanReview(loan.id, 'reject')}
                           >
-                            {d.reject}
+                            {armed === `loan:${loan.id}:reject` ? 'Confirm' : d.reject}
                           </button>
                         </div>
                       </td>
@@ -417,7 +469,7 @@ export default function ApprovalsClient({
                             disabled={vehicleLoading === v.id}
                             onClick={() => handleVehicleReview(v.id, 'approve')}
                           >
-                            {vehicleLoading === v.id ? '...' : d.approve}
+                            {vehicleLoading === v.id ? '...' : armed === `vehicle:${v.id}:approve` ? 'Confirm' : d.approve}
                           </button>
                           <button
                             className="btn btn-sm"
@@ -425,7 +477,7 @@ export default function ApprovalsClient({
                             disabled={vehicleLoading === v.id}
                             onClick={() => handleVehicleReview(v.id, 'reject')}
                           >
-                            {d.reject}
+                            {armed === `vehicle:${v.id}:reject` ? 'Confirm' : d.reject}
                           </button>
                         </div>
                       </td>
