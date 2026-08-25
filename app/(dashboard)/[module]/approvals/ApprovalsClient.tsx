@@ -44,9 +44,19 @@ export default function ApprovalsClient({
   const [armed, setArmed] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  /** Returns true when the caller should proceed (second press). */
-  function confirmStep(key: string): boolean {
+  /**
+   * Approving is a single click — it is the routine path and the reviewer has
+   * already read the row. Rejecting still asks, because it denies a request the
+   * filer can see and there is no undo in the UI.
+   *
+   * Returns true when the caller should proceed.
+   */
+  function confirmStep(key: string, needsConfirm: boolean): boolean {
     setActionError(null);
+    if (!needsConfirm) {
+      setArmed(null);
+      return true;
+    }
     if (armed !== key) {
       setArmed(key);
       return false;
@@ -56,7 +66,7 @@ export default function ApprovalsClient({
   }
 
   async function handleLoanReview(loanId: string, action: 'approve' | 'reject') {
-    if (!confirmStep(`loan:${loanId}:${action}`)) return;
+    if (!confirmStep(`loan:${loanId}:${action}`, action === 'reject')) return;
     setLoanLoading(loanId);
     try {
       const fd = new FormData();
@@ -79,7 +89,7 @@ export default function ApprovalsClient({
   }
 
   async function handleCustomerReview(customerId: string, action: 'approve' | 'reject') {
-    if (!confirmStep(`customer:${customerId}:${action}`)) return;
+    if (!confirmStep(`customer:${customerId}:${action}`, action === 'reject')) return;
     setCustomerLoading(customerId);
     try {
       const res = action === 'approve'
@@ -98,7 +108,7 @@ export default function ApprovalsClient({
   }
 
   async function handleVehicleReview(vehicleId: string, action: 'approve' | 'reject') {
-    if (!confirmStep(`vehicle:${vehicleId}:${action}`)) return;
+    if (!confirmStep(`vehicle:${vehicleId}:${action}`, action === 'reject')) return;
     setVehicleLoading(vehicleId);
     try {
       const res = action === 'approve'
@@ -336,7 +346,7 @@ export default function ApprovalsClient({
                             disabled={customerLoading === cust.id}
                             onClick={() => handleCustomerReview(cust.id, 'approve')}
                           >
-                            {customerLoading === cust.id ? '...' : armed === `customer:${cust.id}:approve` ? 'Confirm' : d.approve}
+                            {customerLoading === cust.id ? '...' : d.approve}
                           </button>
                           <button
                             className="btn btn-sm"
@@ -403,7 +413,7 @@ export default function ApprovalsClient({
                             disabled={loanLoading === loan.id}
                             onClick={() => handleLoanReview(loan.id, 'approve')}
                           >
-                            {loanLoading === loan.id ? '...' : armed === `loan:${loan.id}:approve` ? 'Confirm' : d.approve}
+                            {loanLoading === loan.id ? '...' : d.approve}
                           </button>
                           <button
                             className="btn btn-sm"
@@ -469,7 +479,7 @@ export default function ApprovalsClient({
                             disabled={vehicleLoading === v.id}
                             onClick={() => handleVehicleReview(v.id, 'approve')}
                           >
-                            {vehicleLoading === v.id ? '...' : armed === `vehicle:${v.id}:approve` ? 'Confirm' : d.approve}
+                            {vehicleLoading === v.id ? '...' : d.approve}
                           </button>
                           <button
                             className="btn btn-sm"
