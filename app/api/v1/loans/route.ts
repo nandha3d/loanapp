@@ -437,10 +437,12 @@ export async function POST(req: NextRequest) {
     const loanBranchId = await resolveWriteBranchId(ctx, customer.branchId);
 
     const result = await prisma.$transaction(async (tx) => {
-      // Tenant-wide, no appType: loan codes are unique per tenant, so the
-      // counter behind them must be too (see nextContractCode).
+      // Tenant-wide, no appType in the key: loan codes are unique per tenant, so
+      // the counter behind them must be too. appType is passed for reference only
+      // and is never used as scope (see nextContractCode, rule ORIG-1).
       const loanCode = await nextContractCode(tx, {
         tenantId: ctx.tenantId,
+        appType: ctx.appType,
         prefix: FREQUENCY_PREFIX[frequency] ?? branding.loanCodePrefix,
       });
 

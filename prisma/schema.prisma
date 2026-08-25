@@ -474,14 +474,24 @@ model LoanPackage {
   @@map("loan_packages")
 }
 
-/// Tenant-wide contract number counter. Deliberately NOT scoped by appType: the
-/// code it issues lands in `Loan.loanCode`, whose uniqueness is `(tenantId,
-/// loanCode)` with no module axis. A per-module counter handed the same
-/// `DL00007` to two modules and the loan insert died on
-/// `loans_tenant_id_loan_code_key`. Keep this key a prefix of that one.
+/// Tenant-wide contract number counter, keyed `(tenantId, prefix)`.
+///
+/// The key deliberately has NO module axis. The code it issues lands in
+/// `Loan.loanCode`, whose uniqueness is `(tenantId, loanCode)` — so a per-module
+/// counter handed the same `DL00007` to two modules and the loan insert died on
+/// `loans_tenant_id_loan_code_key`. A sequence key MUST be a prefix of the
+/// uniqueness it feeds (rule ORIG-1).
+///
+/// `appType` is retained but is INFORMATIONAL ONLY — it records which module
+/// first created the counter, nothing more. It is deliberately nullable and is
+/// NOT part of any key. Never filter or upsert on it: doing so re-introduces the
+/// per-module counter this table was fixed to remove. It is kept rather than
+/// dropped so no deploy needs to destroy a column on a live database.
 model ContractSequence {
   id           String   @id @default(cuid())
   tenantId     String   @map("tenant_id")
+  /// Informational only — see the model doc. Never key on this.
+  appType      String?  @map("app_type")
   prefix       String
   currentValue Int      @default(0) @map("current_value")
   createdAt    DateTime @default(now()) @map("created_at")

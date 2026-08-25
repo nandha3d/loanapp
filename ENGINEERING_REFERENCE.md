@@ -327,10 +327,11 @@ Money paths are retried — by mobile clients on flaky networks, by cron re-runs
 
 Order of operations, all inside one Serializable transaction:
 
-1. `nextContractCode(tx, …)` — atomic upsert-increment on `ContractSequence`, keyed `(tenantId, prefix)`. Frequency prefixes `DL`/`WL`/`BWL`/`ML`, falling back to the tenant's `loanCodePrefix`.
-   - **ORIG-1** — The counter is **tenant-wide, never module-scoped**, because `Loan.loanCode` is unique on `(tenantId, loanCode)` with no `appType` axis. A sequence key MUST be a prefix of the uniqueness it feeds. This is a deliberate, documented exception to SCOPE-8 (`tests/contractNumber.test.ts` asserts it).
-   - **ORIG-2** — Because the increment runs inside the caller's transaction, a failed loan insert rewinds the counter. A code collision is therefore **permanent, not transient**: every retry re-requests the taken code. Never "just retry" an origination unique-constraint failure — find why the counter is behind the data.
-   - **ORIG-3** — Introducing or re-keying a sequence table MUST ship a backfill in the same migration, seeding `current_value` from `MAX()` of the numeric suffix of existing codes. `contract_sequences` originally shipped without one, defaulted to 0, and reissued `DL00001` on top of live loans.
+1. `nextContractCode(tx, …)` — upsert-increment on `ContractSequence`, keyed `(tenantId, prefix)`, followed by a collision guard. Frequency prefixes `DL`/`WL`/`BWL`/`ML`, falling back to the tenant's `loanCodePrefix`.
+   - **ORIG-1** — The counter is **tenant-wide, never module-scoped**, because `Loan.loanCode` is unique on `(tenantId, loanCode)` with no `appType` axis. A sequence key MUST be a prefix of the uniqueness it feeds. This is a deliberate, documented exception to SCOPE-8. `ContractSequence.appType` still exists but is **informational only** — it records which module first created the counter. Never filter, upsert or key on it; doing so re-creates the per-module counter that caused the outage. `tests/contractNumber.test.ts` asserts the key shape.
+   - **ORIG-2** — The increment runs inside the origination transaction, so a failed loan insert rewinds the counter with it. A code collision is therefore **permanent, not transient**: every retry re-requests the same taken code and origination stays wedged. Because of that, `nextContractCode` treats the counter as a **hint, not truth** — it checks whether the code it produced is already taken and, if so, steps forward to the first free code and parks the counter there. Never "just retry" an origination unique-constraint failure, and never remove that guard: it is what makes a counter that has fallen behind self-healing rather than fatal.
+   - **ORIG-3** — Introducing or re-keying a sequence table MUST ship a backfill in the same migration, seeding `current_value` from `MAX()` of the numeric suffix of existing codes. `contract_sequences` originally shipped without one, defaulted to 0, and reissued `DL00001` on top of live loans. Note that prod deploys run `prisma db push`, not `migrate deploy` (see DEPLOY-4), so a migration's data steps do **not** run there — ship them as a script and run them by hand.
+   - **ORIG-4** — A schema change that reaches production through `db push --accept-data-loss` MUST NOT require a destructive DDL. Widen a column to `NULL` and leave it unused rather than dropping it; a dropped column on a live database is unrecoverable and the flag makes it silent. Retiring a column is a separate, deliberate operation.
 2. Re-validate module-specific policy against fresh reads (gold LTV exposure).
 3. Create guarantors, loan + instalments, security cheques.
 4. Write the audit log row.
@@ -675,6 +676,12 @@ Key commands:
 - Suspended tenants: `getCurrentTenantId()` calls `assertTenantSubscriptionAccess()` on server actions and non-billing paths, so an unpaid tenant hits the payment wall but can still reach billing.
 - **DEPLOY-2** — Secrets live in the deploy environment. `.env*` files in this repo are for local development; never commit a real secret (gitleaks runs on every PR).
 - **DEPLOY-3** — Deployment procedure is `deploy/README.md` and `docs/DEPLOYMENT.md`; migration procedure is `docs/MIGRATIONS.md`. Update them when the procedure changes.
+- **DEPLOY-4** — The VPS deploy script runs **`npx prisma db push --accept-data-loss`**, not `prisma migrate deploy`. Consequences, all verified in production on 2026-08-25:
+  - `_prisma_migrations` on prod is **stale** (last row `20260808090000`). Migration files are not the source of truth there; `schema.prisma` is.
+  - A migration's **data steps — backfills, collapses, seeds — never run in production.** `db push` only reconciles shape. Ship any data step as a script under `scripts/` and run it by hand, before the deploy that changes the shape.
+  - `--accept-data-loss` makes destructive DDL **silent**. See ORIG-4: never let a schema change require one.
+  - A `db push` that adds a UNIQUE index **hard-fails** if duplicate rows exist. Dedupe first, in a script, as part of the same manual step.
+  - A schema field with no migration behind it still works in production (`db push` infers it) while breaking every environment that uses `migrate deploy` — CI, a fresh deploy, a developer's local database. `LoanPackage.branchId` shipped that way and went unnoticed for exactly this reason. **Every `schema.prisma` change still needs its migration file.**
 
 ---
 

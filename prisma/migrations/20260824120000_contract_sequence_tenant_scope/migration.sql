@@ -8,16 +8,22 @@
 --   2. The counter was module-scoped while loans.loan_code is unique per tenant
 --      (loans_tenant_id_loan_code_key), so two modules issued the same code.
 -- Because the increment runs in the origination transaction, either collision
--- rolls the counter back — origination stays wedged until the counter is moved
+-- rolls the counter back -- origination stays wedged until the counter is moved
 -- past the live data, which is what this migration does.
+--
+-- NOTHING IS DELETED. app_type is kept and merely widened to NULL: it becomes
+-- informational (which module first created the counter) and is no longer part
+-- of any key. Dropping it would have forced `prisma db push --accept-data-loss`
+-- to destroy a column on a live database for no gain.
 --
 -- Loan rows are not touched. Codes already issued keep their values.
 
 -- 1. Collapse the per-module counters into one row per (tenant, prefix),
---    keeping the highest value any module had reached.
+--    keeping the highest value any module had reached. Must run before the
+--    unique index below, which would otherwise fail on the duplicates.
 CREATE TEMPORARY TABLE `contract_sequences_merged` AS
 SELECT
-  MIN(`id`)          AS `id`,
+  MIN(`id`)            AS `id`,
   `tenant_id`,
   `prefix`,
   MAX(`current_value`) AS `current_value`
@@ -34,11 +40,11 @@ SET `cs`.`current_value` = `m`.`current_value`;
 
 DROP TEMPORARY TABLE `contract_sequences_merged`;
 
--- 2. Re-key. app_type is dropped: a column that is not part of the key and not
---    read by anything is a trap for the next person who assumes it still scopes.
+-- 2. Re-key. app_type is widened to NULL rather than dropped, so no live column
+--    is ever destroyed by this change.
 ALTER TABLE `contract_sequences`
   DROP INDEX `contract_sequences_tenant_id_app_type_prefix_key`,
-  DROP COLUMN `app_type`,
+  MODIFY COLUMN `app_type` VARCHAR(191) NULL,
   ADD UNIQUE INDEX `contract_sequences_tenant_id_prefix_key` (`tenant_id`, `prefix`);
 
 -- 3. Seed from live loan codes. Only codes matching the generator's shape
@@ -48,7 +54,7 @@ ALTER TABLE `contract_sequences`
 CREATE TEMPORARY TABLE `contract_sequences_seed` AS
 SELECT
   `tenant_id`,
-  REGEXP_REPLACE(`loan_code`, '[0-9]+$', '')              AS `prefix`,
+  REGEXP_REPLACE(`loan_code`, '[0-9]+$', '')                   AS `prefix`,
   MAX(CAST(REGEXP_SUBSTR(`loan_code`, '[0-9]+$') AS UNSIGNED)) AS `max_seq`
 FROM `loans`
 WHERE `loan_code` REGEXP '^[A-Z][A-Z0-9_-]*[0-9]+$'
@@ -60,10 +66,11 @@ JOIN `contract_sequences_seed` `s`
 SET `cs`.`current_value` = GREATEST(`cs`.`current_value`, `s`.`max_seq`),
     `cs`.`updated_at` = CURRENT_TIMESTAMP(3);
 
-INSERT INTO `contract_sequences` (`id`, `tenant_id`, `prefix`, `current_value`, `created_at`, `updated_at`)
+INSERT INTO `contract_sequences` (`id`, `tenant_id`, `app_type`, `prefix`, `current_value`, `created_at`, `updated_at`)
 SELECT
   LOWER(REPLACE(UUID(), '-', '')),
   `s`.`tenant_id`,
+  NULL,
   `s`.`prefix`,
   `s`.`max_seq`,
   CURRENT_TIMESTAMP(3),
