@@ -63,6 +63,10 @@ export default async function PortalBillingPage() {
       })
     : [];
 
+  const currentPeriodEnd = sub?.currentPeriodEnd ? new Date(sub.currentPeriodEnd) : null;
+  const hasPaidCoverage = Boolean(currentPeriodEnd && !isNaN(currentPeriodEnd.getTime()) && currentPeriodEnd.getTime() >= Date.now());
+  const isTrialActive = !hasPaidCoverage && Boolean(effectiveTrialEndsAt && effectiveTrialEndsAt.getTime() >= Date.now());
+
   return (
     <div style={{ maxWidth: '700px', margin: '0 auto', padding: '24px' }}>
       <h2 style={{ marginBottom: '24px' }}>Your Subscription</h2>
@@ -72,7 +76,7 @@ export default async function PortalBillingPage() {
           <strong style={{ color: '#991b1b' }}>Payment required</strong>
           <p style={{ color: '#7f1d1d', margin: '6px 0 0' }}>{access.message}</p>
         </div>
-      ) : effectiveTrialEndsAt ? (
+      ) : isTrialActive && effectiveTrialEndsAt ? (
         <div className="card" style={{ marginBottom: 20, padding: 18, border: '1px solid #f59e0b', background: '#fffbeb' }}>
           <strong>Free trial active until {formatDate(effectiveTrialEndsAt)}</strong>
           <p style={{ color: 'var(--text-secondary)', margin: '6px 0 0' }}>
@@ -127,7 +131,7 @@ export default async function PortalBillingPage() {
               <td style={{ color: 'var(--text-secondary)' }}>Enabled Modules</td>
               <td>{enabledModulesList.join(', ')}</td>
             </tr>
-            {effectiveTrialEndsAt && (
+            {!hasPaidCoverage && effectiveTrialEndsAt && (
               <tr>
                 <td style={{ color: 'var(--text-secondary)' }}>Trial Ends</td>
                 <td style={{ color: effectiveTrialEndsAt < new Date() ? 'var(--danger)' : 'inherit' }}>

@@ -10,8 +10,17 @@ import { formatDate } from '@/lib/utils';
 export default function TrialBanner({ sub }: { sub: TenantSubscriptionAccess | null }) {
   if (!sub || sub.plan === 'lifetime' || sub.tenant?.customDomain) return null;
 
+  // If the tenant has an active paid or extended subscription period, do not show trial banner
+  const currentPeriodEnd = sub.currentPeriodEnd ? new Date(sub.currentPeriodEnd) : null;
+  if (currentPeriodEnd && !isNaN(currentPeriodEnd.getTime()) && currentPeriodEnd.getTime() >= Date.now()) {
+    return null;
+  }
+
   const effectiveTrialEnd = getEffectiveTrialEndsAt(sub);
   if (!effectiveTrialEnd) return null;
+
+  // If the trial date is already in the past, do not show active trial banner
+  if (effectiveTrialEnd.getTime() < Date.now()) return null;
 
   return (
     <div style={{
