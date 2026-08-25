@@ -272,8 +272,9 @@ export default function WalletClient({
 
 function BranchRow({ pool, currencySymbol }: { pool: Pool; currencySymbol: string }) {
   const [busy, setBusy] = useState(false);
-  // Two-step confirmation, not window.confirm() — see AgentRow.
-  const [armed, setArmed] = useState(false);
+  // Single click: topping up a branch pool from company capital is additive and
+  // reversible. Errors surface inline — never behind window.confirm(), which a
+  // browser can silence, making the button look dead.
   const [error, setError] = useState<string | null>(null);
   const tone = pool.balance < 0 ? tones.red : tones.green;
 
@@ -286,11 +287,6 @@ function BranchRow({ pool, currencySymbol }: { pool: Pool; currencySymbol: strin
           setError('Enter an amount greater than zero.');
           return;
         }
-        if (!armed) {
-          setArmed(true);
-          return;
-        }
-        setArmed(false);
         setBusy(true);
         try {
           await injectBranchAction(fd);
@@ -342,8 +338,8 @@ function BranchRow({ pool, currencySymbol }: { pool: Pool; currencySymbol: strin
         className="btn btn-primary"
         style={{ justifyContent: 'center', whiteSpace: 'nowrap', width: '100%' }}
       >
-        <span className="material-icons-outlined" style={{ fontSize: 16 }}>{busy ? 'autorenew' : armed ? 'check' : 'add_circle'}</span>
-        {busy ? 'Posting...' : armed ? 'Confirm top up' : 'Top up'}
+        <span className="material-icons-outlined" style={{ fontSize: 16 }}>{busy ? 'autorenew' : 'add_circle'}</span>
+        {busy ? 'Posting...' : 'Top up'}
       </button>
       {error && (
         <div role="alert" style={{ gridColumn: '1 / -1', color: 'var(--danger)', fontSize: '.8rem', fontWeight: 600 }}>
@@ -382,10 +378,17 @@ function AgentRow({ agent, currencySymbol }: { agent: Agent; currencySymbol: str
           setError(`${agent.name} only holds ${fmt(currencySymbol, agent.balance)} — cannot collect more.`);
           return;
         }
-        // First press arms, second press commits. Never silent.
-        if (armed !== op) {
-          setArmed(op);
-          return;
+        // Releasing is a single click: the amount is typed in deliberately and
+        // the operation is trivially reversible with Collect. Collecting cash
+        // BACK from an agent still confirms, because it asserts the agent
+        // physically handed money over. Confirmation is two-step in-page, never
+        // window.confirm() — a suppressed browser dialog silently returns false
+        // and the button looks dead, which is how this shipped broken.
+        if (collect) {
+          if (armed !== op) {
+            setArmed(op);
+            return;
+          }
         }
         setArmed(null);
         setBusy(true);
@@ -452,8 +455,8 @@ function AgentRow({ agent, currencySymbol }: { agent: Agent; currencySymbol: str
         className="btn btn-primary"
         style={{ justifyContent: 'center', whiteSpace: 'nowrap', width: '100%' }}
       >
-        <span className="material-icons-outlined" style={{ fontSize: 16 }}>{busy ? 'autorenew' : armed === 'release' ? 'check' : 'send'}</span>
-        {busy ? '...' : armed === 'release' ? 'Confirm release' : 'Release'}
+        <span className="material-icons-outlined" style={{ fontSize: 16 }}>{busy ? 'autorenew' : 'send'}</span>
+        {busy ? '...' : 'Release'}
       </button>
       <button
         type="submit"
