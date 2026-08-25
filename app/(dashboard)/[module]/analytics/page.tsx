@@ -166,8 +166,10 @@ export default async function AnalyticsPage({
     totalPrincipal: newLoans.reduce((s, l) => s + Number(l.principal), 0),
   };
 
+  // SCOPE-12: the agent-performance table is branch work. Tenant-wide, a
+  // superadmin on one branch saw every branch's agents and their numbers.
   const agents = await prisma.user.findMany({
-    where: { tenantId, appType, role: 'agent', status: 'active' },
+    where: { tenantId, appType, role: 'agent', status: 'active', ...(activeBranchId ? { branchId: activeBranchId } : {}) },
     select: { id: true, name: true },
   });
 
@@ -192,7 +194,7 @@ export default async function AnalyticsPage({
       const hitRate = expected > 0 ? Math.round((collected / expected) * 100) : 0;
 
       const routes = await prisma.route.findMany({
-        where: { tenantId, appType, routeAgents: { some: { agentId: agent.id } }, status: 'active' },
+        where: { tenantId, appType, routeAgents: { some: { agentId: agent.id } }, status: 'active', ...(activeBranchId ? { branchId: activeBranchId } : {}) },
         select: { name: true },
       });
 
@@ -208,8 +210,9 @@ export default async function AnalyticsPage({
     })
   );
 
+  // SCOPE-12: the route filter offers only the active branch's routes.
   const allRoutes = await prisma.route.findMany({
-    where: { tenantId, appType, status: 'active' },
+    where: { tenantId, appType, status: 'active', ...(activeBranchId ? { branchId: activeBranchId } : {}) },
     orderBy: { name: 'asc' },
   });
 

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Modal from '@/components/Modal';
-import { manageMasterUser, toggleUserStatus } from '../actions';
+import { manageMasterUser, toggleUserStatus, deleteUser } from '../actions';
 import { updateSubscription } from '../billing/billingActions';
 import { ALL_MODULES, MODULE_LABELS, normalizeModuleList, type ModuleKey } from '@/types/modules';
 import { PLAN_LABELS, PLAN_FEATURES } from '@/lib/plans';
@@ -52,6 +52,8 @@ type Props = {
   users: any[];
   branches: BranchOption[];
   viewerRole: string;
+  viewerId: string;
+  viewerIsPrimaryAdmin: boolean;
   defaultAppType: string;
   subscription: any;
   planModules: string[];
@@ -83,6 +85,8 @@ export default function UsersClient({
   users,
   branches,
   viewerRole,
+  viewerId,
+  viewerIsPrimaryAdmin,
   defaultAppType,
   subscription,
   planModules,
@@ -267,6 +271,48 @@ export default function UsersClient({
   // email never arrives, a developer can flip a pending account to active —
   // same end-state as clicking the verification link.
   const [verifying, setVerifying] = useState<string | null>(null);
+  // Two-step arming, deliberately NOT window.confirm(): a browser with dialogs
+  // suppressed returns false silently, and the button would look dead. For a
+  // destructive action that failure mode is unacceptable.
+  // UI gate only — app/admin/actions.ts#deleteUser re-checks with canManageUser.
+  // Mirrors lib/roles.ts ranks: developer 50 > superadmin 40 > primary admin 30
+  // > admin 20 > agent 10. Strictly greater, so peers and self are excluded.
+  function rankOf(u: { role?: string | null; isPrimaryAdmin?: boolean | null } | null | undefined) {
+    if (!u?.role) return 0;
+    if (u.role === 'admin' && u.isPrimaryAdmin) return 30;
+    return ({ agent: 10, admin: 20, superadmin: 40, developer: 50 } as Record<string, number>)[u.role] ?? 0;
+  }
+  function canDelete(target: any) {
+    if (!target || target.id === viewerId) return false;
+    return rankOf({ role: viewerRole, isPrimaryAdmin: viewerIsPrimaryAdmin }) > rankOf(target);
+  }
+
+  const [armedDelete, setArmedDelete] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function handleDelete(userId: string, name: string) {
+    setDeleteError(null);
+    if (armedDelete !== userId) {
+      setArmedDelete(userId);
+      return;
+    }
+    setArmedDelete(null);
+    setDeleting(userId);
+    try {
+      const res = await deleteUser(userId);
+      if (res?.success) {
+        router.refresh();
+      } else {
+        setDeleteError(res?.error || `Could not delete ${name}.`);
+      }
+    } catch (e: any) {
+      setDeleteError(e?.message || 'Network error while deleting.');
+    } finally {
+      setDeleting(null);
+    }
+  }
+
   async function handleVerifyActivate(userId: string, name: string) {
     if (!confirm(`Manually verify & activate "${name}"? This is the same as confirming their email.`)) return;
     setVerifying(userId);
@@ -363,6 +409,11 @@ export default function UsersClient({
 
   return (
     <div>
+      {deleteError && (
+        <div role="alert" style={{ margin: '0 0 16px', padding: '12px 16px', borderRadius: 8, background: 'var(--danger-bg)', color: 'var(--danger)', fontWeight: 600, fontSize: '.85rem' }}>
+          {deleteError}
+        </div>
+      )}
       <div className="page-header">
         <div className="header-content">
           <h1>{viewingSuperadminId ? `Super Admin: ${activeSuperadmin?.name}` : 'Master User Management'}</h1>
@@ -559,6 +610,26 @@ export default function UsersClient({
                         }} title="Edit User">
                           <span className="material-icons-outlined" style={{ fontSize: '18px' }}>edit</span>
                         </button>
+                        {canDelete(superadmin) && (
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            disabled={deleting === superadmin.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(superadmin.id, superadmin.name || superadmin.username);
+                            }}
+                            title={armedDelete === superadmin.id ? 'Press again to confirm' : 'Delete user'}
+                            style={{ color: armedDelete === superadmin.id ? 'var(--danger)' : undefined, fontWeight: armedDelete === superadmin.id ? 700 : undefined }}
+                          >
+                            {deleting === superadmin.id ? (
+                              '...'
+                            ) : armedDelete === superadmin.id ? (
+                              'Confirm delete'
+                            ) : (
+                              <span className="material-icons-outlined" style={{ fontSize: '18px' }}>delete_outline</span>
+                            )}
+                          </button>
+                        )}
                         <button className="btn btn-primary btn-sm" onClick={(e) => {
                           e.stopPropagation();
                           setViewingSuperadminId(superadmin.id);

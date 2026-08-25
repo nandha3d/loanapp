@@ -159,7 +159,8 @@ export async function getAnalyticsData(
     }),
     // Previous week collections for WoW comparison
     prisma.collectionEntry.findMany({
-      where: { tenantId, submittedAt: { gte: prevWeekStart, lt: weekStart } },
+      // SCOPE-3: CollectionEntry has no branchId; scope through its required loan.
+      where: { loan: { ...lw }, submittedAt: { gte: prevWeekStart, lt: weekStart } },
       select: { receivedAmount: true },
     }),
     // Future 7 days
@@ -181,22 +182,22 @@ export async function getAnalyticsData(
     }),
     // Today's collection entries
     prisma.collectionEntry.findMany({
-      where: { tenantId, submittedAt: { gte: today, lt: tomorrow } },
+      where: { loan: { ...lw }, submittedAt: { gte: today, lt: tomorrow } },
       select: { receivedAmount: true, paymentMode: true, agentId: true, customer: { select: { routeId: true } } },
     }),
     // This week collection entries for agent leaderboard and trend
     prisma.collectionEntry.findMany({
-      where: { tenantId, submittedAt: { gte: weekStart, lt: tomorrow } },
+      where: { loan: { ...lw }, submittedAt: { gte: weekStart, lt: tomorrow } },
       select: { receivedAmount: true, agentId: true, agent: { select: { id: true, name: true } }, submittedAt: true },
     }),
     // Account entries for capital
     prisma.accountEntry.findMany({
-      where: { tenantId },
+      where: { tenantId, appType, ...bf },
       select: { type: true, amount: true },
     }),
     // Routes for route health
     prisma.route.findMany({
-      where: { tenantId, appType, status: 'active' },
+      where: { tenantId, appType, ...bf, status: 'active' },
       include: {
         routeAgents: { include: { agent: true } },
         _count: { select: { customers: true } },
@@ -218,7 +219,8 @@ export async function getAnalyticsData(
     }),
     // Audit logs for operational feed
     prisma.auditLog.findMany({
-      where: { tenantId, user: { role: { not: 'developer' } } },
+      // SCOPE-3: AuditLog has no branchId; scope through the acting user's branch.
+      where: { tenantId, user: { role: { not: 'developer' }, ...bf } },
       orderBy: { createdAt: 'desc' },
       take: 15,
       include: { user: true },

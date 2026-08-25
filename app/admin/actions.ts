@@ -724,6 +724,139 @@ export async function toggleUserStatus(userId: string, newStatus: string, actorO
   return { success: true };
 }
 
+/**
+ * Delete a staff user.
+ *
+ * PERMISSION — `canManageUser` (lib/roles.ts): strictly greater rank, so
+ * developer > superadmin > primary admin > admin > agent. Peers can never
+ * delete each other and nobody can delete themselves (equal rank). Everyone
+ * except a developer is confined to their own tenant.
+ *
+ * HARD vs SOFT — a hard delete is NOT safe for a user who has done any work.
+ * 29 foreign keys onto `users` are ON DELETE SET NULL, including
+ * `loans.created_by_id`, `penalties.settled_by_id`, `customers.agent_id` and
+ * `audit_logs.user_id`; a further 8 are RESTRICT (collection entries, daily
+ * collections, cash handovers, journal entries, the approval queues). So a hard
+ * delete either fails outright or silently erases who originated a loan, who
+ * settled a penalty and who verified a KYC — money provenance, gone, with no
+ * way back.
+ *
+ * Therefore: a user with ZERO dependent records is genuinely unused and is
+ * removed outright. Anyone who has touched the book is ARCHIVED instead —
+ * status 'deleted', so they disappear from every list and can no longer sign in
+ * (lib/auth.ts admits only status 'active'), while every row that names them
+ * keeps naming them. The result reports which of the two happened, so the
+ * caller can tell the difference.
+ */
+export async function deleteUser(userId: string, actorOverride?: ActionActor) {
+  const actor = await resolveActionActor(actorOverride);
+  if (!actor?.id) return { success: false, error: 'Not signed in' };
+
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      tenantId: true,
+      role: true,
+      isPrimaryAdmin: true,
+      username: true,
+      name: true,
+      status: true,
+    },
+  });
+  if (!target) return { success: false, error: 'User not found' };
+
+  if (target.id === actor.id) {
+    return { success: false, error: 'You cannot delete your own account.' };
+  }
+  if (!canManageUser(actor, target)) {
+    return { success: false, error: 'You do not have permission to delete this user.' };
+  }
+  // Tenant confinement: only a developer may reach across tenants.
+  if (actor.role !== 'developer' && target.tenantId !== actor.tenantId) {
+    return { success: false, error: 'That user belongs to another tenant.' };
+  }
+  // The last active superadmin must not be removed, or the tenant is left with
+  // nobody who can administer it.
+  if (target.role === 'superadmin') {
+    const remaining = await prisma.user.count({
+      where: {
+        tenantId: target.tenantId,
+        role: 'superadmin',
+        status: 'active',
+        id: { not: target.id },
+      },
+    });
+    if (remaining === 0) {
+      return {
+        success: false,
+        error: "This is the tenant's only active superadmin. Assign another one first.",
+      };
+    }
+  }
+
+  // Does this user have history? Counts cover the RESTRICT tables (which would
+  // block the delete) and the SET NULL tables that carry money provenance.
+  const [
+    collections, dailyCollections, handovers, journals,
+    approvalReqs, accountingApprovals, branchReqs, moduleReqs,
+    loansCreated, customersOwned, routesAssigned,
+  ] = await Promise.all([
+    prisma.collectionEntry.count({ where: { agentId: userId } }),
+    prisma.dailyCollection.count({ where: { agentId: userId } }),
+    prisma.cashHandover.count({ where: { agentId: userId } }),
+    prisma.journalEntry.count({ where: { createdById: userId } }).catch(() => 0),
+    prisma.approvalRequest.count({ where: { requestedById: userId } }).catch(() => 0),
+    prisma.accountingApproval.count({ where: { requestedById: userId } }).catch(() => 0),
+    prisma.branchRequest.count({ where: { requestedById: userId } }).catch(() => 0),
+    prisma.moduleRequest.count({ where: { requestedById: userId } }).catch(() => 0),
+    prisma.loan.count({ where: { createdById: userId } }),
+    prisma.customer.count({ where: { agentId: userId } }),
+    prisma.route.count({ where: { assignedAgentId: userId } }),
+  ]);
+  const history =
+    collections + dailyCollections + handovers + journals +
+    approvalReqs + accountingApprovals + branchReqs + moduleReqs +
+    loansCreated + customersOwned + routesAssigned;
+
+  const label = target.name || target.username;
+
+  if (history === 0) {
+    await prisma.user.delete({ where: { id: userId } });
+  } else {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { status: 'deleted' },
+    });
+  }
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId: target.tenantId,
+      userId: actor.id,
+      action: 'delete',
+      entityType: 'user',
+      entityId: userId,
+      newValue: JSON.stringify({
+        username: target.username,
+        role: target.role,
+        mode: history === 0 ? 'hard_delete' : 'archived',
+        dependentRecords: history,
+      }),
+    },
+  }).catch(() => {});
+
+  revalidatePath('/admin/users');
+  return {
+    success: true,
+    mode: history === 0 ? ('hard_delete' as const) : ('archived' as const),
+    message:
+      history === 0
+        ? `${label} deleted.`
+        : `${label} archived — ${history} linked record(s) keep their history. They can no longer sign in.`,
+  };
+}
+
 // ─── Scoped agent management (module Settings → Users tab) ──────────────────
 // Lets a branch admin / superadmin manage AGENTS within ONE branch + ONE module
 // only. Narrower than manageMasterUser (which is superadmin/dev-only and handles

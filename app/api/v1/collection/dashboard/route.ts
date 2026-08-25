@@ -20,17 +20,20 @@ export async function GET(req: NextRequest) {
   const today = startOfBusinessToday();
   const tomorrow = startOfBusinessTomorrow();
 
-  // Superadmin/developer oversee the whole tenant (the web shows "All
-  // Branches/All Routes"), so they must NOT be pinned to their token's single
-  // home branch — that left their collection list empty whenever a loan lived
-  // in another branch. Agents are ALSO not branch-pinned: they're already scoped
-  // to their own customers via buildAgentCustomerAccessWhere (agentId / route
-  // assignment), so an extra branch filter only causes false exclusions —
-  // notably for loans created with branchId = null, or a customer's loan that
-  // lives in a different branch than the agent's home branch. Only branch admins
-  // stay branch-scoped.
-  const branchUnpinned =
-    ctx.role === 'superadmin' || ctx.role === 'developer' || ctx.role === 'agent';
+  // AGENTS ONLY are branch-unpinned, per SCOPE-5: they are already scoped to
+  // their own customers via buildAgentCustomerAccessWhere (agentId / route
+  // assignment), so an extra branch filter only causes false exclusions — a
+  // customer's loan can live in a different branch than the agent's own.
+  //
+  // Superadmin/developer used to be unpinned here too, on the reasoning that
+  // they "oversee the whole tenant" and must not be stuck on their token's
+  // single HOME branch. That reasoning is stale: ctx.branchId is the ACTIVE
+  // branch, resolved by resolveScopeBranchId — null when "All Branches" is
+  // selected, the chosen branch otherwise. Unpinning them made the branch
+  // switcher inert on Collection Entry, so selecting Erode listed Head Office's
+  // customers and their dues. See SCOPE-15: branch scoping has no role
+  // exemption; "sees everything" is expressed by SELECTING All Branches.
+  const branchUnpinned = ctx.role === 'agent';
   const branchScope = !branchUnpinned && ctx.branchId ? { branchId: ctx.branchId } : {};
 
   try {
