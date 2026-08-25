@@ -130,9 +130,19 @@ export async function verifyMobileToken(token: string): Promise<MobileTokenClaim
  * was removed.
  */
 export function scopedBranchWhere(claims: MobileTokenClaims) {
-  if (claims.role === 'superadmin' || claims.role === 'developer') {
-    return {};
-  }
+  // NO role exemption. `claims.branchId` is already the ACTIVE branch, resolved
+  // by resolveScopeBranchId: null for "All Branches", the selected branch for a
+  // superadmin using the switcher, the caller's own branch for everyone else.
+  //
+  // This used to early-return {} for superadmin/developer, which threw that
+  // resolved answer away and ran every read tenant-wide. The branch switcher
+  // then did nothing for the role that exists to use it: selecting Erode showed
+  // Head Office's customers, loans, agents and wallet. 63 v1 routes share this
+  // helper, and the web dashboard reaches them through serverFetch, so the leak
+  // was identical on web and mobile.
+  //
+  // "Sees all branches" is expressed by SELECTING All Branches, which makes
+  // branchId null and yields {} here — not by ignoring the selection.
   return claims.branchId ? { branchId: claims.branchId } : {};
 }
 

@@ -171,7 +171,7 @@ export async function createChitGroup(formData: FormData) {
           appType: scope.appType,
           status: 'active',
           deletedAt: null,
-          ...(scope.branchId && scope.role !== 'superadmin' && scope.role !== 'developer' ? { branchId: scope.branchId } : {}),
+          ...(scope.branchId ? { branchId: scope.branchId } : {}),
         },
         select: { id: true },
       })

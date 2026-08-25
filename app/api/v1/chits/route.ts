@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
+import { requireMobileContext, resolveWriteBranchId, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { validateChitConfig } from '@/lib/chits/validation';
 import { generateCode } from '@/lib/utils';
 
@@ -70,8 +70,13 @@ export async function POST(req: NextRequest) {
       fixedDiscountPct: body?.fixedDiscountPct == null ? null : Number(body.fixedDiscountPct),
     });
 
-    const requestedBranchId = body?.branchId ?? ctx.branchId;
-    const branchId = ctx.role === 'superadmin' || ctx.role === 'developer' ? requestedBranchId : ctx.branchId;
+    // SCOPE-7: stamp the branch the caller is actually working, resolved and
+    // tenant-validated. This previously took body.branchId verbatim for
+    // superadmin/developer, so an unvalidated id from the request body landed on
+    // the row -- including one belonging to another tenant's branch. A superadmin
+    // targets a branch by SELECTING it in the switcher, which is what ctx.branchId
+    // already carries.
+    const branchId = await resolveWriteBranchId(ctx);
     const group = await prisma.$transaction(async (tx) => {
       const existingCount = await tx.chitGroup.count({ where: { tenantId: ctx.tenantId } });
       const groupCode = generateCode('CF', existingCount + 1, 5);

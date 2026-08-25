@@ -1,3 +1,4 @@
+import { getActiveBranchId, branchScopeWhere } from '@/lib/branch';
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
@@ -33,9 +34,15 @@ export default async function NewVehiclePage() {
   const agentCustomerScope =
     role === 'agent' && userId ? buildAgentCustomerAccessWhere({ userId }) : {};
 
+  // SCOPE-12: the pickers must offer only the active branch's book. Without
+  // this a superadmin on Erode saw Head Office customers and loans here and
+  // could attach a vehicle to another branch's loan.
+  const activeBranchId = await getActiveBranchId();
+  const branchWhere = branchScopeWhere(activeBranchId);
+
   const [customers, loans] = await Promise.all([
     prisma.customer.findMany({
-      where: { tenantId, appType, status: 'active', ...agentCustomerScope },
+      where: { tenantId, appType, status: 'active', ...branchWhere, ...agentCustomerScope },
       select: { id: true, name: true, customerCode: true },
       orderBy: { name: 'asc' },
     }),
@@ -45,6 +52,7 @@ export default async function NewVehiclePage() {
         appType,
         status: 'active',
         vehicle: null,
+        ...branchWhere,
         ...(role === 'agent' && userId ? { customer: buildAgentCustomerAccessWhere({ userId }) } : {}),
       },
       select: { id: true, loanCode: true, customerId: true },

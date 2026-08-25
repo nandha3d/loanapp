@@ -58,8 +58,12 @@ export default async function WalletPage() {
   }
 
   const branchId = await getActiveBranchId();
-  const seesAll = role === 'superadmin' || role === 'developer';
-  const branchScope = branchId && !seesAll ? branchId : null;
+  // No role exemption: getActiveBranchId() already returns null for "All
+  // Branches" and the selected branch otherwise. Exempting superadmins here
+  // made the branch switcher inert on this page — Erode showed Head Office's
+  // pools, agents and float, while Settings > Agents (correctly scoped) showed
+  // none. See scopedBranchWhere in lib/api/v1-auth.ts for the same bug.
+  const branchScope = branchId;
 
   // Branch cash pools (scoped) + balances.
   const branches = await prisma.branch.findMany({

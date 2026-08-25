@@ -12,7 +12,8 @@ export default async function SelfPayQueuePage() {
   if (!session) redirect('/login');
   const tenantId = await getDefaultTenantId();
   const role = (session.user as { role?: string })?.role || 'agent';
-  const branchId = role === 'superadmin' || role === 'developer' ? null : await getActiveBranchId();
+  // No role exemption: getActiveBranchId() is already null for "All Branches".
+  const branchId = await getActiveBranchId();
 
   const [pending, gatewayLive] = await Promise.all([
     listPendingSelfPay(tenantId, branchId),

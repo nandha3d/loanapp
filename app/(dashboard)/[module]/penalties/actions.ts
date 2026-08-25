@@ -1,5 +1,7 @@
 'use server';
 
+import { getActiveBranchId, branchScopeWhere } from '@/lib/branch';
+
 import prisma from '@/lib/db';
 import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { revalidatePath } from 'next/cache';
@@ -24,8 +26,11 @@ export async function settlePenalty(formData: FormData) {
     return { success: false, error: 'Invalid input' };
   }
 
+  // SCOPE-3: settle only a penalty on a loan in the active branch. Without the
+  // branch arm an id from another branch settled successfully.
+  const activeBranchId = await getActiveBranchId();
   const penalty = await prisma.penalty.findFirst({
-    where: { id: penaltyId, loan: { tenantId, appType } },
+    where: { id: penaltyId, loan: { tenantId, appType, ...branchScopeWhere(activeBranchId) } },
     include: { loan: true },
   });
 

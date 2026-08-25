@@ -1,3 +1,4 @@
+import { getActiveBranchId, branchScopeWhere } from '@/lib/branch';
 import prisma from '@/lib/db';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { formatDate } from '@/lib/utils';
@@ -15,11 +16,15 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
   const dict = await getDictionary(tenantId);
   const session = await auth();
   const isAgent = (session?.user as any)?.role === 'agent';
+  const activeBranchId = await getActiveBranchId();
 
   let vehicle: any = null;
   try {
+    // SCOPE-12: the vehicle registry is branch-owned. Without the branch filter
+    // a superadmin could open a vehicle belonging to a branch they had not
+    // selected, straight from a guessed or stale URL.
     vehicle = await prisma.vehicle.findFirst({
-      where: { id, tenantId },
+      where: { id, tenantId, ...branchScopeWhere(activeBranchId) },
       include: {
         customer: { select: { id: true, name: true, customerCode: true } },
         loan: { select: { id: true, loanCode: true, status: true } },
@@ -41,8 +46,10 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
         releasedBy: { select: { name: true } },
       },
     }).catch(() => []),
+    // SCOPE-12/13: the seize modal's staff picker is branch work, not a
+    // tenant-wide directory.
     prisma.user.findMany({
-      where: { tenantId, status: 'active', role: { in: ['agent', 'staff', 'admin'] } },
+      where: { tenantId, status: 'active', role: { in: ['agent', 'staff', 'admin'] }, ...branchScopeWhere(activeBranchId) },
       select: { id: true, name: true },
       orderBy: { name: 'asc' },
     }).catch(() => []),

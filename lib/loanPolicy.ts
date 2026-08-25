@@ -77,8 +77,10 @@ export function buildLoanDetailWhere(input: LoanDetailWhereInput) {
     appType: input.appType,
   };
 
-  const seesAllBranches = input.role === 'superadmin' || input.role === 'developer';
-  if (input.branchId && !seesAllBranches) {
+  // No role exemption — input.branchId is the ACTIVE branch and is already null
+  // for "All Branches". Exempting privileged roles let a superadmin open a loan
+  // belonging to a branch they had not selected.
+  if (input.branchId) {
     where.branchId = input.branchId;
   }
 

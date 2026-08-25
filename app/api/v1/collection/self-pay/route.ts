@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   try {
     const rows = await listPendingSelfPay(
       ctx.tenantId,
-      ctx.role === 'superadmin' || ctx.role === 'developer' ? null : ctx.branchId,
+      ctx.branchId, // active branch; already null for "All Branches"
     );
     return ok({ data: rows });
   } catch (e: any) {

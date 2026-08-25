@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   // Mirrors the web Approvals page: branch admins see only their own branch.
   // Superadmin/developer stay tenant-wide.
   const scopeBranchId =
-    ctx.role === 'superadmin' || ctx.role === 'developer' ? null : ctx.branchId;
+    ctx.branchId; // active branch; already null for "All Branches"
   const branchScope = branchScopeWhere(scopeBranchId);
 
   const where: any = { tenantId: ctx.tenantId, appType: ctx.appType };
