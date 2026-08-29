@@ -87,7 +87,20 @@ function scanFile(absolute) {
       }
     }
 
-    // 3. A dictionary fallback that hardcodes English: {d.foo || 'Interest-Only'}
+    // 3. JSX prose that spans lines — a bare text line with no tag or expression
+    //    on it. The single-line >text< rule above cannot see these, and they are
+    //    usually the longest copy on the screen.
+    if (
+      !/[<>{}=()\[\];]/.test(trimmed) &&
+      !trimmed.includes('//') &&
+      !/^[)\]},;:]/.test(trimmed) &&
+      !/[,;:'`"]$/.test(trimmed) &&
+      trimmed.split(/\s+/).filter((w) => /^[A-Za-z][A-Za-z'-]{2,}$/.test(w)).length >= 3
+    ) {
+      findings.push({ file: relative, line: lineNo, kind: 'jsx-prose', text: trimmed.slice(0, 100) });
+    }
+
+    // 4. A dictionary fallback that hardcodes English: {d.foo || 'Interest-Only'}
     //    The fallback is what a locale missing the key actually shows.
     for (const m of line.matchAll(/\|\|\s*'([^']{3,80})'/g)) {
       const text = m[1];
