@@ -73,14 +73,14 @@ export default function SettingsClient({
     const res = await manageBranchAgent(fd);
     setAgentBusy(false);
     if (res?.success) { setAgentModal(null); router.refresh(); }
-    else alert(res?.error || 'Failed to save agent');
+    else alert(res?.error || d.saveAgentFailed);
   };
 
   const toggleAgent = async (id: string, current: string) => {
     const next = current === 'active' ? 'inactive' : 'active';
     const res = await setBranchAgentStatus(id, next, effAppType);
     if (res?.success) router.refresh();
-    else alert(res?.error || 'Failed to update status');
+    else alert(res?.error || d.updateStatusFailed);
   };
 
   // Modals state
@@ -120,7 +120,7 @@ export default function SettingsClient({
       }
       router.refresh();
     } else {
-      alert(res?.error || 'Failed to save theme');
+      alert(res?.error || d.saveThemeFailed);
     }
   };
 
@@ -148,7 +148,7 @@ export default function SettingsClient({
     setLoading(true);
     const res = await saveFeatureFlags(new FormData(e.currentTarget));
     setLoading(false);
-    showToast(res?.success ? 'Features updated' : res?.error || 'Could not update features');
+    showToast(res?.success ? d.featuresUpdated : res?.error || d.updateFeaturesFailed);
   };
 
   const handlePenaltySubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -170,34 +170,34 @@ export default function SettingsClient({
           </>
         )}
         {effAppType === 'goldloan' && (
-          <div className={`tab ${activeTab === 'goldmaster' ? 'active' : ''}`} onClick={() => setActiveTab('goldmaster')}>Gold Master</div>
+          <div className={`tab ${activeTab === 'goldmaster' ? 'active' : ''}`} onClick={() => setActiveTab('goldmaster')}>{d.tabGoldMaster}</div>
         )}
         <div className={`tab ${activeTab === 'payment' ? 'active' : ''}`} onClick={() => setActiveTab('payment')}>{d.tabPayment}</div>
-        <div className={`tab ${activeTab === 'integrations' ? 'active' : ''}`} onClick={() => setActiveTab('integrations')}>Integrations</div>
+        <div className={`tab ${activeTab === 'integrations' ? 'active' : ''}`} onClick={() => setActiveTab('integrations')}>{d.tabIntegrations}</div>
         {subscription?.whatsappSmsEnabled && (
-          <div className={`tab ${activeTab === 'notifications' ? 'active' : ''}`} onClick={() => setActiveTab('notifications')}>Notifications</div>
+          <div className={`tab ${activeTab === 'notifications' ? 'active' : ''}`} onClick={() => setActiveTab('notifications')}>{d.tabNotifications}</div>
         )}
         <div className={`tab ${activeTab === 'bulk' ? 'active' : ''}`} onClick={() => setActiveTab('bulk')}>{d.tabBulk}</div>
         {isLendingModule && subscription?.bureauEnabled && (
-          <div className={`tab ${activeTab === 'bureau' ? 'active' : ''}`} onClick={() => setActiveTab('bureau')}>Bureau Connect</div>
+          <div className={`tab ${activeTab === 'bureau' ? 'active' : ''}`} onClick={() => setActiveTab('bureau')}>{d.tabBureau}</div>
         )}
         {isLendingModule && subscription?.npaEnabled && (
-          <div className={`tab ${activeTab === 'npa' ? 'active' : ''}`} onClick={() => setActiveTab('npa')}>NPA Classification</div>
+          <div className={`tab ${activeTab === 'npa' ? 'active' : ''}`} onClick={() => setActiveTab('npa')}>{d.tabNpa}</div>
         )}
         {currentUser?.role === 'developer' && (
           <div className={`tab ${activeTab === 'system' ? 'active' : ''}`} onClick={() => setActiveTab('system')}>{d.tabSystem}</div>
         )}
         {(viewerRole === 'superadmin' || viewerRole === 'developer') && (
-          <div className={`tab ${activeTab === 'features' ? 'active' : ''}`} onClick={() => setActiveTab('features')}>Features</div>
+          <div className={`tab ${activeTab === 'features' ? 'active' : ''}`} onClick={() => setActiveTab('features')}>{d.featuresTitle}</div>
         )}
         {(viewerRole === 'superadmin' || viewerRole === 'developer') && (
-          <div className={`tab ${activeTab === 'theme' ? 'active' : ''}`} onClick={() => setActiveTab('theme')}>Theme</div>
+          <div className={`tab ${activeTab === 'theme' ? 'active' : ''}`} onClick={() => setActiveTab('theme')}>{d.tabTheme}</div>
         )}
         {currentUser?.role === 'superadmin' && (
           <div className={`tab ${activeTab === 'data' ? 'active' : ''}`} style={{color: 'var(--danger)'}} onClick={() => setActiveTab('data')}>{d.tabData}</div>
         )}
         {canManageAgents && (
-          <div className={`tab ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>Agents</div>
+          <div className={`tab ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>{d.tabAgents}</div>
         )}
         <div className={`tab ${activeTab === 'security' ? 'active' : ''}`} onClick={() => setActiveTab('security')}>{d.tabSecurity}</div>
       </div>
@@ -206,9 +206,9 @@ export default function SettingsClient({
       <div className={`tab-content ${activeTab === 'integrations' ? 'active' : ''}`}>
         <div className="card-header">
           <div>
-            <h3>Third-party Add-on Integrations</h3>
+            <h3>{d.integrationsTitle}</h3>
             <p style={{ fontSize: '.82rem', color: 'var(--text-secondary)', margin: '4px 0 0' }}>
-              Configure e-NACH, Razorpay, MSG91, SMTP, Digio KYC, and bureau connection status from one secure screen.
+              {d.integrationsDesc}
             </p>
           </div>
           <Link href={`/${effAppType}/settings/integrations`} className="btn btn-primary btn-sm">
@@ -237,24 +237,24 @@ export default function SettingsClient({
       <div className={`tab-content ${activeTab === 'users' ? 'active' : ''}`}>
         <div className="card-header">
           <div>
-            <h3>👥 Agents</h3>
+            <h3>👥 {d.agentsTitle}</h3>
             <p style={{ fontSize: '.78rem', color: 'var(--text-secondary)', margin: '2px 0 0' }}>
-              {manageBranchName ? <>Branch <strong>{manageBranchName}</strong> · {effAppType} module</> : 'No branch available'}
+              {manageBranchName ? <>{d.branchWord} <strong>{manageBranchName}</strong> · {effAppType} {d.moduleWord}</> : d.noBranchAvailable}
             </p>
           </div>
           {manageBranchId && (
             <button className="btn btn-primary btn-sm" onClick={() => setAgentModal({ name: '', username: '', phone: '', email: '', status: 'active', aadharNumber: '', dob: '', experience: '', age: null, bypassLoanApproval: false, bypassCustomerApproval: false, autoReleaseFloat: false, feeConfirmationMandatory: false })}>
-              <span className="material-icons-outlined" style={{ fontSize: '14px' }}>add</span> Add Agent
+              <span className="material-icons-outlined" style={{ fontSize: '14px' }}>add</span> {d.addAgent}
             </button>
           )}
         </div>
         {!manageBranchId ? (
-          <p style={{ padding: '16px', color: 'var(--text-secondary)' }}>No branch assigned. Ask a super admin to assign you to a branch.</p>
+          <p style={{ padding: '16px', color: 'var(--text-secondary)' }}>{d.noBranchAssigned}</p>
         ) : (
           <div className="table-wrapper">
             <table>
               <thead>
-                <tr><th>Name</th><th>Username</th><th>Phone</th><th>Permissions</th><th>Status</th><th style={{ textAlign: 'right' }}>Actions</th></tr>
+                <tr><th>{d.agentName}</th><th>{d.username}</th><th>{d.phone}</th><th>{d.permissions}</th><th>{d.status}</th><th style={{ textAlign: 'right' }}>{d.actions}</th></tr>
               </thead>
               <tbody>
                 {branchAgents.map((a: any) => (
@@ -265,19 +265,19 @@ export default function SettingsClient({
                     <td>
                       <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                         {a.bypassCustomerApproval && (
-                          <span className="badge badge-info" style={{ fontSize: '10px', padding: '2px 8px' }} title="Bypass Customer Approval">Auto Customer</span>
+                          <span className="badge badge-info" style={{ fontSize: '10px', padding: '2px 8px' }} title={d.bypassCustomerApproval}>{d.badgeAutoCustomer}</span>
                         )}
                         {a.bypassLoanApproval && (
-                          <span className="badge badge-pending" style={{ fontSize: '10px', padding: '2px 8px' }} title="Bypass Loan Approval">Auto Loan</span>
+                          <span className="badge badge-pending" style={{ fontSize: '10px', padding: '2px 8px' }} title={d.bypassLoanApproval}>{d.badgeAutoLoan}</span>
                         )}
                         {a.autoReleaseFloat && (
-                          <span className="badge" style={{ background: '#F3E8FF', color: '#7C3AED', fontSize: '10px', padding: '2px 8px' }} title="Auto-Release Float">Auto Disburse</span>
+                          <span className="badge" style={{ background: '#F3E8FF', color: '#7C3AED', fontSize: '10px', padding: '2px 8px' }} title={d.autoReleaseFloat}>{d.badgeAutoDisburse}</span>
                         )}
                         {a.feeConfirmationMandatory && (
-                          <span className="badge" style={{ background: '#FEF3C7', color: '#D97706', fontSize: '10px', padding: '2px 8px' }} title="Mandatory Customer Confirmation">Fee Confirm</span>
+                          <span className="badge" style={{ background: '#FEF3C7', color: '#D97706', fontSize: '10px', padding: '2px 8px' }} title={d.feeConfirmationMandatory}>{d.badgeFeeConfirm}</span>
                         )}
                         {!a.bypassCustomerApproval && !a.bypassLoanApproval && !a.autoReleaseFloat && !a.feeConfirmationMandatory && (
-                          <span style={{ color: 'var(--text-light)', fontSize: '.75rem' }}>Standard</span>
+                          <span style={{ color: 'var(--text-light)', fontSize: '.75rem' }}>{d.badgeStandard}</span>
                         )}
                       </div>
                     </td>
@@ -298,15 +298,15 @@ export default function SettingsClient({
                         bypassCustomerApproval: !!a.bypassCustomerApproval,
                         autoReleaseFloat: !!a.autoReleaseFloat,
                         feeConfirmationMandatory: !!a.feeConfirmationMandatory,
-                      })}>Edit</button>
+                      })}>{d.edit}</button>
                       <button className="btn btn-ghost btn-sm" onClick={() => toggleAgent(a.id, a.status)} style={{ color: a.status === 'active' ? 'var(--danger)' : 'var(--success)' }}>
-                        {a.status === 'active' ? 'Deactivate' : 'Activate'}
+                        {a.status === 'active' ? d.deactivate : d.activate}
                       </button>
                     </td>
                   </tr>
                 ))}
                 {branchAgents.length === 0 && (
-                  <tr><td colSpan={6} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-light)' }}>No agents yet. Add one.</td></tr>
+                  <tr><td colSpan={6} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-light)' }}>{d.noAgentsYet}</td></tr>
                 )}
               </tbody>
             </table>
@@ -315,52 +315,52 @@ export default function SettingsClient({
       </div>
       )}
 
-      <Modal isOpen={!!agentModal} onClose={() => setAgentModal(null)} title={agentModal?.id ? 'Edit Agent' : 'Add Agent'}>
+      <Modal isOpen={!!agentModal} onClose={() => setAgentModal(null)} title={agentModal?.id ? d.editAgent : d.addAgent}>
         <form onSubmit={submitAgent}>
           <div className="form-group">
-            <label className="form-label">Name</label>
+            <label className="form-label">{d.agentName}</label>
             <input name="name" className="form-control" defaultValue={agentModal?.name || ''} required />
           </div>
           <div className="form-group">
-            <label className="form-label">Username</label>
+            <label className="form-label">{d.username}</label>
             <input name="username" className="form-control" defaultValue={agentModal?.username || ''} required autoComplete="off" />
           </div>
           <div className="form-group">
-            <label className="form-label">Phone</label>
+            <label className="form-label">{d.phone}</label>
             <input name="phone" className="form-control" defaultValue={agentModal?.phone || ''} required />
           </div>
           <div className="form-group">
-            <label className="form-label">Email</label>
-            <input name="email" type="email" className="form-control" defaultValue={agentModal?.email || ''} placeholder="Optional" />
+            <label className="form-label">{d.emailLabel}</label>
+            <input name="email" type="email" className="form-control" defaultValue={agentModal?.email || ''} placeholder={d.optional} />
           </div>
           <div className="form-group">
-            <label className="form-label">{agentModal?.id ? 'New password (leave blank to keep)' : 'Password'}</label>
+            <label className="form-label">{agentModal?.id ? d.newPasswordBlank : d.password}</label>
             <input name="password" type="password" className="form-control" autoComplete="new-password" {...(agentModal?.id ? {} : { required: true })} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div className="form-group">
-              <label className="form-label">Aadhaar Number</label>
-              <input name="aadharNumber" className="form-control" defaultValue={agentModal?.aadharNumber || ''} placeholder="Optional" />
+              <label className="form-label">{d.aadhaarNumber}</label>
+              <input name="aadharNumber" className="form-control" defaultValue={agentModal?.aadharNumber || ''} placeholder={d.optional} />
             </div>
             <div className="form-group">
-              <label className="form-label">Date of Birth</label>
+              <label className="form-label">{d.dateOfBirth}</label>
               <input name="dob" type="date" className="form-control" defaultValue={agentModal?.dob || ''} />
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div className="form-group">
-              <label className="form-label">Experience</label>
-              <input name="experience" className="form-control" defaultValue={agentModal?.experience || ''} placeholder="e.g. 2 years, Optional" />
+              <label className="form-label">{d.experience}</label>
+              <input name="experience" className="form-control" defaultValue={agentModal?.experience || ''} placeholder={d.experiencePlaceholder} />
             </div>
             <div className="form-group">
-              <label className="form-label">Age</label>
-              <input name="age" type="number" className="form-control" defaultValue={agentModal?.age || ''} placeholder="Optional" />
+              <label className="form-label">{d.age}</label>
+              <input name="age" type="number" className="form-control" defaultValue={agentModal?.age || ''} placeholder={d.optional} />
             </div>
           </div>
           <div style={{ marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px', marginBottom: '16px' }}>
             <h4 style={{ fontSize: '.9rem', fontWeight: 600, marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary-dark)' }}>
               <span className="material-icons-outlined" style={{ fontSize: '18px' }}>admin_panel_settings</span>
-              Agent Permissions & Autopay Controls
+              {d.agentPermissionsTitle}
             </h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
@@ -372,8 +372,8 @@ export default function SettingsClient({
                   style={{ marginTop: '3px' }}
                 />
                 <div>
-                  <strong style={{ fontSize: '.85rem', display: 'block' }}>Bypass Customer Approval</strong>
-                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>Allow agent to create active customers without admin review.</span>
+                  <strong style={{ fontSize: '.85rem', display: 'block' }}>{d.bypassCustomerApproval}</strong>
+                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>{d.bypassCustomerApprovalDesc}</span>
                 </div>
               </label>
 
@@ -386,8 +386,8 @@ export default function SettingsClient({
                   style={{ marginTop: '3px' }}
                 />
                 <div>
-                  <strong style={{ fontSize: '.85rem', display: 'block' }}>Bypass Loan Approval</strong>
-                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>Allow agent to create active loans immediately.</span>
+                  <strong style={{ fontSize: '.85rem', display: 'block' }}>{d.bypassLoanApproval}</strong>
+                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>{d.bypassLoanApprovalDesc}</span>
                 </div>
               </label>
 
@@ -400,8 +400,8 @@ export default function SettingsClient({
                   style={{ marginTop: '3px' }}
                 />
                 <div>
-                  <strong style={{ fontSize: '.85rem', display: 'block' }}>Auto-Release Float</strong>
-                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>Automatically disburse funds from agent float when loan is created/approved.</span>
+                  <strong style={{ fontSize: '.85rem', display: 'block' }}>{d.autoReleaseFloat}</strong>
+                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>{d.autoReleaseFloatDesc}</span>
                 </div>
               </label>
 
@@ -414,22 +414,22 @@ export default function SettingsClient({
                   style={{ marginTop: '3px' }}
                 />
                 <div>
-                  <strong style={{ fontSize: '.85rem', display: 'block' }}>Mandatory Customer Confirmation</strong>
-                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>Require borrower to confirm cash collection before it reflects to admin dashboard.</span>
+                  <strong style={{ fontSize: '.85rem', display: 'block' }}>{d.feeConfirmationMandatory}</strong>
+                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>{d.feeConfirmationMandatoryDesc}</span>
                 </div>
               </label>
             </div>
           </div>
           <div className="form-group">
-            <label className="form-label">Status</label>
+            <label className="form-label">{d.status}</label>
             <select name="status" className="form-control" defaultValue={agentModal?.status || 'active'}>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
+              <option value="active">{d.activeStatus}</option>
+              <option value="inactive">{d.inactiveStatus}</option>
             </select>
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '8px' }}>
-            <button type="button" className="btn btn-ghost" onClick={() => setAgentModal(null)}>Cancel</button>
-            <button type="submit" className="btn btn-primary" disabled={agentBusy}>{agentBusy ? 'Saving…' : agentModal?.id ? 'Save' : 'Create Agent'}</button>
+            <button type="button" className="btn btn-ghost" onClick={() => setAgentModal(null)}>{d.cancel}</button>
+            <button type="submit" className="btn btn-primary" disabled={agentBusy}>{agentBusy ? d.saving : agentModal?.id ? d.save : d.createAgent}</button>
           </div>
         </form>
       </Modal>
@@ -585,7 +585,7 @@ export default function SettingsClient({
               <div className="settings-item">
                 <div className="si-info"><h4>{d.timezone}</h4><p>{d.timezoneDesc}</p></div>
                 <select name="timezone" className="form-control" style={{width:'200px'}} defaultValue={settings.timezone || 'Asia/Kolkata'}>
-                  <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
+                  <option value="Asia/Kolkata">{d.timezoneIst}</option>
                   <option value="UTC">UTC</option>
                 </select>
               </div>
@@ -605,8 +605,8 @@ export default function SettingsClient({
               </div>
               <div className="settings-item" style={{ borderTop: '1px solid var(--border)', paddingTop: '16px', marginTop: '16px' }}>
                 <div className="si-info">
-                  <h4>Identity Verification (KYC) Method</h4>
-                  <p>Choose the KYC verification method for customers. Digio integration requires active credentials.</p>
+                  <h4>{d.kycMethodTitle}</h4>
+                  <p>{d.kycMethodDesc}</p>
                 </div>
                 <div style={{ width: '200px' }}>
                   <select 
@@ -615,14 +615,14 @@ export default function SettingsClient({
                     defaultValue={settings.kyc_method || 'manual_upload'}
                     disabled={!subscription?.kycEnabled}
                   >
-                    <option value="manual_upload">Manual Document Upload</option>
-                    <option value="aadhaar_otp">Aadhaar OTP eKYC (Digio)</option>
-                    <option value="video_kyc">Video KYC (VCIP)</option>
-                    <option value="both">Both Aadhaar OTP + Video KYC</option>
+                    <option value="manual_upload">{d.kycManualUpload}</option>
+                    <option value="aadhaar_otp">{d.kycAadhaarOtp}</option>
+                    <option value="video_kyc">{d.kycVideoKyc}</option>
+                    <option value="both">{d.kycBoth}</option>
                   </select>
                   {!subscription?.kycEnabled && (
                     <div style={{ fontSize: '10px', color: 'var(--danger)', marginTop: '4px', fontWeight: 600 }}>
-                      ⚠️ Premium add-on disabled. Unlock under Superadmin Subscription.
+                      ⚠️ {d.kycPremiumDisabled}
                     </div>
                   )}
                 </div>
@@ -691,11 +691,9 @@ export default function SettingsClient({
             <span style={{fontSize:'.75rem', color:'var(--text-light)', marginTop:'4px', display:'block'}}>{d.upiQrHelper}</span>
           </div>
           <div style={{ marginTop: '24px', borderTop: '1px solid var(--border)', paddingTop: '20px', marginBottom: '20px' }}>
-            <h4 style={{ marginBottom: '8px' }}>✅ UPI Verification</h4>
+            <h4 style={{ marginBottom: '8px' }}>✅ {d.upiVerificationTitle}</h4>
             <p style={{ fontSize: '.8rem', color: 'var(--text-light)', marginBottom: '12px' }}>
-              By default UPI/online collections are verified automatically and credited to the
-              account the moment they are recorded. Turn this on only if an admin must review
-              each UPI payment by hand (shows the Pending UPI panel on the dashboard).
+              {d.upiVerificationDesc}
             </p>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
               <input
@@ -704,14 +702,14 @@ export default function SettingsClient({
                 value="true"
                 defaultChecked={settings.upi_manual_verification === 'true'}
               />
-              <strong>Require manual UPI verification</strong>
+              <strong>{d.requireManualUpi}</strong>
             </label>
           </div>
           {subscription?.receiptPdfAllowed && (
             <div style={{ marginTop: '24px', borderTop: '1px solid var(--border)', paddingTop: '20px', marginBottom: '20px' }}>
-              <h4 style={{ marginBottom: '8px' }}>📄 Payment Receipt PDF</h4>
+              <h4 style={{ marginBottom: '8px' }}>📄 {d.receiptPdfTitle}</h4>
               <p style={{ fontSize: '.8rem', color: 'var(--text-light)', marginBottom: '12px' }}>
-                Allow downloading of A5 branded collection receipt PDFs and customer account statement PDFs.
+                {d.receiptPdfDesc}
               </p>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                 <input 
@@ -720,7 +718,7 @@ export default function SettingsClient({
                   value="true" 
                   defaultChecked={settings.receipt_pdf_active === 'true'} 
                 />
-                <strong>Enable Receipt & Statement PDFs</strong>
+                <strong>{d.enableReceiptPdf}</strong>
               </label>
             </div>
           )}
@@ -734,18 +732,18 @@ export default function SettingsClient({
       {/* Notifications Tab */}
       <div className={`tab-content ${activeTab === 'notifications' ? 'active' : ''}`}>
         <div className="card-header">
-          <h3>🔔 Automated Notification Settings</h3>
+          <h3>🔔 {d.notificationsTitle}</h3>
         </div>
         <form action={async (fd) => { 
           setLoading(true); 
           await saveNotificationSettings(fd); 
           setLoading(false); 
-          showToast('Notification settings saved'); 
+          showToast(d.notificationsSaved); 
         }} style={{ maxWidth: '800px' }}>
           
           <div className="form-group" style={{ marginBottom: '20px' }}>
             <p style={{ fontSize: '.85rem', color: 'var(--text-secondary)', marginBottom: '15px' }}>
-              Configure automated outbound notifications to borrowers and admins. SMS/WhatsApp alerts require the MSG91 provider, while email alerts use SMTP.
+              {d.notificationsIntro}
             </p>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
               <input 
@@ -754,15 +752,15 @@ export default function SettingsClient({
                 value="true" 
                 defaultChecked={settings.whatsapp_sms_active !== 'false'} 
               />
-              <strong>Enable Automated Notifications (Master Switch)</strong>
+              <strong>{d.enableNotificationsMaster}</strong>
             </label>
             <span style={{ fontSize: '.75rem', color: 'var(--text-light)', marginTop: '6px', display: 'block' }}>
-              If unchecked, all automatic outbound notifications will be disabled.
+              {d.notificationsMasterOff}
             </span>
           </div>
 
           <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px', marginTop: '12px' }}>
-            <h4 style={{ fontSize: '.95rem', fontWeight: 700, marginBottom: '12px' }}>📡 Active Channels</h4>
+            <h4 style={{ fontSize: '.95rem', fontWeight: 700, marginBottom: '12px' }}>📡 {d.activeChannels}</h4>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '20px' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: subscription?.whatsappSmsEnabled ? 'pointer' : 'not-allowed', opacity: subscription?.whatsappSmsEnabled ? 1 : 0.6 }}>
                 <input 
@@ -772,7 +770,7 @@ export default function SettingsClient({
                   defaultChecked={settings.notify_channel_sms === 'true'} 
                   disabled={!subscription?.whatsappSmsEnabled}
                 />
-                <span>SMS (via MSG91)</span>
+                <span>{d.channelSms}</span>
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: subscription?.whatsappSmsEnabled ? 'pointer' : 'not-allowed', opacity: subscription?.whatsappSmsEnabled ? 1 : 0.6 }}>
                 <input 
@@ -782,7 +780,7 @@ export default function SettingsClient({
                   defaultChecked={settings.notify_channel_whatsapp === 'true'} 
                   disabled={!subscription?.whatsappSmsEnabled}
                 />
-                <span>WhatsApp (via MSG91)</span>
+                <span>{d.channelWhatsapp}</span>
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                 <input 
@@ -791,77 +789,77 @@ export default function SettingsClient({
                   value="true" 
                   defaultChecked={settings.notify_channel_email === 'true'} 
                 />
-                <span>Email (via SMTP)</span>
+                <span>{d.channelEmail}</span>
               </label>
             </div>
             {!subscription?.whatsappSmsEnabled && (
               <div style={{ padding: '10px 12px', background: 'var(--danger-light)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', color: 'var(--danger)', fontSize: '.8rem', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: '6px', marginBottom: '20px' }}>
                 <span className="material-icons-outlined" style={{ fontSize: '16px' }}>warning</span>
-                SMS & WhatsApp channels are locked under your current subscription.
+                {d.channelsLocked}
               </div>
             )}
           </div>
 
           {/* MSG91 settings (only if subscription enabled, else display alert) */}
           <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px', marginTop: '12px' }}>
-            <h4 style={{ fontSize: '.95rem', fontWeight: 700, marginBottom: '12px', color: 'var(--primary)' }}>💬 MSG91 Provider Credentials</h4>
+            <h4 style={{ fontSize: '.95rem', fontWeight: 700, marginBottom: '12px', color: 'var(--primary)' }}>💬 {d.msg91Title}</h4>
             {subscription?.whatsappSmsEnabled ? (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '20px' }}>
                 <div className="form-group">
-                  <label className="form-label" style={{ fontSize: '.8rem' }}>MSG91 Auth Key</label>
+                  <label className="form-label" style={{ fontSize: '.8rem' }}>{d.msg91AuthKey}</label>
                   <input 
                     type="password" 
                     name="msg91_auth_key" 
                     className="form-control" 
-                    placeholder="Enter MSG91 API Key" 
+                    placeholder={d.msg91AuthKeyPlaceholder} 
                     defaultValue={settings.msg91_auth_key || ''} 
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label" style={{ fontSize: '.8rem' }}>SMS Sender ID</label>
+                  <label className="form-label" style={{ fontSize: '.8rem' }}>{d.smsSenderId}</label>
                   <input 
                     type="text" 
                     name="msg91_sender_id" 
                     className="form-control" 
-                    placeholder="e.g. LNTRCK" 
+                    placeholder={d.smsSenderIdPlaceholder} 
                     defaultValue={settings.msg91_sender_id || 'LNTRCK'} 
                     maxLength={6} 
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label" style={{ fontSize: '.8rem' }}>WhatsApp Sender Number</label>
+                  <label className="form-label" style={{ fontSize: '.8rem' }}>{d.whatsappSenderNumber}</label>
                   <input 
                     type="text" 
                     name="msg91_whatsapp_number" 
                     className="form-control" 
-                    placeholder="e.g. 917xxxxxxxxxx" 
+                    placeholder={d.whatsappSenderPlaceholder} 
                     defaultValue={settings.msg91_whatsapp_number || ''} 
                   />
                 </div>
               </div>
             ) : (
               <p style={{ fontSize: '.8rem', color: 'var(--text-light)', marginBottom: '20px' }}>
-                Unlock MSG91 configurations by enabling the SMS & WhatsApp notifications subscription addon.
+                {d.msg91Locked}
               </p>
             )}
           </div>
 
           {/* SMTP settings (always available) */}
           <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px', marginTop: '12px' }}>
-            <h4 style={{ fontSize: '.95rem', fontWeight: 700, marginBottom: '12px', color: 'var(--primary)' }}>✉️ SMTP Email Server Settings</h4>
+            <h4 style={{ fontSize: '.95rem', fontWeight: 700, marginBottom: '12px', color: 'var(--primary)' }}>✉️ {d.smtpTitle}</h4>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
               <div className="form-group">
-                <label className="form-label" style={{ fontSize: '.8rem' }}>SMTP Host</label>
+                <label className="form-label" style={{ fontSize: '.8rem' }}>{d.smtpHost}</label>
                 <input 
                   type="text" 
                   name="smtp_host" 
                   className="form-control" 
-                  placeholder="e.g. smtp.gmail.com" 
+                  placeholder={d.smtpHostPlaceholder} 
                   defaultValue={settings.smtp_host || ''} 
                 />
               </div>
               <div className="form-group">
-                <label className="form-label" style={{ fontSize: '.8rem' }}>SMTP Port</label>
+                <label className="form-label" style={{ fontSize: '.8rem' }}>{d.smtpPort}</label>
                 <input 
                   type="text" 
                   name="smtp_port" 
@@ -873,32 +871,32 @@ export default function SettingsClient({
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '20px' }}>
               <div className="form-group">
-                <label className="form-label" style={{ fontSize: '.8rem' }}>SMTP Username</label>
+                <label className="form-label" style={{ fontSize: '.8rem' }}>{d.smtpUsername}</label>
                 <input 
                   type="text" 
                   name="smtp_user" 
                   className="form-control" 
-                  placeholder="Sender email address" 
+                  placeholder={d.smtpUsernamePlaceholder} 
                   defaultValue={settings.smtp_user || ''} 
                 />
               </div>
               <div className="form-group">
-                <label className="form-label" style={{ fontSize: '.8rem' }}>SMTP Password</label>
+                <label className="form-label" style={{ fontSize: '.8rem' }}>{d.smtpPassword}</label>
                 <input 
                   type="password" 
                   name="smtp_pass" 
                   className="form-control" 
-                  placeholder="SMTP / App Password" 
+                  placeholder={d.smtpPasswordPlaceholder} 
                   defaultValue={settings.smtp_pass || ''} 
                 />
               </div>
               <div className="form-group">
-                <label className="form-label" style={{ fontSize: '.8rem' }}>From Display Name</label>
+                <label className="form-label" style={{ fontSize: '.8rem' }}>{d.smtpFromName}</label>
                 <input 
                   type="text" 
                   name="smtp_from_name" 
                   className="form-control" 
-                  placeholder="e.g. Erode Finance" 
+                  placeholder={d.smtpFromNamePlaceholder} 
                   defaultValue={settings.smtp_from_name || ''} 
                 />
               </div>
@@ -907,15 +905,15 @@ export default function SettingsClient({
 
           {/* Event settings (always available) */}
           <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px', marginTop: '12px' }}>
-            <h4 style={{ fontSize: '.95rem', fontWeight: 700, marginBottom: '12px' }}>🔔 Notification Triggers</h4>
+            <h4 style={{ fontSize: '.95rem', fontWeight: 700, marginBottom: '12px' }}>🔔 {d.notificationTriggers}</h4>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '25px' }}>
               {[
-                { key: 'notify_event_payment_received', label: 'Payment received' },
-                { key: 'notify_event_due_reminder', label: 'Due date reminder' },
-                { key: 'notify_event_loan_disbursed', label: 'Loan disbursed' },
-                { key: 'notify_event_loan_overdue', label: 'Loan overdue' },
-                { key: 'notify_event_loan_closed', label: 'Loan closed' },
-                { key: 'notify_event_penalty_accrued', label: 'Penalty accrued' },
+                { key: 'notify_event_payment_received', label: d.eventPaymentReceived },
+                { key: 'notify_event_due_reminder', label: d.eventDueReminder },
+                { key: 'notify_event_loan_disbursed', label: d.eventLoanDisbursed },
+                { key: 'notify_event_loan_overdue', label: d.eventLoanOverdue },
+                { key: 'notify_event_loan_closed', label: d.eventLoanClosed },
+                { key: 'notify_event_penalty_accrued', label: d.eventPenaltyAccrued },
               ].map(({ key, label }) => (
                 <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                   <input 
@@ -934,10 +932,10 @@ export default function SettingsClient({
             <div>
               <h4 style={{ fontSize: '.95rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary-dark)', margin: 0 }}>
                 <span className="material-icons-outlined" style={{ fontSize: '18px' }}>list_alt</span>
-                Notification Audit Trails
+                {d.notificationAuditTitle}
               </h4>
               <p style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginTop: '4px', margin: 0 }}>
-                Review details of sent, failed, and pending borrower alerts.
+                {d.notificationAuditDesc}
               </p>
             </div>
             <Link 
@@ -946,12 +944,12 @@ export default function SettingsClient({
               style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px', height: 'fit-content' }}
             >
               <span className="material-icons-outlined" style={{ fontSize: '14px' }}>history</span>
-              View Logs
+              {d.viewNotificationLogs}
             </Link>
           </div>
 
           <button type="submit" className="btn btn-primary" disabled={loading}>
-            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>save</span> {loading ? 'Saving...' : 'Save Settings'}
+            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>save</span> {loading ? d.saving : d.saveSettings}
           </button>
         </form>
 
@@ -960,33 +958,33 @@ export default function SettingsClient({
           <div style={{ marginBottom: '16px' }}>
             <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--primary-dark)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span className="material-icons-outlined">edit_note</span>
-              Custom Messages & Templates Editor
+              {d.templatesTitle}
             </h4>
             <p style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-              Select a trigger event and target language to edit message bodies for SMS, WhatsApp, and Push channels.
+              {d.templatesDesc}
             </p>
           </div>
 
           {/* Selector Grid */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
             <div className="form-group">
-              <label className="form-label" style={{ fontSize: '.8rem', fontWeight: 600 }}>Trigger Event</label>
+              <label className="form-label" style={{ fontSize: '.8rem', fontWeight: 600 }}>{d.triggerEvent}</label>
               <select 
                 className="form-control" 
                 value={selectedEvent} 
                 onChange={(e) => setSelectedEvent(e.target.value)}
               >
-                <option value="payment_received">Payment Received</option>
-                <option value="payment_due_reminder">Due Date Reminder</option>
-                <option value="loan_disbursed">Loan Disbursed</option>
-                <option value="loan_overdue">Loan Overdue</option>
-                <option value="loan_closed">Loan Closed</option>
-                <option value="penalty_accrued">Penalty Accrued</option>
+                <option value="payment_received">{d.eventPaymentReceived}</option>
+                <option value="payment_due_reminder">{d.eventDueReminder}</option>
+                <option value="loan_disbursed">{d.eventLoanDisbursed}</option>
+                <option value="loan_overdue">{d.eventLoanOverdue}</option>
+                <option value="loan_closed">{d.eventLoanClosed}</option>
+                <option value="penalty_accrued">{d.eventPenaltyAccrued}</option>
               </select>
             </div>
 
             <div className="form-group">
-              <label className="form-label" style={{ fontSize: '.8rem', fontWeight: 600 }}>Language</label>
+              <label className="form-label" style={{ fontSize: '.8rem', fontWeight: 600 }}>{d.languageLabel}</label>
               <select 
                 className="form-control" 
                 value={selectedLang} 
@@ -1111,18 +1109,18 @@ export default function SettingsClient({
                       </label>
                     </div>
                     <div className="form-group" style={{ marginBottom: '8px' }}>
-                      <label className="form-label" style={{ fontSize: '.75rem' }}>Push Title / Subject</label>
+                      <label className="form-label" style={{ fontSize: '.75rem' }}>{d.pushTitleSubject}</label>
                       <input 
                         type="text" 
                         name="push_subject" 
                         className="form-control" 
                         defaultValue={pushTemp?.subject || ''} 
-                        placeholder="e.g. Payment Confirmation"
+                        placeholder={d.pushSubjectPlaceholder}
                         key={`${selectedEvent}-${selectedLang}-push-subject`}
                       />
                     </div>
                     <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label" style={{ fontSize: '.75rem' }}>Push Body</label>
+                      <label className="form-label" style={{ fontSize: '.75rem' }}>{d.pushBody}</label>
                       <textarea 
                         name="push_body" 
                         className="form-control" 
@@ -1171,7 +1169,7 @@ export default function SettingsClient({
                             navigator.clipboard.writeText(token);
                             showToast(`Copied ${token} to clipboard!`);
                           }
-                        }} title="Click to copy">{token}</span>
+                        }} title={d.clickToCopy}>{token}</span>
                         <span style={{ color: 'var(--text-light)', fontSize: '.72rem', marginTop: '2px' }}>{desc}</span>
                       </div>
                     ))}
@@ -1339,7 +1337,7 @@ export default function SettingsClient({
       {isLendingModule && subscription?.bureauEnabled && (
         <div className={`tab-content ${activeTab === 'bureau' ? 'active' : ''}`}>
           <div className="card-header">
-            <h3>🏦 Credit Bureau Connect Settings</h3>
+            <h3>🏦 {d.bureauConnectTitle}</h3>
           </div>
           
           <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px', alignItems: 'start' }}>
@@ -1352,75 +1350,75 @@ export default function SettingsClient({
                 showToast("Bureau credentials saved successfully!");
                 window.location.reload();
               } else {
-                alert(res.error || "Failed to save settings.");
+                alert(res.error || d.bureauSaveFailed);
               }
             }} style={{ maxWidth: '600px' }}>
               
               <div className="form-group">
-                <label className="form-label">Bureau Provider</label>
+                <label className="form-label">{d.bureauProvider}</label>
                 <select name="provider" className="form-control" defaultValue={bureauCredential?.provider || 'CRIF'}>
-                  <option value="CRIF">CRIF High Mark (MFI focus)</option>
-                  <option value="CIBIL">TransUnion CIBIL (Consumer focus)</option>
+                  <option value="CRIF">{d.bureauCrif}</option>
+                  <option value="CIBIL">{d.bureauCibil}</option>
                 </select>
               </div>
 
               <div className="form-group">
-                <label className="form-label">Environment</label>
+                <label className="form-label">{d.bureauEnvironment}</label>
                 <select name="environment" className="form-control" defaultValue={bureauCredential?.environment || 'sandbox'}>
-                  <option value="sandbox">Sandbox (Testing / Mock Data)</option>
-                  <option value="production">Production (Live Bureau API)</option>
+                  <option value="sandbox">{d.envSandbox}</option>
+                  <option value="production">{d.envProduction}</option>
                 </select>
               </div>
 
               <div className="form-group">
-                <label className="form-label">Member ID / Reference Number</label>
+                <label className="form-label">{d.memberId}</label>
                 <input 
                   type="text" 
                   name="memberId" 
                   className="form-control" 
                   defaultValue={bureauCredential?.memberId || ''} 
                   required 
-                  placeholder="e.g. MFI000001"
+                  placeholder={d.optional}
                 />
               </div>
 
               <div className="form-group">
-                <label className="form-label">API Key / User ID</label>
+                <label className="form-label">{d.apiKey}</label>
                 <input 
                   type="password" 
                   name="apiKey" 
                   className="form-control" 
                   defaultValue={bureauCredential?.apiKey || ''} 
                   required
-                  placeholder="e.g. api_user_xxx"
+                  placeholder={d.optional}
                 />
               </div>
 
               <div className="form-group">
-                <label className="form-label">API Secret / Password (Optional)</label>
+                <label className="form-label">{d.apiSecret}</label>
                 <input 
                   type="password" 
                   name="apiSecret" 
                   className="form-control" 
                   defaultValue={bureauCredential?.apiSecret || ''}
-                  placeholder="e.g. secret_pass_xxx"
+                  placeholder={d.optional}
                 />
               </div>
 
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">SSL Client Certificate (.pem)</label>
+                  <label className="form-label">{d.sslCert}</label>
                   <input type="file" name="bureauCert" accept=".pem" className="form-control" />
                   <span style={{ fontSize: '.75rem', color: bureauCredential?.hasCert ? 'var(--success)' : 'var(--text-light)', marginTop: '4px', display: 'block' }}>
-                    {bureauCredential?.hasCert ? '✅ Client SSL Certificate has been uploaded.' : '❌ No SSL Certificate uploaded yet.'}
+                    {bureauCredential?.hasCert ? d.certUploaded : d.certMissing}
                   </span>
                 </div>
                 
                 <div className="form-group">
-                  <label className="form-label">SSL Private Key (.pem)</label>
+                  <label className="form-label">{d.sslKey}</label>
                   <input type="file" name="bureauKey" accept=".pem" className="form-control" />
                   <span style={{ fontSize: '.75rem', color: bureauCredential?.hasKey ? 'var(--success)' : 'var(--text-light)', marginTop: '4px', display: 'block' }}>
-                    {bureauCredential?.hasKey ? '✅ Client Private Key has been uploaded.' : '❌ No Private Key uploaded yet.'}
+                    {bureauCredential?.hasKey ? d.keyUploaded : d.keyMissing}
                   </span>
                 </div>
               </div>
@@ -1433,12 +1431,12 @@ export default function SettingsClient({
                     value="true" 
                     defaultChecked={bureauCredential?.isActive !== false} 
                   />
-                  <strong>Enable Bureau Pulls</strong>
+                  <strong>{d.enableBureau}</strong>
                 </label>
               </div>
 
               <button type="submit" className="btn btn-primary" disabled={loading}>
-                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>save</span> {loading ? 'Saving...' : 'Save Bureau Credentials'}
+                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>save</span> {loading ? d.saving : d.saveBureauBtn}
               </button>
             </form>
 
@@ -1446,23 +1444,25 @@ export default function SettingsClient({
             <div style={{ background: 'var(--bg-alt)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '20px' }}>
               <h4 style={{ margin: '0 0 16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span className="material-icons-outlined" style={{ color: 'var(--primary)' }}>help_outline</span>
-                Go-Live Checklist
+                {d.goLiveChecklist}
               </h4>
               <ol style={{ paddingLeft: '16px', fontSize: '.85rem', display: 'flex', flexDirection: 'column', gap: '12px', color: 'var(--text-secondary)' }}>
                 <li>
-                  <strong>Obtain CIC License:</strong> Secure a Credit Information Company license from RBI.
+                  <strong>{d.checklistLicense}</strong> {d.checklistLicenseDesc}
                 </li>
                 <li>
-                  <strong>Apply to CRIF/CIBIL:</strong> Apply independently for a Member ID and request "Ecosystem Sandbox Integration".
+                  <strong>{d.checklistApply}</strong> {d.checklistApplyDesc}
                 </li>
                 <li>
-                  <strong>Whitelist VPS Static IP:</strong> Request CRIF support to whitelist your VPS egress IP:
+                  <strong>{d.checklistWhitelist}</strong> {d.checklistWhitelistDesc}
                   <div style={{ margin: '6px 0', padding: '6px 10px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '4px', fontFamily: 'monospace', fontWeight: 600, display: 'inline-block' }}>
-                    195.12.34.56 {/* Replace with VPS Egress IP details */}
+                    {/* Never hardcode infrastructure (STABLE-4): the address comes
+                        from the tenant setting an operator fills in. */}
+                    {settings.bureau_egress_ip || d.egressIpUnset}
                   </div>
                 </li>
                 <li>
-                  <strong>Upload SSL Certificates:</strong> Input Member ID, API key/secret, and upload PEM Client Certificate & Private Key issued by the bureau.
+                  <strong>{d.checklistUpload}</strong> {d.checklistUploadDesc}
                 </li>
               </ol>
             </div>
@@ -1474,13 +1474,13 @@ export default function SettingsClient({
       {isLendingModule && subscription?.npaEnabled && (
         <div className={`tab-content ${activeTab === 'npa' ? 'active' : ''}`}>
           <div className="card-header">
-            <h3>📊 NPA Classification Engine (RBI IRACP)</h3>
+            <h3>📊 {d.npaEngineTitle}</h3>
           </div>
           <div style={{ maxWidth: '700px' }}>
             <div style={{ padding: '16px', background: 'var(--bg-alt)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: '20px' }}>
               <h4 style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span className="material-icons-outlined" style={{ color: 'var(--success)', fontSize: '20px' }}>check_circle</span>
-                Module Active
+                {d.npaModuleActive}
               </h4>
               <p style={{ fontSize: '.85rem', color: 'var(--text-secondary)', marginBottom: '12px' }}>
                 NPA Classification Engine is running on a daily automated schedule. All active and overdue loans are automatically classified
@@ -1488,33 +1488,33 @@ export default function SettingsClient({
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '.85rem' }}>
                 <div style={{ padding: '12px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                  <strong>Classification Schedule</strong>
-                  <p style={{ color: 'var(--text-light)', margin: '4px 0 0' }}>Daily at 2:00 AM IST (after penalty accrual)</p>
+                  <strong>{d.classificationSchedule}</strong>
+                  <p style={{ color: 'var(--text-light)', margin: '4px 0 0' }}>{d.classificationScheduleVal}</p>
                 </div>
                 <div style={{ padding: '12px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                  <strong>Provisioning Basis</strong>
-                  <p style={{ color: 'var(--text-light)', margin: '4px 0 0' }}>RBI Master Circular IRACP 2023</p>
+                  <strong>{d.provisioningBasis}</strong>
+                  <p style={{ color: 'var(--text-light)', margin: '4px 0 0' }}>{d.provisioningBasisVal}</p>
                 </div>
               </div>
             </div>
 
             <div style={{ padding: '16px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: '20px' }}>
-              <h4 style={{ marginBottom: '12px' }}>RBI Provisioning Rates</h4>
+              <h4 style={{ marginBottom: '12px' }}>{d.rbiProvisioningRates}</h4>
               <table style={{ width: '100%', fontSize: '.82rem' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    <th style={{ padding: '8px', textAlign: 'left' }}>Category</th>
-                    <th style={{ padding: '8px', textAlign: 'left' }}>Overdue Days</th>
-                    <th style={{ padding: '8px', textAlign: 'right' }}>Provisioning %</th>
+                    <th style={{ padding: '8px', textAlign: 'left' }}>{d.colCategory}</th>
+                    <th style={{ padding: '8px', textAlign: 'left' }}>{d.colOverdueDays}</th>
+                    <th style={{ padding: '8px', textAlign: 'right' }}>{d.colProvisioningPct}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr><td style={{ padding: '6px 8px' }}>Standard</td><td style={{ padding: '6px 8px' }}>0</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>0.40%</td></tr>
-                  <tr style={{ background: 'var(--bg-alt)' }}><td style={{ padding: '6px 8px' }}>SMA-0 / SMA-1 / SMA-2</td><td style={{ padding: '6px 8px' }}>1–90</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>0.40%</td></tr>
-                  <tr><td style={{ padding: '6px 8px', color: 'var(--warning)' }}>Sub-Standard</td><td style={{ padding: '6px 8px' }}>91–365</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>15%</td></tr>
-                  <tr style={{ background: 'var(--bg-alt)' }}><td style={{ padding: '6px 8px', color: 'var(--danger)' }}>Doubtful D1</td><td style={{ padding: '6px 8px' }}>NPA 12–24 mo</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>100% (unsecured)</td></tr>
-                  <tr><td style={{ padding: '6px 8px', color: 'var(--danger)' }}>Doubtful D2</td><td style={{ padding: '6px 8px' }}>NPA 24–36 mo</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>100% (unsecured)</td></tr>
-                  <tr style={{ background: 'var(--bg-alt)' }}><td style={{ padding: '6px 8px', color: 'var(--danger)' }}>Doubtful D3 / Loss</td><td style={{ padding: '6px 8px' }}>NPA 36+ mo</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>100%</td></tr>
+                  <tr><td style={{ padding: '6px 8px' }}>{d.catStandard}</td><td style={{ padding: '6px 8px' }}>0</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>0.40%</td></tr>
+                  <tr style={{ background: 'var(--bg-alt)' }}><td style={{ padding: '6px 8px' }}>{d.catSma}</td><td style={{ padding: '6px 8px' }}>1–90</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>0.40%</td></tr>
+                  <tr><td style={{ padding: '6px 8px', color: 'var(--warning)' }}>{d.catSubStandard}</td><td style={{ padding: '6px 8px' }}>91–365</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>15%</td></tr>
+                  <tr style={{ background: 'var(--bg-alt)' }}><td style={{ padding: '6px 8px', color: 'var(--danger)' }}>{d.catDoubtfulD1}</td><td style={{ padding: '6px 8px' }}>{d.npaMonths1224}</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>{d.unsecuredSuffix}</td></tr>
+                  <tr><td style={{ padding: '6px 8px', color: 'var(--danger)' }}>{d.catDoubtfulD2}</td><td style={{ padding: '6px 8px' }}>{d.npaMonths2436}</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>{d.unsecuredSuffix}</td></tr>
+                  <tr style={{ background: 'var(--bg-alt)' }}><td style={{ padding: '6px 8px', color: 'var(--danger)' }}>{d.catDoubtfulD3Loss}</td><td style={{ padding: '6px 8px' }}>{d.npaMonths36plus}</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>100%</td></tr>
                 </tbody>
               </table>
             </div>
@@ -1586,9 +1586,9 @@ export default function SettingsClient({
       <div className={`tab-content ${activeTab === 'theme' ? 'active' : ''}`}>
         <div className="card-header">
           <div>
-            <h3>🎨 Colour Theme</h3>
+            <h3>🎨 {d.themeTitle}</h3>
             <p style={{ fontSize: '.78rem', color: 'var(--text-secondary)', margin: '2px 0 0' }}>
-              Applies to the web dashboard and the mobile app for everyone in this business.
+              {d.themeDesc}
             </p>
           </div>
         </div>
@@ -1606,8 +1606,8 @@ export default function SettingsClient({
             <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
               <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'linear-gradient(135deg, #E67E22, #2980B9, #27AE60, #B8860B)' }} />
             </div>
-            <div style={{ fontWeight: 600, fontSize: '.85rem' }}>Default</div>
-            <div style={{ fontSize: '.72rem', color: 'var(--text-secondary)' }}>Per-module colours</div>
+            <div style={{ fontWeight: 600, fontSize: '.85rem' }}>{d.themeDefault}</div>
+            <div style={{ fontSize: '.72rem', color: 'var(--text-secondary)' }}>{d.themeDefaultDesc}</div>
           </div>
 
           {THEME_PRESETS.map((t) => (
@@ -1781,7 +1781,7 @@ export default function SettingsClient({
       <Modal isOpen={is2faModalOpen} onClose={() => setIs2faModalOpen(false)} title={d.enableTwoFaTitle}>
         <div style={{textAlign:'center'}}>
           <p style={{marginBottom:'15px', fontSize:'.9rem'}}>{d.scanQr}</p>
-          {qrCode && <img src={qrCode} alt="QR Code" style={{width:'200px', height:'200px', margin:'0 auto 15px', border:'8px solid #fff', borderRadius:'var(--radius)'}} />}
+          {qrCode && <img src={qrCode} alt={d.qrCodeAlt} style={{width:'200px', height:'200px', margin:'0 auto 15px', border:'8px solid #fff', borderRadius:'var(--radius)'}} />}
           <p style={{fontSize:'.8rem', color:'var(--text-light)', marginBottom:'20px'}}>{d.secretKey}: <code>{tempSecret}</code></p>
 
           <div className="form-group" style={{textAlign:'left'}}>
