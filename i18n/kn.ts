@@ -667,6 +667,11 @@ export const kn = {
     closurePlusInterestDue: 'ಈಗಾಗಲೇ ಪಾವತಿಸಬೇಕಾದ ಬಡ್ಡಿ',
     closureRemainingWaived: 'ಉಳಿದ ಮಾಸಿಕ ಕಂತುಗಳನ್ನು ಮನ್ನಾ ಮಾಡಲಾಗುತ್ತದೆ ಮತ್ತು ಸಾಲ',
     plusWord: 'ಜೊತೆಗೆ',
+    noUpiConfigured: 'UPI ID ಕಾನ್ಫಿಗರ್ ಮಾಡಿಲ್ಲ. ಪಾವತಿ QR ತೋರಿಸಲು Payments Gateway ಸೆಟ್ಟಿಂಗ್‌ಗಳಲ್ಲಿ ಅದನ್ನು ಹೊಂದಿಸಿ.',
+    outstandingPrincipalIs: 'ಉಳಿದ ಅಸಲು',
+    perMonthSuffix: 'ತಿಂಗಳಿಗೆ',
+    atRatePerMonth: 'ದರದಲ್ಲಿ',
+    partPaymentRepricesDues: 'ಭಾಗಶಃ ಪಾವತಿ ಅಸಲನ್ನು ಕಡಿಮೆ ಮಾಡುತ್ತದೆ, ಮತ್ತು ಉಳಿದ ಪ್ರತಿ ಮಾಸಿಕ ಕಂತನ್ನು ಹೊಸ ಬಾಕಿಯ ಮೇಲೆ ಮರು ಲೆಕ್ಕಹಾಕಲಾಗುತ್ತದೆ.',
   },
   loansList: {
     title: 'ಸಾಲ ನೋಂದಣಿ',

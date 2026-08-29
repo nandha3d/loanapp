@@ -667,6 +667,11 @@ export const hi = {
     closurePlusInterestDue: 'पहले से देय ब्याज',
     closureRemainingWaived: 'शेष मासिक किस्तें माफ की जाती हैं और ऋण',
     plusWord: 'साथ ही',
+    noUpiConfigured: 'कोई UPI ID कॉन्फ़िगर नहीं है। भुगतान QR दिखाने के लिए इसे Payments Gateway सेटिंग्स में सेट करें।',
+    outstandingPrincipalIs: 'बकाया मूलधन',
+    perMonthSuffix: 'प्रति माह',
+    atRatePerMonth: 'पर',
+    partPaymentRepricesDues: 'आंशिक भुगतान लेने से मूलधन घटता है, और शेष हर मासिक किस्त नई शेष राशि पर पुनर्गणित होती है।',
   },
   loansList: {
     title: 'ऋण सूची',

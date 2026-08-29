@@ -667,6 +667,11 @@ export const ta = {
     closurePlusInterestDue: 'ஏற்கனவே செலுத்த வேண்டிய வட்டி',
     closureRemainingWaived: 'மீதமுள்ள மாதத் தவணைகள் தள்ளுபடி செய்யப்பட்டு கடன்',
     plusWord: 'மேலும்',
+    noUpiConfigured: 'UPI ID அமைக்கப்படவில்லை. கட்டண QR காட்ட Payments Gateway அமைப்புகளில் அதை அமைக்கவும்.',
+    outstandingPrincipalIs: 'நிலுவை அசல்',
+    perMonthSuffix: 'மாதம் ஒன்றுக்கு',
+    atRatePerMonth: 'விகிதத்தில்',
+    partPaymentRepricesDues: 'பகுதிச் செலுத்தல் அசலைக் குறைக்கிறது; மீதமுள்ள ஒவ்வொரு மாதத் தவணையும் புதிய இருப்பின் அடிப்படையில் மறு கணக்கிடப்படும்.',
   },
   loansList: {
     title: 'கடன் பட்டியல்',

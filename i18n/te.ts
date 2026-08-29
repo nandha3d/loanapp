@@ -667,6 +667,11 @@ export const te = {
     closurePlusInterestDue: 'ఇప్పటికే చెల్లించాల్సిన వడ్డీ',
     closureRemainingWaived: 'మిగిలిన నెలవారీ వాయిదాలు రద్దు చేయబడతాయి మరియు రుణం',
     plusWord: 'అదనంగా',
+    noUpiConfigured: 'UPI ID కాన్ఫిగర్ చేయలేదు. చెల్లింపు QR చూపడానికి Payments Gateway సెట్టింగ్‌లలో దీన్ని సెట్ చేయండి.',
+    outstandingPrincipalIs: 'మిగిలిన అసలు',
+    perMonthSuffix: 'నెలకు',
+    atRatePerMonth: 'వద్ద',
+    partPaymentRepricesDues: 'పాక్షిక చెల్లింపు అసలును తగ్గిస్తుంది, మిగిలిన ప్రతి నెలవారీ వాయిదా కొత్త బ్యాలెన్స్ ఆధారంగా తిరిగి లెక్కించబడుతుంది.',
   },
   loansList: {
     title: 'రుణ రిజిస్ట్రీ',

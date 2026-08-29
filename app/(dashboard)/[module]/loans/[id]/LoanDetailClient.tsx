@@ -957,7 +957,7 @@ export default function LoanDetailClient({
                           Status: {inst.status}
                         </div>
                         <div style={{ fontSize: '.58rem', color: '#94A3B8', marginTop: '4px', textAlign: 'center', fontStyle: 'italic' }}>
-                          Click to scroll & highlight
+                          {d.clickScrollHighlight}
                         </div>
                       </div>
                     </div>
@@ -1568,7 +1568,7 @@ export default function LoanDetailClient({
                   )}
                   {payMode === 'upi' && !upiId && (
                     <p style={{ fontSize: '.78rem', color: 'var(--danger, #dc2626)', margin: '12px 0', textAlign: 'center' }}>
-                      No UPI ID configured. Set it in Payments Gateway settings to show a pay QR.
+                      {d.noUpiConfigured}
                     </p>
                   )}
                   <div className="form-group">
@@ -1639,9 +1639,10 @@ export default function LoanDetailClient({
             <div className="modal-body">
               <div style={{ background: 'var(--bg-alt)', borderRadius: 'var(--radius-sm)', padding: '16px', marginBottom: '16px', border: '1px solid var(--border)' }}>
                 <p style={{ fontSize: '.85rem', color: 'var(--text-secondary)' }}>
-                  Outstanding principal is <strong>{formatCurrency(outstandingPrincipal, currencySymbol)}</strong> at {monthlyRatePercent}% / month
-                  (<strong>{formatCurrency(monthlyInterest, currencySymbol)}</strong> per month).
-                  Collecting a part-payment lowers the principal, and every remaining monthly due is re-priced on the new balance.
+                  {d.outstandingPrincipalIs} <strong>{formatCurrency(outstandingPrincipal, currencySymbol)}</strong>{' '}
+                  {d.atRatePerMonth} {monthlyRatePercent}% / {d.perMonthSuffix}{' '}
+                  (<strong>{formatCurrency(monthlyInterest, currencySymbol)}</strong> {d.perMonthSuffix}).{' '}
+                  {d.partPaymentRepricesDues}
                 </p>
               </div>
 
@@ -1815,7 +1816,7 @@ export default function LoanDetailClient({
                         checked={chequeReturned}
                         onChange={(e) => setChequeReturned(e.target.checked)}
                       />
-                      I confirm all security cheques have been returned to the borrower
+                      {d.confirmChequesReturned}
                     </label>
                   </div>
                 );
@@ -1846,9 +1847,9 @@ export default function LoanDetailClient({
               <div style={{ background: '#EFF6FF', borderRadius: 'var(--radius-sm)', padding: '16px', marginBottom: '12px' }}>
                 <p style={{ fontSize: '.9rem', fontWeight: 600, color: '#1E40AF' }}>{d.renewQuestion} <strong>{loan.loanCode}</strong>?</p>
                 <p style={{ fontSize: '.82rem', color: '#1D4ED8', marginTop: '6px' }}>
-                  This will close the current loan and create a fresh loan with the same principal 
-                  ({loan.frequency}, {loan.tenure} instalments) starting today.
-                  The old loan code will be preserved for reference.
+                  {d.renewLoanDesc}{' '}
+                  ({loan.frequency}, {loan.tenure} {d.instalmentsStarting}){' '}
+                  {d.oldLoanPreserved}
                 </p>
               </div>
             </div>

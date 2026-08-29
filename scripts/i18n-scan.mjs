@@ -68,6 +68,7 @@ function scanFile(absolute) {
     const trimmed = line.trim();
 
     if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) return;
+    if (trimmed.includes('*/')) return; // tail of a block comment
     if (MATERIAL_ICON_LINE.test(line)) return;
 
     // 1. JSX text between tags: >Some words<

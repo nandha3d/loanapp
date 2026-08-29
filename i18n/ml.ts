@@ -667,6 +667,11 @@ export const ml = {
     closurePlusInterestDue: 'ഇതിനകം അടയ്ക്കേണ്ട പലിശ',
     closureRemainingWaived: 'ബാക്കിയുള്ള പ്രതിമാസ അടവുകൾ ഒഴിവാക്കി വായ്പ',
     plusWord: 'കൂടാതെ',
+    noUpiConfigured: 'UPI ID ക്രമീകരിച്ചിട്ടില്ല. പേയ്‌മെന്റ് QR കാണിക്കാൻ Payments Gateway ക്രമീകരണങ്ങളിൽ ഇത് സജ്ജമാക്കുക.',
+    outstandingPrincipalIs: 'ബാക്കിയുള്ള മുതൽ',
+    perMonthSuffix: 'പ്രതിമാസം',
+    atRatePerMonth: 'എന്ന നിരക്കിൽ',
+    partPaymentRepricesDues: 'ഭാഗിക അടവ് മുതൽ കുറയ്ക്കുന്നു, ബാക്കിയുള്ള എല്ലാ പ്രതിമാസ അടവുകളും പുതിയ ബാലൻസിൽ പുനർനിർണയിക്കപ്പെടും.',
   },
   loansList: {
     title: 'വായ്പ രജിസ്ട്രി',

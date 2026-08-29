@@ -667,6 +667,11 @@ export const en = {
     closurePlusInterestDue: 'of interest already due',
     closureRemainingWaived: 'Any remaining monthly dues are waived and the loan is',
     plusWord: 'plus',
+    noUpiConfigured: 'No UPI ID configured. Set it under Payments Gateway settings to show a pay QR.',
+    outstandingPrincipalIs: 'Outstanding principal is',
+    perMonthSuffix: 'per month',
+    atRatePerMonth: 'at',
+    partPaymentRepricesDues: 'Collecting a part-payment lowers the principal, and every remaining monthly due is re-priced on the new balance.',
   },
   loansList: {
     title: 'Loan Registry',
