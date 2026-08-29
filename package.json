@@ -71,6 +71,7 @@
     "test:chits:bell": "tsx tests/chits/chitBell.test.ts",
     "test:chits": "npm run test:chits:calculation && npm run test:chits:winner-interest && npm run test:chits:security && npm run test:chits:frequency && npm run test:chits:bid-floor && npm run test:chits:bell",
     "i18n:check": "tsx scripts/i18n-diff.ts",
+    "i18n:scan": "node scripts/i18n-scan.mjs",
     "seed:chits": "tsx scripts/seed-chit-demo.ts",
     "backfill:chits": "tsx scripts/backfill-chit-schema.ts",
     "self-heal": "node scripts/self-heal/healer.mjs",

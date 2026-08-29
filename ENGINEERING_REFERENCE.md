@@ -630,7 +630,7 @@ Creates in-app `SystemNotification` rows and pushes to devices via FCM.
 | **Audit** | `lib/audit.ts`, `AuditLog`, `createChitAudit` | **SEC-2** — Every state change to a loan, customer, user, payment, chit or setting writes an audit row **inside the same transaction** as the change. |
 | **Files** | `lib/fileUpload.ts`, `lib/fileAccessPolicy.ts` | **SEC-3** — Uploads are validated and re-encoded via `sharp`; downloads are authorized by `fileAccessPolicy`, never served by raw path. |
 | **Rate limits** | `lib/rateLimit.ts` | **SEC-4** — MySQL-backed `checkRateLimit` is the production implementation. The in-memory fixed-window store is test-only. |
-| **i18n** | `i18n/*.ts` (en, ta, hi, te, kn, ml) | **I18N-1** — No user-facing string is hardcoded in a component. Add the key to `i18n/en.ts` first; `npm run i18n:check` reports gaps. |
+| **i18n** | `i18n/*.ts` (en, ta, hi, te, kn, ml) | **I18N-1** — No user-facing string is hardcoded in a component. Add the key to `i18n/en.ts` first; `npm run i18n:check` reports gaps. **I18N-2** — A key lands in **all six** locales in the **same commit**; an English value copied into `ta.ts` is a missing translation, not a translation. **I18N-3** — `npm run i18n:scan` lists literal English still sitting in JSX; the count is a debt figure that must go down, never up. Options, status labels, table headers, placeholders, `title`/`aria-label` and toast text are user-facing. |
 | **Config** | `lib/env.ts`, `lib/config.ts`, `AppSetting` | **CFG-1** — Per-tenant behaviour is an `AppSetting` read via `getSetting()` (cached, invalidated by `setSetting()`), **not** an env var. Env vars are per-deployment only. |
 | **Feature flags** | `lib/features.ts` | **CFG-2** — Behaviour flags live here and default **off**, so an existing tenant is never affected by a new flag landing. Billable capabilities live on `TenantSubscription`, not here. Register every UI-reachable flag in `FEATURE_FLAG_KEYS`. |
 | **Logging** | `lib/logger.ts` | **LOG-1** — Use `logger`. Legacy `console.*` calls exist; do not add more. Never log secrets, tokens or PII. |
@@ -689,6 +689,42 @@ Key commands:
 ---
 
 ## 16. Change protocol
+
+### 16.0 Change discipline — the standing rules
+
+This system is live and carries other people's money. The default answer to
+"should I change this?" is **no**. New capability is added *alongside* what
+ships, never by reshaping it.
+
+- **STABLE-1 — Shipped behaviour is frozen.** Change existing logic only to fix a
+  defect that is *demonstrated*: a failing test, a reproduction, or a rule in this
+  document it contradicts. Never to tidy, restyle, rename, "simplify" or
+  modernise. A refactor that changes no behaviour still risks the behaviour it
+  claims to preserve — it needs the same justification as a fix.
+- **STABLE-2 — New capability is additive and defaults to today.** Every new
+  column, flag, setting or parameter carries a default that reproduces current
+  behaviour exactly, so a migration is a no-op for existing rows and an untouched
+  tenant sees no change. Gate anything that alters a user-visible flow behind a
+  per-tenant flag (`lib/features.ts`), off by default.
+- **STABLE-3 — The four scoping axes are frozen** (§5). No new query, route,
+  action or component may widen `tenantId`, `appType`, `branchId` or role scope,
+  and none may exempt a privileged role from branch scope (SCOPE-15). Tenant
+  isolation has collapsed here before; it does not get a second chance.
+- **STABLE-4 — Nothing is hardcoded.** Rates, fees, day counts, caps, grace
+  periods, cadences, limits, thresholds and labels come from `AppSetting` /
+  `TenantSubscription` / the loan's own snapshot / the dictionary — never from a
+  literal in a route, action or component. A magic number in business logic is a
+  defect even when it is currently correct.
+- **STABLE-5 — Every user-visible string is translated.** New copy goes into
+  `i18n/en.ts` **and** all five other locales (`ta`, `hi`, `te`, `kn`, `ml`) in the
+  same commit, plus `mobile/lib/core/l10n/app_strings.dart` where mobile shows it.
+  `npm run i18n:check` must pass. An English literal in JSX is untranslatable for
+  every non-English tenant and counts as an incomplete change (I18N-1).
+- **STABLE-6 — The money maths is guarded before and after.** `npm run test:calc`
+  is green before you start and green when you finish. If a change makes a case
+  fail, either the change is wrong, or the rule genuinely moved — and then this
+  document, `docs/CALCULATION_LOGIC.md` and the case move in the same commit
+  (DOC-1).
 
 ### Adding an API endpoint
 1. `/api/v1/<resource>/route.ts` (or a permanent `/api/*` namespace — §8).
