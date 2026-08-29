@@ -132,6 +132,10 @@ export async function createLoan(formData: FormData) {
       loanType: formData.get('loanType') as string || 'cheque',
       collateralDetails: formData.get('collateralDetails') as string || null,
       dueDay: formData.get('dueDay') ? Number(formData.get('dueDay')) : null,
+      // Term axis. A form that does not carry these fields sends nothing, and the
+      // route defaults to 'scheduled' — the shape it has always produced.
+      termType: (formData.get('termType') as string) || 'scheduled',
+      termDays: formData.get('termDays') ? Number(formData.get('termDays')) : null,
       securityCheques,
       guarantor: {
         name: formData.get('guarantorName') as string,

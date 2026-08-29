@@ -56,7 +56,8 @@ export default function LoanForm({
   viewerRole,
   goldMaster,
   goldConfig,
-  interestOnlyEnabled
+  interestOnlyEnabled,
+  bulletTermEnabled
 }: {
   customers: any[];
   packages: any[];
@@ -72,6 +73,8 @@ export default function LoanForm({
   goldConfig?: any;
   /** Opt-in per tenant — see lib/features.ts. Hides the Interest-Only plan when off. */
   interestOnlyEnabled?: boolean;
+  /** Opt-in per tenant — see lib/features.ts. Hides the single-payment term when off. */
+  bulletTermEnabled?: boolean;
 }) {
   const [loading, setLoading] = useState(false);
   const [limitError, setLimitError] = useState<string | null>(null);
@@ -155,6 +158,10 @@ export default function LoanForm({
   const [frequency, setFrequency] = useState('daily');
   const [dueDay, setDueDay] = useState<number | ''>('');
   const [tenure, setTenure] = useState<number | ''>('');
+  // Term axis, independent of the interest model: 'scheduled' is n instalments at
+  // a cadence, 'bullet' is one payment `termDays` from the start date.
+  const [termType, setTermType] = useState<'scheduled' | 'bullet'>('scheduled');
+  const [termDays, setTermDays] = useState<number | ''>('');
   const [startDate, setStartDate] = useState(formatDateISO(new Date()));
   const [penalty, setPenalty] = useState<number>(defaultPenalty);
   const [packageId, setPackageId] = useState('');
@@ -291,6 +298,9 @@ export default function LoanForm({
     // Interest-Only only — see lib/loanCalculator.ts.
     monthlyInterest?: number;
     principalDueAtClosure?: number;
+    // Bullet term only.
+    maturityDate?: string;
+    effectiveAnnualPercent?: number;
   }>({ disbursedAmount: 0, totalPayable: 0, perInstalment: 0, deduction: 0 });
 
   useEffect(() => {
@@ -303,7 +313,7 @@ export default function LoanForm({
   useEffect(() => {
     const p = Number(principal);
     const t = Number(tenure);
-    if (!p || !t) {
+    if (!p || !t || (termType === 'bullet' && !Number(termDays))) {
       setCalculatedData({ disbursedAmount: p || 0, totalPayable: p || 0, perInstalment: 0, deduction: 0 });
       return;
     }
@@ -321,6 +331,8 @@ export default function LoanForm({
             frequency,
             startDate,
             dueDay: dueDay === '' ? null : Number(dueDay),
+            termType,
+            termDays: termDays === '' ? null : Number(termDays),
           })
         });
         if (res.ok) {
@@ -335,7 +347,7 @@ export default function LoanForm({
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [principal, interestType, interestRate, tenure, frequency, startDate, dueDay]);
+  }, [principal, interestType, interestRate, tenure, frequency, startDate, dueDay, termType, termDays]);
 
   const handleCustomerChange = async (id: string) => {
     const cust = localCustomers.find(c => c.id === id);
@@ -406,7 +418,13 @@ export default function LoanForm({
   };
 
   const t = Number(tenure) || 0;
-  const endDate = startDate && t > 0 ? calculateEndDate(new Date(startDate), frequency, t) : null;
+  // A bullet term ends on its maturity date; a cadence loan ends after `tenure`
+  // periods. Both go through calculateEndDate — only the unit differs.
+  const endDate = termType === 'bullet'
+    ? (startDate && Number(termDays) > 0
+        ? calculateEndDate(new Date(startDate), 'daily', Number(termDays))
+        : null)
+    : (startDate && t > 0 ? calculateEndDate(new Date(startDate), frequency, t) : null);
 
   const loanTypeLabels: Record<string, string> = {
     cheque: appType === 'autofinance' ? 'Vehicle / Cheque' : (dict.loans.chequeBased || 'Cheque Based'),
@@ -441,6 +459,27 @@ export default function LoanForm({
       setInterestType('interest_only');
       setFrequency('monthly');
       setDueDay('');
+    }
+  };
+
+  const isBulletPlan = termType === 'bullet';
+  /**
+   * Switching the term shape. A bullet is one payment, so its tenure is fixed at
+   * 1 and the cadence controls have nothing to say; interest-only quotes a
+   * monthly rate and cannot be billed over a term of days, so the plan falls back
+   * to the upfront model the API will accept.
+   */
+  const setTermShape = (shape: 'scheduled' | 'bullet') => {
+    setTermType(shape);
+    if (shape === 'bullet') {
+      setTenure(1);
+      setDueDay('');
+      if (interestType === 'interest_only' || interestType === 'emi_floating') {
+        setInterestType('upfront_fixed');
+      }
+    } else {
+      setTermDays('');
+      setTenure('');
     }
   };
 
@@ -887,7 +926,7 @@ export default function LoanForm({
                   <span>📈</span> {dict.loans.emi}
                 </button>
 
-                {interestOnlyEnabled && (
+                {interestOnlyEnabled && !isBulletPlan && (
                   <button
                     type="button"
                     onClick={() => setCalcModel('interest_only')}
@@ -898,6 +937,28 @@ export default function LoanForm({
                 )}
               </div>
             </div>
+
+            {bulletTermEnabled && (
+              <div style={{ flex: '1', minWidth: '260px' }}>
+                <label className="form-label" style={{ fontWeight: '600', marginBottom: '8px', display: 'block' }}>{dict.loans.termShape}</label>
+                <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '4px', background: 'var(--bg-alt)', height: '54px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => setTermShape('scheduled')}
+                    style={planButtonStyle(!isBulletPlan)}
+                  >
+                    <span>📅</span> {dict.loans.termInstalments}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTermShape('bullet')}
+                    style={planButtonStyle(isBulletPlan)}
+                  >
+                    <span>🎯</span> {dict.loans.termSinglePayment}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', background: 'var(--bg-alt)', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', marginBottom: '20px', marginTop: '-10px' }}>
@@ -917,10 +978,10 @@ export default function LoanForm({
             ) : (
               <>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '.9rem', cursor: 'pointer', fontWeight: 500 }}>
-                  <input type="radio" checked={interestType === 'emi_flat'} onChange={() => setInterestType('emi_flat')} style={{ accentColor: 'var(--primary)' }} /> Flat Interest
+                  <input type="radio" checked={interestType === 'emi_flat'} onChange={() => setInterestType('emi_flat')} style={{ accentColor: 'var(--primary)' }} /> {dict.loans.flatInterest}
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '.9rem', cursor: 'pointer', fontWeight: 500 }}>
-                  <input type="radio" checked={interestType === 'emi_floating'} onChange={() => setInterestType('emi_floating')} style={{ accentColor: 'var(--primary)' }} /> Floating (APR)
+                  <input type="radio" checked={interestType === 'emi_floating'} onChange={() => setInterestType('emi_floating')} style={{ accentColor: 'var(--primary)' }} /> {dict.loans.floatingApr}
                 </label>
               </>
             )}
@@ -961,6 +1022,12 @@ export default function LoanForm({
               <label className="form-label">{dict.loans.totalPayable}</label>
               <div className="form-computed">{currencySymbol}{calculatedData.totalPayable.toLocaleString()}</div>
             </div>
+            {isBulletPlan && calculatedData.effectiveAnnualPercent != null && (
+              <div className="form-group">
+                <label className="form-label">{dict.loans.effectiveAnnualRate}</label>
+                <div className="form-computed">{calculatedData.effectiveAnnualPercent}%</div>
+              </div>
+            )}
           </div>
 
           {isInterestOnlyPlan && (
@@ -980,6 +1047,43 @@ export default function LoanForm({
             </div>
           )}
 
+          {/* The term axis decides which controls mean anything: a cadence loan
+              needs a frequency, a due day and an instalment count; a bullet needs a
+              number of days and nothing else. termType always posts, so the route
+              never has to infer the shape. */}
+          <input type="hidden" name="termType" value={termType} />
+          {isBulletPlan ? (
+            <div className="form-row">
+              {/* frequency still posts: every downstream reader (contract prefix,
+                  collection cadence, reports) expects the field to exist. */}
+              <input type="hidden" name="frequency" value={frequency} />
+              <input type="hidden" name="tenure" value={1} />
+              <div className="form-group">
+                <label className="form-label">{dict.loans.daysToMaturity} *</label>
+                <input
+                  type="number"
+                  name="termDays"
+                  min={1}
+                  step={1}
+                  className="form-control"
+                  value={termDays}
+                  onChange={e => setTermDays(e.target.value ? Number(e.target.value) : '')}
+                  required
+                  style={{ fontSize: '1.1rem', padding: '12px' }}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">{dict.loans.maturityDate}</label>
+                <div className="form-computed">{calculatedData.maturityDate ? formatDateISO(new Date(calculatedData.maturityDate)) : '—'}</div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">{dict.loans.singlePaymentDue}</label>
+                <div className="form-computed" style={{ fontWeight: 'bold' }}>
+                  {currencySymbol}{calculatedData.totalPayable.toLocaleString()}
+                </div>
+              </div>
+            </div>
+          ) : (
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">{dict.loans.frequency} *</label>
@@ -990,16 +1094,16 @@ export default function LoanForm({
               <select name="frequency" className="form-control" value={frequency} onChange={e => { setFrequency(e.target.value); setDueDay(''); }} required style={{ fontSize: '1rem', padding: '12px' }}>
                 {!isInterestOnlyPlan && <option value="daily">{dict.creditInsights.daily}</option>}
                 {!isInterestOnlyPlan && <option value="weekly">{dict.creditInsights.weekly}</option>}
-                {!isInterestOnlyPlan && <option value="biweekly">Bi-Weekly</option>}
+                {!isInterestOnlyPlan && <option value="biweekly">{dict.loans.biWeekly}</option>}
                 <option value="monthly">{dict.creditInsights.monthly}</option>
               </select>
             </div>
             {(frequency === 'weekly' || frequency === 'biweekly') && (
               <div className="form-group">
-                <label className="form-label">Due Day *</label>
+                <label className="form-label">{dict.loans.dueDay} *</label>
                 <select name="dueDay" className="form-control" value={dueDay} onChange={e => setDueDay(e.target.value ? Number(e.target.value) : '')} required style={{ fontSize: '1rem', padding: '12px' }}>
-                  <option value="">Select Day</option>
-                  {['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((day, i) => (
+                  <option value="">{dict.loans.selectDay}</option>
+                  {[dict.loans.sunday, dict.loans.monday, dict.loans.tuesday, dict.loans.wednesday, dict.loans.thursday, dict.loans.friday, dict.loans.saturday].map((day: string, i: number) => (
                     <option key={i} value={i}>{day}</option>
                   ))}
                 </select>
@@ -1007,9 +1111,9 @@ export default function LoanForm({
             )}
             {frequency === 'monthly' && (
               <div className="form-group">
-                <label className="form-label">Due Date (Day of Month) *</label>
+                <label className="form-label">{dict.loans.dueDateLabel} *</label>
                 <select name="dueDay" className="form-control" value={dueDay} onChange={e => setDueDay(e.target.value ? Number(e.target.value) : '')} required style={{ fontSize: '1rem', padding: '12px' }}>
-                  <option value="">Select Date</option>
+                  <option value="">{dict.loans.selectDate}</option>
                   {Array.from({ length: 28 }, (_, i) => i + 1).map(d => (
                     <option key={d} value={d}>{d}</option>
                   ))}
@@ -1021,6 +1125,7 @@ export default function LoanForm({
               <input type="number" name="tenure" className="form-control" placeholder={dict.creditInsights.placeholders.tenure} value={tenure} onChange={e => setTenure(e.target.value ? Number(e.target.value) : '')} required style={{ fontSize: '1.1rem', padding: '12px' }} />
             </div>
           </div>
+          )}
 
           <div className="form-row">
             <div className="form-group">

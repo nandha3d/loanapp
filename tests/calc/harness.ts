@@ -58,6 +58,8 @@ export async function buildOps(): Promise<Record<string, OpFn>> {
         monthlyInterest: r.monthlyInterest ?? null,
         aprPercent: r.aprPercent ?? null,
         principalDueAtClosure: r.principalDueAtClosure ?? null,
+        maturityDate: r.maturityDate ? iso(r.maturityDate) : null,
+        effectiveAnnualPercent: r.effectiveAnnualPercent ?? null,
         scheduleLength: r.schedule.length,
         scheduleSum: sum(dueAmounts),
         dueAmounts,

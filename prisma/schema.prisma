@@ -518,6 +518,14 @@ model Loan {
   frequency            String
   dueDay               Int?                @map("due_day")
   tenure               Int
+  /// How the principal comes back: 'scheduled' (n instalments at `frequency`) or
+  /// 'bullet' (one payment on `startDate` + `termDays`). Defaults to the shape
+  /// every loan written before this column existed already has, so the column is
+  /// a no-op for them (STABLE-2). See lib/loanCalculator.ts.
+  termType             String              @default("scheduled") @map("term_type")
+  /// Days from `startDate` to the single due date. Read only when `termType` is
+  /// 'bullet'; null for every scheduled loan.
+  termDays             Int?                @map("term_days")
   startDate            DateTime            @map("start_date") @db.Date
   endDate              DateTime?           @map("end_date") @db.Date
   perInstalment        Decimal             @map("per_instalment") @db.Decimal(12, 2)

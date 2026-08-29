@@ -5,8 +5,8 @@ import { requireMobileContext, resolveWriteBranchId, scopedBranchWhere } from '@
 import { getAgentRouteIds } from '@/lib/access';
 import { buildAgentCustomerAccessWhere, canAgentAccessCustomer, canCreateLoanForRole, validateLoanNumericInputs } from '@/lib/loanPolicy';
 import { InsufficientFloatError, disburseFromAgent, disburseFromBranch } from '@/lib/wallet';
-import { isInterestOnly } from '@/lib/loanCalculator';
-import { isInterestOnlyEnabled } from '@/lib/features';
+import { isBulletTerm, isInterestOnly } from '@/lib/loanCalculator';
+import { isBulletTermEnabled, isInterestOnlyEnabled } from '@/lib/features';
 import { buildHpOriginationTerms } from '@/lib/autofinance/origination';
 import { validateGoldOrigination } from '@/lib/gold/origination';
 import { ornamentTotals, resolveOrnamentLine } from '@/lib/gold/ornaments';
@@ -212,6 +212,11 @@ export async function POST(req: NextRequest) {
     const penaltyRate = hpTerms
       ? Number(autoFinanceInput.penaltyPerDay ?? 0)
       : Number(body.penaltyRate ?? 0);
+    // Term axis (STABLE-2): absent means 'scheduled', which is the shape every
+    // caller written before this field existed already sends. HP terms build
+    // their own amortising schedule and are always scheduled.
+    const termType = hpTerms ? 'scheduled' : String(body.termType || 'scheduled');
+    const termDays = body.termDays != null ? Number(body.termDays) : null;
     const loanType = String(body.loanType || 'cheque');
     const collateralDetails: string | null = body.collateralDetails ?? null;
     const voucherRef: string | null = body.voucherRef ?? null;
@@ -250,6 +255,11 @@ export async function POST(req: NextRequest) {
     // the form is one of several ways into this route (mobile, API clients).
     if (isInterestOnly(deductionType) && !(await isInterestOnlyEnabled(ctx.tenantId))) {
       return fail('Interest-Only is not enabled for this account', 403);
+    }
+    // Same shape as Interest-Only: opt-in per tenant, enforced here because the
+    // web form is one of several ways into this route.
+    if (isBulletTerm(termType) && !(await isBulletTermEnabled(ctx.tenantId))) {
+      return fail('Single-payment (bullet) loans are not enabled for this account', 403);
     }
     if (Number.isNaN(startDate.getTime())) {
       return fail('Invalid start date', 400);
@@ -334,6 +344,8 @@ export async function POST(req: NextRequest) {
           frequency,
           startDate,
           dueDay,
+          termType,
+          termDays,
         });
 
     const goldInput: any = body.goldCollateral;
@@ -431,6 +443,12 @@ export async function POST(req: NextRequest) {
       biweekly: 'BWL',
       monthly: 'ML',
     };
+    // A bullet loan has no cadence, so its contract number is keyed on the term
+    // shape instead. Existing prefixes are untouched (ORIG-1: the counter behind
+    // them stays tenant-wide either way).
+    const contractPrefix = isBulletTerm(termType)
+      ? 'BTL'
+      : FREQUENCY_PREFIX[frequency] ?? branding.loanCodePrefix;
     // A loan belongs where its CUSTOMER sits, not where the person raising it
     // sits. Resolved before the transaction so the lookup it may need never
     // widens the write window.
@@ -443,7 +461,7 @@ export async function POST(req: NextRequest) {
       const loanCode = await nextContractCode(tx, {
         tenantId: ctx.tenantId,
         appType: ctx.appType,
-        prefix: FREQUENCY_PREFIX[frequency] ?? branding.loanCodePrefix,
+        prefix: contractPrefix,
       });
 
       if (goldOrigination) {
@@ -549,7 +567,13 @@ export async function POST(req: NextRequest) {
         frequency,
         dueDay,
         tenure,
+        termType,
+        // Only meaningful for a bullet term; stays null for every cadence loan
+        // so the column reads the same as it did before it existed.
+        termDays: isBulletTerm(termType) ? termDays : null,
         startDate,
+        // For a bullet term the last (only) schedule row IS the maturity, so this
+        // keeps working unchanged.
         endDate: new Date(preview.schedule[preview.schedule.length - 1].dueDate),
         perInstalment: preview.perInstalment,
         penaltyRate,

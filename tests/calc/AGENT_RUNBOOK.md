@@ -4,7 +4,7 @@ Written for an AI agent other than the one that built this (Antigravity, Gemini
 CLI, Codex, a CI bot). Everything needed to run, extend and report on the suite is
 here; you do not need to read the application source first.
 
-**What this suite is.** 173 declarative cases over the micro-lending money maths:
+**What this suite is.** 184 declarative cases over the micro-lending money maths:
 loan pricing, instalment schedules, repayment allocation, penalties, foreclosure,
 interest-only servicing, NPA classification, provisioning, cash float, collection
 policy, credit scoring. Pure arithmetic — no database, no HTTP server, no network.
@@ -52,7 +52,7 @@ IST and UTC. The runner records the timezone it saw in the results file.
 {
   "runAt": "2026-08-29T…",
   "environment": { "node": "v23.11.1", "timeZone": "Asia/Calcutta", "utcOffsetMinutes": 330 },
-  "total": 173, "passed": 173, "failed": 0,
+  "total": 184, "passed": 184, "failed": 0,
   "results": [
     {
       "id": "CALC-ORG-013", "group": "origination",

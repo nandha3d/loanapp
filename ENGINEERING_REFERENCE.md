@@ -324,6 +324,8 @@ Money paths are retried — by mobile clients on flaky networks, by cron re-runs
 - **MONEY-3** — `interest_only` requires `frequency: 'monthly'`; the quoted rate is per month. Reject anything else rather than silently billing a monthly figure daily.
 - **MONEY-4** — Branch on `isInterestOnly(type)`, never on the string literal. Schedule shape, auto-close and outstanding-principal maths all differ.
 - **MONEY-5** — `interest_only` loans persist `interestRate` and `outstandingPrincipal`; every other model persists only the computed result. Interest is recomputed on prepayment.
+- **MONEY-19** — **The term shape is a second axis, independent of the interest model.** `Loan.termType` is `scheduled` (n instalments at `frequency`, the shape every loan had before the column existed) or `bullet` (one payment `termDays` after the start date). It defaults to `scheduled`, so an omitted field and an old payload produce byte-identical output. Branch with `isBulletTerm(type)`, never the string literal.
+- **MONEY-20** — A `bullet` term admits only `upfront_fixed`, `upfront_percentage` and `emi_flat` (`BULLET_INTEREST_TYPES`). `emi_floating` is an annuity over n periods and degenerates at n=1; `interest_only` bills a monthly rate and has no meaning over a term of days. Both are rejected at `calculateLoanPreview`, and the tenure of a bullet loan is always 1. Bullet is opt-in per tenant (`bullet_term_enabled`, CFG-2), enforced server-side in `/api/v1/loans` — the web form is one of several ways in.
 
 ### 10.2 Origination — `app/api/v1/loans/route.ts` (the only path)
 
@@ -653,7 +655,7 @@ Key commands:
 |---|---|
 | `npm run typecheck` | `tsc --noEmit` — must be clean |
 | `npm run test:ci` | 17 suites: repayments, **calculation logic**, calculator, interest-only, roles, branch scoping, approvals, security, **money-core**, **routing-core** |
-| `npm run test:calc` | 173 declarative money cases + the HTML page. Formulas: `docs/CALCULATION_LOGIC.md`. For a non-Claude agent: `tests/calc/AGENT_RUNBOOK.md` |
+| `npm run test:calc` | 184 declarative money cases + the HTML page. Formulas: `docs/CALCULATION_LOGIC.md`. For a non-Claude agent: `tests/calc/AGENT_RUNBOOK.md` |
 | `npm run test:money-core` | Origination integrity, atomicity, posting/dedup, contract numbering, wallet float |
 | `npm run test:routing-core` | Proxy public paths, module routing, subscription lifecycle, file-upload safety |
 | `npm run test:full-regression` | CI set + parity, RBAC, autofinance, dashboard |

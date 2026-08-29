@@ -1532,13 +1532,16 @@ export default function SettingsClient({
       <div className={`tab-content ${activeTab === 'features' ? 'active' : ''}`}>
         <div className="card-header">
           <div>
-            <h3>🧩 Features</h3>
+            <h3>🧩 {d.featuresTitle}</h3>
             <p style={{ fontSize: '.82rem', color: 'var(--text-secondary)', margin: '4px 0 0' }}>
-              Turn optional lending products on for this account. Changes apply immediately.
+              {d.featuresHint}
             </p>
           </div>
         </div>
         <form onSubmit={handleFeaturesSubmit}>
+          {/* Every flag here is registered in FEATURE_FLAG_KEYS (lib/features.ts);
+              the save action writes exactly that list, so a checkbox without a
+              registered key would silently do nothing. */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '600px' }}>
             <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
               <input
@@ -1549,17 +1552,30 @@ export default function SettingsClient({
                 style={{ marginTop: '3px' }}
               />
               <span>
-                <strong>Interest-Only loans</strong>
+                <strong>{d.interestOnlyFeature}</strong>
                 <span style={{ display: 'block', fontSize: '.82rem', color: 'var(--text-secondary)' }}>
-                  Customer receives the full principal, pays one month&apos;s interest on a fixed day
-                  each month, and settles the principal as a lump sum on closure. Adds the
-                  Interest-Only option to the loan form.
+                  {d.interestOnlyFeatureHint}
+                </span>
+              </span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                name="bullet_term_enabled"
+                value="true"
+                defaultChecked={settings.bullet_term_enabled === '1'}
+                style={{ marginTop: '3px' }}
+              />
+              <span>
+                <strong>{d.bulletTermFeature}</strong>
+                <span style={{ display: 'block', fontSize: '.82rem', color: 'var(--text-secondary)' }}>
+                  {d.bulletTermFeatureHint}
                 </span>
               </span>
             </label>
           </div>
           <button type="submit" className="btn btn-primary" disabled={loading} style={{ marginTop: '16px' }}>
-            {loading ? 'Saving…' : 'Save Features'}
+            {loading ? d.saving : d.saveFeatures}
           </button>
         </form>
       </div>

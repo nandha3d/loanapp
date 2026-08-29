@@ -13,7 +13,7 @@ commit (rule DOC-1).
 [tests/calc/cases.json](../tests/calc/cases.json). Run them with:
 
 ```bash
-npx tsx tests/calc/run.ts            # all 173
+npx tsx tests/calc/run.ts            # all 184
 npx tsx tests/calc/run.ts --group=penalty
 npx tsx tests/calc/run.ts --id=CALC-ORG-013
 ```
@@ -38,6 +38,8 @@ see [tests/calc/AGENT_RUNBOOK.md](../tests/calc/AGENT_RUNBOOK.md).
 
 Five interest models. `rate` means a different thing in each; that is the single
 largest source of confusion in this codebase.
+
+Term shape is separate from all five: see §2.6.
 
 | Model | What `rate` means | Disbursed | Total payable |
 |---|---|---|---|
@@ -134,7 +136,36 @@ Two invariants that hold nowhere else:
 Branch with `isInterestOnly(type)` (`lib/loanCalculator.ts:48`), never the string
 literal (`MONEY-4`, `CALC-ORG-023/024`).
 
-### 2.6 Unknown model — `CALC-ORG-017`
+### 2.6 Bullet term — `CALC-ORG-027` … `CALC-ORG-037`
+
+A second axis, independent of the five models above. `termType` is `scheduled`
+(n instalments at a cadence) or `bullet` (one payment on a named date):
+
+```
+maturityDate  = startDate + termDays          (calendar days)
+schedule      = ONE row, dueAmount = totalPayable
+tenure        = 1 (enforced)
+
+effectiveAnnualPercent = (totalPayable − disbursed) / disbursed × 365/termDays × 100
+```
+
+The charge itself is unchanged — `upfront_fixed`, `upfront_percentage` and
+`emi_flat` all work exactly as §2.1–2.3 describe. Only the schedule shape differs.
+
+> ₹1,00,000 for 15 days at a flat 3%: disburse ₹1,00,000, collect ₹1,03,000 on
+> day 15. Deduct the same 3% instead and the borrower gets ₹97,000 and repays
+> ₹1,00,000 — identical rupees to the lender, **75.26% against 73.00%** to the
+> borrower, because the fee is funded out of a smaller advance.
+
+`emi_floating` (an annuity that degenerates at n=1) and `interest_only` (a
+monthly rate over a term of days) are **rejected**, as is a tenure above 1 or a
+day count that is not a positive whole number. Opt-in per tenant via
+`bullet_term_enabled`, enforced in the origination route as well as the form.
+
+Omitting `termType` produces exactly what it always produced — `CALC-ORG-036`
+and `CALC-ORG-037` are the regression pins for that (STABLE-2).
+
+### 2.7 Unknown model — `CALC-ORG-017`
 
 Falls back to `totalPayable = disbursed = P`, `deduction = 0`. A typo in the type
 never invents a charge.

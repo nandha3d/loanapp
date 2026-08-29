@@ -1,7 +1,7 @@
 import { serverFetch } from '@/lib/api-client/server';
 import prisma from '@/lib/db';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
-import { isInterestOnlyEnabled } from '@/lib/features';
+import { isBulletTermEnabled, isInterestOnlyEnabled } from '@/lib/features';
 import { getDictionary } from '@/lib/i18n';
 import LoanForm from './LoanForm';
 import HpOriginationWizard from './HpOriginationWizard';
@@ -22,7 +22,7 @@ export default async function NewLoanPage({
   const session = await auth();
   const userRole = (session?.user as any)?.role || 'agent';
   
-  const [customersRes, rawPackagesRes, defaultPenalty, currencySymbol, routesRes, agentsRes, goldMasterRes, goldConfigRes, interestOnlyEnabled] = await Promise.all([
+  const [customersRes, rawPackagesRes, defaultPenalty, currencySymbol, routesRes, agentsRes, goldMasterRes, goldConfigRes, interestOnlyEnabled, bulletTermEnabled] = await Promise.all([
     serverFetch<any>('/customers?status=active&page=1&limit=1000'),
     serverFetch<any>('/packages'),
     getSetting(tenantId, 'default_penalty_per_day', '50'),
@@ -34,6 +34,7 @@ export default async function NewLoanPage({
     serverFetch<any>('/gold/master').catch(() => null),
     serverFetch<any>('/gold/config').catch(() => null),
     isInterestOnlyEnabled(tenantId),
+    isBulletTermEnabled(tenantId),
   ]);
 
   const customers = customersRes?.data || [];
@@ -98,6 +99,7 @@ export default async function NewLoanPage({
       goldMaster={goldMaster}
       goldConfig={goldConfig}
       interestOnlyEnabled={interestOnlyEnabled}
+      bulletTermEnabled={bulletTermEnabled}
     />
   );
 }
