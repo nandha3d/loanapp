@@ -356,7 +356,7 @@ Order of operations, all inside one Serializable transaction:
 
 ### 10.4 Penalties — `lib/penalties.ts`
 
-- **MONEY-14** — Accrual = `Σ max(0, daysOverdue − grace) × penaltyPerDay`, capped by `maxCap` when non-zero. Per-tenant settings: `default_penalty_per_day`, `penalty_grace_period`, `penalty_max_cap`.
+- **MONEY-14** — Accrual = `Σ max(0, daysOverdue − grace) × penaltyPerDay`, capped by `maxCap` when non-zero. Per-tenant settings: `default_penalty_per_day`, `penalty_grace_period`, `penalty_max_cap`. **This describes `calculatePenaltyAccrual` (the cron) only.** A second accrual, `ensurePendingPenaltiesForMissedLoans`, runs on every dashboard load, the penalties page and `GET /api/penalties`, and computes `count(missed instalments) × Loan.penaltyRate` — no grace, no cap — writing the same `Penalty.grossPenalty` rows, where the larger figure wins. Opening a page can therefore push a borrower's penalty past the tenant's configured cap. Live divergence, documented in `docs/CALCULATION_LOGIC.md` §14.1; one of the two has to move.
 - **MONEY-15** — Recorded gross penalty only ever **increases** (`shouldUpdatePenaltyGross`). Reductions are waivers, recorded as `waivedAmount` — never by rewriting gross. The accrual job runs inside a transaction to prevent duplicate penalty rows.
 
 ### 10.5 Cash & float — `lib/wallet.ts`
@@ -652,7 +652,8 @@ Key commands:
 | Command | Scope |
 |---|---|
 | `npm run typecheck` | `tsc --noEmit` — must be clean |
-| `npm run test:ci` | 16 suites: repayments, calculator, interest-only, roles, branch scoping, approvals, security, **money-core**, **routing-core** |
+| `npm run test:ci` | 17 suites: repayments, **calculation logic**, calculator, interest-only, roles, branch scoping, approvals, security, **money-core**, **routing-core** |
+| `npm run test:calc` | 173 declarative money cases + the HTML page. Formulas: `docs/CALCULATION_LOGIC.md`. For a non-Claude agent: `tests/calc/AGENT_RUNBOOK.md` |
 | `npm run test:money-core` | Origination integrity, atomicity, posting/dedup, contract numbering, wallet float |
 | `npm run test:routing-core` | Proxy public paths, module routing, subscription lifecycle, file-upload safety |
 | `npm run test:full-regression` | CI set + parity, RBAC, autofinance, dashboard |

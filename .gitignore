@@ -87,7 +87,6 @@ mobile/**/GeneratedPluginRegistrant.*
 mobile/.vscode/
 *.log
 *.yml
-<<<<<<< Updated upstream
 *.zip
 # GitHub Actions workflows must be committed — exclude them from the *.yml ignore above.
 !.github/workflows/*.yml
@@ -124,11 +123,12 @@ node_modules/
 # self-healing SDLC loop state/artifacts
 /e2e-results/
 scripts/self-heal/.state/
-=======
 app-release.apk
 loanapp_source_20260528_191018.zip
 mobile/lib/data/services/fcm_service.dart
 mobile/pubspec.lock
 mobile/pubspec.yaml
 run_flutter.ps1
->>>>>>> Stashed changes
+
+# generated test reports (rebuild with npm run test:calc / test:ml-report)
+test-report/
