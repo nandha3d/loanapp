@@ -134,25 +134,25 @@
     <p class="eyebrow">ZoloFund · Auto Finance</p>
     <h1>Auto Finance Test Register</h1>
     <ul class="runmeta">
-      <li><code>241</code> cases · <code>26</code> areas</li>
+      <li><code>247</code> cases · <code>26</code> areas</li>
       <li>Hire-purchase, vehicle registry and field-operations coverage</li>
       <li>Database <code>loantrack_qa</code></li>
       <li>Runner <code>Playwright</code></li>
-      <li>Last run <time>2026-09-02 13:00:37</time></li>
-      <li>Page built <time>2026-09-02 13:00:37</time></li>
+      <li>Last run <time>2026-09-02 13:10:52</time></li>
+      <li>Page built <time>2026-09-02 13:10:52</time></li>
     </ul>
   </header>
 
   <div class="summary">
     <div class="tile t-passed"><span class="n">0</span><span class="l">Passed</span></div>
     <div class="tile t-failed"><span class="n">0</span><span class="l">Failed</span></div>
-    <div class="tile t-notrun"><span class="n">233</span><span class="l">Not run</span></div>
+    <div class="tile t-notrun"><span class="n">239</span><span class="l">Not run</span></div>
     <div class="tile t-manual"><span class="n">8</span><span class="l">Manual</span></div>
     <div class="tile t-skipped"><span class="n">0</span><span class="l">Skipped</span></div>
   </div>
 
   <div class="bar">
-    <i class="b-passed" style="width:0.00%"></i><i class="b-failed" style="width:0.00%"></i><i class="b-notrun" style="width:96.68%"></i><i class="b-manual" style="width:3.32%"></i><i class="b-skipped" style="width:0.00%"></i>
+    <i class="b-passed" style="width:0.00%"></i><i class="b-failed" style="width:0.00%"></i><i class="b-notrun" style="width:96.76%"></i><i class="b-manual" style="width:3.24%"></i><i class="b-skipped" style="width:0.00%"></i>
   </div>
   <p class="rate">Pass rate over executed cases: <b>0%</b> (0 of 0)</p>
 
@@ -169,7 +169,7 @@
 
   <main>
     <section class="area" data-area="Module Access &amp; Gating">
-      <h2>Module Access &amp; Gating <span class="areachips"><span class="areachip ac-notrun">7 not run</span><span class="areachip ac-manual">1 manual</span></span></h2>
+      <h2>Module Access &amp; Gating <span class="areachips"><span class="areachip ac-notrun">12 not run</span><span class="areachip ac-manual">1 manual</span></span></h2>
       <details class="case" id="AUTO-001" data-verdict="notrun" data-search="auto-001 registering with autofinance selected entitles the tenant to the module module access &amp; gating scope-4">
   <summary>
     <span class="cid">AUTO-001</span>
@@ -382,6 +382,141 @@
       </div>
     </div>
     
+    
+    
+  </div>
+</details>
+<details class="case" id="AUTO-009" data-verdict="notrun" data-search="auto-009 the verification link activates the auto-finance owner module access &amp; gating auth-3">
+  <summary>
+    <span class="cid">AUTO-009</span>
+    <span class="ctitle">The verification link activates the auto-finance owner</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Open /api/auth/verify-email with a validly signed token for the owner</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>No verifyError in the landing URL</li><li>The owner moves from pending to active</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">AUTH-3</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="AUTO-010" data-verdict="notrun" data-search="auto-010 a second branch, an admin and two agents are seeded for the journey module access &amp; gating scope-13">
+  <summary>
+    <span class="cid">AUTO-010</span>
+    <span class="ctitle">A second branch, an admin and two agents are seeded for the journey</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Create the Erode branch, a branch admin and one agent per branch</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Each staff row is stamped with its branch and appType autofinance</li><li>Both agents can authenticate</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">SCOPE-13</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="AUTO-011" data-verdict="notrun" data-search="auto-011 a route per branch is created and assigned to its agent module access &amp; gating scope-12">
+  <summary>
+    <span class="cid">AUTO-011</span>
+    <span class="ctitle">A route per branch is created and assigned to its agent</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>POST /api/v1/routes for each branch with its agent as the primary</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Two routes, each stamped with its branch</li><li>Each names its collecting agent</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">SCOPE-12</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="AUTO-012" data-verdict="notrun" data-search="auto-012 customers are onboarded on both branch routes module access &amp; gating scope-3">
+  <summary>
+    <span class="cid">AUTO-012</span>
+    <span class="ctitle">Customers are onboarded on both branch routes</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Create eight HQ and two Erode customers against their routes</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Every customer carries appType autofinance</li><li>The route’s primary agent becomes the collecting agent</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">SCOPE-3</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="AUTO-013" data-verdict="notrun" data-search="auto-013 a tenant registered without autofinance carries no entitlement module access &amp; gating scope-4">
+  <summary>
+    <span class="cid">AUTO-013</span>
+    <span class="ctitle">A tenant registered without autofinance carries no entitlement</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Register a second tenant with selectedModules [&quot;microlending&quot;]</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Its subscription snapshot does not contain autofinance</li><li>It is the fixture the gating cases assert against</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">SCOPE-4</span></p>
     
     
   </div>
@@ -1423,7 +1558,7 @@
 </details>
     </section>
 <section class="area" data-area="HP Quote — Diminishing">
-      <h2>HP Quote — Diminishing <span class="areachips"><span class="areachip ac-notrun">10 not run</span></span></h2>
+      <h2>HP Quote — Diminishing <span class="areachips"><span class="areachip ac-notrun">11 not run</span></span></h2>
       <details class="case" id="AUTO-095" data-verdict="notrun" data-search="auto-095 the first interest component is one month of interest on the full principal hp quote — diminishing af-1">
   <summary>
     <span class="cid">AUTO-095</span>
@@ -1690,6 +1825,33 @@
       </div>
     </div>
     
+    
+    
+  </div>
+</details>
+<details class="case" id="AUTO-105" data-verdict="notrun" data-search="auto-105 the deduction type follows the interest method hp quote — diminishing af-1">
+  <summary>
+    <span class="cid">AUTO-105</span>
+    <span class="ctitle">The deduction type follows the interest method</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Build origination terms with interestMethod flat, then diminishing</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>flat gives deductionType emi_flat</li><li>diminishing gives emi_floating</li><li>The interest model chosen at the counter is the one the ledger records</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">AF-1</span></p>
     
     
   </div>

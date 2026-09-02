@@ -125,6 +125,41 @@ export const CASES: AutoCase[] = [
     steps: ['Log in as an admin on the autofinance module'],
     expected: ['Vehicles, Finance Partners and Pending Tasks are present', 'They are absent under micro-lending'],
   },
+  {
+    id: 'AUTO-009', area: 'Module Access & Gating', priority: 'P0', automation: 'auto',
+    title: 'The verification link activates the auto-finance owner',
+    rules: ['AUTH-3'],
+    steps: ['Open /api/auth/verify-email with a validly signed token for the owner'],
+    expected: ['No verifyError in the landing URL', 'The owner moves from pending to active'],
+  },
+  {
+    id: 'AUTO-010', area: 'Module Access & Gating', priority: 'P1', automation: 'auto',
+    title: 'A second branch, an admin and two agents are seeded for the journey',
+    rules: ['SCOPE-13'],
+    steps: ['Create the Erode branch, a branch admin and one agent per branch'],
+    expected: ['Each staff row is stamped with its branch and appType autofinance', 'Both agents can authenticate'],
+  },
+  {
+    id: 'AUTO-011', area: 'Module Access & Gating', priority: 'P1', automation: 'auto',
+    title: 'A route per branch is created and assigned to its agent',
+    rules: ['SCOPE-12'],
+    steps: ['POST /api/v1/routes for each branch with its agent as the primary'],
+    expected: ['Two routes, each stamped with its branch', 'Each names its collecting agent'],
+  },
+  {
+    id: 'AUTO-012', area: 'Module Access & Gating', priority: 'P1', automation: 'auto',
+    title: 'Customers are onboarded on both branch routes',
+    rules: ['SCOPE-3'],
+    steps: ['Create eight HQ and two Erode customers against their routes'],
+    expected: ['Every customer carries appType autofinance', 'The route’s primary agent becomes the collecting agent'],
+  },
+  {
+    id: 'AUTO-013', area: 'Module Access & Gating', priority: 'P0', automation: 'auto',
+    title: 'A tenant registered without autofinance carries no entitlement',
+    rules: ['SCOPE-4'],
+    steps: ['Register a second tenant with selectedModules ["microlending"]'],
+    expected: ['Its subscription snapshot does not contain autofinance', 'It is the fixture the gating cases assert against'],
+  },
 
   // ───────────────────────── B. Vehicle Registry ─────────────────────────
   {
@@ -449,6 +484,13 @@ export const CASES: AutoCase[] = [
     title: 'The interest component never exceeds the instalment',
     steps: ['Scan the diminishing schedule'],
     expected: ['principalComponent is non-negative on every row', 'A contract that can never amortise is refused rather than scheduled'],
+  },
+  {
+    id: 'AUTO-105', area: 'HP Quote — Diminishing', priority: 'P1', automation: 'auto',
+    title: 'The deduction type follows the interest method',
+    rules: ['AF-1'],
+    steps: ['Build origination terms with interestMethod flat, then diminishing'],
+    expected: ['flat gives deductionType emi_flat', 'diminishing gives emi_floating', 'The interest model chosen at the counter is the one the ledger records'],
   },
 
   // ────────────────────── F. HP Quote — Validation ──────────────────────
