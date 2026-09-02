@@ -36,6 +36,16 @@ const SUITES = {
     blurb: 'Auction, security gate and subscription coverage',
     accent: { light: '#0f4f4a', dark: '#5fbdb2' },
   },
+  autofinance: {
+    dir: 'autofinance',
+    prefix: 'AUTO',
+    label: 'Auto Finance Test Register',
+    eyebrow: 'ZoloFund · Auto Finance',
+    blurb: 'Hire-purchase, vehicle registry and field-operations coverage',
+    // Violet-slate: distinct from the chit register's teal, and clear of the
+    // green/red/amber the verdicts already own.
+    accent: { light: '#4b3f8f', dark: '#a99bf0' },
+  },
 };
 
 const suiteKey = process.argv[2];
