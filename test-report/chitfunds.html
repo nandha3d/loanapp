@@ -138,8 +138,8 @@
       <li>Auction, security gate and subscription coverage</li>
       <li>Database <code>loantrack_qa</code></li>
       <li>Runner <code>Playwright</code></li>
-      <li>Last run <time>2026-09-02 12:30:12</time></li>
-      <li>Page built <time>2026-09-02 12:30:12</time></li>
+      <li>Last run <time>2026-09-02 12:44:34</time></li>
+      <li>Page built <time>2026-09-02 12:44:34</time></li>
     </ul>
   </header>
 
@@ -9181,15 +9181,15 @@
     </span>
   </summary>
   <div class="cbody">
-    
+    <p class="pre"><span class="tag">Pre</span>The pay route derives the outstanding as amount − paidAmount and does not read status, so a waived row still looks payable</p>
     <div class="grid">
       <div>
         <h4>Steps</h4>
-        <ol><li>Waive, then attempt a payment</li></ol>
+        <ol><li>Waive a 250 penalty, then attempt a payment of 50 against it</li></ol>
       </div>
       <div>
         <h4>Expected</h4>
-        <ul><li>Refused — the outstanding is zero</li></ul>
+        <ul><li>Refused</li><li>No receipt, no cash-book entry and no branch-pool credit for a charge the office already forgave</li></ul>
       </div>
     </div>
     

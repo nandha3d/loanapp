@@ -2314,8 +2314,9 @@ export const CASES: CfCase[] = [
   {
     id: 'CF-589', area: 'Chit Penalties', priority: 'P1', automation: 'auto',
     title: 'A waived penalty cannot then be paid',
-    steps: ['Waive, then attempt a payment'],
-    expected: ['Refused — the outstanding is zero'],
+    pre: 'The pay route derives the outstanding as amount − paidAmount and does not read status, so a waived row still looks payable',
+    steps: ['Waive a 250 penalty, then attempt a payment of 50 against it'],
+    expected: ['Refused', 'No receipt, no cash-book entry and no branch-pool credit for a charge the office already forgave'],
   },
   {
     id: 'CF-590', area: 'Chit Penalties', priority: 'P2', automation: 'auto',
