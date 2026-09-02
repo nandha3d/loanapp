@@ -130,5 +130,10 @@ mobile/pubspec.lock
 mobile/pubspec.yaml
 run_flutter.ps1
 
-# generated test reports (rebuild with npm run test:calc / test:ml-report)
-test-report/
+# Generated test reports. The rendered tracker PAGES are committed — they are the
+# readable record of what was tested and what the last run said, and a reviewer
+# needs them without running the suite. The raw runner output and the ledgers
+# are not: they are large, churn on every run, and are rebuilt by
+# npm run test:calc / test:ml-report / test:cf-report.
+test-report/*
+!test-report/*.html

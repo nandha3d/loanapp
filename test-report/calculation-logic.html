@@ -1,0 +1,5935 @@
+<title>Loan Calculation Logic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  /* Same ledger-paper family as the micro-lending test page: ink-blue rules on
+     paper, verdict carried by an edge stripe so state reads before any word. */
+  :root {
+    --paper: #f4f5f2; --sheet: #ffffff; --sheet-2: #eceee9;
+    --ink: #14181f; --ink-soft: #5a6270; --rule: #d8dbd4;
+    --accent: #1f4e79;
+    --pass: #0f6b3f; --pass-bg: #e2efe6;
+    --fail: #a52b1e; --fail-bg: #f8e7e4;
+    --notrun: #63696f; --notrun-bg: #e8eae6;
+    --warn: #8a5a12; --warn-bg: #f6eddc;
+    --sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0f1216; --sheet: #161a20; --sheet-2: #1c2129;
+      --ink: #e6e9ee; --ink-soft: #99a2af; --rule: #2b323c;
+      --accent: #7fb0e0;
+      --pass: #5cc98d; --pass-bg: #10301f;
+      --fail: #ff8b80; --fail-bg: #37191a;
+      --notrun: #9aa3ae; --notrun-bg: #212730;
+      --warn: #e2b45f; --warn-bg: #2e2617;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0f1216; --sheet: #161a20; --sheet-2: #1c2129;
+    --ink: #e6e9ee; --ink-soft: #99a2af; --rule: #2b323c;
+    --accent: #7fb0e0;
+    --pass: #5cc98d; --pass-bg: #10301f;
+    --fail: #ff8b80; --fail-bg: #37191a;
+    --notrun: #9aa3ae; --notrun-bg: #212730;
+    --warn: #e2b45f; --warn-bg: #2e2617;
+  }
+
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.55; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 40px 20px 90px; }
+  h1, h2 { text-wrap: balance; }
+  h1 { font-size: 1.6rem; margin: 0 0 6px; letter-spacing: -.01em; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+  .eyebrow { font-family: var(--mono); font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin: 0 0 10px; }
+  .lede { color: var(--ink-soft); margin: 0 0 22px; max-width: 62ch; }
+  .runmeta { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0 0 30px; padding: 0; list-style: none; color: var(--ink-soft); font-size: .84rem; }
+  .runmeta code, .runmeta time { font-family: var(--mono); font-size: .95em; color: var(--ink); }
+
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; margin-bottom: 10px; }
+  .card { background: var(--sheet); padding: 16px 18px; }
+  .card .n { font-family: var(--mono); font-size: 1.85rem; font-weight: 500; line-height: 1.05; font-variant-numeric: tabular-nums; }
+  .card .l { color: var(--ink-soft); font-size: .72rem; text-transform: uppercase; letter-spacing: .1em; margin-top: 4px; }
+  .card.pass .n { color: var(--pass); } .card.fail .n { color: var(--fail); } .card.notrun .n { color: var(--notrun); }
+  .rate { color: var(--ink-soft); font-size: .85rem; margin: 0 0 30px; }
+  .rate b { color: var(--ink); font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 26px; position: sticky; top: 0; padding: 14px 0; background: var(--paper); z-index: 5; border-bottom: 1px solid var(--rule); }
+  .filters button { font-family: var(--mono); font-size: .72rem; letter-spacing: .04em; text-transform: uppercase; padding: 6px 11px; border-radius: 2px; cursor: pointer; border: 1px solid var(--rule); background: var(--sheet); color: var(--ink-soft); }
+  .filters button:hover { color: var(--ink); }
+  .filters button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--paper); }
+
+  .grp { margin-bottom: 40px; }
+  .grp h2 { font-size: 1.05rem; font-weight: 600; margin: 0 0 8px; padding-bottom: 8px; border-bottom: 1px solid var(--rule); display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .gcount { font-family: var(--mono); font-size: .72rem; font-weight: 400; color: var(--ink-soft); }
+  .bad { color: var(--fail); }
+  .blurb { color: var(--ink-soft); font-size: .9rem; margin: 0 0 12px; max-width: 74ch; }
+  .blurb code, .dv code { font-family: var(--mono); font-size: .88em; color: var(--ink); }
+
+  pre.formula { font-family: var(--mono); font-size: .78rem; line-height: 1.7; background: var(--sheet); border: 1px solid var(--rule); border-left: 3px solid var(--accent); border-radius: 3px; padding: 14px 16px; overflow-x: auto; margin: 0 0 16px; }
+
+  .cases { display: flex; flex-direction: column; gap: 5px; }
+  details.tc { background: var(--sheet); border: 1px solid var(--rule); border-left: 3px solid var(--notrun); border-radius: 3px; overflow: hidden; }
+  details.tc.v-passed { border-left-color: var(--pass); }
+  details.tc.v-failed { border-left-color: var(--fail); }
+  summary { display: flex; align-items: center; gap: 11px; padding: 10px 14px; cursor: pointer; list-style: none; flex-wrap: wrap; }
+  summary::-webkit-details-marker { display: none; }
+  .tid { font-family: var(--mono); font-size: .78rem; color: var(--ink-soft); }
+  .ttl { flex: 1 1 340px; font-size: .92rem; }
+  .spacer { flex: 1 1 auto; }
+  .verdict { font-family: var(--mono); font-size: .7rem; font-weight: 500; padding: 3px 9px; border-radius: 2px; white-space: nowrap; text-transform: uppercase; letter-spacing: .05em; }
+  .verdict-passed { background: var(--pass-bg); color: var(--pass); }
+  .verdict-failed { background: var(--fail-bg); color: var(--fail); }
+  .verdict-notrun { background: var(--notrun-bg); color: var(--notrun); }
+  .rule { font-family: var(--mono); font-size: .71rem; background: var(--sheet-2); border: 1px solid var(--rule); border-radius: 2px; padding: 1px 6px; color: var(--accent); }
+
+  .body { padding: 2px 16px 18px; border-top: 1px solid var(--rule); background: var(--sheet-2); }
+  .body h4 { margin: 15px 0 6px; font-family: var(--mono); font-size: .69rem; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-soft); font-weight: 500; }
+  .body p { margin: 0; }
+  .why { color: var(--ink-soft); font-size: .9rem; max-width: 76ch; }
+  pre.code { margin: 0; padding: 11px 13px; background: var(--sheet); border: 1px solid var(--rule); border-radius: 3px; font-family: var(--mono); font-size: .77rem; overflow-x: auto; }
+  pre.err { margin: 6px 0 0; padding: 11px 13px; background: var(--fail-bg); color: var(--fail); border-radius: 3px; font-family: var(--mono); font-size: .77rem; overflow-x: auto; white-space: pre-wrap; }
+
+  .dv { background: var(--sheet); border: 1px solid var(--rule); border-radius: 4px; padding: 4px 18px 18px; margin-bottom: 40px; }
+  .dv h2 { font-size: 1.05rem; border: 0; }
+  .dv li { margin-bottom: 14px; }
+  .dv .t { font-weight: 600; }
+  .sev { font-family: var(--mono); font-size: .66rem; text-transform: uppercase; letter-spacing: .08em; padding: 2px 7px; border-radius: 2px; margin-left: 8px; }
+  .sev-money { background: var(--fail-bg); color: var(--fail); }
+  .sev-trap { background: var(--warn-bg); color: var(--warn); }
+  .sev-doc, .sev-env { background: var(--notrun-bg); color: var(--notrun); }
+  .dv p { margin: 4px 0 0; color: var(--ink-soft); font-size: .9rem; max-width: 82ch; }
+
+  footer { margin-top: 44px; color: var(--ink-soft); font-size: .8rem; border-top: 1px solid var(--rule); padding-top: 16px; }
+  footer code { font-family: var(--mono); }
+  @media (max-width: 640px) { .ttl { flex-basis: 100%; } .filters { position: static; } }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">ZoloFund · micro-lending</p>
+  <h1>Loan calculation logic</h1>
+  <p class="lede">Every figure the module puts in front of a borrower, an agent or an auditor — the formula, and the cases that pin it. Pure arithmetic: no database, no server.</p>
+
+  <ul class="runmeta">
+    <li>Cases <code>184</code></li>
+    <li>Last run <time>2026-08-29T04:44:22.627Z</time></li>
+    <li>Node <code>v23.11.1</code></li><li>TZ <code>Asia/Calcutta</code> (UTC+330m)</li>
+    <li>Run with <code>npm run test:calc</code></li>
+  </ul>
+
+  <div class="summary">
+    <div class="card"><div class="n">184</div><div class="l">Cases</div></div>
+    <div class="card pass"><div class="n">184</div><div class="l">Passed</div></div>
+    <div class="card fail"><div class="n">0</div><div class="l">Failed</div></div>
+    <div class="card notrun"><div class="n">0</div><div class="l">Not run</div></div>
+    <div class="card"><div class="n">12</div><div class="l">Areas</div></div>
+  </div>
+  <p class="rate">Pass rate <b>100%</b> of the catalogue.</p>
+
+  <div class="filters">
+    <button data-f="all" aria-pressed="true">All</button>
+    <button data-f="failed" aria-pressed="false">Failing</button>
+    <button data-f="passed" aria-pressed="false">Passing</button>
+    <button data-f="notrun" aria-pressed="false">Not run</button>
+    <button data-x="expand" aria-pressed="false">Expand all</button>
+  </div>
+
+  <section class="dv">
+    <h2>Known divergences</h2>
+    <ul>
+      <li><span class="t">Two penalty formulas write the same rows</span><span class="sev sev-money">money</span><p>The cron accrues <code>Σ max(0, daysOverdue − grace) × default_penalty_per_day</code>, capped by <code>penalty_max_cap</code>. <code>ensurePendingPenaltiesForMissedLoans</code> — which runs on <strong>every dashboard load</strong>, the penalties page and <code>GET /api/penalties</code> — accrues <code>count(missed instalments) × Loan.penaltyRate</code>, with no grace and no cap. Both write <code>Penalty.grossPenalty</code>, and reconciliation takes the larger. So opening the penalties page can raise a borrower's penalty above the tenant's configured cap, and can charge inside the grace window. <code>MONEY-14</code> documents only the cron formula.</p></li>
+      <li><span class="t">The pure allocator does not skip waived rows</span><span class="sev sev-trap">trap</span><p><code>allocatePaymentsAcrossInstalments</code> keeps a waived instalment in the fill order, so it absorbs payment that then never lands on a payable row. The persistence path filters waived rows out first. No production caller today — a trap, not a live defect. Pinned by <code>CALC-ALO-007</code>.</p></li>
+      <li><span class="t"><code>hardBlock</code> is opt-in, not a property of the account</span><span class="sev sev-money">money</span><p>Every call site that moves cash out must pass it. Defect <code>ML-122</code> (the v1 wallet release route) is what happens when one does not — a branch pool driven to −₹10,00,000. Pinned by <code>CALC-FLT-005</code>.</p></li>
+      <li><span class="t">The credit-score doc comment is stale</span><span class="sev sev-doc">doc</span><p><code>lib/creditScore.ts:2</code> still says &ldquo;from 0 to 100&rdquo;. It returns 300–850. Pinned by <code>CALC-CRS-005</code>.</p></li>
+      <li><span class="t"><code>Loan.deduction</code> stores the amount, not the rate</span><span class="sev sev-doc">doc</span><p>The column name reads like a rate; it holds rupees. Any report dividing by it is wrong.</p></li>
+      <li><span class="t">One schedule branch reads local date parts</span><span class="sev sev-env">env</span><p>The monthly, no-<code>dueDay</code> branch reads local date parts from a Date built at UTC midnight. Verified identical under IST and UTC; unverified west of UTC. Run under <code>TZ=UTC</code> when comparing across machines.</p></li>
+    </ul>
+  </section>
+
+  <section class="grp" data-group="origination">
+  <h2>Loan pricing <span class="gcount">37 cases</span></h2>
+  <p class="blurb">Five interest models. <code>rate</code> means something different in each — that is the largest source of confusion in this module.</p>
+  <pre class="formula">upfront_fixed        deduction = rate (₹)          disbursed = P − rate        payable = P
+upfront_percentage   deduction = round(P × rate/100) disbursed = P − deduction   payable = P
+emi_flat             interest  = P × rate/100        disbursed = P               payable = P + interest
+emi_floating         i = (rate/100)/periodsPerYear   EMI = P·i(1+i)^n / ((1+i)^n − 1)
+                     payable   = round(EMI) × n      periodsPerYear: 365 / 52 / 26 / 12
+interest_only        monthly   = round(P × rate/100) disbursed = P               payable = P + monthly × n
+                     APR = rate × 12                 principal is a bullet, OUTSIDE the schedule
+
+split                base = floor(payable / n); the remainder lands on the LAST row</pre>
+  <div class="cases"><details class="tc v-passed" id="CALC-ORG-001" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-001</span>
+    <span class="ttl">upfront_fixed nets a flat rupee deduction off the disbursal, not off the payable</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">The borrower receives principal minus the fee but still repays the whole principal.</p>
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 10000,
+  &quot;interestType&quot;: &quot;upfront_fixed&quot;,
+  &quot;interestRate&quot;: 1000,
+  &quot;tenure&quot;: 10,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;deduction&quot;: 1000,
+  &quot;disbursedAmount&quot;: 9000,
+  &quot;totalPayable&quot;: 10000,
+  &quot;perInstalment&quot;: 1000,
+  &quot;scheduleLength&quot;: 10,
+  &quot;scheduleSum&quot;: 10000,
+  &quot;scheduleSumEqualsPayable&quot;: true,
+  &quot;firstDueDate&quot;: &quot;2026-06-01&quot;,
+  &quot;lastDueDate&quot;: &quot;2026-06-10&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-002" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-002</span>
+    <span class="ttl">upfront_fixed with a zero fee disburses the full principal</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 10000,
+  &quot;interestType&quot;: &quot;upfront_fixed&quot;,
+  &quot;interestRate&quot;: 0,
+  &quot;tenure&quot;: 10,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;deduction&quot;: 0,
+  &quot;disbursedAmount&quot;: 10000,
+  &quot;totalPayable&quot;: 10000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-003" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-003</span>
+    <span class="ttl">upfront_percentage takes the rate as a percentage of principal</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 20000,
+  &quot;interestType&quot;: &quot;upfront_percentage&quot;,
+  &quot;interestRate&quot;: 10,
+  &quot;tenure&quot;: 100,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;deduction&quot;: 2000,
+  &quot;disbursedAmount&quot;: 18000,
+  &quot;totalPayable&quot;: 20000,
+  &quot;perInstalment&quot;: 200,
+  &quot;scheduleSum&quot;: 20000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-004" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-004</span>
+    <span class="ttl">upfront_percentage rounds the deduction to whole rupees</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">7.5% of 15,000 is 1,125 exactly; the rounding must not leak into the payable.</p>
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 15000,
+  &quot;interestType&quot;: &quot;upfront_percentage&quot;,
+  &quot;interestRate&quot;: 7.5,
+  &quot;tenure&quot;: 7,
+  &quot;frequency&quot;: &quot;weekly&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;deduction&quot;: 1125,
+  &quot;disbursedAmount&quot;: 13875,
+  &quot;totalPayable&quot;: 15000,
+  &quot;firstDueAmount&quot;: 2142,
+  &quot;lastDueAmount&quot;: 2148,
+  &quot;scheduleSum&quot;: 15000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-005" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-005</span>
+    <span class="ttl">emi_flat adds flat interest on top; nothing is deducted at disbursal</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 50000,
+  &quot;interestType&quot;: &quot;emi_flat&quot;,
+  &quot;interestRate&quot;: 12,
+  &quot;tenure&quot;: 12,
+  &quot;frequency&quot;: &quot;monthly&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;deduction&quot;: 0,
+  &quot;disbursedAmount&quot;: 50000,
+  &quot;totalPayable&quot;: 56000,
+  &quot;perInstalment&quot;: 4666,
+  &quot;lastDueAmount&quot;: 4674,
+  &quot;scheduleSum&quot;: 56000,
+  &quot;scheduleSumEqualsPayable&quot;: true
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-006" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-006</span>
+    <span class="ttl">emi_flat interest is NOT annualised — the rate applies once over the whole tenure</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">10% on 10,000 over 10 weeks is 1,000, not 10% p.a. pro-rated. Pins the flat-rate reading.</p>
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 10000,
+  &quot;interestType&quot;: &quot;emi_flat&quot;,
+  &quot;interestRate&quot;: 10,
+  &quot;tenure&quot;: 10,
+  &quot;frequency&quot;: &quot;weekly&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;totalPayable&quot;: 11000,
+  &quot;perInstalment&quot;: 1100,
+  &quot;scheduleSum&quot;: 11000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-007" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-007</span>
+    <span class="ttl">emi_flat at 0% is a pure principal repayment</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 12000,
+  &quot;interestType&quot;: &quot;emi_flat&quot;,
+  &quot;interestRate&quot;: 0,
+  &quot;tenure&quot;: 12,
+  &quot;frequency&quot;: &quot;monthly&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;totalPayable&quot;: 12000,
+  &quot;perInstalment&quot;: 1000,
+  &quot;scheduleSum&quot;: 12000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-008" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-008</span>
+    <span class="ttl">emi_floating monthly uses the reducing-balance annuity at rate/12</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">1,00,000 at 12% p.a. over 12 months = 8,884.88 → rounded 8,885 per instalment.</p>
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 100000,
+  &quot;interestType&quot;: &quot;emi_floating&quot;,
+  &quot;interestRate&quot;: 12,
+  &quot;tenure&quot;: 12,
+  &quot;frequency&quot;: &quot;monthly&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;totalPayable&quot;: 106620,
+  &quot;perInstalment&quot;: 8885,
+  &quot;scheduleLength&quot;: 12,
+  &quot;scheduleSum&quot;: 106620
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-009" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-009</span>
+    <span class="ttl">emi_floating weekly divides the annual rate by 52, not 12</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 50000,
+  &quot;interestType&quot;: &quot;emi_floating&quot;,
+  &quot;interestRate&quot;: 24,
+  &quot;tenure&quot;: 52,
+  &quot;frequency&quot;: &quot;weekly&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;perInstalment&quot;: 1084,
+  &quot;totalPayable&quot;: 56368
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-010" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-010</span>
+    <span class="ttl">emi_floating daily divides the annual rate by 365</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 100000,
+  &quot;interestType&quot;: &quot;emi_floating&quot;,
+  &quot;interestRate&quot;: 18,
+  &quot;tenure&quot;: 365,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;perInstalment&quot;: 299,
+  &quot;totalPayable&quot;: 109135
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-011" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-011</span>
+    <span class="ttl">emi_floating biweekly divides the annual rate by 26</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 60000,
+  &quot;interestType&quot;: &quot;emi_floating&quot;,
+  &quot;interestRate&quot;: 15,
+  &quot;tenure&quot;: 26,
+  &quot;frequency&quot;: &quot;biweekly&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;perInstalment&quot;: 2492,
+  &quot;totalPayable&quot;: 64792
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-012" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-012</span>
+    <span class="ttl">emi_floating at 0% short-circuits to the principal (no division by zero)</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 24000,
+  &quot;interestType&quot;: &quot;emi_floating&quot;,
+  &quot;interestRate&quot;: 0,
+  &quot;tenure&quot;: 12,
+  &quot;frequency&quot;: &quot;monthly&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;totalPayable&quot;: 24000,
+  &quot;perInstalment&quot;: 2000,
+  &quot;scheduleSum&quot;: 24000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-013" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-013</span>
+    <span class="ttl">interest_only bills one month's interest and keeps the principal outside the schedule</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-3</span> <span class="rule">MONEY-4</span> <span class="rule">MONEY-5</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">The single model where sum(schedule) deliberately != totalPayable.</p>
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 100000,
+  &quot;interestType&quot;: &quot;interest_only&quot;,
+  &quot;interestRate&quot;: 2.5,
+  &quot;tenure&quot;: 12,
+  &quot;frequency&quot;: &quot;monthly&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;,
+  &quot;dueDay&quot;: 5
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;monthlyInterest&quot;: 2500,
+  &quot;aprPercent&quot;: 30,
+  &quot;principalDueAtClosure&quot;: 100000,
+  &quot;deduction&quot;: 0,
+  &quot;disbursedAmount&quot;: 100000,
+  &quot;totalPayable&quot;: 130000,
+  &quot;perInstalment&quot;: 2500,
+  &quot;scheduleLength&quot;: 12,
+  &quot;scheduleSum&quot;: 30000,
+  &quot;scheduleSumEqualsPayable&quot;: false,
+  &quot;firstDueDate&quot;: &quot;2026-06-05&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-014" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-014</span>
+    <span class="ttl">interest_only dues are flat — no rounding remainder is dumped on the last row</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-4</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 33333,
+  &quot;interestType&quot;: &quot;interest_only&quot;,
+  &quot;interestRate&quot;: 3,
+  &quot;tenure&quot;: 6,
+  &quot;frequency&quot;: &quot;monthly&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;monthlyInterest&quot;: 1000,
+  &quot;firstDueAmount&quot;: 1000,
+  &quot;lastDueAmount&quot;: 1000,
+  &quot;scheduleSum&quot;: 6000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-015" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-015</span>
+    <span class="ttl">interest_only with a daily frequency is rejected outright</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-3</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">The rate is quoted per month; billing it daily would multiply the charge ~30x.</p>
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 100000,
+  &quot;interestType&quot;: &quot;interest_only&quot;,
+  &quot;interestRate&quot;: 2.5,
+  &quot;tenure&quot;: 30,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected throw</h4>
+    <pre class="code">Interest-Only loans must use a monthly frequency</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-016" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-016</span>
+    <span class="ttl">interest_only with a weekly frequency is rejected too</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-3</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 100000,
+  &quot;interestType&quot;: &quot;interest_only&quot;,
+  &quot;interestRate&quot;: 2.5,
+  &quot;tenure&quot;: 12,
+  &quot;frequency&quot;: &quot;weekly&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected throw</h4>
+    <pre class="code">Interest-Only loans must use a monthly frequency</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-017" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-017</span>
+    <span class="ttl">an unknown interest type falls back to principal-only, never to a silent charge</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 10000,
+  &quot;interestType&quot;: &quot;something_new&quot;,
+  &quot;interestRate&quot;: 15,
+  &quot;tenure&quot;: 10,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;totalPayable&quot;: 10000,
+  &quot;disbursedAmount&quot;: 10000,
+  &quot;deduction&quot;: 0
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-018" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-018</span>
+    <span class="ttl">the default interest type is upfront_fixed</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 10000,
+  &quot;interestRate&quot;: 500,
+  &quot;tenure&quot;: 10,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;deduction&quot;: 500,
+  &quot;disbursedAmount&quot;: 9500,
+  &quot;totalPayable&quot;: 10000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-019" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-019</span>
+    <span class="ttl">the rounding remainder lands on the LAST instalment, never spread</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.distribute</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;totalPayable&quot;: 1000,
+  &quot;tenure&quot;: 3
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;amounts&quot;: [
+    333,
+    333,
+    334
+  ],
+  &quot;sum&quot;: 1000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-020" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-020</span>
+    <span class="ttl">an even split leaves every row identical</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.distribute</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;totalPayable&quot;: 1000,
+  &quot;tenure&quot;: 4
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;amounts&quot;: [
+    250,
+    250,
+    250,
+    250
+  ],
+  &quot;sum&quot;: 1000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-021" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-021</span>
+    <span class="ttl">distribution never loses a rupee, however awkward the division</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.distribute</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;totalPayable&quot;: 99999,
+  &quot;tenure&quot;: 7
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;sum&quot;: 99999,
+  &quot;count&quot;: 7,
+  &quot;amounts.0&quot;: 14285,
+  &quot;amounts.6&quot;: 14289
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-022" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-022</span>
+    <span class="ttl">a tenure longer than the payable in rupees produces zero-rupee dues</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">Documents the edge: ₹5 over 10 instalments gives nine ₹0 rows and one ₹5 row.</p>
+    <h4>Op</h4><p><code>loan.distribute</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;totalPayable&quot;: 5,
+  &quot;tenure&quot;: 10
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;amounts.0&quot;: 0,
+  &quot;amounts.9&quot;: 5,
+  &quot;sum&quot;: 5
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-023" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-023</span>
+    <span class="ttl">isInterestOnly is the only sanctioned way to branch on the model</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-4</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.isInterestOnly</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;interestType&quot;: &quot;interest_only&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;result&quot;: true
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-024" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-024</span>
+    <span class="ttl">isInterestOnly is false for every other model and for null</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-4</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.isInterestOnly</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;interestType&quot;: null
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;result&quot;: false
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-025" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-025</span>
+    <span class="ttl">a one-instalment loan is a valid bullet schedule</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 25000,
+  &quot;interestType&quot;: &quot;emi_flat&quot;,
+  &quot;interestRate&quot;: 5,
+  &quot;tenure&quot;: 1,
+  &quot;frequency&quot;: &quot;monthly&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;totalPayable&quot;: 26250,
+  &quot;scheduleLength&quot;: 1,
+  &quot;perInstalment&quot;: 26250,
+  &quot;scheduleSum&quot;: 26250
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-026" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-026</span>
+    <span class="ttl">a fee larger than the principal disburses a negative amount instead of refusing</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">Documents live behaviour: calculateLoanPreview only rejects a NEGATIVE rate, not one that exceeds the principal, so the caller must range-check the fee.</p>
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 5000,
+  &quot;interestType&quot;: &quot;upfront_fixed&quot;,
+  &quot;interestRate&quot;: 6000,
+  &quot;tenure&quot;: 10,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;disbursedAmount&quot;: -1000,
+  &quot;totalPayable&quot;: 5000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-027" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-027</span>
+    <span class="ttl">bullet term — one payment on a date measured in days, interest added at the end</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-1</span> <span class="rule">STABLE-2</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">The 15-day advance: the borrower takes the full lakh and hands back 1,03,000 on day 15. 3% over a fortnight annualises to 73%, which the quoted rate hides.</p>
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 100000,
+  &quot;interestType&quot;: &quot;emi_flat&quot;,
+  &quot;interestRate&quot;: 3,
+  &quot;tenure&quot;: 1,
+  &quot;termType&quot;: &quot;bullet&quot;,
+  &quot;termDays&quot;: 15,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;disbursedAmount&quot;: 100000,
+  &quot;totalPayable&quot;: 103000,
+  &quot;scheduleLength&quot;: 1,
+  &quot;firstDueAmount&quot;: 103000,
+  &quot;maturityDate&quot;: &quot;2026-06-16&quot;,
+  &quot;firstDueDate&quot;: &quot;2026-06-16&quot;,
+  &quot;effectiveAnnualPercent&quot;: 73,
+  &quot;scheduleSumEqualsPayable&quot;: true
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-028" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-028</span>
+    <span class="ttl">the same advance with the charge deducted at the door costs the borrower MORE</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">Same 3,000 to the lender, but funded out of 97,000 rather than 1,00,000 — 75.26% against 73%. The two variants are not interchangeable and the form must show both.</p>
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 100000,
+  &quot;interestType&quot;: &quot;upfront_percentage&quot;,
+  &quot;interestRate&quot;: 3,
+  &quot;tenure&quot;: 1,
+  &quot;termType&quot;: &quot;bullet&quot;,
+  &quot;termDays&quot;: 15,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;deduction&quot;: 3000,
+  &quot;disbursedAmount&quot;: 97000,
+  &quot;totalPayable&quot;: 100000,
+  &quot;firstDueAmount&quot;: 100000,
+  &quot;maturityDate&quot;: &quot;2026-06-16&quot;,
+  &quot;effectiveAnnualPercent&quot;: 75.26
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-029" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-029</span>
+    <span class="ttl">bullet with a flat rupee fee deducted at disbursal</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 50000,
+  &quot;interestType&quot;: &quot;upfront_fixed&quot;,
+  &quot;interestRate&quot;: 2500,
+  &quot;tenure&quot;: 1,
+  &quot;termType&quot;: &quot;bullet&quot;,
+  &quot;termDays&quot;: 30,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;deduction&quot;: 2500,
+  &quot;disbursedAmount&quot;: 47500,
+  &quot;totalPayable&quot;: 50000,
+  &quot;maturityDate&quot;: &quot;2026-07-01&quot;,
+  &quot;effectiveAnnualPercent&quot;: 64.04
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-030" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-030</span>
+    <span class="ttl">a bullet maturity counts calendar days across a month end</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">20 Jan + 45 days is 6 Mar — day arithmetic, never a month step.</p>
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 100000,
+  &quot;interestType&quot;: &quot;emi_flat&quot;,
+  &quot;interestRate&quot;: 5,
+  &quot;tenure&quot;: 1,
+  &quot;termType&quot;: &quot;bullet&quot;,
+  &quot;termDays&quot;: 45,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;startDate&quot;: &quot;2026-01-20&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;maturityDate&quot;: &quot;2026-03-06&quot;,
+  &quot;totalPayable&quot;: 105000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-031" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-031</span>
+    <span class="ttl">a bullet term rejects the reducing-balance model</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">An annuity over one period degenerates; the resulting figure cannot be explained to a borrower.</p>
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 100000,
+  &quot;interestType&quot;: &quot;emi_floating&quot;,
+  &quot;interestRate&quot;: 18,
+  &quot;tenure&quot;: 1,
+  &quot;termType&quot;: &quot;bullet&quot;,
+  &quot;termDays&quot;: 15,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected throw</h4>
+    <pre class="code">cannot use emi_floating</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-032" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-032</span>
+    <span class="ttl">a bullet term rejects interest-only</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-3</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">Interest-only quotes a MONTHLY rate and has no meaning over a term of days.</p>
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 100000,
+  &quot;interestType&quot;: &quot;interest_only&quot;,
+  &quot;interestRate&quot;: 2.5,
+  &quot;tenure&quot;: 1,
+  &quot;termType&quot;: &quot;bullet&quot;,
+  &quot;termDays&quot;: 15,
+  &quot;frequency&quot;: &quot;monthly&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected throw</h4>
+    <pre class="code">cannot use interest_only</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-033" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-033</span>
+    <span class="ttl">a bullet term rejects a tenure above one</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 100000,
+  &quot;interestType&quot;: &quot;emi_flat&quot;,
+  &quot;interestRate&quot;: 3,
+  &quot;tenure&quot;: 5,
+  &quot;termType&quot;: &quot;bullet&quot;,
+  &quot;termDays&quot;: 15,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected throw</h4>
+    <pre class="code">tenure must be 1</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-034" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-034</span>
+    <span class="ttl">a bullet term needs a positive whole number of days</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 100000,
+  &quot;interestType&quot;: &quot;emi_flat&quot;,
+  &quot;interestRate&quot;: 3,
+  &quot;tenure&quot;: 1,
+  &quot;termType&quot;: &quot;bullet&quot;,
+  &quot;termDays&quot;: 0,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected throw</h4>
+    <pre class="code">whole number of days</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-035" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-035</span>
+    <span class="ttl">a fractional day count is refused</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 100000,
+  &quot;interestType&quot;: &quot;emi_flat&quot;,
+  &quot;interestRate&quot;: 3,
+  &quot;tenure&quot;: 1,
+  &quot;termType&quot;: &quot;bullet&quot;,
+  &quot;termDays&quot;: 15.5,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected throw</h4>
+    <pre class="code">whole number of days</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-036" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-036</span>
+    <span class="ttl">omitting termType leaves every existing loan shape untouched</span>
+    <span class="spacer"></span>
+    <span class="rule">STABLE-2</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">Regression pin. The term axis defaults to 'scheduled', so a payload written before it existed produces byte-identical output.</p>
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 10000,
+  &quot;interestType&quot;: &quot;upfront_fixed&quot;,
+  &quot;interestRate&quot;: 1000,
+  &quot;tenure&quot;: 10,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;scheduleLength&quot;: 10,
+  &quot;firstDueDate&quot;: &quot;2026-06-01&quot;,
+  &quot;lastDueDate&quot;: &quot;2026-06-10&quot;,
+  &quot;maturityDate&quot;: null,
+  &quot;effectiveAnnualPercent&quot;: null,
+  &quot;totalPayable&quot;: 10000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ORG-037" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ORG-037</span>
+    <span class="ttl">termDays is ignored while the term is scheduled</span>
+    <span class="spacer"></span>
+    <span class="rule">STABLE-2</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">A stray field must not silently reshape a cadence loan.</p>
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 10000,
+  &quot;interestType&quot;: &quot;upfront_fixed&quot;,
+  &quot;interestRate&quot;: 1000,
+  &quot;tenure&quot;: 10,
+  &quot;termType&quot;: &quot;scheduled&quot;,
+  &quot;termDays&quot;: 15,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;scheduleLength&quot;: 10,
+  &quot;lastDueDate&quot;: &quot;2026-06-10&quot;,
+  &quot;maturityDate&quot;: null
+}</pre>
+    
+    
+  </div>
+</details></div>
+</section>
+<section class="grp" data-group="validation">
+  <h2>Origination guards <span class="gcount">13 cases</span></h2>
+  <p class="blurb">What the calculator refuses, and in which words. The wording is part of the contract — the UI surfaces it verbatim.</p>
+  <pre class="formula">principal ≤ 0 or not finite   → &quot;Principal must be greater than zero.&quot;
+rate &lt; 0 or not finite        → &quot;Deduction or interest rate cannot be negative.&quot;
+tenure not a positive integer → &quot;Tenure must be a positive whole number.&quot;
+penaltyRate &lt; 0               → &quot;Penalty rate cannot be negative.&quot;
+unparseable start date        → &quot;Invalid start date.&quot;
+interest_only + non-monthly   → &quot;Interest-Only loans must use a monthly frequency.&quot;</pre>
+  <div class="cases"><details class="tc v-passed" id="CALC-VAL-001" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-VAL-001</span>
+    <span class="ttl">a zero principal is refused</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 0,
+  &quot;interestType&quot;: &quot;emi_flat&quot;,
+  &quot;interestRate&quot;: 10,
+  &quot;tenure&quot;: 10,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected throw</h4>
+    <pre class="code">Principal must be greater than zero</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-VAL-002" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-VAL-002</span>
+    <span class="ttl">a negative principal is refused</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: -100,
+  &quot;interestType&quot;: &quot;emi_flat&quot;,
+  &quot;interestRate&quot;: 10,
+  &quot;tenure&quot;: 10,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected throw</h4>
+    <pre class="code">Principal must be greater than zero</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-VAL-003" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-VAL-003</span>
+    <span class="ttl">a non-numeric principal is refused before any arithmetic runs</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: &quot;abc&quot;,
+  &quot;interestType&quot;: &quot;emi_flat&quot;,
+  &quot;interestRate&quot;: 10,
+  &quot;tenure&quot;: 10,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected throw</h4>
+    <pre class="code">Principal must be a valid number</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-VAL-004" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-VAL-004</span>
+    <span class="ttl">a negative rate is refused</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 10000,
+  &quot;interestType&quot;: &quot;emi_flat&quot;,
+  &quot;interestRate&quot;: -5,
+  &quot;tenure&quot;: 10,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected throw</h4>
+    <pre class="code">cannot be negative</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-VAL-005" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-VAL-005</span>
+    <span class="ttl">a fractional tenure is refused — instalment counts are whole</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 10000,
+  &quot;interestType&quot;: &quot;emi_flat&quot;,
+  &quot;interestRate&quot;: 10,
+  &quot;tenure&quot;: 2.5,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected throw</h4>
+    <pre class="code">Tenure must be a positive whole number</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-VAL-006" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-VAL-006</span>
+    <span class="ttl">a zero tenure is refused</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 10000,
+  &quot;interestType&quot;: &quot;emi_flat&quot;,
+  &quot;interestRate&quot;: 10,
+  &quot;tenure&quot;: 0,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;startDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected throw</h4>
+    <pre class="code">Tenure must be a positive whole number</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-VAL-007" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-VAL-007</span>
+    <span class="ttl">an unparseable start date is refused</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.preview</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 10000,
+  &quot;interestType&quot;: &quot;emi_flat&quot;,
+  &quot;interestRate&quot;: 10,
+  &quot;tenure&quot;: 10,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;startDate&quot;: &quot;not-a-date&quot;
+}</pre>
+    <h4>Expected throw</h4>
+    <pre class="code">Invalid start date</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-VAL-008" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-VAL-008</span>
+    <span class="ttl">the origination guard accepts a well-formed set of numbers</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.validate</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 10000,
+  &quot;rate&quot;: 10,
+  &quot;tenure&quot;: 12,
+  &quot;penaltyRate&quot;: 50
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;valid&quot;: true,
+  &quot;error&quot;: null
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-VAL-009" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-VAL-009</span>
+    <span class="ttl">the origination guard rejects a negative penalty rate</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-14</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.validate</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 10000,
+  &quot;rate&quot;: 10,
+  &quot;tenure&quot;: 12,
+  &quot;penaltyRate&quot;: -1
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;valid&quot;: false,
+  &quot;error&quot;: &quot;Penalty rate cannot be negative.&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-VAL-010" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-VAL-010</span>
+    <span class="ttl">the origination guard rejects a zero principal with the same wording as the calculator</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.validate</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 0,
+  &quot;rate&quot;: 10,
+  &quot;tenure&quot;: 12,
+  &quot;penaltyRate&quot;: 0
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;valid&quot;: false,
+  &quot;error&quot;: &quot;Principal must be greater than zero.&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-VAL-011" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-VAL-011</span>
+    <span class="ttl">a zero penalty rate is legitimate — penalties are opt-in</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-14</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.validate</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 10000,
+  &quot;rate&quot;: 0,
+  &quot;tenure&quot;: 1,
+  &quot;penaltyRate&quot;: 0
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;valid&quot;: true
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-VAL-012" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-VAL-012</span>
+    <span class="ttl">agents may originate; a customer role may not</span>
+    <span class="spacer"></span>
+    <span class="rule">ROLE-4</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.canCreateForRole</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;role&quot;: &quot;agent&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;result&quot;: true
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-VAL-013" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-VAL-013</span>
+    <span class="ttl">an unknown role may not originate</span>
+    <span class="spacer"></span>
+    <span class="rule">ROLE-4</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>loan.canCreateForRole</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;role&quot;: &quot;customer&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;result&quot;: false
+}</pre>
+    
+    
+  </div>
+</details></div>
+</section>
+<section class="grp" data-group="schedule">
+  <h2>Instalment dates <span class="gcount">18 cases</span></h2>
+  <p class="blurb">Two paths: with a chosen due day, and without one.</p>
+  <pre class="formula">no dueDay   daily +i days · weekly +7i · biweekly +14i
+            monthly  same day-of-month, CLAMPED to the month end (31 Jan → 28 Feb)
+
+with dueDay weekly/biweekly  dueDay 0–6 (Sun–Sat); the first due rolls FORWARD
+            monthly          dueDay 1–28, clamped to 28; a day already past
+                             moves the first due to next month
+
+maturity    calculateEndDate = start + tenure × step (NOT the last due date)</pre>
+  <div class="cases"><details class="tc v-passed" id="CALC-SCH-001" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-SCH-001</span>
+    <span class="ttl">daily schedules run on consecutive calendar days from the start date</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>schedule.dates</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;startDate&quot;: &quot;2026-06-01&quot;,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;tenure&quot;: 10,
+  &quot;dueDay&quot;: null
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;count&quot;: 10,
+  &quot;first&quot;: &quot;2026-06-01&quot;,
+  &quot;last&quot;: &quot;2026-06-10&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-SCH-002" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-SCH-002</span>
+    <span class="ttl">daily schedules ignore dueDay entirely</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">A day-of-week has no meaning for a loan collected every day.</p>
+    <h4>Op</h4><p><code>schedule.dates</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;startDate&quot;: &quot;2026-06-01&quot;,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;tenure&quot;: 5,
+  &quot;dueDay&quot;: 3
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;dates&quot;: [
+    &quot;2026-06-01&quot;,
+    &quot;2026-06-02&quot;,
+    &quot;2026-06-03&quot;,
+    &quot;2026-06-04&quot;,
+    &quot;2026-06-05&quot;
+  ]
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-SCH-003" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-SCH-003</span>
+    <span class="ttl">a weekly schedule with no dueDay starts on the start date and steps 7 days</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>schedule.dates</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;startDate&quot;: &quot;2026-06-03&quot;,
+  &quot;frequency&quot;: &quot;weekly&quot;,
+  &quot;tenure&quot;: 4,
+  &quot;dueDay&quot;: null
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;dates&quot;: [
+    &quot;2026-06-03&quot;,
+    &quot;2026-06-10&quot;,
+    &quot;2026-06-17&quot;,
+    &quot;2026-06-24&quot;
+  ]
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-SCH-004" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-SCH-004</span>
+    <span class="ttl">a weekly dueDay rolls FORWARD to the next matching weekday</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">dueDay 1 is Monday; a Wednesday start must not back-date the first due.</p>
+    <h4>Op</h4><p><code>schedule.dates</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;startDate&quot;: &quot;2026-06-03&quot;,
+  &quot;frequency&quot;: &quot;weekly&quot;,
+  &quot;tenure&quot;: 4,
+  &quot;dueDay&quot;: 1
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;dates&quot;: [
+    &quot;2026-06-08&quot;,
+    &quot;2026-06-15&quot;,
+    &quot;2026-06-22&quot;,
+    &quot;2026-06-29&quot;
+  ]
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-SCH-005" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-SCH-005</span>
+    <span class="ttl">a weekly dueDay equal to the start weekday uses the start date itself</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>schedule.dates</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;startDate&quot;: &quot;2026-06-01&quot;,
+  &quot;frequency&quot;: &quot;weekly&quot;,
+  &quot;tenure&quot;: 3,
+  &quot;dueDay&quot;: 1
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;dates&quot;: [
+    &quot;2026-06-01&quot;,
+    &quot;2026-06-08&quot;,
+    &quot;2026-06-15&quot;
+  ]
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-SCH-006" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-SCH-006</span>
+    <span class="ttl">biweekly steps 14 days from the first matching weekday</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>schedule.dates</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;startDate&quot;: &quot;2026-06-01&quot;,
+  &quot;frequency&quot;: &quot;biweekly&quot;,
+  &quot;tenure&quot;: 3,
+  &quot;dueDay&quot;: 5
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;dates&quot;: [
+    &quot;2026-06-05&quot;,
+    &quot;2026-06-19&quot;,
+    &quot;2026-07-03&quot;
+  ]
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-SCH-007" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-SCH-007</span>
+    <span class="ttl">biweekly with no dueDay steps 14 days from the start date</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>schedule.dates</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;startDate&quot;: &quot;2026-06-01&quot;,
+  &quot;frequency&quot;: &quot;biweekly&quot;,
+  &quot;tenure&quot;: 3,
+  &quot;dueDay&quot;: null
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;dates&quot;: [
+    &quot;2026-06-01&quot;,
+    &quot;2026-06-15&quot;,
+    &quot;2026-06-29&quot;
+  ]
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-SCH-008" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-SCH-008</span>
+    <span class="ttl">a monthly dueDay already past in the start month moves the first due to next month</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">Starting on the 10th with a due day of the 5th must not bill five days in the past.</p>
+    <h4>Op</h4><p><code>schedule.dates</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;startDate&quot;: &quot;2026-06-10&quot;,
+  &quot;frequency&quot;: &quot;monthly&quot;,
+  &quot;tenure&quot;: 3,
+  &quot;dueDay&quot;: 5
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;dates&quot;: [
+    &quot;2026-07-05&quot;,
+    &quot;2026-08-05&quot;,
+    &quot;2026-09-05&quot;
+  ]
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-SCH-009" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-SCH-009</span>
+    <span class="ttl">a monthly dueDay still ahead in the start month bills this month</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>schedule.dates</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;startDate&quot;: &quot;2026-06-01&quot;,
+  &quot;frequency&quot;: &quot;monthly&quot;,
+  &quot;tenure&quot;: 3,
+  &quot;dueDay&quot;: 5
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;dates&quot;: [
+    &quot;2026-06-05&quot;,
+    &quot;2026-07-05&quot;,
+    &quot;2026-08-05&quot;
+  ]
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-SCH-010" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-SCH-010</span>
+    <span class="ttl">a monthly dueDay past 28 is clamped to 28 so every month can honour it</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">Choosing the 31st must not skip February. The clamp is the product decision.</p>
+    <h4>Op</h4><p><code>schedule.dates</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;startDate&quot;: &quot;2026-01-01&quot;,
+  &quot;frequency&quot;: &quot;monthly&quot;,
+  &quot;tenure&quot;: 3,
+  &quot;dueDay&quot;: 31
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;dates&quot;: [
+    &quot;2026-01-28&quot;,
+    &quot;2026-02-28&quot;,
+    &quot;2026-03-28&quot;
+  ]
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-SCH-011" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-SCH-011</span>
+    <span class="ttl">a monthly schedule with no dueDay clamps to the month end instead of overflowing</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">31 Jan + 1 month is 28 Feb, not 3 Mar. This is the anniversary-day path.</p>
+    <h4>Op</h4><p><code>schedule.dates</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;startDate&quot;: &quot;2026-01-31&quot;,
+  &quot;frequency&quot;: &quot;monthly&quot;,
+  &quot;tenure&quot;: 4,
+  &quot;dueDay&quot;: null
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;dates&quot;: [
+    &quot;2026-01-31&quot;,
+    &quot;2026-02-28&quot;,
+    &quot;2026-03-31&quot;,
+    &quot;2026-04-30&quot;
+  ]
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-SCH-012" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-SCH-012</span>
+    <span class="ttl">a monthly schedule crosses the year boundary correctly</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>schedule.dates</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;startDate&quot;: &quot;2026-11-15&quot;,
+  &quot;frequency&quot;: &quot;monthly&quot;,
+  &quot;tenure&quot;: 4,
+  &quot;dueDay&quot;: null
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;dates&quot;: [
+    &quot;2026-11-15&quot;,
+    &quot;2026-12-15&quot;,
+    &quot;2027-01-15&quot;,
+    &quot;2027-02-15&quot;
+  ]
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-SCH-013" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-SCH-013</span>
+    <span class="ttl">a monthly dueDay schedule crosses the year boundary correctly</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>schedule.dates</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;startDate&quot;: &quot;2026-11-20&quot;,
+  &quot;frequency&quot;: &quot;monthly&quot;,
+  &quot;tenure&quot;: 3,
+  &quot;dueDay&quot;: 10
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;dates&quot;: [
+    &quot;2026-12-10&quot;,
+    &quot;2027-01-10&quot;,
+    &quot;2027-02-10&quot;
+  ]
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-SCH-014" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-SCH-014</span>
+    <span class="ttl">a daily schedule crosses a leap-year February without a gap</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>schedule.dates</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;startDate&quot;: &quot;2028-02-27&quot;,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;tenure&quot;: 4,
+  &quot;dueDay&quot;: null
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;dates&quot;: [
+    &quot;2028-02-27&quot;,
+    &quot;2028-02-28&quot;,
+    &quot;2028-02-29&quot;,
+    &quot;2028-03-01&quot;
+  ]
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-SCH-015" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-SCH-015</span>
+    <span class="ttl">the maturity date of a daily loan is start + tenure days</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>schedule.endDate</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;startDate&quot;: &quot;2026-06-01&quot;,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;tenure&quot;: 30
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;endDate&quot;: &quot;2026-07-01&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-SCH-016" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-SCH-016</span>
+    <span class="ttl">the maturity date of a monthly loan is start + tenure months</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>schedule.endDate</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;startDate&quot;: &quot;2026-06-01&quot;,
+  &quot;frequency&quot;: &quot;monthly&quot;,
+  &quot;tenure&quot;: 12
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;endDate&quot;: &quot;2027-06-01&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-SCH-017" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-SCH-017</span>
+    <span class="ttl">the maturity date of a weekly loan is start + 7×tenure days</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>schedule.endDate</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;startDate&quot;: &quot;2026-06-01&quot;,
+  &quot;frequency&quot;: &quot;weekly&quot;,
+  &quot;tenure&quot;: 10
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;endDate&quot;: &quot;2026-08-10&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-SCH-018" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-SCH-018</span>
+    <span class="ttl">a 365-day schedule generates exactly 365 rows</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>schedule.dates</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;startDate&quot;: &quot;2026-01-01&quot;,
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;tenure&quot;: 365,
+  &quot;dueDay&quot;: null
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;count&quot;: 365,
+  &quot;first&quot;: &quot;2026-01-01&quot;,
+  &quot;last&quot;: &quot;2026-12-31&quot;
+}</pre>
+    
+    
+  </div>
+</details></div>
+</section>
+<section class="grp" data-group="allocation">
+  <h2>Repayment allocation <span class="gcount">18 cases</span></h2>
+  <p class="blurb">Fill order is a business decision, not a sort accident. Statuses are derived, never hand-set.</p>
+  <pre class="formula">fill order   1. today's due   2. overdue, oldest first   3. future, soonest first
+
+status       received ≥ due → paid · received &gt; 0 → partial
+             past due       → missed · otherwise  → upcoming · waived is preserved
+outstanding  max(0, due − received)          overdue counts only when dueDate &lt; today
+
+loan status  settled = paidCount + waivedCount = totalInstalments
+             closed  ⟸ settled AND NOT principalOutstanding &gt; 0
+             overdue ⟸ overdueAmount &gt; 0        active ⟸ otherwise</pre>
+  <div class="cases"><details class="tc v-passed" id="CALC-ALO-001" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ALO-001</span>
+    <span class="ttl">a payment fills instalments oldest-first and marks the shortfall partial</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-11</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>repay.allocate</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;now&quot;: &quot;2026-06-03&quot;,
+  &quot;totalCollected&quot;: 250,
+  &quot;instalments&quot;: [
+    {
+      &quot;id&quot;: &quot;i1&quot;,
+      &quot;instalmentNo&quot;: 1,
+      &quot;dueDate&quot;: &quot;2026-06-01&quot;,
+      &quot;dueAmount&quot;: 100
+    },
+    {
+      &quot;id&quot;: &quot;i2&quot;,
+      &quot;instalmentNo&quot;: 2,
+      &quot;dueDate&quot;: &quot;2026-06-02&quot;,
+      &quot;dueAmount&quot;: 100
+    },
+    {
+      &quot;id&quot;: &quot;i3&quot;,
+      &quot;instalmentNo&quot;: 3,
+      &quot;dueDate&quot;: &quot;2026-06-03&quot;,
+      &quot;dueAmount&quot;: 100
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;received&quot;: [
+    100,
+    100,
+    50
+  ],
+  &quot;statuses&quot;: [
+    &quot;paid&quot;,
+    &quot;paid&quot;,
+    &quot;partial&quot;
+  ],
+  &quot;paidCount&quot;: 2,
+  &quot;totalCollected&quot;: 250,
+  &quot;totalDue&quot;: 300,
+  &quot;outstandingAmount&quot;: 50,
+  &quot;overdueAmount&quot;: 0,
+  &quot;loanStatus&quot;: &quot;active&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ALO-002" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ALO-002</span>
+    <span class="ttl">nothing collected leaves every past due missed and the loan overdue</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-11</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>repay.allocate</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;now&quot;: &quot;2026-06-05&quot;,
+  &quot;totalCollected&quot;: 0,
+  &quot;instalments&quot;: [
+    {
+      &quot;id&quot;: &quot;i1&quot;,
+      &quot;instalmentNo&quot;: 1,
+      &quot;dueDate&quot;: &quot;2026-06-01&quot;,
+      &quot;dueAmount&quot;: 100
+    },
+    {
+      &quot;id&quot;: &quot;i2&quot;,
+      &quot;instalmentNo&quot;: 2,
+      &quot;dueDate&quot;: &quot;2026-06-02&quot;,
+      &quot;dueAmount&quot;: 100
+    },
+    {
+      &quot;id&quot;: &quot;i3&quot;,
+      &quot;instalmentNo&quot;: 3,
+      &quot;dueDate&quot;: &quot;2026-06-03&quot;,
+      &quot;dueAmount&quot;: 100
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;statuses&quot;: [
+    &quot;missed&quot;,
+    &quot;missed&quot;,
+    &quot;missed&quot;
+  ],
+  &quot;outstandingAmount&quot;: 300,
+  &quot;overdueAmount&quot;: 300,
+  &quot;overdueCount&quot;: 3,
+  &quot;loanStatus&quot;: &quot;overdue&quot;,
+  &quot;daysOverdue&quot;: [
+    4,
+    3,
+    2
+  ]
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ALO-003" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ALO-003</span>
+    <span class="ttl">settling every instalment closes the loan</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-11</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>repay.allocate</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;now&quot;: &quot;2026-06-05&quot;,
+  &quot;totalCollected&quot;: 300,
+  &quot;instalments&quot;: [
+    {
+      &quot;id&quot;: &quot;i1&quot;,
+      &quot;instalmentNo&quot;: 1,
+      &quot;dueDate&quot;: &quot;2026-06-01&quot;,
+      &quot;dueAmount&quot;: 100
+    },
+    {
+      &quot;id&quot;: &quot;i2&quot;,
+      &quot;instalmentNo&quot;: 2,
+      &quot;dueDate&quot;: &quot;2026-06-02&quot;,
+      &quot;dueAmount&quot;: 100
+    },
+    {
+      &quot;id&quot;: &quot;i3&quot;,
+      &quot;instalmentNo&quot;: 3,
+      &quot;dueDate&quot;: &quot;2026-06-03&quot;,
+      &quot;dueAmount&quot;: 100
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;statuses&quot;: [
+    &quot;paid&quot;,
+    &quot;paid&quot;,
+    &quot;paid&quot;
+  ],
+  &quot;loanStatus&quot;: &quot;closed&quot;,
+  &quot;outstandingAmount&quot;: 0
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ALO-004" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ALO-004</span>
+    <span class="ttl">an overpayment is capped at the total due — no instalment absorbs more than it owes</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-11</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>repay.allocate</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;now&quot;: &quot;2026-06-05&quot;,
+  &quot;totalCollected&quot;: 1000,
+  &quot;instalments&quot;: [
+    {
+      &quot;id&quot;: &quot;i1&quot;,
+      &quot;instalmentNo&quot;: 1,
+      &quot;dueDate&quot;: &quot;2026-06-01&quot;,
+      &quot;dueAmount&quot;: 100
+    },
+    {
+      &quot;id&quot;: &quot;i2&quot;,
+      &quot;instalmentNo&quot;: 2,
+      &quot;dueDate&quot;: &quot;2026-06-02&quot;,
+      &quot;dueAmount&quot;: 100
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;received&quot;: [
+    100,
+    100
+  ],
+  &quot;totalCollected&quot;: 200,
+  &quot;loanStatus&quot;: &quot;closed&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ALO-005" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ALO-005</span>
+    <span class="ttl">a future-dated unpaid instalment is upcoming, never missed</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-11</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>repay.allocate</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;now&quot;: &quot;2026-06-01&quot;,
+  &quot;totalCollected&quot;: 0,
+  &quot;instalments&quot;: [
+    {
+      &quot;id&quot;: &quot;i1&quot;,
+      &quot;instalmentNo&quot;: 1,
+      &quot;dueDate&quot;: &quot;2026-06-01&quot;,
+      &quot;dueAmount&quot;: 100
+    },
+    {
+      &quot;id&quot;: &quot;i2&quot;,
+      &quot;instalmentNo&quot;: 2,
+      &quot;dueDate&quot;: &quot;2026-06-02&quot;,
+      &quot;dueAmount&quot;: 100
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;statuses&quot;: [
+    &quot;upcoming&quot;,
+    &quot;upcoming&quot;
+  ],
+  &quot;overdueAmount&quot;: 0,
+  &quot;loanStatus&quot;: &quot;active&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ALO-006" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ALO-006</span>
+    <span class="ttl">today's due is not yet overdue — the clock starts the day after</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-11</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>repay.allocate</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;now&quot;: &quot;2026-06-02&quot;,
+  &quot;totalCollected&quot;: 0,
+  &quot;instalments&quot;: [
+    {
+      &quot;id&quot;: &quot;i1&quot;,
+      &quot;instalmentNo&quot;: 1,
+      &quot;dueDate&quot;: &quot;2026-06-01&quot;,
+      &quot;dueAmount&quot;: 100
+    },
+    {
+      &quot;id&quot;: &quot;i2&quot;,
+      &quot;instalmentNo&quot;: 2,
+      &quot;dueDate&quot;: &quot;2026-06-02&quot;,
+      &quot;dueAmount&quot;: 100
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;statuses&quot;: [
+    &quot;missed&quot;,
+    &quot;upcoming&quot;
+  ],
+  &quot;overdue&quot;: [
+    100,
+    0
+  ],
+  &quot;daysOverdue&quot;: [
+    1,
+    0
+  ]
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ALO-007" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ALO-007</span>
+    <span class="ttl">the pure allocator lets a WAIVED instalment swallow the payment</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-11</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">Divergence, pinned deliberately. allocatePaymentsAcrossInstalments keeps the waived row in the fill order, so it absorbs ₹100 and the real payable row reads missed. The persistence path (reallocateLoanRepayments) filters waived rows out BEFORE allocating and does not behave this way. The pure allocator has no production caller today — wiring one up without adding the same filter would mis-state collections.</p>
+    <h4>Op</h4><p><code>repay.allocate</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;now&quot;: &quot;2026-06-05&quot;,
+  &quot;totalCollected&quot;: 100,
+  &quot;instalments&quot;: [
+    {
+      &quot;id&quot;: &quot;i1&quot;,
+      &quot;instalmentNo&quot;: 1,
+      &quot;dueDate&quot;: &quot;2026-06-01&quot;,
+      &quot;dueAmount&quot;: 100,
+      &quot;status&quot;: &quot;waived&quot;
+    },
+    {
+      &quot;id&quot;: &quot;i2&quot;,
+      &quot;instalmentNo&quot;: 2,
+      &quot;dueDate&quot;: &quot;2026-06-02&quot;,
+      &quot;dueAmount&quot;: 100
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;statuses&quot;: [
+    &quot;waived&quot;,
+    &quot;missed&quot;
+  ],
+  &quot;received&quot;: [
+    100,
+    0
+  ],
+  &quot;overdueAmount&quot;: 100
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ALO-008" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ALO-008</span>
+    <span class="ttl">the loan-level fill order is today first, then the oldest arrears, then the future</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-10</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">Paying today's amount keeps today clean even when a backlog exists — a deliberate business decision, not a sort accident.</p>
+    <h4>Op</h4><p><code>repay.fillOrder</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;now&quot;: &quot;2026-06-05&quot;,
+  &quot;instalments&quot;: [
+    {
+      &quot;instalmentNo&quot;: 1,
+      &quot;dueDate&quot;: &quot;2026-06-01&quot;
+    },
+    {
+      &quot;instalmentNo&quot;: 2,
+      &quot;dueDate&quot;: &quot;2026-06-02&quot;
+    },
+    {
+      &quot;instalmentNo&quot;: 5,
+      &quot;dueDate&quot;: &quot;2026-06-05&quot;
+    },
+    {
+      &quot;instalmentNo&quot;: 6,
+      &quot;dueDate&quot;: &quot;2026-06-06&quot;
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;order&quot;: [
+    5,
+    1,
+    2,
+    6
+  ]
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ALO-009" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ALO-009</span>
+    <span class="ttl">with no due today the order is oldest arrears first, then the future</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-10</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>repay.fillOrder</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;now&quot;: &quot;2026-06-04&quot;,
+  &quot;instalments&quot;: [
+    {
+      &quot;instalmentNo&quot;: 3,
+      &quot;dueDate&quot;: &quot;2026-06-03&quot;
+    },
+    {
+      &quot;instalmentNo&quot;: 1,
+      &quot;dueDate&quot;: &quot;2026-06-01&quot;
+    },
+    {
+      &quot;instalmentNo&quot;: 7,
+      &quot;dueDate&quot;: &quot;2026-06-07&quot;
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;order&quot;: [
+    1,
+    3,
+    7
+  ]
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ALO-010" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ALO-010</span>
+    <span class="ttl">same-day dues break the tie by instalment number</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-10</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>repay.fillOrder</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;now&quot;: &quot;2026-06-10&quot;,
+  &quot;instalments&quot;: [
+    {
+      &quot;instalmentNo&quot;: 4,
+      &quot;dueDate&quot;: &quot;2026-06-02&quot;
+    },
+    {
+      &quot;instalmentNo&quot;: 2,
+      &quot;dueDate&quot;: &quot;2026-06-02&quot;
+    },
+    {
+      &quot;instalmentNo&quot;: 3,
+      &quot;dueDate&quot;: &quot;2026-06-02&quot;
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;order&quot;: [
+    2,
+    3,
+    4
+  ]
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ALO-011" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ALO-011</span>
+    <span class="ttl">a fully settled schedule closes the loan</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-11</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>repay.loanStatus</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;paidCount&quot;: 5,
+  &quot;waivedCount&quot;: 0,
+  &quot;totalInstalments&quot;: 5,
+  &quot;overdueAmount&quot;: 0
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;status&quot;: &quot;closed&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ALO-012" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ALO-012</span>
+    <span class="ttl">waived instalments count towards closure</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-11</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>repay.loanStatus</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;paidCount&quot;: 3,
+  &quot;waivedCount&quot;: 2,
+  &quot;totalInstalments&quot;: 5,
+  &quot;overdueAmount&quot;: 0
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;status&quot;: &quot;closed&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ALO-013" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ALO-013</span>
+    <span class="ttl">an interest-only loan does NOT close when the interest schedule is settled</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-4</span> <span class="rule">MONEY-11</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">Twelve months of interest paid must not mark a ₹10L principal repaid.</p>
+    <h4>Op</h4><p><code>repay.loanStatus</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;paidCount&quot;: 12,
+  &quot;waivedCount&quot;: 0,
+  &quot;totalInstalments&quot;: 12,
+  &quot;overdueAmount&quot;: 0,
+  &quot;principalOutstanding&quot;: 1000000
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;status&quot;: &quot;active&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ALO-014" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ALO-014</span>
+    <span class="ttl">an interest-only loan closes once the principal bullet is also settled</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-4</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>repay.loanStatus</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;paidCount&quot;: 12,
+  &quot;waivedCount&quot;: 0,
+  &quot;totalInstalments&quot;: 12,
+  &quot;overdueAmount&quot;: 0,
+  &quot;principalOutstanding&quot;: 0
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;status&quot;: &quot;closed&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ALO-015" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ALO-015</span>
+    <span class="ttl">any overdue amount makes the loan overdue</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-11</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>repay.loanStatus</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;paidCount&quot;: 2,
+  &quot;waivedCount&quot;: 0,
+  &quot;totalInstalments&quot;: 5,
+  &quot;overdueAmount&quot;: 1,
+  &quot;principalOutstanding&quot;: 0
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;status&quot;: &quot;overdue&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ALO-016" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ALO-016</span>
+    <span class="ttl">a loan with dues ahead and nothing overdue is active</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>repay.loanStatus</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;paidCount&quot;: 2,
+  &quot;waivedCount&quot;: 0,
+  &quot;totalInstalments&quot;: 5,
+  &quot;overdueAmount&quot;: 0
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;status&quot;: &quot;active&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ALO-017" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ALO-017</span>
+    <span class="ttl">instalment outstanding never goes negative on an overpaid row</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>repay.instalmentOutstanding</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;dueAmount&quot;: 100,
+  &quot;receivedAmount&quot;: 150
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;outstanding&quot;: 0
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-ALO-018" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-ALO-018</span>
+    <span class="ttl">instalment outstanding is due minus received</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>repay.instalmentOutstanding</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;dueAmount&quot;: 2500,
+  &quot;receivedAmount&quot;: 1000
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;outstanding&quot;: 1500
+}</pre>
+    
+    
+  </div>
+</details></div>
+</section>
+<section class="grp" data-group="penalty">
+  <h2>Penalties <span class="gcount">15 cases</span></h2>
+  <p class="blurb">The accrual the cron runs. A second, divergent formula also writes these rows — see the divergences below.</p>
+  <pre class="formula">chargeableDays = Σ max(0, daysOverdue − grace)        ← per instalment, not per loan
+grossPenalty   = chargeableDays × penaltyPerDay
+if maxCap &gt; 0:   grossPenalty = min(grossPenalty, maxCap)   ← cap 0 means UNCAPPED
+
+recorded gross only ever increases; a reduction is a waiver (waivedAmount)
+netPenaltyDue  = max(0, Σ gross − Σ settled − Σ waived)</pre>
+  <div class="cases"><details class="tc v-passed" id="CALC-PEN-001" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-PEN-001</span>
+    <span class="ttl">accrual is per overdue DAY across every missed instalment, after grace</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-14</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">Two overdue rows at 10 and 6 days with 2 days' grace = 8 + 4 = 12 chargeable days.</p>
+    <h4>Op</h4><p><code>penalty.accrual</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;asOf&quot;: &quot;2026-01-11&quot;,
+  &quot;penaltyPerDay&quot;: 50,
+  &quot;gracePeriodDays&quot;: 2,
+  &quot;maxCap&quot;: 0,
+  &quot;overdueInstalments&quot;: [
+    {
+      &quot;dueDate&quot;: &quot;2026-01-01&quot;
+    },
+    {
+      &quot;dueDate&quot;: &quot;2026-01-05&quot;
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;missedDays&quot;: 12,
+  &quot;grossPenalty&quot;: 600
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-PEN-002" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-PEN-002</span>
+    <span class="ttl">with no grace every overdue day is chargeable</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-14</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>penalty.accrual</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;asOf&quot;: &quot;2026-01-11&quot;,
+  &quot;penaltyPerDay&quot;: 50,
+  &quot;gracePeriodDays&quot;: 0,
+  &quot;maxCap&quot;: 0,
+  &quot;overdueInstalments&quot;: [
+    {
+      &quot;dueDate&quot;: &quot;2026-01-01&quot;
+    },
+    {
+      &quot;dueDate&quot;: &quot;2026-01-05&quot;
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;missedDays&quot;: 16,
+  &quot;grossPenalty&quot;: 800
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-PEN-003" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-PEN-003</span>
+    <span class="ttl">a non-zero cap limits the gross penalty but not the day count</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-14</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">missedDays stays the true figure so the cap is visible rather than hidden in the arithmetic.</p>
+    <h4>Op</h4><p><code>penalty.accrual</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;asOf&quot;: &quot;2026-01-11&quot;,
+  &quot;penaltyPerDay&quot;: 50,
+  &quot;gracePeriodDays&quot;: 0,
+  &quot;maxCap&quot;: 500,
+  &quot;overdueInstalments&quot;: [
+    {
+      &quot;dueDate&quot;: &quot;2026-01-01&quot;
+    },
+    {
+      &quot;dueDate&quot;: &quot;2026-01-05&quot;
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;missedDays&quot;: 16,
+  &quot;grossPenalty&quot;: 500
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-PEN-004" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-PEN-004</span>
+    <span class="ttl">a cap of zero means uncapped, not zero penalty</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-14</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>penalty.accrual</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;asOf&quot;: &quot;2026-02-01&quot;,
+  &quot;penaltyPerDay&quot;: 20,
+  &quot;gracePeriodDays&quot;: 0,
+  &quot;maxCap&quot;: 0,
+  &quot;overdueInstalments&quot;: [
+    {
+      &quot;dueDate&quot;: &quot;2026-01-01&quot;
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;missedDays&quot;: 31,
+  &quot;grossPenalty&quot;: 620
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-PEN-005" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-PEN-005</span>
+    <span class="ttl">an instalment inside its grace window accrues nothing</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-14</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>penalty.accrual</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;asOf&quot;: &quot;2026-01-04&quot;,
+  &quot;penaltyPerDay&quot;: 50,
+  &quot;gracePeriodDays&quot;: 5,
+  &quot;maxCap&quot;: 0,
+  &quot;overdueInstalments&quot;: [
+    {
+      &quot;dueDate&quot;: &quot;2026-01-01&quot;
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;missedDays&quot;: 0,
+  &quot;grossPenalty&quot;: 0
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-PEN-006" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-PEN-006</span>
+    <span class="ttl">grace is applied per instalment, not once per loan</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-14</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">Three rows at 5 days overdue with 5 days' grace charge nothing at all.</p>
+    <h4>Op</h4><p><code>penalty.accrual</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;asOf&quot;: &quot;2026-01-06&quot;,
+  &quot;penaltyPerDay&quot;: 50,
+  &quot;gracePeriodDays&quot;: 5,
+  &quot;maxCap&quot;: 0,
+  &quot;overdueInstalments&quot;: [
+    {
+      &quot;dueDate&quot;: &quot;2026-01-01&quot;
+    },
+    {
+      &quot;dueDate&quot;: &quot;2026-01-01&quot;
+    },
+    {
+      &quot;dueDate&quot;: &quot;2026-01-01&quot;
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;missedDays&quot;: 0,
+  &quot;grossPenalty&quot;: 0
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-PEN-007" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-PEN-007</span>
+    <span class="ttl">a future-dated instalment never accrues a penalty</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-14</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>penalty.accrual</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;asOf&quot;: &quot;2026-01-11&quot;,
+  &quot;penaltyPerDay&quot;: 50,
+  &quot;gracePeriodDays&quot;: 0,
+  &quot;maxCap&quot;: 0,
+  &quot;overdueInstalments&quot;: [
+    {
+      &quot;dueDate&quot;: &quot;2026-02-01&quot;
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;missedDays&quot;: 0,
+  &quot;grossPenalty&quot;: 0
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-PEN-008" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-PEN-008</span>
+    <span class="ttl">an instalment due today accrues nothing — day zero is not a day late</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-14</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>penalty.accrual</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;asOf&quot;: &quot;2026-01-11&quot;,
+  &quot;penaltyPerDay&quot;: 50,
+  &quot;gracePeriodDays&quot;: 0,
+  &quot;maxCap&quot;: 0,
+  &quot;overdueInstalments&quot;: [
+    {
+      &quot;dueDate&quot;: &quot;2026-01-11&quot;
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;missedDays&quot;: 0,
+  &quot;grossPenalty&quot;: 0
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-PEN-009" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-PEN-009</span>
+    <span class="ttl">no overdue instalments means no accrual</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>penalty.accrual</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;asOf&quot;: &quot;2026-01-11&quot;,
+  &quot;penaltyPerDay&quot;: 50,
+  &quot;gracePeriodDays&quot;: 0,
+  &quot;maxCap&quot;: 0,
+  &quot;overdueInstalments&quot;: []
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;missedDays&quot;: 0,
+  &quot;grossPenalty&quot;: 0
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-PEN-010" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-PEN-010</span>
+    <span class="ttl">a per-day rate of zero means the tenant has not configured penalties</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-14</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>penalty.accrual</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;asOf&quot;: &quot;2026-02-01&quot;,
+  &quot;penaltyPerDay&quot;: 0,
+  &quot;gracePeriodDays&quot;: 0,
+  &quot;maxCap&quot;: 0,
+  &quot;overdueInstalments&quot;: [
+    {
+      &quot;dueDate&quot;: &quot;2026-01-01&quot;
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;missedDays&quot;: 31,
+  &quot;grossPenalty&quot;: 0
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-PEN-011" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-PEN-011</span>
+    <span class="ttl">a fractional per-day rate is carried through without rounding</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-14</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>penalty.accrual</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;asOf&quot;: &quot;2026-01-11&quot;,
+  &quot;penaltyPerDay&quot;: 12.5,
+  &quot;gracePeriodDays&quot;: 0,
+  &quot;maxCap&quot;: 0,
+  &quot;overdueInstalments&quot;: [
+    {
+      &quot;dueDate&quot;: &quot;2026-01-01&quot;
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;missedDays&quot;: 10,
+  &quot;grossPenalty&quot;: 125
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-PEN-012" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-PEN-012</span>
+    <span class="ttl">the recorded gross penalty only ever increases</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-15</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">A reduction is a waiver, recorded as waivedAmount — never by rewriting gross.</p>
+    <h4>Op</h4><p><code>penalty.shouldUpdate</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;existing&quot;: 500,
+  &quot;next&quot;: 600
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;result&quot;: true
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-PEN-013" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-PEN-013</span>
+    <span class="ttl">a smaller recomputed penalty is refused, so a waiver cannot be undone by the cron</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-15</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>penalty.shouldUpdate</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;existing&quot;: 500,
+  &quot;next&quot;: 400
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;result&quot;: false
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-PEN-014" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-PEN-014</span>
+    <span class="ttl">an unchanged penalty writes nothing</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-15</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>penalty.shouldUpdate</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;existing&quot;: 500,
+  &quot;next&quot;: 500
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;result&quot;: false
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-PEN-015" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-PEN-015</span>
+    <span class="ttl">a long default accrues linearly — one year at ₹10/day is ₹3,650</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-14</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>penalty.accrual</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;asOf&quot;: &quot;2027-01-01&quot;,
+  &quot;penaltyPerDay&quot;: 10,
+  &quot;gracePeriodDays&quot;: 0,
+  &quot;maxCap&quot;: 0,
+  &quot;overdueInstalments&quot;: [
+    {
+      &quot;dueDate&quot;: &quot;2026-01-01&quot;
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;missedDays&quot;: 365,
+  &quot;grossPenalty&quot;: 3650
+}</pre>
+    
+    
+  </div>
+</details></div>
+</section>
+<section class="grp" data-group="foreclosure">
+  <h2>Foreclosure settlement <span class="gcount">12 cases</span></h2>
+  <p class="blurb">What the borrower hands over to close today.</p>
+  <pre class="formula">principalOutstanding = interest_only ? outstandingPrincipal
+                                     : max(0, principal − totalCollected)
+maxDiscount          = principalOutstanding + netPenaltyDue
+safeDiscount         = min(max(0, discount), maxDiscount)     ← clamped both ends
+totalSettlement      = max(0, maxDiscount − safeDiscount)
+
+only active and overdue loans can be foreclosed</pre>
+  <div class="cases"><details class="tc v-passed" id="CALC-FCL-001" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-FCL-001</span>
+    <span class="ttl">settlement = principal outstanding + net penalty, with collections netted off principal</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-4</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>foreclosure.build</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;now&quot;: &quot;2026-06-10&quot;,
+  &quot;discount&quot;: 0,
+  &quot;loan&quot;: {
+    &quot;id&quot;: &quot;L1&quot;,
+    &quot;loanCode&quot;: &quot;DL0001&quot;,
+    &quot;status&quot;: &quot;active&quot;,
+    &quot;principal&quot;: 50000,
+    &quot;totalCollected&quot;: 20000,
+    &quot;totalInstalments&quot;: 10,
+    &quot;deductionType&quot;: &quot;upfront_fixed&quot;,
+    &quot;customer&quot;: {
+      &quot;name&quot;: &quot;A&quot;,
+      &quot;customerCode&quot;: &quot;C1&quot;,
+      &quot;phone&quot;: &quot;9000000000&quot;
+    },
+    &quot;instalments&quot;: [
+      {
+        &quot;status&quot;: &quot;paid&quot;
+      },
+      {
+        &quot;status&quot;: &quot;paid&quot;
+      },
+      {
+        &quot;status&quot;: &quot;paid&quot;
+      },
+      {
+        &quot;status&quot;: &quot;paid&quot;
+      },
+      {
+        &quot;status&quot;: &quot;partial&quot;
+      },
+      {
+        &quot;status&quot;: &quot;missed&quot;
+      },
+      {
+        &quot;status&quot;: &quot;missed&quot;
+      },
+      {
+        &quot;status&quot;: &quot;upcoming&quot;
+      },
+      {
+        &quot;status&quot;: &quot;upcoming&quot;
+      },
+      {
+        &quot;status&quot;: &quot;upcoming&quot;
+      }
+    ],
+    &quot;penalties&quot;: [
+      {
+        &quot;grossPenalty&quot;: 1000,
+        &quot;settledAmount&quot;: 200,
+        &quot;waivedAmount&quot;: 100
+      }
+    ]
+  }
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;canForeclose&quot;: true,
+  &quot;principalOutstanding&quot;: 30000,
+  &quot;netPenaltyDue&quot;: 700,
+  &quot;totalSettlementAmount&quot;: 30700,
+  &quot;paidInstalments&quot;: 5,
+  &quot;missedInstalments&quot;: 2,
+  &quot;remainingInstalments&quot;: 3
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-FCL-002" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-FCL-002</span>
+    <span class="ttl">a discount reduces the settlement rupee for rupee</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>foreclosure.build</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;now&quot;: &quot;2026-06-10&quot;,
+  &quot;discount&quot;: 700,
+  &quot;loan&quot;: {
+    &quot;id&quot;: &quot;L1&quot;,
+    &quot;loanCode&quot;: &quot;DL0001&quot;,
+    &quot;status&quot;: &quot;active&quot;,
+    &quot;principal&quot;: 50000,
+    &quot;totalCollected&quot;: 20000,
+    &quot;totalInstalments&quot;: 10,
+    &quot;deductionType&quot;: &quot;upfront_fixed&quot;,
+    &quot;customer&quot;: {
+      &quot;name&quot;: &quot;A&quot;,
+      &quot;customerCode&quot;: &quot;C1&quot;,
+      &quot;phone&quot;: &quot;9000000000&quot;
+    },
+    &quot;instalments&quot;: [
+      {
+        &quot;status&quot;: &quot;paid&quot;
+      }
+    ],
+    &quot;penalties&quot;: [
+      {
+        &quot;grossPenalty&quot;: 1000,
+        &quot;settledAmount&quot;: 200,
+        &quot;waivedAmount&quot;: 100
+      }
+    ]
+  }
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;discount&quot;: 700,
+  &quot;totalSettlementAmount&quot;: 30000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-FCL-003" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-FCL-003</span>
+    <span class="ttl">a discount larger than the balance is clamped — a settlement never goes negative</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-16</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>foreclosure.build</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;now&quot;: &quot;2026-06-10&quot;,
+  &quot;discount&quot;: 999999,
+  &quot;loan&quot;: {
+    &quot;id&quot;: &quot;L1&quot;,
+    &quot;loanCode&quot;: &quot;DL0001&quot;,
+    &quot;status&quot;: &quot;active&quot;,
+    &quot;principal&quot;: 50000,
+    &quot;totalCollected&quot;: 20000,
+    &quot;totalInstalments&quot;: 10,
+    &quot;deductionType&quot;: &quot;upfront_fixed&quot;,
+    &quot;customer&quot;: {
+      &quot;name&quot;: &quot;A&quot;,
+      &quot;customerCode&quot;: &quot;C1&quot;,
+      &quot;phone&quot;: &quot;9000000000&quot;
+    },
+    &quot;instalments&quot;: [
+      {
+        &quot;status&quot;: &quot;paid&quot;
+      }
+    ],
+    &quot;penalties&quot;: [
+      {
+        &quot;grossPenalty&quot;: 1000,
+        &quot;settledAmount&quot;: 200,
+        &quot;waivedAmount&quot;: 100
+      }
+    ]
+  }
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;discount&quot;: 30700,
+  &quot;totalSettlementAmount&quot;: 0
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-FCL-004" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-FCL-004</span>
+    <span class="ttl">a negative discount is treated as zero</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>foreclosure.build</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;now&quot;: &quot;2026-06-10&quot;,
+  &quot;discount&quot;: -500,
+  &quot;loan&quot;: {
+    &quot;id&quot;: &quot;L1&quot;,
+    &quot;loanCode&quot;: &quot;DL0001&quot;,
+    &quot;status&quot;: &quot;active&quot;,
+    &quot;principal&quot;: 10000,
+    &quot;totalCollected&quot;: 4000,
+    &quot;totalInstalments&quot;: 5,
+    &quot;deductionType&quot;: &quot;upfront_fixed&quot;,
+    &quot;customer&quot;: {
+      &quot;name&quot;: &quot;A&quot;,
+      &quot;customerCode&quot;: &quot;C1&quot;,
+      &quot;phone&quot;: &quot;9000000000&quot;
+    },
+    &quot;instalments&quot;: [
+      {
+        &quot;status&quot;: &quot;paid&quot;
+      }
+    ],
+    &quot;penalties&quot;: []
+  }
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;discount&quot;: 0,
+  &quot;totalSettlementAmount&quot;: 6000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-FCL-005" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-FCL-005</span>
+    <span class="ttl">a fully collected loan settles at zero, not at a negative figure</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>foreclosure.build</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;now&quot;: &quot;2026-06-10&quot;,
+  &quot;loan&quot;: {
+    &quot;id&quot;: &quot;L1&quot;,
+    &quot;loanCode&quot;: &quot;DL0001&quot;,
+    &quot;status&quot;: &quot;active&quot;,
+    &quot;principal&quot;: 10000,
+    &quot;totalCollected&quot;: 12000,
+    &quot;totalInstalments&quot;: 5,
+    &quot;deductionType&quot;: &quot;upfront_fixed&quot;,
+    &quot;customer&quot;: {
+      &quot;name&quot;: &quot;A&quot;,
+      &quot;customerCode&quot;: &quot;C1&quot;,
+      &quot;phone&quot;: &quot;9000000000&quot;
+    },
+    &quot;instalments&quot;: [
+      {
+        &quot;status&quot;: &quot;paid&quot;
+      }
+    ],
+    &quot;penalties&quot;: []
+  }
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;principalOutstanding&quot;: 0,
+  &quot;totalSettlementAmount&quot;: 0
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-FCL-006" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-FCL-006</span>
+    <span class="ttl">an interest-only foreclosure does NOT net interest collections off the principal</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-4</span> <span class="rule">MONEY-5</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">Three months of interest paid must not reduce the ₹1L bullet by ₹7,500.</p>
+    <h4>Op</h4><p><code>foreclosure.build</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;now&quot;: &quot;2026-06-10&quot;,
+  &quot;loan&quot;: {
+    &quot;id&quot;: &quot;L2&quot;,
+    &quot;loanCode&quot;: &quot;ML0002&quot;,
+    &quot;status&quot;: &quot;active&quot;,
+    &quot;principal&quot;: 100000,
+    &quot;totalCollected&quot;: 7500,
+    &quot;totalInstalments&quot;: 12,
+    &quot;deductionType&quot;: &quot;interest_only&quot;,
+    &quot;outstandingPrincipal&quot;: 100000,
+    &quot;customer&quot;: {
+      &quot;name&quot;: &quot;B&quot;,
+      &quot;customerCode&quot;: &quot;C2&quot;,
+      &quot;phone&quot;: &quot;9000000001&quot;
+    },
+    &quot;instalments&quot;: [
+      {
+        &quot;status&quot;: &quot;paid&quot;
+      },
+      {
+        &quot;status&quot;: &quot;paid&quot;
+      },
+      {
+        &quot;status&quot;: &quot;paid&quot;
+      },
+      {
+        &quot;status&quot;: &quot;upcoming&quot;
+      }
+    ],
+    &quot;penalties&quot;: []
+  }
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;principalOutstanding&quot;: 100000,
+  &quot;totalCollected&quot;: 7500,
+  &quot;totalSettlementAmount&quot;: 100000,
+  &quot;lineItemLabels&quot;: {
+    &quot;contains&quot;: &quot;Interest collected so far (does not reduce principal)&quot;
+  }
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-FCL-007" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-FCL-007</span>
+    <span class="ttl">an interest-only loan part-paid down settles on the reduced principal</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-5</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>foreclosure.build</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;now&quot;: &quot;2026-06-10&quot;,
+  &quot;loan&quot;: {
+    &quot;id&quot;: &quot;L2&quot;,
+    &quot;loanCode&quot;: &quot;ML0002&quot;,
+    &quot;status&quot;: &quot;active&quot;,
+    &quot;principal&quot;: 100000,
+    &quot;totalCollected&quot;: 7500,
+    &quot;totalInstalments&quot;: 12,
+    &quot;deductionType&quot;: &quot;interest_only&quot;,
+    &quot;outstandingPrincipal&quot;: 40000,
+    &quot;customer&quot;: {
+      &quot;name&quot;: &quot;B&quot;,
+      &quot;customerCode&quot;: &quot;C2&quot;,
+      &quot;phone&quot;: &quot;9000000001&quot;
+    },
+    &quot;instalments&quot;: [
+      {
+        &quot;status&quot;: &quot;paid&quot;
+      }
+    ],
+    &quot;penalties&quot;: []
+  }
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;principalOutstanding&quot;: 40000,
+  &quot;totalSettlementAmount&quot;: 40000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-FCL-008" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-FCL-008</span>
+    <span class="ttl">a closed loan cannot be foreclosed</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>foreclosure.build</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;now&quot;: &quot;2026-06-10&quot;,
+  &quot;loan&quot;: {
+    &quot;id&quot;: &quot;L3&quot;,
+    &quot;loanCode&quot;: &quot;DL0003&quot;,
+    &quot;status&quot;: &quot;closed&quot;,
+    &quot;principal&quot;: 10000,
+    &quot;totalCollected&quot;: 10000,
+    &quot;totalInstalments&quot;: 5,
+    &quot;customer&quot;: {
+      &quot;name&quot;: &quot;C&quot;,
+      &quot;customerCode&quot;: &quot;C3&quot;,
+      &quot;phone&quot;: &quot;9000000002&quot;
+    },
+    &quot;instalments&quot;: [],
+    &quot;penalties&quot;: []
+  }
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;canForeclose&quot;: false,
+  &quot;reason&quot;: &quot;This loan is already closed.&quot;,
+  &quot;totalSettlementAmount&quot;: 0
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-FCL-009" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-FCL-009</span>
+    <span class="ttl">an undisbursed loan cannot be foreclosed</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-8</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>foreclosure.build</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;now&quot;: &quot;2026-06-10&quot;,
+  &quot;loan&quot;: {
+    &quot;id&quot;: &quot;L4&quot;,
+    &quot;loanCode&quot;: &quot;DL0004&quot;,
+    &quot;status&quot;: &quot;pending&quot;,
+    &quot;principal&quot;: 10000,
+    &quot;totalCollected&quot;: 0,
+    &quot;totalInstalments&quot;: 5,
+    &quot;customer&quot;: {
+      &quot;name&quot;: &quot;D&quot;,
+      &quot;customerCode&quot;: &quot;C4&quot;,
+      &quot;phone&quot;: &quot;9000000003&quot;
+    },
+    &quot;instalments&quot;: [],
+    &quot;penalties&quot;: []
+  }
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;canForeclose&quot;: false,
+  &quot;reason&quot;: &quot;Cannot foreclose a loan that has not been disbursed yet.&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-FCL-010" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-FCL-010</span>
+    <span class="ttl">an overdue loan can still be foreclosed</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>foreclosure.build</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;now&quot;: &quot;2026-06-10&quot;,
+  &quot;loan&quot;: {
+    &quot;id&quot;: &quot;L5&quot;,
+    &quot;loanCode&quot;: &quot;DL0005&quot;,
+    &quot;status&quot;: &quot;overdue&quot;,
+    &quot;principal&quot;: 20000,
+    &quot;totalCollected&quot;: 5000,
+    &quot;totalInstalments&quot;: 10,
+    &quot;deductionType&quot;: &quot;upfront_fixed&quot;,
+    &quot;customer&quot;: {
+      &quot;name&quot;: &quot;E&quot;,
+      &quot;customerCode&quot;: &quot;C5&quot;,
+      &quot;phone&quot;: &quot;9000000004&quot;
+    },
+    &quot;instalments&quot;: [
+      {
+        &quot;status&quot;: &quot;missed&quot;
+      },
+      {
+        &quot;status&quot;: &quot;missed&quot;
+      }
+    ],
+    &quot;penalties&quot;: [
+      {
+        &quot;grossPenalty&quot;: 300,
+        &quot;settledAmount&quot;: 0,
+        &quot;waivedAmount&quot;: 0
+      }
+    ]
+  }
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;canForeclose&quot;: true,
+  &quot;principalOutstanding&quot;: 15000,
+  &quot;netPenaltyDue&quot;: 300,
+  &quot;totalSettlementAmount&quot;: 15300
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-FCL-011" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-FCL-011</span>
+    <span class="ttl">a fully waived penalty adds nothing to the settlement</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-15</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>foreclosure.build</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;now&quot;: &quot;2026-06-10&quot;,
+  &quot;loan&quot;: {
+    &quot;id&quot;: &quot;L6&quot;,
+    &quot;loanCode&quot;: &quot;DL0006&quot;,
+    &quot;status&quot;: &quot;active&quot;,
+    &quot;principal&quot;: 20000,
+    &quot;totalCollected&quot;: 5000,
+    &quot;totalInstalments&quot;: 10,
+    &quot;deductionType&quot;: &quot;upfront_fixed&quot;,
+    &quot;customer&quot;: {
+      &quot;name&quot;: &quot;F&quot;,
+      &quot;customerCode&quot;: &quot;C6&quot;,
+      &quot;phone&quot;: &quot;9000000005&quot;
+    },
+    &quot;instalments&quot;: [
+      {
+        &quot;status&quot;: &quot;missed&quot;
+      }
+    ],
+    &quot;penalties&quot;: [
+      {
+        &quot;grossPenalty&quot;: 900,
+        &quot;settledAmount&quot;: 400,
+        &quot;waivedAmount&quot;: 500
+      }
+    ]
+  }
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;grossPenalty&quot;: 900,
+  &quot;settledPenalty&quot;: 400,
+  &quot;waivedPenalty&quot;: 500,
+  &quot;netPenaltyDue&quot;: 0,
+  &quot;totalSettlementAmount&quot;: 15000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-FCL-012" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-FCL-012</span>
+    <span class="ttl">penalties across several rows aggregate before netting</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>foreclosure.build</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;now&quot;: &quot;2026-06-10&quot;,
+  &quot;loan&quot;: {
+    &quot;id&quot;: &quot;L7&quot;,
+    &quot;loanCode&quot;: &quot;DL0007&quot;,
+    &quot;status&quot;: &quot;active&quot;,
+    &quot;principal&quot;: 20000,
+    &quot;totalCollected&quot;: 0,
+    &quot;totalInstalments&quot;: 10,
+    &quot;deductionType&quot;: &quot;upfront_fixed&quot;,
+    &quot;customer&quot;: {
+      &quot;name&quot;: &quot;G&quot;,
+      &quot;customerCode&quot;: &quot;C7&quot;,
+      &quot;phone&quot;: &quot;9000000006&quot;
+    },
+    &quot;instalments&quot;: [
+      {
+        &quot;status&quot;: &quot;missed&quot;
+      }
+    ],
+    &quot;penalties&quot;: [
+      {
+        &quot;grossPenalty&quot;: 500,
+        &quot;settledAmount&quot;: 100,
+        &quot;waivedAmount&quot;: 0
+      },
+      {
+        &quot;grossPenalty&quot;: 300,
+        &quot;settledAmount&quot;: 0,
+        &quot;waivedAmount&quot;: 50
+      }
+    ]
+  }
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;grossPenalty&quot;: 800,
+  &quot;settledPenalty&quot;: 100,
+  &quot;waivedPenalty&quot;: 50,
+  &quot;netPenaltyDue&quot;: 650,
+  &quot;totalSettlementAmount&quot;: 20650
+}</pre>
+    
+    
+  </div>
+</details></div>
+</section>
+<section class="grp" data-group="interest-only">
+  <h2>Interest-only servicing <span class="gcount">10 cases</span></h2>
+  <p class="blurb">Monthly interest on the outstanding principal; the principal itself is settled at closure.</p>
+  <pre class="formula">monthlyInterest   = round(max(P,0) × max(rate,0) / 100)
+aprPercent        = rate × 12
+interestDueNow    = Σ outstanding over instalments in {missed, partial}   ← billed only
+totalDueToClose   = outstandingPrincipal + interestDueNow
+
+a null outstandingPrincipal means the FULL principal is still owed</pre>
+  <div class="cases"><details class="tc v-passed" id="CALC-IO-001" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-IO-001</span>
+    <span class="ttl">one month's interest is a rounded percentage of the outstanding principal</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-5</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>interestOnly.monthlyInterest</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 100000,
+  &quot;monthlyRatePercent&quot;: 2.5
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;interest&quot;: 2500,
+  &quot;apr&quot;: 30
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-IO-002" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-IO-002</span>
+    <span class="ttl">a fractional interest figure rounds to the nearest rupee</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>interestOnly.monthlyInterest</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 33333,
+  &quot;monthlyRatePercent&quot;: 2.5
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;interest&quot;: 833,
+  &quot;apr&quot;: 30
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-IO-003" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-IO-003</span>
+    <span class="ttl">a negative principal is floored at zero rather than paying the borrower</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>interestOnly.monthlyInterest</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: -5000,
+  &quot;monthlyRatePercent&quot;: 2.5
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;interest&quot;: 0
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-IO-004" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-IO-004</span>
+    <span class="ttl">a negative rate is floored at zero</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>interestOnly.monthlyInterest</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 100000,
+  &quot;monthlyRatePercent&quot;: -2
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;interest&quot;: 0,
+  &quot;apr&quot;: -24
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-IO-005" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-IO-005</span>
+    <span class="ttl">the quoted monthly rate annualises by 12 for disclosure</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-5</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>interestOnly.monthlyInterest</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;principal&quot;: 100000,
+  &quot;monthlyRatePercent&quot;: 1.75
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;interest&quot;: 1750,
+  &quot;apr&quot;: 21
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-IO-006" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-IO-006</span>
+    <span class="ttl">closing today costs the principal plus interest already billed — not the future months</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-5</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">An upcoming month's interest has not been earned and must not be charged on exit.</p>
+    <h4>Op</h4><p><code>interestOnly.summary</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;loan&quot;: {
+    &quot;id&quot;: &quot;L1&quot;,
+    &quot;loanCode&quot;: &quot;ML0001&quot;,
+    &quot;status&quot;: &quot;active&quot;,
+    &quot;principal&quot;: 100000,
+    &quot;interestRate&quot;: 2.5,
+    &quot;outstandingPrincipal&quot;: 100000,
+    &quot;instalments&quot;: [
+      {
+        &quot;status&quot;: &quot;paid&quot;,
+        &quot;dueAmount&quot;: 2500,
+        &quot;receivedAmount&quot;: 2500
+      },
+      {
+        &quot;status&quot;: &quot;paid&quot;,
+        &quot;dueAmount&quot;: 2500,
+        &quot;receivedAmount&quot;: 2500
+      },
+      {
+        &quot;status&quot;: &quot;missed&quot;,
+        &quot;dueAmount&quot;: 2500,
+        &quot;receivedAmount&quot;: 0
+      },
+      {
+        &quot;status&quot;: &quot;partial&quot;,
+        &quot;dueAmount&quot;: 2500,
+        &quot;receivedAmount&quot;: 1000
+      },
+      {
+        &quot;status&quot;: &quot;upcoming&quot;,
+        &quot;dueAmount&quot;: 2500,
+        &quot;receivedAmount&quot;: 0
+      },
+      {
+        &quot;status&quot;: &quot;upcoming&quot;,
+        &quot;dueAmount&quot;: 2500,
+        &quot;receivedAmount&quot;: 0
+      }
+    ]
+  }
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;originalPrincipal&quot;: 100000,
+  &quot;outstandingPrincipal&quot;: 100000,
+  &quot;monthlyInterest&quot;: 2500,
+  &quot;aprPercent&quot;: 30,
+  &quot;interestCollected&quot;: 6000,
+  &quot;interestDueNow&quot;: 4000,
+  &quot;paidInstalments&quot;: 2,
+  &quot;upcomingInstalments&quot;: 2,
+  &quot;totalDueToClose&quot;: 104000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-IO-007" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-IO-007</span>
+    <span class="ttl">a part-payment of principal reduces every future month's interest</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-5</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>interestOnly.summary</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;loan&quot;: {
+    &quot;id&quot;: &quot;L2&quot;,
+    &quot;loanCode&quot;: &quot;ML0002&quot;,
+    &quot;status&quot;: &quot;active&quot;,
+    &quot;principal&quot;: 100000,
+    &quot;interestRate&quot;: 2.5,
+    &quot;outstandingPrincipal&quot;: 40000,
+    &quot;instalments&quot;: [
+      {
+        &quot;status&quot;: &quot;paid&quot;,
+        &quot;dueAmount&quot;: 2500,
+        &quot;receivedAmount&quot;: 2500
+      }
+    ]
+  }
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;outstandingPrincipal&quot;: 40000,
+  &quot;monthlyInterest&quot;: 1000,
+  &quot;totalDueToClose&quot;: 40000,
+  &quot;interestDueNow&quot;: 0
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-IO-008" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-IO-008</span>
+    <span class="ttl">a null outstanding principal means the whole principal is still owed</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-5</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">Legacy rows that predate servicing must not read as fully repaid.</p>
+    <h4>Op</h4><p><code>interestOnly.summary</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;loan&quot;: {
+    &quot;id&quot;: &quot;L3&quot;,
+    &quot;loanCode&quot;: &quot;ML0003&quot;,
+    &quot;status&quot;: &quot;active&quot;,
+    &quot;principal&quot;: 75000,
+    &quot;interestRate&quot;: 2,
+    &quot;outstandingPrincipal&quot;: null,
+    &quot;instalments&quot;: [
+      {
+        &quot;status&quot;: &quot;paid&quot;,
+        &quot;dueAmount&quot;: 1500,
+        &quot;receivedAmount&quot;: 1500
+      }
+    ]
+  }
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;outstandingPrincipal&quot;: 75000,
+  &quot;monthlyInterest&quot;: 1500,
+  &quot;totalDueToClose&quot;: 75000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-IO-009" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-IO-009</span>
+    <span class="ttl">a settled interest-only loan still owes its principal until the bullet is paid</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-4</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>interestOnly.summary</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;loan&quot;: {
+    &quot;id&quot;: &quot;L4&quot;,
+    &quot;loanCode&quot;: &quot;ML0004&quot;,
+    &quot;status&quot;: &quot;active&quot;,
+    &quot;principal&quot;: 100000,
+    &quot;interestRate&quot;: 2.5,
+    &quot;outstandingPrincipal&quot;: 100000,
+    &quot;instalments&quot;: [
+      {
+        &quot;status&quot;: &quot;paid&quot;,
+        &quot;dueAmount&quot;: 2500,
+        &quot;receivedAmount&quot;: 2500
+      },
+      {
+        &quot;status&quot;: &quot;paid&quot;,
+        &quot;dueAmount&quot;: 2500,
+        &quot;receivedAmount&quot;: 2500
+      },
+      {
+        &quot;status&quot;: &quot;paid&quot;,
+        &quot;dueAmount&quot;: 2500,
+        &quot;receivedAmount&quot;: 2500
+      }
+    ]
+  }
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;interestDueNow&quot;: 0,
+  &quot;interestCollected&quot;: 7500,
+  &quot;totalDueToClose&quot;: 100000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-IO-010" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-IO-010</span>
+    <span class="ttl">a zero outstanding principal leaves only the arrears to settle</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>interestOnly.summary</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;loan&quot;: {
+    &quot;id&quot;: &quot;L5&quot;,
+    &quot;loanCode&quot;: &quot;ML0005&quot;,
+    &quot;status&quot;: &quot;active&quot;,
+    &quot;principal&quot;: 100000,
+    &quot;interestRate&quot;: 2.5,
+    &quot;outstandingPrincipal&quot;: 0,
+    &quot;instalments&quot;: [
+      {
+        &quot;status&quot;: &quot;missed&quot;,
+        &quot;dueAmount&quot;: 2500,
+        &quot;receivedAmount&quot;: 0
+      }
+    ]
+  }
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;outstandingPrincipal&quot;: 0,
+  &quot;monthlyInterest&quot;: 0,
+  &quot;interestDueNow&quot;: 2500,
+  &quot;totalDueToClose&quot;: 2500
+}</pre>
+    
+    
+  </div>
+</details></div>
+</section>
+<section class="grp" data-group="npa">
+  <h2>NPA classification <span class="gcount">18 cases</span></h2>
+  <p class="blurb">RBI IRACP ladder. The clock starts at the oldest unpaid due date; the sub-category is driven by time since first classification.</p>
+  <pre class="formula">daysOverdue   0 → standard · 1–30 → sma_0 · 31–60 → sma_1 · 61–90 → sma_2
+              91+ → NPA, sub-category by days since npaClassifiedAt:
+              ≤365 sub_standard · ≤730 doubtful_d1 · ≤1095 doubtful_d2 · else d3
+
+unpaid means receivedAmount &lt; dueAmount — a partial row still counts
+npaClassifiedAt is stamped ONCE; restamping resets a 3-year-old doubtful asset</pre>
+  <div class="cases"><details class="tc v-passed" id="CALC-NPA-001" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-NPA-001</span>
+    <span class="ttl">no overdue instalment means zero days overdue</span>
+    <span class="spacer"></span>
+    <span class="rule">NPA-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>npa.overdueDays</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;today&quot;: &quot;2026-08-28&quot;,
+  &quot;instalments&quot;: [
+    {
+      &quot;dueDate&quot;: &quot;2026-09-01&quot;,
+      &quot;dueAmount&quot;: 500,
+      &quot;receivedAmount&quot;: 0,
+      &quot;status&quot;: &quot;upcoming&quot;
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;days&quot;: 0
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-NPA-002" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-NPA-002</span>
+    <span class="ttl">the clock starts at the OLDEST unpaid due date, not the most recent</span>
+    <span class="spacer"></span>
+    <span class="rule">NPA-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>npa.overdueDays</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;today&quot;: &quot;2026-08-28&quot;,
+  &quot;instalments&quot;: [
+    {
+      &quot;dueDate&quot;: &quot;2026-08-01&quot;,
+      &quot;dueAmount&quot;: 500,
+      &quot;receivedAmount&quot;: 0,
+      &quot;status&quot;: &quot;missed&quot;
+    },
+    {
+      &quot;dueDate&quot;: &quot;2026-08-10&quot;,
+      &quot;dueAmount&quot;: 500,
+      &quot;receivedAmount&quot;: 100,
+      &quot;status&quot;: &quot;partial&quot;
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;days&quot;: 27
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-NPA-003" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-NPA-003</span>
+    <span class="ttl">a partially paid instalment still counts as overdue</span>
+    <span class="spacer"></span>
+    <span class="rule">NPA-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>npa.overdueDays</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;today&quot;: &quot;2026-08-28&quot;,
+  &quot;instalments&quot;: [
+    {
+      &quot;dueDate&quot;: &quot;2026-08-20&quot;,
+      &quot;dueAmount&quot;: 500,
+      &quot;receivedAmount&quot;: 499,
+      &quot;status&quot;: &quot;partial&quot;
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;days&quot;: 8
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-NPA-004" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-NPA-004</span>
+    <span class="ttl">an instalment paid in full is not overdue however late it was</span>
+    <span class="spacer"></span>
+    <span class="rule">NPA-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>npa.overdueDays</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;today&quot;: &quot;2026-08-28&quot;,
+  &quot;instalments&quot;: [
+    {
+      &quot;dueDate&quot;: &quot;2026-01-01&quot;,
+      &quot;dueAmount&quot;: 500,
+      &quot;receivedAmount&quot;: 500,
+      &quot;status&quot;: &quot;paid&quot;
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;days&quot;: 0
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-NPA-005" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-NPA-005</span>
+    <span class="ttl">zero days overdue is a standard asset</span>
+    <span class="spacer"></span>
+    <span class="rule">NPA-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>npa.category</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;daysOverdue&quot;: 0,
+  &quot;npaClassifiedAt&quot;: null,
+  &quot;today&quot;: &quot;2026-08-28&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;category&quot;: &quot;standard&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-NPA-006" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-NPA-006</span>
+    <span class="ttl">one day overdue is SMA-0</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>npa.category</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;daysOverdue&quot;: 1,
+  &quot;npaClassifiedAt&quot;: null,
+  &quot;today&quot;: &quot;2026-08-28&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;category&quot;: &quot;sma_0&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-NPA-007" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-NPA-007</span>
+    <span class="ttl">day 30 is the last day of SMA-0</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>npa.category</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;daysOverdue&quot;: 30,
+  &quot;npaClassifiedAt&quot;: null,
+  &quot;today&quot;: &quot;2026-08-28&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;category&quot;: &quot;sma_0&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-NPA-008" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-NPA-008</span>
+    <span class="ttl">day 31 crosses into SMA-1</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>npa.category</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;daysOverdue&quot;: 31,
+  &quot;npaClassifiedAt&quot;: null,
+  &quot;today&quot;: &quot;2026-08-28&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;category&quot;: &quot;sma_1&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-NPA-009" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-NPA-009</span>
+    <span class="ttl">day 60 is the last day of SMA-1</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>npa.category</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;daysOverdue&quot;: 60,
+  &quot;npaClassifiedAt&quot;: null,
+  &quot;today&quot;: &quot;2026-08-28&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;category&quot;: &quot;sma_1&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-NPA-010" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-NPA-010</span>
+    <span class="ttl">day 61 crosses into SMA-2</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>npa.category</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;daysOverdue&quot;: 61,
+  &quot;npaClassifiedAt&quot;: null,
+  &quot;today&quot;: &quot;2026-08-28&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;category&quot;: &quot;sma_2&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-NPA-011" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-NPA-011</span>
+    <span class="ttl">day 90 is still SMA-2 — the NPA line is crossed at 91</span>
+    <span class="spacer"></span>
+    <span class="rule">NPA-1</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>npa.category</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;daysOverdue&quot;: 90,
+  &quot;npaClassifiedAt&quot;: null,
+  &quot;today&quot;: &quot;2026-08-28&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;category&quot;: &quot;sma_2&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-NPA-012" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-NPA-012</span>
+    <span class="ttl">day 91 with no prior classification becomes sub-standard</span>
+    <span class="spacer"></span>
+    <span class="rule">NPA-2</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>npa.category</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;daysOverdue&quot;: 91,
+  &quot;npaClassifiedAt&quot;: null,
+  &quot;today&quot;: &quot;2026-08-28&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;category&quot;: &quot;sub_standard&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-NPA-013" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-NPA-013</span>
+    <span class="ttl">under a year in NPA stays sub-standard however deep the arrears</span>
+    <span class="spacer"></span>
+    <span class="rule">NPA-2</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>npa.category</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;daysOverdue&quot;: 400,
+  &quot;npaClassifiedAt&quot;: &quot;2026-06-01&quot;,
+  &quot;today&quot;: &quot;2026-08-28&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;category&quot;: &quot;sub_standard&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-NPA-014" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-NPA-014</span>
+    <span class="ttl">12–24 months in NPA is doubtful D1</span>
+    <span class="spacer"></span>
+    <span class="rule">NPA-2</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">604 days since first classification.</p>
+    <h4>Op</h4><p><code>npa.category</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;daysOverdue&quot;: 200,
+  &quot;npaClassifiedAt&quot;: &quot;2025-01-01&quot;,
+  &quot;today&quot;: &quot;2026-08-28&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;category&quot;: &quot;doubtful_d1&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-NPA-015" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-NPA-015</span>
+    <span class="ttl">24–36 months in NPA is doubtful D2</span>
+    <span class="spacer"></span>
+    <span class="rule">NPA-2</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">970 days since first classification.</p>
+    <h4>Op</h4><p><code>npa.category</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;daysOverdue&quot;: 200,
+  &quot;npaClassifiedAt&quot;: &quot;2024-01-01&quot;,
+  &quot;today&quot;: &quot;2026-08-28&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;category&quot;: &quot;doubtful_d2&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-NPA-016" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-NPA-016</span>
+    <span class="ttl">over 36 months in NPA is doubtful D3</span>
+    <span class="spacer"></span>
+    <span class="rule">NPA-2</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">1,700 days since first classification.</p>
+    <h4>Op</h4><p><code>npa.category</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;daysOverdue&quot;: 200,
+  &quot;npaClassifiedAt&quot;: &quot;2022-01-01&quot;,
+  &quot;today&quot;: &quot;2026-08-28&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;category&quot;: &quot;doubtful_d3&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-NPA-017" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-NPA-017</span>
+    <span class="ttl">the sub-category ladder is driven by time in NPA, not by days overdue</span>
+    <span class="spacer"></span>
+    <span class="rule">NPA-2</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">Same 95 days overdue, different classification dates, different categories — this is why npaClassifiedAt must be stamped once.</p>
+    <h4>Op</h4><p><code>npa.category</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;daysOverdue&quot;: 95,
+  &quot;npaClassifiedAt&quot;: &quot;2023-06-01&quot;,
+  &quot;today&quot;: &quot;2026-08-28&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;category&quot;: &quot;doubtful_d3&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-NPA-018" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-NPA-018</span>
+    <span class="ttl">a cured loan drops straight back to standard in the ladder</span>
+    <span class="spacer"></span>
+    <span class="rule">NPA-7</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">The ladder itself says standard at zero days; the actual upgrade still needs explicit admin action.</p>
+    <h4>Op</h4><p><code>npa.category</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;daysOverdue&quot;: 0,
+  &quot;npaClassifiedAt&quot;: &quot;2024-01-01&quot;,
+  &quot;today&quot;: &quot;2026-08-28&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;category&quot;: &quot;standard&quot;
+}</pre>
+    
+    
+  </div>
+</details></div>
+</section>
+<section class="grp" data-group="provisioning">
+  <h2>Provisioning <span class="gcount">11 cases</span></h2>
+  <p class="blurb">The only figure in the module that carries paise.</p>
+  <pre class="formula">amount = round(outstanding × rate / 100, 2dp)
+
+standard, sma_0/1/2   0.40%  /  0.40%          (secured / unsecured)
+sub_standard            15%  /    15%
+doubtful_d1             25%  /   100%
+doubtful_d2             40%  /   100%
+doubtful_d3, loss      100%  /   100%
+
+isSecured defaults to FALSE — the conservative direction</pre>
+  <div class="cases"><details class="tc v-passed" id="CALC-PRV-001" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-PRV-001</span>
+    <span class="ttl">a standard asset provisions 0.40%</span>
+    <span class="spacer"></span>
+    <span class="rule">NPA-4</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>npa.provisioning</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;category&quot;: &quot;standard&quot;,
+  &quot;outstandingAmount&quot;: 100000,
+  &quot;isSecured&quot;: false
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;rate&quot;: 0.4,
+  &quot;amount&quot;: 400
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-PRV-002" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-PRV-002</span>
+    <span class="ttl">every SMA bucket keeps standard provisioning</span>
+    <span class="spacer"></span>
+    <span class="rule">NPA-4</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>npa.provisioning</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;category&quot;: &quot;sma_2&quot;,
+  &quot;outstandingAmount&quot;: 100000,
+  &quot;isSecured&quot;: false
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;rate&quot;: 0.4,
+  &quot;amount&quot;: 400
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-PRV-003" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-PRV-003</span>
+    <span class="ttl">a sub-standard asset provisions 15% whether secured or not</span>
+    <span class="spacer"></span>
+    <span class="rule">NPA-4</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>npa.provisioning</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;category&quot;: &quot;sub_standard&quot;,
+  &quot;outstandingAmount&quot;: 100000,
+  &quot;isSecured&quot;: false
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;rate&quot;: 15,
+  &quot;amount&quot;: 15000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-PRV-004" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-PRV-004</span>
+    <span class="ttl">an UNSECURED doubtful D1 provisions the full 100%</span>
+    <span class="spacer"></span>
+    <span class="rule">NPA-4</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">MFI books are unsecured; the 25% column exists only for NBFC clients.</p>
+    <h4>Op</h4><p><code>npa.provisioning</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;category&quot;: &quot;doubtful_d1&quot;,
+  &quot;outstandingAmount&quot;: 100000,
+  &quot;isSecured&quot;: false
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;rate&quot;: 100,
+  &quot;amount&quot;: 100000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-PRV-005" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-PRV-005</span>
+    <span class="ttl">a SECURED doubtful D1 provisions 25%</span>
+    <span class="spacer"></span>
+    <span class="rule">NPA-4</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>npa.provisioning</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;category&quot;: &quot;doubtful_d1&quot;,
+  &quot;outstandingAmount&quot;: 100000,
+  &quot;isSecured&quot;: true
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;rate&quot;: 25,
+  &quot;amount&quot;: 25000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-PRV-006" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-PRV-006</span>
+    <span class="ttl">a SECURED doubtful D2 provisions 40%</span>
+    <span class="spacer"></span>
+    <span class="rule">NPA-4</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>npa.provisioning</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;category&quot;: &quot;doubtful_d2&quot;,
+  &quot;outstandingAmount&quot;: 100000,
+  &quot;isSecured&quot;: true
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;rate&quot;: 40,
+  &quot;amount&quot;: 40000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-PRV-007" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-PRV-007</span>
+    <span class="ttl">doubtful D3 provisions 100% even when secured</span>
+    <span class="spacer"></span>
+    <span class="rule">NPA-4</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>npa.provisioning</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;category&quot;: &quot;doubtful_d3&quot;,
+  &quot;outstandingAmount&quot;: 100000,
+  &quot;isSecured&quot;: true
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;rate&quot;: 100,
+  &quot;amount&quot;: 100000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-PRV-008" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-PRV-008</span>
+    <span class="ttl">a loss asset provisions 100%</span>
+    <span class="spacer"></span>
+    <span class="rule">NPA-4</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>npa.provisioning</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;category&quot;: &quot;loss&quot;,
+  &quot;outstandingAmount&quot;: 87650,
+  &quot;isSecured&quot;: false
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;rate&quot;: 100,
+  &quot;amount&quot;: 87650
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-PRV-009" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-PRV-009</span>
+    <span class="ttl">the unsecured default is the conservative one</span>
+    <span class="spacer"></span>
+    <span class="rule">NPA-4</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">isSecured omitted must behave as unsecured — never default it to true.</p>
+    <h4>Op</h4><p><code>npa.provisioning</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;category&quot;: &quot;doubtful_d1&quot;,
+  &quot;outstandingAmount&quot;: 50000
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;rate&quot;: 100,
+  &quot;amount&quot;: 50000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-PRV-010" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-PRV-010</span>
+    <span class="ttl">provisioning rounds to paise, not to rupees</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>npa.provisioning</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;category&quot;: &quot;standard&quot;,
+  &quot;outstandingAmount&quot;: 12345,
+  &quot;isSecured&quot;: false
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;rate&quot;: 0.4,
+  &quot;amount&quot;: 49.38
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-PRV-011" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-PRV-011</span>
+    <span class="ttl">a zero outstanding provisions nothing</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>npa.provisioning</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;category&quot;: &quot;loss&quot;,
+  &quot;outstandingAmount&quot;: 0,
+  &quot;isSecured&quot;: false
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;amount&quot;: 0
+}</pre>
+    
+    
+  </div>
+</details></div>
+</section>
+<section class="grp" data-group="float">
+  <h2>Cash float <span class="gcount">6 cases</span></h2>
+  <p class="blurb">Physical cash in an agent&rsquo;s hand or a branch drawer.</p>
+  <pre class="formula">next = available + delta
+if hardBlock and next &lt; 0 → throw InsufficientFloatError(available, −delta)
+
+hardBlock is OPT-IN PER CALL SITE. Only cash legs move float —
+bank, UPI, cheque and DD hit the cash book and GL but not physical cash.</pre>
+  <div class="cases"><details class="tc v-passed" id="CALC-FLT-001" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-FLT-001</span>
+    <span class="ttl">a positive delta tops up the pool</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-16</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>wallet.float</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;available&quot;: 5000,
+  &quot;delta&quot;: 2000,
+  &quot;hardBlock&quot;: true
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;balance&quot;: 7000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-FLT-002" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-FLT-002</span>
+    <span class="ttl">a disbursal within the float reduces it</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-16</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>wallet.float</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;available&quot;: 5000,
+  &quot;delta&quot;: -2000,
+  &quot;hardBlock&quot;: true
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;balance&quot;: 3000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-FLT-003" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-FLT-003</span>
+    <span class="ttl">spending the pool down to exactly zero is allowed</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-16</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>wallet.float</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;available&quot;: 5000,
+  &quot;delta&quot;: -5000,
+  &quot;hardBlock&quot;: true
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;balance&quot;: 0
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-FLT-004" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-FLT-004</span>
+    <span class="ttl">a guarded disbursal beyond the float throws instead of going negative</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-16</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">An agent cannot hand over cash they do not hold.</p>
+    <h4>Op</h4><p><code>wallet.float</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;available&quot;: 1000,
+  &quot;delta&quot;: -5000,
+  &quot;hardBlock&quot;: true
+}</pre>
+    <h4>Expected throw</h4>
+    <pre class="code">insufficient_float</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-FLT-005" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-FLT-005</span>
+    <span class="ttl">WITHOUT the hard block the same movement drives the pool negative</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-16</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">Pins the live gap: hardBlock is opt-in per call site, so an unguarded caller (the v1 wallet release route, defect ML-122) can push a branch pool below zero.</p>
+    <h4>Op</h4><p><code>wallet.float</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;available&quot;: 1000,
+  &quot;delta&quot;: -5000,
+  &quot;hardBlock&quot;: false
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;balance&quot;: -4000
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-FLT-006" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-FLT-006</span>
+    <span class="ttl">a zero-value movement leaves the pool untouched</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>wallet.float</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;available&quot;: 2500,
+  &quot;delta&quot;: 0,
+  &quot;hardBlock&quot;: true
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;balance&quot;: 2500
+}</pre>
+    
+    
+  </div>
+</details></div>
+</section>
+<section class="grp" data-group="collection">
+  <h2>Collection policy <span class="gcount">21 cases</span></h2>
+  <p class="blurb">When a loan surfaces in an agent&rsquo;s worklist, when money may be taken, and how a retry is de-duplicated.</p>
+  <pre class="formula">collection day   daily → always · diff ≤ 0 → always
+                 weekly → diff % 7 = 0 · biweekly → diff % 14 = 0
+                 monthly → same day-of-month, or the month-end clamp
+
+collectible      active, overdue only
+                 pending_review → &quot;Loan is pending approval&quot;
+                 closed/foreclosed/settled → &quot;Loan is closed&quot;
+
+idempotency key  tenant : agent : instalment : amount(2dp) : mode(lower) : YYYY-MM-DD</pre>
+  <div class="cases"><details class="tc v-passed" id="CALC-COL-001" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-COL-001</span>
+    <span class="ttl">a daily loan is collectible every day</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>collection.isCollectionDay</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;frequency&quot;: &quot;daily&quot;,
+  &quot;dueDate&quot;: &quot;2026-06-01&quot;,
+  &quot;today&quot;: &quot;2026-06-17&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;result&quot;: true
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-COL-002" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-COL-002</span>
+    <span class="ttl">a weekly loan resurfaces on its cadence day, not every day</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">Without this an overdue weekly customer would be chased daily.</p>
+    <h4>Op</h4><p><code>collection.isCollectionDay</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;frequency&quot;: &quot;weekly&quot;,
+  &quot;dueDate&quot;: &quot;2026-06-01&quot;,
+  &quot;today&quot;: &quot;2026-06-08&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;result&quot;: true
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-COL-003" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-COL-003</span>
+    <span class="ttl">a weekly loan is silent between cadence days</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>collection.isCollectionDay</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;frequency&quot;: &quot;weekly&quot;,
+  &quot;dueDate&quot;: &quot;2026-06-01&quot;,
+  &quot;today&quot;: &quot;2026-06-09&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;result&quot;: false
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-COL-004" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-COL-004</span>
+    <span class="ttl">a biweekly loan surfaces every 14 days</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>collection.isCollectionDay</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;frequency&quot;: &quot;biweekly&quot;,
+  &quot;dueDate&quot;: &quot;2026-06-01&quot;,
+  &quot;today&quot;: &quot;2026-06-15&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;result&quot;: true
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-COL-005" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-COL-005</span>
+    <span class="ttl">a biweekly loan does not surface on the odd week</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>collection.isCollectionDay</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;frequency&quot;: &quot;biweekly&quot;,
+  &quot;dueDate&quot;: &quot;2026-06-01&quot;,
+  &quot;today&quot;: &quot;2026-06-08&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;result&quot;: false
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-COL-006" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-COL-006</span>
+    <span class="ttl">a monthly loan surfaces on the same day of month</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>collection.isCollectionDay</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;frequency&quot;: &quot;monthly&quot;,
+  &quot;dueDate&quot;: &quot;2026-06-05&quot;,
+  &quot;today&quot;: &quot;2026-07-05&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;result&quot;: true
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-COL-007" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-COL-007</span>
+    <span class="ttl">a monthly loan is silent on other days of the month</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>collection.isCollectionDay</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;frequency&quot;: &quot;monthly&quot;,
+  &quot;dueDate&quot;: &quot;2026-06-05&quot;,
+  &quot;today&quot;: &quot;2026-07-06&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;result&quot;: false
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-COL-008" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-COL-008</span>
+    <span class="ttl">a due day past the month end clamps to the last day of the short month</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">A 31st due date must still surface in February.</p>
+    <h4>Op</h4><p><code>collection.isCollectionDay</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;frequency&quot;: &quot;monthly&quot;,
+  &quot;dueDate&quot;: &quot;2026-01-31&quot;,
+  &quot;today&quot;: &quot;2026-02-28&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;result&quot;: true
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-COL-009" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-COL-009</span>
+    <span class="ttl">a due date today always surfaces regardless of frequency</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>collection.isCollectionDay</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;frequency&quot;: &quot;monthly&quot;,
+  &quot;dueDate&quot;: &quot;2026-06-05&quot;,
+  &quot;today&quot;: &quot;2026-06-05&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;result&quot;: true
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-COL-010" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-COL-010</span>
+    <span class="ttl">a future-dated instalment surfaces as an anchor</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>collection.isCollectionDay</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;frequency&quot;: &quot;weekly&quot;,
+  &quot;dueDate&quot;: &quot;2026-06-20&quot;,
+  &quot;today&quot;: &quot;2026-06-05&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;result&quot;: true
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-COL-011" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-COL-011</span>
+    <span class="ttl">an active loan with an unpaid instalment accepts a collection</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>collection.blockReason</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;loanStatus&quot;: &quot;active&quot;,
+  &quot;dueAmount&quot;: 500,
+  &quot;receivedAmount&quot;: 0
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;reason&quot;: null
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-COL-012" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-COL-012</span>
+    <span class="ttl">an already-settled instalment is refused</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>collection.blockReason</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;loanStatus&quot;: &quot;active&quot;,
+  &quot;dueAmount&quot;: 500,
+  &quot;receivedAmount&quot;: 500
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;reason&quot;: &quot;Instalment is already fully collected&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-COL-013" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-COL-013</span>
+    <span class="ttl">a loan awaiting approval takes no money</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-8</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>collection.blockReason</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;loanStatus&quot;: &quot;pending_review&quot;,
+  &quot;dueAmount&quot;: 500,
+  &quot;receivedAmount&quot;: 0
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;reason&quot;: &quot;Loan is pending approval&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-COL-014" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-COL-014</span>
+    <span class="ttl">a closed loan takes no money</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>collection.loanBlockReason</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;status&quot;: &quot;closed&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;reason&quot;: &quot;Loan is closed&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-COL-015" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-COL-015</span>
+    <span class="ttl">a foreclosed loan takes no money</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>collection.loanBlockReason</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;status&quot;: &quot;foreclosed&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;reason&quot;: &quot;Loan is closed&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-COL-016" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-COL-016</span>
+    <span class="ttl">an overdue loan is still collectible</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>collection.loanBlockReason</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;status&quot;: &quot;overdue&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;reason&quot;: null
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-COL-017" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-COL-017</span>
+    <span class="ttl">an NPA loan is not collectible through the normal path</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">Only active and overdue are collectible statuses; npa falls through to the generic refusal.</p>
+    <h4>Op</h4><p><code>collection.loanBlockReason</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;status&quot;: &quot;npa&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;reason&quot;: &quot;Loan is not active for collection&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-COL-018" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-COL-018</span>
+    <span class="ttl">the idempotency key pins tenant, agent, instalment, amount, mode and date</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-13</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">A retried mobile submission must not double-post.</p>
+    <h4>Op</h4><p><code>collection.idempotencyKey</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;tenantId&quot;: &quot;t1&quot;,
+  &quot;agentId&quot;: &quot;a1&quot;,
+  &quot;instalmentId&quot;: &quot;i1&quot;,
+  &quot;receivedAmount&quot;: 500,
+  &quot;paymentMode&quot;: &quot;cash&quot;,
+  &quot;collectionDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;key&quot;: &quot;t1:a1:i1:500.00:cash:2026-06-01&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-COL-019" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-COL-019</span>
+    <span class="ttl">the key normalises the amount to two decimals so 500 and 500.00 collide</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-13</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>collection.idempotencyKey</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;tenantId&quot;: &quot;t1&quot;,
+  &quot;agentId&quot;: &quot;a1&quot;,
+  &quot;instalmentId&quot;: &quot;i1&quot;,
+  &quot;receivedAmount&quot;: 500.004,
+  &quot;paymentMode&quot;: &quot;cash&quot;,
+  &quot;collectionDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;key&quot;: &quot;t1:a1:i1:500.00:cash:2026-06-01&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-COL-020" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-COL-020</span>
+    <span class="ttl">the key lower-cases and trims the payment mode</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-13</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>collection.idempotencyKey</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;tenantId&quot;: &quot;t1&quot;,
+  &quot;agentId&quot;: &quot;a1&quot;,
+  &quot;instalmentId&quot;: &quot;i1&quot;,
+  &quot;receivedAmount&quot;: 500,
+  &quot;paymentMode&quot;: &quot;  UPI &quot;,
+  &quot;collectionDate&quot;: &quot;2026-06-01T18:30:00.000Z&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;key&quot;: &quot;t1:a1:i1:500.00:upi:2026-06-01&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-COL-021" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-COL-021</span>
+    <span class="ttl">a different amount is a different key — a correction is not suppressed as a duplicate</span>
+    <span class="spacer"></span>
+    <span class="rule">MONEY-13</span>
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>collection.idempotencyKey</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;tenantId&quot;: &quot;t1&quot;,
+  &quot;agentId&quot;: &quot;a1&quot;,
+  &quot;instalmentId&quot;: &quot;i1&quot;,
+  &quot;receivedAmount&quot;: 501,
+  &quot;paymentMode&quot;: &quot;cash&quot;,
+  &quot;collectionDate&quot;: &quot;2026-06-01&quot;
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;key&quot;: {
+    &quot;not&quot;: &quot;t1:a1:i1:500.00:cash:2026-06-01&quot;
+  }
+}</pre>
+    
+    
+  </div>
+</details></div>
+</section>
+<section class="grp" data-group="credit">
+  <h2>Credit score <span class="gcount">5 cases</span></h2>
+  <p class="blurb">Punctuality 55%, completion 35%, volume 10%, mapped onto a 300–850 band.</p>
+  <pre class="formula">onTime     = Σ max(0, paid − 1.5×missed − 0.5×partial)
+points     = (onTime / Σ tenure)×55 + (closed / loans)×35 + min(10, borrowed/50000 × 10)
+score      = 300 + round(points × 5.5)
+
+≥780 Excellent · ≥680 Good · ≥560 Fair · ≥440 Poor · else Very Poor
+no loans, or no repayment activity at all → score 0, grade &quot;N/A&quot;</pre>
+  <div class="cases"><details class="tc v-passed" id="CALC-CRS-001" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-CRS-001</span>
+    <span class="ttl">a borrower with no loans scores nothing rather than zero-risk</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    
+    <h4>Op</h4><p><code>credit.score</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;loans&quot;: []
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;score&quot;: 0,
+  &quot;grade&quot;: &quot;N/A&quot;
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-CRS-002" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-CRS-002</span>
+    <span class="ttl">a loan with no repayment history yet scores N/A</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">A brand-new borrower must not be graded on an empty record.</p>
+    <h4>Op</h4><p><code>credit.score</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;loans&quot;: [
+    {
+      &quot;status&quot;: &quot;active&quot;,
+      &quot;principal&quot;: 20000,
+      &quot;tenure&quot;: 10,
+      &quot;instalments&quot;: [
+        {
+          &quot;status&quot;: &quot;upcoming&quot;,
+          &quot;receivedAmount&quot;: 0
+        }
+      ]
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;score&quot;: 0,
+  &quot;grade&quot;: &quot;N/A&quot;,
+  &quot;totalPaid&quot;: 0
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-CRS-003" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-CRS-003</span>
+    <span class="ttl">a perfect closed loan at the volume ceiling scores the maximum</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">55 punctuality + 35 completion + 10 volume = 100 points → 300 + 550 = 850.</p>
+    <h4>Op</h4><p><code>credit.score</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;loans&quot;: [
+    {
+      &quot;status&quot;: &quot;closed&quot;,
+      &quot;principal&quot;: 50000,
+      &quot;tenure&quot;: 10,
+      &quot;instalments&quot;: [
+        {
+          &quot;status&quot;: &quot;paid&quot;,
+          &quot;receivedAmount&quot;: 5000
+        },
+        {
+          &quot;status&quot;: &quot;paid&quot;,
+          &quot;receivedAmount&quot;: 5000
+        },
+        {
+          &quot;status&quot;: &quot;paid&quot;,
+          &quot;receivedAmount&quot;: 5000
+        },
+        {
+          &quot;status&quot;: &quot;paid&quot;,
+          &quot;receivedAmount&quot;: 5000
+        },
+        {
+          &quot;status&quot;: &quot;paid&quot;,
+          &quot;receivedAmount&quot;: 5000
+        },
+        {
+          &quot;status&quot;: &quot;paid&quot;,
+          &quot;receivedAmount&quot;: 5000
+        },
+        {
+          &quot;status&quot;: &quot;paid&quot;,
+          &quot;receivedAmount&quot;: 5000
+        },
+        {
+          &quot;status&quot;: &quot;paid&quot;,
+          &quot;receivedAmount&quot;: 5000
+        },
+        {
+          &quot;status&quot;: &quot;paid&quot;,
+          &quot;receivedAmount&quot;: 5000
+        },
+        {
+          &quot;status&quot;: &quot;paid&quot;,
+          &quot;receivedAmount&quot;: 5000
+        }
+      ]
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;score&quot;: 850,
+  &quot;grade&quot;: &quot;Excellent&quot;,
+  &quot;punctuality&quot;: 100,
+  &quot;totalPaid&quot;: 50000,
+  &quot;closedLoans&quot;: 1,
+  &quot;activeLoans&quot;: 0
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-CRS-004" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-CRS-004</span>
+    <span class="ttl">a missed instalment costs 1.5 on-time payments and a partial costs 0.5</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">4 paid − (2 missed × 1.5) − (1 partial × 0.5) = 0.5 of 10 due → 5% punctuality.</p>
+    <h4>Op</h4><p><code>credit.score</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;loans&quot;: [
+    {
+      &quot;status&quot;: &quot;active&quot;,
+      &quot;principal&quot;: 20000,
+      &quot;tenure&quot;: 10,
+      &quot;instalments&quot;: [
+        {
+          &quot;status&quot;: &quot;paid&quot;,
+          &quot;receivedAmount&quot;: 2000
+        },
+        {
+          &quot;status&quot;: &quot;paid&quot;,
+          &quot;receivedAmount&quot;: 2000
+        },
+        {
+          &quot;status&quot;: &quot;paid&quot;,
+          &quot;receivedAmount&quot;: 2000
+        },
+        {
+          &quot;status&quot;: &quot;paid&quot;,
+          &quot;receivedAmount&quot;: 2000
+        },
+        {
+          &quot;status&quot;: &quot;missed&quot;,
+          &quot;receivedAmount&quot;: 0
+        },
+        {
+          &quot;status&quot;: &quot;missed&quot;,
+          &quot;receivedAmount&quot;: 0
+        },
+        {
+          &quot;status&quot;: &quot;partial&quot;,
+          &quot;receivedAmount&quot;: 500
+        }
+      ]
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;punctuality&quot;: 5,
+  &quot;score&quot;: 337,
+  &quot;grade&quot;: &quot;Very Poor&quot;,
+  &quot;totalPaid&quot;: 8500,
+  &quot;activeLoans&quot;: 1,
+  &quot;closedLoans&quot;: 0
+}</pre>
+    
+    
+  </div>
+</details>
+<details class="tc v-passed" id="CALC-CRS-005" data-verdict="passed">
+  <summary>
+    <span class="tid">CALC-CRS-005</span>
+    <span class="ttl">the score band is 300–850, not the 0–100 the doc comment claims</span>
+    <span class="spacer"></span>
+    
+    <span class="verdict verdict-passed">passed</span>
+  </summary>
+  <div class="body">
+    <h4>Why</h4><p class="why">Documented divergence: lib/creditScore.ts still describes a 0–100 scale it stopped returning.</p>
+    <h4>Op</h4><p><code>credit.score</code></p>
+    <h4>Input</h4><pre class="code">{
+  &quot;loans&quot;: [
+    {
+      &quot;status&quot;: &quot;closed&quot;,
+      &quot;principal&quot;: 10000,
+      &quot;tenure&quot;: 4,
+      &quot;instalments&quot;: [
+        {
+          &quot;status&quot;: &quot;paid&quot;,
+          &quot;receivedAmount&quot;: 2500
+        },
+        {
+          &quot;status&quot;: &quot;paid&quot;,
+          &quot;receivedAmount&quot;: 2500
+        },
+        {
+          &quot;status&quot;: &quot;paid&quot;,
+          &quot;receivedAmount&quot;: 2500
+        },
+        {
+          &quot;status&quot;: &quot;paid&quot;,
+          &quot;receivedAmount&quot;: 2500
+        }
+      ]
+    }
+  ]
+}</pre>
+    <h4>Expected</h4>
+    <pre class="code">{
+  &quot;score&quot;: {
+    &quot;gte&quot;: 300
+  },
+  &quot;grade&quot;: &quot;Excellent&quot;
+}</pre>
+    
+    
+  </div>
+</details></div>
+</section>
+
+  <footer>
+    Catalogue <code>tests/calc/cases.json</code> · runner <code>tests/calc/run.ts</code> ·
+    formulas <code>docs/CALCULATION_LOGIC.md</code> · for another agent <code>tests/calc/AGENT_RUNBOOK.md</code>.
+    Rebuild this page with <code>node scripts/build-calc-report.mjs</code>.
+  </footer>
+</div>
+
+<script>
+  const buttons = [...document.querySelectorAll('.filters button[data-f]')];
+  buttons.forEach((btn) => btn.addEventListener('click', () => {
+    const filter = btn.dataset.f;
+    buttons.forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
+    document.querySelectorAll('details.tc').forEach((el) => {
+      el.style.display = filter === 'all' || el.dataset.verdict === filter ? '' : 'none';
+    });
+    // Hide a group whose every case is filtered out, so the page has no empty headings.
+    document.querySelectorAll('section.grp').forEach((grp) => {
+      const visible = [...grp.querySelectorAll('details.tc')].some((el) => el.style.display !== 'none');
+      grp.style.display = visible ? '' : 'none';
+    });
+  }));
+
+  const expand = document.querySelector('.filters button[data-x="expand"]');
+  expand.addEventListener('click', () => {
+    const open = expand.getAttribute('aria-pressed') !== 'true';
+    expand.setAttribute('aria-pressed', String(open));
+    expand.textContent = open ? 'Collapse all' : 'Expand all';
+    document.querySelectorAll('details.tc').forEach((el) => { el.open = open; });
+  });
+</script>
