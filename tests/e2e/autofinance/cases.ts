@@ -1041,6 +1041,38 @@ export const CASES: AutoCase[] = [
     steps: ['Open the receipt modal on an account with two overdue rows and a penalty'],
     expected: ['The plan is shown line by line before commit', 'Overdue rows are visually distinct from upcoming ones'],
   },
+  {
+    id: 'AUTO-285', area: 'EMI Collection — Waterfall', priority: 'P0', automation: 'auto',
+    title: 'An HP EMI receipt posts to the cash book and the GL',
+    rules: ['ACC-6', 'MONEY-17'],
+    pre: 'recordHpReceipt writes Payment, PaymentAllocation, instalments and penalties — it references no AccountEntry and no wallet helper',
+    steps: ['Post a cash EMI receipt through the auto-finance receipt action', 'Read the account entries and the cash accounts'],
+    expected: ['A collection entry exists for the amount received', 'A cash receipt credits the collecting agent’s float', 'Money that reached the office appears in the books it is meant to appear in'],
+  },
+  {
+    id: 'AUTO-286', area: 'EMI Collection — Waterfall', priority: 'P0', automation: 'auto',
+    title: 'An HP EMI receipt is scoped to the branch that owns the loan',
+    rules: ['SCOPE-3'],
+    pre: 'recordHpReceipt resolves the loan by tenantId and appType only',
+    steps: ['As an HQ operator post a receipt against the Erode loan'],
+    expected: ['Refused', 'The Erode instalments are untouched and the Erode cash position is unchanged'],
+  },
+  {
+    id: 'AUTO-287', area: 'EMI Collection — Waterfall', priority: 'P1', automation: 'auto',
+    title: 'Who may post an HP EMI receipt is enforced server-side',
+    rules: ['ROLE-4'],
+    pre: 'The action requires only that a session exists',
+    steps: ['Post a receipt as each role the module has'],
+    expected: ['The roles allowed to take money are decided deliberately and enforced by the handler, not by which button a screen renders'],
+  },
+  {
+    id: 'AUTO-288', area: 'EMI Collection — Waterfall', priority: 'P0', automation: 'auto',
+    title: 'The web receipt and the mobile collection route agree on what a payment does',
+    rules: ['API-8', 'STRUCT-3'],
+    pre: 'The mobile route funnels through recordActualLoanCollection; the web action re-implements allocation, roll-ups and settlement itself',
+    steps: ['Collect the same amount on two equivalent HP loans, one through each path', 'Compare the instalments, the ledger entries and the cash movements'],
+    expected: ['Both leave the same trail', 'One payment path does not book money the other one loses'],
+  },
 
   // ─────────────────── M. Settlement & Closure ───────────────────
   {
