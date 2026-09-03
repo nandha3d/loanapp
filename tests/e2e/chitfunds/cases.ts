@@ -347,6 +347,14 @@ export const CASES: CfCase[] = [
     expected: ['The stored branchId is HQ', 'The body value is ignored'],
   },
   {
+    id: 'CF-047', area: 'Group Creation & Configuration', priority: 'P0', automation: 'auto',
+    title: 'A second tenant can create its first chit group',
+    rules: ['SCOPE-1', 'DB-11'],
+    pre: 'groupCode is generated from a per-TENANT count but the column is globally @unique, so every tenant\'s first group is CF00001',
+    steps: ['Create the first chit group in tenant A', 'Create the first chit group in tenant B'],
+    expected: ['Both succeed', 'A code sequence counted per tenant is never written into a column unique across all of them — the second tenant to reach a given number is locked out of creating groups at all'],
+  },
+  {
     id: 'CF-042', area: 'Group Creation & Configuration', priority: 'P2', automation: 'auto',
     title: 'A duplicate group name in the same branch is allowed but flagged distinctly',
     steps: ['Create two groups named "QA Monthly 1L" in HQ'],

@@ -91,6 +91,34 @@ export const CASES: SecuredCase[] = [
     steps: ['Call property-release and product-repossession with no token'],
     expected: ['HTTP 401 on both', 'No loan or collateral data in either body'],
   },
+  {
+    id: 'PPF-007', area: 'Module Access & Gating', priority: 'P0', automation: 'auto',
+    title: 'The verification link activates the secured-lending owner',
+    rules: ['AUTH-3'],
+    steps: ['Open /api/auth/verify-email with a validly signed token for the owner'],
+    expected: ['The owner moves from pending to active'],
+  },
+  {
+    id: 'PPF-008', area: 'Module Access & Gating', priority: 'P1', automation: 'auto',
+    title: 'A second branch, an admin and an agent are seeded for the journey',
+    rules: ['SCOPE-13'],
+    steps: ['Create the Erode branch, a branch admin and a field agent'],
+    expected: ['Each staff row is stamped with its branch', 'Both accounts can authenticate'],
+  },
+  {
+    id: 'PPF-009', area: 'Module Access & Gating', priority: 'P1', automation: 'auto',
+    title: 'Customers are onboarded in both branches',
+    rules: ['SCOPE-3'],
+    steps: ['Create six HQ and two Erode customers'],
+    expected: ['Each lands on the branch it was filed against'],
+  },
+  {
+    id: 'PPF-010', area: 'Module Access & Gating', priority: 'P1', automation: 'auto',
+    title: 'A product-finance customer is onboarded under its own module',
+    rules: ['SCOPE-1'],
+    steps: ['Create a customer with appType productfinance'],
+    expected: ['The row carries productfinance', 'A customer belongs to the module they were filed under'],
+  },
 
   // ────────────── B. Property Collateral Capture ──────────────
   {

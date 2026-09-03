@@ -134,29 +134,122 @@
     <p class="eyebrow">ZoloFund · Property &amp; Product Finance</p>
     <h1>Secured Lending Test Register</h1>
     <ul class="runmeta">
-      <li><code>88</code> cases · <code>12</code> areas</li>
+      <li><code>92</code> cases · <code>12</code> areas</li>
       <li>Collateral capture, custody and release across both secured modules</li>
       <li>Database <code>loantrack_qa</code></li>
       <li>Runner <code>Playwright</code></li>
-      <li>Last run <time>2026-09-03 03:50:40</time></li>
-      <li>Page built <time>2026-09-03 03:50:40</time></li>
+      <li>Last run <time>2026-09-03 04:38:50</time></li>
+      <li>Page built <time>2026-09-03 04:40:14</time></li>
     </ul>
   </header>
 
   <div class="summary">
-    <div class="tile t-passed"><span class="n">0</span><span class="l">Passed</span></div>
-    <div class="tile t-failed"><span class="n">0</span><span class="l">Failed</span></div>
-    <div class="tile t-notrun"><span class="n">87</span><span class="l">Not run</span></div>
+    <div class="tile t-passed"><span class="n">25</span><span class="l">Passed</span></div>
+    <div class="tile t-failed"><span class="n">22</span><span class="l">Failed</span></div>
+    <div class="tile t-notrun"><span class="n">43</span><span class="l">Not run</span></div>
     <div class="tile t-manual"><span class="n">1</span><span class="l">Manual</span></div>
-    <div class="tile t-skipped"><span class="n">0</span><span class="l">Skipped</span></div>
+    <div class="tile t-skipped"><span class="n">1</span><span class="l">Skipped</span></div>
   </div>
 
   <div class="bar">
-    <i class="b-passed" style="width:0.00%"></i><i class="b-failed" style="width:0.00%"></i><i class="b-notrun" style="width:98.86%"></i><i class="b-manual" style="width:1.14%"></i><i class="b-skipped" style="width:0.00%"></i>
+    <i class="b-passed" style="width:27.17%"></i><i class="b-failed" style="width:23.91%"></i><i class="b-notrun" style="width:46.74%"></i><i class="b-manual" style="width:1.09%"></i><i class="b-skipped" style="width:1.09%"></i>
   </div>
-  <p class="rate">Pass rate over executed cases: <b>0%</b> (0 of 0)</p>
+  <p class="rate">Pass rate over executed cases: <b>53%</b> (25 of 47)</p>
 
-  
+  <section class="failures">
+    <h2>What went wrong</h2>
+    <ol>
+      <li>
+        <a href="#PPF-023"><span class="cid">PPF-023</span> A property loan without a property block is refused</a>
+        <p class="why">Error: GOLD-3 refuses a gold origination with no collateral. The property module accepted one (200) and stored no mortgage — an unsecured loan wearing a secured label</p>
+        <p class="rules"><span class="rule">GOLD-3</span></p>
+      </li><li>
+        <a href="#PPF-026"><span class="cid">PPF-026</span> A negative extent or market value is refused</a>
+        <p class="why">Error: a negative extentValue must not reach the mortgage register (status 200)</p>
+        
+      </li><li>
+        <a href="#PPF-029"><span class="cid">PPF-029</span> A valuation date in the future is refused</a>
+        <p class="why">Error: a property cannot have been valued on a day that has not happened</p>
+        
+      </li><li>
+        <a href="#PPF-045"><span class="cid">PPF-045</span> The eligible amount is derived, not accepted from the request</a>
+        <p class="why">Error: the request claimed the property supports 5000000; at 60% of a 5000000 valuation it supports 3000000. A figure a client sends is never what the register should say the asset covers</p>
+        <p class="rules"><span class="rule">GOLD-1</span><span class="rule">AF-1</span></p>
+      </li><li>
+        <a href="#PPF-046"><span class="cid">PPF-046</span> A principal above the eligible amount is refused</a>
+        <p class="why">Error: lending 4000000 against a property the register itself says supports 3000000 is the failure a mortgage register exists to prevent</p>
+        <p class="rules"><span class="rule">GOLD-1</span></p>
+      </li><li>
+        <a href="#PPF-047"><span class="cid">PPF-047</span> An eligible LTV above 100 is refused</a>
+        <p class="why">Error: no configuration lends more than the asset is worth</p>
+        
+      </li><li>
+        <a href="#PPF-065"><span class="cid">PPF-065</span> Releasing a mortgage records the status, the moment and the officer</a>
+        <p class="why">Error: releasing twice re-stamps releasedAt and releasedBy, so the record of who actually handed back the deed is overwritten by whoever clicked last (second call 200; releasedBy now cmtl1cahd0003re89e35tl191)</p>
+        
+      </li><li>
+        <a href="#PPF-066"><span class="cid">PPF-066</span> A mortgage cannot be released while the loan is still outstanding</a>
+        <p class="why">Error: the release route reads the loan only to confirm it exists — it never checks the status or the balance, so a title deed can be handed back on a fully outstanding debt (status 200, mortgage now released)</p>
+        
+      </li><li>
+        <a href="#PPF-067"><span class="cid">PPF-067</span> Who may release a mortgage is enforced server-side</a>
+        <p class="why">Error: ROLE-4: the route requires only that some token authenticates, so a field agent can hand back a title deed (got 200)</p>
+        <p class="rules"><span class="rule">ROLE-4</span></p>
+      </li><li>
+        <a href="#PPF-068"><span class="cid">PPF-068</span> A release is scoped to the branch that owns the loan</a>
+        <p class="why">Error: {&quot;data&quot;:null,&quot;error&quot;:&quot;Insufficient float: available 0, required 2000000&quot;,&quot;pagination&quot;:null}</p>
+        <p class="rules"><span class="rule">SCOPE-3</span></p>
+      </li><li>
+        <a href="#PPF-069"><span class="cid">PPF-069</span> Releasing twice does not rewrite who released it</a>
+        <p class="why">Error: releasing twice re-stamps releasedAt and releasedBy, so the record of who actually handed back the deed is overwritten by whoever clicked last (second call 200; releasedBy now cmtl1cahd0003re89e35tl191)</p>
+        
+      </li><li>
+        <a href="#PPF-102"><span class="cid">PPF-102</span> A product loan without an item block is refused</a>
+        <p class="why">Error: a consumer-durable loan with no durable is an unsecured personal loan wearing the wrong label (status 200)</p>
+        
+      </li><li>
+        <a href="#PPF-104"><span class="cid">PPF-104</span> A serial number is unique within the tenant</a>
+        <p class="why">Error: one physical appliance is not collateral for two loans — 2 rows now carry serial SN-l1c3g1rnb-001</p>
+        
+      </li><li>
+        <a href="#PPF-120"><span class="cid">PPF-120</span> The financed amount is the invoice less the down payment</a>
+        <p class="why">Error: the request claimed 60000 financed on a 60000 invoice with 10000 paid down. Three figures that must reconcile cannot each be accepted independently</p>
+        
+      </li><li>
+        <a href="#PPF-121"><span class="cid">PPF-121</span> The financed amount matches the loan principal</a>
+        <p class="why">Error: the item register says 999999 was financed and the ledger says 50000 was lent — they cannot disagree about the same advance</p>
+        
+      </li><li>
+        <a href="#PPF-122"><span class="cid">PPF-122</span> A down payment at or above the invoice is refused</a>
+        <p class="why">Error: a down payment of 60000 against a 60000 invoice leaves nothing to finance</p>
+        
+      </li><li>
+        <a href="#PPF-123"><span class="cid">PPF-123</span> A negative invoice, down payment or financed amount is refused</a>
+        <p class="why">Error: a negative invoiceAmount must not reach the item register (status 200)</p>
+        
+      </li><li>
+        <a href="#PPF-124"><span class="cid">PPF-124</span> The item tenure matches the loan tenure</a>
+        <p class="why">Error: the item says 6 months and the loan says 12 — one contract, one term</p>
+        
+      </li><li>
+        <a href="#PPF-141"><span class="cid">PPF-141</span> The repossession reason is stored on the record, not only in the audit</a>
+        <p class="why">Error: the route reads body.reason and writes it into the audit newValue only — a recovery clerk should not have to read the audit log to learn why an appliance was taken</p>
+        
+      </li><li>
+        <a href="#PPF-142"><span class="cid">PPF-142</span> An unrecognised status does not silently un-repossess the item</a>
+        <p class="why">Error: anything that is not the literal &quot;repossessed&quot; is coerced to &quot;active&quot;, so a single misspelling quietly releases an asset the office is holding (status 200, item now active)</p>
+        
+      </li><li>
+        <a href="#PPF-143"><span class="cid">PPF-143</span> Who may repossess is enforced server-side</a>
+        <p class="why">Error: ROLE-4: the route requires only that some token authenticates, so a field agent can seize an appliance (got 200)</p>
+        <p class="rules"><span class="rule">ROLE-4</span></p>
+      </li><li>
+        <a href="#PPF-227"><span class="cid">PPF-227</span> No collateral response carries a password hash, token or secret</a>
+        <p class="why">Error: X-13: no password hash in a secured-lending payload</p>
+        <p class="rules"><span class="rule">X-13</span></p>
+      </li>
+    </ol>
+  </section>
 
   <div class="filters">
     <input id="q" type="search" placeholder="Filter by id, title, area or rule…" aria-label="Filter cases">
@@ -169,15 +262,15 @@
 
   <main>
     <section class="area" data-area="Module Access &amp; Gating">
-      <h2>Module Access &amp; Gating <span class="areachips"><span class="areachip ac-notrun">6 not run</span></span></h2>
-      <details class="case" id="PPF-001" data-verdict="notrun" data-search="ppf-001 registering with property selected entitles the tenant to the module module access &amp; gating scope-4">
+      <h2>Module Access &amp; Gating <span class="areachips"><span class="areachip ac-passed">9 passed</span><span class="areachip ac-notrun">1 not run</span></span></h2>
+      <details class="case" id="PPF-001" data-verdict="passed" data-search="ppf-001 registering with property selected entitles the tenant to the module module access &amp; gating scope-4">
   <summary>
     <span class="cid">PPF-001</span>
     <span class="ctitle">Registering with property selected entitles the tenant to the module</span>
     <span class="cmeta">
-      
+      <span class="dur">7.7s</span>
       <span class="pri pri-P0">P0</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-passed">Passed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -193,18 +286,18 @@
       </div>
     </div>
     <p class="rules"><span class="rule">SCOPE-4</span></p>
-    
+    <p class="where"><span class="tag">Spec</span><code>01-provisioning.spec.ts</code>:59 · observed 2026-09-03 04:38:50</p>
     
   </div>
 </details>
-<details class="case" id="PPF-002" data-verdict="notrun" data-search="ppf-002 registering with productfinance selected entitles the tenant to the module module access &amp; gating scope-4">
+<details class="case" id="PPF-002" data-verdict="passed" data-search="ppf-002 registering with productfinance selected entitles the tenant to the module module access &amp; gating scope-4">
   <summary>
     <span class="cid">PPF-002</span>
     <span class="ctitle">Registering with productfinance selected entitles the tenant to the module</span>
     <span class="cmeta">
-      
+      <span class="dur">7.7s</span>
       <span class="pri pri-P0">P0</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-passed">Passed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -220,18 +313,18 @@
       </div>
     </div>
     <p class="rules"><span class="rule">SCOPE-4</span></p>
-    
+    <p class="where"><span class="tag">Spec</span><code>01-provisioning.spec.ts</code>:59 · observed 2026-09-03 04:38:50</p>
     
   </div>
 </details>
-<details class="case" id="PPF-003" data-verdict="notrun" data-search="ppf-003 a tenant without the module is refused its pages module access &amp; gating scope-4">
+<details class="case" id="PPF-003" data-verdict="passed" data-search="ppf-003 a tenant without the module is refused its pages module access &amp; gating scope-4">
   <summary>
     <span class="cid">PPF-003</span>
     <span class="ctitle">A tenant without the module is refused its pages</span>
     <span class="cmeta">
-      
+      <span class="dur">5.9s</span>
       <span class="pri pri-P0">P0</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-passed">Passed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -247,18 +340,18 @@
       </div>
     </div>
     <p class="rules"><span class="rule">SCOPE-4</span></p>
-    
+    <p class="where"><span class="tag">Spec</span><code>01-provisioning.spec.ts</code>:203 · observed 2026-09-03 04:38:50</p>
     
   </div>
 </details>
-<details class="case" id="PPF-004" data-verdict="notrun" data-search="ppf-004 each module stamps its own apptype on the loan and the collateral module access &amp; gating scope-1">
+<details class="case" id="PPF-004" data-verdict="passed" data-search="ppf-004 each module stamps its own apptype on the loan and the collateral module access &amp; gating scope-1">
   <summary>
     <span class="cid">PPF-004</span>
     <span class="ctitle">Each module stamps its own appType on the loan and the collateral</span>
     <span class="cmeta">
-      
+      <span class="dur">10ms</span>
       <span class="pri pri-P1">P1</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-passed">Passed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -274,7 +367,7 @@
       </div>
     </div>
     <p class="rules"><span class="rule">SCOPE-1</span></p>
-    
+    <p class="where"><span class="tag">Spec</span><code>02-property.spec.ts</code>:115 · observed 2026-09-03 04:38:50</p>
     
   </div>
 </details>
@@ -305,14 +398,14 @@
     
   </div>
 </details>
-<details class="case" id="PPF-006" data-verdict="notrun" data-search="ppf-006 every collateral endpoint refuses an unauthenticated caller module access &amp; gating role-4 x-13">
+<details class="case" id="PPF-006" data-verdict="passed" data-search="ppf-006 every collateral endpoint refuses an unauthenticated caller module access &amp; gating role-4 x-13">
   <summary>
     <span class="cid">PPF-006</span>
     <span class="ctitle">Every collateral endpoint refuses an unauthenticated caller</span>
     <span class="cmeta">
-      
+      <span class="dur">799ms</span>
       <span class="pri pri-P2">P2</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-passed">Passed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -328,21 +421,129 @@
       </div>
     </div>
     <p class="rules"><span class="rule">ROLE-4</span><span class="rule">X-13</span></p>
+    <p class="where"><span class="tag">Spec</span><code>01-provisioning.spec.ts</code>:233 · observed 2026-09-03 04:38:50</p>
     
+  </div>
+</details>
+<details class="case" id="PPF-007" data-verdict="passed" data-search="ppf-007 the verification link activates the secured-lending owner module access &amp; gating auth-3">
+  <summary>
+    <span class="cid">PPF-007</span>
+    <span class="ctitle">The verification link activates the secured-lending owner</span>
+    <span class="cmeta">
+      <span class="dur">976ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Open /api/auth/verify-email with a validly signed token for the owner</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The owner moves from pending to active</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">AUTH-3</span></p>
+    <p class="where"><span class="tag">Spec</span><code>01-provisioning.spec.ts</code>:97 · observed 2026-09-03 04:38:50</p>
+    
+  </div>
+</details>
+<details class="case" id="PPF-008" data-verdict="passed" data-search="ppf-008 a second branch, an admin and an agent are seeded for the journey module access &amp; gating scope-13">
+  <summary>
+    <span class="cid">PPF-008</span>
+    <span class="ctitle">A second branch, an admin and an agent are seeded for the journey</span>
+    <span class="cmeta">
+      <span class="dur">372ms</span>
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Create the Erode branch, a branch admin and a field agent</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Each staff row is stamped with its branch</li><li>Both accounts can authenticate</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">SCOPE-13</span></p>
+    <p class="where"><span class="tag">Spec</span><code>01-provisioning.spec.ts</code>:105 · observed 2026-09-03 04:38:50</p>
+    
+  </div>
+</details>
+<details class="case" id="PPF-009" data-verdict="passed" data-search="ppf-009 customers are onboarded in both branches module access &amp; gating scope-3">
+  <summary>
+    <span class="cid">PPF-009</span>
+    <span class="ctitle">Customers are onboarded in both branches</span>
+    <span class="cmeta">
+      <span class="dur">2.4s</span>
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Create six HQ and two Erode customers</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Each lands on the branch it was filed against</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">SCOPE-3</span></p>
+    <p class="where"><span class="tag">Spec</span><code>01-provisioning.spec.ts</code>:154 · observed 2026-09-03 04:38:50</p>
+    
+  </div>
+</details>
+<details class="case" id="PPF-010" data-verdict="passed" data-search="ppf-010 a product-finance customer is onboarded under its own module module access &amp; gating scope-1">
+  <summary>
+    <span class="cid">PPF-010</span>
+    <span class="ctitle">A product-finance customer is onboarded under its own module</span>
+    <span class="cmeta">
+      <span class="dur">596ms</span>
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Create a customer with appType productfinance</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The row carries productfinance</li><li>A customer belongs to the module they were filed under</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">SCOPE-1</span></p>
+    <p class="where"><span class="tag">Spec</span><code>01-provisioning.spec.ts</code>:184 · observed 2026-09-03 04:38:50</p>
     
   </div>
 </details>
     </section>
 <section class="area" data-area="Property Collateral Capture">
-      <h2>Property Collateral Capture <span class="areachips"><span class="areachip ac-notrun">12 not run</span></span></h2>
-      <details class="case" id="PPF-020" data-verdict="notrun" data-search="ppf-020 a property loan writes its collateral row in the same transaction property collateral capture db-8">
+      <h2>Property Collateral Capture <span class="areachips"><span class="areachip ac-passed">4 passed</span><span class="areachip ac-failed">3 failed</span><span class="areachip ac-notrun">5 not run</span></span></h2>
+      <details class="case" id="PPF-020" data-verdict="passed" data-search="ppf-020 a property loan writes its collateral row in the same transaction property collateral capture db-8">
   <summary>
     <span class="cid">PPF-020</span>
     <span class="ctitle">A property loan writes its collateral row in the same transaction</span>
     <span class="cmeta">
-      
+      <span class="dur">226ms</span>
       <span class="pri pri-P0">P0</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-passed">Passed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -358,7 +559,7 @@
       </div>
     </div>
     <p class="rules"><span class="rule">DB-8</span></p>
-    
+    <p class="where"><span class="tag">Spec</span><code>02-property.spec.ts</code>:96 · observed 2026-09-03 04:38:50</p>
     
   </div>
 </details>
@@ -389,14 +590,14 @@
     
   </div>
 </details>
-<details class="case" id="PPF-022" data-verdict="notrun" data-search="ppf-022 one loan carries at most one property property collateral capture">
+<details class="case" id="PPF-022" data-verdict="passed" data-search="ppf-022 one loan carries at most one property property collateral capture">
   <summary>
     <span class="cid">PPF-022</span>
     <span class="ctitle">One loan carries at most one property</span>
     <span class="cmeta">
-      
+      <span class="dur">68ms</span>
       <span class="pri pri-P0">P0</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-passed">Passed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -412,18 +613,18 @@
       </div>
     </div>
     
-    
+    <p class="where"><span class="tag">Spec</span><code>02-property.spec.ts</code>:142 · observed 2026-09-03 04:38:50</p>
     
   </div>
 </details>
-<details class="case" id="PPF-023" data-verdict="notrun" data-search="ppf-023 a property loan without a property block is refused property collateral capture gold-3">
+<details class="case" id="PPF-023" data-verdict="failed" data-search="ppf-023 a property loan without a property block is refused property collateral capture gold-3">
   <summary>
     <span class="cid">PPF-023</span>
     <span class="ctitle">A property loan without a property block is refused</span>
     <span class="cmeta">
-      
+      <span class="dur">333ms</span>
       <span class="pri pri-P0">P0</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-failed">Failed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -439,8 +640,13 @@
       </div>
     </div>
     <p class="rules"><span class="rule">GOLD-3</span></p>
-    
-    
+    <p class="where"><span class="tag">Spec</span><code>02-property.spec.ts</code>:160 · observed 2026-09-03 04:38:50</p>
+    <pre class="err">Error: GOLD-3 refuses a gold origination with no collateral. The property module accepted one (200) and stored no mortgage — an unsecured loan wearing a secured label
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false</pre>
   </div>
 </details>
 <details class="case" id="PPF-024" data-verdict="notrun" data-search="ppf-024 the essential identifying fields are required property collateral capture">
@@ -470,14 +676,14 @@
     
   </div>
 </details>
-<details class="case" id="PPF-025" data-verdict="notrun" data-search="ppf-025 the extent is stored with its unit property collateral capture">
+<details class="case" id="PPF-025" data-verdict="passed" data-search="ppf-025 the extent is stored with its unit property collateral capture">
   <summary>
     <span class="cid">PPF-025</span>
     <span class="ctitle">The extent is stored with its unit</span>
     <span class="cmeta">
-      
+      <span class="dur">4ms</span>
       <span class="pri pri-P1">P1</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-passed">Passed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -493,18 +699,18 @@
       </div>
     </div>
     
-    
+    <p class="where"><span class="tag">Spec</span><code>02-property.spec.ts</code>:134 · observed 2026-09-03 04:38:50</p>
     
   </div>
 </details>
-<details class="case" id="PPF-026" data-verdict="notrun" data-search="ppf-026 a negative extent or market value is refused property collateral capture">
+<details class="case" id="PPF-026" data-verdict="failed" data-search="ppf-026 a negative extent or market value is refused property collateral capture">
   <summary>
     <span class="cid">PPF-026</span>
     <span class="ctitle">A negative extent or market value is refused</span>
     <span class="cmeta">
-      
+      <span class="dur">236ms</span>
       <span class="pri pri-P1">P1</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-failed">Failed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -520,8 +726,13 @@
       </div>
     </div>
     
-    
-    
+    <p class="where"><span class="tag">Spec</span><code>02-property.spec.ts</code>:174 · observed 2026-09-03 04:38:50</p>
+    <pre class="err">Error: a negative extentValue must not reach the mortgage register (status 200)
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false</pre>
   </div>
 </details>
 <details class="case" id="PPF-027" data-verdict="notrun" data-search="ppf-027 the encumbrance status is recorded and constrained property collateral capture">
@@ -578,14 +789,14 @@
     
   </div>
 </details>
-<details class="case" id="PPF-029" data-verdict="notrun" data-search="ppf-029 a valuation date in the future is refused property collateral capture">
+<details class="case" id="PPF-029" data-verdict="failed" data-search="ppf-029 a valuation date in the future is refused property collateral capture">
   <summary>
     <span class="cid">PPF-029</span>
     <span class="ctitle">A valuation date in the future is refused</span>
     <span class="cmeta">
-      
+      <span class="dur">193ms</span>
       <span class="pri pri-P2">P2</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-failed">Failed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -601,8 +812,13 @@
       </div>
     </div>
     
-    
-    
+    <p class="where"><span class="tag">Spec</span><code>02-property.spec.ts</code>:192 · observed 2026-09-03 04:38:50</p>
+    <pre class="err">Error: a property cannot have been valued on a day that has not happened
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false</pre>
   </div>
 </details>
 <details class="case" id="PPF-030" data-verdict="notrun" data-search="ppf-030 the collateral is stamped with the branch that owns the loan property collateral capture scope-3">
@@ -632,14 +848,14 @@
     
   </div>
 </details>
-<details class="case" id="PPF-031" data-verdict="notrun" data-search="ppf-031 the mortgage status starts as mortgaged property collateral capture">
+<details class="case" id="PPF-031" data-verdict="passed" data-search="ppf-031 the mortgage status starts as mortgaged property collateral capture">
   <summary>
     <span class="cid">PPF-031</span>
     <span class="ctitle">The mortgage status starts as mortgaged</span>
     <span class="cmeta">
-      
+      <span class="dur">9ms</span>
       <span class="pri pri-P2">P2</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-passed">Passed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -655,21 +871,21 @@
       </div>
     </div>
     
-    
+    <p class="where"><span class="tag">Spec</span><code>02-property.spec.ts</code>:125 · observed 2026-09-03 04:38:50</p>
     
   </div>
 </details>
     </section>
 <section class="area" data-area="Property Valuation &amp; LTV">
-      <h2>Property Valuation &amp; LTV <span class="areachips"><span class="areachip ac-notrun">7 not run</span></span></h2>
-      <details class="case" id="PPF-045" data-verdict="notrun" data-search="ppf-045 the eligible amount is derived, not accepted from the request property valuation &amp; ltv gold-1 af-1">
+      <h2>Property Valuation &amp; LTV <span class="areachips"><span class="areachip ac-passed">1 passed</span><span class="areachip ac-failed">3 failed</span><span class="areachip ac-notrun">3 not run</span></span></h2>
+      <details class="case" id="PPF-045" data-verdict="failed" data-search="ppf-045 the eligible amount is derived, not accepted from the request property valuation &amp; ltv gold-1 af-1">
   <summary>
     <span class="cid">PPF-045</span>
     <span class="ctitle">The eligible amount is derived, not accepted from the request</span>
     <span class="cmeta">
-      
+      <span class="dur">237ms</span>
       <span class="pri pri-P0">P0</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-failed">Failed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -685,18 +901,23 @@
       </div>
     </div>
     <p class="rules"><span class="rule">GOLD-1</span><span class="rule">AF-1</span></p>
-    
-    
+    <p class="where"><span class="tag">Spec</span><code>02-property.spec.ts</code>:210 · observed 2026-09-03 04:38:50</p>
+    <pre class="err">Error: the request claimed the property supports 5000000; at 60% of a 5000000 valuation it supports 3000000. A figure a client sends is never what the register should say the asset covers
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: 3000000
+Received: 5000000</pre>
   </div>
 </details>
-<details class="case" id="PPF-046" data-verdict="notrun" data-search="ppf-046 a principal above the eligible amount is refused property valuation &amp; ltv gold-1">
+<details class="case" id="PPF-046" data-verdict="failed" data-search="ppf-046 a principal above the eligible amount is refused property valuation &amp; ltv gold-1">
   <summary>
     <span class="cid">PPF-046</span>
     <span class="ctitle">A principal above the eligible amount is refused</span>
     <span class="cmeta">
-      
+      <span class="dur">768ms</span>
       <span class="pri pri-P0">P0</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-failed">Failed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -712,18 +933,23 @@
       </div>
     </div>
     <p class="rules"><span class="rule">GOLD-1</span></p>
-    
-    
+    <p class="where"><span class="tag">Spec</span><code>02-property.spec.ts</code>:230 · observed 2026-09-03 04:38:50</p>
+    <pre class="err">Error: lending 4000000 against a property the register itself says supports 3000000 is the failure a mortgage register exists to prevent
+
+expect(received).toBeGreaterThanOrEqual(expected)
+
+Expected: &gt;= 400
+Received:    200</pre>
   </div>
 </details>
-<details class="case" id="PPF-047" data-verdict="notrun" data-search="ppf-047 an eligible ltv above 100 is refused property valuation &amp; ltv">
+<details class="case" id="PPF-047" data-verdict="failed" data-search="ppf-047 an eligible ltv above 100 is refused property valuation &amp; ltv">
   <summary>
     <span class="cid">PPF-047</span>
     <span class="ctitle">An eligible LTV above 100 is refused</span>
     <span class="cmeta">
-      
+      <span class="dur">207ms</span>
       <span class="pri pri-P0">P0</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-failed">Failed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -739,8 +965,13 @@
       </div>
     </div>
     
-    
-    
+    <p class="where"><span class="tag">Spec</span><code>02-property.spec.ts</code>:245 · observed 2026-09-03 04:38:50</p>
+    <pre class="err">Error: no configuration lends more than the asset is worth
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false</pre>
   </div>
 </details>
 <details class="case" id="PPF-048" data-verdict="notrun" data-search="ppf-048 a zero or negative eligible ltv is refused property valuation &amp; ltv">
@@ -797,14 +1028,14 @@
     
   </div>
 </details>
-<details class="case" id="PPF-050" data-verdict="notrun" data-search="ppf-050 the applied ltv is snapshotted on the collateral row property valuation &amp; ltv gold-4">
+<details class="case" id="PPF-050" data-verdict="passed" data-search="ppf-050 the applied ltv is snapshotted on the collateral row property valuation &amp; ltv gold-4">
   <summary>
     <span class="cid">PPF-050</span>
     <span class="ctitle">The applied LTV is snapshotted on the collateral row</span>
     <span class="cmeta">
-      
+      <span class="dur">11ms</span>
       <span class="pri pri-P1">P1</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-passed">Passed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -820,7 +1051,7 @@
       </div>
     </div>
     <p class="rules"><span class="rule">GOLD-4</span></p>
-    
+    <p class="where"><span class="tag">Spec</span><code>02-property.spec.ts</code>:261 · observed 2026-09-03 04:38:50</p>
     
   </div>
 </details>
@@ -853,15 +1084,15 @@
 </details>
     </section>
 <section class="area" data-area="Mortgage Release">
-      <h2>Mortgage Release <span class="areachips"><span class="areachip ac-notrun">9 not run</span></span></h2>
-      <details class="case" id="PPF-065" data-verdict="notrun" data-search="ppf-065 releasing a mortgage records the status, the moment and the officer mortgage release">
+      <h2>Mortgage Release <span class="areachips"><span class="areachip ac-passed">2 passed</span><span class="areachip ac-failed">5 failed</span><span class="areachip ac-notrun">2 not run</span></span></h2>
+      <details class="case" id="PPF-065" data-verdict="failed" data-search="ppf-065 releasing a mortgage records the status, the moment and the officer mortgage release">
   <summary>
     <span class="cid">PPF-065</span>
     <span class="ctitle">Releasing a mortgage records the status, the moment and the officer</span>
     <span class="cmeta">
-      
+      <span class="dur">500ms</span>
       <span class="pri pri-P0">P0</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-failed">Failed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -877,18 +1108,23 @@
       </div>
     </div>
     
-    
-    
+    <p class="where"><span class="tag">Spec</span><code>02-property.spec.ts</code>:355 · observed 2026-09-03 04:38:50</p>
+    <pre class="err">Error: releasing twice re-stamps releasedAt and releasedBy, so the record of who actually handed back the deed is overwritten by whoever clicked last (second call 200; releasedBy now cmtl1cahd0003re89e35tl191)
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false</pre>
   </div>
 </details>
-<details class="case" id="PPF-066" data-verdict="notrun" data-search="ppf-066 a mortgage cannot be released while the loan is still outstanding mortgage release">
+<details class="case" id="PPF-066" data-verdict="failed" data-search="ppf-066 a mortgage cannot be released while the loan is still outstanding mortgage release">
   <summary>
     <span class="cid">PPF-066</span>
     <span class="ctitle">A mortgage cannot be released while the loan is still outstanding</span>
     <span class="cmeta">
-      
+      <span class="dur">582ms</span>
       <span class="pri pri-P0">P0</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-failed">Failed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -904,18 +1140,23 @@
       </div>
     </div>
     
-    
-    
+    <p class="where"><span class="tag">Spec</span><code>02-property.spec.ts</code>:270 · observed 2026-09-03 04:38:50</p>
+    <pre class="err">Error: the release route reads the loan only to confirm it exists — it never checks the status or the balance, so a title deed can be handed back on a fully outstanding debt (status 200, mortgage now released)
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false</pre>
   </div>
 </details>
-<details class="case" id="PPF-067" data-verdict="notrun" data-search="ppf-067 who may release a mortgage is enforced server-side mortgage release role-4">
+<details class="case" id="PPF-067" data-verdict="failed" data-search="ppf-067 who may release a mortgage is enforced server-side mortgage release role-4">
   <summary>
     <span class="cid">PPF-067</span>
     <span class="ctitle">Who may release a mortgage is enforced server-side</span>
     <span class="cmeta">
-      
+      <span class="dur">990ms</span>
       <span class="pri pri-P0">P0</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-failed">Failed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -931,18 +1172,23 @@
       </div>
     </div>
     <p class="rules"><span class="rule">ROLE-4</span></p>
-    
-    
+    <p class="where"><span class="tag">Spec</span><code>02-property.spec.ts</code>:290 · observed 2026-09-03 04:38:50</p>
+    <pre class="err">Error: ROLE-4: the route requires only that some token authenticates, so a field agent can hand back a title deed (got 200)
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: 403
+Received: 200</pre>
   </div>
 </details>
-<details class="case" id="PPF-068" data-verdict="notrun" data-search="ppf-068 a release is scoped to the branch that owns the loan mortgage release scope-3">
+<details class="case" id="PPF-068" data-verdict="failed" data-search="ppf-068 a release is scoped to the branch that owns the loan mortgage release scope-3">
   <summary>
     <span class="cid">PPF-068</span>
     <span class="ctitle">A release is scoped to the branch that owns the loan</span>
     <span class="cmeta">
-      
+      <span class="dur">310ms</span>
       <span class="pri pri-P0">P0</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-failed">Failed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -958,18 +1204,23 @@
       </div>
     </div>
     <p class="rules"><span class="rule">SCOPE-3</span></p>
-    
-    
+    <p class="where"><span class="tag">Spec</span><code>02-property.spec.ts</code>:308 · observed 2026-09-03 04:38:50</p>
+    <pre class="err">Error: {&quot;data&quot;:null,&quot;error&quot;:&quot;Insufficient float: available 0, required 2000000&quot;,&quot;pagination&quot;:null}
+
+expect(received).toBeLessThan(expected)
+
+Expected: &lt; 300
+Received:   409</pre>
   </div>
 </details>
-<details class="case" id="PPF-069" data-verdict="notrun" data-search="ppf-069 releasing twice does not rewrite who released it mortgage release">
+<details class="case" id="PPF-069" data-verdict="failed" data-search="ppf-069 releasing twice does not rewrite who released it mortgage release">
   <summary>
     <span class="cid">PPF-069</span>
     <span class="ctitle">Releasing twice does not rewrite who released it</span>
     <span class="cmeta">
-      
+      <span class="dur">500ms</span>
       <span class="pri pri-P0">P0</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-failed">Failed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -985,18 +1236,23 @@
       </div>
     </div>
     
-    
-    
+    <p class="where"><span class="tag">Spec</span><code>02-property.spec.ts</code>:355 · observed 2026-09-03 04:38:50</p>
+    <pre class="err">Error: releasing twice re-stamps releasedAt and releasedBy, so the record of who actually handed back the deed is overwritten by whoever clicked last (second call 200; releasedBy now cmtl1cahd0003re89e35tl191)
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false</pre>
   </div>
 </details>
-<details class="case" id="PPF-070" data-verdict="notrun" data-search="ppf-070 a release on a loan with no property is refused cleanly mortgage release">
+<details class="case" id="PPF-070" data-verdict="passed" data-search="ppf-070 a release on a loan with no property is refused cleanly mortgage release">
   <summary>
     <span class="cid">PPF-070</span>
     <span class="ctitle">A release on a loan with no property is refused cleanly</span>
     <span class="cmeta">
-      
+      <span class="dur">297ms</span>
       <span class="pri pri-P1">P1</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-passed">Passed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -1012,7 +1268,7 @@
       </div>
     </div>
     
-    
+    <p class="where"><span class="tag">Spec</span><code>02-property.spec.ts</code>:338 · observed 2026-09-03 04:38:50</p>
     
   </div>
 </details>
@@ -1043,14 +1299,14 @@
     
   </div>
 </details>
-<details class="case" id="PPF-072" data-verdict="notrun" data-search="ppf-072 a loan from another tenant cannot be released mortgage release api-5">
+<details class="case" id="PPF-072" data-verdict="passed" data-search="ppf-072 a loan from another tenant cannot be released mortgage release api-5">
   <summary>
     <span class="cid">PPF-072</span>
     <span class="ctitle">A loan from another tenant cannot be released</span>
     <span class="cmeta">
-      
+      <span class="dur">450ms</span>
       <span class="pri pri-P1">P1</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-passed">Passed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -1066,7 +1322,7 @@
       </div>
     </div>
     <p class="rules"><span class="rule">API-5</span></p>
-    
+    <p class="where"><span class="tag">Spec</span><code>02-property.spec.ts</code>:330 · observed 2026-09-03 04:38:50</p>
     
   </div>
 </details>
@@ -1099,7 +1355,7 @@
 </details>
     </section>
 <section class="area" data-area="Property Documents">
-      <h2>Property Documents <span class="areachips"><span class="areachip ac-notrun">3 not run</span><span class="areachip ac-manual">1 manual</span></span></h2>
+      <h2>Property Documents <span class="areachips"><span class="areachip ac-passed">1 passed</span><span class="areachip ac-notrun">2 not run</span><span class="areachip ac-manual">1 manual</span></span></h2>
       <details class="case" id="PPF-085" data-verdict="notrun" data-search="ppf-085 title deed, encumbrance certificate and tax receipt paths are stored property documents">
   <summary>
     <span class="cid">PPF-085</span>
@@ -1181,14 +1437,14 @@
     
   </div>
 </details>
-<details class="case" id="PPF-088" data-verdict="notrun" data-search="ppf-088 documents survive a release property documents">
+<details class="case" id="PPF-088" data-verdict="passed" data-search="ppf-088 documents survive a release property documents">
   <summary>
     <span class="cid">PPF-088</span>
     <span class="ctitle">Documents survive a release</span>
     <span class="cmeta">
-      
+      <span class="dur">10ms</span>
       <span class="pri pri-P2">P2</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-passed">Passed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -1204,21 +1460,21 @@
       </div>
     </div>
     
-    
+    <p class="where"><span class="tag">Spec</span><code>02-property.spec.ts</code>:377 · observed 2026-09-03 04:38:50</p>
     
   </div>
 </details>
     </section>
 <section class="area" data-area="Product Item Capture">
-      <h2>Product Item Capture <span class="areachips"><span class="areachip ac-notrun">9 not run</span></span></h2>
-      <details class="case" id="PPF-100" data-verdict="notrun" data-search="ppf-100 a product loan writes its item row in the same transaction product item capture db-8">
+      <h2>Product Item Capture <span class="areachips"><span class="areachip ac-passed">3 passed</span><span class="areachip ac-failed">2 failed</span><span class="areachip ac-notrun">4 not run</span></span></h2>
+      <details class="case" id="PPF-100" data-verdict="passed" data-search="ppf-100 a product loan writes its item row in the same transaction product item capture db-8">
   <summary>
     <span class="cid">PPF-100</span>
     <span class="ctitle">A product loan writes its item row in the same transaction</span>
     <span class="cmeta">
-      
+      <span class="dur">354ms</span>
       <span class="pri pri-P0">P0</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-passed">Passed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -1234,18 +1490,18 @@
       </div>
     </div>
     <p class="rules"><span class="rule">DB-8</span></p>
-    
+    <p class="where"><span class="tag">Spec</span><code>03-product.spec.ts</code>:96 · observed 2026-09-03 04:38:50</p>
     
   </div>
 </details>
-<details class="case" id="PPF-101" data-verdict="notrun" data-search="ppf-101 one loan finances at most one item row product item capture">
+<details class="case" id="PPF-101" data-verdict="passed" data-search="ppf-101 one loan finances at most one item row product item capture">
   <summary>
     <span class="cid">PPF-101</span>
     <span class="ctitle">One loan finances at most one item row</span>
     <span class="cmeta">
-      
+      <span class="dur">97ms</span>
       <span class="pri pri-P0">P0</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-passed">Passed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -1261,18 +1517,18 @@
       </div>
     </div>
     
-    
+    <p class="where"><span class="tag">Spec</span><code>03-product.spec.ts</code>:123 · observed 2026-09-03 04:38:50</p>
     
   </div>
 </details>
-<details class="case" id="PPF-102" data-verdict="notrun" data-search="ppf-102 a product loan without an item block is refused product item capture">
+<details class="case" id="PPF-102" data-verdict="failed" data-search="ppf-102 a product loan without an item block is refused product item capture">
   <summary>
     <span class="cid">PPF-102</span>
     <span class="ctitle">A product loan without an item block is refused</span>
     <span class="cmeta">
-      
+      <span class="dur">868ms</span>
       <span class="pri pri-P0">P0</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-failed">Failed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -1288,8 +1544,13 @@
       </div>
     </div>
     
-    
-    
+    <p class="where"><span class="tag">Spec</span><code>03-product.spec.ts</code>:140 · observed 2026-09-03 04:38:50</p>
+    <pre class="err">Error: a consumer-durable loan with no durable is an unsecured personal loan wearing the wrong label (status 200)
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false</pre>
   </div>
 </details>
 <details class="case" id="PPF-103" data-verdict="notrun" data-search="ppf-103 the item is identified by more than a free-text name product item capture">
@@ -1319,14 +1580,14 @@
     
   </div>
 </details>
-<details class="case" id="PPF-104" data-verdict="notrun" data-search="ppf-104 a serial number is unique within the tenant product item capture">
+<details class="case" id="PPF-104" data-verdict="failed" data-search="ppf-104 a serial number is unique within the tenant product item capture">
   <summary>
     <span class="cid">PPF-104</span>
     <span class="ctitle">A serial number is unique within the tenant</span>
     <span class="cmeta">
-      
+      <span class="dur">227ms</span>
       <span class="pri pri-P1">P1</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-failed">Failed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -1342,8 +1603,13 @@
       </div>
     </div>
     
-    
-    
+    <p class="where"><span class="tag">Spec</span><code>03-product.spec.ts</code>:156 · observed 2026-09-03 04:38:50</p>
+    <pre class="err">Error: one physical appliance is not collateral for two loans — 2 rows now carry serial SN-l1c3g1rnb-001
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false</pre>
   </div>
 </details>
 <details class="case" id="PPF-105" data-verdict="notrun" data-search="ppf-105 the dealer is validated when one is named product item capture scope-1">
@@ -1427,14 +1693,14 @@
     
   </div>
 </details>
-<details class="case" id="PPF-108" data-verdict="notrun" data-search="ppf-108 the repossession status starts as active product item capture">
+<details class="case" id="PPF-108" data-verdict="passed" data-search="ppf-108 the repossession status starts as active product item capture">
   <summary>
     <span class="cid">PPF-108</span>
     <span class="ctitle">The repossession status starts as active</span>
     <span class="cmeta">
-      
+      <span class="dur">6ms</span>
       <span class="pri pri-P2">P2</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-passed">Passed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -1450,21 +1716,21 @@
       </div>
     </div>
     
-    
+    <p class="where"><span class="tag">Spec</span><code>03-product.spec.ts</code>:115 · observed 2026-09-03 04:38:50</p>
     
   </div>
 </details>
     </section>
 <section class="area" data-area="Product Amount Integrity">
-      <h2>Product Amount Integrity <span class="areachips"><span class="areachip ac-notrun">6 not run</span></span></h2>
-      <details class="case" id="PPF-120" data-verdict="notrun" data-search="ppf-120 the financed amount is the invoice less the down payment product amount integrity">
+      <h2>Product Amount Integrity <span class="areachips"><span class="areachip ac-failed">5 failed</span><span class="areachip ac-notrun">1 not run</span></span></h2>
+      <details class="case" id="PPF-120" data-verdict="failed" data-search="ppf-120 the financed amount is the invoice less the down payment product amount integrity">
   <summary>
     <span class="cid">PPF-120</span>
     <span class="ctitle">The financed amount is the invoice less the down payment</span>
     <span class="cmeta">
-      
+      <span class="dur">191ms</span>
       <span class="pri pri-P0">P0</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-failed">Failed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -1480,18 +1746,23 @@
       </div>
     </div>
     
-    
-    
+    <p class="where"><span class="tag">Spec</span><code>03-product.spec.ts</code>:174 · observed 2026-09-03 04:38:50</p>
+    <pre class="err">Error: the request claimed 60000 financed on a 60000 invoice with 10000 paid down. Three figures that must reconcile cannot each be accepted independently
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: 50000
+Received: 60000</pre>
   </div>
 </details>
-<details class="case" id="PPF-121" data-verdict="notrun" data-search="ppf-121 the financed amount matches the loan principal product amount integrity">
+<details class="case" id="PPF-121" data-verdict="failed" data-search="ppf-121 the financed amount matches the loan principal product amount integrity">
   <summary>
     <span class="cid">PPF-121</span>
     <span class="ctitle">The financed amount matches the loan principal</span>
     <span class="cmeta">
-      
+      <span class="dur">205ms</span>
       <span class="pri pri-P0">P0</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-failed">Failed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -1507,18 +1778,23 @@
       </div>
     </div>
     
-    
-    
+    <p class="where"><span class="tag">Spec</span><code>03-product.spec.ts</code>:190 · observed 2026-09-03 04:38:50</p>
+    <pre class="err">Error: the item register says 999999 was financed and the ledger says 50000 was lent — they cannot disagree about the same advance
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false</pre>
   </div>
 </details>
-<details class="case" id="PPF-122" data-verdict="notrun" data-search="ppf-122 a down payment at or above the invoice is refused product amount integrity">
+<details class="case" id="PPF-122" data-verdict="failed" data-search="ppf-122 a down payment at or above the invoice is refused product amount integrity">
   <summary>
     <span class="cid">PPF-122</span>
     <span class="ctitle">A down payment at or above the invoice is refused</span>
     <span class="cmeta">
-      
+      <span class="dur">336ms</span>
       <span class="pri pri-P0">P0</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-failed">Failed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -1534,18 +1810,23 @@
       </div>
     </div>
     
-    
-    
+    <p class="where"><span class="tag">Spec</span><code>03-product.spec.ts</code>:207 · observed 2026-09-03 04:38:50</p>
+    <pre class="err">Error: a down payment of 60000 against a 60000 invoice leaves nothing to finance
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false</pre>
   </div>
 </details>
-<details class="case" id="PPF-123" data-verdict="notrun" data-search="ppf-123 a negative invoice, down payment or financed amount is refused product amount integrity">
+<details class="case" id="PPF-123" data-verdict="failed" data-search="ppf-123 a negative invoice, down payment or financed amount is refused product amount integrity">
   <summary>
     <span class="cid">PPF-123</span>
     <span class="ctitle">A negative invoice, down payment or financed amount is refused</span>
     <span class="cmeta">
-      
+      <span class="dur">190ms</span>
       <span class="pri pri-P1">P1</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-failed">Failed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -1561,18 +1842,23 @@
       </div>
     </div>
     
-    
-    
+    <p class="where"><span class="tag">Spec</span><code>03-product.spec.ts</code>:222 · observed 2026-09-03 04:38:50</p>
+    <pre class="err">Error: a negative invoiceAmount must not reach the item register (status 200)
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false</pre>
   </div>
 </details>
-<details class="case" id="PPF-124" data-verdict="notrun" data-search="ppf-124 the item tenure matches the loan tenure product amount integrity">
+<details class="case" id="PPF-124" data-verdict="failed" data-search="ppf-124 the item tenure matches the loan tenure product amount integrity">
   <summary>
     <span class="cid">PPF-124</span>
     <span class="ctitle">The item tenure matches the loan tenure</span>
     <span class="cmeta">
-      
+      <span class="dur">200ms</span>
       <span class="pri pri-P1">P1</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-failed">Failed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -1588,8 +1874,13 @@
       </div>
     </div>
     
-    
-    
+    <p class="where"><span class="tag">Spec</span><code>03-product.spec.ts</code>:237 · observed 2026-09-03 04:38:50</p>
+    <pre class="err">Error: the item says 6 months and the loan says 12 — one contract, one term
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false</pre>
   </div>
 </details>
 <details class="case" id="PPF-125" data-verdict="notrun" data-search="ppf-125 money fields keep their precision product amount integrity db-13">
@@ -1621,15 +1912,15 @@
 </details>
     </section>
 <section class="area" data-area="Product Repossession">
-      <h2>Product Repossession <span class="areachips"><span class="areachip ac-notrun">10 not run</span></span></h2>
-      <details class="case" id="PPF-140" data-verdict="notrun" data-search="ppf-140 repossessing an item records the status and the moment product repossession">
+      <h2>Product Repossession <span class="areachips"><span class="areachip ac-passed">3 passed</span><span class="areachip ac-failed">3 failed</span><span class="areachip ac-notrun">3 not run</span><span class="areachip ac-skipped">1 skipped</span></span></h2>
+      <details class="case" id="PPF-140" data-verdict="passed" data-search="ppf-140 repossessing an item records the status and the moment product repossession">
   <summary>
     <span class="cid">PPF-140</span>
     <span class="ctitle">Repossessing an item records the status and the moment</span>
     <span class="cmeta">
-      
+      <span class="dur">615ms</span>
       <span class="pri pri-P0">P0</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-passed">Passed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -1645,18 +1936,18 @@
       </div>
     </div>
     
-    
+    <p class="where"><span class="tag">Spec</span><code>03-product.spec.ts</code>:252 · observed 2026-09-03 04:38:50</p>
     
   </div>
 </details>
-<details class="case" id="PPF-141" data-verdict="notrun" data-search="ppf-141 the repossession reason is stored on the record, not only in the audit product repossession">
+<details class="case" id="PPF-141" data-verdict="failed" data-search="ppf-141 the repossession reason is stored on the record, not only in the audit product repossession">
   <summary>
     <span class="cid">PPF-141</span>
     <span class="ctitle">The repossession reason is stored on the record, not only in the audit</span>
     <span class="cmeta">
-      
+      <span class="dur">9ms</span>
       <span class="pri pri-P0">P0</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-failed">Failed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -1672,18 +1963,23 @@
       </div>
     </div>
     
-    
-    
+    <p class="where"><span class="tag">Spec</span><code>03-product.spec.ts</code>:272 · observed 2026-09-03 04:38:50</p>
+    <pre class="err">Error: the route reads body.reason and writes it into the audit newValue only — a recovery clerk should not have to read the audit log to learn why an appliance was taken
+
+expect(received).toContain(expected) // indexOf
+
+Expected substring: &quot;arrears&quot;
+Received string:    &quot;{\&quot;id\&quot;:\&quot;cmtl1d7qe0bu3n29qixxl4zek\&quot;,\&quot;tenantId\&quot;:\&quot;cmtl1c3n70bgxn29qfkl0ictk\&quot;,\&quot;branchId\&quot;:\&quot;cmtl1c3nf0bgzn29qp4w2u53h\&quot;,\&quot;loanId\&quot;:\&quot;cmtl1d7py0btnn29qqqjpn3h6\&quot;,\&quot;customerId\&quot;:\&quot;cmtl1ccru0birn29qo6c49ud5\&quot;,\&quot;category\&quot;:\&quot;appliance\&quot;,\&quot;productName\&quot;:\&quot;Refrigerator 260L\&quot;,\&quot;brand\&quot;:\&quot;Godrej\&quot;,\&quot;modelNo\&quot;:\&quot;RT-260\&quot;,\&quot;serialNo\&quot;:\&quot;SN-l1c3g1rnb-001\&quot;,\&quot;dealerName\&quot;:\&quot;Sundar Electronics\&quot;,\&quot;dealerId\&quot;:null,\&quot;invoiceNo\&quot;:\&quot;INV-l1c3g1rnb-1\&quot;,\&quot;invoiceAmount\&quot;:\&quot;60000\&quot;,\&quot;downPayment\&quot;:\&quot;10000\&quot;,\&quot;financedAmount\&quot;:\&quot;50000\&quot;,\&quot;tenureMonths\&quot;:12,\&quot;warrantyExpiry\&quot;:null,\&quot;repossessionStatus\&quot;:\&quot;repossessed\&quot;,\&quot;repossessedAt\&quot;:\&quot;2026-09-03T04:40:02.069Z\&quot;,\&quot;invoicePath\&quot;:null,\&quot;photoPath\&quot;:null,\&quot;createdAt\&quot;:\&quot;2026-09-03T04:39:43.719Z\&quot;,\&quot;updatedAt\&quot;:\&quot;2026-09-03T04:40:02.076Z\&quot;}&quot;</pre>
   </div>
 </details>
-<details class="case" id="PPF-142" data-verdict="notrun" data-search="ppf-142 an unrecognised status does not silently un-repossess the item product repossession">
+<details class="case" id="PPF-142" data-verdict="failed" data-search="ppf-142 an unrecognised status does not silently un-repossess the item product repossession">
   <summary>
     <span class="cid">PPF-142</span>
     <span class="ctitle">An unrecognised status does not silently un-repossess the item</span>
     <span class="cmeta">
-      
+      <span class="dur">1.1s</span>
       <span class="pri pri-P0">P0</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-failed">Failed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -1699,18 +1995,23 @@
       </div>
     </div>
     
-    
-    
+    <p class="where"><span class="tag">Spec</span><code>03-product.spec.ts</code>:283 · observed 2026-09-03 04:38:50</p>
+    <pre class="err">Error: anything that is not the literal &quot;repossessed&quot; is coerced to &quot;active&quot;, so a single misspelling quietly releases an asset the office is holding (status 200, item now active)
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: true
+Received: false</pre>
   </div>
 </details>
-<details class="case" id="PPF-143" data-verdict="notrun" data-search="ppf-143 who may repossess is enforced server-side product repossession role-4">
+<details class="case" id="PPF-143" data-verdict="failed" data-search="ppf-143 who may repossess is enforced server-side product repossession role-4">
   <summary>
     <span class="cid">PPF-143</span>
     <span class="ctitle">Who may repossess is enforced server-side</span>
     <span class="cmeta">
-      
+      <span class="dur">716ms</span>
       <span class="pri pri-P0">P0</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-failed">Failed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -1726,18 +2027,23 @@
       </div>
     </div>
     <p class="rules"><span class="rule">ROLE-4</span></p>
-    
-    
+    <p class="where"><span class="tag">Spec</span><code>03-product.spec.ts</code>:304 · observed 2026-09-03 04:38:50</p>
+    <pre class="err">Error: ROLE-4: the route requires only that some token authenticates, so a field agent can seize an appliance (got 200)
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: 403
+Received: 200</pre>
   </div>
 </details>
-<details class="case" id="PPF-144" data-verdict="notrun" data-search="ppf-144 repossession is scoped to the branch that owns the loan product repossession scope-3">
+<details class="case" id="PPF-144" data-verdict="skipped" data-search="ppf-144 repossession is scoped to the branch that owns the loan product repossession scope-3">
   <summary>
     <span class="cid">PPF-144</span>
     <span class="ctitle">Repossession is scoped to the branch that owns the loan</span>
     <span class="cmeta">
-      
+      <span class="dur">48ms</span>
       <span class="pri pri-P0">P0</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-skipped">Skipped</span>
     </span>
   </summary>
   <div class="cbody">
@@ -1753,7 +2059,7 @@
       </div>
     </div>
     <p class="rules"><span class="rule">SCOPE-3</span></p>
-    
+    <p class="where"><span class="tag">Spec</span><code>03-product.spec.ts</code>:325 · observed 2026-09-03 04:38:50</p>
     
   </div>
 </details>
@@ -1784,14 +2090,14 @@
     
   </div>
 </details>
-<details class="case" id="PPF-146" data-verdict="notrun" data-search="ppf-146 reactivating a repossessed item clears its repossession date product repossession">
+<details class="case" id="PPF-146" data-verdict="passed" data-search="ppf-146 reactivating a repossessed item clears its repossession date product repossession">
   <summary>
     <span class="cid">PPF-146</span>
     <span class="ctitle">Reactivating a repossessed item clears its repossession date</span>
     <span class="cmeta">
-      
+      <span class="dur">676ms</span>
       <span class="pri pri-P1">P1</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-passed">Passed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -1807,18 +2113,18 @@
       </div>
     </div>
     
-    
+    <p class="where"><span class="tag">Spec</span><code>03-product.spec.ts</code>:351 · observed 2026-09-03 04:38:50</p>
     
   </div>
 </details>
-<details class="case" id="PPF-147" data-verdict="notrun" data-search="ppf-147 a repossession on a loan with no item is refused cleanly product repossession">
+<details class="case" id="PPF-147" data-verdict="passed" data-search="ppf-147 a repossession on a loan with no item is refused cleanly product repossession">
   <summary>
     <span class="cid">PPF-147</span>
     <span class="ctitle">A repossession on a loan with no item is refused cleanly</span>
     <span class="cmeta">
-      
+      <span class="dur">49ms</span>
       <span class="pri pri-P1">P1</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-passed">Passed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -1834,7 +2140,7 @@
       </div>
     </div>
     
-    
+    <p class="where"><span class="tag">Spec</span><code>03-product.spec.ts</code>:370 · observed 2026-09-03 04:38:50</p>
     
   </div>
 </details>
@@ -2197,7 +2503,7 @@
 </details>
     </section>
 <section class="area" data-area="Isolation &amp; RBAC">
-      <h2>Isolation &amp; RBAC <span class="areachips"><span class="areachip ac-notrun">6 not run</span></span></h2>
+      <h2>Isolation &amp; RBAC <span class="areachips"><span class="areachip ac-passed">2 passed</span><span class="areachip ac-notrun">4 not run</span></span></h2>
       <details class="case" id="PPF-205" data-verdict="notrun" data-search="ppf-205 a collateral row from another tenant returns 404, not 403 isolation &amp; rbac api-5 x-12">
   <summary>
     <span class="cid">PPF-205</span>
@@ -2225,14 +2531,14 @@
     
   </div>
 </details>
-<details class="case" id="PPF-206" data-verdict="notrun" data-search="ppf-206 switching branch switches the whole secured surface isolation &amp; rbac scope-3">
+<details class="case" id="PPF-206" data-verdict="passed" data-search="ppf-206 switching branch switches the whole secured surface isolation &amp; rbac scope-3">
   <summary>
     <span class="cid">PPF-206</span>
     <span class="ctitle">Switching branch switches the whole secured surface</span>
     <span class="cmeta">
-      
+      <span class="dur">41ms</span>
       <span class="pri pri-P0">P0</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-passed">Passed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -2248,7 +2554,7 @@
       </div>
     </div>
     <p class="rules"><span class="rule">SCOPE-3</span></p>
-    
+    <p class="where"><span class="tag">Spec</span><code>02-property.spec.ts</code>:388 · observed 2026-09-03 04:38:50</p>
     
   </div>
 </details>
@@ -2306,14 +2612,14 @@
     
   </div>
 </details>
-<details class="case" id="PPF-209" data-verdict="notrun" data-search="ppf-209 collateral postings carry their own module apptype isolation &amp; rbac scope-1">
+<details class="case" id="PPF-209" data-verdict="passed" data-search="ppf-209 collateral postings carry their own module apptype isolation &amp; rbac scope-1">
   <summary>
     <span class="cid">PPF-209</span>
     <span class="ctitle">Collateral postings carry their own module appType</span>
     <span class="cmeta">
-      
+      <span class="dur">13ms</span>
       <span class="pri pri-P1">P1</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-passed">Passed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -2329,7 +2635,7 @@
       </div>
     </div>
     <p class="rules"><span class="rule">SCOPE-1</span></p>
-    
+    <p class="where"><span class="tag">Spec</span><code>03-product.spec.ts</code>:393 · observed 2026-09-03 04:38:50</p>
     
   </div>
 </details>
@@ -2362,7 +2668,7 @@
 </details>
     </section>
 <section class="area" data-area="Security &amp; Negative">
-      <h2>Security &amp; Negative <span class="areachips"><span class="areachip ac-notrun">8 not run</span></span></h2>
+      <h2>Security &amp; Negative <span class="areachips"><span class="areachip ac-failed">1 failed</span><span class="areachip ac-notrun">7 not run</span></span></h2>
       <details class="case" id="PPF-225" data-verdict="notrun" data-search="ppf-225 sql-shaped payloads in collateral text fields are inert security &amp; negative">
   <summary>
     <span class="cid">PPF-225</span>
@@ -2417,14 +2723,14 @@
     
   </div>
 </details>
-<details class="case" id="PPF-227" data-verdict="notrun" data-search="ppf-227 no collateral response carries a password hash, token or secret security &amp; negative x-13">
+<details class="case" id="PPF-227" data-verdict="failed" data-search="ppf-227 no collateral response carries a password hash, token or secret security &amp; negative x-13">
   <summary>
     <span class="cid">PPF-227</span>
     <span class="ctitle">No collateral response carries a password hash, token or secret</span>
     <span class="cmeta">
-      
+      <span class="dur">91ms</span>
       <span class="pri pri-P0">P0</span>
-      <span class="verdict v-notrun">Not run</span>
+      <span class="verdict v-failed">Failed</span>
     </span>
   </summary>
   <div class="cbody">
@@ -2440,8 +2746,13 @@
       </div>
     </div>
     <p class="rules"><span class="rule">X-13</span></p>
-    
-    
+    <p class="where"><span class="tag">Spec</span><code>03-product.spec.ts</code>:380 · observed 2026-09-03 04:38:50</p>
+    <pre class="err">Error: X-13: no password hash in a secured-lending payload
+
+expect(received).not.toMatch(expected)
+
+Expected pattern: not /&quot;password_?[Hh]ash&quot;/
+Received string:      &quot;{\&quot;data\&quot;:[{\&quot;id\&quot;:\&quot;cmtl1ccru0birn29qo6c49ud5\&quot;,\&quot;tenantId\&quot;:\&quot;cmtl1c3n70bgxn29qfkl0ictk\&quot;,\&quot;branchId\&quot;:\&quot;cmtl1c3nf0bgzn29qp4w2u53h\&quot;,\&quot;customerCode\&quot;:\&quot;CUS0009\&quot;,\&quot;name\&quot;:\&quot;PF Buyer l1c3g1rnb\&quot;,\&quot;phone\&quot;:\&quot;9331505190\&quot;,\&quot;address\&quot;:\&quot;appliance row\&quot;,\&quot;aadharNumber\&quot;:null,\&quot;routeId\&quot;:null,\&quot;agentId\&quot;:null,\&quot;kycStatus\&quot;:\&quot;pending\&quot;,\&quot;kycMethod\&quot;:null,\&quot;kycVerifiedAt\&quot;:null,\&quot;kycVerifiedById\&quot;:null,\&quot;kycRejectedReason\&quot;:null,\&quot;aadhaarVerified\&quot;:false,\&quot;aadhaarName\&quot;:null,\&quot;aadhaarDob\&quot;:null,\&quot;aadhaarAddress\&quot;:null,\&quot;aadhaarPhoto\&quot;:null,\&quot;profilePhoto\&quot;:null,\&quot;userId\&quot;:null,\&quot;passwordHash\&quot;:null,\&quot;status\&quot;:\&quot;active\&quot;,\&quot;notes\&quot;:null,\&quot;appType\&quot;:\&quot;productfinance\&quot;,\&quot;createdAt\&quot;:\&quot;2026-09-03T04:39:03.594Z\&quot;,\&quot;updatedAt\&quot;:\&quot;2026-09-03T04:39:03.594Z\&quot;,\&quot;deletedAt\&quot;:null,\&quot;pan\&quot;:null,\&quot;email\&quot;:null,\&quot;companyName\&quot;:null,\&quot;companyType\&quot;:null,\&quot;occupation\&quot;:null,\&quot;monthlyIncome\&quot;:null,\&quot;gstNumber\&quot;:null,\&quot;businessType\&quot;:null,\&quot;companyLogo\&quot;:null,\&quot;companyPan\&quot;:null,\&quot;companyRegNo\&quot;:null,\&quot;companyAddress\&quot;:null,\&quot;companyPhone\&quot;:null,\&quot;companyEmail\&quot;:null,\&quot;designation\&quot;:null,\&quot;lat\&quot;:null,\&quot;lng\&quot;:null,\&quot;geocodedAt\&quot;:null,\&quot;preferredCollectionTime\&quot;:null,\&quot;route\&quot;:null,\&quot;_count\&quot;:{\&quot;loans\&quot;:8},\&quot;collectionPoints\&quot;:[],\&quot;activeLoanCount\&quot;:8,\&quot;activeLoanPrincipal\&quot;:400000}],\&quot;error\&quot;:null,\&quot;pagination\&quot;:{\&quot;nextCursor\&quot;:null,\&quot;limit\&quot;:20}}&quot;</pre>
   </div>
 </details>
 <details class="case" id="PPF-228" data-verdict="notrun" data-search="ppf-228 a loan id from another branch cannot be smuggled into a custody route security &amp; negative scope-3">
