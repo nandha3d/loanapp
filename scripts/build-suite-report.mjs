@@ -46,6 +46,16 @@ const SUITES = {
     // green/red/amber the verdicts already own.
     accent: { light: '#4b3f8f', dark: '#a99bf0' },
   },
+  goldloan: {
+    dir: 'goldloan',
+    prefix: 'GL',
+    label: 'Gold Loan Test Register',
+    eyebrow: 'ZoloFund · Gold Loan',
+    blurb: 'Valuation, RBI loan-to-value ceilings and pledge servicing coverage',
+    // Deep bronze — the metal, kept dark enough to stay clear of the amber
+    // the manual verdict already owns.
+    accent: { light: '#7a5312', dark: '#d8a34a' },
+  },
 };
 
 const suiteKey = process.argv[2];
