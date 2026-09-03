@@ -56,6 +56,15 @@ const SUITES = {
     // the manual verdict already owns.
     accent: { light: '#7a5312', dark: '#d8a34a' },
   },
+  securedloans: {
+    dir: 'securedloans',
+    prefix: 'PPF',
+    label: 'Secured Lending Test Register',
+    eyebrow: 'ZoloFund · Property & Product Finance',
+    blurb: 'Collateral capture, custody and release across both secured modules',
+    // Slate green — clear of the other suites and of the verdict colours.
+    accent: { light: '#2f5d50', dark: '#7fc4ad' },
+  },
 };
 
 const suiteKey = process.argv[2];
