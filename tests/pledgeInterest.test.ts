@@ -18,6 +18,17 @@ import {
   assert.equal(b.months, 0);
   assert.equal(b.extraDays, 0);
 }
+// GL-165: a month-end pledge must not gain/lose a month in a short month.
+// 31 Jan → 28 Feb is exactly one calendar month (month-end to month-end):
+// the buggy setMonth walk overflowed to 3 Mar and measured 0 months + 25 days.
+{
+  const feb = elapsedMonthsDays(new Date('2026-01-31'), new Date('2026-02-28'));
+  assert.equal(feb.months, 1);
+  assert.equal(feb.extraDays, 0);
+  const mar = elapsedMonthsDays(new Date('2026-01-31'), new Date('2026-03-01'));
+  assert.equal(mar.months, 1);
+  assert.equal(mar.extraDays, 1);
+}
 
 // billableMonths — full-month rule (partial → full month)
 {

@@ -36,5 +36,12 @@ assert.equal(monthsCoveredByPayment(1500, 0), 0); // guard divide-by-zero
   const d = advanceByMonths(new Date('2026-01-01'), 2);
   assert.equal(d.getMonth(), 2); // March (0-indexed)
 }
+// GL-207: advancing a month-end date must not skip a month. 31 Jan + 1 month
+// clamps to 28 Feb — the buggy setMonth overflowed to 3 Mar and lost February.
+{
+  const d = advanceByMonths(new Date('2026-01-31'), 1);
+  assert.equal(d.getMonth(), 1); // February, not March
+  assert.equal(d.getDate(), 28); // clamped to Feb's last day
+}
 
 console.log('gold servicing tests passed');

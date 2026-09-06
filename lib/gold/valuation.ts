@@ -22,7 +22,20 @@ export const KARAT_FINENESS: Record<string, number> = {
 };
 
 export function finenessFor(purityKarat: string): number {
-  return KARAT_FINENESS[purityKarat.trim().toUpperCase()] ?? KARAT_FINENESS['22K'];
+  const key = (purityKarat ?? '').trim().toUpperCase();
+  const known = KARAT_FINENESS[key];
+  if (known !== undefined) return known;
+  // A karat not in the table must value at ITS OWN fineness (N/24), never
+  // silently borrow the 22K constant — a 9K ornament appraised at 22K
+  // over-values the pledge by more than half.
+  const m = key.match(/^(\d{1,2})\s*(?:K|KT|KARAT)?$/);
+  if (m) {
+    const n = Number(m[1]);
+    if (n >= 1 && n <= 24) return Math.round((n / 24) * 1000) / 1000;
+  }
+  // Truly unrecognised purity ("", "gold", …): refuse by valuing at 0 rather
+  // than over-valuing at 22K. computeGoldValuation then yields assessedValue 0.
+  return 0;
 }
 
 export type GoldValuationInput = {

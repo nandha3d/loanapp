@@ -7,6 +7,8 @@
  * configurable (full | prorated) so admins can change it in settings.
  */
 
+import { addMonthsClamped } from '@/lib/utils';
+
 export type PartialMonthRule = 'full' | 'prorated';
 
 export type InterestPeriod = {
@@ -22,12 +24,13 @@ export function elapsedMonthsDays(from: Date, to: Date): { months: number; extra
   if (to.getTime() <= from.getTime()) return { months: 0, extraDays: 0 };
   let months =
     (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth());
-  // Anchor the month boundary on `from`'s day-of-month.
-  const anchor = new Date(from);
-  anchor.setMonth(from.getMonth() + months);
+  // Anchor the month boundary on `from`'s day-of-month. Use a day-clamped add:
+  // a bare setMonth overflows short months (31 Jan + 1mo → 3 Mar), which would
+  // measure a month-end pledge from the wrong day and lose February.
+  let anchor = addMonthsClamped(from, months);
   if (anchor.getTime() > to.getTime()) {
     months -= 1;
-    anchor.setMonth(anchor.getMonth() - 1);
+    anchor = addMonthsClamped(from, months);
   }
   const extraDays = Math.floor((to.getTime() - anchor.getTime()) / DAY_MS);
   return { months: Math.max(months, 0), extraDays: Math.max(extraDays, 0) };

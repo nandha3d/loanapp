@@ -1,4 +1,5 @@
 import { pledgeInterestDue, redemptionAmount, type PartialMonthRule } from '@/lib/gold/pledgeInterest';
+import { addMonthsClamped } from '@/lib/utils';
 
 /**
  * Pledge servicing summary — pure, reuses the 3a interest math. Computes what a
@@ -53,8 +54,9 @@ export function monthsCoveredByPayment(amount: number, monthlyInterest: number):
 export function advanceByMonths(from: Date, months: number): Date {
   const whole = Math.floor(months);
   const fracDays = Math.round((months - whole) * 30);
-  const d = new Date(from);
-  d.setMonth(d.getMonth() + whole);
+  // Day-clamped month add: a bare setMonth overflows short months (31 Jan + 1mo
+  // → 3 Mar), so a pledge anchored to a month end would silently lose February.
+  const d = addMonthsClamped(from, whole);
   d.setDate(d.getDate() + fracDays);
   return d;
 }

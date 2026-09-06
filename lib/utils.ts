@@ -115,6 +115,21 @@ function daysInMonth(year: number, monthIndex: number): number {
   return new Date(year, monthIndex + 1, 0).getDate();
 }
 
+/**
+ * Add `months` calendar months, clamping the day-of-month to the target month's
+ * last day instead of letting `Date.setMonth` overflow. Preserves time-of-day.
+ * 31 Jan + 1 month → 28/29 Feb (never 3 Mar). Handles negative months too.
+ */
+export function addMonthsClamped(from: Date, months: number): Date {
+  const targetMonthIndex = from.getMonth() + months;
+  const targetYear = from.getFullYear() + Math.floor(targetMonthIndex / 12);
+  const normalizedMonth = ((targetMonthIndex % 12) + 12) % 12;
+  const clampedDay = Math.min(from.getDate(), daysInMonth(targetYear, normalizedMonth));
+  const d = new Date(from);
+  d.setFullYear(targetYear, normalizedMonth, clampedDay);
+  return d;
+}
+
 export function calculateInstalmentDates(startDate: Date, frequency: string, tenure: number, dueDay?: number | null): Date[] {
   const dates: Date[] = [];
 

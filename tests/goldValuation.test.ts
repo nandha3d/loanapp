@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import {
   computeGoldValuation,
   finenessFor,
-  KARAT_FINENESS,
   GOLD_RATE_KEY,
 } from '../lib/gold/valuation';
 
@@ -10,7 +9,11 @@ import {
 assert.equal(finenessFor('24K'), 1.0);
 assert.equal(finenessFor('22k'), 0.916); // case-insensitive
 assert.equal(finenessFor('18K'), 0.75);
-assert.equal(finenessFor('unknown'), KARAT_FINENESS['22K']); // fallback
+// A karat outside the table values at its OWN fineness (N/24), never 22K (GL-022).
+assert.equal(finenessFor('9K'), 0.375);
+// Truly unrecognised purity is refused (0), not silently valued at 22K.
+assert.equal(finenessFor('unknown'), 0);
+assert.equal(finenessFor(''), 0);
 
 // ── computeGoldValuation ──────────────────────────────────────────────────────
 // 10g of 22K at ₹6000/g pure, 75% LTV
