@@ -1103,6 +1103,9 @@ model ProductFinanceItem {
   warrantyExpiry     DateTime? @map("warranty_expiry") @db.Date
   repossessionStatus String    @default("active") @map("repossession_status")
   repossessedAt      DateTime? @map("repossessed_at")
+  /// Why the asset was taken. Lives on the record, not only in the audit log,
+  /// so a recovery clerk can see it where they work (PPF-141).
+  repossessionReason String?   @map("repossession_reason")
   invoicePath        String?   @map("invoice_path")
   photoPath          String?   @map("photo_path")
   createdAt          DateTime  @default(now()) @map("created_at")

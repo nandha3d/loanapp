@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { requireMobileContext } from '@/lib/api/v1-auth';
+import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { writeAudit } from '@/lib/audit';
 
 export async function POST(
@@ -13,9 +13,21 @@ export async function POST(
   const ctx = auth.context;
   const { id: loanId } = await params;
 
+  // PPF-143 / ROLE-4 — seizing an asset is not a field-agent act. The route
+  // previously required only that SOME token authenticated.
+  if (!['admin', 'superadmin', 'developer'].includes(ctx.role)) {
+    return fail('Forbidden', 403);
+  }
+
   try {
+    // Full scope, not mere existence (X-2/X-12).
     const loan = await prisma.loan.findFirst({
-      where: { id: loanId, tenantId: ctx.tenantId }
+      where: {
+        id: loanId,
+        tenantId: ctx.tenantId,
+        appType: ctx.appType,
+        ...scopedBranchWhere(ctx),
+      },
     });
     if (!loan) return fail('Loan not found', 404);
 
@@ -30,7 +42,18 @@ export async function POST(
     } catch {
       // tolerate empty body
     }
-    const status = body.status === 'repossessed' ? 'repossessed' : 'active';
+    // PPF-142 — this used to coerce anything that was not the literal
+    // "repossessed" to "active", so a single misspelling ("reposessed") quietly
+    // released an asset the office was holding. An unrecognised status is now
+    // refused instead of silently inverting the operator's intent.
+    const REPOSSESSION_STATUSES = ['repossessed', 'active'] as const;
+    const status = body.status === undefined ? 'repossessed' : String(body.status);
+    if (!(REPOSSESSION_STATUSES as readonly string[]).includes(status)) {
+      return fail(
+        `Invalid status "${status}" — expected one of ${REPOSSESSION_STATUSES.join(', ')}`,
+        400,
+      );
+    }
     const reason = body.reason || '';
 
     await prisma.productFinanceItem.update({
@@ -38,6 +61,9 @@ export async function POST(
       data: {
         repossessionStatus: status,
         repossessedAt: status === 'repossessed' ? new Date() : null,
+        // PPF-141 — the reason belongs on the record a recovery clerk reads,
+        // not only in the audit log.
+        repossessionReason: status === 'repossessed' ? (reason || null) : null,
       }
     });
 
