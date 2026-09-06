@@ -1,3 +1,4 @@
+import { HttpError } from '@/lib/httpError';
 import type { ChitAuctionType, ChitCommissionBasis, ChitDividendDistribution, ChitDividendPolicy, ChitTieBreakRule, ChitWinnerInterestType } from './types';
 
 const AUCTION_TYPES: ChitAuctionType[] = ['open_manual', 'open_live', 'sealed', 'lottery', 'fixed_rotation'];
@@ -39,17 +40,17 @@ export function assertValidPrizeAmount(params: {
   bidStartAtCommission?: boolean | null;
 }) {
   const { chitValue, prizeAmount, maxDiscountPct } = params;
-  if (prizeAmount <= 0) throw new Error('Prize amount must be greater than zero');
-  if (prizeAmount > chitValue) throw new Error('Prize amount cannot exceed chit value');
+  if (prizeAmount <= 0) throw new HttpError(400, 'Prize amount must be greater than zero');
+  if (prizeAmount > chitValue) throw new HttpError(400, 'Prize amount cannot exceed chit value');
 
   const discount = chitValue - prizeAmount;
   const discountPct = chitValue > 0 ? (discount / chitValue) * 100 : 0;
   const minPct = effectiveMinDiscountPct(params);
   if (minPct != null && discountPct < minPct) {
-    throw new Error(`Bid discount must be at least ${minPct}%`);
+    throw new HttpError(400, `Bid discount must be at least ${minPct}%`);
   }
   if (maxDiscountPct != null && discountPct > maxDiscountPct) {
-    throw new Error(`Bid discount exceeds allowed maximum of ${maxDiscountPct}%`);
+    throw new HttpError(400, `Bid discount exceeds allowed maximum of ${maxDiscountPct}%`);
   }
 }
 
@@ -58,9 +59,9 @@ export function assertValidCommissionPct(params: {
   foremanCommissionCapPct?: number | null;
 }) {
   const { commissionPct, foremanCommissionCapPct } = params;
-  if (commissionPct < 0) throw new Error('Commission percentage cannot be negative');
+  if (commissionPct < 0) throw new HttpError(400, 'Commission percentage cannot be negative');
   if (foremanCommissionCapPct != null && commissionPct > foremanCommissionCapPct) {
-    throw new Error(`Commission exceeds allowed cap of ${foremanCommissionCapPct}%`);
+    throw new HttpError(400, `Commission exceeds allowed cap of ${foremanCommissionCapPct}%`);
   }
 }
 
@@ -79,48 +80,48 @@ export function validateChitConfig(input: {
   winnerInterestPeriods?: number | null;
 }) {
   if (input.auctionType && !AUCTION_TYPES.includes(input.auctionType as ChitAuctionType)) {
-    throw new Error('Invalid auction type');
+    throw new HttpError(400, 'Invalid auction type');
   }
   if (input.commissionBasis && !COMMISSION_BASIS.includes(input.commissionBasis as ChitCommissionBasis)) {
-    throw new Error('Invalid commission basis');
+    throw new HttpError(400, 'Invalid commission basis');
   }
   if (input.dividendPolicy && !DIVIDEND_POLICIES.includes(input.dividendPolicy as ChitDividendPolicy)) {
-    throw new Error('Invalid dividend policy');
+    throw new HttpError(400, 'Invalid dividend policy');
   }
   if (input.dividendDistribution && !DIVIDEND_DISTRIBUTIONS.includes(input.dividendDistribution as ChitDividendDistribution)) {
-    throw new Error('Invalid dividend distribution');
+    throw new HttpError(400, 'Invalid dividend distribution');
   }
   if (input.tieBreakRule && !TIE_BREAK_RULES.includes(input.tieBreakRule as ChitTieBreakRule)) {
-    throw new Error('Invalid tie break rule');
+    throw new HttpError(400, 'Invalid tie break rule');
   }
   if (input.minDiscountPct != null && input.maxDiscountPct != null && input.minDiscountPct > input.maxDiscountPct) {
-    throw new Error('Minimum discount cannot exceed maximum discount');
+    throw new HttpError(400, 'Minimum discount cannot exceed maximum discount');
   }
   if (input.fixedDiscountPct != null && input.fixedDiscountPct < 0) {
-    throw new Error('Fixed discount cannot be negative');
+    throw new HttpError(400, 'Fixed discount cannot be negative');
   }
   if (input.fixedDiscountPct != null && input.maxDiscountPct != null && input.fixedDiscountPct > input.maxDiscountPct) {
-    throw new Error('Fixed discount cannot exceed maximum discount');
+    throw new HttpError(400, 'Fixed discount cannot exceed maximum discount');
   }
   if (input.auctionTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(input.auctionTime)) {
-    throw new Error('Auction time must be HH:mm');
+    throw new HttpError(400, 'Auction time must be HH:mm');
   }
   const winnerInterestType = input.winnerInterestType ?? 'NONE';
   if (!WINNER_INTEREST_TYPES.includes(winnerInterestType as ChitWinnerInterestType)) {
-    throw new Error('Invalid winner interest type');
+    throw new HttpError(400, 'Invalid winner interest type');
   }
   if (winnerInterestType === 'NONE') return;
   if (input.winnerInterestValue == null || input.winnerInterestValue <= 0) {
-    throw new Error('Winner interest value must be greater than zero');
+    throw new HttpError(400, 'Winner interest value must be greater than zero');
   }
   if (winnerInterestType === 'PERCENT' && input.winnerInterestValue > 100) {
-    throw new Error('Winner interest percent cannot exceed 100');
+    throw new HttpError(400, 'Winner interest percent cannot exceed 100');
   }
   if (input.winnerInterestPeriods == null || input.winnerInterestPeriods <= 0) {
-    throw new Error('Winner interest periods must be greater than zero');
+    throw new HttpError(400, 'Winner interest periods must be greater than zero');
   }
   if (!Number.isInteger(input.winnerInterestPeriods)) {
-    throw new Error('Winner interest periods must be a whole number');
+    throw new HttpError(400, 'Winner interest periods must be a whole number');
   }
 }
 
@@ -174,6 +175,6 @@ export function validateChitGroupActivation(input: {
     missing.push('Maximum discount must be non-negative');
   }
   if (missing.length) {
-    throw new Error(`Cannot activate chit group. Missing/invalid: ${missing.join(', ')}`);
+    throw new HttpError(400, `Cannot activate chit group. Missing/invalid: ${missing.join(', ')}`);
   }
 }

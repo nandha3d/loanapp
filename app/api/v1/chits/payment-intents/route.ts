@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { ok, fail } from '@/lib/api/v1-envelope';
+import { ok, fail , failFromError} from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
 import { canCollectChits, isTenantWideRole } from '@/lib/chits/access';
 import { listChitPaymentIntentsForStaff } from '@/lib/chits/paymentIntents';
@@ -25,6 +25,6 @@ export async function GET(req: NextRequest) {
     });
     return ok({ intents });
   } catch (e: any) {
-    return fail(e?.message ?? 'Failed to load payment intents', 500);
+    return failFromError(e, 'Failed to load payment intents');
   }
 }

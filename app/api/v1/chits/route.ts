@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { ok, fail } from '@/lib/api/v1-envelope';
+import { ok, fail, failFromError, HttpError } from '@/lib/api/v1-envelope';
 import { requireMobileContext, resolveWriteBranchId, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { validateChitConfig } from '@/lib/chits/validation';
 import { generateCode } from '@/lib/utils';
@@ -8,7 +8,7 @@ import { generateCode } from '@/lib/utils';
 function dateOrNow(value?: string) {
   if (!value) return new Date();
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) throw new Error('startDate is invalid');
+  if (Number.isNaN(date.getTime())) throw new HttpError(400, 'startDate is invalid');
   return date;
 }
 
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
     });
     return ok(groups);
   } catch (e: any) {
-    return fail(e?.message ?? 'Failed to load chit groups', 500);
+    return failFromError(e, 'Failed to load chit groups');
   }
 }
 
@@ -144,7 +144,7 @@ export async function POST(req: NextRequest) {
           },
           select: { id: true },
         });
-        if (!customer) throw new Error(`Invalid member customer: ${customerId}`);
+        if (!customer) throw new HttpError(400, `Invalid member customer: ${customerId}`);
         await tx.chitMember.create({
           data: {
             chitGroupId: created.id,
@@ -159,6 +159,6 @@ export async function POST(req: NextRequest) {
     });
     return ok(group);
   } catch (e: any) {
-    return fail(e?.message ?? 'Failed to create chit group', 500);
+    return failFromError(e, 'Failed to create chit group');
   }
 }

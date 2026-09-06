@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { ok, fail } from '@/lib/api/v1-envelope';
+import { ok, fail , failFromError} from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { getTopBids, getWinningBid } from '@/lib/chits/auction';
 import { drawLotteryWinner, formatDrawEvidence } from '@/lib/chits/lottery';
@@ -80,6 +80,6 @@ export async function POST(
     });
     return ok(updated);
   } catch (e: any) {
-    return fail(e?.message ?? 'Confirm auction failed', 500);
+    return failFromError(e, 'Confirm auction failed');
   }
 }

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { ok, fail } from '@/lib/api/v1-envelope';
+import { ok, fail , failFromError} from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { releaseChitPrizePayout } from '@/lib/chits/payout';
 import { assertCanReleasePrizePayout } from '@/lib/chits/security';
@@ -52,6 +52,6 @@ export async function POST(
     });
     return ok(result);
   } catch (e: any) {
-    return fail(e?.message ?? 'Payout failed', 500);
+    return failFromError(e, 'Payout failed');
   }
 }

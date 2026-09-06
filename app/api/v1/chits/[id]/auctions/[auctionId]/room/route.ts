@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { ok, fail } from '@/lib/api/v1-envelope';
+import { ok, fail, failFromError, HttpError } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { closeAuctionRoom, openAuctionRoom } from '@/lib/chits/liveAuction';
 import { syncRoom, ringBellManually } from '@/lib/chits/bell';
@@ -50,7 +50,7 @@ export async function POST(
       await syncRoom(tx, auctionId);
       if (action === 'open') {
         const fresh = await tx.chitAuction.findUnique({ where: { id: auctionId }, select: { roomStatus: true } });
-        if (fresh && ['open', 'extended'].includes(fresh.roomStatus)) throw new Error('Room is already open');
+        if (fresh && ['open', 'extended'].includes(fresh.roomStatus)) throw new HttpError(409, 'Room is already open');
         const durationMinutes = Number(body?.durationMinutes) || 30;
         const result = await openAuctionRoom(tx, {
           auctionId,
@@ -86,6 +86,6 @@ export async function POST(
       autoExtendSeconds: updated.autoExtendSeconds,
     });
   } catch (e: any) {
-    return fail(e?.message ?? 'Room action failed', 500);
+    return failFromError(e, 'Room action failed');
   }
 }

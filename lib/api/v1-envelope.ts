@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server';
+import { HttpError } from '@/lib/httpError';
+
+export { HttpError };
 
 /**
  * Standard mobile API response envelope.
@@ -42,4 +45,14 @@ export function ok<T>(data: T, pagination: Pagination | null = null): NextRespon
 export function fail(error: string, status = 400): NextResponse {
   const body: Envelope<null> = { data: null, error, pagination: null };
   return NextResponse.json(body, { status });
+}
+
+/**
+ * Map a caught error to an envelope. An HttpError carries its own status; any
+ * other error is a real server fault → 500. This preserves prior behaviour for
+ * untyped errors while letting validators surface a proper 4xx.
+ */
+export function failFromError(e: any, fallback = 'Request failed'): NextResponse {
+  const status = e instanceof HttpError ? e.status : 500;
+  return fail(e?.message ?? fallback, status);
 }

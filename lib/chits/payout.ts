@@ -1,3 +1,4 @@
+import { HttpError } from '@/lib/httpError';
 import { generateChitReceiptNo } from './receipts';
 
 export async function releaseChitPrizePayout(tx: any, input: {
@@ -20,7 +21,7 @@ export async function releaseChitPrizePayout(tx: any, input: {
       type: 'chit_payout',
     },
   });
-  if (existingEntry) throw new Error('Prize payout already posted for this auction');
+  if (existingEntry) throw new HttpError(409, 'Prize payout already posted for this auction');
 
   const receiptNo = await generateChitReceiptNo(tx, {
     tenantId: input.tenantId,

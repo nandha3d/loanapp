@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { ok, fail } from '@/lib/api/v1-envelope';
+import { ok, fail , failFromError} from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { rescheduleAuctionInTx } from '@/lib/chits/auction';
 
@@ -48,6 +48,6 @@ export async function POST(
     });
     return ok({ scheduledAt: scheduledAt.toISOString() });
   } catch (e: any) {
-    return fail(e?.message ?? 'Reschedule failed', 500);
+    return failFromError(e, 'Reschedule failed');
   }
 }

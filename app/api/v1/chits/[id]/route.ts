@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { ok, fail } from '@/lib/api/v1-envelope';
+import { ok, fail , failFromError} from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { validateChitConfig } from '@/lib/chits/validation';
 
@@ -40,7 +40,7 @@ export async function GET(
     if (!group) return fail('Chit group not found', 404);
     return ok(group);
   } catch (e: any) {
-    return fail(e?.message ?? 'Failed to load chit group', 500);
+    return failFromError(e, 'Failed to load chit group');
   }
 }
 
@@ -136,6 +136,6 @@ export async function PUT(
     });
     return ok(updated);
   } catch (e: any) {
-    return fail(e?.message ?? 'Failed to update chit group', 500);
+    return failFromError(e, 'Failed to update chit group');
   }
 }

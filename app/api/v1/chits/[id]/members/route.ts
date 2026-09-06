@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { ok, fail } from '@/lib/api/v1-envelope';
+import { ok, fail , failFromError} from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 
 export async function GET(
@@ -35,6 +35,6 @@ export async function GET(
     });
     return ok(members);
   } catch (e: any) {
-    return fail(e?.message ?? 'Members failed', 500);
+    return failFromError(e, 'Members failed');
   }
 }

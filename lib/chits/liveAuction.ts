@@ -1,3 +1,4 @@
+import { HttpError } from '@/lib/httpError';
 // Live auction room ("live beat") helpers for auctionType = open_live.
 // Deliberate polling architecture — no sockets/SSE; the room is driven by
 // 2-3s client polls and a lazy close that runs on the first request after expiry.
@@ -35,7 +36,7 @@ export async function openAuctionRoom(tx: any, params: {
   openedById?: string | null;
 }) {
   const now = params.now ?? new Date();
-  if (!(params.durationMinutes > 0)) throw new Error('Room duration must be greater than zero');
+  if (!(params.durationMinutes > 0)) throw new HttpError(400, 'Room duration must be greater than zero');
   const updated = await tx.chitAuction.update({
     where: { id: params.auctionId },
     data: {
@@ -97,8 +98,8 @@ export async function closeAuctionRoom(
     where: { id: auctionId },
     select: { id: true, roomStatus: true, status: true },
   });
-  if (!fresh) throw new Error('Auction not found');
-  if (!['open', 'extended'].includes(fresh.roomStatus)) throw new Error('Room is not open');
+  if (!fresh) throw new HttpError(404, 'Auction not found');
+  if (!['open', 'extended'].includes(fresh.roomStatus)) throw new HttpError(409, 'Room is not open');
   const updated = await tx.chitAuction.update({
     where: { id: auctionId },
     data: {

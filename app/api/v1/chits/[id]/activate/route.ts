@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { ok, fail } from '@/lib/api/v1-envelope';
+import { ok, fail , failFromError} from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { validateChitGroupActivation } from '@/lib/chits/validation';
 import { parseFrequency, nextPeriodDate } from '@/lib/chits/frequency';
@@ -100,6 +100,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
     return ok(updated);
   } catch (e: any) {
-    return fail(e?.message ?? 'Chit activation failed', 500);
+    return failFromError(e, 'Chit activation failed');
   }
 }

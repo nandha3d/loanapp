@@ -1,3 +1,4 @@
+import { HttpError } from '@/lib/httpError';
 // Organizer bell ("going once / going twice / sold") — a traditional physical
 // chit-auction mechanic layered on the polling live room. Bells are lazily
 // evaluated from timestamps on every poll/bid, exactly like closeRoomIfExpired
@@ -79,9 +80,9 @@ export async function ringBellManually(tx: any, auctionId: string, byUserId: str
       chitGroup: { select: { bellCount: true, bellAutoClose: true } },
     },
   });
-  if (!fresh) throw new Error('Auction not found');
-  if (!['open', 'extended'].includes(fresh.roomStatus)) throw new Error('Bidding room is not open');
-  if (fresh.bellsRung >= fresh.chitGroup.bellCount) throw new Error('Final bell already rung');
+  if (!fresh) throw new HttpError(404, 'Auction not found');
+  if (!['open', 'extended'].includes(fresh.roomStatus)) throw new HttpError(409, 'Bidding room is not open');
+  if (fresh.bellsRung >= fresh.chitGroup.bellCount) throw new HttpError(409, 'Final bell already rung');
 
   const nextCount = fresh.bellsRung + 1;
   await tx.chitAuction.update({

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { ok, fail } from '@/lib/api/v1-envelope';
+import { ok, fail , failFromError} from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { buildAuctionTimeline } from '@/lib/chits/timeline';
 
@@ -35,6 +35,6 @@ export async function GET(
     if (!timeline) return fail('Auction not found', 404);
     return ok(timeline);
   } catch (e: any) {
-    return fail(e?.message ?? 'Failed to load auction timeline', 500);
+    return failFromError(e, 'Failed to load auction timeline');
   }
 }

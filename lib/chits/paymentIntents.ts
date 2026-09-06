@@ -1,3 +1,4 @@
+import { HttpError } from '@/lib/httpError';
 // Doc 19 — customer "I've paid" claims. Every approval flows through
 // collectChitSubscriptionPayment (lib/chits/collections.ts), the single
 // authoritative money-posting function — never hand-roll a second path here.
@@ -25,10 +26,10 @@ export async function createChitPaymentIntent(params: {
       member: { select: { id: true, customerId: true, chitGroupId: true, chitGroup: { select: { tenantId: true, branchId: true, name: true } } } },
     },
   });
-  if (!subscription) throw new Error('Subscription not found');
-  if (subscription.member.customerId !== params.customerId) throw new Error('You do not own this subscription');
-  if (subscription.member.chitGroup.tenantId !== params.tenantId) throw new Error('Subscription not found');
-  if (subscription.status === 'paid') throw new Error('This period is already fully paid');
+  if (!subscription) throw new HttpError(404, 'Subscription not found');
+  if (subscription.member.customerId !== params.customerId) throw new HttpError(403, 'You do not own this subscription');
+  if (subscription.member.chitGroup.tenantId !== params.tenantId) throw new HttpError(404, 'Subscription not found');
+  if (subscription.status === 'paid') throw new HttpError(409, 'This period is already fully paid');
 
   const branchId = subscription.member.chitGroup.branchId;
 
@@ -192,19 +193,19 @@ export async function approveChitPaymentIntent(params: {
 }) {
   return prisma.$transaction(async (tx) => {
     const intent = await tx.chitPaymentIntent.findUnique({ where: { id: params.intentId } });
-    if (!intent || intent.tenantId !== params.tenantId) throw new Error('Payment intent not found');
-    if (intent.status !== 'pending') throw new Error('This payment proof was already reviewed');
+    if (!intent || intent.tenantId !== params.tenantId) throw new HttpError(404, 'Payment intent not found');
+    if (intent.status !== 'pending') throw new HttpError(409, 'This payment proof was already reviewed');
 
     const subscription = await tx.chitSubscription.findUnique({ where: { id: intent.subscriptionId } });
-    if (!subscription) throw new Error('Subscription not found');
+    if (!subscription) throw new HttpError(404, 'Subscription not found');
     if (subscription.status === 'paid') {
-      throw new Error('This period is already fully settled — reject this intent instead');
+      throw new HttpError(409, 'This period is already fully settled — reject this intent instead');
     }
     const member = await tx.chitMember.findUnique({
       where: { id: intent.memberId },
       select: { chitGroup: { select: { branchId: true } }, customer: { select: { userId: true } } },
     });
-    if (!member) throw new Error('Member not found');
+    if (!member) throw new HttpError(404, 'Member not found');
 
     const result = await collectChitSubscriptionPayment(tx, {
       tenantId: params.tenantId,
@@ -252,8 +253,8 @@ export async function rejectChitPaymentIntent(params: {
   reviewerId: string;
 }) {
   const intent = await prisma.chitPaymentIntent.findUnique({ where: { id: params.intentId } });
-  if (!intent || intent.tenantId !== params.tenantId) throw new Error('Payment intent not found');
-  if (intent.status !== 'pending') throw new Error('This payment proof was already reviewed');
+  if (!intent || intent.tenantId !== params.tenantId) throw new HttpError(404, 'Payment intent not found');
+  if (intent.status !== 'pending') throw new HttpError(409, 'This payment proof was already reviewed');
 
   await prisma.chitPaymentIntent.update({
     where: { id: intent.id },

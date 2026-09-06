@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { ok, fail } from '@/lib/api/v1-envelope';
+import { ok, fail , failFromError} from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 
 // Organizer admit/deny for a customer waiting in the live-room lobby (mobile
@@ -56,6 +56,6 @@ export async function POST(
     });
     return ok(updated);
   } catch (e: any) {
-    return fail(e?.message ?? 'Admission decision failed', 500);
+    return failFromError(e, 'Admission decision failed');
   }
 }

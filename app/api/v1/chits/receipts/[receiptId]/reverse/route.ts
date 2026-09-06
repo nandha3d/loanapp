@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { ok, fail } from '@/lib/api/v1-envelope';
+import { ok, fail , failFromError} from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { calculateChitPayment } from '@/lib/chits/calculations';
 import { generateChitReceiptNo } from '@/lib/chits/receipts';
@@ -93,6 +93,6 @@ export async function POST(
     });
     return ok(result);
   } catch (e: any) {
-    return fail(e?.message ?? 'Receipt reversal failed', 500);
+    return failFromError(e, 'Receipt reversal failed');
   }
 }

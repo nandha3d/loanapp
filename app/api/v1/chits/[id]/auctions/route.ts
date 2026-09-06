@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { ok, fail } from '@/lib/api/v1-envelope';
+import { ok, fail , failFromError} from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import prisma from '@/lib/db';
 
@@ -29,7 +29,7 @@ export async function GET(
     });
     return ok(auctions);
   } catch (e: any) {
-    return fail(e?.message ?? 'Failed to load auctions', 500);
+    return failFromError(e, 'Failed to load auctions');
   }
 }
 

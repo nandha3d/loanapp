@@ -1,3 +1,4 @@
+import { HttpError } from '@/lib/httpError';
 // Single source of truth for placing a chit-auction bid — shared by the staff
 // web dashboard action and the mobile REST route so both write bids the same
 // way (eligibility, discount limits, anti-snipe, source/transcript audit).
@@ -47,12 +48,12 @@ export async function placeChitBid(tx: any, params: PlaceChitBidParams) {
     if (existing) return existing;
   }
 
-  if (['confirmed', 'paid', 'cancelled'].includes(auction.status)) throw new Error('Auction is locked');
+  if (['confirmed', 'paid', 'cancelled'].includes(auction.status)) throw new HttpError(409, 'Auction is locked');
   if (['lottery', 'fixed_rotation'].includes(auction.chitGroup.auctionType)) {
-    throw new Error('This chit uses a draw — bids are not accepted. Use the draw action instead.');
+    throw new HttpError(409, 'This chit uses a draw — bids are not accepted. Use the draw action instead.');
   }
-  if (member.hasWon) throw new Error('This member has already won in this group');
-  if (member.subscriberStatus !== 'active') throw new Error(`A ${member.subscriberStatus} ticket cannot bid`);
+  if (member.hasWon) throw new HttpError(409, 'This member has already won in this group');
+  if (member.subscriberStatus !== 'active') throw new HttpError(400, `A ${member.subscriberStatus} ticket cannot bid`);
 
   assertValidPrizeAmount({
     chitValue: Number(auction.chitGroup.chitValue),
@@ -72,7 +73,7 @@ export async function placeChitBid(tx: any, params: PlaceChitBidParams) {
       where: { id: auction.id },
       select: { roomStatus: true, biddingClosesAt: true, autoExtendSeconds: true },
     });
-    if (!fresh || !isRoomOpen(fresh)) throw new Error('Bidding room is not open');
+    if (!fresh || !isRoomOpen(fresh)) throw new HttpError(409, 'Bidding room is not open');
     const extendedClose = antiSnipeExtension(fresh);
     if (extendedClose) {
       await tx.chitAuction.update({
@@ -102,7 +103,7 @@ export async function placeChitBid(tx: any, params: PlaceChitBidParams) {
     const currentHighest = highest._max.bidDiscount ? Number(highest._max.bidDiscount) : 0;
     const atCap = capDiscount != null && bidDiscount === capDiscount;
     if (!atCap && currentHighest > 0 && bidDiscount < currentHighest + Number(auction.chitGroup.bidIncrement)) {
-      throw new Error(`Bid discount must exceed the current highest (${currentHighest}) by at least ${Number(auction.chitGroup.bidIncrement)}`);
+      throw new HttpError(400, `Bid discount must exceed the current highest (${currentHighest}) by at least ${Number(auction.chitGroup.bidIncrement)}`);
     }
   }
 

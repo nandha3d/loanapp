@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
-import { ok, fail } from '@/lib/api/v1-envelope';
+import { ok, fail , failFromError} from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 
 function statusFromAction(action: string | undefined) {
@@ -63,6 +63,6 @@ export async function PATCH(
     });
     return ok(updated);
   } catch (e: any) {
-    return fail(e?.message ?? 'Security document review failed', 500);
+    return failFromError(e, 'Security document review failed');
   }
 }
