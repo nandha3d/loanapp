@@ -2,19 +2,21 @@
 
 import { useState } from 'react';
 import Modal from '@/components/Modal';
-import { reviewRequest, reviewPendingLoan, approveCustomerCreation, rejectCustomerCreation } from './actions';
+import { reviewRequest, reviewPendingLoan, approveCustomerCreation, rejectCustomerCreation, approveVehicleCreation, rejectVehicleCreation } from './actions';
 import { useRouter } from 'next/navigation';
 
 export default function ApprovalsClient({
   requests,
   pendingLoans = [],
   pendingCustomers = [],
+  pendingVehicles = [],
   userRole,
   dict
 }: {
   requests: any[];
   pendingLoans?: any[];
   pendingCustomers?: any[];
+  pendingVehicles?: any[];
   userRole: string;
   dict: any;
 }) {
@@ -24,46 +26,124 @@ export default function ApprovalsClient({
   const [loading, setLoading] = useState(false);
   const [loanLoading, setLoanLoading] = useState<string | null>(null);
   const [customerLoading, setCustomerLoading] = useState<string | null>(null);
+  const [vehicleLoading, setVehicleLoading] = useState<string | null>(null);
 
   // Dynamically set default active tab based on which section has pending items
-  const [activeTab, setActiveTab] = useState<'customers' | 'loans' | 'edits'>(() => {
+  const [activeTab, setActiveTab] = useState<'customers' | 'loans' | 'vehicles' | 'edits'>(() => {
     if (pendingCustomers.length > 0) return 'customers';
     if (pendingLoans.length > 0) return 'loans';
+    if (pendingVehicles.length > 0) return 'vehicles';
     return 'edits';
   });
 
+  // Two-step confirmation instead of window.confirm(). A browser that has
+  // suppressed dialogs (Firefox's "prevent this page from creating additional
+  // dialogs" sticks for the whole tab) makes confirm() return false silently,
+  // so these handlers returned without ever calling the server and the buttons
+  // looked dead. Never gate an action behind a dialog that can be switched off.
+  const [armed, setArmed] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  /**
+   * Approving is a single click — it is the routine path and the reviewer has
+   * already read the row. Rejecting still asks, because it denies a request the
+   * filer can see and there is no undo in the UI.
+   *
+   * Returns true when the caller should proceed.
+   */
+  function confirmStep(key: string, needsConfirm: boolean): boolean {
+    setActionError(null);
+    if (!needsConfirm) {
+      setArmed(null);
+      return true;
+    }
+    if (armed !== key) {
+      setArmed(key);
+      return false;
+    }
+    setArmed(null);
+    return true;
+  }
+
   async function handleLoanReview(loanId: string, action: 'approve' | 'reject') {
-    if (!confirm(`Are you sure you want to ${action} this loan?`)) return;
+    if (!confirmStep(`loan:${loanId}:${action}`, action === 'reject')) return;
     setLoanLoading(loanId);
-    const fd = new FormData();
-    fd.set('loanId', loanId);
-    fd.set('action', action);
-    fd.set('reviewNotes', '');
-    const res = await reviewPendingLoan(fd);
-    setLoanLoading(null);
-    if (res.success) {
-      router.refresh();
-    } else {
-      alert(res.error);
+    try {
+      const fd = new FormData();
+      fd.set('loanId', loanId);
+      fd.set('action', action);
+      fd.set('reviewNotes', '');
+      const res = await reviewPendingLoan(fd);
+      if (res.success) {
+        router.refresh();
+      } else {
+        setActionError(res.error || 'Failed to process request');
+      }
+    } catch (e: any) {
+      // A thrown server action rejects the promise; without this the button
+      // just stops and the reason never reaches the user.
+      setActionError(e?.message || 'Request failed. Please retry.');
+    } finally {
+      setLoanLoading(null);
     }
   }
 
   async function handleCustomerReview(customerId: string, action: 'approve' | 'reject') {
-    if (!confirm(`Are you sure you want to ${action} this customer registration?`)) return;
+    if (!confirmStep(`customer:${customerId}:${action}`, action === 'reject')) return;
     setCustomerLoading(customerId);
-    const res = action === 'approve'
-      ? await approveCustomerCreation(customerId)
-      : await rejectCustomerCreation(customerId);
-    setCustomerLoading(null);
-    if (res.success) {
-      router.refresh();
-    } else {
-      alert(res.error || 'Failed to process request');
+    try {
+      const res = action === 'approve'
+        ? await approveCustomerCreation(customerId)
+        : await rejectCustomerCreation(customerId);
+      if (res.success) {
+        router.refresh();
+      } else {
+        setActionError(res.error || 'Failed to process request');
+      }
+    } catch (e: any) {
+      setActionError(e?.message || 'Request failed. Please retry.');
+    } finally {
+      setCustomerLoading(null);
+    }
+  }
+
+  async function handleVehicleReview(vehicleId: string, action: 'approve' | 'reject') {
+    if (!confirmStep(`vehicle:${vehicleId}:${action}`, action === 'reject')) return;
+    setVehicleLoading(vehicleId);
+    try {
+      const res = action === 'approve'
+        ? await approveVehicleCreation(vehicleId)
+        : await rejectVehicleCreation(vehicleId);
+      if (res.success) {
+        router.refresh();
+      } else {
+        setActionError(res.error || 'Failed to process request');
+      }
+    } catch (e: any) {
+      setActionError(e?.message || 'Request failed. Please retry.');
+    } finally {
+      setVehicleLoading(null);
     }
   }
 
   return (
     <div style={{ padding: '24px' }}>
+      {actionError && (
+        <div
+          role="alert"
+          style={{
+            marginBottom: 16,
+            padding: '12px 16px',
+            borderRadius: 8,
+            background: 'var(--danger-bg)',
+            color: 'var(--danger)',
+            fontWeight: 600,
+            fontSize: '.85rem',
+          }}
+        >
+          {actionError}
+        </div>
+      )}
       <div className="page-header" style={{ marginBottom: '24px' }}>
         <div className="header-content">
           <h1 style={{ fontSize: '1.8rem', fontWeight: 700, margin: 0, color: 'var(--text)' }}>{d.title}</h1>
@@ -147,6 +227,40 @@ export default function ApprovalsClient({
             </span>
           )}
         </button>
+
+        {pendingVehicles.length > 0 && (
+          <button
+            onClick={() => setActiveTab('vehicles')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '12px 4px',
+              border: 'none',
+              background: 'none',
+              cursor: 'pointer',
+              fontSize: '0.95rem',
+              fontWeight: activeTab === 'vehicles' ? 600 : 500,
+              color: activeTab === 'vehicles' ? 'var(--primary)' : 'var(--text-light)',
+              borderBottom: activeTab === 'vehicles' ? '2px solid var(--primary)' : '2px solid transparent',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.2s'
+            }}
+          >
+            <span className="material-icons-outlined" style={{ fontSize: '20px' }}>directions_car</span>
+            {d.vehicleApplications || 'Vehicles'}
+            <span style={{
+              background: 'var(--primary-bg)',
+              color: 'var(--primary)',
+              padding: '2px 6px',
+              borderRadius: '10px',
+              fontSize: '0.75rem',
+              fontWeight: 'bold'
+            }}>
+              {pendingVehicles.length}
+            </span>
+          </button>
+        )}
 
         <button
           onClick={() => setActiveTab('edits')}
@@ -240,7 +354,7 @@ export default function ApprovalsClient({
                             disabled={customerLoading === cust.id}
                             onClick={() => handleCustomerReview(cust.id, 'reject')}
                           >
-                            {d.reject}
+                            {armed === `customer:${cust.id}:reject` ? 'Confirm' : d.reject}
                           </button>
                         </div>
                       </td>
@@ -307,7 +421,73 @@ export default function ApprovalsClient({
                             disabled={loanLoading === loan.id}
                             onClick={() => handleLoanReview(loan.id, 'reject')}
                           >
-                            {d.reject}
+                            {armed === `loan:${loan.id}:reject` ? 'Confirm' : d.reject}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Tab Contents: Vehicles */}
+      {activeTab === 'vehicles' && (
+        <div className="card" style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+          <div className="table-responsive">
+            <table className="table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>{d.date}</th>
+                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>Registration</th>
+                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>Vehicle</th>
+                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>{dict.loansList?.customer || 'Customer'}</th>
+                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>{d.submittingAgent}</th>
+                  <th style={{ textAlign: 'left', padding: '16px 20px' }}>{d.status}</th>
+                  <th style={{ textAlign: 'right', padding: '16px 20px' }}>{d.actionLabel}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingVehicles.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '48px', color: 'var(--text-light)' }}>
+                      <span className="material-icons-outlined" style={{ fontSize: '48px', marginBottom: '12px', display: 'block' }}>directions_car</span>
+                      <h3 style={{ margin: 0 }}>No vehicles pending</h3>
+                    </td>
+                  </tr>
+                ) : (
+                  pendingVehicles.map((v: any) => (
+                    <tr key={v.id} style={{ borderTop: '1px solid var(--border)' }}>
+                      <td style={{ padding: '16px 20px' }}>{new Date(v.createdAt).toLocaleDateString()}</td>
+                      <td style={{ padding: '16px 20px' }}><strong>{v.registrationNo}</strong></td>
+                      <td style={{ padding: '16px 20px' }}>{v.make} {v.model} {v.year ? `(${v.year})` : ''}</td>
+                      <td style={{ padding: '16px 20px' }}>{v.customer?.name} {v.customer?.customerCode ? `(${v.customer.customerCode})` : ''}</td>
+                      <td style={{ padding: '16px 20px' }}>{v.customer?.agent?.name || '—'}</td>
+                      <td style={{ padding: '16px 20px' }}>
+                        <span className="badge badge-pending" style={{ background: 'var(--warning-bg)', color: 'var(--warning)', padding: '4px 8px', borderRadius: '12px', fontSize: '0.75rem' }}>
+                          {d.pendingReview}
+                        </span>
+                      </td>
+                      <td style={{ padding: '16px 20px', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                          <button
+                            className="btn btn-sm"
+                            style={{ background: 'var(--success)', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 'var(--radius-sm)' }}
+                            disabled={vehicleLoading === v.id}
+                            onClick={() => handleVehicleReview(v.id, 'approve')}
+                          >
+                            {vehicleLoading === v.id ? '...' : d.approve}
+                          </button>
+                          <button
+                            className="btn btn-sm"
+                            style={{ background: 'var(--danger)', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 'var(--radius-sm)' }}
+                            disabled={vehicleLoading === v.id}
+                            onClick={() => handleVehicleReview(v.id, 'reject')}
+                          >
+                            {armed === `vehicle:${v.id}:reject` ? 'Confirm' : d.reject}
                           </button>
                         </div>
                       </td>

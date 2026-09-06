@@ -3,6 +3,8 @@ export const ALL_MODULES = [
   'autofinance',
   'chitfunds',
   'goldloan',
+  'property',
+  'productfinance',
 ] as const;
 
 export type ModuleKey = (typeof ALL_MODULES)[number];
@@ -12,6 +14,8 @@ export const MODULE_SLUGS: Record<ModuleKey, string> = {
   autofinance: 'autofinance',
   chitfunds: 'chitfunds',
   goldloan: 'goldloan',
+  property: 'property',
+  productfinance: 'productfinance',
 };
 
 export const MODULE_LABELS: Record<ModuleKey, string> = {
@@ -19,16 +23,23 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
   autofinance: 'Auto Finance',
   chitfunds: 'Chit Funds',
   goldloan: 'Gold Loan',
+  property: 'Property Loan',
+  productfinance: 'Product Finance',
 };
 
 export const MODULE_ROUTES: Record<ModuleKey, string[]> = {
-  microlending: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard'],
-  autofinance: ['/vehicles', '/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard'],
-  chitfunds: ['/chits', '/customers', '/notifications'],
-  goldloan: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard'],
+  microlending: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard', '/wallet'],
+  autofinance: ['/vehicles', '/finance-partners', '/pending-tasks', '/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard', '/wallet'],
+  chitfunds: ['/chits', '/customers', '/collection', '/accounting', '/reports', '/analytics', '/notifications'],
+  goldloan: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard', '/wallet'],
+  // Property + product finance reuse the generic loan lifecycle. Their
+  // collateral-specific pages (/property, /products) ship with the gated
+  // collateral migration — see docs/parity/migrations.
+  property: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard', '/wallet'],
+  productfinance: ['/loans', '/customers', '/collection', '/route-tracker', '/penalties', '/reports', '/accounting', '/analytics', '/approvals', '/notifications', '/agent-dashboard', '/wallet'],
 };
 
-const MODULE_SHARED_ROUTES = ['/dashboard', '/settings', '/subscription', '/branch-requests', '/affiliate', '/kyc-review', '/module-requests', '/wallet'];
+const MODULE_SHARED_ROUTES = ['/dashboard', '/settings', '/subscription', '/profile', '/branch-requests', '/affiliate', '/kyc-review', '/module-requests'];
 const DASHBOARD_EXTERNAL_PREFIXES = [
   '/admin',
   '/api',
@@ -94,11 +105,15 @@ export function normalizeModuleList(value: unknown): ModuleKey[] {
   );
 }
 
+export function mergeModuleLists(...values: unknown[]): ModuleKey[] {
+  return Array.from(new Set(values.flatMap((value) => normalizeModuleList(value))));
+}
+
 export function moduleForRoute(path: string): ModuleKey | null {
   const { page } = parseModulePath(path);
-  for (const module of ALL_MODULES) {
-    if (MODULE_ROUTES[module].some((route) => page === route || page.startsWith(`${route}/`))) {
-      return module;
+  for (const moduleKey of ALL_MODULES) {
+    if (MODULE_ROUTES[moduleKey].some((route) => page === route || page.startsWith(`${route}/`))) {
+      return moduleKey;
     }
   }
   return null;
@@ -112,8 +127,8 @@ export function isRouteEnabledForModules(path: string, modules: readonly string[
   }
 
   // Check if at least one enabled module supports this route
-  for (const module of activeModules) {
-    if (MODULE_ROUTES[module]?.some((route) => page === route || page.startsWith(`${route}/`))) {
+  for (const moduleKey of activeModules) {
+    if (MODULE_ROUTES[moduleKey]?.some((route) => page === route || page.startsWith(`${route}/`))) {
       return true;
     }
   }

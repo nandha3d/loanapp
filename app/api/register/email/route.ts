@@ -10,7 +10,7 @@ import { findUserUniqueConflicts } from '@/lib/userUniqueness';
 export async function POST(request: Request) {
   try {
     // Self-registration is disabled once a client's custom domain is claimed.
-    const host = request.headers.get('x-loantrack-host') || request.headers.get('host');
+    const host = request.headers.get('x-zolofund-host') || request.headers.get('host');
     const { getCustomDomainTenantId, isStandaloneDomainHost } = await import('@/lib/tenant');
     if (await getCustomDomainTenantId(host)) {
       return NextResponse.json({ success: false, error: 'Registration is disabled on this domain.' }, { status: 403 });
@@ -34,12 +34,19 @@ export async function POST(request: Request) {
       referralCode
     } = body;
 
-    // Validate fields
-    if (!businessName || !ownerName || !ownerPhone || !ownerUsername || !ownerPassword || !selectedPlan) {
+    // Validate fields (username is optional — defaults to the phone number)
+    if (!businessName || !ownerName || !ownerPhone || !ownerPassword || (!standaloneClaim && !selectedPlan)) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
         { status: 400 }
       );
+    }
+
+    if (!standaloneClaim && (typeof selectedPlan !== 'string' || selectedPlan.length > 50)) {
+      return NextResponse.json({ success: false, error: 'Invalid subscription plan' }, { status: 400 });
+    }
+    if (!Array.isArray(selectedModules) || !Array.isArray(selectedAddons)) {
+      return NextResponse.json({ success: false, error: 'Invalid module or add-on selection' }, { status: 400 });
     }
 
     const emailCheck = validateEmail(ownerEmail);
@@ -52,14 +59,17 @@ export async function POST(request: Request) {
     }
     const email = emailCheck.value;
     const phone = phoneCheck.value;
-    const username = ownerUsername.trim().toLowerCase();
+    // Phone number doubles as the default login username.
+    const username = (typeof ownerUsername === 'string' && ownerUsername.trim())
+      ? ownerUsername.trim().toLowerCase()
+      : phone;
 
     const conflicts = await findUserUniqueConflicts({ username, phone, email });
     if (conflicts.length > 0) {
       return NextResponse.json({ success: false, error: conflicts[0].message }, { status: 409 });
     }
 
-    const ALL_MODULES_LIST = ['microlending', 'autofinance', 'chitfunds', 'goldloan'];
+    const ALL_MODULES_LIST = ['microlending', 'autofinance', 'chitfunds', 'goldloan', 'property', 'productfinance'];
     const finalModules = standaloneClaim ? ALL_MODULES_LIST : normalizeSelectedModules(selectedModules);
 
     // Generate unique slug
@@ -67,13 +77,13 @@ export async function POST(request: Request) {
 
     // Fetch plan details from catalog to set limits & snapshot base price.
     // Standalone claims don't use the catalog (lifetime, all modules, no billing).
-    const planCatalog = await prisma.subscriptionPlanCatalog.findUnique({
-      where: { plan: selectedPlan }
-    });
+    const planCatalog = standaloneClaim
+      ? null
+      : await prisma.subscriptionPlanCatalog.findUnique({ where: { plan: selectedPlan } });
 
-    if (!planCatalog && !standaloneClaim) {
+    if (!standaloneClaim && (!planCatalog || !planCatalog.isActive || planCatalog.monthlyPrice <= 0)) {
       return NextResponse.json(
-        { success: false, error: `Selected plan "${selectedPlan}" not found in catalog` },
+        { success: false, error: 'Select an active paid SaaS plan' },
         { status: 400 }
       );
     }
@@ -120,14 +130,9 @@ export async function POST(request: Request) {
 
       // 3. Create TenantSubscription. Standalone claim → lifetime, unlimited,
       // all add-ons off (features controlled later in the admin panel).
-      // Paid plans get a free trial, then must subscribe (trial gate enforced in
-      // assertTenantSubscriptionAccess). Free plan stays free; standalone=lifetime.
-      const PAID_PLANS = ['basic', 'business', 'enterprise'];
-      const trialDays = standaloneClaim
-        ? 0
-        : PAID_PLANS.includes(selectedPlan)
-          ? (((planCatalog as any)?.trialDays ?? 0) || 14)
-          : 0;
+      // Every SaaS plan gets a time-limited trial. Only a custom-domain
+      // standalone claim is lifetime-free.
+      const trialDays = standaloneClaim ? 0 : (planCatalog!.trialDays || 14);
       const trialEndsAt = trialDays > 0
         ? (() => { const d = new Date(); d.setDate(d.getDate() + trialDays); d.setHours(23,59,59,999); return d; })()
         : null;
@@ -244,7 +249,7 @@ export async function POST(request: Request) {
             data: {
               affiliateId: affiliate.id,
               referredTenantId: tenant.id,
-              referredEmail: user.email || ownerUsername + '@' + tenant.slug + '.com',
+              referredEmail: user.email || username + '@' + tenant.slug + '.com',
               status: 'signup'
             }
           });
@@ -262,19 +267,32 @@ export async function POST(request: Request) {
     });
 
     // Use platform SMTP for email registration activation so delivery does not
-    // depend on Supabase OTP/magic-link mail.
-    await sendVerificationEmail({
+    // depend on Supabase OTP/magic-link mail. Capture the outcome so the client
+    // can tell the user whether to expect a mail or to use "resend".
+    const emailResult = await sendVerificationEmail({
       tenantId: result.tenantId,
       email: result.ownerEmail,
       name: result.ownerName,
       userId: result.userId,
-    }).catch((e) => console.error('[VERIFY_EMAIL_SEND]', e));
+    }).catch((e) => {
+      console.error('[VERIFY_EMAIL_SEND]', e);
+      return { success: false, error: e?.message } as { success: boolean; error?: string };
+    });
+
+    if (!emailResult.success) {
+      // Account is created but pending; mail could not be sent. Don't fail the
+      // signup — surface emailSent:false so the UI can offer a resend.
+      console.error('[VERIFY_EMAIL_SEND] not delivered:', emailResult.error);
+    }
 
     return NextResponse.json(
       {
         success: true,
         requiresVerification: true,
-        message: 'Account created. Check your email to verify and activate your account.',
+        emailSent: emailResult.success === true,
+        message: emailResult.success
+          ? 'Account created. Check your email to verify and activate your account.'
+          : 'Account created, but we could not send the verification email. Please use "Resend verification email" on the login page.',
         tenantId: result.tenantId,
         tenantSlug: result.tenantSlug,
         username: result.username
@@ -287,13 +305,19 @@ export async function POST(request: Request) {
       const target = err.meta?.target || '';
       if (target.includes('username')) {
         return NextResponse.json(
-          { success: false, error: 'Username is already taken by another account.' },
+          { success: false, error: 'This username already exists.' },
           { status: 409 }
         );
       }
       if (target.includes('phone')) {
         return NextResponse.json(
-          { success: false, error: 'Phone number is already registered.' },
+          { success: false, error: 'This phone number already exists.' },
+          { status: 409 }
+        );
+      }
+      if (target.includes('email')) {
+        return NextResponse.json(
+          { success: false, error: 'This email already exists.' },
           { status: 409 }
         );
       }

@@ -4,7 +4,8 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Modal from '@/components/Modal';
 import { manageAgent, toggleAgentStatus } from './actions';
-import { ALL_MODULES, MODULE_LABELS, normalizeModuleList, type ModuleKey } from '@/types/modules';
+import { MODULE_LABELS, normalizeModuleList, type ModuleKey } from '@/types/modules';
+import PasswordInput from '@/components/ui/PasswordInput';
 
 type Agent = {
   id: string;
@@ -25,8 +26,8 @@ type Agent = {
 
 type Props = {
   initialAgents: Agent[];
-  branches: { id: string; name: string; code: string | null }[];
-  activeBranch: { name: string; code: string | null; enabledModules?: string } | null;
+  branches: { id: string; name: string; code: string | null; enabledModules?: string }[];
+  activeBranch: { id: string; name: string; code: string | null; enabledModules?: string } | null;
   viewerRole: string;
   allowedModules: string[];
   dict: any;
@@ -57,11 +58,18 @@ export default function TeamClient({
   const [password, setPassword] = useState('');
   const [status, setStatus] = useState('active');
   const [selectedModules, setSelectedModules] = useState<ModuleKey[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState(activeBranch?.id ?? branches[0]?.id ?? '');
 
-  const activeBranchModules = useMemo(() => {
-    if (viewerRole === 'developer') return ALL_MODULES;
-    return normalizeModuleList(allowedModules);
-  }, [allowedModules, viewerRole]);
+  const modulesForBranch = (branchId: string) => {
+    const branch = branches.find((item) => item.id === branchId);
+    return normalizeModuleList(branch?.enabledModules);
+  };
+
+  const activeBranchModules = useMemo(() => (
+    viewerRole === 'developer'
+      ? modulesForBranch(selectedBranchId)
+      : normalizeModuleList(allowedModules)
+  ), [allowedModules, branches, selectedBranchId, viewerRole]);
 
   const filteredAgents = useMemo(() => {
     return initialAgents.filter((agent) => {
@@ -75,21 +83,35 @@ export default function TeamClient({
   }, [initialAgents, searchQuery, statusFilter]);
 
   const handleOpenNew = () => {
+    const branchId = activeBranch?.id ?? selectedBranchId ?? branches[0]?.id ?? '';
+    const branchModules = viewerRole === 'developer'
+      ? modulesForBranch(branchId)
+      : activeBranchModules;
+
     setEditingAgent(null);
     setName(''); setUsername(''); setPhone(''); setPassword('');
     setStatus('active');
-    setSelectedModules(activeBranchModules.length > 0 ? [activeBranchModules[0]] : ['microlending']);
+    setSelectedBranchId(branchId);
+    setSelectedModules(branchModules.length > 0 ? [branchModules[0]] : []);
     setError(null);
     setIsModalOpen(true);
   };
 
   const handleEdit = (agent: Agent) => {
+    const branchId = agent.branchId ?? activeBranch?.id ?? selectedBranchId ?? branches[0]?.id ?? '';
+    const branchModules = viewerRole === 'developer'
+      ? modulesForBranch(branchId)
+      : activeBranchModules;
     setEditingAgent(agent);
     setName(agent.name); setUsername(agent.username);
     setPhone(agent.phone); setPassword(''); setStatus(agent.status);
+    setSelectedBranchId(branchId);
     const assigned = agent.userBranchModules?.find((row: any) => row.branchId === agent.branchId);
     const assignedModules = normalizeModuleList(assigned?.enabledModules);
-    setSelectedModules(assignedModules.length > 0 ? assignedModules : (agent.appType ? [agent.appType as ModuleKey] : []));
+    const fallbackModules = agent.appType && branchModules.includes(agent.appType as ModuleKey)
+      ? [agent.appType as ModuleKey]
+      : branchModules.slice(0, 1);
+    setSelectedModules(assignedModules.length > 0 ? assignedModules : fallbackModules);
     setError(null);
     setIsModalOpen(true);
   };
@@ -124,6 +146,15 @@ export default function TeamClient({
     });
   }
 
+  function handleBranchChange(branchId: string) {
+    const branchModules = modulesForBranch(branchId);
+    setSelectedBranchId(branchId);
+    setSelectedModules((prev) => {
+      const retained = prev.filter((module) => branchModules.includes(module));
+      return retained.length > 0 ? retained : branchModules.slice(0, 1);
+    });
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -136,6 +167,7 @@ export default function TeamClient({
     formData.append('phone', phone);
     formData.append('password', password);
     formData.append('status', status);
+    if (selectedBranchId) formData.append('branchId', selectedBranchId);
     selectedModules.forEach((module) => formData.append('adminModules', module));
 
     try {
@@ -334,16 +366,44 @@ export default function TeamClient({
             <label className="form-label" style={{ fontWeight: 600, marginBottom: '6px' }}>
               {editingAgent ? `${a.password || 'Password'} (leave blank to keep unchanged)` : `${a.password || 'Password'} *`}
             </label>
-            <input type="password" className="form-control" value={password}
+            <PasswordInput className="form-control" value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder={editingAgent ? 'Enter new password' : 'Enter agent password'}
               required={!editingAgent} />
           </div>
 
+          {viewerRole === 'developer' && (
+            <div className="form-group">
+              <label className="form-label" style={{ fontWeight: 600, marginBottom: '6px' }}>{a.branch || 'Branch'} *</label>
+              <select
+                className="form-control"
+                value={selectedBranchId}
+                onChange={(e) => handleBranchChange(e.target.value)}
+                required
+                disabled={branches.length === 0}
+              >
+                {branches.length === 0 ? (
+                  <option value="">No active branches available</option>
+                ) : (
+                  branches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}{branch.code ? ` (${branch.code})` : ''}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+          )}
+
           <div className="form-group">
             <label className="form-label" style={{ fontWeight: 600, marginBottom: '6px' }}>{a.modules || 'Module Access'}</label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px' }}>
-              {activeBranchModules.map((module) => {
+            {activeBranchModules.length === 0 ? (
+              <div style={{ background: 'var(--warning-bg, #fff7ed)', color: 'var(--warning, #9a3412)', padding: '12px', borderRadius: 'var(--radius-sm)' }}>
+                The selected branch has no enabled modules.
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px' }}>
+                {activeBranchModules.map((module) => {
                 const checked = selectedModules.includes(module);
                 return (
                   <label key={module} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', border: `1px solid ${checked ? 'var(--primary)' : 'var(--border)'}`, borderRadius: '8px', background: checked ? 'var(--primary-light)' : 'var(--surface)', cursor: 'pointer', color: checked ? 'var(--primary-dark)' : 'inherit', fontWeight: checked ? 600 : 400 }}>
@@ -351,8 +411,9 @@ export default function TeamClient({
                     <span>{MODULE_LABELS[module]}</span>
                   </label>
                 );
-              })}
-            </div>
+                })}
+              </div>
+            )}
           </div>
 
           {editingAgent && (

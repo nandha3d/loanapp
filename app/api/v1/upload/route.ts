@@ -1,6 +1,4 @@
 import { NextRequest } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
 import {
@@ -10,8 +8,9 @@ import {
 } from '@/lib/rateLimit';
 import {
   ALLOWED_UPLOAD_MIME_TYPES,
-  MAX_UPLOAD_SIZE_BYTES,
-  uploadBaseDir,
+  isAudioMime,
+  maxUploadSizeFor,
+  storeTenantUpload,
   validateFileBytes,
 } from '@/lib/fileUpload';
 
@@ -41,20 +40,18 @@ export async function POST(req: NextRequest) {
 
   if (!ALLOWED_UPLOAD_MIME_TYPES.includes(file.type)) {
     return fail(
-      'File type not allowed. Only JPEG, PNG, WebP, and PDF are accepted.',
+      'File type not allowed. Only JPEG, PNG, WebP, PDF, and short audio clips are accepted.',
       400,
     );
   }
-  if (file.size > MAX_UPLOAD_SIZE_BYTES) {
-    return fail('File exceeds the 5 MB limit.', 400);
+  if (file.size > maxUploadSizeFor(file.type)) {
+    return fail(
+      isAudioMime(file.type)
+        ? 'Audio clip exceeds the 1 MB limit.'
+        : 'File exceeds the 5 MB limit.',
+      400,
+    );
   }
-
-  const ext =
-    path.extname(file.name).replace(/[^a-zA-Z0-9.]/g, '').toLowerCase() ||
-    '.bin';
-  const safeName = `${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`;
-  const uploadDir = path.join(uploadBaseDir(), ctx.tenantId);
-  await mkdir(uploadDir, { recursive: true });
 
   const buffer = Buffer.from(await file.arrayBuffer());
   if (!validateFileBytes(buffer, file.type)) {
@@ -64,7 +61,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  await writeFile(path.join(uploadDir, safeName), buffer);
-  const url = `/api/files/${ctx.tenantId}/${safeName}`;
-  return ok({ url, filename: safeName, size: file.size });
+  const stored = await storeTenantUpload({
+    tenantId: ctx.tenantId,
+    mimeType: file.type,
+    buffer,
+  });
+  return ok({ url: stored.url, filename: stored.fileName, size: file.size });
 }

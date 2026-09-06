@@ -5,13 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
-import 'package:loantrack/core/l10n/language_controller.dart';
-import 'package:loantrack/core/network/authed_image.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/services/settings_service.dart';
-import 'package:loantrack/data/services/upload_service.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/network/authed_image.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/services/settings_service.dart';
+import 'package:zolofund/data/services/upload_service.dart';
 
 final _paymentSettingsProvider =
     FutureProvider.autoDispose<Map<String, String>>((ref) async {
@@ -136,7 +136,7 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.account_balance_wallet_outlined,
+                  Icon(Icons.account_balance_wallet_outlined,
                       color: AppColors.primary, size: 18,),
                   const SizedBox(width: 8),
                   Text(t.x('set.upi_id'), style: AppTypography.sectionTitle),
@@ -163,7 +163,7 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppTokens.radiusSm),
                     borderSide:
-                        const BorderSide(color: AppColors.primary, width: 1.5),
+                        BorderSide(color: AppColors.primary, width: 1.5),
                   ),
                 ),
               ),
@@ -203,7 +203,7 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
                     : t.x('btn.choose_photo'),),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.primary,
-                  side: const BorderSide(color: AppColors.primary),
+                  side: BorderSide(color: AppColors.primary),
                 ),
               ),
             ],
@@ -224,7 +224,7 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.picture_as_pdf_outlined,
+                  Icon(Icons.picture_as_pdf_outlined,
                       color: AppColors.primary, size: 18,),
                   const SizedBox(width: 8),
                   Text(t.x('set.receipt_pdf'),

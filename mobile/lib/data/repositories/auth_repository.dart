@@ -1,8 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:loantrack/core/auth/auth_storage.dart';
-import 'package:loantrack/data/models/user.dart';
-import 'package:loantrack/data/services/auth_service.dart';
+import 'package:zolofund/core/auth/auth_storage.dart';
+import 'package:zolofund/core/network/api_exception.dart';
+import 'package:zolofund/data/models/user.dart';
+import 'package:zolofund/data/services/auth_service.dart';
 
 class AuthRepository {
   AuthRepository(this._service, this._storage);
@@ -20,7 +23,11 @@ class AuthRepository {
       await _storage.savePendingTotpUser(username);
       return null;
     }
-    await _persist(result.token!, result.user!, refreshToken: result.refreshToken);
+    await _persist(
+      result.token!,
+      result.user!,
+      refreshToken: result.refreshToken,
+    );
     return result.user;
   }
 
@@ -30,16 +37,41 @@ class AuthRepository {
       throw StateError('No pending TOTP user');
     }
     final result = await _service.verify2fa(username: username, code: code);
-    await _persist(result.token!, result.user!, refreshToken: result.refreshToken);
+    await _persist(
+      result.token!,
+      result.user!,
+      refreshToken: result.refreshToken,
+    );
     await _storage.clearPendingTotpUser();
     return result.user!;
   }
 
+  /// Session bootstrap. A stored token + cached profile mean the user IS
+  /// logged in — a slow or dead network must never bounce them to the login
+  /// screen. Only an explicit server rejection (401/403 after the dio
+  /// interceptor's refresh attempt failed) ends the session.
   Future<User?> currentUser() async {
     final token = await _storage.readToken();
     if (token == null) return null;
     try {
-      return await _service.me();
+      final user = await _service.me().timeout(const Duration(seconds: 8));
+      await _storage.saveActiveAppType(user.appType);
+      await _storage.saveUserJson(jsonEncode(user.toJson()));
+      return user;
+    } on ApiException catch (e) {
+      if (e.statusCode == 401 || e.statusCode == 403) return null;
+      return _cachedUser();
+    } on Object {
+      // Network error / timeout — trust the stored session, refresh later.
+      return _cachedUser();
+    }
+  }
+
+  Future<User?> _cachedUser() async {
+    try {
+      final json = await _storage.readUserJson();
+      if (json == null) return null;
+      return User.fromJson(jsonDecode(json) as Map<String, dynamic>);
     } on Object {
       return null;
     }
@@ -52,6 +84,10 @@ class AuthRepository {
       // ignore — clear local state regardless
     }
     await _storage.clear();
+  }
+
+  Future<void> setActiveAppType(String appType) {
+    return _storage.saveActiveAppType(appType);
   }
 
   Future<User> registerWithEmail({
@@ -98,7 +134,9 @@ class AuthRepository {
       selectedAddons: selectedAddons,
       referralCode: referralCode,
     );
-    if (!result.needsRegistration && result.token != null && result.user != null) {
+    if (!result.needsRegistration &&
+        result.token != null &&
+        result.user != null) {
       await _persist(result.token!, result.user!);
     }
     return result;
@@ -108,9 +146,11 @@ class AuthRepository {
     await _storage.saveSession(
       token: token,
       tenantSlug: user.tenantSlug ?? '',
+      appType: user.appType,
       branchId: user.branchId,
       refreshToken: refreshToken,
     );
+    await _storage.saveUserJson(jsonEncode(user.toJson()));
   }
 }
 

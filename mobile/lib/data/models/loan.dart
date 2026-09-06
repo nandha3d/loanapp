@@ -1,5 +1,32 @@
-import 'package:loantrack/data/models/customer.dart';
-import 'package:loantrack/data/models/instalment.dart';
+import 'package:zolofund/data/models/customer.dart';
+import 'package:zolofund/data/models/instalment.dart';
+import 'package:zolofund/data/models/penalty.dart';
+
+/// "Extend term" default projection — same server-side calc the web page's
+/// heatmap tail cells use (see lib/restructure.ts#computeExtendedSchedule):
+/// keep paying the normal per-instalment amount and let the finish date
+/// slide out by one period for every unpaid due.
+class ExtendedSchedule {
+  const ExtendedSchedule({
+    required this.remainingPayments,
+    required this.extraPeriods,
+    required this.projectedEndDate,
+  });
+
+  final int remainingPayments;
+  final int extraPeriods;
+  final DateTime? projectedEndDate;
+
+  factory ExtendedSchedule.fromJson(Map<String, dynamic> json) {
+    return ExtendedSchedule(
+      remainingPayments: (json['remainingPayments'] as num?)?.toInt() ?? 0,
+      extraPeriods: (json['extraPeriods'] as num?)?.toInt() ?? 0,
+      projectedEndDate: json['projectedEndDate'] == null
+          ? null
+          : DateTime.tryParse(json['projectedEndDate'] as String),
+    );
+  }
+}
 
 /// Loan model — spec §3.3.
 class Loan {
@@ -19,12 +46,16 @@ class Loan {
     required this.totalPayable,
     required this.totalCollected,
     required this.perInstalment,
+    this.penalties = const [],
+    this.extendedSchedule,
     this.customer,
     this.endDate,
     this.voucherRef,
     this.loanType,
     this.collateralDetails,
     this.dueDay,
+    this.propertyCollateral,
+    this.productFinanceItem,
   });
 
   final String id;
@@ -40,6 +71,8 @@ class Loan {
   final int instalmentCount;
   final double penaltyRate;
   final List<Instalment> instalments;
+  final List<Penalty> penalties;
+  final ExtendedSchedule? extendedSchedule;
   final Customer? customer;
   final String? voucherRef;
   final String? loanType; // cheque | gold | property | other
@@ -48,6 +81,8 @@ class Loan {
   final double totalPayable;
   final double totalCollected;
   final double perInstalment;
+  final Map<String, dynamic>? propertyCollateral;
+  final Map<String, dynamic>? productFinanceItem;
 
   factory Loan.fromJson(Map<String, dynamic> json) {
     double num$(dynamic v) {
@@ -83,9 +118,18 @@ class Loan {
       totalPayable: num$(json['totalPayable']),
       totalCollected: num$(json['totalCollected']),
       perInstalment: num$(json['perInstalment']),
+      propertyCollateral: json['propertyCollateral'] as Map<String, dynamic>?,
+      productFinanceItem: json['productFinanceItem'] as Map<String, dynamic>?,
       instalments: (json['instalments'] as List<dynamic>? ?? const [])
           .map((dynamic e) => Instalment.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),
+      penalties: (json['penalties'] as List<dynamic>? ?? const [])
+          .map((dynamic e) => Penalty.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+      extendedSchedule: json['extendedSchedule'] is Map<String, dynamic>
+          ? ExtendedSchedule.fromJson(
+              json['extendedSchedule'] as Map<String, dynamic>,)
+          : null,
       customer: json['customer'] is Map<String, dynamic>
           ? Customer.fromJson(json['customer'] as Map<String, dynamic>)
           : null,

@@ -132,7 +132,7 @@ async function main() {
   const tenant = await prisma.tenant.upsert({
     where: { slug: 'default' },
     update: {},
-    create: { name: 'LoanTrack', slug: 'default', status: 'active' },
+    create: { name: 'ZoloFund', slug: 'default', status: 'active' },
   });
   console.log('✅ Tenant:', tenant.id);
 
@@ -303,7 +303,7 @@ async function main() {
 
   // ── App settings ──────────────────────────────────────────────────────────────
   const defaultSettings: { key: string; value: string; group: string }[] = [
-    { key: 'app_name',                value: 'LoanTrack',                     group: 'branding' },
+    { key: 'app_name',                value: 'ZoloFund',                     group: 'branding' },
     { key: 'app_tagline',             value: 'Micro-Lending Management System', group: 'branding' },
     { key: 'logo_url',                value: '/assets/logo.svg',              group: 'branding' },
     { key: 'primary_color',           value: '#F5A623',                       group: 'branding' },
@@ -359,18 +359,84 @@ async function main() {
   console.log('✅ Loan packages created');
 
   // ── Notification templates ────────────────────────────────────────────────────
-  const templates = [
-    { name: 'payment_reminder', channel: 'sms',      body: 'Dear {{customer_name}}, your payment of {{currency_symbol}}{{amount}} for loan {{loan_code}} is due today.' },
-    { name: 'payment_reminder', channel: 'whatsapp', body: 'Hi {{customer_name}} 👋\nYour payment of {{currency_symbol}}{{amount}} for loan *{{loan_code}}* is due today.' },
-    { name: 'overdue_alert',    channel: 'sms',      body: 'ALERT: Dear {{customer_name}}, your payment for loan {{loan_code}} is overdue by {{days}} days. Penalty: {{currency_symbol}}{{penalty}}.' },
-    { name: 'loan_created',     channel: 'sms',      body: 'Dear {{customer_name}}, your loan {{loan_code}} of {{currency_symbol}}{{principal}} has been approved. Starts {{start_date}}. Per instalment: {{currency_symbol}}{{per_instalment}}.' },
-  ];
-  for (const t of templates) {
-    await prisma.notificationTemplate.upsert({
-      where: { tenantId_name_channel: { tenantId: tenant.id, name: t.name, channel: t.channel } },
-      update: {},
-      create: { tenantId: tenant.id, name: t.name, channel: t.channel, body: t.body, isActive: true },
-    });
+  const defaultMessages: Record<string, Record<string, string>> = {
+    payment_received: {
+      en: 'Hi {customer}, ₹{amount} received for loan {loan_code} on {date}. Balance: ₹{balance}.',
+      ta: 'வணக்கம் {customer}, கடன் {loan_code}க்கு ₹{amount} பெறப்பட்டது. மீதி: ₹{balance}.',
+      hi: 'नमस्ते {customer}, ऋण {loan_code} के लिए ₹{amount} प्राप्त हुआ। शेष: ₹{balance}।',
+      te: 'నమస్కారం {customer}, లోన్ {loan_code} కొరకు ₹{amount} అందింది. బ్యాలెన్స్: ₹{balance}.',
+      kn: 'ನಮಸ್ಕಾರ {customer}, ಸಾಲ {loan_code} ಗಾಗಿ ₹{amount} ಸ್ವೀಕರಿಸಲಾಗಿದೆ. ಬಾಕಿ: ₹{balance}.',
+      ml: 'നമസ്കാരം {customer}, ലോൺ {loan_code} ലേക്ക് ₹{amount} ലഭിച്ചു. ബാക്കി: ₹{balance}.',
+    },
+    payment_due_reminder: {
+      en: 'Hi {customer}, ₹{amount} due for loan {loan_code} on {date}. Pay on time to avoid penalty.',
+      ta: 'வணக்கம் {customer}, {date} அன்று கடன் {loan_code}க்கு ₹{amount} செலுத்த வேண்டும்.',
+      hi: 'नमस्ते {customer}, {date} को ऋण {loan_code} के लिए ₹{amount} देय है।',
+      te: 'నమస్కారం {customer}, {date} తేదీన లోన్ {loan_code} కొరకు ₹{amount} చెల్లించాలి.',
+      kn: 'ನಮಸ್ಕಾರ {customer}, {date} ರಂದು ಸಾಲ {loan_code} ಗಾಗಿ ₹{amount} ಪಾವತಿಸಬೇಕಾಗಿದೆ.',
+      ml: 'നമസ്കാരം {customer}, {date}-ൽ ലോൺ {loan_code} ലേക്ക് ₹{amount} അടയ്‌ക്കേണ്ടതുണ്ട്.',
+    },
+    loan_disbursed: {
+      en: 'Hi {customer}, loan {loan_code} of ₹{amount} is disbursed. First instalment due: {firstDue}.',
+      ta: 'வணக்கம் {customer}, ₹{amount} கடன் {loan_code} வழங்கப்பட்டது. முதல் தவணை: {firstDue}.',
+      hi: 'नमस्ते {customer}, ₹{amount} का ऋण {loan_code} स्वीकृत हुआ। पहली किस्त: {firstDue}।',
+      te: 'నమస్కారం {customer}, లోన్ {loan_code} ద్వారా ₹{amount} పంపిణీ చేయబడింది. మొదటి వాయిదా: {firstDue}.',
+      kn: 'ನಮಸ್ಕಾರ {customer}, ಸಾಲ {loan_code} ಅಡಿಯಲ್ಲಿ ₹{amount} ವಿತರಿಸಲಾಗಿದೆ. ಮೊದಲ ಕಂತು: {firstDue}.',
+      ml: 'നമസ്കാരം {customer}, ലോൺ {loan_code} ലേക്ക് ₹{amount} അനുവദിച്ചു. ആദ്യ ഗഡു: {firstDue}.',
+    },
+    loan_overdue: {
+      en: 'Hi {customer}, loan {loan_code} is {days} days overdue. Penalty: ₹{penalty}. Contact agent.',
+      ta: 'வணக்கம் {customer}, கடன் {loan_code} {days} நாட்கள் தாமதம். அபராதம்: ₹{penalty}.',
+      hi: 'नमस्ते {customer}, ऋण {loan_code} {days} दिन अतिदेय। जुर्माना: ₹{penalty}।',
+      te: 'నమస్కారం {customer}, లోన్ {loan_code} వాయిదా {days} రోజులు ఆలస్యమైంది. పెనాల్టీ: ₹{penalty}.',
+      kn: 'ನಮಸ್ಕಾರ {customer}, ಸಾಲ {loan_code} ಪಾವತಿ {days} ದಿನಗಳು ಬಾಕಿಯಾಗಿದೆ. ದಂಡ: ₹{penalty}.',
+      ml: 'നമസ്കാരം {customer}, ലോൺ {loan_code} അടവ് {days} ദിവസമായി കുടിശ്ശികയാണ്. പിഴ: ₹{penalty}.',
+    },
+    loan_closed: {
+      en: 'Hi {customer}, loan {loan_code} is fully closed. Thank you for your timely payments!',
+      ta: 'வணக்கம் {customer}, கடன் {loan_code} முழுமையாக மூடப்பட்டது. நன்றி!',
+      hi: 'नमस्ते {customer}, ऋण {loan_code} पूरी तरह बंद। धन्यवाद!',
+      te: 'నమస్కారం {customer}, లోన్ {loan_code} పూర్తిగా ముగిసింది. సకాలంలో చెల్లించినందుకు ధన్యవాదాలు!',
+      kn: 'ನಮಸ್ಕಾರ {customer}, ಸಾಲ {loan_code} ಸಂಪೂರ್ಣವಾಗಿ ಮುಚ್ಚಲ್ಪಟ್ಟಿದೆ. ಧನ್ಯವಾದಗಳು!',
+      ml: 'നമസ്കാരം {customer}, ലോൺ {loan_code} പൂർണ്ണമായും അടച്ചുതീർത്തു. നന്ദി!',
+    },
+    penalty_accrued: {
+      en: 'Hi {customer}, penalty of ₹{penalty} is added to loan {loan_code} for {days} missed days.',
+      ta: 'வணக்கம் {customer}, கடன் {loan_code}க்கு ₹{penalty} அபராதம் சேர்க்கப்பட்டது.',
+      hi: 'नमस्ते {customer}, ऋण {loan_code} पर ₹{penalty} जुर्माना जोड़ा गया।',
+      te: 'నమస్కారం {customer}, లోన్ {loan_code} కొరకు ₹{penalty} పెనాల్టీ జోడించబడింది.',
+      kn: 'ನಮಸ್ಕಾರ {customer}, ಸಾಲ {loan_code} ಗೆ ₹{penalty} ದಂಡ ವಿಧಿಸಲಾಗಿದೆ.',
+      ml: 'നಮസ്കാരം {customer}, ലോൺ {loan_code} ലേക്ക് ₹{penalty} പിഴ ചുമത്തിയിരിക്കുന്നു.',
+    },
+  };
+
+  const channels = ['sms', 'whatsapp', 'push'];
+  const languages = ['en', 'ta', 'hi', 'te', 'kn', 'ml'];
+
+  for (const [name, langMap] of Object.entries(defaultMessages)) {
+    for (const channel of channels) {
+      for (const lang of languages) {
+        let body = langMap[lang] || langMap['en'];
+        if (channel === 'whatsapp') {
+          body = `👋 ${body}`;
+        } else if (channel === 'push') {
+          body = `🔔 ${body}`;
+        }
+        await prisma.notificationTemplate.upsert({
+          where: { tenantId_name_channel_lang: { tenantId: tenant.id, name, channel, lang } },
+          update: {},
+          create: {
+            tenantId: tenant.id,
+            name,
+            channel,
+            lang,
+            body,
+            subject: channel === 'push' ? 'ZoloFund Alert' : null,
+            isActive: true,
+          },
+        });
+      }
+    }
   }
   console.log('✅ Notification templates created');
 

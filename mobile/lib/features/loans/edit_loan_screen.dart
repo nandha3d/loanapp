@@ -3,15 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import 'package:loantrack/core/l10n/language_controller.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/models/loan.dart';
-import 'package:loantrack/data/services/loan_service.dart';
-import 'package:loantrack/features/loans/loan_detail_screen.dart';
-import 'package:loantrack/shared/widgets/app_button.dart';
-import 'package:loantrack/shared/widgets/app_text_field.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/models/loan.dart';
+import 'package:zolofund/data/services/loan_service.dart';
+import 'package:zolofund/features/loans/loan_detail_screen.dart';
+import 'package:zolofund/shared/widgets/app_button.dart';
+import 'package:zolofund/shared/widgets/app_text_field.dart';
 
 class EditLoanScreen extends ConsumerStatefulWidget {
   const EditLoanScreen({super.key, required this.loan});

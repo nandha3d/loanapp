@@ -2,6 +2,7 @@ import { auth } from '@/lib/auth';
 import { getCurrentTenantId, getUserAppType } from '@/lib/tenant';
 import { getActiveBranchId } from '@/lib/branch';
 import { apiError } from '@/lib/utils';
+import { isSubscriptionAccessError } from '@/lib/subscription';
 
 export const ADMIN_API_ROLES = ['admin', 'superadmin', 'developer'];
 export const AUTHENTICATED_API_ROLES = ['admin', 'superadmin', 'developer', 'agent'];
@@ -25,7 +26,15 @@ export async function requireApiContext(allowedRoles: string[] = AUTHENTICATED_A
   const role = (session.user as { role?: string })?.role || '';
   if (!allowedRoles.includes(role)) return { response: apiError('Forbidden', 403) };
 
-  const tenantId = await getCurrentTenantId();
+  let tenantId: string;
+  try {
+    tenantId = await getCurrentTenantId();
+  } catch (error) {
+    if (isSubscriptionAccessError(error)) {
+      return { response: apiError(error.message, error.statusCode) };
+    }
+    throw error;
+  }
   const appType = await getUserAppType();
   const branchId = await getActiveBranchId();
 
@@ -40,6 +49,15 @@ export async function requireApiContext(allowedRoles: string[] = AUTHENTICATED_A
   };
 }
 
+/**
+ * The one branch scope for web-session handlers. `context.branchId` is the
+ * caller's active branch (`getActiveBranchId`), already null for developers and
+ * for a superadmin on "All Branches" — those stay tenant-wide.
+ *
+ * A record belongs to exactly one branch: its own `branchId`. See
+ * `lib/branchScope.ts` for why the "reach" variant that also matched unbranched
+ * records and the filer's branch was removed.
+ */
 export function scopedBranchWhere(context: ApiContext) {
   return context.branchId ? { branchId: context.branchId } : {};
 }

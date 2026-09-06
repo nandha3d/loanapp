@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Modal from '@/components/Modal';
-import { manageMasterUser, toggleUserStatus } from '../actions';
+import { manageMasterUser, toggleUserStatus, deleteUser } from '../actions';
 import { updateSubscription } from '../billing/billingActions';
 import { ALL_MODULES, MODULE_LABELS, normalizeModuleList, type ModuleKey } from '@/types/modules';
 import { PLAN_LABELS, PLAN_FEATURES } from '@/lib/plans';
+import PasswordInput from '@/components/ui/PasswordInput';
 
 type BranchOption = {
   id: string;
@@ -28,6 +29,7 @@ type SuperadminSummary = {
   name: string;
   username: string;
   phone: string;
+  email: string | null;
   status: string;
   subscription: any;
   adminCount: number;
@@ -50,6 +52,8 @@ type Props = {
   users: any[];
   branches: BranchOption[];
   viewerRole: string;
+  viewerId: string;
+  viewerIsPrimaryAdmin: boolean;
   defaultAppType: string;
   subscription: any;
   planModules: string[];
@@ -81,6 +85,8 @@ export default function UsersClient({
   users,
   branches,
   viewerRole,
+  viewerId,
+  viewerIsPrimaryAdmin,
   defaultAppType,
   subscription,
   planModules,
@@ -100,9 +106,11 @@ export default function UsersClient({
   const [selectedModules, setSelectedModules] = useState<ModuleKey[]>(normalizeModuleList([defaultAppType]));
   const [userUsername, setUserUsername] = useState('');
   const [userPhone, setUserPhone] = useState('');
-  const [availability, setAvailability] = useState<Record<'username' | 'phone', AvailabilityField>>({
+  const [userEmail, setUserEmail] = useState('');
+  const [availability, setAvailability] = useState<Record<'username' | 'phone' | 'email', AvailabilityField>>({
     username: emptyAvailability,
     phone: emptyAvailability,
+    email: emptyAvailability,
   });
   const [viewingSuperadminId, setViewingSuperadminId] = useState<string | null>(
     viewerRole === 'superadmin' && superadmins.length > 0 ? superadmins[0].id : null
@@ -160,6 +168,7 @@ export default function UsersClient({
     setSelectedBranchId(user.branchId || '');
     setUserUsername(user.username || '');
     setUserPhone(user.phone || '');
+    setUserEmail(user.email || '');
     
     if (user.role === 'superadmin') {
       const summary = superadmins.find(s => s.id === user.id);
@@ -183,6 +192,7 @@ export default function UsersClient({
     setSelectedBranchId('');
     setUserUsername('');
     setUserPhone('');
+    setUserEmail('');
     setSelectedBranchIds([]);
     setSelectedModules(allowedPlanModules.length > 0 ? [allowedPlanModules[0] as ModuleKey] : normalizeModuleList([defaultAppType]));
     setIsModalOpen(true);
@@ -193,9 +203,10 @@ export default function UsersClient({
     const params = new URLSearchParams();
     if (userUsername.trim()) params.set('username', userUsername.trim());
     if (userPhone.trim()) params.set('phone', userPhone.trim());
+    if (userEmail.trim()) params.set('email', userEmail.trim());
     if (editingUser?.id) params.set('excludeUserId', editingUser.id);
-    if (!params.has('username') && !params.has('phone')) {
-      setAvailability({ username: emptyAvailability, phone: emptyAvailability });
+    if (!params.has('username') && !params.has('phone') && !params.has('email')) {
+      setAvailability({ username: emptyAvailability, phone: emptyAvailability, email: emptyAvailability });
       return;
     }
 
@@ -203,6 +214,7 @@ export default function UsersClient({
     setAvailability((prev) => ({
       username: userUsername.trim() ? { ...prev.username, checking: true, message: '' } : emptyAvailability,
       phone: userPhone.trim() ? { ...prev.phone, checking: true, message: '' } : emptyAvailability,
+      email: userEmail.trim() ? { ...prev.email, checking: true, message: '' } : emptyAvailability,
     }));
 
     const timer = window.setTimeout(async () => {
@@ -212,12 +224,14 @@ export default function UsersClient({
         setAvailability({
           username: data.fields.username.checked ? { checking: false, available: data.fields.username.available, message: data.fields.username.message || '' } : emptyAvailability,
           phone: data.fields.phone.checked ? { checking: false, available: data.fields.phone.available, message: data.fields.phone.message || '' } : emptyAvailability,
+          email: data.fields.email.checked ? { checking: false, available: data.fields.email.available, message: data.fields.email.message || '' } : emptyAvailability,
         });
       } catch (err: any) {
         if (err.name === 'AbortError') return;
         setAvailability((prev) => ({
           username: { ...prev.username, checking: false },
           phone: { ...prev.phone, checking: false },
+          email: { ...prev.email, checking: false },
         }));
       }
     }, 350);
@@ -226,7 +240,7 @@ export default function UsersClient({
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [editingUser?.id, isModalOpen, userPhone, userUsername]);
+  }, [editingUser?.id, isModalOpen, userPhone, userUsername, userEmail]);
 
   function handleBranchChange(branchId: string) {
     setSelectedBranchId(branchId);
@@ -257,6 +271,48 @@ export default function UsersClient({
   // email never arrives, a developer can flip a pending account to active —
   // same end-state as clicking the verification link.
   const [verifying, setVerifying] = useState<string | null>(null);
+  // Two-step arming, deliberately NOT window.confirm(): a browser with dialogs
+  // suppressed returns false silently, and the button would look dead. For a
+  // destructive action that failure mode is unacceptable.
+  // UI gate only — app/admin/actions.ts#deleteUser re-checks with canManageUser.
+  // Mirrors lib/roles.ts ranks: developer 50 > superadmin 40 > primary admin 30
+  // > admin 20 > agent 10. Strictly greater, so peers and self are excluded.
+  function rankOf(u: { role?: string | null; isPrimaryAdmin?: boolean | null } | null | undefined) {
+    if (!u?.role) return 0;
+    if (u.role === 'admin' && u.isPrimaryAdmin) return 30;
+    return ({ agent: 10, admin: 20, superadmin: 40, developer: 50 } as Record<string, number>)[u.role] ?? 0;
+  }
+  function canDelete(target: any) {
+    if (!target || target.id === viewerId) return false;
+    return rankOf({ role: viewerRole, isPrimaryAdmin: viewerIsPrimaryAdmin }) > rankOf(target);
+  }
+
+  const [armedDelete, setArmedDelete] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function handleDelete(userId: string, name: string) {
+    setDeleteError(null);
+    if (armedDelete !== userId) {
+      setArmedDelete(userId);
+      return;
+    }
+    setArmedDelete(null);
+    setDeleting(userId);
+    try {
+      const res = await deleteUser(userId);
+      if (res?.success) {
+        router.refresh();
+      } else {
+        setDeleteError(res?.error || `Could not delete ${name}.`);
+      }
+    } catch (e: any) {
+      setDeleteError(e?.message || 'Network error while deleting.');
+    } finally {
+      setDeleting(null);
+    }
+  }
+
   async function handleVerifyActivate(userId: string, name: string) {
     if (!confirm(`Manually verify & activate "${name}"? This is the same as confirming their email.`)) return;
     setVerifying(userId);
@@ -353,6 +409,11 @@ export default function UsersClient({
 
   return (
     <div>
+      {deleteError && (
+        <div role="alert" style={{ margin: '0 0 16px', padding: '12px 16px', borderRadius: 8, background: 'var(--danger-bg)', color: 'var(--danger)', fontWeight: 600, fontSize: '.85rem' }}>
+          {deleteError}
+        </div>
+      )}
       <div className="page-header">
         <div className="header-content">
           <h1>{viewingSuperadminId ? `Super Admin: ${activeSuperadmin?.name}` : 'Master User Management'}</h1>
@@ -445,7 +506,10 @@ export default function UsersClient({
                         </div>
                         <div>
                           <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text)', marginBottom: '2px' }}>{superadmin.name}</div>
-                          <div className="text-muted" style={{ fontSize: '0.8rem' }}>{superadmin.username} &middot; {superadmin.phone}</div>
+                          <div className="text-muted" style={{ fontSize: '0.8rem' }}>
+                            {superadmin.username} &middot; {superadmin.phone}
+                            {superadmin.email && <span> &middot; {superadmin.email}</span>}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -546,6 +610,26 @@ export default function UsersClient({
                         }} title="Edit User">
                           <span className="material-icons-outlined" style={{ fontSize: '18px' }}>edit</span>
                         </button>
+                        {canDelete(superadmin) && (
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            disabled={deleting === superadmin.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(superadmin.id, superadmin.name || superadmin.username);
+                            }}
+                            title={armedDelete === superadmin.id ? 'Press again to confirm' : 'Delete user'}
+                            style={{ color: armedDelete === superadmin.id ? 'var(--danger)' : undefined, fontWeight: armedDelete === superadmin.id ? 700 : undefined }}
+                          >
+                            {deleting === superadmin.id ? (
+                              '...'
+                            ) : armedDelete === superadmin.id ? (
+                              'Confirm delete'
+                            ) : (
+                              <span className="material-icons-outlined" style={{ fontSize: '18px' }}>delete_outline</span>
+                            )}
+                          </button>
+                        )}
                         <button className="btn btn-primary btn-sm" onClick={(e) => {
                           e.stopPropagation();
                           setViewingSuperadminId(superadmin.id);
@@ -673,9 +757,16 @@ export default function UsersClient({
                       <tr key={user.id}>
                         <td>
                           <div style={{ fontWeight: 600 }}>{user.name}</div>
-                          <div className="text-muted" style={{ fontSize: '0.8rem' }}>{user.username}</div>
+                          <div className="text-muted" style={{ fontSize: '0.8rem' }}>
+                            {user.username} &middot; {user.phone}
+                            {user.email && <span> &middot; {user.email}</span>}
+                          </div>
                         </td>
-                        <td><span className="badge badge-pending">{user.role}</span></td>
+                        <td>
+                          <span className="badge badge-pending">
+                            {user.role === 'admin' && user.isPrimaryAdmin ? 'primary admin' : user.role}
+                          </span>
+                        </td>
                         <td>{user.branch?.name || 'Global'}</td>
                         <td><span className={`badge ${user.status === 'active' ? 'badge-active' : 'badge-closed'}`}>{user.status}</span></td>
                         <td>
@@ -743,9 +834,143 @@ export default function UsersClient({
             </div>
           </div>
           <div className="form-group">
-            <label className="form-label">Password {editingUser && <span className="text-muted">(Leave blank to keep)</span>}</label>
-            <input type="password" name="password" className="form-control" required={!editingUser} />
+            <label className="form-label">Email</label>
+            <input type="email" name="email" className="form-control" value={userEmail} onChange={(e) => setUserEmail(e.target.value)} placeholder="Optional" />
+            {availability.email.checking && <small className="text-muted">Checking email...</small>}
+            {availability.email.available === false && <small style={{ color: 'var(--danger)' }}>{availability.email.message}</small>}
           </div>
+          <div className="form-group">
+            <label className="form-label">Password {editingUser && <span className="text-muted">(Leave blank to keep)</span>}</label>
+            <PasswordInput name="password" className="form-control" required={!editingUser} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="form-group">
+              <label className="form-label">Aadhaar Number</label>
+              <input name="aadharNumber" className="form-control" defaultValue={editingUser?.aadharNumber || ''} placeholder="Optional" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Date of Birth</label>
+              <input name="dob" type="date" className="form-control" defaultValue={editingUser?.dob ? new Date(editingUser.dob).toISOString().split('T')[0] : ''} />
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="form-group">
+              <label className="form-label">Experience</label>
+              <input name="experience" className="form-control" defaultValue={editingUser?.experience || ''} placeholder="e.g. 2 years, Optional" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Age</label>
+              <input name="age" type="number" className="form-control" defaultValue={editingUser?.age || ''} placeholder="Optional" />
+            </div>
+          </div>
+          {/* Admin-only: appointing a primary admin outranks the other admins in
+              the account, so only a superadmin/developer may do it. */}
+          {selectedRole === 'admin' && (viewerRole === 'superadmin' || viewerRole === 'developer') && (
+          <div style={{ marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px', marginBottom: '16px' }}>
+            <h4 style={{ fontSize: '.9rem', fontWeight: 600, marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary-dark)' }}>
+              <span className="material-icons-outlined" style={{ fontSize: '18px' }}>shield_person</span>
+              Admin Rank
+            </h4>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                name="isPrimaryAdmin"
+                value="true"
+                defaultChecked={!!editingUser?.isPrimaryAdmin}
+                style={{ marginTop: '3px' }}
+              />
+              <div>
+                <strong style={{ fontSize: '.85rem', display: 'block' }}>Primary Admin</strong>
+                <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>
+                  Ranks above the other admins: can create admins and agents and change their
+                  permissions. Cannot edit superadmins, other primary admins, or appoint one.
+                </span>
+              </div>
+            </label>
+          </div>
+          )}
+
+          {/* Agent-only: these toggles are privilege downgrades meant for field
+              agents. Other roles keep full privileges, so the block is hidden. */}
+          {selectedRole === 'agent' && (
+          <div style={{ marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px', marginBottom: '16px' }}>
+            <h4 style={{ fontSize: '.9rem', fontWeight: 600, marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary-dark)' }}>
+              <span className="material-icons-outlined" style={{ fontSize: '18px' }}>admin_panel_settings</span>
+              Agent Permissions & Autopay Controls
+            </h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  name="bypassCustomerApproval" 
+                  value="true" 
+                  defaultChecked={!!editingUser?.bypassCustomerApproval} 
+                  style={{ marginTop: '3px' }}
+                />
+                <div>
+                  <strong style={{ fontSize: '.85rem', display: 'block' }}>Bypass Customer Approval</strong>
+                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>Allow user to create active customers without admin review.</span>
+                </div>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  name="bypassLoanApproval" 
+                  value="true" 
+                  defaultChecked={!!editingUser?.bypassLoanApproval} 
+                  style={{ marginTop: '3px' }}
+                />
+                <div>
+                  <strong style={{ fontSize: '.85rem', display: 'block' }}>Bypass Loan Approval</strong>
+                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>Allow user to create active loans immediately.</span>
+                </div>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  name="bypassVehicleApproval"
+                  value="true"
+                  defaultChecked={!!editingUser?.bypassVehicleApproval}
+                  style={{ marginTop: '3px' }}
+                />
+                <div>
+                  <strong style={{ fontSize: '.85rem', display: 'block' }}>Bypass Vehicle Approval</strong>
+                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>Allow user to file active vehicles (auto finance) without admin review.</span>
+                </div>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  name="autoReleaseFloat"
+                  value="true" 
+                  defaultChecked={!!editingUser?.autoReleaseFloat} 
+                  style={{ marginTop: '3px' }}
+                />
+                <div>
+                  <strong style={{ fontSize: '.85rem', display: 'block' }}>Auto-Release Float</strong>
+                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>Automatically disburse funds when loan is created/approved.</span>
+                </div>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  name="feeConfirmationMandatory" 
+                  value="true" 
+                  defaultChecked={!!editingUser?.feeConfirmationMandatory} 
+                  style={{ marginTop: '3px' }}
+                />
+                <div>
+                  <strong style={{ fontSize: '.85rem', display: 'block' }}>Mandatory Customer Confirmation</strong>
+                  <span style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>Require borrower to confirm cash collection before it reflects to admin dashboard.</span>
+                </div>
+              </label>
+            </div>
+          </div>
+          )}
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">Role</label>

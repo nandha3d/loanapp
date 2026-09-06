@@ -1,0 +1,4162 @@
+[
+  {
+    "id": "CALC-ORG-001",
+    "group": "origination",
+    "title": "upfront_fixed nets a flat rupee deduction off the disbursal, not off the payable",
+    "rules": [
+      "MONEY-1"
+    ],
+    "why": "The borrower receives principal minus the fee but still repays the whole principal.",
+    "op": "loan.preview",
+    "input": {
+      "principal": 10000,
+      "interestType": "upfront_fixed",
+      "interestRate": 1000,
+      "tenure": 10,
+      "frequency": "daily",
+      "startDate": "2026-06-01"
+    },
+    "expect": {
+      "deduction": 1000,
+      "disbursedAmount": 9000,
+      "totalPayable": 10000,
+      "perInstalment": 1000,
+      "scheduleLength": 10,
+      "scheduleSum": 10000,
+      "scheduleSumEqualsPayable": true,
+      "firstDueDate": "2026-06-01",
+      "lastDueDate": "2026-06-10"
+    }
+  },
+  {
+    "id": "CALC-ORG-002",
+    "group": "origination",
+    "title": "upfront_fixed with a zero fee disburses the full principal",
+    "rules": [
+      "MONEY-1"
+    ],
+    "op": "loan.preview",
+    "input": {
+      "principal": 10000,
+      "interestType": "upfront_fixed",
+      "interestRate": 0,
+      "tenure": 10,
+      "frequency": "daily",
+      "startDate": "2026-06-01"
+    },
+    "expect": {
+      "deduction": 0,
+      "disbursedAmount": 10000,
+      "totalPayable": 10000
+    }
+  },
+  {
+    "id": "CALC-ORG-003",
+    "group": "origination",
+    "title": "upfront_percentage takes the rate as a percentage of principal",
+    "rules": [
+      "MONEY-1"
+    ],
+    "op": "loan.preview",
+    "input": {
+      "principal": 20000,
+      "interestType": "upfront_percentage",
+      "interestRate": 10,
+      "tenure": 100,
+      "frequency": "daily",
+      "startDate": "2026-06-01"
+    },
+    "expect": {
+      "deduction": 2000,
+      "disbursedAmount": 18000,
+      "totalPayable": 20000,
+      "perInstalment": 200,
+      "scheduleSum": 20000
+    }
+  },
+  {
+    "id": "CALC-ORG-004",
+    "group": "origination",
+    "title": "upfront_percentage rounds the deduction to whole rupees",
+    "rules": [
+      "MONEY-1"
+    ],
+    "why": "7.5% of 15,000 is 1,125 exactly; the rounding must not leak into the payable.",
+    "op": "loan.preview",
+    "input": {
+      "principal": 15000,
+      "interestType": "upfront_percentage",
+      "interestRate": 7.5,
+      "tenure": 7,
+      "frequency": "weekly",
+      "startDate": "2026-06-01"
+    },
+    "expect": {
+      "deduction": 1125,
+      "disbursedAmount": 13875,
+      "totalPayable": 15000,
+      "firstDueAmount": 2142,
+      "lastDueAmount": 2148,
+      "scheduleSum": 15000
+    }
+  },
+  {
+    "id": "CALC-ORG-005",
+    "group": "origination",
+    "title": "emi_flat adds flat interest on top; nothing is deducted at disbursal",
+    "rules": [
+      "MONEY-1"
+    ],
+    "op": "loan.preview",
+    "input": {
+      "principal": 50000,
+      "interestType": "emi_flat",
+      "interestRate": 12,
+      "tenure": 12,
+      "frequency": "monthly",
+      "startDate": "2026-06-01"
+    },
+    "expect": {
+      "deduction": 0,
+      "disbursedAmount": 50000,
+      "totalPayable": 56000,
+      "perInstalment": 4666,
+      "lastDueAmount": 4674,
+      "scheduleSum": 56000,
+      "scheduleSumEqualsPayable": true
+    }
+  },
+  {
+    "id": "CALC-ORG-006",
+    "group": "origination",
+    "title": "emi_flat interest is NOT annualised — the rate applies once over the whole tenure",
+    "rules": [
+      "MONEY-1"
+    ],
+    "why": "10% on 10,000 over 10 weeks is 1,000, not 10% p.a. pro-rated. Pins the flat-rate reading.",
+    "op": "loan.preview",
+    "input": {
+      "principal": 10000,
+      "interestType": "emi_flat",
+      "interestRate": 10,
+      "tenure": 10,
+      "frequency": "weekly",
+      "startDate": "2026-06-01"
+    },
+    "expect": {
+      "totalPayable": 11000,
+      "perInstalment": 1100,
+      "scheduleSum": 11000
+    }
+  },
+  {
+    "id": "CALC-ORG-007",
+    "group": "origination",
+    "title": "emi_flat at 0% is a pure principal repayment",
+    "rules": [
+      "MONEY-1"
+    ],
+    "op": "loan.preview",
+    "input": {
+      "principal": 12000,
+      "interestType": "emi_flat",
+      "interestRate": 0,
+      "tenure": 12,
+      "frequency": "monthly",
+      "startDate": "2026-06-01"
+    },
+    "expect": {
+      "totalPayable": 12000,
+      "perInstalment": 1000,
+      "scheduleSum": 12000
+    }
+  },
+  {
+    "id": "CALC-ORG-008",
+    "group": "origination",
+    "title": "emi_floating monthly uses the reducing-balance annuity at rate/12",
+    "rules": [
+      "MONEY-1"
+    ],
+    "why": "1,00,000 at 12% p.a. over 12 months = 8,884.88 → rounded 8,885 per instalment.",
+    "op": "loan.preview",
+    "input": {
+      "principal": 100000,
+      "interestType": "emi_floating",
+      "interestRate": 12,
+      "tenure": 12,
+      "frequency": "monthly",
+      "startDate": "2026-06-01"
+    },
+    "expect": {
+      "totalPayable": 106620,
+      "perInstalment": 8885,
+      "scheduleLength": 12,
+      "scheduleSum": 106620
+    }
+  },
+  {
+    "id": "CALC-ORG-009",
+    "group": "origination",
+    "title": "emi_floating weekly divides the annual rate by 52, not 12",
+    "rules": [
+      "MONEY-1"
+    ],
+    "op": "loan.preview",
+    "input": {
+      "principal": 50000,
+      "interestType": "emi_floating",
+      "interestRate": 24,
+      "tenure": 52,
+      "frequency": "weekly",
+      "startDate": "2026-06-01"
+    },
+    "expect": {
+      "perInstalment": 1084,
+      "totalPayable": 56368
+    }
+  },
+  {
+    "id": "CALC-ORG-010",
+    "group": "origination",
+    "title": "emi_floating daily divides the annual rate by 365",
+    "rules": [
+      "MONEY-1"
+    ],
+    "op": "loan.preview",
+    "input": {
+      "principal": 100000,
+      "interestType": "emi_floating",
+      "interestRate": 18,
+      "tenure": 365,
+      "frequency": "daily",
+      "startDate": "2026-06-01"
+    },
+    "expect": {
+      "perInstalment": 299,
+      "totalPayable": 109135
+    }
+  },
+  {
+    "id": "CALC-ORG-011",
+    "group": "origination",
+    "title": "emi_floating biweekly divides the annual rate by 26",
+    "rules": [
+      "MONEY-1"
+    ],
+    "op": "loan.preview",
+    "input": {
+      "principal": 60000,
+      "interestType": "emi_floating",
+      "interestRate": 15,
+      "tenure": 26,
+      "frequency": "biweekly",
+      "startDate": "2026-06-01"
+    },
+    "expect": {
+      "perInstalment": 2492,
+      "totalPayable": 64792
+    }
+  },
+  {
+    "id": "CALC-ORG-012",
+    "group": "origination",
+    "title": "emi_floating at 0% short-circuits to the principal (no division by zero)",
+    "rules": [
+      "MONEY-1"
+    ],
+    "op": "loan.preview",
+    "input": {
+      "principal": 24000,
+      "interestType": "emi_floating",
+      "interestRate": 0,
+      "tenure": 12,
+      "frequency": "monthly",
+      "startDate": "2026-06-01"
+    },
+    "expect": {
+      "totalPayable": 24000,
+      "perInstalment": 2000,
+      "scheduleSum": 24000
+    }
+  },
+  {
+    "id": "CALC-ORG-013",
+    "group": "origination",
+    "title": "interest_only bills one month's interest and keeps the principal outside the schedule",
+    "rules": [
+      "MONEY-3",
+      "MONEY-4",
+      "MONEY-5"
+    ],
+    "why": "The single model where sum(schedule) deliberately != totalPayable.",
+    "op": "loan.preview",
+    "input": {
+      "principal": 100000,
+      "interestType": "interest_only",
+      "interestRate": 2.5,
+      "tenure": 12,
+      "frequency": "monthly",
+      "startDate": "2026-06-01",
+      "dueDay": 5
+    },
+    "expect": {
+      "monthlyInterest": 2500,
+      "aprPercent": 30,
+      "principalDueAtClosure": 100000,
+      "deduction": 0,
+      "disbursedAmount": 100000,
+      "totalPayable": 130000,
+      "perInstalment": 2500,
+      "scheduleLength": 12,
+      "scheduleSum": 30000,
+      "scheduleSumEqualsPayable": false,
+      "firstDueDate": "2026-06-05"
+    }
+  },
+  {
+    "id": "CALC-ORG-014",
+    "group": "origination",
+    "title": "interest_only dues are flat — no rounding remainder is dumped on the last row",
+    "rules": [
+      "MONEY-4"
+    ],
+    "op": "loan.preview",
+    "input": {
+      "principal": 33333,
+      "interestType": "interest_only",
+      "interestRate": 3,
+      "tenure": 6,
+      "frequency": "monthly",
+      "startDate": "2026-06-01"
+    },
+    "expect": {
+      "monthlyInterest": 1000,
+      "firstDueAmount": 1000,
+      "lastDueAmount": 1000,
+      "scheduleSum": 6000
+    }
+  },
+  {
+    "id": "CALC-ORG-015",
+    "group": "origination",
+    "title": "interest_only with a daily frequency is rejected outright",
+    "rules": [
+      "MONEY-3"
+    ],
+    "why": "The rate is quoted per month; billing it daily would multiply the charge ~30x.",
+    "op": "loan.preview",
+    "input": {
+      "principal": 100000,
+      "interestType": "interest_only",
+      "interestRate": 2.5,
+      "tenure": 30,
+      "frequency": "daily",
+      "startDate": "2026-06-01"
+    },
+    "expectError": "Interest-Only loans must use a monthly frequency"
+  },
+  {
+    "id": "CALC-ORG-016",
+    "group": "origination",
+    "title": "interest_only with a weekly frequency is rejected too",
+    "rules": [
+      "MONEY-3"
+    ],
+    "op": "loan.preview",
+    "input": {
+      "principal": 100000,
+      "interestType": "interest_only",
+      "interestRate": 2.5,
+      "tenure": 12,
+      "frequency": "weekly",
+      "startDate": "2026-06-01"
+    },
+    "expectError": "Interest-Only loans must use a monthly frequency"
+  },
+  {
+    "id": "CALC-ORG-017",
+    "group": "origination",
+    "title": "an unknown interest type falls back to principal-only, never to a silent charge",
+    "rules": [
+      "MONEY-1"
+    ],
+    "op": "loan.preview",
+    "input": {
+      "principal": 10000,
+      "interestType": "something_new",
+      "interestRate": 15,
+      "tenure": 10,
+      "frequency": "daily",
+      "startDate": "2026-06-01"
+    },
+    "expect": {
+      "totalPayable": 10000,
+      "disbursedAmount": 10000,
+      "deduction": 0
+    }
+  },
+  {
+    "id": "CALC-ORG-018",
+    "group": "origination",
+    "title": "the default interest type is upfront_fixed",
+    "rules": [
+      "MONEY-1"
+    ],
+    "op": "loan.preview",
+    "input": {
+      "principal": 10000,
+      "interestRate": 500,
+      "tenure": 10,
+      "frequency": "daily",
+      "startDate": "2026-06-01"
+    },
+    "expect": {
+      "deduction": 500,
+      "disbursedAmount": 9500,
+      "totalPayable": 10000
+    }
+  },
+  {
+    "id": "CALC-ORG-019",
+    "group": "origination",
+    "title": "the rounding remainder lands on the LAST instalment, never spread",
+    "rules": [
+      "MONEY-1"
+    ],
+    "op": "loan.distribute",
+    "input": {
+      "totalPayable": 1000,
+      "tenure": 3
+    },
+    "expect": {
+      "amounts": [
+        333,
+        333,
+        334
+      ],
+      "sum": 1000
+    }
+  },
+  {
+    "id": "CALC-ORG-020",
+    "group": "origination",
+    "title": "an even split leaves every row identical",
+    "op": "loan.distribute",
+    "input": {
+      "totalPayable": 1000,
+      "tenure": 4
+    },
+    "expect": {
+      "amounts": [
+        250,
+        250,
+        250,
+        250
+      ],
+      "sum": 1000
+    }
+  },
+  {
+    "id": "CALC-ORG-021",
+    "group": "origination",
+    "title": "distribution never loses a rupee, however awkward the division",
+    "rules": [
+      "MONEY-1"
+    ],
+    "op": "loan.distribute",
+    "input": {
+      "totalPayable": 99999,
+      "tenure": 7
+    },
+    "expect": {
+      "sum": 99999,
+      "count": 7,
+      "amounts.0": 14285,
+      "amounts.6": 14289
+    }
+  },
+  {
+    "id": "CALC-ORG-022",
+    "group": "origination",
+    "title": "a tenure longer than the payable in rupees produces zero-rupee dues",
+    "why": "Documents the edge: ₹5 over 10 instalments gives nine ₹0 rows and one ₹5 row.",
+    "op": "loan.distribute",
+    "input": {
+      "totalPayable": 5,
+      "tenure": 10
+    },
+    "expect": {
+      "amounts.0": 0,
+      "amounts.9": 5,
+      "sum": 5
+    }
+  },
+  {
+    "id": "CALC-ORG-023",
+    "group": "origination",
+    "title": "isInterestOnly is the only sanctioned way to branch on the model",
+    "rules": [
+      "MONEY-4"
+    ],
+    "op": "loan.isInterestOnly",
+    "input": {
+      "interestType": "interest_only"
+    },
+    "expect": {
+      "result": true
+    }
+  },
+  {
+    "id": "CALC-ORG-024",
+    "group": "origination",
+    "title": "isInterestOnly is false for every other model and for null",
+    "rules": [
+      "MONEY-4"
+    ],
+    "op": "loan.isInterestOnly",
+    "input": {
+      "interestType": null
+    },
+    "expect": {
+      "result": false
+    }
+  },
+  {
+    "id": "CALC-ORG-025",
+    "group": "origination",
+    "title": "a one-instalment loan is a valid bullet schedule",
+    "op": "loan.preview",
+    "input": {
+      "principal": 25000,
+      "interestType": "emi_flat",
+      "interestRate": 5,
+      "tenure": 1,
+      "frequency": "monthly",
+      "startDate": "2026-06-01"
+    },
+    "expect": {
+      "totalPayable": 26250,
+      "scheduleLength": 1,
+      "perInstalment": 26250,
+      "scheduleSum": 26250
+    }
+  },
+  {
+    "id": "CALC-ORG-026",
+    "group": "origination",
+    "title": "a fee larger than the principal disburses a negative amount instead of refusing",
+    "rules": [
+      "MONEY-1"
+    ],
+    "why": "Documents live behaviour: calculateLoanPreview only rejects a NEGATIVE rate, not one that exceeds the principal, so the caller must range-check the fee.",
+    "op": "loan.preview",
+    "input": {
+      "principal": 5000,
+      "interestType": "upfront_fixed",
+      "interestRate": 6000,
+      "tenure": 10,
+      "frequency": "daily",
+      "startDate": "2026-06-01"
+    },
+    "expect": {
+      "disbursedAmount": -1000,
+      "totalPayable": 5000
+    }
+  },
+  {
+    "id": "CALC-ORG-027",
+    "group": "origination",
+    "title": "bullet term — one payment on a date measured in days, interest added at the end",
+    "rules": [
+      "MONEY-1",
+      "STABLE-2"
+    ],
+    "why": "The 15-day advance: the borrower takes the full lakh and hands back 1,03,000 on day 15. 3% over a fortnight annualises to 73%, which the quoted rate hides.",
+    "op": "loan.preview",
+    "input": {
+      "principal": 100000,
+      "interestType": "emi_flat",
+      "interestRate": 3,
+      "tenure": 1,
+      "termType": "bullet",
+      "termDays": 15,
+      "frequency": "daily",
+      "startDate": "2026-06-01"
+    },
+    "expect": {
+      "disbursedAmount": 100000,
+      "totalPayable": 103000,
+      "scheduleLength": 1,
+      "firstDueAmount": 103000,
+      "maturityDate": "2026-06-16",
+      "firstDueDate": "2026-06-16",
+      "effectiveAnnualPercent": 73,
+      "scheduleSumEqualsPayable": true
+    }
+  },
+  {
+    "id": "CALC-ORG-028",
+    "group": "origination",
+    "title": "the same advance with the charge deducted at the door costs the borrower MORE",
+    "rules": [
+      "MONEY-1"
+    ],
+    "why": "Same 3,000 to the lender, but funded out of 97,000 rather than 1,00,000 — 75.26% against 73%. The two variants are not interchangeable and the form must show both.",
+    "op": "loan.preview",
+    "input": {
+      "principal": 100000,
+      "interestType": "upfront_percentage",
+      "interestRate": 3,
+      "tenure": 1,
+      "termType": "bullet",
+      "termDays": 15,
+      "frequency": "daily",
+      "startDate": "2026-06-01"
+    },
+    "expect": {
+      "deduction": 3000,
+      "disbursedAmount": 97000,
+      "totalPayable": 100000,
+      "firstDueAmount": 100000,
+      "maturityDate": "2026-06-16",
+      "effectiveAnnualPercent": 75.26
+    }
+  },
+  {
+    "id": "CALC-ORG-029",
+    "group": "origination",
+    "title": "bullet with a flat rupee fee deducted at disbursal",
+    "rules": [
+      "MONEY-1"
+    ],
+    "op": "loan.preview",
+    "input": {
+      "principal": 50000,
+      "interestType": "upfront_fixed",
+      "interestRate": 2500,
+      "tenure": 1,
+      "termType": "bullet",
+      "termDays": 30,
+      "frequency": "daily",
+      "startDate": "2026-06-01"
+    },
+    "expect": {
+      "deduction": 2500,
+      "disbursedAmount": 47500,
+      "totalPayable": 50000,
+      "maturityDate": "2026-07-01",
+      "effectiveAnnualPercent": 64.04
+    }
+  },
+  {
+    "id": "CALC-ORG-030",
+    "group": "origination",
+    "title": "a bullet maturity counts calendar days across a month end",
+    "why": "20 Jan + 45 days is 6 Mar — day arithmetic, never a month step.",
+    "op": "loan.preview",
+    "input": {
+      "principal": 100000,
+      "interestType": "emi_flat",
+      "interestRate": 5,
+      "tenure": 1,
+      "termType": "bullet",
+      "termDays": 45,
+      "frequency": "daily",
+      "startDate": "2026-01-20"
+    },
+    "expect": {
+      "maturityDate": "2026-03-06",
+      "totalPayable": 105000
+    }
+  },
+  {
+    "id": "CALC-ORG-031",
+    "group": "origination",
+    "title": "a bullet term rejects the reducing-balance model",
+    "rules": [
+      "MONEY-1"
+    ],
+    "why": "An annuity over one period degenerates; the resulting figure cannot be explained to a borrower.",
+    "op": "loan.preview",
+    "input": {
+      "principal": 100000,
+      "interestType": "emi_floating",
+      "interestRate": 18,
+      "tenure": 1,
+      "termType": "bullet",
+      "termDays": 15,
+      "frequency": "daily",
+      "startDate": "2026-06-01"
+    },
+    "expectError": "cannot use emi_floating"
+  },
+  {
+    "id": "CALC-ORG-032",
+    "group": "origination",
+    "title": "a bullet term rejects interest-only",
+    "rules": [
+      "MONEY-3"
+    ],
+    "why": "Interest-only quotes a MONTHLY rate and has no meaning over a term of days.",
+    "op": "loan.preview",
+    "input": {
+      "principal": 100000,
+      "interestType": "interest_only",
+      "interestRate": 2.5,
+      "tenure": 1,
+      "termType": "bullet",
+      "termDays": 15,
+      "frequency": "monthly",
+      "startDate": "2026-06-01"
+    },
+    "expectError": "cannot use interest_only"
+  },
+  {
+    "id": "CALC-ORG-033",
+    "group": "origination",
+    "title": "a bullet term rejects a tenure above one",
+    "op": "loan.preview",
+    "input": {
+      "principal": 100000,
+      "interestType": "emi_flat",
+      "interestRate": 3,
+      "tenure": 5,
+      "termType": "bullet",
+      "termDays": 15,
+      "frequency": "daily",
+      "startDate": "2026-06-01"
+    },
+    "expectError": "tenure must be 1"
+  },
+  {
+    "id": "CALC-ORG-034",
+    "group": "origination",
+    "title": "a bullet term needs a positive whole number of days",
+    "op": "loan.preview",
+    "input": {
+      "principal": 100000,
+      "interestType": "emi_flat",
+      "interestRate": 3,
+      "tenure": 1,
+      "termType": "bullet",
+      "termDays": 0,
+      "frequency": "daily",
+      "startDate": "2026-06-01"
+    },
+    "expectError": "whole number of days"
+  },
+  {
+    "id": "CALC-ORG-035",
+    "group": "origination",
+    "title": "a fractional day count is refused",
+    "op": "loan.preview",
+    "input": {
+      "principal": 100000,
+      "interestType": "emi_flat",
+      "interestRate": 3,
+      "tenure": 1,
+      "termType": "bullet",
+      "termDays": 15.5,
+      "frequency": "daily",
+      "startDate": "2026-06-01"
+    },
+    "expectError": "whole number of days"
+  },
+  {
+    "id": "CALC-ORG-036",
+    "group": "origination",
+    "title": "omitting termType leaves every existing loan shape untouched",
+    "rules": [
+      "STABLE-2"
+    ],
+    "why": "Regression pin. The term axis defaults to 'scheduled', so a payload written before it existed produces byte-identical output.",
+    "op": "loan.preview",
+    "input": {
+      "principal": 10000,
+      "interestType": "upfront_fixed",
+      "interestRate": 1000,
+      "tenure": 10,
+      "frequency": "daily",
+      "startDate": "2026-06-01"
+    },
+    "expect": {
+      "scheduleLength": 10,
+      "firstDueDate": "2026-06-01",
+      "lastDueDate": "2026-06-10",
+      "maturityDate": null,
+      "effectiveAnnualPercent": null,
+      "totalPayable": 10000
+    }
+  },
+  {
+    "id": "CALC-ORG-037",
+    "group": "origination",
+    "title": "termDays is ignored while the term is scheduled",
+    "rules": [
+      "STABLE-2"
+    ],
+    "why": "A stray field must not silently reshape a cadence loan.",
+    "op": "loan.preview",
+    "input": {
+      "principal": 10000,
+      "interestType": "upfront_fixed",
+      "interestRate": 1000,
+      "tenure": 10,
+      "termType": "scheduled",
+      "termDays": 15,
+      "frequency": "daily",
+      "startDate": "2026-06-01"
+    },
+    "expect": {
+      "scheduleLength": 10,
+      "lastDueDate": "2026-06-10",
+      "maturityDate": null
+    }
+  },
+  {
+    "id": "CALC-VAL-001",
+    "group": "validation",
+    "title": "a zero principal is refused",
+    "rules": [
+      "MONEY-1"
+    ],
+    "op": "loan.preview",
+    "input": {
+      "principal": 0,
+      "interestType": "emi_flat",
+      "interestRate": 10,
+      "tenure": 10,
+      "frequency": "daily",
+      "startDate": "2026-06-01"
+    },
+    "expectError": "Principal must be greater than zero"
+  },
+  {
+    "id": "CALC-VAL-002",
+    "group": "validation",
+    "title": "a negative principal is refused",
+    "op": "loan.preview",
+    "input": {
+      "principal": -100,
+      "interestType": "emi_flat",
+      "interestRate": 10,
+      "tenure": 10,
+      "frequency": "daily",
+      "startDate": "2026-06-01"
+    },
+    "expectError": "Principal must be greater than zero"
+  },
+  {
+    "id": "CALC-VAL-003",
+    "group": "validation",
+    "title": "a non-numeric principal is refused before any arithmetic runs",
+    "op": "loan.preview",
+    "input": {
+      "principal": "abc",
+      "interestType": "emi_flat",
+      "interestRate": 10,
+      "tenure": 10,
+      "frequency": "daily",
+      "startDate": "2026-06-01"
+    },
+    "expectError": "Principal must be a valid number"
+  },
+  {
+    "id": "CALC-VAL-004",
+    "group": "validation",
+    "title": "a negative rate is refused",
+    "op": "loan.preview",
+    "input": {
+      "principal": 10000,
+      "interestType": "emi_flat",
+      "interestRate": -5,
+      "tenure": 10,
+      "frequency": "daily",
+      "startDate": "2026-06-01"
+    },
+    "expectError": "cannot be negative"
+  },
+  {
+    "id": "CALC-VAL-005",
+    "group": "validation",
+    "title": "a fractional tenure is refused — instalment counts are whole",
+    "op": "loan.preview",
+    "input": {
+      "principal": 10000,
+      "interestType": "emi_flat",
+      "interestRate": 10,
+      "tenure": 2.5,
+      "frequency": "daily",
+      "startDate": "2026-06-01"
+    },
+    "expectError": "Tenure must be a positive whole number"
+  },
+  {
+    "id": "CALC-VAL-006",
+    "group": "validation",
+    "title": "a zero tenure is refused",
+    "op": "loan.preview",
+    "input": {
+      "principal": 10000,
+      "interestType": "emi_flat",
+      "interestRate": 10,
+      "tenure": 0,
+      "frequency": "daily",
+      "startDate": "2026-06-01"
+    },
+    "expectError": "Tenure must be a positive whole number"
+  },
+  {
+    "id": "CALC-VAL-007",
+    "group": "validation",
+    "title": "an unparseable start date is refused",
+    "op": "loan.preview",
+    "input": {
+      "principal": 10000,
+      "interestType": "emi_flat",
+      "interestRate": 10,
+      "tenure": 10,
+      "frequency": "daily",
+      "startDate": "not-a-date"
+    },
+    "expectError": "Invalid start date"
+  },
+  {
+    "id": "CALC-VAL-008",
+    "group": "validation",
+    "title": "the origination guard accepts a well-formed set of numbers",
+    "op": "loan.validate",
+    "input": {
+      "principal": 10000,
+      "rate": 10,
+      "tenure": 12,
+      "penaltyRate": 50
+    },
+    "expect": {
+      "valid": true,
+      "error": null
+    }
+  },
+  {
+    "id": "CALC-VAL-009",
+    "group": "validation",
+    "title": "the origination guard rejects a negative penalty rate",
+    "rules": [
+      "MONEY-14"
+    ],
+    "op": "loan.validate",
+    "input": {
+      "principal": 10000,
+      "rate": 10,
+      "tenure": 12,
+      "penaltyRate": -1
+    },
+    "expect": {
+      "valid": false,
+      "error": "Penalty rate cannot be negative."
+    }
+  },
+  {
+    "id": "CALC-VAL-010",
+    "group": "validation",
+    "title": "the origination guard rejects a zero principal with the same wording as the calculator",
+    "op": "loan.validate",
+    "input": {
+      "principal": 0,
+      "rate": 10,
+      "tenure": 12,
+      "penaltyRate": 0
+    },
+    "expect": {
+      "valid": false,
+      "error": "Principal must be greater than zero."
+    }
+  },
+  {
+    "id": "CALC-VAL-011",
+    "group": "validation",
+    "title": "a zero penalty rate is legitimate — penalties are opt-in",
+    "rules": [
+      "MONEY-14"
+    ],
+    "op": "loan.validate",
+    "input": {
+      "principal": 10000,
+      "rate": 0,
+      "tenure": 1,
+      "penaltyRate": 0
+    },
+    "expect": {
+      "valid": true
+    }
+  },
+  {
+    "id": "CALC-VAL-012",
+    "group": "validation",
+    "title": "agents may originate; a customer role may not",
+    "rules": [
+      "ROLE-4"
+    ],
+    "op": "loan.canCreateForRole",
+    "input": {
+      "role": "agent"
+    },
+    "expect": {
+      "result": true
+    }
+  },
+  {
+    "id": "CALC-VAL-013",
+    "group": "validation",
+    "title": "an unknown role may not originate",
+    "rules": [
+      "ROLE-4"
+    ],
+    "op": "loan.canCreateForRole",
+    "input": {
+      "role": "customer"
+    },
+    "expect": {
+      "result": false
+    }
+  },
+  {
+    "id": "CALC-SCH-001",
+    "group": "schedule",
+    "title": "daily schedules run on consecutive calendar days from the start date",
+    "rules": [
+      "MONEY-1"
+    ],
+    "op": "schedule.dates",
+    "input": {
+      "startDate": "2026-06-01",
+      "frequency": "daily",
+      "tenure": 10,
+      "dueDay": null
+    },
+    "expect": {
+      "count": 10,
+      "first": "2026-06-01",
+      "last": "2026-06-10"
+    }
+  },
+  {
+    "id": "CALC-SCH-002",
+    "group": "schedule",
+    "title": "daily schedules ignore dueDay entirely",
+    "why": "A day-of-week has no meaning for a loan collected every day.",
+    "op": "schedule.dates",
+    "input": {
+      "startDate": "2026-06-01",
+      "frequency": "daily",
+      "tenure": 5,
+      "dueDay": 3
+    },
+    "expect": {
+      "dates": [
+        "2026-06-01",
+        "2026-06-02",
+        "2026-06-03",
+        "2026-06-04",
+        "2026-06-05"
+      ]
+    }
+  },
+  {
+    "id": "CALC-SCH-003",
+    "group": "schedule",
+    "title": "a weekly schedule with no dueDay starts on the start date and steps 7 days",
+    "op": "schedule.dates",
+    "input": {
+      "startDate": "2026-06-03",
+      "frequency": "weekly",
+      "tenure": 4,
+      "dueDay": null
+    },
+    "expect": {
+      "dates": [
+        "2026-06-03",
+        "2026-06-10",
+        "2026-06-17",
+        "2026-06-24"
+      ]
+    }
+  },
+  {
+    "id": "CALC-SCH-004",
+    "group": "schedule",
+    "title": "a weekly dueDay rolls FORWARD to the next matching weekday",
+    "why": "dueDay 1 is Monday; a Wednesday start must not back-date the first due.",
+    "op": "schedule.dates",
+    "input": {
+      "startDate": "2026-06-03",
+      "frequency": "weekly",
+      "tenure": 4,
+      "dueDay": 1
+    },
+    "expect": {
+      "dates": [
+        "2026-06-08",
+        "2026-06-15",
+        "2026-06-22",
+        "2026-06-29"
+      ]
+    }
+  },
+  {
+    "id": "CALC-SCH-005",
+    "group": "schedule",
+    "title": "a weekly dueDay equal to the start weekday uses the start date itself",
+    "op": "schedule.dates",
+    "input": {
+      "startDate": "2026-06-01",
+      "frequency": "weekly",
+      "tenure": 3,
+      "dueDay": 1
+    },
+    "expect": {
+      "dates": [
+        "2026-06-01",
+        "2026-06-08",
+        "2026-06-15"
+      ]
+    }
+  },
+  {
+    "id": "CALC-SCH-006",
+    "group": "schedule",
+    "title": "biweekly steps 14 days from the first matching weekday",
+    "op": "schedule.dates",
+    "input": {
+      "startDate": "2026-06-01",
+      "frequency": "biweekly",
+      "tenure": 3,
+      "dueDay": 5
+    },
+    "expect": {
+      "dates": [
+        "2026-06-05",
+        "2026-06-19",
+        "2026-07-03"
+      ]
+    }
+  },
+  {
+    "id": "CALC-SCH-007",
+    "group": "schedule",
+    "title": "biweekly with no dueDay steps 14 days from the start date",
+    "op": "schedule.dates",
+    "input": {
+      "startDate": "2026-06-01",
+      "frequency": "biweekly",
+      "tenure": 3,
+      "dueDay": null
+    },
+    "expect": {
+      "dates": [
+        "2026-06-01",
+        "2026-06-15",
+        "2026-06-29"
+      ]
+    }
+  },
+  {
+    "id": "CALC-SCH-008",
+    "group": "schedule",
+    "title": "a monthly dueDay already past in the start month moves the first due to next month",
+    "why": "Starting on the 10th with a due day of the 5th must not bill five days in the past.",
+    "op": "schedule.dates",
+    "input": {
+      "startDate": "2026-06-10",
+      "frequency": "monthly",
+      "tenure": 3,
+      "dueDay": 5
+    },
+    "expect": {
+      "dates": [
+        "2026-07-05",
+        "2026-08-05",
+        "2026-09-05"
+      ]
+    }
+  },
+  {
+    "id": "CALC-SCH-009",
+    "group": "schedule",
+    "title": "a monthly dueDay still ahead in the start month bills this month",
+    "op": "schedule.dates",
+    "input": {
+      "startDate": "2026-06-01",
+      "frequency": "monthly",
+      "tenure": 3,
+      "dueDay": 5
+    },
+    "expect": {
+      "dates": [
+        "2026-06-05",
+        "2026-07-05",
+        "2026-08-05"
+      ]
+    }
+  },
+  {
+    "id": "CALC-SCH-010",
+    "group": "schedule",
+    "title": "a monthly dueDay past 28 is clamped to 28 so every month can honour it",
+    "why": "Choosing the 31st must not skip February. The clamp is the product decision.",
+    "op": "schedule.dates",
+    "input": {
+      "startDate": "2026-01-01",
+      "frequency": "monthly",
+      "tenure": 3,
+      "dueDay": 31
+    },
+    "expect": {
+      "dates": [
+        "2026-01-28",
+        "2026-02-28",
+        "2026-03-28"
+      ]
+    }
+  },
+  {
+    "id": "CALC-SCH-011",
+    "group": "schedule",
+    "title": "a monthly schedule with no dueDay clamps to the month end instead of overflowing",
+    "why": "31 Jan + 1 month is 28 Feb, not 3 Mar. This is the anniversary-day path.",
+    "op": "schedule.dates",
+    "input": {
+      "startDate": "2026-01-31",
+      "frequency": "monthly",
+      "tenure": 4,
+      "dueDay": null
+    },
+    "expect": {
+      "dates": [
+        "2026-01-31",
+        "2026-02-28",
+        "2026-03-31",
+        "2026-04-30"
+      ]
+    }
+  },
+  {
+    "id": "CALC-SCH-012",
+    "group": "schedule",
+    "title": "a monthly schedule crosses the year boundary correctly",
+    "op": "schedule.dates",
+    "input": {
+      "startDate": "2026-11-15",
+      "frequency": "monthly",
+      "tenure": 4,
+      "dueDay": null
+    },
+    "expect": {
+      "dates": [
+        "2026-11-15",
+        "2026-12-15",
+        "2027-01-15",
+        "2027-02-15"
+      ]
+    }
+  },
+  {
+    "id": "CALC-SCH-013",
+    "group": "schedule",
+    "title": "a monthly dueDay schedule crosses the year boundary correctly",
+    "op": "schedule.dates",
+    "input": {
+      "startDate": "2026-11-20",
+      "frequency": "monthly",
+      "tenure": 3,
+      "dueDay": 10
+    },
+    "expect": {
+      "dates": [
+        "2026-12-10",
+        "2027-01-10",
+        "2027-02-10"
+      ]
+    }
+  },
+  {
+    "id": "CALC-SCH-014",
+    "group": "schedule",
+    "title": "a daily schedule crosses a leap-year February without a gap",
+    "op": "schedule.dates",
+    "input": {
+      "startDate": "2028-02-27",
+      "frequency": "daily",
+      "tenure": 4,
+      "dueDay": null
+    },
+    "expect": {
+      "dates": [
+        "2028-02-27",
+        "2028-02-28",
+        "2028-02-29",
+        "2028-03-01"
+      ]
+    }
+  },
+  {
+    "id": "CALC-SCH-015",
+    "group": "schedule",
+    "title": "the maturity date of a daily loan is start + tenure days",
+    "op": "schedule.endDate",
+    "input": {
+      "startDate": "2026-06-01",
+      "frequency": "daily",
+      "tenure": 30
+    },
+    "expect": {
+      "endDate": "2026-07-01"
+    }
+  },
+  {
+    "id": "CALC-SCH-016",
+    "group": "schedule",
+    "title": "the maturity date of a monthly loan is start + tenure months",
+    "op": "schedule.endDate",
+    "input": {
+      "startDate": "2026-06-01",
+      "frequency": "monthly",
+      "tenure": 12
+    },
+    "expect": {
+      "endDate": "2027-06-01"
+    }
+  },
+  {
+    "id": "CALC-SCH-017",
+    "group": "schedule",
+    "title": "the maturity date of a weekly loan is start + 7×tenure days",
+    "op": "schedule.endDate",
+    "input": {
+      "startDate": "2026-06-01",
+      "frequency": "weekly",
+      "tenure": 10
+    },
+    "expect": {
+      "endDate": "2026-08-10"
+    }
+  },
+  {
+    "id": "CALC-SCH-018",
+    "group": "schedule",
+    "title": "a 365-day schedule generates exactly 365 rows",
+    "op": "schedule.dates",
+    "input": {
+      "startDate": "2026-01-01",
+      "frequency": "daily",
+      "tenure": 365,
+      "dueDay": null
+    },
+    "expect": {
+      "count": 365,
+      "first": "2026-01-01",
+      "last": "2026-12-31"
+    }
+  },
+  {
+    "id": "CALC-ALO-001",
+    "group": "allocation",
+    "title": "a payment fills instalments oldest-first and marks the shortfall partial",
+    "rules": [
+      "MONEY-11"
+    ],
+    "op": "repay.allocate",
+    "input": {
+      "now": "2026-06-03",
+      "totalCollected": 250,
+      "instalments": [
+        {
+          "id": "i1",
+          "instalmentNo": 1,
+          "dueDate": "2026-06-01",
+          "dueAmount": 100
+        },
+        {
+          "id": "i2",
+          "instalmentNo": 2,
+          "dueDate": "2026-06-02",
+          "dueAmount": 100
+        },
+        {
+          "id": "i3",
+          "instalmentNo": 3,
+          "dueDate": "2026-06-03",
+          "dueAmount": 100
+        }
+      ]
+    },
+    "expect": {
+      "received": [
+        100,
+        100,
+        50
+      ],
+      "statuses": [
+        "paid",
+        "paid",
+        "partial"
+      ],
+      "paidCount": 2,
+      "totalCollected": 250,
+      "totalDue": 300,
+      "outstandingAmount": 50,
+      "overdueAmount": 0,
+      "loanStatus": "active"
+    }
+  },
+  {
+    "id": "CALC-ALO-002",
+    "group": "allocation",
+    "title": "nothing collected leaves every past due missed and the loan overdue",
+    "rules": [
+      "MONEY-11"
+    ],
+    "op": "repay.allocate",
+    "input": {
+      "now": "2026-06-05",
+      "totalCollected": 0,
+      "instalments": [
+        {
+          "id": "i1",
+          "instalmentNo": 1,
+          "dueDate": "2026-06-01",
+          "dueAmount": 100
+        },
+        {
+          "id": "i2",
+          "instalmentNo": 2,
+          "dueDate": "2026-06-02",
+          "dueAmount": 100
+        },
+        {
+          "id": "i3",
+          "instalmentNo": 3,
+          "dueDate": "2026-06-03",
+          "dueAmount": 100
+        }
+      ]
+    },
+    "expect": {
+      "statuses": [
+        "missed",
+        "missed",
+        "missed"
+      ],
+      "outstandingAmount": 300,
+      "overdueAmount": 300,
+      "overdueCount": 3,
+      "loanStatus": "overdue",
+      "daysOverdue": [
+        4,
+        3,
+        2
+      ]
+    }
+  },
+  {
+    "id": "CALC-ALO-003",
+    "group": "allocation",
+    "title": "settling every instalment closes the loan",
+    "rules": [
+      "MONEY-11"
+    ],
+    "op": "repay.allocate",
+    "input": {
+      "now": "2026-06-05",
+      "totalCollected": 300,
+      "instalments": [
+        {
+          "id": "i1",
+          "instalmentNo": 1,
+          "dueDate": "2026-06-01",
+          "dueAmount": 100
+        },
+        {
+          "id": "i2",
+          "instalmentNo": 2,
+          "dueDate": "2026-06-02",
+          "dueAmount": 100
+        },
+        {
+          "id": "i3",
+          "instalmentNo": 3,
+          "dueDate": "2026-06-03",
+          "dueAmount": 100
+        }
+      ]
+    },
+    "expect": {
+      "statuses": [
+        "paid",
+        "paid",
+        "paid"
+      ],
+      "loanStatus": "closed",
+      "outstandingAmount": 0
+    }
+  },
+  {
+    "id": "CALC-ALO-004",
+    "group": "allocation",
+    "title": "an overpayment is capped at the total due — no instalment absorbs more than it owes",
+    "rules": [
+      "MONEY-11"
+    ],
+    "op": "repay.allocate",
+    "input": {
+      "now": "2026-06-05",
+      "totalCollected": 1000,
+      "instalments": [
+        {
+          "id": "i1",
+          "instalmentNo": 1,
+          "dueDate": "2026-06-01",
+          "dueAmount": 100
+        },
+        {
+          "id": "i2",
+          "instalmentNo": 2,
+          "dueDate": "2026-06-02",
+          "dueAmount": 100
+        }
+      ]
+    },
+    "expect": {
+      "received": [
+        100,
+        100
+      ],
+      "totalCollected": 200,
+      "loanStatus": "closed"
+    }
+  },
+  {
+    "id": "CALC-ALO-005",
+    "group": "allocation",
+    "title": "a future-dated unpaid instalment is upcoming, never missed",
+    "rules": [
+      "MONEY-11"
+    ],
+    "op": "repay.allocate",
+    "input": {
+      "now": "2026-06-01",
+      "totalCollected": 0,
+      "instalments": [
+        {
+          "id": "i1",
+          "instalmentNo": 1,
+          "dueDate": "2026-06-01",
+          "dueAmount": 100
+        },
+        {
+          "id": "i2",
+          "instalmentNo": 2,
+          "dueDate": "2026-06-02",
+          "dueAmount": 100
+        }
+      ]
+    },
+    "expect": {
+      "statuses": [
+        "upcoming",
+        "upcoming"
+      ],
+      "overdueAmount": 0,
+      "loanStatus": "active"
+    }
+  },
+  {
+    "id": "CALC-ALO-006",
+    "group": "allocation",
+    "title": "today's due is not yet overdue — the clock starts the day after",
+    "rules": [
+      "MONEY-11"
+    ],
+    "op": "repay.allocate",
+    "input": {
+      "now": "2026-06-02",
+      "totalCollected": 0,
+      "instalments": [
+        {
+          "id": "i1",
+          "instalmentNo": 1,
+          "dueDate": "2026-06-01",
+          "dueAmount": 100
+        },
+        {
+          "id": "i2",
+          "instalmentNo": 2,
+          "dueDate": "2026-06-02",
+          "dueAmount": 100
+        }
+      ]
+    },
+    "expect": {
+      "statuses": [
+        "missed",
+        "upcoming"
+      ],
+      "overdue": [
+        100,
+        0
+      ],
+      "daysOverdue": [
+        1,
+        0
+      ]
+    }
+  },
+  {
+    "id": "CALC-ALO-007",
+    "group": "allocation",
+    "title": "the pure allocator lets a WAIVED instalment swallow the payment",
+    "rules": [
+      "MONEY-11"
+    ],
+    "why": "Divergence, pinned deliberately. allocatePaymentsAcrossInstalments keeps the waived row in the fill order, so it absorbs ₹100 and the real payable row reads missed. The persistence path (reallocateLoanRepayments) filters waived rows out BEFORE allocating and does not behave this way. The pure allocator has no production caller today — wiring one up without adding the same filter would mis-state collections.",
+    "op": "repay.allocate",
+    "input": {
+      "now": "2026-06-05",
+      "totalCollected": 100,
+      "instalments": [
+        {
+          "id": "i1",
+          "instalmentNo": 1,
+          "dueDate": "2026-06-01",
+          "dueAmount": 100,
+          "status": "waived"
+        },
+        {
+          "id": "i2",
+          "instalmentNo": 2,
+          "dueDate": "2026-06-02",
+          "dueAmount": 100
+        }
+      ]
+    },
+    "expect": {
+      "statuses": [
+        "waived",
+        "missed"
+      ],
+      "received": [
+        100,
+        0
+      ],
+      "overdueAmount": 100
+    }
+  },
+  {
+    "id": "CALC-ALO-008",
+    "group": "allocation",
+    "title": "the loan-level fill order is today first, then the oldest arrears, then the future",
+    "rules": [
+      "MONEY-10"
+    ],
+    "why": "Paying today's amount keeps today clean even when a backlog exists — a deliberate business decision, not a sort accident.",
+    "op": "repay.fillOrder",
+    "input": {
+      "now": "2026-06-05",
+      "instalments": [
+        {
+          "instalmentNo": 1,
+          "dueDate": "2026-06-01"
+        },
+        {
+          "instalmentNo": 2,
+          "dueDate": "2026-06-02"
+        },
+        {
+          "instalmentNo": 5,
+          "dueDate": "2026-06-05"
+        },
+        {
+          "instalmentNo": 6,
+          "dueDate": "2026-06-06"
+        }
+      ]
+    },
+    "expect": {
+      "order": [
+        5,
+        1,
+        2,
+        6
+      ]
+    }
+  },
+  {
+    "id": "CALC-ALO-009",
+    "group": "allocation",
+    "title": "with no due today the order is oldest arrears first, then the future",
+    "rules": [
+      "MONEY-10"
+    ],
+    "op": "repay.fillOrder",
+    "input": {
+      "now": "2026-06-04",
+      "instalments": [
+        {
+          "instalmentNo": 3,
+          "dueDate": "2026-06-03"
+        },
+        {
+          "instalmentNo": 1,
+          "dueDate": "2026-06-01"
+        },
+        {
+          "instalmentNo": 7,
+          "dueDate": "2026-06-07"
+        }
+      ]
+    },
+    "expect": {
+      "order": [
+        1,
+        3,
+        7
+      ]
+    }
+  },
+  {
+    "id": "CALC-ALO-010",
+    "group": "allocation",
+    "title": "same-day dues break the tie by instalment number",
+    "rules": [
+      "MONEY-10"
+    ],
+    "op": "repay.fillOrder",
+    "input": {
+      "now": "2026-06-10",
+      "instalments": [
+        {
+          "instalmentNo": 4,
+          "dueDate": "2026-06-02"
+        },
+        {
+          "instalmentNo": 2,
+          "dueDate": "2026-06-02"
+        },
+        {
+          "instalmentNo": 3,
+          "dueDate": "2026-06-02"
+        }
+      ]
+    },
+    "expect": {
+      "order": [
+        2,
+        3,
+        4
+      ]
+    }
+  },
+  {
+    "id": "CALC-ALO-011",
+    "group": "allocation",
+    "title": "a fully settled schedule closes the loan",
+    "rules": [
+      "MONEY-11"
+    ],
+    "op": "repay.loanStatus",
+    "input": {
+      "paidCount": 5,
+      "waivedCount": 0,
+      "totalInstalments": 5,
+      "overdueAmount": 0
+    },
+    "expect": {
+      "status": "closed"
+    }
+  },
+  {
+    "id": "CALC-ALO-012",
+    "group": "allocation",
+    "title": "waived instalments count towards closure",
+    "rules": [
+      "MONEY-11"
+    ],
+    "op": "repay.loanStatus",
+    "input": {
+      "paidCount": 3,
+      "waivedCount": 2,
+      "totalInstalments": 5,
+      "overdueAmount": 0
+    },
+    "expect": {
+      "status": "closed"
+    }
+  },
+  {
+    "id": "CALC-ALO-013",
+    "group": "allocation",
+    "title": "an interest-only loan does NOT close when the interest schedule is settled",
+    "rules": [
+      "MONEY-4",
+      "MONEY-11"
+    ],
+    "why": "Twelve months of interest paid must not mark a ₹10L principal repaid.",
+    "op": "repay.loanStatus",
+    "input": {
+      "paidCount": 12,
+      "waivedCount": 0,
+      "totalInstalments": 12,
+      "overdueAmount": 0,
+      "principalOutstanding": 1000000
+    },
+    "expect": {
+      "status": "active"
+    }
+  },
+  {
+    "id": "CALC-ALO-014",
+    "group": "allocation",
+    "title": "an interest-only loan closes once the principal bullet is also settled",
+    "rules": [
+      "MONEY-4"
+    ],
+    "op": "repay.loanStatus",
+    "input": {
+      "paidCount": 12,
+      "waivedCount": 0,
+      "totalInstalments": 12,
+      "overdueAmount": 0,
+      "principalOutstanding": 0
+    },
+    "expect": {
+      "status": "closed"
+    }
+  },
+  {
+    "id": "CALC-ALO-015",
+    "group": "allocation",
+    "title": "any overdue amount makes the loan overdue",
+    "rules": [
+      "MONEY-11"
+    ],
+    "op": "repay.loanStatus",
+    "input": {
+      "paidCount": 2,
+      "waivedCount": 0,
+      "totalInstalments": 5,
+      "overdueAmount": 1,
+      "principalOutstanding": 0
+    },
+    "expect": {
+      "status": "overdue"
+    }
+  },
+  {
+    "id": "CALC-ALO-016",
+    "group": "allocation",
+    "title": "a loan with dues ahead and nothing overdue is active",
+    "op": "repay.loanStatus",
+    "input": {
+      "paidCount": 2,
+      "waivedCount": 0,
+      "totalInstalments": 5,
+      "overdueAmount": 0
+    },
+    "expect": {
+      "status": "active"
+    }
+  },
+  {
+    "id": "CALC-ALO-017",
+    "group": "allocation",
+    "title": "instalment outstanding never goes negative on an overpaid row",
+    "op": "repay.instalmentOutstanding",
+    "input": {
+      "dueAmount": 100,
+      "receivedAmount": 150
+    },
+    "expect": {
+      "outstanding": 0
+    }
+  },
+  {
+    "id": "CALC-ALO-018",
+    "group": "allocation",
+    "title": "instalment outstanding is due minus received",
+    "op": "repay.instalmentOutstanding",
+    "input": {
+      "dueAmount": 2500,
+      "receivedAmount": 1000
+    },
+    "expect": {
+      "outstanding": 1500
+    }
+  },
+  {
+    "id": "CALC-PEN-001",
+    "group": "penalty",
+    "title": "accrual is per overdue DAY across every missed instalment, after grace",
+    "rules": [
+      "MONEY-14"
+    ],
+    "why": "Two overdue rows at 10 and 6 days with 2 days' grace = 8 + 4 = 12 chargeable days.",
+    "op": "penalty.accrual",
+    "input": {
+      "asOf": "2026-01-11",
+      "penaltyPerDay": 50,
+      "gracePeriodDays": 2,
+      "maxCap": 0,
+      "overdueInstalments": [
+        {
+          "dueDate": "2026-01-01"
+        },
+        {
+          "dueDate": "2026-01-05"
+        }
+      ]
+    },
+    "expect": {
+      "missedDays": 12,
+      "grossPenalty": 600
+    }
+  },
+  {
+    "id": "CALC-PEN-002",
+    "group": "penalty",
+    "title": "with no grace every overdue day is chargeable",
+    "rules": [
+      "MONEY-14"
+    ],
+    "op": "penalty.accrual",
+    "input": {
+      "asOf": "2026-01-11",
+      "penaltyPerDay": 50,
+      "gracePeriodDays": 0,
+      "maxCap": 0,
+      "overdueInstalments": [
+        {
+          "dueDate": "2026-01-01"
+        },
+        {
+          "dueDate": "2026-01-05"
+        }
+      ]
+    },
+    "expect": {
+      "missedDays": 16,
+      "grossPenalty": 800
+    }
+  },
+  {
+    "id": "CALC-PEN-003",
+    "group": "penalty",
+    "title": "a non-zero cap limits the gross penalty but not the day count",
+    "rules": [
+      "MONEY-14"
+    ],
+    "why": "missedDays stays the true figure so the cap is visible rather than hidden in the arithmetic.",
+    "op": "penalty.accrual",
+    "input": {
+      "asOf": "2026-01-11",
+      "penaltyPerDay": 50,
+      "gracePeriodDays": 0,
+      "maxCap": 500,
+      "overdueInstalments": [
+        {
+          "dueDate": "2026-01-01"
+        },
+        {
+          "dueDate": "2026-01-05"
+        }
+      ]
+    },
+    "expect": {
+      "missedDays": 16,
+      "grossPenalty": 500
+    }
+  },
+  {
+    "id": "CALC-PEN-004",
+    "group": "penalty",
+    "title": "a cap of zero means uncapped, not zero penalty",
+    "rules": [
+      "MONEY-14"
+    ],
+    "op": "penalty.accrual",
+    "input": {
+      "asOf": "2026-02-01",
+      "penaltyPerDay": 20,
+      "gracePeriodDays": 0,
+      "maxCap": 0,
+      "overdueInstalments": [
+        {
+          "dueDate": "2026-01-01"
+        }
+      ]
+    },
+    "expect": {
+      "missedDays": 31,
+      "grossPenalty": 620
+    }
+  },
+  {
+    "id": "CALC-PEN-005",
+    "group": "penalty",
+    "title": "an instalment inside its grace window accrues nothing",
+    "rules": [
+      "MONEY-14"
+    ],
+    "op": "penalty.accrual",
+    "input": {
+      "asOf": "2026-01-04",
+      "penaltyPerDay": 50,
+      "gracePeriodDays": 5,
+      "maxCap": 0,
+      "overdueInstalments": [
+        {
+          "dueDate": "2026-01-01"
+        }
+      ]
+    },
+    "expect": {
+      "missedDays": 0,
+      "grossPenalty": 0
+    }
+  },
+  {
+    "id": "CALC-PEN-006",
+    "group": "penalty",
+    "title": "grace is applied per instalment, not once per loan",
+    "rules": [
+      "MONEY-14"
+    ],
+    "why": "Three rows at 5 days overdue with 5 days' grace charge nothing at all.",
+    "op": "penalty.accrual",
+    "input": {
+      "asOf": "2026-01-06",
+      "penaltyPerDay": 50,
+      "gracePeriodDays": 5,
+      "maxCap": 0,
+      "overdueInstalments": [
+        {
+          "dueDate": "2026-01-01"
+        },
+        {
+          "dueDate": "2026-01-01"
+        },
+        {
+          "dueDate": "2026-01-01"
+        }
+      ]
+    },
+    "expect": {
+      "missedDays": 0,
+      "grossPenalty": 0
+    }
+  },
+  {
+    "id": "CALC-PEN-007",
+    "group": "penalty",
+    "title": "a future-dated instalment never accrues a penalty",
+    "rules": [
+      "MONEY-14"
+    ],
+    "op": "penalty.accrual",
+    "input": {
+      "asOf": "2026-01-11",
+      "penaltyPerDay": 50,
+      "gracePeriodDays": 0,
+      "maxCap": 0,
+      "overdueInstalments": [
+        {
+          "dueDate": "2026-02-01"
+        }
+      ]
+    },
+    "expect": {
+      "missedDays": 0,
+      "grossPenalty": 0
+    }
+  },
+  {
+    "id": "CALC-PEN-008",
+    "group": "penalty",
+    "title": "an instalment due today accrues nothing — day zero is not a day late",
+    "rules": [
+      "MONEY-14"
+    ],
+    "op": "penalty.accrual",
+    "input": {
+      "asOf": "2026-01-11",
+      "penaltyPerDay": 50,
+      "gracePeriodDays": 0,
+      "maxCap": 0,
+      "overdueInstalments": [
+        {
+          "dueDate": "2026-01-11"
+        }
+      ]
+    },
+    "expect": {
+      "missedDays": 0,
+      "grossPenalty": 0
+    }
+  },
+  {
+    "id": "CALC-PEN-009",
+    "group": "penalty",
+    "title": "no overdue instalments means no accrual",
+    "op": "penalty.accrual",
+    "input": {
+      "asOf": "2026-01-11",
+      "penaltyPerDay": 50,
+      "gracePeriodDays": 0,
+      "maxCap": 0,
+      "overdueInstalments": []
+    },
+    "expect": {
+      "missedDays": 0,
+      "grossPenalty": 0
+    }
+  },
+  {
+    "id": "CALC-PEN-010",
+    "group": "penalty",
+    "title": "a per-day rate of zero means the tenant has not configured penalties",
+    "rules": [
+      "MONEY-14"
+    ],
+    "op": "penalty.accrual",
+    "input": {
+      "asOf": "2026-02-01",
+      "penaltyPerDay": 0,
+      "gracePeriodDays": 0,
+      "maxCap": 0,
+      "overdueInstalments": [
+        {
+          "dueDate": "2026-01-01"
+        }
+      ]
+    },
+    "expect": {
+      "missedDays": 31,
+      "grossPenalty": 0
+    }
+  },
+  {
+    "id": "CALC-PEN-011",
+    "group": "penalty",
+    "title": "a fractional per-day rate is carried through without rounding",
+    "rules": [
+      "MONEY-14"
+    ],
+    "op": "penalty.accrual",
+    "input": {
+      "asOf": "2026-01-11",
+      "penaltyPerDay": 12.5,
+      "gracePeriodDays": 0,
+      "maxCap": 0,
+      "overdueInstalments": [
+        {
+          "dueDate": "2026-01-01"
+        }
+      ]
+    },
+    "expect": {
+      "missedDays": 10,
+      "grossPenalty": 125
+    }
+  },
+  {
+    "id": "CALC-PEN-012",
+    "group": "penalty",
+    "title": "the recorded gross penalty only ever increases",
+    "rules": [
+      "MONEY-15"
+    ],
+    "why": "A reduction is a waiver, recorded as waivedAmount — never by rewriting gross.",
+    "op": "penalty.shouldUpdate",
+    "input": {
+      "existing": 500,
+      "next": 600
+    },
+    "expect": {
+      "result": true
+    }
+  },
+  {
+    "id": "CALC-PEN-013",
+    "group": "penalty",
+    "title": "a smaller recomputed penalty is refused, so a waiver cannot be undone by the cron",
+    "rules": [
+      "MONEY-15"
+    ],
+    "op": "penalty.shouldUpdate",
+    "input": {
+      "existing": 500,
+      "next": 400
+    },
+    "expect": {
+      "result": false
+    }
+  },
+  {
+    "id": "CALC-PEN-014",
+    "group": "penalty",
+    "title": "an unchanged penalty writes nothing",
+    "rules": [
+      "MONEY-15"
+    ],
+    "op": "penalty.shouldUpdate",
+    "input": {
+      "existing": 500,
+      "next": 500
+    },
+    "expect": {
+      "result": false
+    }
+  },
+  {
+    "id": "CALC-PEN-015",
+    "group": "penalty",
+    "title": "a long default accrues linearly — one year at ₹10/day is ₹3,650",
+    "rules": [
+      "MONEY-14"
+    ],
+    "op": "penalty.accrual",
+    "input": {
+      "asOf": "2027-01-01",
+      "penaltyPerDay": 10,
+      "gracePeriodDays": 0,
+      "maxCap": 0,
+      "overdueInstalments": [
+        {
+          "dueDate": "2026-01-01"
+        }
+      ]
+    },
+    "expect": {
+      "missedDays": 365,
+      "grossPenalty": 3650
+    }
+  },
+  {
+    "id": "CALC-FCL-001",
+    "group": "foreclosure",
+    "title": "settlement = principal outstanding + net penalty, with collections netted off principal",
+    "rules": [
+      "MONEY-4"
+    ],
+    "op": "foreclosure.build",
+    "input": {
+      "now": "2026-06-10",
+      "discount": 0,
+      "loan": {
+        "id": "L1",
+        "loanCode": "DL0001",
+        "status": "active",
+        "principal": 50000,
+        "totalCollected": 20000,
+        "totalInstalments": 10,
+        "deductionType": "upfront_fixed",
+        "customer": {
+          "name": "A",
+          "customerCode": "C1",
+          "phone": "9000000000"
+        },
+        "instalments": [
+          {
+            "status": "paid"
+          },
+          {
+            "status": "paid"
+          },
+          {
+            "status": "paid"
+          },
+          {
+            "status": "paid"
+          },
+          {
+            "status": "partial"
+          },
+          {
+            "status": "missed"
+          },
+          {
+            "status": "missed"
+          },
+          {
+            "status": "upcoming"
+          },
+          {
+            "status": "upcoming"
+          },
+          {
+            "status": "upcoming"
+          }
+        ],
+        "penalties": [
+          {
+            "grossPenalty": 1000,
+            "settledAmount": 200,
+            "waivedAmount": 100
+          }
+        ]
+      }
+    },
+    "expect": {
+      "canForeclose": true,
+      "principalOutstanding": 30000,
+      "netPenaltyDue": 700,
+      "totalSettlementAmount": 30700,
+      "paidInstalments": 5,
+      "missedInstalments": 2,
+      "remainingInstalments": 3
+    }
+  },
+  {
+    "id": "CALC-FCL-002",
+    "group": "foreclosure",
+    "title": "a discount reduces the settlement rupee for rupee",
+    "op": "foreclosure.build",
+    "input": {
+      "now": "2026-06-10",
+      "discount": 700,
+      "loan": {
+        "id": "L1",
+        "loanCode": "DL0001",
+        "status": "active",
+        "principal": 50000,
+        "totalCollected": 20000,
+        "totalInstalments": 10,
+        "deductionType": "upfront_fixed",
+        "customer": {
+          "name": "A",
+          "customerCode": "C1",
+          "phone": "9000000000"
+        },
+        "instalments": [
+          {
+            "status": "paid"
+          }
+        ],
+        "penalties": [
+          {
+            "grossPenalty": 1000,
+            "settledAmount": 200,
+            "waivedAmount": 100
+          }
+        ]
+      }
+    },
+    "expect": {
+      "discount": 700,
+      "totalSettlementAmount": 30000
+    }
+  },
+  {
+    "id": "CALC-FCL-003",
+    "group": "foreclosure",
+    "title": "a discount larger than the balance is clamped — a settlement never goes negative",
+    "rules": [
+      "MONEY-16"
+    ],
+    "op": "foreclosure.build",
+    "input": {
+      "now": "2026-06-10",
+      "discount": 999999,
+      "loan": {
+        "id": "L1",
+        "loanCode": "DL0001",
+        "status": "active",
+        "principal": 50000,
+        "totalCollected": 20000,
+        "totalInstalments": 10,
+        "deductionType": "upfront_fixed",
+        "customer": {
+          "name": "A",
+          "customerCode": "C1",
+          "phone": "9000000000"
+        },
+        "instalments": [
+          {
+            "status": "paid"
+          }
+        ],
+        "penalties": [
+          {
+            "grossPenalty": 1000,
+            "settledAmount": 200,
+            "waivedAmount": 100
+          }
+        ]
+      }
+    },
+    "expect": {
+      "discount": 30700,
+      "totalSettlementAmount": 0
+    }
+  },
+  {
+    "id": "CALC-FCL-004",
+    "group": "foreclosure",
+    "title": "a negative discount is treated as zero",
+    "op": "foreclosure.build",
+    "input": {
+      "now": "2026-06-10",
+      "discount": -500,
+      "loan": {
+        "id": "L1",
+        "loanCode": "DL0001",
+        "status": "active",
+        "principal": 10000,
+        "totalCollected": 4000,
+        "totalInstalments": 5,
+        "deductionType": "upfront_fixed",
+        "customer": {
+          "name": "A",
+          "customerCode": "C1",
+          "phone": "9000000000"
+        },
+        "instalments": [
+          {
+            "status": "paid"
+          }
+        ],
+        "penalties": []
+      }
+    },
+    "expect": {
+      "discount": 0,
+      "totalSettlementAmount": 6000
+    }
+  },
+  {
+    "id": "CALC-FCL-005",
+    "group": "foreclosure",
+    "title": "a fully collected loan settles at zero, not at a negative figure",
+    "op": "foreclosure.build",
+    "input": {
+      "now": "2026-06-10",
+      "loan": {
+        "id": "L1",
+        "loanCode": "DL0001",
+        "status": "active",
+        "principal": 10000,
+        "totalCollected": 12000,
+        "totalInstalments": 5,
+        "deductionType": "upfront_fixed",
+        "customer": {
+          "name": "A",
+          "customerCode": "C1",
+          "phone": "9000000000"
+        },
+        "instalments": [
+          {
+            "status": "paid"
+          }
+        ],
+        "penalties": []
+      }
+    },
+    "expect": {
+      "principalOutstanding": 0,
+      "totalSettlementAmount": 0
+    }
+  },
+  {
+    "id": "CALC-FCL-006",
+    "group": "foreclosure",
+    "title": "an interest-only foreclosure does NOT net interest collections off the principal",
+    "rules": [
+      "MONEY-4",
+      "MONEY-5"
+    ],
+    "why": "Three months of interest paid must not reduce the ₹1L bullet by ₹7,500.",
+    "op": "foreclosure.build",
+    "input": {
+      "now": "2026-06-10",
+      "loan": {
+        "id": "L2",
+        "loanCode": "ML0002",
+        "status": "active",
+        "principal": 100000,
+        "totalCollected": 7500,
+        "totalInstalments": 12,
+        "deductionType": "interest_only",
+        "outstandingPrincipal": 100000,
+        "customer": {
+          "name": "B",
+          "customerCode": "C2",
+          "phone": "9000000001"
+        },
+        "instalments": [
+          {
+            "status": "paid"
+          },
+          {
+            "status": "paid"
+          },
+          {
+            "status": "paid"
+          },
+          {
+            "status": "upcoming"
+          }
+        ],
+        "penalties": []
+      }
+    },
+    "expect": {
+      "principalOutstanding": 100000,
+      "totalCollected": 7500,
+      "totalSettlementAmount": 100000,
+      "lineItemLabels": {
+        "contains": "Interest collected so far (does not reduce principal)"
+      }
+    }
+  },
+  {
+    "id": "CALC-FCL-007",
+    "group": "foreclosure",
+    "title": "an interest-only loan part-paid down settles on the reduced principal",
+    "rules": [
+      "MONEY-5"
+    ],
+    "op": "foreclosure.build",
+    "input": {
+      "now": "2026-06-10",
+      "loan": {
+        "id": "L2",
+        "loanCode": "ML0002",
+        "status": "active",
+        "principal": 100000,
+        "totalCollected": 7500,
+        "totalInstalments": 12,
+        "deductionType": "interest_only",
+        "outstandingPrincipal": 40000,
+        "customer": {
+          "name": "B",
+          "customerCode": "C2",
+          "phone": "9000000001"
+        },
+        "instalments": [
+          {
+            "status": "paid"
+          }
+        ],
+        "penalties": []
+      }
+    },
+    "expect": {
+      "principalOutstanding": 40000,
+      "totalSettlementAmount": 40000
+    }
+  },
+  {
+    "id": "CALC-FCL-008",
+    "group": "foreclosure",
+    "title": "a closed loan cannot be foreclosed",
+    "op": "foreclosure.build",
+    "input": {
+      "now": "2026-06-10",
+      "loan": {
+        "id": "L3",
+        "loanCode": "DL0003",
+        "status": "closed",
+        "principal": 10000,
+        "totalCollected": 10000,
+        "totalInstalments": 5,
+        "customer": {
+          "name": "C",
+          "customerCode": "C3",
+          "phone": "9000000002"
+        },
+        "instalments": [],
+        "penalties": []
+      }
+    },
+    "expect": {
+      "canForeclose": false,
+      "reason": "This loan is already closed.",
+      "totalSettlementAmount": 0
+    }
+  },
+  {
+    "id": "CALC-FCL-009",
+    "group": "foreclosure",
+    "title": "an undisbursed loan cannot be foreclosed",
+    "rules": [
+      "MONEY-8"
+    ],
+    "op": "foreclosure.build",
+    "input": {
+      "now": "2026-06-10",
+      "loan": {
+        "id": "L4",
+        "loanCode": "DL0004",
+        "status": "pending",
+        "principal": 10000,
+        "totalCollected": 0,
+        "totalInstalments": 5,
+        "customer": {
+          "name": "D",
+          "customerCode": "C4",
+          "phone": "9000000003"
+        },
+        "instalments": [],
+        "penalties": []
+      }
+    },
+    "expect": {
+      "canForeclose": false,
+      "reason": "Cannot foreclose a loan that has not been disbursed yet."
+    }
+  },
+  {
+    "id": "CALC-FCL-010",
+    "group": "foreclosure",
+    "title": "an overdue loan can still be foreclosed",
+    "op": "foreclosure.build",
+    "input": {
+      "now": "2026-06-10",
+      "loan": {
+        "id": "L5",
+        "loanCode": "DL0005",
+        "status": "overdue",
+        "principal": 20000,
+        "totalCollected": 5000,
+        "totalInstalments": 10,
+        "deductionType": "upfront_fixed",
+        "customer": {
+          "name": "E",
+          "customerCode": "C5",
+          "phone": "9000000004"
+        },
+        "instalments": [
+          {
+            "status": "missed"
+          },
+          {
+            "status": "missed"
+          }
+        ],
+        "penalties": [
+          {
+            "grossPenalty": 300,
+            "settledAmount": 0,
+            "waivedAmount": 0
+          }
+        ]
+      }
+    },
+    "expect": {
+      "canForeclose": true,
+      "principalOutstanding": 15000,
+      "netPenaltyDue": 300,
+      "totalSettlementAmount": 15300
+    }
+  },
+  {
+    "id": "CALC-FCL-011",
+    "group": "foreclosure",
+    "title": "a fully waived penalty adds nothing to the settlement",
+    "rules": [
+      "MONEY-15"
+    ],
+    "op": "foreclosure.build",
+    "input": {
+      "now": "2026-06-10",
+      "loan": {
+        "id": "L6",
+        "loanCode": "DL0006",
+        "status": "active",
+        "principal": 20000,
+        "totalCollected": 5000,
+        "totalInstalments": 10,
+        "deductionType": "upfront_fixed",
+        "customer": {
+          "name": "F",
+          "customerCode": "C6",
+          "phone": "9000000005"
+        },
+        "instalments": [
+          {
+            "status": "missed"
+          }
+        ],
+        "penalties": [
+          {
+            "grossPenalty": 900,
+            "settledAmount": 400,
+            "waivedAmount": 500
+          }
+        ]
+      }
+    },
+    "expect": {
+      "grossPenalty": 900,
+      "settledPenalty": 400,
+      "waivedPenalty": 500,
+      "netPenaltyDue": 0,
+      "totalSettlementAmount": 15000
+    }
+  },
+  {
+    "id": "CALC-FCL-012",
+    "group": "foreclosure",
+    "title": "penalties across several rows aggregate before netting",
+    "op": "foreclosure.build",
+    "input": {
+      "now": "2026-06-10",
+      "loan": {
+        "id": "L7",
+        "loanCode": "DL0007",
+        "status": "active",
+        "principal": 20000,
+        "totalCollected": 0,
+        "totalInstalments": 10,
+        "deductionType": "upfront_fixed",
+        "customer": {
+          "name": "G",
+          "customerCode": "C7",
+          "phone": "9000000006"
+        },
+        "instalments": [
+          {
+            "status": "missed"
+          }
+        ],
+        "penalties": [
+          {
+            "grossPenalty": 500,
+            "settledAmount": 100,
+            "waivedAmount": 0
+          },
+          {
+            "grossPenalty": 300,
+            "settledAmount": 0,
+            "waivedAmount": 50
+          }
+        ]
+      }
+    },
+    "expect": {
+      "grossPenalty": 800,
+      "settledPenalty": 100,
+      "waivedPenalty": 50,
+      "netPenaltyDue": 650,
+      "totalSettlementAmount": 20650
+    }
+  },
+  {
+    "id": "CALC-IO-001",
+    "group": "interest-only",
+    "title": "one month's interest is a rounded percentage of the outstanding principal",
+    "rules": [
+      "MONEY-5"
+    ],
+    "op": "interestOnly.monthlyInterest",
+    "input": {
+      "principal": 100000,
+      "monthlyRatePercent": 2.5
+    },
+    "expect": {
+      "interest": 2500,
+      "apr": 30
+    }
+  },
+  {
+    "id": "CALC-IO-002",
+    "group": "interest-only",
+    "title": "a fractional interest figure rounds to the nearest rupee",
+    "op": "interestOnly.monthlyInterest",
+    "input": {
+      "principal": 33333,
+      "monthlyRatePercent": 2.5
+    },
+    "expect": {
+      "interest": 833,
+      "apr": 30
+    }
+  },
+  {
+    "id": "CALC-IO-003",
+    "group": "interest-only",
+    "title": "a negative principal is floored at zero rather than paying the borrower",
+    "op": "interestOnly.monthlyInterest",
+    "input": {
+      "principal": -5000,
+      "monthlyRatePercent": 2.5
+    },
+    "expect": {
+      "interest": 0
+    }
+  },
+  {
+    "id": "CALC-IO-004",
+    "group": "interest-only",
+    "title": "a negative rate is floored at zero",
+    "op": "interestOnly.monthlyInterest",
+    "input": {
+      "principal": 100000,
+      "monthlyRatePercent": -2
+    },
+    "expect": {
+      "interest": 0,
+      "apr": -24
+    }
+  },
+  {
+    "id": "CALC-IO-005",
+    "group": "interest-only",
+    "title": "the quoted monthly rate annualises by 12 for disclosure",
+    "rules": [
+      "MONEY-5"
+    ],
+    "op": "interestOnly.monthlyInterest",
+    "input": {
+      "principal": 100000,
+      "monthlyRatePercent": 1.75
+    },
+    "expect": {
+      "interest": 1750,
+      "apr": 21
+    }
+  },
+  {
+    "id": "CALC-IO-006",
+    "group": "interest-only",
+    "title": "closing today costs the principal plus interest already billed — not the future months",
+    "rules": [
+      "MONEY-5"
+    ],
+    "why": "An upcoming month's interest has not been earned and must not be charged on exit.",
+    "op": "interestOnly.summary",
+    "input": {
+      "loan": {
+        "id": "L1",
+        "loanCode": "ML0001",
+        "status": "active",
+        "principal": 100000,
+        "interestRate": 2.5,
+        "outstandingPrincipal": 100000,
+        "instalments": [
+          {
+            "status": "paid",
+            "dueAmount": 2500,
+            "receivedAmount": 2500
+          },
+          {
+            "status": "paid",
+            "dueAmount": 2500,
+            "receivedAmount": 2500
+          },
+          {
+            "status": "missed",
+            "dueAmount": 2500,
+            "receivedAmount": 0
+          },
+          {
+            "status": "partial",
+            "dueAmount": 2500,
+            "receivedAmount": 1000
+          },
+          {
+            "status": "upcoming",
+            "dueAmount": 2500,
+            "receivedAmount": 0
+          },
+          {
+            "status": "upcoming",
+            "dueAmount": 2500,
+            "receivedAmount": 0
+          }
+        ]
+      }
+    },
+    "expect": {
+      "originalPrincipal": 100000,
+      "outstandingPrincipal": 100000,
+      "monthlyInterest": 2500,
+      "aprPercent": 30,
+      "interestCollected": 6000,
+      "interestDueNow": 4000,
+      "paidInstalments": 2,
+      "upcomingInstalments": 2,
+      "totalDueToClose": 104000
+    }
+  },
+  {
+    "id": "CALC-IO-007",
+    "group": "interest-only",
+    "title": "a part-payment of principal reduces every future month's interest",
+    "rules": [
+      "MONEY-5"
+    ],
+    "op": "interestOnly.summary",
+    "input": {
+      "loan": {
+        "id": "L2",
+        "loanCode": "ML0002",
+        "status": "active",
+        "principal": 100000,
+        "interestRate": 2.5,
+        "outstandingPrincipal": 40000,
+        "instalments": [
+          {
+            "status": "paid",
+            "dueAmount": 2500,
+            "receivedAmount": 2500
+          }
+        ]
+      }
+    },
+    "expect": {
+      "outstandingPrincipal": 40000,
+      "monthlyInterest": 1000,
+      "totalDueToClose": 40000,
+      "interestDueNow": 0
+    }
+  },
+  {
+    "id": "CALC-IO-008",
+    "group": "interest-only",
+    "title": "a null outstanding principal means the whole principal is still owed",
+    "rules": [
+      "MONEY-5"
+    ],
+    "why": "Legacy rows that predate servicing must not read as fully repaid.",
+    "op": "interestOnly.summary",
+    "input": {
+      "loan": {
+        "id": "L3",
+        "loanCode": "ML0003",
+        "status": "active",
+        "principal": 75000,
+        "interestRate": 2,
+        "outstandingPrincipal": null,
+        "instalments": [
+          {
+            "status": "paid",
+            "dueAmount": 1500,
+            "receivedAmount": 1500
+          }
+        ]
+      }
+    },
+    "expect": {
+      "outstandingPrincipal": 75000,
+      "monthlyInterest": 1500,
+      "totalDueToClose": 75000
+    }
+  },
+  {
+    "id": "CALC-IO-009",
+    "group": "interest-only",
+    "title": "a settled interest-only loan still owes its principal until the bullet is paid",
+    "rules": [
+      "MONEY-4"
+    ],
+    "op": "interestOnly.summary",
+    "input": {
+      "loan": {
+        "id": "L4",
+        "loanCode": "ML0004",
+        "status": "active",
+        "principal": 100000,
+        "interestRate": 2.5,
+        "outstandingPrincipal": 100000,
+        "instalments": [
+          {
+            "status": "paid",
+            "dueAmount": 2500,
+            "receivedAmount": 2500
+          },
+          {
+            "status": "paid",
+            "dueAmount": 2500,
+            "receivedAmount": 2500
+          },
+          {
+            "status": "paid",
+            "dueAmount": 2500,
+            "receivedAmount": 2500
+          }
+        ]
+      }
+    },
+    "expect": {
+      "interestDueNow": 0,
+      "interestCollected": 7500,
+      "totalDueToClose": 100000
+    }
+  },
+  {
+    "id": "CALC-IO-010",
+    "group": "interest-only",
+    "title": "a zero outstanding principal leaves only the arrears to settle",
+    "op": "interestOnly.summary",
+    "input": {
+      "loan": {
+        "id": "L5",
+        "loanCode": "ML0005",
+        "status": "active",
+        "principal": 100000,
+        "interestRate": 2.5,
+        "outstandingPrincipal": 0,
+        "instalments": [
+          {
+            "status": "missed",
+            "dueAmount": 2500,
+            "receivedAmount": 0
+          }
+        ]
+      }
+    },
+    "expect": {
+      "outstandingPrincipal": 0,
+      "monthlyInterest": 0,
+      "interestDueNow": 2500,
+      "totalDueToClose": 2500
+    }
+  },
+  {
+    "id": "CALC-NPA-001",
+    "group": "npa",
+    "title": "no overdue instalment means zero days overdue",
+    "rules": [
+      "NPA-1"
+    ],
+    "op": "npa.overdueDays",
+    "input": {
+      "today": "2026-08-28",
+      "instalments": [
+        {
+          "dueDate": "2026-09-01",
+          "dueAmount": 500,
+          "receivedAmount": 0,
+          "status": "upcoming"
+        }
+      ]
+    },
+    "expect": {
+      "days": 0
+    }
+  },
+  {
+    "id": "CALC-NPA-002",
+    "group": "npa",
+    "title": "the clock starts at the OLDEST unpaid due date, not the most recent",
+    "rules": [
+      "NPA-1"
+    ],
+    "op": "npa.overdueDays",
+    "input": {
+      "today": "2026-08-28",
+      "instalments": [
+        {
+          "dueDate": "2026-08-01",
+          "dueAmount": 500,
+          "receivedAmount": 0,
+          "status": "missed"
+        },
+        {
+          "dueDate": "2026-08-10",
+          "dueAmount": 500,
+          "receivedAmount": 100,
+          "status": "partial"
+        }
+      ]
+    },
+    "expect": {
+      "days": 27
+    }
+  },
+  {
+    "id": "CALC-NPA-003",
+    "group": "npa",
+    "title": "a partially paid instalment still counts as overdue",
+    "rules": [
+      "NPA-1"
+    ],
+    "op": "npa.overdueDays",
+    "input": {
+      "today": "2026-08-28",
+      "instalments": [
+        {
+          "dueDate": "2026-08-20",
+          "dueAmount": 500,
+          "receivedAmount": 499,
+          "status": "partial"
+        }
+      ]
+    },
+    "expect": {
+      "days": 8
+    }
+  },
+  {
+    "id": "CALC-NPA-004",
+    "group": "npa",
+    "title": "an instalment paid in full is not overdue however late it was",
+    "rules": [
+      "NPA-1"
+    ],
+    "op": "npa.overdueDays",
+    "input": {
+      "today": "2026-08-28",
+      "instalments": [
+        {
+          "dueDate": "2026-01-01",
+          "dueAmount": 500,
+          "receivedAmount": 500,
+          "status": "paid"
+        }
+      ]
+    },
+    "expect": {
+      "days": 0
+    }
+  },
+  {
+    "id": "CALC-NPA-005",
+    "group": "npa",
+    "title": "zero days overdue is a standard asset",
+    "rules": [
+      "NPA-1"
+    ],
+    "op": "npa.category",
+    "input": {
+      "daysOverdue": 0,
+      "npaClassifiedAt": null,
+      "today": "2026-08-28"
+    },
+    "expect": {
+      "category": "standard"
+    }
+  },
+  {
+    "id": "CALC-NPA-006",
+    "group": "npa",
+    "title": "one day overdue is SMA-0",
+    "op": "npa.category",
+    "input": {
+      "daysOverdue": 1,
+      "npaClassifiedAt": null,
+      "today": "2026-08-28"
+    },
+    "expect": {
+      "category": "sma_0"
+    }
+  },
+  {
+    "id": "CALC-NPA-007",
+    "group": "npa",
+    "title": "day 30 is the last day of SMA-0",
+    "op": "npa.category",
+    "input": {
+      "daysOverdue": 30,
+      "npaClassifiedAt": null,
+      "today": "2026-08-28"
+    },
+    "expect": {
+      "category": "sma_0"
+    }
+  },
+  {
+    "id": "CALC-NPA-008",
+    "group": "npa",
+    "title": "day 31 crosses into SMA-1",
+    "op": "npa.category",
+    "input": {
+      "daysOverdue": 31,
+      "npaClassifiedAt": null,
+      "today": "2026-08-28"
+    },
+    "expect": {
+      "category": "sma_1"
+    }
+  },
+  {
+    "id": "CALC-NPA-009",
+    "group": "npa",
+    "title": "day 60 is the last day of SMA-1",
+    "op": "npa.category",
+    "input": {
+      "daysOverdue": 60,
+      "npaClassifiedAt": null,
+      "today": "2026-08-28"
+    },
+    "expect": {
+      "category": "sma_1"
+    }
+  },
+  {
+    "id": "CALC-NPA-010",
+    "group": "npa",
+    "title": "day 61 crosses into SMA-2",
+    "op": "npa.category",
+    "input": {
+      "daysOverdue": 61,
+      "npaClassifiedAt": null,
+      "today": "2026-08-28"
+    },
+    "expect": {
+      "category": "sma_2"
+    }
+  },
+  {
+    "id": "CALC-NPA-011",
+    "group": "npa",
+    "title": "day 90 is still SMA-2 — the NPA line is crossed at 91",
+    "rules": [
+      "NPA-1"
+    ],
+    "op": "npa.category",
+    "input": {
+      "daysOverdue": 90,
+      "npaClassifiedAt": null,
+      "today": "2026-08-28"
+    },
+    "expect": {
+      "category": "sma_2"
+    }
+  },
+  {
+    "id": "CALC-NPA-012",
+    "group": "npa",
+    "title": "day 91 with no prior classification becomes sub-standard",
+    "rules": [
+      "NPA-2"
+    ],
+    "op": "npa.category",
+    "input": {
+      "daysOverdue": 91,
+      "npaClassifiedAt": null,
+      "today": "2026-08-28"
+    },
+    "expect": {
+      "category": "sub_standard"
+    }
+  },
+  {
+    "id": "CALC-NPA-013",
+    "group": "npa",
+    "title": "under a year in NPA stays sub-standard however deep the arrears",
+    "rules": [
+      "NPA-2"
+    ],
+    "op": "npa.category",
+    "input": {
+      "daysOverdue": 400,
+      "npaClassifiedAt": "2026-06-01",
+      "today": "2026-08-28"
+    },
+    "expect": {
+      "category": "sub_standard"
+    }
+  },
+  {
+    "id": "CALC-NPA-014",
+    "group": "npa",
+    "title": "12–24 months in NPA is doubtful D1",
+    "rules": [
+      "NPA-2"
+    ],
+    "why": "604 days since first classification.",
+    "op": "npa.category",
+    "input": {
+      "daysOverdue": 200,
+      "npaClassifiedAt": "2025-01-01",
+      "today": "2026-08-28"
+    },
+    "expect": {
+      "category": "doubtful_d1"
+    }
+  },
+  {
+    "id": "CALC-NPA-015",
+    "group": "npa",
+    "title": "24–36 months in NPA is doubtful D2",
+    "rules": [
+      "NPA-2"
+    ],
+    "why": "970 days since first classification.",
+    "op": "npa.category",
+    "input": {
+      "daysOverdue": 200,
+      "npaClassifiedAt": "2024-01-01",
+      "today": "2026-08-28"
+    },
+    "expect": {
+      "category": "doubtful_d2"
+    }
+  },
+  {
+    "id": "CALC-NPA-016",
+    "group": "npa",
+    "title": "over 36 months in NPA is doubtful D3",
+    "rules": [
+      "NPA-2"
+    ],
+    "why": "1,700 days since first classification.",
+    "op": "npa.category",
+    "input": {
+      "daysOverdue": 200,
+      "npaClassifiedAt": "2022-01-01",
+      "today": "2026-08-28"
+    },
+    "expect": {
+      "category": "doubtful_d3"
+    }
+  },
+  {
+    "id": "CALC-NPA-017",
+    "group": "npa",
+    "title": "the sub-category ladder is driven by time in NPA, not by days overdue",
+    "rules": [
+      "NPA-2"
+    ],
+    "why": "Same 95 days overdue, different classification dates, different categories — this is why npaClassifiedAt must be stamped once.",
+    "op": "npa.category",
+    "input": {
+      "daysOverdue": 95,
+      "npaClassifiedAt": "2023-06-01",
+      "today": "2026-08-28"
+    },
+    "expect": {
+      "category": "doubtful_d3"
+    }
+  },
+  {
+    "id": "CALC-NPA-018",
+    "group": "npa",
+    "title": "a cured loan drops straight back to standard in the ladder",
+    "rules": [
+      "NPA-7"
+    ],
+    "why": "The ladder itself says standard at zero days; the actual upgrade still needs explicit admin action.",
+    "op": "npa.category",
+    "input": {
+      "daysOverdue": 0,
+      "npaClassifiedAt": "2024-01-01",
+      "today": "2026-08-28"
+    },
+    "expect": {
+      "category": "standard"
+    }
+  },
+  {
+    "id": "CALC-PRV-001",
+    "group": "provisioning",
+    "title": "a standard asset provisions 0.40%",
+    "rules": [
+      "NPA-4"
+    ],
+    "op": "npa.provisioning",
+    "input": {
+      "category": "standard",
+      "outstandingAmount": 100000,
+      "isSecured": false
+    },
+    "expect": {
+      "rate": 0.4,
+      "amount": 400
+    }
+  },
+  {
+    "id": "CALC-PRV-002",
+    "group": "provisioning",
+    "title": "every SMA bucket keeps standard provisioning",
+    "rules": [
+      "NPA-4"
+    ],
+    "op": "npa.provisioning",
+    "input": {
+      "category": "sma_2",
+      "outstandingAmount": 100000,
+      "isSecured": false
+    },
+    "expect": {
+      "rate": 0.4,
+      "amount": 400
+    }
+  },
+  {
+    "id": "CALC-PRV-003",
+    "group": "provisioning",
+    "title": "a sub-standard asset provisions 15% whether secured or not",
+    "rules": [
+      "NPA-4"
+    ],
+    "op": "npa.provisioning",
+    "input": {
+      "category": "sub_standard",
+      "outstandingAmount": 100000,
+      "isSecured": false
+    },
+    "expect": {
+      "rate": 15,
+      "amount": 15000
+    }
+  },
+  {
+    "id": "CALC-PRV-004",
+    "group": "provisioning",
+    "title": "an UNSECURED doubtful D1 provisions the full 100%",
+    "rules": [
+      "NPA-4"
+    ],
+    "why": "MFI books are unsecured; the 25% column exists only for NBFC clients.",
+    "op": "npa.provisioning",
+    "input": {
+      "category": "doubtful_d1",
+      "outstandingAmount": 100000,
+      "isSecured": false
+    },
+    "expect": {
+      "rate": 100,
+      "amount": 100000
+    }
+  },
+  {
+    "id": "CALC-PRV-005",
+    "group": "provisioning",
+    "title": "a SECURED doubtful D1 provisions 25%",
+    "rules": [
+      "NPA-4"
+    ],
+    "op": "npa.provisioning",
+    "input": {
+      "category": "doubtful_d1",
+      "outstandingAmount": 100000,
+      "isSecured": true
+    },
+    "expect": {
+      "rate": 25,
+      "amount": 25000
+    }
+  },
+  {
+    "id": "CALC-PRV-006",
+    "group": "provisioning",
+    "title": "a SECURED doubtful D2 provisions 40%",
+    "rules": [
+      "NPA-4"
+    ],
+    "op": "npa.provisioning",
+    "input": {
+      "category": "doubtful_d2",
+      "outstandingAmount": 100000,
+      "isSecured": true
+    },
+    "expect": {
+      "rate": 40,
+      "amount": 40000
+    }
+  },
+  {
+    "id": "CALC-PRV-007",
+    "group": "provisioning",
+    "title": "doubtful D3 provisions 100% even when secured",
+    "rules": [
+      "NPA-4"
+    ],
+    "op": "npa.provisioning",
+    "input": {
+      "category": "doubtful_d3",
+      "outstandingAmount": 100000,
+      "isSecured": true
+    },
+    "expect": {
+      "rate": 100,
+      "amount": 100000
+    }
+  },
+  {
+    "id": "CALC-PRV-008",
+    "group": "provisioning",
+    "title": "a loss asset provisions 100%",
+    "rules": [
+      "NPA-4"
+    ],
+    "op": "npa.provisioning",
+    "input": {
+      "category": "loss",
+      "outstandingAmount": 87650,
+      "isSecured": false
+    },
+    "expect": {
+      "rate": 100,
+      "amount": 87650
+    }
+  },
+  {
+    "id": "CALC-PRV-009",
+    "group": "provisioning",
+    "title": "the unsecured default is the conservative one",
+    "rules": [
+      "NPA-4"
+    ],
+    "why": "isSecured omitted must behave as unsecured — never default it to true.",
+    "op": "npa.provisioning",
+    "input": {
+      "category": "doubtful_d1",
+      "outstandingAmount": 50000
+    },
+    "expect": {
+      "rate": 100,
+      "amount": 50000
+    }
+  },
+  {
+    "id": "CALC-PRV-010",
+    "group": "provisioning",
+    "title": "provisioning rounds to paise, not to rupees",
+    "op": "npa.provisioning",
+    "input": {
+      "category": "standard",
+      "outstandingAmount": 12345,
+      "isSecured": false
+    },
+    "expect": {
+      "rate": 0.4,
+      "amount": 49.38
+    }
+  },
+  {
+    "id": "CALC-PRV-011",
+    "group": "provisioning",
+    "title": "a zero outstanding provisions nothing",
+    "op": "npa.provisioning",
+    "input": {
+      "category": "loss",
+      "outstandingAmount": 0,
+      "isSecured": false
+    },
+    "expect": {
+      "amount": 0
+    }
+  },
+  {
+    "id": "CALC-FLT-001",
+    "group": "float",
+    "title": "a positive delta tops up the pool",
+    "rules": [
+      "MONEY-16"
+    ],
+    "op": "wallet.float",
+    "input": {
+      "available": 5000,
+      "delta": 2000,
+      "hardBlock": true
+    },
+    "expect": {
+      "balance": 7000
+    }
+  },
+  {
+    "id": "CALC-FLT-002",
+    "group": "float",
+    "title": "a disbursal within the float reduces it",
+    "rules": [
+      "MONEY-16"
+    ],
+    "op": "wallet.float",
+    "input": {
+      "available": 5000,
+      "delta": -2000,
+      "hardBlock": true
+    },
+    "expect": {
+      "balance": 3000
+    }
+  },
+  {
+    "id": "CALC-FLT-003",
+    "group": "float",
+    "title": "spending the pool down to exactly zero is allowed",
+    "rules": [
+      "MONEY-16"
+    ],
+    "op": "wallet.float",
+    "input": {
+      "available": 5000,
+      "delta": -5000,
+      "hardBlock": true
+    },
+    "expect": {
+      "balance": 0
+    }
+  },
+  {
+    "id": "CALC-FLT-004",
+    "group": "float",
+    "title": "a guarded disbursal beyond the float throws instead of going negative",
+    "rules": [
+      "MONEY-16"
+    ],
+    "why": "An agent cannot hand over cash they do not hold.",
+    "op": "wallet.float",
+    "input": {
+      "available": 1000,
+      "delta": -5000,
+      "hardBlock": true
+    },
+    "expectError": "insufficient_float"
+  },
+  {
+    "id": "CALC-FLT-005",
+    "group": "float",
+    "title": "WITHOUT the hard block the same movement drives the pool negative",
+    "rules": [
+      "MONEY-16"
+    ],
+    "why": "Pins the live gap: hardBlock is opt-in per call site, so an unguarded caller (the v1 wallet release route, defect ML-122) can push a branch pool below zero.",
+    "op": "wallet.float",
+    "input": {
+      "available": 1000,
+      "delta": -5000,
+      "hardBlock": false
+    },
+    "expect": {
+      "balance": -4000
+    }
+  },
+  {
+    "id": "CALC-FLT-006",
+    "group": "float",
+    "title": "a zero-value movement leaves the pool untouched",
+    "op": "wallet.float",
+    "input": {
+      "available": 2500,
+      "delta": 0,
+      "hardBlock": true
+    },
+    "expect": {
+      "balance": 2500
+    }
+  },
+  {
+    "id": "CALC-COL-001",
+    "group": "collection",
+    "title": "a daily loan is collectible every day",
+    "op": "collection.isCollectionDay",
+    "input": {
+      "frequency": "daily",
+      "dueDate": "2026-06-01",
+      "today": "2026-06-17"
+    },
+    "expect": {
+      "result": true
+    }
+  },
+  {
+    "id": "CALC-COL-002",
+    "group": "collection",
+    "title": "a weekly loan resurfaces on its cadence day, not every day",
+    "why": "Without this an overdue weekly customer would be chased daily.",
+    "op": "collection.isCollectionDay",
+    "input": {
+      "frequency": "weekly",
+      "dueDate": "2026-06-01",
+      "today": "2026-06-08"
+    },
+    "expect": {
+      "result": true
+    }
+  },
+  {
+    "id": "CALC-COL-003",
+    "group": "collection",
+    "title": "a weekly loan is silent between cadence days",
+    "op": "collection.isCollectionDay",
+    "input": {
+      "frequency": "weekly",
+      "dueDate": "2026-06-01",
+      "today": "2026-06-09"
+    },
+    "expect": {
+      "result": false
+    }
+  },
+  {
+    "id": "CALC-COL-004",
+    "group": "collection",
+    "title": "a biweekly loan surfaces every 14 days",
+    "op": "collection.isCollectionDay",
+    "input": {
+      "frequency": "biweekly",
+      "dueDate": "2026-06-01",
+      "today": "2026-06-15"
+    },
+    "expect": {
+      "result": true
+    }
+  },
+  {
+    "id": "CALC-COL-005",
+    "group": "collection",
+    "title": "a biweekly loan does not surface on the odd week",
+    "op": "collection.isCollectionDay",
+    "input": {
+      "frequency": "biweekly",
+      "dueDate": "2026-06-01",
+      "today": "2026-06-08"
+    },
+    "expect": {
+      "result": false
+    }
+  },
+  {
+    "id": "CALC-COL-006",
+    "group": "collection",
+    "title": "a monthly loan surfaces on the same day of month",
+    "op": "collection.isCollectionDay",
+    "input": {
+      "frequency": "monthly",
+      "dueDate": "2026-06-05",
+      "today": "2026-07-05"
+    },
+    "expect": {
+      "result": true
+    }
+  },
+  {
+    "id": "CALC-COL-007",
+    "group": "collection",
+    "title": "a monthly loan is silent on other days of the month",
+    "op": "collection.isCollectionDay",
+    "input": {
+      "frequency": "monthly",
+      "dueDate": "2026-06-05",
+      "today": "2026-07-06"
+    },
+    "expect": {
+      "result": false
+    }
+  },
+  {
+    "id": "CALC-COL-008",
+    "group": "collection",
+    "title": "a due day past the month end clamps to the last day of the short month",
+    "why": "A 31st due date must still surface in February.",
+    "op": "collection.isCollectionDay",
+    "input": {
+      "frequency": "monthly",
+      "dueDate": "2026-01-31",
+      "today": "2026-02-28"
+    },
+    "expect": {
+      "result": true
+    }
+  },
+  {
+    "id": "CALC-COL-009",
+    "group": "collection",
+    "title": "a due date today always surfaces regardless of frequency",
+    "op": "collection.isCollectionDay",
+    "input": {
+      "frequency": "monthly",
+      "dueDate": "2026-06-05",
+      "today": "2026-06-05"
+    },
+    "expect": {
+      "result": true
+    }
+  },
+  {
+    "id": "CALC-COL-010",
+    "group": "collection",
+    "title": "a future-dated instalment surfaces as an anchor",
+    "op": "collection.isCollectionDay",
+    "input": {
+      "frequency": "weekly",
+      "dueDate": "2026-06-20",
+      "today": "2026-06-05"
+    },
+    "expect": {
+      "result": true
+    }
+  },
+  {
+    "id": "CALC-COL-011",
+    "group": "collection",
+    "title": "an active loan with an unpaid instalment accepts a collection",
+    "op": "collection.blockReason",
+    "input": {
+      "loanStatus": "active",
+      "dueAmount": 500,
+      "receivedAmount": 0
+    },
+    "expect": {
+      "reason": null
+    }
+  },
+  {
+    "id": "CALC-COL-012",
+    "group": "collection",
+    "title": "an already-settled instalment is refused",
+    "op": "collection.blockReason",
+    "input": {
+      "loanStatus": "active",
+      "dueAmount": 500,
+      "receivedAmount": 500
+    },
+    "expect": {
+      "reason": "Instalment is already fully collected"
+    }
+  },
+  {
+    "id": "CALC-COL-013",
+    "group": "collection",
+    "title": "a loan awaiting approval takes no money",
+    "rules": [
+      "MONEY-8"
+    ],
+    "op": "collection.blockReason",
+    "input": {
+      "loanStatus": "pending_review",
+      "dueAmount": 500,
+      "receivedAmount": 0
+    },
+    "expect": {
+      "reason": "Loan is pending approval"
+    }
+  },
+  {
+    "id": "CALC-COL-014",
+    "group": "collection",
+    "title": "a closed loan takes no money",
+    "op": "collection.loanBlockReason",
+    "input": {
+      "status": "closed"
+    },
+    "expect": {
+      "reason": "Loan is closed"
+    }
+  },
+  {
+    "id": "CALC-COL-015",
+    "group": "collection",
+    "title": "a foreclosed loan takes no money",
+    "op": "collection.loanBlockReason",
+    "input": {
+      "status": "foreclosed"
+    },
+    "expect": {
+      "reason": "Loan is closed"
+    }
+  },
+  {
+    "id": "CALC-COL-016",
+    "group": "collection",
+    "title": "an overdue loan is still collectible",
+    "op": "collection.loanBlockReason",
+    "input": {
+      "status": "overdue"
+    },
+    "expect": {
+      "reason": null
+    }
+  },
+  {
+    "id": "CALC-COL-017",
+    "group": "collection",
+    "title": "an NPA loan is not collectible through the normal path",
+    "why": "Only active and overdue are collectible statuses; npa falls through to the generic refusal.",
+    "op": "collection.loanBlockReason",
+    "input": {
+      "status": "npa"
+    },
+    "expect": {
+      "reason": "Loan is not active for collection"
+    }
+  },
+  {
+    "id": "CALC-COL-018",
+    "group": "collection",
+    "title": "the idempotency key pins tenant, agent, instalment, amount, mode and date",
+    "rules": [
+      "MONEY-13"
+    ],
+    "why": "A retried mobile submission must not double-post.",
+    "op": "collection.idempotencyKey",
+    "input": {
+      "tenantId": "t1",
+      "agentId": "a1",
+      "instalmentId": "i1",
+      "receivedAmount": 500,
+      "paymentMode": "cash",
+      "collectionDate": "2026-06-01"
+    },
+    "expect": {
+      "key": "t1:a1:i1:500.00:cash:2026-06-01"
+    }
+  },
+  {
+    "id": "CALC-COL-019",
+    "group": "collection",
+    "title": "the key normalises the amount to two decimals so 500 and 500.00 collide",
+    "rules": [
+      "MONEY-13"
+    ],
+    "op": "collection.idempotencyKey",
+    "input": {
+      "tenantId": "t1",
+      "agentId": "a1",
+      "instalmentId": "i1",
+      "receivedAmount": 500.004,
+      "paymentMode": "cash",
+      "collectionDate": "2026-06-01"
+    },
+    "expect": {
+      "key": "t1:a1:i1:500.00:cash:2026-06-01"
+    }
+  },
+  {
+    "id": "CALC-COL-020",
+    "group": "collection",
+    "title": "the key lower-cases and trims the payment mode",
+    "rules": [
+      "MONEY-13"
+    ],
+    "op": "collection.idempotencyKey",
+    "input": {
+      "tenantId": "t1",
+      "agentId": "a1",
+      "instalmentId": "i1",
+      "receivedAmount": 500,
+      "paymentMode": "  UPI ",
+      "collectionDate": "2026-06-01T18:30:00.000Z"
+    },
+    "expect": {
+      "key": "t1:a1:i1:500.00:upi:2026-06-01"
+    }
+  },
+  {
+    "id": "CALC-COL-021",
+    "group": "collection",
+    "title": "a different amount is a different key — a correction is not suppressed as a duplicate",
+    "rules": [
+      "MONEY-13"
+    ],
+    "op": "collection.idempotencyKey",
+    "input": {
+      "tenantId": "t1",
+      "agentId": "a1",
+      "instalmentId": "i1",
+      "receivedAmount": 501,
+      "paymentMode": "cash",
+      "collectionDate": "2026-06-01"
+    },
+    "expect": {
+      "key": {
+        "not": "t1:a1:i1:500.00:cash:2026-06-01"
+      }
+    }
+  },
+  {
+    "id": "CALC-CRS-001",
+    "group": "credit",
+    "title": "a borrower with no loans scores nothing rather than zero-risk",
+    "op": "credit.score",
+    "input": {
+      "loans": []
+    },
+    "expect": {
+      "score": 0,
+      "grade": "N/A"
+    }
+  },
+  {
+    "id": "CALC-CRS-002",
+    "group": "credit",
+    "title": "a loan with no repayment history yet scores N/A",
+    "why": "A brand-new borrower must not be graded on an empty record.",
+    "op": "credit.score",
+    "input": {
+      "loans": [
+        {
+          "status": "active",
+          "principal": 20000,
+          "tenure": 10,
+          "instalments": [
+            {
+              "status": "upcoming",
+              "receivedAmount": 0
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "score": 0,
+      "grade": "N/A",
+      "totalPaid": 0
+    }
+  },
+  {
+    "id": "CALC-CRS-003",
+    "group": "credit",
+    "title": "a perfect closed loan at the volume ceiling scores the maximum",
+    "why": "55 punctuality + 35 completion + 10 volume = 100 points → 300 + 550 = 850.",
+    "op": "credit.score",
+    "input": {
+      "loans": [
+        {
+          "status": "closed",
+          "principal": 50000,
+          "tenure": 10,
+          "instalments": [
+            {
+              "status": "paid",
+              "receivedAmount": 5000
+            },
+            {
+              "status": "paid",
+              "receivedAmount": 5000
+            },
+            {
+              "status": "paid",
+              "receivedAmount": 5000
+            },
+            {
+              "status": "paid",
+              "receivedAmount": 5000
+            },
+            {
+              "status": "paid",
+              "receivedAmount": 5000
+            },
+            {
+              "status": "paid",
+              "receivedAmount": 5000
+            },
+            {
+              "status": "paid",
+              "receivedAmount": 5000
+            },
+            {
+              "status": "paid",
+              "receivedAmount": 5000
+            },
+            {
+              "status": "paid",
+              "receivedAmount": 5000
+            },
+            {
+              "status": "paid",
+              "receivedAmount": 5000
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "score": 850,
+      "grade": "Excellent",
+      "punctuality": 100,
+      "totalPaid": 50000,
+      "closedLoans": 1,
+      "activeLoans": 0
+    }
+  },
+  {
+    "id": "CALC-CRS-004",
+    "group": "credit",
+    "title": "a missed instalment costs 1.5 on-time payments and a partial costs 0.5",
+    "why": "4 paid − (2 missed × 1.5) − (1 partial × 0.5) = 0.5 of 10 due → 5% punctuality.",
+    "op": "credit.score",
+    "input": {
+      "loans": [
+        {
+          "status": "active",
+          "principal": 20000,
+          "tenure": 10,
+          "instalments": [
+            {
+              "status": "paid",
+              "receivedAmount": 2000
+            },
+            {
+              "status": "paid",
+              "receivedAmount": 2000
+            },
+            {
+              "status": "paid",
+              "receivedAmount": 2000
+            },
+            {
+              "status": "paid",
+              "receivedAmount": 2000
+            },
+            {
+              "status": "missed",
+              "receivedAmount": 0
+            },
+            {
+              "status": "missed",
+              "receivedAmount": 0
+            },
+            {
+              "status": "partial",
+              "receivedAmount": 500
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "punctuality": 5,
+      "score": 337,
+      "grade": "Very Poor",
+      "totalPaid": 8500,
+      "activeLoans": 1,
+      "closedLoans": 0
+    }
+  },
+  {
+    "id": "CALC-CRS-005",
+    "group": "credit",
+    "title": "the score band is 300–850, not the 0–100 the doc comment claims",
+    "why": "Documented divergence: lib/creditScore.ts still describes a 0–100 scale it stopped returning.",
+    "op": "credit.score",
+    "input": {
+      "loans": [
+        {
+          "status": "closed",
+          "principal": 10000,
+          "tenure": 4,
+          "instalments": [
+            {
+              "status": "paid",
+              "receivedAmount": 2500
+            },
+            {
+              "status": "paid",
+              "receivedAmount": 2500
+            },
+            {
+              "status": "paid",
+              "receivedAmount": 2500
+            },
+            {
+              "status": "paid",
+              "receivedAmount": 2500
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "score": {
+        "gte": 300
+      },
+      "grade": "Excellent"
+    }
+  }
+]

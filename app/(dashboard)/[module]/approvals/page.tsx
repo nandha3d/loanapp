@@ -5,6 +5,7 @@ import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { getDictionary } from '@/lib/i18n';
 import { getActiveBranchId } from '@/lib/branch';
+import { branchScopeWhere } from '@/lib/branchScope';
 
 export default async function ApprovalsPage() {
   const session = await auth();
@@ -20,13 +21,16 @@ export default async function ApprovalsPage() {
   const dict = await getDictionary(tenantId);
   const activeBranchId = await getActiveBranchId();
   
+  // Branch scope shared by every query below so the list, the tabs and the
+  // sidebar badge always agree — and so an admin can only approve records that
+  // belong to their own branch.
+  const branchScope = branchScopeWhere(activeBranchId);
+
   const where: any = { tenantId, appType };
   if (userRole === 'agent') {
     where.requestedById = userId;
-  } else if (userRole === 'admin' && activeBranchId) {
-    where.requestedBy = {
-      branchId: activeBranchId
-    };
+  } else if (activeBranchId) {
+    where.requestedBy = branchScope;
   }
 
   const requests = await prisma.approvalRequest.findMany({ 
@@ -41,9 +45,17 @@ export default async function ApprovalsPage() {
   // Fetch pending_review loans for admin/superadmin/developer
   let pendingLoans: any[] = [];
   let pendingCustomers: any[] = [];
+  let pendingVehicles: any[] = [];
   if (userRole !== 'agent') {
-    const loanWhere: any = { tenantId, appType, status: 'pending_review' };
-    if (activeBranchId) loanWhere.branchId = activeBranchId;
+    // Own branch only. A loan/customer takes the branch of its ROUTE, which can
+    // differ from the filing agent's — the record still belongs to that branch,
+    // and only that branch's admin may approve it.
+    const loanWhere: any = {
+      tenantId,
+      appType,
+      status: 'pending_review',
+      ...branchScope,
+    };
     pendingLoans = await prisma.loan.findMany({
       where: loanWhere,
       include: {
@@ -53,8 +65,12 @@ export default async function ApprovalsPage() {
       orderBy: { createdAt: 'desc' },
     });
 
-    const customerWhere: any = { tenantId, appType, status: 'pending_review' };
-    if (activeBranchId) customerWhere.branchId = activeBranchId;
+    const customerWhere: any = {
+      tenantId,
+      appType,
+      status: 'pending_review',
+      ...branchScope,
+    };
     pendingCustomers = await prisma.customer.findMany({
       where: customerWhere,
       include: {
@@ -62,6 +78,21 @@ export default async function ApprovalsPage() {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    // Vehicles only exist in autofinance. Scope by the customer's branch (vehicles
+    // have no branch column of their own).
+    if (appType === 'autofinance') {
+      const vehicleWhere: any = { tenantId, appType, status: 'pending_review', deletedAt: null };
+      if (activeBranchId) vehicleWhere.customer = branchScope;
+      pendingVehicles = await prisma.vehicle.findMany({
+        where: vehicleWhere,
+        include: {
+          customer: { select: { name: true, customerCode: true, agent: { select: { name: true } } } },
+          loan: { select: { loanCode: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
   }
 
   return (
@@ -69,6 +100,7 @@ export default async function ApprovalsPage() {
       requests={requests}
       pendingLoans={pendingLoans}
       pendingCustomers={pendingCustomers}
+      pendingVehicles={pendingVehicles}
       userRole={userRole}
       dict={dict}
     />

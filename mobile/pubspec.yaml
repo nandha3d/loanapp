@@ -1,7 +1,7 @@
-name: loantrack
-description: LoanTrack — microlending & chit fund mobile app for field agents and admins.
+name: zolofund
+description: ZoloFund — microlending & chit fund mobile app for field agents and admins.
 publish_to: 'none'
-version: 0.1.0+11
+version: 0.1.14+36
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
@@ -21,7 +21,7 @@ dependencies:
 
   # Network
   dio: ^5.7.0
-  retrofit: ^4.4.1
+  retrofit: '>=4.4.1 <4.9.0'
   pretty_dio_logger: ^1.4.0
   http_parser: ^4.0.2
 
@@ -43,13 +43,11 @@ dependencies:
   # Connectivity & auth
   connectivity_plus: ^6.1.0
   local_auth: ^2.3.0
+  google_sign_in: ^6.2.1
 
   # GPS (GPS-04)
   geolocator: ^13.0.0
   permission_handler: ^11.3.0
-
-  # Google sign-in (registration/login)
-  google_sign_in: ^6.2.1
 
   # QR scanner (payment proof)
   mobile_scanner: ^5.2.3
@@ -65,6 +63,7 @@ dependencies:
   image_picker: ^1.1.2
   image_cropper: ^8.1.0
   url_launcher: ^6.3.1
+  razorpay_flutter: ^1.3.7
 
   # PDF
   pdf: ^3.11.1
@@ -72,6 +71,13 @@ dependencies:
 
   # Accessibility - true TTS for low-literacy voice guidance (U2)
   flutter_tts: ^4.2.0
+
+  # Voice ENTRY - speech-to-text collection input (parity: Vasool voice entry)
+  speech_to_text: ^7.0.0
+
+  # Voice-bid audio proof — captures the short clip during the push-to-talk
+  # bid gesture in the chit live room (never records ambiently).
+  record: ^6.0.0
 
   # Utilities
   intl: ^0.19.0
@@ -85,15 +91,20 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^5.0.0
   build_runner: ^2.4.13
+  build_runner_core: ^9.1.2
   freezed: ^2.5.7
   json_serializable: ^6.8.0
   retrofit_generator: ^9.1.5
-  riverpod_generator: ^2.6.3
-  custom_lint: ^0.7.0
-  riverpod_lint: ^2.6.3
   mockito: ^5.4.4
+  flutter_launcher_icons: ^0.14.3
 
 flutter:
   uses-material-design: true
   assets:
     - assets/images/
+
+flutter_launcher_icons:
+  android: false
+  ios: true
+  image_path: "assets/images/app_icon.png"
+  remove_alpha_ios: true

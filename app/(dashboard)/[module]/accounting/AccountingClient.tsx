@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { addAccountEntry } from './actions';
 import Modal from '@/components/Modal';
+import { calculateChitAccountingMetrics } from '@/lib/accounting/chitSummary';
 
 function formatCurrency(amount: number, symbol: string) {
   return `${symbol}${Math.abs(amount).toLocaleString('en-IN', { minimumFractionDigits: 0 })}`;
@@ -21,16 +22,33 @@ export default function AccountingClient({
   module,
 }: {
   summary: {
+    kind: 'lending' | 'chit';
     capitalIn: number;
     capitalOut: number;
     totalDisbursed: number;
     totalCollected: number;
     totalExpenses: number;
     currentCapital: number;
+    liquidCash: number;
+    loanOutstanding: number;
+    netWorth: number;
     grossProfit: number;
     netProfit: number;
+    releasedToAgents: number;
+    branchCashAvailable: number;
+    agentFloat: number;
+    releaseEntries: Array<{
+      id: string;
+      createdAt: string | Date;
+      amount: number | string;
+      note?: string | null;
+      createdById?: string | null;
+    }>;
     loans: any[];
     entries: any[];
+    chitGroups?: any[];
+    chitSubscriptions?: any[];
+    chitAuctions?: any[];
   };
   currencySymbol: string;
   dict: any;
@@ -59,8 +77,11 @@ export default function AccountingClient({
       case 'capital_add': return { label: ac.capitalAdd || 'Capital Add', icon: 'add_circle', color: 'var(--success)', sign: '+' };
       case 'capital_withdraw': return { label: ac.withdraw || 'Capital Withdraw', icon: 'remove_circle', color: 'var(--danger)', sign: '-' };
       case 'loan_disburse': return { label: 'Loan Disbursed', icon: 'account_balance', color: '#E67E22', sign: '-' };
+      case 'agent_release': return { label: 'Released to Agent', icon: 'payments', color: '#D97706', sign: '-' };
       case 'collection': return { label: 'Collection', icon: 'point_of_sale', color: 'var(--success)', sign: '+' };
       case 'expense': return { label: ac.expense || 'Expense', icon: 'receipt_long', color: 'var(--warning)', sign: '-' };
+      case 'chit_payout': return { label: 'Chit Payout', icon: 'emoji_events', color: '#E67E22', sign: '-' };
+      case 'chit_dividend_payout': return { label: 'Chit Dividend Payout', icon: 'redeem', color: '#D97706', sign: '-' };
       case 'adjustment': return { label: 'Adjustment', icon: 'tune', color: 'var(--text-secondary)', sign: '±' };
       default: return { label: type, icon: 'help', color: 'var(--text-secondary)', sign: '' };
     }
@@ -114,6 +135,24 @@ export default function AccountingClient({
     });
   }, [summary.entries, fromDate, toDate]);
 
+  const filteredReleases = useMemo(() => {
+    return (summary.releaseEntries || []).filter((entry: any) => {
+      const d = new Date(entry.createdAt);
+      d.setHours(0, 0, 0, 0);
+      if (fromDate) {
+        const start = new Date(fromDate);
+        start.setHours(0, 0, 0, 0);
+        if (d < start) return false;
+      }
+      if (toDate) {
+        const end = new Date(toDate);
+        end.setHours(23, 59, 59, 999);
+        if (d > end) return false;
+      }
+      return true;
+    });
+  }, [summary.releaseEntries, fromDate, toDate]);
+
   const filteredLoans = useMemo(() => {
     return (summary.loans || []).filter((loan: any) => {
       const d = new Date(loan.startDate);
@@ -138,6 +177,8 @@ export default function AccountingClient({
     let totalDisbursed = 0;
     let totalCollected = 0;
     let totalExpenses = 0;
+    let releasedToAgents = 0;
+    let chitOutflows = 0;
 
     for (const entry of filteredEntries) {
       const amt = Number(entry.amount);
@@ -157,10 +198,17 @@ export default function AccountingClient({
         case 'expense':
           totalExpenses += amt;
           break;
+        case 'chit_payout':
+        case 'chit_dividend_payout':
+          chitOutflows += amt;
+          break;
       }
     }
+    for (const release of filteredReleases) {
+      releasedToAgents += Math.abs(Number(release.amount));
+    }
 
-    const currentCapital = capitalIn - capitalOut - totalDisbursed + totalCollected - totalExpenses;
+    const currentCapital = capitalIn - capitalOut - totalDisbursed + totalCollected - totalExpenses - chitOutflows;
     const totalDeductions = filteredLoans.reduce((sum: number, loan: any) => sum + Number(loan.deduction), 0);
     const totalInterest = filteredLoans.reduce((sum: number, loan: any) => sum + Number(loan.totalPayable) - Number(loan.principal), 0);
     const projectedRevenue = totalDeductions + totalInterest;
@@ -172,13 +220,22 @@ export default function AccountingClient({
       totalDisbursed,
       totalCollected,
       totalExpenses,
+      releasedToAgents,
       currentCapital,
       totalDeductions,
       totalInterest,
       projectedRevenue,
       projectedProfit,
     };
-  }, [filteredEntries, filteredLoans]);
+  }, [filteredEntries, filteredLoans, filteredReleases]);
+
+  const chitMetrics = useMemo(() => calculateChitAccountingMetrics({
+    groups: summary.chitGroups || [],
+    subscriptions: summary.chitSubscriptions || [],
+    auctions: summary.chitAuctions || [],
+    fromDate: fromDate || undefined,
+    toDate: toDate || undefined,
+  }), [summary.chitGroups, summary.chitSubscriptions, summary.chitAuctions, fromDate, toDate]);
 
   return (
     <div>
@@ -261,10 +318,77 @@ export default function AccountingClient({
       {/* KPI Cards */}
       <div className="kpi-grid">
         <div className="kpi-card">
+          <div className="kpi-icon green"><span className="material-icons-outlined">account_balance</span></div>
+          <div>
+            <div className="kpi-value">{formatCurrency(summary.netWorth, currencySymbol)}</div>
+            <div className="kpi-label">{ac.netWorth || 'Net Worth (Capital)'}</div>
+            <div style={{ fontSize: '.68rem', color: 'var(--text-light)', marginTop: '2px' }}>{summary.kind === 'chit' ? 'Liquid Cash + Subscription Receivable' : 'Liquid Cash + Loan Outstanding'}</div>
+          </div>
+        </div>
+        <div className="kpi-card">
           <div className="kpi-icon green"><span className="material-icons-outlined">savings</span></div>
           <div>
-            <div className="kpi-value">{formatCurrency(summary.currentCapital, currencySymbol)}</div>
-            <div className="kpi-label">{ac.currentCapital || 'Current Capital'}</div>
+            <div className="kpi-value">{formatCurrency(summary.liquidCash, currencySymbol)}</div>
+            <div className="kpi-label">{ac.liquidCash || 'Liquid Cash'}</div>
+            <div style={{ fontSize: '.68rem', color: 'var(--text-light)', marginTop: '2px' }}>Branch + Agent cash on hand</div>
+          </div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-icon blue"><span className="material-icons-outlined">account_balance_wallet</span></div>
+          <div>
+            <div className="kpi-value">{formatCurrency(summary.branchCashAvailable, currencySymbol)}</div>
+            <div className="kpi-label">{ac.branchCashOffice || 'Branch Cash (office)'}</div>
+          </div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-icon orange"><span className="material-icons-outlined">savings</span></div>
+          <div>
+            <div className="kpi-value">{formatCurrency(summary.agentFloat, currencySymbol)}</div>
+            <div className="kpi-label">{ac.agentCashField || 'Agent Cash (field)'}</div>
+          </div>
+        </div>
+        {summary.kind === 'chit' ? (
+          <>
+        <div className="kpi-card">
+          <div className="kpi-icon blue"><span className="material-icons-outlined">groups</span></div>
+          <div><div className="kpi-value">{formatCurrency(chitMetrics.activeChitValue, currencySymbol)}</div><div className="kpi-label">Active Chit Value</div></div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-icon green"><span className="material-icons-outlined">payments</span></div>
+          <div><div className="kpi-value">{formatCurrency(chitMetrics.contributionsCollected, currencySymbol)}</div><div className="kpi-label">Contributions Collected</div></div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-icon orange"><span className="material-icons-outlined">request_quote</span></div>
+          <div><div className="kpi-value">{formatCurrency(chitMetrics.subscriptionReceivable, currencySymbol)}</div><div className="kpi-label">Subscription Receivable</div></div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-icon orange"><span className="material-icons-outlined">emoji_events</span></div>
+          <div><div className="kpi-value">{formatCurrency(chitMetrics.prizePayouts, currencySymbol)}</div><div className="kpi-label">Prize Payouts</div></div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-icon green"><span className="material-icons-outlined">redeem</span></div>
+          <div><div className="kpi-value">{formatCurrency(chitMetrics.dividendsDistributed, currencySymbol)}</div><div className="kpi-label">Dividends Distributed</div></div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-icon blue"><span className="material-icons-outlined">group_work</span></div>
+          <div><div className="kpi-value">{chitMetrics.activeGroups}</div><div className="kpi-label">Active Groups</div></div>
+        </div>
+          </>
+        ) : (
+          <>
+        <div className="kpi-card">
+          <div className="kpi-icon blue"><span className="material-icons-outlined">request_quote</span></div>
+          <div>
+            <div className="kpi-value">{formatCurrency(summary.loanOutstanding, currencySymbol)}</div>
+            <div className="kpi-label">{ac.loanOutstanding || 'Loan Outstanding'}</div>
+            <div style={{ fontSize: '.68rem', color: 'var(--text-light)', marginTop: '2px' }}>Receivable from borrowers</div>
+          </div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-icon orange"><span className="material-icons-outlined">payments</span></div>
+          <div>
+            <div className="kpi-value">{formatCurrency(metrics.releasedToAgents, currencySymbol)}</div>
+            <div className="kpi-label">Released to Agent</div>
           </div>
         </div>
         <div className="kpi-card">
@@ -292,6 +416,8 @@ export default function AccountingClient({
             <div className="kpi-label">{ac.projectedProfit || 'Projected Profit'}</div>
           </div>
         </div>
+          </>
+        )}
       </div>
 
       {/* Capital Flow Summary */}
@@ -311,24 +437,32 @@ export default function AccountingClient({
                 <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--danger)' }}>-{formatCurrency(metrics.capitalOut, currencySymbol)}</div>
               </div>
               <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Released to Agents</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#D97706' }}>-{formatCurrency(metrics.releasedToAgents, currencySymbol)}</div>
+              </div>
+              <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Agent Float</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--primary)' }}>{formatCurrency(summary.agentFloat, currencySymbol)}</div>
+              </div>
+              {summary.kind === 'lending' && <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{ac.totalDeductions || 'Total Deductions (Upfront Fees)'}</div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--success)' }}>{formatCurrency(metrics.totalDeductions, currencySymbol)}</div>
-              </div>
-              <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+              </div>}
+              {summary.kind === 'lending' && <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{ac.totalInterest || 'Total Interest'}</div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--success)' }}>{formatCurrency(metrics.totalInterest, currencySymbol)}</div>
-              </div>
-              <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+              </div>}
+              {summary.kind === 'lending' && <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{ac.projectedRevenue || 'Projected Revenue'}</div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--primary)' }}>{formatCurrency(metrics.projectedRevenue, currencySymbol)}</div>
                 <div style={{ fontSize: '.7rem', color: 'var(--text-light)', marginTop: '2px' }}>{ac.deductionsInterest || 'Deductions + Interest'}</div>
-              </div>
+              </div>}
               <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{ac.expenses || 'Expenses'}</div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--warning)' }}>-{formatCurrency(metrics.totalExpenses, currencySymbol)}</div>
               </div>
             </div>
-            <div style={{ padding: '16px', background: metrics.projectedProfit >= 0 ? 'rgba(16, 185, 129, 0.06)' : 'rgba(239, 68, 68, 0.06)', borderRadius: 'var(--radius-sm)', border: `1px solid ${metrics.projectedProfit >= 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            {summary.kind === 'lending' && <div style={{ padding: '16px', background: metrics.projectedProfit >= 0 ? 'rgba(16, 185, 129, 0.06)' : 'rgba(239, 68, 68, 0.06)', borderRadius: 'var(--radius-sm)', border: `1px solid ${metrics.projectedProfit >= 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>{ac.projectedProfitLabel || 'Projected Profit'}</div>
                 <div style={{ fontSize: '.7rem', color: 'var(--text-light)' }}>{ac.projectedRevenueMinusExpenses || 'Projected Revenue − Expenses'}</div>
@@ -336,7 +470,7 @@ export default function AccountingClient({
               <div style={{ fontSize: '1.4rem', fontWeight: 800, color: metrics.projectedProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}>
                 {metrics.projectedProfit >= 0 ? '' : '-'}{formatCurrency(metrics.projectedProfit, currencySymbol)}
               </div>
-            </div>
+            </div>}
           </div>
         </div>
 
@@ -365,8 +499,24 @@ export default function AccountingClient({
 
       {/* Transaction Ledger */}
       {(() => {
-        const ledgerEntries = filteredEntries.filter((entry: any) => {
-          const d = new Date(entry.entryDate);
+        const accountLedgerRows = filteredEntries.map((entry: any) => ({
+          ...entry,
+          ledgerId: `account-${entry.id}`,
+          ledgerDate: entry.entryDate,
+        }));
+        const releaseLedgerRows = filteredReleases.map((entry: any) => ({
+          id: entry.id,
+          ledgerId: `release-${entry.id}`,
+          ledgerDate: entry.createdAt,
+          entryDate: entry.createdAt,
+          type: 'agent_release',
+          category: 'cash',
+          amount: Math.abs(Number(entry.amount)),
+          description: entry.note || 'Cash released to agent',
+          user: null,
+        }));
+        const ledgerEntries = [...accountLedgerRows, ...releaseLedgerRows].filter((entry: any) => {
+          const d = new Date(entry.ledgerDate);
           d.setHours(0, 0, 0, 0);
           if (ledgerFrom) {
             const start = new Date(ledgerFrom);
@@ -379,7 +529,7 @@ export default function AccountingClient({
             if (d > end) return false;
           }
           return true;
-        });
+        }).sort((a: any, b: any) => new Date(b.ledgerDate).getTime() - new Date(a.ledgerDate).getTime());
         const totalPages = Math.max(1, Math.ceil(ledgerEntries.length / LEDGER_PAGE_SIZE));
         const safePage = Math.min(ledgerPage, totalPages);
         const startIdx = (safePage - 1) * LEDGER_PAGE_SIZE;
@@ -486,8 +636,8 @@ export default function AccountingClient({
               {pageEntries.map((entry: any) => {
                 const info = getTypeInfo(entry.type);
                 return (
-                  <tr key={entry.id}>
-                    <td>{formatDate(entry.entryDate)}</td>
+                  <tr key={entry.ledgerId}>
+                    <td>{formatDate(entry.ledgerDate)}</td>
                     <td>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                         <span className="material-icons-outlined" style={{ fontSize: '14px', color: info.color }}>{info.icon}</span>

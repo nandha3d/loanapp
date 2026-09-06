@@ -1,4 +1,5 @@
 import prisma from '../../db';
+import { decryptField } from '../../pii';
 import { getSetting } from '../../tenant';
 
 interface SmsResult { success: boolean; providerMsgId?: string; error?: string; }
@@ -16,7 +17,8 @@ export async function sendSms(
     getSetting(tenantId, 'notify_channel_sms', 'false'),
   ]);
 
-  if (enabled !== 'true' || !authKey) {
+  const resolvedAuthKey = decryptField(authKey) || authKey;
+  if (enabled !== 'true' || !resolvedAuthKey) {
     return { success: false, error: 'SMS channel not configured' };
   }
 
@@ -28,7 +30,7 @@ export async function sendSms(
   try {
     const res = await fetch('https://api.msg91.com/api/v5/sms', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', authkey: authKey },
+      headers: { 'Content-Type': 'application/json', authkey: resolvedAuthKey },
       body: JSON.stringify({
         sender: senderId,
         route: '4',

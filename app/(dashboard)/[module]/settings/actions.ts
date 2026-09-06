@@ -2,20 +2,18 @@
 
 import prisma from '@/lib/db';
 import { getDefaultTenantId, setSetting, getUserAppType } from '@/lib/tenant';
+import { FEATURE_FLAG_KEYS } from '@/lib/features';
+import { canManageAdmins } from '@/lib/roles';
 import { revalidatePath } from 'next/cache';
 import { hash } from 'bcryptjs';
 import { auth } from '@/lib/auth';
 import { generateSecret, generateURI, verifySync } from 'otplib';
 import QRCode from 'qrcode';
 import { encryptAadharNumber, encryptField } from '@/lib/pii';
-import fs from 'fs';
-import path from 'path';
 import { getRouteDeletionBlockReason } from '@/lib/routePolicy';
 import { getActiveBranchId, getBranchEnabledModules } from '@/lib/branch';
 import { findUserUniqueConflicts } from '@/lib/userUniqueness';
-import { uploadBaseDir } from '@/lib/fileUpload';
-
-const UPLOAD_DIR = uploadBaseDir();
+import { storeTenantUpload } from '@/lib/fileUpload';
 
 export async function saveUpiQrCode(formData: FormData) {
   const session = await auth();
@@ -38,17 +36,32 @@ export async function saveUpiQrCode(formData: FormData) {
   const receiptPdfActive = formData.get('receipt_pdf_active') === 'true' ? 'true' : 'false';
   await setSetting(tenantId, 'receipt_pdf_active', receiptPdfActive, 'payment');
 
+  // Manual UPI verification (default off — UPI auto-verifies and credits the
+  // account at collection time; on = admin reviews each UPI payment by hand).
+  const upiManualVerification = formData.get('upi_manual_verification') === 'true' ? 'true' : 'false';
+  await setSetting(tenantId, 'upi_manual_verification', upiManualVerification, 'payment');
+
   // Save QR code image
   if (qrFile && qrFile.size > 0) {
-    const dir = path.join(UPLOAD_DIR, tenantId, 'settings');
-    fs.mkdirSync(dir, { recursive: true });
-    const ext = path.extname(qrFile.name).replace(/[^a-zA-Z0-9.]/g, '').toLowerCase() || '.png';
-    const safeName = `upi_qr_${Date.now()}${ext}`;
-    const filePath = path.join(dir, safeName);
-    const buffer = Buffer.from(await qrFile.arrayBuffer());
-    fs.writeFileSync(filePath, buffer);
-    const publicPath = `/api/files/${tenantId}/settings/${safeName}`;
-    await setSetting(tenantId, 'upi_qr_url', publicPath, 'payment');
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(qrFile.type)) {
+      return { success: false, error: 'UPI QR code must be a JPEG, PNG, or WebP image' };
+    }
+
+    try {
+      const stored = await storeTenantUpload({
+        tenantId,
+        mimeType: qrFile.type,
+        buffer: Buffer.from(await qrFile.arrayBuffer()),
+        scopes: ['settings'],
+        prefix: 'upi_qr',
+      });
+      await setSetting(tenantId, 'upi_qr_url', stored.url, 'payment');
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unable to save UPI QR code',
+      };
+    }
   }
 
   revalidatePath('/settings');
@@ -79,6 +92,43 @@ export async function saveSystemSettings(formData: FormData) {
       action: 'update',
       entityType: 'settings',
       newValue: JSON.stringify({ category: 'system', changes: saved }),
+    },
+  });
+
+  revalidatePath('/settings');
+  return { success: true };
+}
+
+/**
+ * Per-tenant feature opt-ins (lib/features.ts). Superadmin-only: these change
+ * which products the tenant can originate, unlike the routine system settings a
+ * branch admin edits. Written through setSetting so the tenant settings cache
+ * invalidates immediately — a flag flipped directly in the DB needs an app
+ * restart to take effect.
+ */
+export async function saveFeatureFlags(formData: FormData) {
+  const session = await auth();
+  const role = (session?.user as any)?.role;
+  const userId = session?.user?.id;
+  if (!userId || !['superadmin', 'developer'].includes(role)) {
+    return { success: false, error: 'Unauthorized. Super Admin only.' };
+  }
+  const tenantId = await getDefaultTenantId();
+  const saved: Record<string, string> = {};
+
+  for (const key of FEATURE_FLAG_KEYS) {
+    const value = formData.get(key) === 'on' || formData.get(key) === 'true' ? '1' : '0';
+    await setSetting(tenantId, key, value, 'features');
+    saved[key] = value;
+  }
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId,
+      userId,
+      action: 'update',
+      entityType: 'settings',
+      newValue: JSON.stringify({ category: 'features', changes: saved }),
     },
   });
 
@@ -199,6 +249,8 @@ export async function createLoanPackage(formData: FormData) {
   await prisma.loanPackage.create({
     data: {
       tenantId,
+      // Owned by the branch that created it; null only for a tenant-wide actor.
+      branchId: await getActiveBranchId(),
       name: formData.get('name') as string,
       principal,
       deduction,
@@ -250,10 +302,19 @@ export async function createUser(formData: FormData) {
   if (requestedRole === 'developer' && role !== 'developer') {
     return { success: false, error: 'Only a developer can create developer accounts' };
   }
+  // A plain admin creating a peer admin was an escalation route: the new account
+  // carried the same rights with nobody able to constrain it. Minting an admin
+  // now requires primary-admin rank or above.
+  if (
+    requestedRole === 'admin' &&
+    !canManageAdmins({ role, isPrimaryAdmin: (session?.user as any)?.isPrimaryAdmin })
+  ) {
+    return { success: false, error: 'Only a Primary Admin or Super Admin can create admin accounts' };
+  }
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
-  const username = ((formData.get('username') as string) || (formData.get('email') as string) || '').trim().toLowerCase();
   const phone = ((formData.get('phone') as string) || '').trim();
+  const username = ((formData.get('username') as string) || phone).trim().toLowerCase();
   const email = ((formData.get('email') as string) || '').trim().toLowerCase() || null;
   if (!username || !phone) {
     return { success: false, error: 'Username and phone are required' };
@@ -403,7 +464,7 @@ export async function generate2faSecret() {
 
   const secret = generateSecret();
   const username = (session.user as any).username;
-  const otpauth = generateURI({ secret, label: username, issuer: 'LoanTrack' });
+  const otpauth = generateURI({ secret, label: username, issuer: 'ZoloFund' });
   const qrCodeUrl = await QRCode.toDataURL(otpauth);
 
   return { secret, qrCodeUrl };
@@ -522,6 +583,13 @@ export async function wipeDatabaseRecords(tablesToWipe: string[]) {
 
       if (tablesToWipe.includes('accounting')) {
         await tx.accountEntry.deleteMany({ where: { tenantId } });
+        // Wallet ledger drives Branch Cash / Agent Float / Released-to-Agent on
+        // the dashboard. Clear the transactions first, then zero the balances by
+        // removing the account rows (recreated lazily on next release/disburse).
+        await tx.walletTransaction.deleteMany({ where: { tenantId } });
+        await tx.cashHandover.deleteMany({ where: { tenantId } });
+        await tx.agentAccount.deleteMany({ where: { tenantId } });
+        await tx.branchCashAccount.deleteMany({ where: { tenantId } });
       }
 
       // Helper function to delete a specific set of users
@@ -661,6 +729,43 @@ export async function wipeDatabaseRecords(tablesToWipe: string[]) {
   }
 }
 
+export async function saveThemeSettings(presetKey: string) {
+  const session = await auth();
+  const role = (session?.user as any)?.role;
+  const userId = session?.user?.id;
+  if (!userId || !['superadmin', 'developer'].includes(role)) {
+    return { success: false, error: 'Only a superadmin can change the theme' };
+  }
+  const { getThemePreset, THEME_SETTING_KEY } = await import('@/lib/themes');
+  const preset = presetKey === 'default' ? null : getThemePreset(presetKey);
+  if (presetKey !== 'default' && !preset) {
+    return { success: false, error: 'Unknown theme' };
+  }
+
+  const tenantId = await getDefaultTenantId();
+  await Promise.all([
+    setSetting(tenantId, THEME_SETTING_KEY, presetKey, 'branding'),
+    // Concrete colours so web layout + mobile app read them directly.
+    setSetting(tenantId, 'primary_color', preset?.primary ?? '#F5A623', 'branding'),
+    setSetting(tenantId, 'primary_dark', preset?.primaryDark ?? '#E8930C', 'branding'),
+    setSetting(tenantId, 'primary_light', preset?.primaryLight ?? '#FFF3E0', 'branding'),
+    setSetting(tenantId, 'accent_color', preset?.accent ?? '#FFC107', 'branding'),
+  ]);
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId,
+      userId,
+      action: 'update',
+      entityType: 'settings',
+      newValue: JSON.stringify({ category: 'theme', preset: presetKey }),
+    },
+  });
+
+  revalidatePath('/', 'layout');
+  return { success: true };
+}
+
 export async function saveNotificationSettings(formData: FormData) {
   const session = await auth();
   const role = (session?.user as any)?.role;
@@ -682,14 +787,14 @@ export async function saveNotificationSettings(formData: FormData) {
   const notifyEventLoanClosed = formData.get('notify_event_loan_closed') === 'true' ? 'true' : 'false';
   const notifyEventPenaltyAccrued = formData.get('notify_event_penalty_accrued') === 'true' ? 'true' : 'false';
 
-  const msg91AuthKey = (formData.get('msg91_auth_key') as string) || '';
+  const msg91AuthKey = ((formData.get('msg91_auth_key') as string) || '').trim();
   const msg91SenderId = (formData.get('msg91_sender_id') as string) || 'LNTRCK';
   const msg91WhatsappNumber = (formData.get('msg91_whatsapp_number') as string) || '';
 
   const smtpHost = (formData.get('smtp_host') as string) || '';
   const smtpPort = (formData.get('smtp_port') as string) || '587';
   const smtpUser = (formData.get('smtp_user') as string) || '';
-  const smtpPass = (formData.get('smtp_pass') as string) || '';
+  const smtpPass = ((formData.get('smtp_pass') as string) || '').trim();
   const smtpFromName = (formData.get('smtp_from_name') as string) || '';
 
   await Promise.all([
@@ -703,15 +808,20 @@ export async function saveNotificationSettings(formData: FormData) {
     setSetting(tenantId, 'notify_event_loan_overdue', notifyEventLoanOverdue, 'notification'),
     setSetting(tenantId, 'notify_event_loan_closed', notifyEventLoanClosed, 'notification'),
     setSetting(tenantId, 'notify_event_penalty_accrued', notifyEventPenaltyAccrued, 'notification'),
-    setSetting(tenantId, 'msg91_auth_key', msg91AuthKey, 'notification'),
     setSetting(tenantId, 'msg91_sender_id', msg91SenderId, 'notification'),
     setSetting(tenantId, 'msg91_whatsapp_number', msg91WhatsappNumber, 'notification'),
     setSetting(tenantId, 'smtp_host', smtpHost, 'notification'),
     setSetting(tenantId, 'smtp_port', smtpPort, 'notification'),
     setSetting(tenantId, 'smtp_user', smtpUser, 'notification'),
-    setSetting(tenantId, 'smtp_pass', smtpPass, 'notification'),
     setSetting(tenantId, 'smtp_from_name', smtpFromName, 'notification'),
   ]);
+
+  if (msg91AuthKey) {
+    await setSetting(tenantId, 'msg91_auth_key', encryptField(msg91AuthKey) || '', 'notification');
+  }
+  if (smtpPass) {
+    await setSetting(tenantId, 'smtp_pass', encryptField(smtpPass) || '', 'notification');
+  }
 
   await prisma.auditLog.create({
     data: {
@@ -795,6 +905,61 @@ export async function saveBureauSettings(formData: FormData) {
       action: 'update',
       entityType: 'settings',
       newValue: JSON.stringify({ category: 'bureau', provider, environment, hasCert: !!certPemBase64 }),
+    },
+  });
+
+  revalidatePath('/settings');
+  return { success: true };
+}
+
+export async function saveNotificationTemplate(data: {
+  name: string;
+  channel: string;
+  lang: string;
+  subject?: string | null;
+  body: string;
+  isActive?: boolean;
+}) {
+  const session = await auth();
+  const role = (session?.user as any)?.role;
+  const userId = session?.user?.id;
+  if (!userId || !['admin', 'superadmin', 'developer'].includes(role)) {
+    return { success: false, error: 'Unauthorized' };
+  }
+  const tenantId = await getDefaultTenantId();
+
+  await prisma.notificationTemplate.upsert({
+    where: {
+      tenantId_name_channel_lang: {
+        tenantId,
+        name: data.name,
+        channel: data.channel,
+        lang: data.lang,
+      },
+    },
+    update: {
+      subject: data.subject || null,
+      body: data.body,
+      isActive: data.isActive ?? true,
+    },
+    create: {
+      tenantId,
+      name: data.name,
+      channel: data.channel,
+      lang: data.lang,
+      subject: data.subject || null,
+      body: data.body,
+      isActive: data.isActive ?? true,
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId,
+      userId,
+      action: 'update',
+      entityType: 'notification_template',
+      newValue: JSON.stringify({ name: data.name, channel: data.channel, lang: data.lang }),
     },
   });
 

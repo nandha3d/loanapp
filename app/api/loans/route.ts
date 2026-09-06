@@ -3,6 +3,7 @@ import prisma from '@/lib/db';
 import { apiSuccess, apiError } from '@/lib/utils';
 import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { auth } from '@/lib/auth';
+import { getActiveBranchId } from '@/lib/branch';
 
 export async function GET(request: Request) {
   try {
@@ -10,7 +11,9 @@ export async function GET(request: Request) {
     if (!session?.user) return apiError('Unauthorized', 401);
 
     const role = (session.user as any)?.role;
-    const branchId = (session.user as any)?.branchId;
+    // Resolved, not read off the session: the session copy goes stale when an
+    // admin is moved, and it ignores the superadmin branch switcher entirely.
+    const branchId = await getActiveBranchId();
 
     // Agents are not allowed to access loans API
     if (role === 'agent') return apiError('Forbidden', 403);
@@ -32,8 +35,9 @@ export async function GET(request: Request) {
     if (customerId) where.customerId = customerId;
     if (status) where.status = status;
 
-    // Branch isolation for micro lending admins
-    if (role === 'admin' && branchId) {
+    // Branch isolation. getActiveBranchId already returns null for developers
+    // and for a superadmin on "All Branches", so those stay tenant-wide.
+    if (branchId) {
       where.branchId = branchId;
     }
 

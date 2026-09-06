@@ -12,6 +12,10 @@ export async function POST(req: NextRequest) {
       frequency = 'daily',
       startDate = new Date().toISOString(),
       dueDay = null,
+      // Term axis. Absent means 'scheduled' — what every caller sent before it
+      // existed — so an older client keeps getting exactly what it got before.
+      termType = 'scheduled',
+      termDays = null,
     } = body;
 
     const calculation = calculateLoanPreview({
@@ -22,6 +26,8 @@ export async function POST(req: NextRequest) {
       frequency,
       startDate,
       dueDay,
+      termType,
+      termDays: termDays == null ? null : Number(termDays),
     });
 
     return NextResponse.json({

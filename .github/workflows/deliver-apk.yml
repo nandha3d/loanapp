@@ -1,0 +1,79 @@
+name: Deliver APK to Release
+
+# Re-publishes a built APK artifact from a build-apk run as a GitHub Release
+# asset, so it can be downloaded without Actions API access (artifact
+# downloads require an authenticated API call; release assets are plain
+# github.com downloads). Resolves the newest build-apk run on
+# merged-all-branches by itself and waits for it to finish, so a push here
+# in the same breath as the build-triggering merge just works.
+
+on:
+  push:
+    branches: [claude/github-web-editing-lkc19k]
+    paths: ['.github/workflows/deliver-apk.yml']
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "build-apk run ID to publish (blank = newest on merged-all-branches)"
+        required: false
+        default: ""
+      tag:
+        description: "Release tag to create/update"
+        required: true
+        default: "apk-latest"
+
+env:
+  TAG: ${{ inputs.tag || 'apk-latest' }}
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve build run and wait for it
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_RUN_ID: ${{ inputs.run_id }}
+        run: |
+          RUN_ID="$INPUT_RUN_ID"
+          if [ -z "$RUN_ID" ]; then
+            RUN_ID=$(gh run list --repo "$GITHUB_REPOSITORY" \
+              --workflow build-apk.yml --branch merged-all-branches \
+              --limit 1 --json databaseId -q '.[0].databaseId')
+          fi
+          echo "RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
+          echo "Waiting on build-apk run $RUN_ID"
+          for i in $(seq 1 120); do
+            STATUS=$(gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json status,conclusion -q '.status + "/" + .conclusion')
+            echo "poll $i: $STATUS"
+            case "$STATUS" in
+              completed/success) exit 0 ;;
+              completed/*) echo "build run failed: $STATUS"; exit 1 ;;
+            esac
+            sleep 30
+          done
+          echo "timed out waiting for run $RUN_ID"; exit 1
+
+      - name: Download artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            -n zolofund-release-apk -D apk
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -laR apk
+          FILE=$(find apk -name '*.apk' | head -1)
+          echo "Publishing $FILE"
+          gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
+          gh release create "$TAG" "$FILE" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "ZoloFund APK (latest)" \
+            --notes "APK from build-apk run $RUN_ID." \
+            --latest=false

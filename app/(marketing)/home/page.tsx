@@ -10,7 +10,7 @@ import { buildMetadata } from '../_components/seo';
 export const metadata = buildMetadata({
   title: 'Loan Tracking Software for Micro-Lenders & NBFCs',
   description:
-    'LoanTrack is all-in-one loan tracking and management software — run micro-lending, auto finance, gold loans and chit funds with GPS field collection, agent wallets, KYC and accounting. Free plan, 6 languages.',
+    'ZoloFund is all-in-one loan tracking and management software — run micro-lending, auto finance, gold loans and chit funds with GPS field collection, agent wallets, KYC and accounting. Free plan, 6 languages.',
   path: '/home',
   keywords: ['loan tracking software', 'loan management software', 'microfinance software', 'field collection app'],
 });
@@ -48,7 +48,7 @@ export default function HomePage() {
               <span className="mk-grad-text">finally in one place.</span>
             </h1>
             <p className="mk-lead">
-              LoanTrack unifies micro-lending, auto finance, gold loans and chit funds —
+              ZoloFund unifies micro-lending, auto finance, gold loans and chit funds —
               with GPS-verified collection, agent wallets and full accounting. Built for
               India&apos;s lenders, in six languages.
             </p>
@@ -222,7 +222,7 @@ export default function HomePage() {
         <div className="mk-container">
           <div className="mk-quote">
             <div className="mk-quote__mark">&ldquo;</div>
-            <p>We replaced three tools with LoanTrack. GPS collection and the agent wallet alone cut our daily reconciliation from hours to minutes.</p>
+            <p>We replaced three tools with ZoloFund. GPS collection and the agent wallet alone cut our daily reconciliation from hours to minutes.</p>
             <div className="mk-quote__who">
               <span className="mk-quote__av">RK</span>
               <div style={{ textAlign: 'left' }}>

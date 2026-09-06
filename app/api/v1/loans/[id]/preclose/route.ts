@@ -149,6 +149,7 @@ export async function POST(
       await tx.accountEntry.create({
         data: {
           tenantId: ctx.tenantId,
+          appType: loan.appType,
           entryDate: new Date(),
           type: 'collection',
           category: paymentMode === 'cash' ? 'cash' : 'upi',

@@ -1,12 +1,14 @@
-/* ===== LoanTrack Design System ===== */
+/* ===== ZoloFund Design System ===== */
 /* Ported exactly from prototype — DO NOT change colors */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+/* Inter is self-hosted via next/font (app/layout.tsx) — no external CSS import. */
 
 @font-face {
   font-family: 'Material Icons Outlined';
   font-style: normal;
   font-weight: 400;
-  src: url('/fonts/MaterialIconsOutlined-Regular.otf') format('opentype');
+  /* woff2 is ~55% smaller than the otf; otf kept as fallback for old engines. */
+  src: url('/fonts/MaterialIconsOutlined-Regular.woff2') format('woff2'),
+       url('/fonts/MaterialIconsOutlined-Regular.otf') format('opentype');
   font-display: block;
 }
 
@@ -22,7 +24,7 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 14px; }
-body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; min-height: 100vh; }
+body { font-family: var(--font-inter, 'Inter'), sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; min-height: 100vh; }
 a { color: var(--primary-dark); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
@@ -67,11 +69,17 @@ a:hover { text-decoration: underline; }
 .sidebar-nav a.active { background: var(--primary); color: #fff; }
 .sidebar-nav a .material-icons-outlined { font-size: 20px; }
 .sidebar-nav .nav-section { font-size: .7rem; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,.3); padding: 16px 16px 6px; }
+.sidebar-nav a .nav-badge { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--danger, #ef4444); color: #fff; font-size: .68rem; font-weight: 700; line-height: 18px; text-align: center; flex-shrink: 0; }
+.sidebar-nav a.active .nav-badge { background: #fff; color: var(--primary); }
 .sidebar-footer { padding: 16px 24px; border-top: 1px solid rgba(255,255,255,.08); flex-shrink: 0; }
 .sidebar-footer .user-info { display: flex; align-items: center; gap: 10px; }
 .sidebar-footer .avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .85rem; }
-.sidebar-footer .user-name { font-size: .85rem; font-weight: 600; }
+.sidebar-footer .user-name { font-size: .85rem; font-weight: 600; display: flex; align-items: center; gap: 6px; }
 .sidebar-footer .user-role { font-size: .7rem; color: rgba(255,255,255,.5); }
+.sidebar-footer .user-info-link { text-decoration: none; color: inherit; border-radius: var(--radius-sm); padding: 6px; margin: -6px; transition: background var(--transition); }
+.sidebar-footer .user-info-link:hover { background: rgba(255,255,255,.08); text-decoration: none; }
+.sidebar-footer .user-name-edit-icon { font-size: 13px; color: rgba(255,255,255,.4); }
+.sidebar-footer .user-info-link:hover .user-name-edit-icon { color: rgba(255,255,255,.85); }
 
 .main-content { margin-left: var(--sidebar-w); flex: 1; min-height: 100vh; }
 .topbar { height: var(--topbar-h); background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 28px; position: sticky; top: 0; z-index: 40; }
@@ -234,7 +242,6 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .summary-item-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
 .summary-label { font-size: .75rem; color: var(--text-secondary); font-weight: 500; }
 .summary-value { font-size: 1.2rem; font-weight: 700; }
-.summary-label { font-size: .72rem; color: rgba(255,255,255,.6); }
 
 /* ===== Pagination ===== */
 .pagination { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; font-size: .8rem; color: var(--text-secondary); }
@@ -304,14 +311,40 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   .sidebar.open { transform: translateX(0); }
   .main-content { margin-left: 0; }
   .btn-menu { display: block; }
-  .table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .table-wrapper::after { content: '-> scroll'; display: block; text-align: right; font-size: .7rem; color: var(--text-light); padding: 4px 8px; }
+  /* Tables REFLOW into stacked label:value cards — never side-scroll. Each <td>
+     should carry a data-label="…" for the row key (agent tables do; others fall
+     back to value-only rows). */
+  .table-wrapper { overflow-x: visible; }
+  table thead { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  table tbody tr { display: block; border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 10px; padding: 4px 2px; background: var(--card-bg); }
+  table tbody td { display: flex; justify-content: space-between; align-items: center; gap: 12px; text-align: right; padding: 8px 12px; border: 0; border-bottom: 1px solid var(--border); min-height: 40px; }
+  table tbody tr td:last-child { border-bottom: 0; }
+  table tbody td::before { content: attr(data-label); flex-shrink: 0; font-size: .7rem; font-weight: 600; color: var(--text-secondary); text-align: left; text-transform: uppercase; letter-spacing: .3px; }
+  table tbody td .btn { min-height: 40px; }
   .card { padding: 14px 16px; }
   .kpi-grid { grid-template-columns: 1fr; gap: 10px; }
   .filter-bar { flex-direction: column; align-items: stretch; }
   .filter-bar input, .filter-bar select { width: 100% !important; }
-  .modal { width: 100%; max-width: 100vw; border-radius: var(--radius) var(--radius) 0 0; max-height: 85vh; position: fixed; bottom: 0; margin: 0; }
-  .modal-overlay { align-items: flex-end; }
+  /* Fullscreen modals on mobile — more room for the payment dialog etc. Header
+     pinned top, footer pinned bottom, body scrolls. */
+  .modal {
+    width: 100vw !important; max-width: 100vw !important;
+    height: 100vh; height: 100dvh; max-height: 100vh; max-height: 100dvh;
+    border-radius: 0 !important; position: fixed !important;
+    top: 0; left: 0; right: 0; bottom: 0; margin: 0 !important;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .modal-body { flex: 1 1 auto; overflow-y: auto; padding: 18px 18px calc(18px + env(safe-area-inset-bottom)); }
+  .modal-header { flex-shrink: 0; }
+  .modal-footer { flex-shrink: 0; padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
+  .modal-footer .btn { min-height: 48px; }
+  .modal-overlay { align-items: stretch; justify-content: stretch; padding: 0; }
+  /* Collection: swap the table for app-like cards */
+  .collection-table-wrap { display: none; }
+  .collection-cards { display: flex !important; }
+  /* Loan schedule: compact list instead of a giant card per instalment */
+  .schedule-table-wrap { display: none; }
+  .schedule-mobile { display: flex !important; }
   .page-header { flex-direction: column; align-items: flex-start; gap: 10px; }
   .header-actions { width: 100%; }
   .header-actions .btn { width: 100%; justify-content: center; }
@@ -319,12 +352,67 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   .form-actions .btn { width: 100%; justify-content: center; }
   .notification-dropdown { width: calc(100vw - 32px); right: -16px; }
   .collection-entry { flex-direction: column; gap: 8px; align-items: stretch !important; }
-  .grid-60-40 > :last-child { display: none; }
   .topbar { padding: 0 16px; }
   .page-content { padding: 16px; }
   .login-card { padding: 32px 24px; }
+  /* Touch ergonomics */
+  .btn { min-height: 44px; }
+  input.form-control, select.form-control, textarea.form-control { font-size: 16px; } /* prevents iOS focus-zoom */
+  /* Agent bottom tab bar visible only on mobile; clear space for it */
+  .mobile-bottom-nav { display: flex; }
+  .has-bottom-nav .page-content, .has-bottom-nav .main-content { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+  /* App-like forms on phones: tab strips scroll sideways instead of wrapping
+     off-screen, header actions stack, and every field/button in a form runs
+     full width — mirrors the mobile app's single-column form layout. */
+  .tabs { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { flex-shrink: 0; min-height: 40px; display: inline-flex; align-items: center; }
+  .card-header { flex-wrap: wrap; gap: 10px; }
+  .card-header .btn { flex: 1 1 auto; justify-content: center; }
+  form .form-group { width: 100%; }
+  form input.form-control, form select.form-control, form textarea.form-control { width: 100%; }
+  form button[type='submit'] { width: 100%; justify-content: center; }
+  .quick-actions { flex-direction: column; align-items: stretch; }
+  .quick-actions .btn { width: 100%; justify-content: center; }
 }
 @media (min-width: 769px) { .sidebar-overlay { display: none !important; } }
+
+/* ===== Agent mobile bottom navigation ===== */
+.mobile-bottom-nav {
+  display: none;
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+  background: var(--card-bg); border-top: 1px solid var(--border);
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+  justify-content: space-around; box-shadow: 0 -2px 14px rgba(0,0,0,.07);
+}
+.mobile-bottom-nav a {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; min-height: 50px; padding: 4px; text-decoration: none;
+  font-size: .66rem; font-weight: 600; color: var(--text-secondary);
+}
+.mobile-bottom-nav a.active { color: var(--primary); }
+.mobile-bottom-nav a .material-icons-outlined { font-size: 22px; }
+
+/* ===== Collection mobile cards (shown only <=768px; see media query) ===== */
+.collection-cards { display: none; flex-direction: column; gap: 12px; }
+.collect-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--card-bg); padding: 14px; display: flex; flex-direction: column; gap: 12px; box-shadow: var(--shadow-sm); }
+.collect-card-head { display: flex; align-items: center; gap: 10px; }
+.collect-card-figs { display: flex; flex-wrap: wrap; gap: 18px; }
+.collect-card-figs > div { display: flex; flex-direction: column; gap: 2px; }
+.collect-muted { font-size: .68rem; color: var(--text-light); text-transform: uppercase; letter-spacing: .4px; font-weight: 600; }
+.collect-big { font-size: 1.5rem; font-weight: 800; color: var(--text); line-height: 1; }
+.btn-block { width: 100%; justify-content: center; }
+.collect-big-pay { min-height: 54px; font-size: 1.1rem; font-weight: 800; gap: 8px; }
+
+/* ===== Loan schedule compact mobile list (shown only <=768px) ===== */
+.schedule-mobile { display: none; flex-direction: column; gap: 6px; max-height: 62vh; overflow-y: auto; }
+.sched-row { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; }
+.sched-main { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sched-no { font-weight: 800; color: var(--text-secondary); font-size: .8rem; }
+.sched-date { font-size: .82rem; }
+.sched-amt { font-weight: 700; font-size: .9rem; }
+.sched-sub { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: .74rem; }
+.sched-sub:empty { display: none; }
 @media (max-width: 480px) {
   html { font-size: 13px; }
   .card { padding: 12px; }

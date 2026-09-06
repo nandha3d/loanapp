@@ -1,4 +1,5 @@
 import prisma from '../../db';
+import { decryptField } from '../../pii';
 import { getSetting } from '../../tenant';
 
 interface WaResult { success: boolean; error?: string; }
@@ -16,7 +17,8 @@ export async function sendWhatsApp(
     getSetting(tenantId, 'notify_channel_whatsapp', 'false'),
   ]);
 
-  if (enabled !== 'true' || !authKey || !waNumber) {
+  const resolvedAuthKey = decryptField(authKey) || authKey;
+  if (enabled !== 'true' || !resolvedAuthKey || !waNumber) {
     return { success: false, error: 'WhatsApp channel not configured' };
   }
 
@@ -30,7 +32,7 @@ export async function sendWhatsApp(
       'https://api.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/bulk/',
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', authkey: authKey },
+        headers: { 'Content-Type': 'application/json', authkey: resolvedAuthKey },
         body: JSON.stringify({
           integrated_number: waNumber,
           content_type: 'template',

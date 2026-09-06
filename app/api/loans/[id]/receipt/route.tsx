@@ -74,7 +74,7 @@ const ReceiptDocument = ({ entry, tenant }: { entry: any, tenant: any }) => (
   <Document>
     <Page size="A4" style={styles.page}>
       <View style={styles.section}>
-        <Text style={styles.header}>{tenant.name || 'LoanTrack'}</Text>
+        <Text style={styles.header}>{tenant.name || 'ZoloFund'}</Text>
         <Text style={{ textAlign: 'center', fontSize: 14, marginBottom: 30 }}>Payment Receipt</Text>
         
         <View style={styles.row}>

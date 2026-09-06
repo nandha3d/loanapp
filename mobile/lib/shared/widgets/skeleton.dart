@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
 
 /// Shimmer placeholder. Used while async data loads.
 class Skeleton extends StatefulWidget {

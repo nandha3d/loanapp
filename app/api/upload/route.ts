@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
 import { checkRateLimit, getClientIp, routeKey } from '@/lib/rateLimit';
-import { ALLOWED_UPLOAD_MIME_TYPES, MAX_UPLOAD_SIZE_BYTES, uploadBaseDir, validateFileBytes } from '@/lib/fileUpload';
+import {
+  ALLOWED_UPLOAD_MIME_TYPES,
+  isAudioMime,
+  maxUploadSizeFor,
+  storeTenantUpload,
+  validateFileBytes,
+} from '@/lib/fileUpload';
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -39,20 +43,15 @@ export async function POST(req: NextRequest) {
   }
 
   if (!ALLOWED_UPLOAD_MIME_TYPES.includes(file.type)) {
-    return NextResponse.json({ error: 'File type not allowed. Only JPEG, PNG, WebP, and PDF are accepted.' }, { status: 400 });
+    return NextResponse.json({ error: 'File type not allowed. Only JPEG, PNG, WebP, PDF, and short audio clips are accepted.' }, { status: 400 });
   }
 
-  if (file.size > MAX_UPLOAD_SIZE_BYTES) {
-    return NextResponse.json({ error: 'File exceeds the 5 MB limit.' }, { status: 400 });
+  if (file.size > maxUploadSizeFor(file.type)) {
+    return NextResponse.json(
+      { error: isAudioMime(file.type) ? 'Audio clip exceeds the 1 MB limit.' : 'File exceeds the 5 MB limit.' },
+      { status: 400 },
+    );
   }
-
-  // Sanitize filename — prevent path traversal
-  const ext = path.extname(file.name).replace(/[^a-zA-Z0-9.]/g, '').toLowerCase() || '.bin';
-  const safeName = `${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`;
-
-  // Scope files by tenantId in private dir — never publicly accessible
-  const uploadDir = path.join(uploadBaseDir(), tenantId);
-  await mkdir(uploadDir, { recursive: true });
 
   const buffer = Buffer.from(await file.arrayBuffer());
 
@@ -60,10 +59,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid file signature. File may be corrupted or spoofed.' }, { status: 400 });
   }
 
-  const filePath = path.join(uploadDir, safeName);
-  await writeFile(filePath, buffer);
+  const stored = await storeTenantUpload({ tenantId, mimeType: file.type, buffer });
 
-  const url = `/api/files/${tenantId}/${safeName}`;
-
-  return NextResponse.json({ url, filename: safeName });
+  return NextResponse.json({ url: stored.url, filename: stored.fileName });
 }

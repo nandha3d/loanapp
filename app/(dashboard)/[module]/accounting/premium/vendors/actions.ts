@@ -110,6 +110,8 @@ export async function updateVendor(id: string, input: Partial<{
     return { ok: false, error: 'gstin_invalid' };
   }
 
+  const vendor = await prisma.vendor.findFirst({ where: { id, tenantId }, select: { id: true } });
+  if (!vendor) return { ok: false, error: 'not_found' };
   await prisma.vendor.update({ where: { id }, data: input });
   await writeAuditLog({ tenantId, userId: session.user?.id, action: 'update', entityType: 'vendor', entityId: id });
   return { ok: true };
@@ -122,6 +124,8 @@ export async function deactivateVendor(id: string) {
   const role = (session.user as any)?.role;
   if (!['superadmin', 'developer'].includes(role)) return { ok: false, error: 'Insufficient role' };
 
+  const vendor = await prisma.vendor.findFirst({ where: { id, tenantId }, select: { id: true } });
+  if (!vendor) return { ok: false, error: 'not_found' };
   await prisma.vendor.update({ where: { id }, data: { isActive: false } });
   await writeAuditLog({ tenantId, userId: session.user?.id, action: 'delete', entityType: 'vendor', entityId: id });
   return { ok: true };

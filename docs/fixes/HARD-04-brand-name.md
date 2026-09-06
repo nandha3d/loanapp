@@ -1,4 +1,4 @@
-# HARD-04 — Replace `"LoanTrack"` Brand Name with `AppSetting`
+# HARD-04 — Replace `"ZoloFund"` Brand Name with `AppSetting`
 
 **Priority:** 🟡 MEDIUM  
 **Category:** Hardcoded Values — Branding  
@@ -8,10 +8,10 @@
 
 ## Problem
 
-The string `"LoanTrack"` is hardcoded in at least 6 files:
+The string `"ZoloFund"` is hardcoded in at least 6 files:
 
-- `app/api/v1/auth/forgot-password/route.ts:36` — email subject: `"Your LoanTrack password reset code"`
-- `lib/auth.ts` (TOTP issuer) — `issuer: "LoanTrack"`
+- `app/api/v1/auth/forgot-password/route.ts:36` — email subject: `"Your ZoloFund password reset code"`
+- `lib/auth.ts` (TOTP issuer) — `issuer: "ZoloFund"`
 - Email templates in `lib/notify/channels/email.ts` — footer/header branding
 - Various page titles in layout files
 
@@ -23,7 +23,7 @@ For a white-labelled multi-tenant SaaS, each tenant should see their own brand n
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `brand_name` | `LoanTrack` | Displayed in emails, TOTP issuer, page titles |
+| `brand_name` | `ZoloFund` | Displayed in emails, TOTP issuer, page titles |
 | `support_email` | `support@loantrack.in` | Shown in email footers |
 
 ---
@@ -33,7 +33,7 @@ For a white-labelled multi-tenant SaaS, each tenant should see their own brand n
 ### Step 1 — Grep all occurrences
 
 ```
-grep -rn "LoanTrack" app/ lib/ --include="*.ts" --include="*.tsx" --include="*.html"
+grep -rn "ZoloFund" app/ lib/ --include="*.ts" --include="*.tsx" --include="*.html"
 ```
 
 Collect the full list.
@@ -48,7 +48,7 @@ Before sending the email, load the brand name:
 import { getSetting } from '@/lib/settings';
 
 // Inside POST handler, after validating email:
-const brandName = (await getSetting(user.tenantId, 'brand_name')) ?? 'LoanTrack';
+const brandName = (await getSetting(user.tenantId, 'brand_name')) ?? 'ZoloFund';
 
 await sendEmail(
   user.tenantId,
@@ -67,21 +67,21 @@ await sendEmail(
 Find the TOTP issuer configuration. It likely looks like:
 
 ```typescript
-issuer: 'LoanTrack',
+issuer: 'ZoloFund',
 ```
 
 Replace with a per-tenant lookup. Since TOTP issuers are set once at setup and stored in the authenticator app, this should only be changed with a migration warning. For now, make it configurable:
 
 ```typescript
 // lib/auth.ts — inside the TOTP config
-issuer: process.env.TOTP_ISSUER ?? 'LoanTrack',
+issuer: process.env.TOTP_ISSUER ?? 'ZoloFund',
 ```
 
 Then add `TOTP_ISSUER=YourBrandName` to `.env`. This is a reasonable compromise since TOTP issuer changes require users to re-register their TOTP device.
 
 ### Step 4 — Update email templates
 
-In `lib/notify/channels/email.ts`, find any hardcoded `LoanTrack` in email headers/footers. Replace with the `brand_name` AppSetting, passed as a parameter.
+In `lib/notify/channels/email.ts`, find any hardcoded `ZoloFund` in email headers/footers. Replace with the `brand_name` AppSetting, passed as a parameter.
 
 If the email template function signature is:
 ```typescript
@@ -91,7 +91,7 @@ export async function sendEmail(tenantId, to, subject, html, ...)
 The function already has `tenantId` — add a lookup at the start:
 
 ```typescript
-const brandName = (await getSetting(tenantId, 'brand_name')) ?? 'LoanTrack';
+const brandName = (await getSetting(tenantId, 'brand_name')) ?? 'ZoloFund';
 // Use brandName in footer/header templates
 ```
 
@@ -100,15 +100,15 @@ const brandName = (await getSetting(tenantId, 'brand_name')) ?? 'LoanTrack';
 In `app/layout.tsx` and tenant-specific layouts, replace:
 
 ```tsx
-<title>LoanTrack</title>
+<title>ZoloFund</title>
 // or
-metadata: { title: 'LoanTrack Dashboard' }
+metadata: { title: 'ZoloFund Dashboard' }
 ```
 
 With a server-side fetch or a fallback from the session:
 
 ```tsx
-const brandName = session?.user?.brandName ?? 'LoanTrack';
+const brandName = session?.user?.brandName ?? 'ZoloFund';
 // metadata.title = `${brandName} Dashboard`
 ```
 

@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
         await tx.accountEntry.create({
           data: {
             tenantId: ctx.tenantId,
+            appType: ctx.appType,
             entryDate: new Date(),
             type: 'collection',
             category: 'upi',
@@ -88,6 +89,7 @@ export async function POST(req: NextRequest) {
           await tx.accountEntry.create({
             data: {
               tenantId: ctx.tenantId,
+              appType: ctx.appType,
               entryDate: new Date(),
               type: 'collection',
               category: 'upi',
@@ -155,6 +157,7 @@ export async function POST(req: NextRequest) {
         await tx.accountEntry.create({
           data: {
             tenantId: ctx.tenantId,
+            appType: ctx.appType,
             entryDate: new Date(),
             type: 'collection',
             category: 'cash',

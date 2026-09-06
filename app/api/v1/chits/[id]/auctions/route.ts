@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
-import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { requireMobileContext } from '@/lib/api/v1-auth';
+import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
+import prisma from '@/lib/db';
 
 export async function GET(
   req: NextRequest,
@@ -14,92 +14,33 @@ export async function GET(
 
   try {
     const group = await prisma.chitGroup.findFirst({
-      where: { id, tenantId: ctx.tenantId },
+      where: { id, tenantId: ctx.tenantId, appType: 'chitfunds', ...scopedBranchWhere(ctx), deletedAt: null },
       select: { id: true },
     });
     if (!group) return fail('Chit group not found', 404);
-
     const auctions = await prisma.chitAuction.findMany({
       where: { chitGroupId: id },
       include: {
-        winnerMember: {
-          include: { customer: { select: { customerCode: true, name: true } } },
-        },
+        winnerMember: { include: { customer: { select: { id: true, name: true, phone: true } } } },
+        bids: { orderBy: { bidTime: 'asc' } },
+        attendance: true,
       },
       orderBy: { periodNumber: 'asc' },
     });
     return ok(auctions);
   } catch (e: any) {
-    return fail(e?.message ?? 'Auctions failed', 500);
+    return fail(e?.message ?? 'Failed to load auctions', 500);
   }
 }
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  _ctx: { params: Promise<{ id: string }> },
 ) {
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
-  const ctx = auth.context;
-  if (!['admin', 'superadmin', 'developer'].includes(ctx.role)) {
-    return fail('Forbidden', 403);
-  }
-  const { id } = await params;
-
-  try {
-    const body = await req.json();
-    const periodNumber = Number(body.periodNumber);
-    const winnerMemberId = body.winnerMemberId ? String(body.winnerMemberId) : null;
-    const prizeAmount = body.prizeAmount ? Number(body.prizeAmount) : null;
-    const bidDiscount = body.bidDiscount ? Number(body.bidDiscount) : null;
-    if (!periodNumber) return fail('periodNumber required', 400);
-
-    const group = await prisma.chitGroup.findFirst({
-      where: { id, tenantId: ctx.tenantId },
-      select: { id: true, commissionPct: true, chitValue: true, totalMembers: true },
-    });
-    if (!group) return fail('Chit group not found', 404);
-
-    const commission = prizeAmount
-      ? Math.round((prizeAmount * Number(group.commissionPct)) / 100)
-      : null;
-    const dividend =
-      prizeAmount && commission
-        ? Math.round((Number(group.chitValue) - prizeAmount - commission) / group.totalMembers)
-        : null;
-
-    const auction = await prisma.chitAuction.upsert({
-      where: { chitGroupId_periodNumber: { chitGroupId: id, periodNumber } },
-      create: {
-        chitGroupId: id,
-        periodNumber,
-        auctionDate: new Date(),
-        winnerMemberId,
-        prizeAmount,
-        bidDiscount,
-        commission,
-        dividend,
-        status: winnerMemberId ? 'completed' : 'pending',
-      },
-      update: {
-        winnerMemberId,
-        prizeAmount,
-        bidDiscount,
-        commission,
-        dividend,
-        status: winnerMemberId ? 'completed' : 'pending',
-      },
-    });
-
-    if (winnerMemberId) {
-      await prisma.chitMember.update({
-        where: { id: winnerMemberId },
-        data: { hasWon: true, wonAt: new Date() },
-      });
-    }
-
-    return ok(auction);
-  } catch (e: any) {
-    return fail(e?.message ?? 'Auction save failed', 500);
-  }
+  return fail(
+    'Legacy auction result recording is retired. Submit bids, then use the confirm or draw endpoint so auction finalization and dividend distribution run.',
+    410,
+  );
 }

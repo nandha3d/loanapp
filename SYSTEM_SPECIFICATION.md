@@ -1,4 +1,4 @@
-# LoanTrack — Complete System Specification
+# ZoloFund — Complete System Specification
 
 > Last Updated: 2026-05-11 | Version: 1.2
 
@@ -181,7 +181,7 @@ The agent's `/collection` page shows:
 
 | Key | Group | Default | Description |
 |-----|-------|---------|-------------|
-| `app_name` | system | `LoanTrack` | Display name |
+| `app_name` | system | `ZoloFund` | Display name |
 | `currency` | system | `INR` | Currency code |
 | `currency_symbol` | system | `₹` | Currency symbol |
 | `timezone` | system | `Asia/Kolkata` | Timezone |

@@ -6,8 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { getSupabaseBrowser } from '@/lib/supabase/browser';
 
 // Landing point for every Supabase auth handshake (Google OAuth + email
-// magic-link/OTP). Supabase has already established a browser session here; we
-// read its access token, then bridge into the app's NextAuth session.
+// magic-link/OTP). We exchange the PKCE code here using the cookie-backed
+// Supabase browser client, then bridge into the app's NextAuth session.
 //
 //   intent=login  (default) → Google sign-in. Existing user → portal;
 //                              new user → /register prefilled.
@@ -39,13 +39,11 @@ function CallbackInner() {
       const code = url.searchParams.get('code');
 
       if (code) {
-        // PKCE: exchange the one-time code (+ stored verifier) for a session.
         const { data, error } = await supabase.auth.exchangeCodeForSession(code);
         if (cancelled) return;
         if (error) { bail(`Sign-in failed: ${error.message}`); return; }
         accessToken = data.session?.access_token ?? null;
       } else {
-        // Implicit/hash fallback (#access_token=...).
         const { data } = await supabase.auth.getSession();
         accessToken = data.session?.access_token ?? hash.get('access_token') ?? null;
       }

@@ -85,6 +85,7 @@ export default async function AdminUsersPage() {
         name: superadmin.name,
         username: superadmin.username,
         phone: superadmin.phone,
+        email: superadmin.email,
         status: superadmin.status,
         subscription: saSubscription,
         branches: ownedBranches.map((branch) => ({
@@ -111,6 +112,8 @@ export default async function AdminUsersPage() {
       users={users}
       branches={branches}
       viewerRole={userRole}
+      viewerId={(session?.user as any)?.id ?? ''}
+      viewerIsPrimaryAdmin={!!(session?.user as any)?.isPrimaryAdmin}
       defaultAppType={defaultAppType}
       subscription={currentSubscription}
       planModules={planModules}

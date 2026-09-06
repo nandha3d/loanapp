@@ -1,3 +1,6 @@
+> **SUPERSEDED — do not follow.** This file was auto-generated and has drifted from the codebase.
+> The current, binding reference is `ENGINEERING_REFERENCE.md` at the repo root. Kept only as history.
+
 # STRUCTURE.md — Directory Structure & Module Organization
 
 > Auto-generated from `loanapp` codebase analysis
@@ -202,7 +205,7 @@ loanapp/
 
 ```
 Request → middleware extracts subdomain slug
-        → sets x-loantrack-tenant-slug header
+        → sets x-zolofund-tenant-slug header
         → server code calls getCurrentTenantId()
         → resolves from header or falls back to session tenant
         → all queries use this tenantId

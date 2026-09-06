@@ -1,6 +1,6 @@
 import prisma from '@/lib/db';
 
-export const DEFAULT_GPS_THRESHOLD_METRES = 500;
+export const DEFAULT_GPS_THRESHOLD_METRES = 200;
 
 export type LocationStatus =
   | 'pending_verification'
@@ -190,7 +190,7 @@ export async function isGpsTrackingEnabled(tenantId: string): Promise<boolean> {
 export async function getGpsVerifyThreshold(tenantId: string): Promise<number> {
   try {
     const { getSetting } = await import('@/lib/tenant');
-    const raw = await getSetting(tenantId, 'gps_verify_threshold_m', String(DEFAULT_GPS_THRESHOLD_METRES));
+    const raw = await getSetting(tenantId, 'gps_geofence_radius_m', String(DEFAULT_GPS_THRESHOLD_METRES));
     const parsed = parseInt(raw, 10);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_GPS_THRESHOLD_METRES;
   } catch {
@@ -209,12 +209,55 @@ export async function verifyAndPersistCollectionLocation(input: {
 }) {
   if (!validCoordinates(input.latitude, input.longitude)) return;
 
+  const getDetailsAndAlert = async (status: LocationStatus, distanceMetres: number | null) => {
+    try {
+      const entry = await prisma.collectionEntry.findUnique({
+        where: { id: input.entryId },
+        include: {
+          agent: { select: { name: true } },
+          customer: { select: { name: true } },
+          loan: { select: { loanCode: true, branchId: true, appType: true } },
+        },
+      });
+      if (!entry) return;
+
+      const agentName = entry.agent?.name || 'Unknown Agent';
+      const customerName = entry.customer?.name || 'Unknown Customer';
+      const loanCode = entry.loan?.loanCode || '';
+      const branchId = entry.loan?.branchId || null;
+      const appType = entry.loan?.appType || 'microlending';
+
+      const isMock = status === 'mock_location';
+      const title = isMock ? 'Mock GPS Location Detected' : 'Geofence Violation Detected';
+      const message = isMock
+        ? `Agent ${agentName} used a mock/fake GPS location to collect payment from ${customerName}.`
+        : `Agent ${agentName} collected payment from ${customerName} outside the geofence (${distanceMetres}m away).`;
+
+      await prisma.systemNotification.create({
+        data: {
+          tenantId: input.tenantId,
+          branchId: branchId,
+          appType: appType,
+          type: isMock ? 'mock_gps_alert' : 'geofence_violation',
+          icon: isMock ? 'gps_fixed' : 'gps_off',
+          title,
+          message,
+          link: `/loans/${loanCode}`,
+          targetRole: 'admin',
+        },
+      });
+    } catch (err) {
+      console.error('Failed to create geofence notification:', err);
+    }
+  };
+
   // Fake-GPS providers invalidate any distance check — flag and stop.
   if (input.isMocked) {
     await prisma.collectionEntry.update({
       where: { id: input.entryId },
       data: { locationStatus: 'mock_location' },
     });
+    await getDetailsAndAlert('mock_location', null);
     return;
   }
 
@@ -251,6 +294,10 @@ export async function verifyAndPersistCollectionLocation(input: {
       borrowerLng: result.borrowerLng,
     },
   });
+
+  if (result.status === 'mismatch' || result.status === 'mock_location') {
+    await getDetailsAndAlert(result.status, result.distanceMetres);
+  }
 }
 
 export async function recordCollectionLocationPing(input: {

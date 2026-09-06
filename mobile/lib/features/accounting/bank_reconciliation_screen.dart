@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/services/accounting_service.dart';
-import 'package:loantrack/shared/widgets/app_button.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/services/accounting_service.dart';
+import 'package:zolofund/shared/widgets/app_button.dart';
 
 class BankReconciliationScreen extends ConsumerStatefulWidget {
   const BankReconciliationScreen({super.key});
@@ -242,7 +242,7 @@ class _BankReconciliationScreenState extends ConsumerState<BankReconciliationScr
             ),
             child: Row(
               children: [
-                const CircleAvatar(
+                CircleAvatar(
                   backgroundColor: AppColors.primaryLight,
                   child: Icon(Icons.account_balance, color: AppColors.primary),
                 ),
@@ -443,7 +443,7 @@ class _BankReconciliationScreenState extends ConsumerState<BankReconciliationScr
                       const Divider(height: 16),
                       TextButton(
                         onPressed: () => _handleLineAction('unmatch', line['id'] as String),
-                        child: const Text('Restore Transaction', style: TextStyle(color: AppColors.primary, fontSize: 12)),
+                        child: Text('Restore Transaction', style: TextStyle(color: AppColors.primary, fontSize: 12)),
                       ),
                     ],
                     if (status == 'unmatched') ...[

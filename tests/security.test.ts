@@ -28,10 +28,10 @@ assert.equal(decryptAadharNumber('1234 5678 9012', piiKey), '123456789012');
 assert.equal(maskAadharNumber('123456789012'), 'XXXX XXXX 9012');
 assert.equal(maskAadharNumber(null), null);
 
-assert.equal(extractTenantSlugFromHost('alpha.loantrack.test:3000', 'loantrack.test'), 'alpha');
-assert.equal(extractTenantSlugFromHost('loantrack.test', 'loantrack.test'), null);
-assert.equal(extractTenantSlugFromHost('localhost:3000', 'loantrack.test'), null);
-assert.equal(extractTenantSlugFromHost('127.0.0.1:3000', 'loantrack.test'), null);
+assert.equal(extractTenantSlugFromHost('alpha.zolofund.test:3000', 'zolofund.test'), 'alpha');
+assert.equal(extractTenantSlugFromHost('zolofund.test', 'zolofund.test'), null);
+assert.equal(extractTenantSlugFromHost('localhost:3000', 'zolofund.test'), null);
+assert.equal(extractTenantSlugFromHost('127.0.0.1:3000', 'zolofund.test'), null);
 
 assert.equal(isTenantHostAllowedForSession({
   requestedTenantId: 'tenant_1',
@@ -58,7 +58,7 @@ assert.equal(isTenantTrialExpired({
   plan: 'growth',
   status: 'active',
   trialEndsAt: new Date('2026-01-01T00:00:00.000Z'),
-}, new Date('2026-01-02T00:00:00.000Z')), false);
+}, new Date('2026-01-02T00:00:00.000Z')), true);
 
 assert.equal(normalizeRazorpaySubscriptionStatus('subscription.activated'), 'active');
 assert.equal(normalizeRazorpaySubscriptionStatus('subscription.charged'), 'active');

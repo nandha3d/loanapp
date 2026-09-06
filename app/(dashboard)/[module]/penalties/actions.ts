@@ -1,13 +1,16 @@
 'use server';
 
+import { getActiveBranchId, branchScopeWhere } from '@/lib/branch';
+
 import prisma from '@/lib/db';
-import { getDefaultTenantId } from '@/lib/tenant';
+import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth';
 
 export async function settlePenalty(formData: FormData) {
   const session = await auth();
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
   const userId = session?.user?.id;
   const role = (session?.user as any)?.role;
 
@@ -23,8 +26,11 @@ export async function settlePenalty(formData: FormData) {
     return { success: false, error: 'Invalid input' };
   }
 
+  // SCOPE-3: settle only a penalty on a loan in the active branch. Without the
+  // branch arm an id from another branch settled successfully.
+  const activeBranchId = await getActiveBranchId();
   const penalty = await prisma.penalty.findFirst({
-    where: { id: penaltyId, loan: { tenantId } },
+    where: { id: penaltyId, loan: { tenantId, appType, ...branchScopeWhere(activeBranchId) } },
     include: { loan: true },
   });
 
@@ -63,6 +69,7 @@ export async function settlePenalty(formData: FormData) {
 export async function waivePenalty(formData: FormData) {
   const session = await auth();
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
   const userId = session?.user?.id;
   const role = (session?.user as any)?.role;
 
@@ -78,7 +85,7 @@ export async function waivePenalty(formData: FormData) {
     include: { loan: true },
   });
 
-  if (!penalty || penalty.loan.tenantId !== tenantId) {
+  if (!penalty || penalty.loan.tenantId !== tenantId || penalty.loan.appType !== appType) {
     return { success: false, error: 'Penalty not found' };
   }
 
@@ -118,6 +125,7 @@ export async function waivePenalty(formData: FormData) {
 export async function enforcePenalty(formData: FormData) {
   const session = await auth();
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
   const userId = session?.user?.id;
   const role = (session?.user as any)?.role;
 
@@ -133,7 +141,7 @@ export async function enforcePenalty(formData: FormData) {
     include: { loan: true },
   });
 
-  if (!penalty || penalty.loan.tenantId !== tenantId) {
+  if (!penalty || penalty.loan.tenantId !== tenantId || penalty.loan.appType !== appType) {
     return { success: false, error: 'Penalty not found' };
   }
 

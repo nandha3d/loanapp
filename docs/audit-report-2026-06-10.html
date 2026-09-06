@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LoanTrack — Full Audit Report · June 2026</title>
+<title>ZoloFund — Full Audit Report · June 2026</title>
 <style>
   :root {
     --bg: #0f1117;
@@ -310,7 +310,7 @@
 <!-- ── Sidebar ── -->
 <aside class="sidebar">
   <div class="sidebar-logo">
-    <h2>LoanTrack Audit</h2>
+    <h2>ZoloFund Audit</h2>
     <p>June 10, 2026</p>
   </div>
   <nav>
@@ -338,7 +338,7 @@
 <!-- ── Report Header ── -->
 <div class="report-header" id="summary">
   <div class="badge">Audit Report</div>
-  <h1>LoanTrack — Full Codebase Audit</h1>
+  <h1>ZoloFund — Full Codebase Audit</h1>
   <div class="meta">
     <span><strong>Date:</strong> June 10, 2026</span>
     <span><strong>Stack:</strong> Next.js 16 · Prisma 5 · MySQL · Flutter</span>
@@ -555,7 +555,7 @@
           <td><span class="pill pill-orange">HIGH</span></td>
         </tr>
         <tr>
-          <td><code>"LoanTrack"</code> brand name (~6 component files)</td>
+          <td><code>"ZoloFund"</code> brand name (~6 component files)</td>
           <td>Loan detail, TOTP issuer, email templates</td>
           <td><code>AppSetting</code> key: <code>brand_name</code></td>
           <td><span class="pill pill-yellow">MEDIUM</span></td>
@@ -628,7 +628,7 @@
   <h3>Recommended: Tenant Config Keys to Add</h3>
   <pre>currency_symbol          = "₹"
 currency_code            = "INR"
-brand_name               = "LoanTrack"
+brand_name               = "ZoloFund"
 accounting_fy_start_month = 4
 nach_retry_interval_days  = "2,4"
 nach_max_retries          = 3
@@ -1080,7 +1080,7 @@ tenant_state_code         = ""</pre>
       <thead><tr><th>Issue</th><th>Count</th><th>Fix</th></tr></thead>
       <tbody>
         <tr><td><code>"₹"</code> currency symbol inline in components</td><td>~12 files</td><td>Use <code>dict.currency_symbol</code> or AppSetting</td></tr>
-        <tr><td><code>"LoanTrack"</code> brand inline</td><td>~6 files</td><td>Use <code>AppSetting.brand_name</code></td></tr>
+        <tr><td><code>"ZoloFund"</code> brand inline</td><td>~6 files</td><td>Use <code>AppSetting.brand_name</code></td></tr>
         <tr><td>API error messages English-only</td><td>All routes</td><td>Acceptable for v1; add i18n to error catalog later</td></tr>
         <tr><td>Accounting labels hardcoded English in some report headers</td><td>~4 files</td><td>Move to <code>dict.accounting.*</code></td></tr>
       </tbody>
@@ -1227,7 +1227,7 @@ tenant_state_code         = ""</pre>
     <li>
       <div class="num num-green">17</div>
       <div class="content">
-        <strong>Replace <code>"LoanTrack"</code> brand with tenant setting</strong>
+        <strong>Replace <code>"ZoloFund"</code> brand with tenant setting</strong>
         <span>~6 files including TOTP issuer, email templates, PDF headers. Use <code>AppSetting.brand_name</code>.</span>
       </div>
     </li>
@@ -1257,7 +1257,7 @@ tenant_state_code         = ""</pre>
 
 <!-- ── Footer ── -->
 <div style="margin-top: 60px; padding: 24px; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; font-size: 12px; color: var(--muted);">
-  <strong style="color: var(--text)">LoanTrack Audit Report</strong> · Generated June 10, 2026 ·
+  <strong style="color: var(--text)">ZoloFund Audit Report</strong> · Generated June 10, 2026 ·
   Build: <code>merged-all-branches</code> ·
   Stack: Next.js 16.2.6 · Prisma 5.22.0 · MySQL · Flutter · Node 18+ ·
   86 pages · 194 API routes · 47 mobile screens · 70+ DB models

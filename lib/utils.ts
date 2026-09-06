@@ -77,6 +77,24 @@ export function getInitials(name: string): string {
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 }
 
+// Relative time for the last 24h ("5 minutes ago"); the exact date + time once
+// it crosses 24h, so older notifications stay meaningful. `labels` are i18n
+// strings for the relative units.
+export function formatNotificationTime(
+  dateStr: string | Date,
+  labels: { justNow: string; minutesAgo: string; hoursAgo: string },
+): string {
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return '';
+  const diff = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (diff < 60) return labels.justNow;
+  if (diff < 3600) return `${Math.floor(diff / 60)} ${labels.minutesAgo}`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} ${labels.hoursAgo}`;
+  return date.toLocaleString('en-IN', {
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+}
+
 // ─── Percentage Helper ────────────────────────
 export function calcPercentage(current: number, total: number): number {
   if (total === 0) return 0;
@@ -134,16 +152,22 @@ export function calculateInstalmentDates(startDate: Date, frequency: string, ten
       dates.push(d);
     }
   } else if (frequency === 'monthly') {
-    // dueDay is 1-28 (day of month)
+    // dueDay is 1-28 (day of month).
+    //
+    // Built entirely in UTC. Instalment dueDates are stored and read back as UTC
+    // midnight (see the toDateStr helpers in the loan routes), so the local-time
+    // constructor this used to call — `new Date(y, m, d)` — produced local midnight
+    // and shifted every due date by a day: east of UTC a chosen day of the 1st
+    // persisted as the 31st of the previous month. Using UTC throughout makes the
+    // chosen day come back exactly, on a server in any timezone.
     const clampedDay = Math.min(28, Math.max(1, dueDay));
-    const startMonth = startDate.getMonth();
-    const startYear = startDate.getFullYear();
+    const startMonth = startDate.getUTCMonth();
+    const startYear = startDate.getUTCFullYear();
     // If the start date's day is already past the dueDay, start from next month
-    let monthOffset = startDate.getDate() > clampedDay ? 1 : 0;
+    const monthOffset = startDate.getUTCDate() > clampedDay ? 1 : 0;
 
     for (let i = 0; i < tenure; i++) {
-      const d = new Date(startYear, startMonth + monthOffset + i, clampedDay);
-      dates.push(d);
+      dates.push(new Date(Date.UTC(startYear, startMonth + monthOffset + i, clampedDay)));
     }
   }
 

@@ -1,5 +1,6 @@
 import { serverFetch } from '@/lib/api-client/server';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
+import { isInterestOnlyEnabled } from '@/lib/features';
 import { getDictionary } from '@/lib/i18n';
 import LoanEditForm from './LoanEditForm';
 import { notFound } from 'next/navigation';
@@ -42,6 +43,7 @@ export default async function EditLoanPage({
         appType={appType}
         dict={dict}
         userRole={role}
+        interestOnlyEnabled={await isInterestOnlyEnabled(tenantId)}
       />
     </div>
   );

@@ -5,6 +5,8 @@ import { generateTenantSlug } from '@/lib/slug';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { issueMobileToken } from '@/lib/api/v1-auth';
 import { calculateVerticalSubscriptionPricing, normalizeSelectedModules } from '@/lib/pricing';
+import { validateIndianMobile } from '@/lib/validation/contact';
+import { findUserUniqueConflicts } from '@/lib/userUniqueness';
 
 export async function POST(req: NextRequest) {
   try {
@@ -25,9 +27,24 @@ export async function POST(req: NextRequest) {
       referralCode,
     } = body;
 
-    // Validate fields
-    if (!businessName || !ownerName || !ownerPhone || !ownerUsername || !ownerPassword || !selectedPlan) {
+    // Validate fields (username is optional — defaults to the phone number)
+    if (!businessName || !ownerName || !ownerPhone || !ownerPassword || !selectedPlan) {
       return fail('Missing required fields', 400);
+    }
+
+    const phoneCheck = validateIndianMobile(ownerPhone);
+    if (!phoneCheck.ok) {
+      return fail(phoneCheck.error, 400);
+    }
+    const phone = phoneCheck.value;
+    // Phone number doubles as the default login username.
+    const username = (typeof ownerUsername === 'string' && ownerUsername.trim())
+      ? ownerUsername.trim().toLowerCase()
+      : phone;
+
+    const conflicts = await findUserUniqueConflicts({ username, phone });
+    if (conflicts.length > 0) {
+      return fail(conflicts[0].message, 409);
     }
 
     const finalModules = normalizeSelectedModules(selectedModules);
@@ -117,8 +134,8 @@ export async function POST(req: NextRequest) {
           tenantId: tenant.id,
           branchId: branch.id,
           name: ownerName,
-          phone: ownerPhone,
-          username: ownerUsername.trim().toLowerCase(),
+          phone,
+          username,
           passwordHash: hashedPassword,
           role: 'superadmin',
           appType: finalModules[0],
@@ -194,7 +211,7 @@ export async function POST(req: NextRequest) {
             data: {
               affiliateId: affiliate.id,
               referredTenantId: tenant.id,
-              referredEmail: user.email || `${ownerUsername}@${tenant.slug}.com`,
+              referredEmail: user.email || `${username}@${tenant.slug}.com`,
               status: 'signup',
             },
           });
@@ -221,10 +238,10 @@ export async function POST(req: NextRequest) {
     if (err.code === 'P2002') {
       const target = err.meta?.target || '';
       if (target.includes('username')) {
-        return fail('Username is already taken by another account.', 409);
+        return fail('This username already exists.', 409);
       }
       if (target.includes('phone')) {
-        return fail('Phone number is already registered.', 409);
+        return fail('This phone number already exists.', 409);
       }
     }
     return fail(err.message || 'Registration failed', 500);

@@ -2,7 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
-import 'package:loantrack/core/l10n/app_strings.dart';
+import 'package:zolofund/core/l10n/app_strings.dart';
 
 const _kPrefsBox = 'prefs';
 const _kLangKey = 'app_language';
@@ -16,6 +16,7 @@ class LanguageController extends StateNotifier<AppLang> {
   Future<void> _hydrate() async {
     final box = await _openBox();
     final code = box.get(_kLangKey) as String?;
+    if (!mounted) return;
     state = AppLangX.fromCode(code);
   }
 

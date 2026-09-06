@@ -1,8 +1,8 @@
-# LoanTrack — 10 Feature Enhancement Plan
+# ZoloFund — 10 Feature Enhancement Plan
 
 ## Background
 
-This plan covers 10 new features requested for the LoanTrack micro-lending application. The codebase is a Next.js 16 app using Prisma ORM with MySQL, server actions, and vanilla CSS.
+This plan covers 10 new features requested for the ZoloFund micro-lending application. The codebase is a Next.js 16 app using Prisma ORM with MySQL, server actions, and vanilla CSS.
 
 > [!CAUTION]
 > **STRICT RULES FOR ALL FEATURES:**

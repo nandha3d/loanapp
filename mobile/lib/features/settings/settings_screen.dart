@@ -3,19 +3,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:go_router/go_router.dart';
 
-import 'package:loantrack/core/a11y/ui_prefs.dart';
-import 'package:loantrack/core/a11y/voice_assist.dart';
-import 'package:loantrack/core/auth/auth_controller.dart';
-import 'package:loantrack/core/l10n/app_strings.dart';
-import 'package:loantrack/core/l10n/language_controller.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/models/route_model.dart';
-import 'package:loantrack/data/models/user.dart';
-import 'package:loantrack/data/services/settings_service.dart';
-import 'package:loantrack/shared/widgets/bottom_nav.dart';
-import 'package:loantrack/shared/widgets/skeleton.dart';
+import 'package:zolofund/core/a11y/ui_prefs.dart';
+import 'package:zolofund/core/a11y/voice_assist.dart';
+import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/core/l10n/app_strings.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/models/route_model.dart';
+import 'package:zolofund/data/models/user.dart';
+import 'package:zolofund/data/services/settings_service.dart';
+import 'package:zolofund/shared/widgets/bottom_nav.dart';
+import 'package:zolofund/shared/widgets/skeleton.dart';
 
 final _routesProvider = FutureProvider.autoDispose<List<AppRoute>>((ref) {
   return ref.watch(settingsServiceProvider).routes();
@@ -80,44 +81,102 @@ class SettingsScreen extends ConsumerWidget {
                       color: AppColors.primaryLight,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.format_size,
-                        size: 20, color: AppColors.primary,),
+                    child: Icon(
+                      Icons.format_size,
+                      size: 20,
+                      color: AppColors.primary,
+                    ),
                   ),
                   title: const Text('Text size'),
-                  trailing: Consumer(builder: (context, ref, _) {
-                    final scale = ref.watch(textScaleProvider);
-                    return DropdownButton<double>(
-                      value: scale,
-                      underline: const SizedBox.shrink(),
-                      items: const [
-                        DropdownMenuItem(value: 0.9, child: Text('Small')),
-                        DropdownMenuItem(value: 1.0, child: Text('Normal')),
-                        DropdownMenuItem(value: 1.15, child: Text('Large')),
-                        DropdownMenuItem(value: 1.3, child: Text('Extra large')),
-                      ],
-                      onChanged: (v) {
-                        if (v != null) {
-                          ref.read(textScaleProvider.notifier).set(v);
-                        }
-                      },
-                    );
-                  },),
+                  trailing: Consumer(
+                    builder: (context, ref, _) {
+                      final scale = ref.watch(textScaleProvider);
+                      return DropdownButton<double>(
+                        value: scale,
+                        underline: const SizedBox.shrink(),
+                        items: const [
+                          DropdownMenuItem(value: 0.9, child: Text('Small')),
+                          DropdownMenuItem(value: 1.0, child: Text('Normal')),
+                          DropdownMenuItem(value: 1.15, child: Text('Large')),
+                          DropdownMenuItem(
+                            value: 1.3,
+                            child: Text('Extra large'),
+                          ),
+                        ],
+                        onChanged: (v) {
+                          if (v != null) {
+                            ref.read(textScaleProvider.notifier).set(v);
+                          }
+                        },
+                      );
+                    },
+                  ),
                 ),
                 const Divider(height: 1, color: AppColors.border),
                 // Simple mode (U4) - reduced More menu for daily field work.
-                Consumer(builder: (context, ref, _) {
-                  final simple = ref.watch(simpleModeProvider);
-                  return _PrefSwitchRow(
-                    icon: Icons.dashboard_customize_outlined,
-                    iconColor: AppColors.primary,
-                    iconBg: AppColors.primaryLight,
-                    label: 'Simple mode',
-                    subtitle: 'Show only daily-work items in the More menu',
-                    value: simple,
-                    onChanged: (bool v) =>
-                        ref.read(simpleModeProvider.notifier).set(v),
-                  );
-                },),
+                Consumer(
+                  builder: (context, ref, _) {
+                    final simple = ref.watch(simpleModeProvider);
+                    return _PrefSwitchRow(
+                      icon: Icons.dashboard_customize_outlined,
+                      iconColor: AppColors.primary,
+                      iconBg: AppColors.primaryLight,
+                      label: 'Simple mode',
+                      subtitle: 'Show only daily-work items in the More menu',
+                      value: simple,
+                      onChanged: (bool v) =>
+                          ref.read(simpleModeProvider.notifier).set(v),
+                    );
+                  },
+                ),
+                const Divider(height: 1, color: AppColors.border),
+                Consumer(
+                  builder: (context, ref, _) {
+                    final darkMode = ref.watch(darkModeProvider);
+                    return _PrefSwitchRow(
+                      icon: Icons.dark_mode_outlined,
+                      iconColor: AppColors.info,
+                      iconBg: AppColors.infoBg,
+                      label: 'Dark mode',
+                      subtitle: 'Use the dark shell and tenant accent colour',
+                      value: darkMode,
+                      onChanged: (bool v) =>
+                          ref.read(darkModeProvider.notifier).set(v),
+                    );
+                  },
+                ),
+                const Divider(height: 1, color: AppColors.border),
+                Consumer(
+                  builder: (context, ref, _) {
+                    final apiUrl = ref.watch(apiBaseUrlProvider);
+                    return _PrefRow(
+                      icon: Icons.dns_outlined,
+                      iconColor: AppColors.warning,
+                      iconBg: AppColors.warningBg,
+                      label: 'API server',
+                      trailing: Flexible(
+                        child: Text(
+                          apiUrl ?? 'Default',
+                          style: AppTypography.caption.copyWith(
+                            color: AppColors.primary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.right,
+                        ),
+                      ),
+                      onTap: () => _editApiBaseUrl(context, ref),
+                    );
+                  },
+                ),
+                if (_moduleOptions(user).length > 1) ...[
+                  const Divider(height: 1, color: AppColors.border),
+                  _ModuleSwitcherRow(
+                    user: user!,
+                    onChanged: (appType) =>
+                        _switchModule(context, ref, appType),
+                  ),
+                ],
               ],
             ),
           ),
@@ -162,9 +221,79 @@ class SettingsScreen extends ConsumerWidget {
                 if (user?.role == UserRole.admin ||
                     user?.role == UserRole.superadmin ||
                     user?.role == UserRole.developer) ...[
+                  if (user?.role == UserRole.superadmin) ...[
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        Icons.account_circle_outlined,
+                        color: AppColors.primary,
+                      ),
+                      title: Text(
+                        'Superadmin Profile',
+                        style: AppTypography.bodyLarge,
+                      ),
+                      subtitle: Text(
+                        'Profile, password, plan, and invoices',
+                        style: AppTypography.caption,
+                      ),
+                      trailing: const Icon(
+                        Icons.chevron_right,
+                        color: AppColors.textLight,
+                      ),
+                      onTap: () => context.push('/profile'),
+                    ),
+                    const Divider(height: 1, color: AppColors.border),
+                  ] else ...[
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        Icons.account_circle_outlined,
+                        color: AppColors.primary,
+                      ),
+                      title: Text(
+                        'My Profile',
+                        style: AppTypography.bodyLarge,
+                      ),
+                      subtitle: Text(
+                        'Edit details, change password',
+                        style: AppTypography.caption,
+                      ),
+                      trailing: const Icon(
+                        Icons.chevron_right,
+                        color: AppColors.textLight,
+                      ),
+                      onTap: () => context.push('/profile'),
+                    ),
+                    const Divider(height: 1, color: AppColors.border),
+                  ],
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
+                    leading: Icon(
+                      Icons.manage_accounts_outlined,
+                      color: AppColors.primary,
+                    ),
+                    title: Text(
+                      'Users & Agents',
+                      style: AppTypography.bodyLarge,
+                    ),
+                    subtitle: Text(
+                      'Create and manage team accounts',
+                      style: AppTypography.caption,
+                    ),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      color: AppColors.textLight,
+                    ),
+                    onTap: () => context.push(
+                      user?.role == UserRole.developer
+                          ? '/admin/users'
+                          : '/admin/team',
+                    ),
+                  ),
+                  const Divider(height: 1, color: AppColors.border),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
                       Icons.bolt_outlined,
                       color: AppColors.primary,
                     ),
@@ -185,7 +314,7 @@ class SettingsScreen extends ConsumerWidget {
                   const Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.account_balance_wallet_outlined,
                       color: AppColors.primary,
                     ),
@@ -206,7 +335,28 @@ class SettingsScreen extends ConsumerWidget {
                   const Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
+                    leading: Icon(
+                      Icons.hub_outlined,
+                      color: AppColors.primary,
+                    ),
+                    title: Text(
+                      'Add-on Integrations',
+                      style: AppTypography.bodyLarge,
+                    ),
+                    subtitle: Text(
+                      'Configure NACH, Razorpay, MSG91, SMTP, and KYC',
+                      style: AppTypography.caption,
+                    ),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      color: AppColors.textLight,
+                    ),
+                    onTap: () => context.push('/settings/integrations'),
+                  ),
+                  const Divider(height: 1, color: AppColors.border),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
                       Icons.notifications_active_outlined,
                       color: AppColors.primary,
                     ),
@@ -227,7 +377,7 @@ class SettingsScreen extends ConsumerWidget {
                   const Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.folder_open_outlined,
                       color: AppColors.primary,
                     ),
@@ -246,7 +396,7 @@ class SettingsScreen extends ConsumerWidget {
                   const Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.apps_outage_outlined,
                       color: AppColors.primary,
                     ),
@@ -267,7 +417,7 @@ class SettingsScreen extends ConsumerWidget {
                   const Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.assignment_ind_outlined,
                       color: AppColors.primary,
                     ),
@@ -288,7 +438,7 @@ class SettingsScreen extends ConsumerWidget {
                   const Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.warning_amber_outlined,
                       color: AppColors.primary,
                     ),
@@ -309,7 +459,7 @@ class SettingsScreen extends ConsumerWidget {
                   const Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.security_outlined,
                       color: AppColors.primary,
                     ),
@@ -330,7 +480,7 @@ class SettingsScreen extends ConsumerWidget {
                   const Divider(height: 1, color: AppColors.border),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.branding_watermark_outlined,
                       color: AppColors.primary,
                     ),
@@ -353,7 +503,7 @@ class SettingsScreen extends ConsumerWidget {
                 if (user?.role == UserRole.developer) ...[
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.tune, color: AppColors.primary),
+                    leading: Icon(Icons.tune, color: AppColors.primary),
                     title:
                         Text(t.x('sys.title'), style: AppTypography.bodyLarge),
                     subtitle:
@@ -377,7 +527,7 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 24),
           Center(
-            child: Text('LoanTrack v0.1.0', style: AppTypography.caption),
+            child: Text('ZoloFund v0.1.0', style: AppTypography.caption),
           ),
           const SizedBox(height: 16),
         ],
@@ -486,6 +636,114 @@ class SettingsScreen extends ConsumerWidget {
     }
   }
 
+  List<String> _moduleOptions(User? user) {
+    if (user == null) return const <String>[];
+    return <String>{user.appType, ...user.enabledModules}
+        .map(AppType.normalize)
+        .where(AppType.isSupported)
+        .toList(growable: false);
+  }
+
+  Future<void> _switchModule(
+    BuildContext context,
+    WidgetRef ref,
+    String appType,
+  ) async {
+    await ref.read(authControllerProvider.notifier).setActiveAppType(appType);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Switched to ${AppType.label(appType)}')),
+    );
+    context.go(AppType.landingRoute(appType));
+  }
+
+  Future<void> _editApiBaseUrl(BuildContext context, WidgetRef ref) async {
+    final current = ref.read(apiBaseUrlProvider) ?? kDefaultBaseUrl;
+    final ctrl = TextEditingController(text: current);
+    String? error;
+    final picked = await showDialog<String?>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppTokens.radius),
+          ),
+          title: const Text('API server'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: ctrl,
+                keyboardType: TextInputType.url,
+                decoration: InputDecoration(
+                  labelText: 'Base URL',
+                  hintText: kDefaultBaseUrl,
+                  errorText: error,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Use a full URL ending with /api/v1. Leave empty to restore default.',
+                style: AppTypography.caption,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, ''),
+              child: const Text('Use default'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                ),
+              ),
+              onPressed: () {
+                final value = ctrl.text.trim();
+                if (value.isEmpty) {
+                  Navigator.pop(ctx, '');
+                  return;
+                }
+                final uri = Uri.tryParse(value);
+                if (uri == null ||
+                    !uri.hasScheme ||
+                    (uri.scheme != 'http' && uri.scheme != 'https') ||
+                    uri.host.isEmpty ||
+                    !value.endsWith('/api/v1')) {
+                  setLocal(() {
+                    error = 'Enter a valid http(s) URL ending with /api/v1';
+                  });
+                  return;
+                }
+                Navigator.pop(ctx, value);
+              },
+              child: const Text('Save', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
+    ctrl.dispose();
+    if (picked == null) return;
+    await ref
+        .read(apiBaseUrlProvider.notifier)
+        .set(picked.isEmpty ? null : picked);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('API server updated')),
+    );
+  }
+
   Future<void> _confirmLogout(BuildContext context, WidgetRef ref) async {
     final t = T.of(ref);
     final ok = await showDialog<bool>(
@@ -533,10 +791,13 @@ class _ProfileCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppTokens.radius),
+      onTap: () => context.push('/profile'),
+      child: Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           colors: [AppColors.primary, AppColors.primaryDark],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -563,10 +824,20 @@ class _ProfileCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  name,
-                  style:
-                      AppTypography.sectionTitle.copyWith(color: Colors.white),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        name,
+                        style: AppTypography.sectionTitle
+                            .copyWith(color: Colors.white),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Icon(Icons.edit_outlined,
+                        color: Colors.white70, size: 16,),
+                  ],
                 ),
                 if (email.isNotEmpty) ...[
                   const SizedBox(height: 2),
@@ -592,6 +863,7 @@ class _ProfileCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }
@@ -635,6 +907,83 @@ class _RouteRow extends StatelessWidget {
           Text(
             '${route.customerCount} ${t.x('set.customers_suffix')}',
             style: AppTypography.caption,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModuleSwitcherRow extends StatelessWidget {
+  const _ModuleSwitcherRow({
+    required this.user,
+    required this.onChanged,
+  });
+
+  final User user;
+  final ValueChanged<String> onChanged;
+
+  List<String> get _options {
+    return <String>{user.appType, ...user.enabledModules}
+        .map(AppType.normalize)
+        .where(AppType.isSupported)
+        .toList(growable: false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final current = AppType.normalize(user.appType);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.successBg,
+              borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+            ),
+            child: const Icon(
+              Icons.swap_horiz_rounded,
+              color: AppColors.success,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Active module', style: AppTypography.bodyLarge),
+                const SizedBox(height: 2),
+                Text(
+                  'Switch the API and navigation context',
+                  style: AppTypography.caption,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _options.contains(current) ? current : _options.first,
+              borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+              items: [
+                for (final option in _options)
+                  DropdownMenuItem(
+                    value: option,
+                    child: Text(
+                      AppType.label(option),
+                      style: AppTypography.body,
+                    ),
+                  ),
+              ],
+              onChanged: (value) {
+                if (value != null && value != current) onChanged(value);
+              },
+            ),
           ),
         ],
       ),
@@ -872,7 +1221,7 @@ class _LangTile extends StatelessWidget {
                 child: Text(lang.nativeName, style: AppTypography.bodyLarge),
               ),
               if (selected)
-                const Icon(
+                Icon(
                   Icons.check_circle_rounded,
                   color: AppColors.primary,
                   size: 20,

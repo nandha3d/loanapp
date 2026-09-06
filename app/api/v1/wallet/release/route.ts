@@ -36,6 +36,7 @@ export async function POST(req: NextRequest) {
 
     const { agentBalance } = await releaseToAgent({
       tenantId: ctx.tenantId,
+      appType: ctx.appType,
       agentId,
       branchId: agent.branchId ?? ctx.branchId ?? null,
       amount,

@@ -4,7 +4,7 @@
  * Migration Script: Assign branchId to existing admin users without branch assignment
  * 
  * Problem: Previously, createUser() didn't assign branchId to admin users,
- * causing them to have no accessible modules and fall back to loantrack only.
+ * causing them to have no accessible modules and fall back to zolofund only.
  * 
  * Solution: This script finds all admin users without branchId and:
  * 1. Assigns them to the first active branch in their tenant

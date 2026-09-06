@@ -3,6 +3,12 @@ name: Deploy to VPS
 on:
   push:
     branches: [merged-all-branches]
+    # Mobile-only changes don't affect the server — skip the redeploy so a
+    # Flutter tweak never restarts the API (and never opens a login-timeout
+    # window). A push touching any non-mobile file still deploys.
+    paths-ignore:
+      - 'mobile/**'
+      - '.github/**'
   workflow_dispatch: {}
 
 # Never run two deploys at once; let an in-flight one finish.
@@ -21,10 +27,115 @@ jobs:
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_PORT: ${{ secrets.VPS_PORT }}
         run: |
+          set -euo pipefail
+
+          : "${VPS_SSH_KEY:?Missing GitHub secret VPS_SSH_KEY}"
+          : "${VPS_HOST:?Missing GitHub secret VPS_HOST}"
+          : "${VPS_USER:?Missing GitHub secret VPS_USER}"
+          VPS_PORT="${VPS_PORT:-22}"
+
           mkdir -p ~/.ssh
-          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$VPS_SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -p "$VPS_PORT" "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-          ssh -i ~/.ssh/id_ed25519 -p "$VPS_PORT" \
-            -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
-            "$VPS_USER@$VPS_HOST" 'bash /home/loantrack/app/deploy.sh'
+
+          echo "Resolving VPS host"
+          getent hosts "$VPS_HOST" || true
+
+          echo "Checking SSH TCP reachability for $VPS_HOST:$VPS_PORT"
+          nc -vz -w 20 "$VPS_HOST" "$VPS_PORT"
+
+          echo "Adding VPS host key for $VPS_HOST:$VPS_PORT"
+          if ssh-keyscan -4 -T 20 -p "$VPS_PORT" "$VPS_HOST" >> ~/.ssh/known_hosts 2>ssh-keyscan.err; then
+            echo "Host key added from ssh-keyscan"
+          else
+            echo "::warning::ssh-keyscan failed; ssh will use StrictHostKeyChecking=accept-new"
+            cat ssh-keyscan.err
+          fi
+
+          # `npm install` inside deploy.sh runs silently for minutes at a time. With
+          # no keepalive the channel idles out, and the resulting broken pipe used to
+          # SIGHUP deploy.sh mid-install — leaving the VPS with new code checked out
+          # but stale dependencies and no restart.
+          SSH_OPTS=(
+            -4 -i ~/.ssh/id_ed25519 -p "$VPS_PORT"
+            -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new
+            -o ConnectTimeout=20 -o TCPKeepAlive=yes
+            -o ServerAliveInterval=15 -o ServerAliveCountMax=40
+          )
+          REMOTE="$VPS_USER@$VPS_HOST"
+          APP_DIR=/home/loantrack/app
+
+          echo "Running remote deploy preflight"
+          # setsid+nohup detaches deploy.sh from this SSH session, so even if the
+          # connection still drops the deploy runs to completion; the exit code lands
+          # in a status file that the poll loop below reads back.
+          ssh "${SSH_OPTS[@]}" "$REMOTE" "
+            set -euo pipefail
+            echo \"connected: \$(hostname) as \$(whoami)\"
+            test -d $APP_DIR || { echo 'missing $APP_DIR'; exit 20; }
+            test -f $APP_DIR/deploy.sh || { echo 'missing $APP_DIR/deploy.sh'; exit 21; }
+
+            # A past root-run install left root-owned files under node_modules, so
+            # npm could no longer unlink node_modules/.bin/* and every deploy died
+            # with EACCES before installing anything. Take ownership back when sudo
+            # allows it; otherwise set the tree aside — node_modules and .next are
+            # both build output that deploy.sh regenerates, so the fallback costs
+            # only install time.
+            echo 'paths not owned by the deploy user:'
+            find $APP_DIR -maxdepth 1 ! -uid \$(id -u) -printf '%u %p\n' 2>/dev/null || true
+
+            # A tree we cannot delete has to land somewhere next build will not
+            # read: tsconfig excludes only the literal \"node_modules\", and its
+            # \"**/*.ts\" include still matched a node_modules.broken.* left in the
+            # checkout — the build then type-checked zod's own test files and
+            # failed. Prefer outside the checkout; fall back to a dot-prefixed
+            # name, which TypeScript's wildcard includes skip.
+            QUAR=$APP_DIR/..
+            [ -w \"\$QUAR\" ] || QUAR=$APP_DIR
+
+            for leftover in $APP_DIR/node_modules.broken.* $APP_DIR/.next.broken.*; do
+              [ -e \"\$leftover\" ] || continue
+              echo \"clearing leftover \$(basename \"\$leftover\")\"
+              rm -rf \"\$leftover\" 2>/dev/null \
+                || mv \"\$leftover\" \"\$QUAR/.broken-\$(basename \"\$leftover\")-\$(date +%s)\"
+            done
+
+            for d in node_modules .next; do
+              [ -d $APP_DIR/\$d ] || continue
+              [ -n \"\$(find $APP_DIR/\$d ! -uid \$(id -u) -print -quit 2>/dev/null)\" ] || continue
+              echo \"repairing \$d — it holds files owned by another user\"
+              if sudo -n chown -R \"\$(id -u):\$(id -g)\" $APP_DIR/\$d 2>/dev/null; then
+                echo \"  ownership of \$d restored\"
+              else
+                mv $APP_DIR/\$d \"\$QUAR/.broken-\$d-\$(date +%s)\"
+                echo \"  no sudo — quarantined \$d, deploy.sh will rebuild it\"
+              fi
+            done
+
+            rm -f /tmp/deploy.log /tmp/deploy.status
+            setsid nohup bash -c 'bash $APP_DIR/deploy.sh > /tmp/deploy.log 2>&1; echo \$? > /tmp/deploy.status' >/dev/null 2>&1 &
+            echo 'deploy started detached'
+          "
+
+          echo "Waiting for the remote deploy to finish"
+          status=""
+          for _ in $(seq 1 80); do   # 80 x 15s = 20 min ceiling
+            sleep 15
+            status="$(ssh "${SSH_OPTS[@]}" "$REMOTE" 'cat /tmp/deploy.status 2>/dev/null || true' || true)"
+            [ -n "$status" ] && break
+            echo "  ... still deploying"
+          done
+
+          echo "===== remote deploy log ====="
+          ssh "${SSH_OPTS[@]}" "$REMOTE" 'cat /tmp/deploy.log 2>/dev/null || echo "(no log)"' || true
+          echo "============================="
+
+          if [ -z "$status" ]; then
+            echo "::error::Deploy did not finish within 20 minutes."
+            exit 1
+          fi
+          if [ "$status" != "0" ]; then
+            echo "::error::deploy.sh exited with status $status"
+            exit "$status"
+          fi
+          echo "Deploy completed successfully."

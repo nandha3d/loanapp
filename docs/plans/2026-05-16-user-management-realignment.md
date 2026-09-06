@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Implement the role, branch, and module-access redesign described in `loantrack_end_to_end_markdown_docs/USER_MANAGEMENT_REALIGNMENT.md`.
+**Goal:** Implement the role, branch, and module-access redesign described in `zolofund_end_to_end_markdown_docs/USER_MANAGEMENT_REALIGNMENT.md`.
 
 **Architecture:** Move active business context from an app-type cookie to an active branch cookie. Persist branch module grants in Prisma, derive per-user module access through `lib/branch.ts`, and route all server actions/API queries through active tenant, branch, and module context.
 
@@ -49,7 +49,7 @@
 **Steps:**
 1. Add pure route guard helpers/tests for developer and agent access.
 2. Allow agents into loans/customers while keeping reporting/settings blocked.
-3. Forward `active_branch_id` as `x-loantrack-active-branch`.
+3. Forward `active_branch_id` as `x-zolofund-active-branch`.
 4. Re-export middleware through `proxy.ts` for Next 16/test compatibility.
 
 ### Task 4: Branch Switcher and Request Flow

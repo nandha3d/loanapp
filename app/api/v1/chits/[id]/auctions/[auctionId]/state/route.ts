@@ -1,0 +1,13 @@
+import { NextRequest } from 'next/server';
+import { fail } from '@/lib/api/v1-envelope';
+import { requireMobileContext } from '@/lib/api/v1-auth';
+
+const RETIRED_MESSAGE =
+  'Legacy period-based state polling is retired. Use GET /live on the canonical auction-ID room.';
+
+export async function GET(req: NextRequest) {
+  const auth = await requireMobileContext(req);
+  if (auth.response) return auth.response;
+
+  return fail(RETIRED_MESSAGE, 410);
+}

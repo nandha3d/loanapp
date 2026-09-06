@@ -1,14 +1,18 @@
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
-import { getDefaultTenantId, getBranding, getUserAppType } from '@/lib/tenant';
+import { getDefaultTenantId, getBranding, getUserAppType, getSetting } from '@/lib/tenant';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { getDistributedInstalmentsAndMetrics } from '@/lib/repayments';
 import Link from '@/components/layout/DashboardLink';
 import { redirect } from 'next/navigation';
 import { getActiveBranchId } from '@/lib/branch';
-import { CollectCashButton, VerifyUpiButton, BulkVerifyUpiButton } from './DashboardActions';
+import { VerifyUpiButton, BulkVerifyUpiButton } from './DashboardActions';
 import CollectionTrendChart from './CollectionTrendChart';
 import { ensurePendingPenaltiesForMissedLoans } from '@/lib/penalties';
 import { getDictionary } from '@/lib/i18n';
+import HpOperationsWidgets from '@/components/autofinance/HpOperationsWidgets';
+import { getTodayDueList, getPromisedCustomers } from '@/lib/autofinance/dashboard';
+import { getDayClosingSnapshot, getDayClosingGate } from '../operations/actions';
 
 type DashboardInstalment = {
   id: string;
@@ -167,12 +171,20 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     prisma.instalment.findMany({
       where: {
         loan: { ...loanWhere, status: { in: ['active', 'overdue'] } },
-        dueDate: { lt: today },
-        status: { in: ['upcoming', 'missed', 'partial'] },
+        status: { not: 'waived' },
+        OR: [
+          { dueDate: { lt: today } },
+          { receivedAmount: { gt: 0 } },
+        ],
       },
       select: {
+        id: true,
+        loanId: true,
+        dueDate: true,
         dueAmount: true,
         receivedAmount: true,
+        status: true,
+        instalmentNo: true,
         loan: { select: { customerId: true } },
       },
     }),
@@ -197,7 +209,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     }),
     // Capital KPI
     prisma.accountEntry.findMany({
-      where: { tenantId, ...(branchId ? { branchId } : {}) },
+      where: { tenantId, appType, ...(branchId ? { branchId } : {}) },
       select: { type: true, amount: true },
     }),
     // Feature 6 & 8: Today's collection entries for cash/UPI split + route-wise.
@@ -279,37 +291,38 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     })
     .filter((item) => item.overdueAmount > 0);
 
-  // Totals are computed from the FULL (un-limited) overdue set so KPIs stay
-  // correct even when the table-feed query is capped at 10 rows.
-  const overdueForTotals = overdueInstalmentsForTotals.filter(
-    (item: any) => outstanding(item) > 0,
+  // Overdue collection — a DAILY snapshot that resets each day:
+  const paymentsToday = await prisma.payment.findMany({
+    where: {
+      tenantId,
+      paymentDate: { gte: today, lt: tomorrow },
+      loan: { ...loanWhere, status: { in: ['active', 'overdue'] } },
+    },
+    select: { loanId: true, amount: true },
+  });
+
+  const { distributedInstalments, metricsByLoan } = getDistributedInstalmentsAndMetrics(
+    overdueInstalmentsForTotals as any,
+    today,
+    paymentsToday,
   );
-  const overdueAmount = overdueForTotals.reduce(
-    (sum: number, item: any) => sum + outstanding(item),
+
+  const overdueForTotals = distributedInstalments.filter(
+    (item: any) => item.overdueAmount > 0,
+  );
+  const overdueOutstanding = overdueForTotals.reduce(
+    (sum: number, item: any) => sum + item.overdueAmount,
     0,
   );
   const overdueCustomerCount = new Set(
     overdueForTotals.map((item: any) => item.loan.customerId),
   ).size;
-  // Overdue collection — a DAILY snapshot that resets each day:
-  //   • Today Collected = today's payments that landed on PAST-DUE instalments.
-  //   • Remaining       = overdue outstanding right now (overdueAmount).
-  //   • Total till today = what was overdue at the START of today
-  //                        = remaining now + what we already recovered today.
-  // Tomorrow this naturally re-bases: today's payments drop out of the "today"
-  // window, and whatever is still outstanding becomes the fresh total overdue.
-  const overduePaidTodayAllocations = await prisma.paymentAllocation.findMany({
-    where: {
-      payment: { tenantId, paymentDate: { gte: today, lt: tomorrow }, loan: { ...loanWhere } },
-      instalment: { dueDate: { lt: today } },
-    },
-    select: { amount: true },
-  });
-  const overdueCollectedToday = overduePaidTodayAllocations.reduce(
-    (sum: number, a: any) => sum + Number(a.amount),
-    0,
-  );
-  const overdueTotalTillToday = overdueAmount + overdueCollectedToday;
+
+  let overdueCollectedToday = 0;
+  for (const m of metricsByLoan.values()) {
+    overdueCollectedToday += m.overdueCollectedToday;
+  }
+  const overdueTotalTillToday = overdueOutstanding + overdueCollectedToday;
   const pendingPenaltyTotal = Math.max(
     0,
     Number(pendingPenalties._sum.grossPenalty || 0) -
@@ -363,6 +376,15 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     });
   }
 
+  // Total Disbursed KPI = GROSS loan book (principal), not the net cash that left
+  // (principal − upfront fee). The `loan_disburse` AccountEntry stays net for the
+  // capital balance; this is a separate, gross figure for the headline KPI.
+  const grossDisbursedAgg = await prisma.loan.aggregate({
+    where: loanWhere,
+    _sum: { principal: true },
+  });
+  const grossDisbursed = Number(grossDisbursedAgg._sum.principal || 0);
+
   return {
     totalCustomers,
     recentLoans,
@@ -370,7 +392,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     todayExpected,
     todayCollected,
     todayGap,
-    overdueAmount,
+    overdueAmount: overdueOutstanding,
     overdueCollectedToday,
     overdueTotalTillToday,
     overdueCustomerCount,
@@ -410,9 +432,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     bestPayer,
     pendingUpiCollections,
     pendingCashCollections,
-    totalDisbursed: accountEntries
-      .filter((e) => e.type === 'loan_disburse')
-      .reduce((sum, e) => sum + Number(e.amount), 0),
+    totalDisbursed: grossDisbursed,
     totalCollectedAllTime: accountEntries
       .filter((e) => e.type === 'collection')
       .reduce((sum, e) => sum + Number(e.amount), 0),
@@ -758,13 +778,17 @@ export default async function DashboardPage() {
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
 
-  if (appType === 'chitfunds') redirect('/chits');
-
   const branding = await getBranding(tenantId);
   const dict = await getDictionary(tenantId);
   const d = dict.dashboard;
 
   const activeBranchId = await getActiveBranchId();
+
+  // Manual UPI verification is OFF by default — UPI collections auto-verify
+  // and credit the account at collection time, so the pending panel is only
+  // shown when the tenant explicitly opts into manual review (Settings).
+  const upiManualVerify =
+    (await getSetting(tenantId, 'upi_manual_verification', 'false')) === 'true';
 
   if (appType === 'chitfunds') {
     const chitData = await getChitFundsDashboardData(tenantId, activeBranchId);
@@ -1179,7 +1203,11 @@ export default async function DashboardPage() {
   const remainingPct = 100 - collectedPct;
   const overduePct = data.overdueTotalTillToday > 0 ? Math.min(100, Math.round((data.overdueCollectedToday / data.overdueTotalTillToday) * 100)) : 0;
   const overdueRemainingPct = 100 - overduePct;
-  const totalSplit = data.todayCollected;
+  // Total for the split = the sum of what each payment mode actually collected
+  // today (today's dues + overdue recovery). Using today's-dues-only here made
+  // the % overshoot (e.g. cash 14000 / 450 = 3111%); the denominator must be the
+  // same population as the bars it scales.
+  const totalSplit = Object.values(data.todayByMode).reduce((s: number, a) => s + Number(a || 0), 0);
   const modeConfig: Record<string, { label: string; icon: string; color: string; bg: string }> = {
     cash:   { label: 'Cash',   icon: 'payments',        color: '#16a34a', bg: '#f0fdf4' },
     upi:    { label: 'UPI',    icon: 'qr_code_scanner', color: '#7c3aed', bg: '#f5f3ff' },
@@ -1189,8 +1217,38 @@ export default async function DashboardPage() {
   };
   const activeModes = Object.entries(data.todayByMode).filter(([, amt]) => amt > 0);
 
+  // Auto Finance operations strip: today's due list, promise-to-pay follow-ups,
+  // the EMI calculator and the day-closing gate. Loaded only for that module,
+  // and tolerant of a workspace that has not run the HP migration yet.
+  let hpOps: {
+    dueToday: Awaited<ReturnType<typeof getTodayDueList>>;
+    promises: Awaited<ReturnType<typeof getPromisedCustomers>>;
+    closing: Awaited<ReturnType<typeof getDayClosingSnapshot>> | null;
+    gate: { blocked: boolean; message: string | null };
+  } | null = null;
+
+  if (appType === 'autofinance') {
+    const [dueToday, promises, closing, gate] = await Promise.all([
+      getTodayDueList(tenantId, appType).catch(() => []),
+      getPromisedCustomers(tenantId, appType).catch(() => []),
+      getDayClosingSnapshot().catch(() => null),
+      getDayClosingGate().catch(() => ({ blocked: false, pendingDate: null, message: null })),
+    ]);
+    hpOps = { dueToday, promises, closing, gate };
+  }
+
   return (
     <>
+      {hpOps && (
+        <HpOperationsWidgets
+          dueToday={hpOps.dueToday}
+          promises={hpOps.promises}
+          closing={hpOps.closing}
+          gateBlocked={hpOps.gate.blocked}
+          gateMessage={hpOps.gate.message}
+          currencySymbol={branding.currencySymbol ?? '₹'}
+        />
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '12px' }}>
       {/* Combined Today's Collection Progress Card */}
       <Link href="/collection" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
@@ -1504,16 +1562,13 @@ export default async function DashboardPage() {
                     <th>{dict.sidebar.customers}</th>
                     <th>{d.collectedToday}</th>
                     <th>{dict.loansList.overdue}</th>
-                    <th>{dict.customersList.action}</th>
                   </tr>
                 </thead>
                 <tbody>
+                  {/* Field cash settlement moved to Agent Wallet (handover flow) —
+                      no per-route Collect Cash action here anymore. */}
                   {data.routePerformance.map((route) => {
                     const routeCol = data.routeCollections?.find((rc: any) => rc.routeId === route.id);
-                    const agentId = data.pendingCashCollections?.find((p: any) => p.customer?.routeId === route.id)?.agentId;
-                    const pendingCash = data.pendingCashCollections
-                      ?.filter((p: any) => p.customer?.routeId === route.id)
-                      .reduce((sum: number, p: any) => sum + Number(p.receivedAmount), 0) || 0;
 
                     return (
                       <tr key={route.id}>
@@ -1525,18 +1580,6 @@ export default async function DashboardPage() {
                         </td>
                         <td style={{ color: route.overdue > 0 ? 'var(--danger)' : 'var(--success)', fontWeight: 700 }}>
                           {formatCurrency(route.overdue, branding.currencySymbol)}
-                        </td>
-                        <td>
-                          {agentId && pendingCash > 0 ? (
-                            <CollectCashButton
-                              routeId={route.id}
-                              agentId={agentId}
-                              pendingAmount={pendingCash}
-                              currencySymbol={branding.currencySymbol}
-                            />
-                          ) : (
-                            <span style={{ color: 'var(--text-light)', fontSize: '.8rem' }}>—</span>
-                          )}
                         </td>
                       </tr>
                     );
@@ -1558,7 +1601,7 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid-60-40" style={{ marginTop: '20px' }}>
+      <div className={upiManualVerify ? 'grid-60-40' : ''} style={{ marginTop: '20px' }}>
         <div className="card">
           <div className="card-header">
             <h3>{d.overdueAlerts}</h3>
@@ -1601,6 +1644,7 @@ export default async function DashboardPage() {
           )}
         </div>
 
+        {upiManualVerify && (
         <div className="card">
           <div className="card-header">
             <h3>{d.pendingUpiVerifications}</h3>
@@ -1648,6 +1692,7 @@ export default async function DashboardPage() {
             </div>
           )}
         </div>
+        )}
       </div>
 
       <div className="card" style={{ marginTop: '20px' }}>

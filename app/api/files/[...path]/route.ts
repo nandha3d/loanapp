@@ -5,7 +5,7 @@ import { verifyMobileToken } from '@/lib/api/v1-auth';
 import fs from 'fs';
 import path from 'path';
 import prisma from '@/lib/db';
-import { isTenantFileAccessAllowed } from '@/lib/fileAccessPolicy';
+import { isBorrowerFileAllowed, isTenantFileAccessAllowed } from '@/lib/fileAccessPolicy';
 
 import { uploadBaseDir } from '@/lib/fileUpload';
 
@@ -65,6 +65,17 @@ export async function GET(
 
   if (!isTenantFileAccessAllowed({ role, requestedTenantId, sessionTenantId })) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  // Borrowers are additionally restricted to files referenced by their OWN
+  // records — tenant membership alone must not expose other customers' KYC
+  // documents or payment proofs (userId here is the borrower's customerId).
+  if (role === 'borrower') {
+    const requestedUrl = `/api/files/${segments.join('/')}`;
+    const allowed = await isBorrowerFileAllowed(userId, sessionTenantId, requestedUrl).catch(() => false);
+    if (!allowed) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
   }
 
   // Prevent path traversal — every segment must be a plain name

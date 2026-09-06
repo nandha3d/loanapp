@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:loantrack/data/models/customer.dart';
-import 'package:loantrack/data/services/customer_service.dart';
+import 'package:zolofund/data/models/customer.dart';
+import 'package:zolofund/data/services/customer_service.dart';
 
 class CustomerRepository {
   CustomerRepository(this._service);
@@ -33,6 +33,9 @@ class CustomerRepository {
       );
   Future<Customer> update(String id, Map<String, dynamic> patch) =>
       _service.update(id, patch);
+  Future<void> delete(String id) => _service.delete(id);
+  Future<List<int>> collectionReceiptPdf(String id) =>
+      _service.collectionReceiptPdf(id);
 }
 
 final customerRepositoryProvider = Provider<CustomerRepository>(
@@ -56,7 +59,7 @@ final customerFilterProvider =
     StateProvider<CustomerListFilter>((ref) => const CustomerListFilter());
 
 final customerListProvider =
-    FutureProvider.autoDispose<List<Customer>>((ref) async {
+    FutureProvider<List<Customer>>((ref) async {
   final filter = ref.watch(customerFilterProvider);
   final all = await ref.watch(customerRepositoryProvider).list(
         query: filter.query.isEmpty ? null : filter.query,

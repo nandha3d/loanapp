@@ -3,11 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:loantrack/core/l10n/language_controller.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/services/settings_service.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/services/settings_service.dart';
 
 final _penaltySettingsProvider =
     FutureProvider.autoDispose<Map<String, String>>((ref) async {
@@ -119,7 +119,7 @@ class _PenaltySettingsScreenState
             children: [
               Row(
                 children: [
-                  const Icon(Icons.bolt_outlined, color: AppColors.primary, size: 18),
+                  Icon(Icons.bolt_outlined, color: AppColors.primary, size: 18),
                   const SizedBox(width: 8),
                   Text(t.x('set.penalty'), style: AppTypography.sectionTitle),
                 ],
@@ -211,7 +211,7 @@ class _NumField extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+          borderSide: BorderSide(color: AppColors.primary, width: 1.5),
         ),
       ),
     );

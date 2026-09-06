@@ -3,15 +3,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
-import 'package:loantrack/core/auth/auth_controller.dart';
-import 'package:loantrack/core/l10n/language_controller.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/shared/widgets/app_button.dart';
-import 'package:loantrack/shared/widgets/app_text_field.dart';
+import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/a11y/ui_prefs.dart';
+import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/shared/widgets/app_button.dart';
+import 'package:zolofund/shared/widgets/app_text_field.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -25,6 +28,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   final _username = TextEditingController();
   final _password = TextEditingController();
   bool _obscure = true;
+  bool _submitting = false;
   late final AnimationController _fade = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 400),
@@ -39,13 +43,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   Future<void> _submit() async {
-    await ref.read(authControllerProvider.notifier).login(
-          _username.text.trim(),
-          _password.text,
-        );
+    if (_submitting) return;
+    setState(() => _submitting = true);
+    try {
+      await ref.read(authControllerProvider.notifier).login(
+            _username.text.trim(),
+            _password.text,
+          );
+    } finally {
+      // On success the router redirects away; only reset if still mounted
+      // (i.e. login failed and the screen is still visible).
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   Future<void> _handleGoogleSignIn() async {
+    if (_submitting) return;
+    setState(() => _submitting = true);
     try {
       // serverClientId = the Web OAuth client (client_type 3) from
       // google-services.json. Required on Android so account.authentication
@@ -88,13 +102,61 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           SnackBar(content: Text('Google Sign-In failed: $e')),
         );
       }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  void _showServerConfigDialog() {
+    final currentUrl = ref.read(apiBaseUrlProvider) ?? kDefaultBaseUrl;
+    final controller = TextEditingController(text: currentUrl);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Server API URL'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Specify backend API URL (e.g. http://192.168.1.100:3000/api/v1):',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                hintText: 'http://...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              ref.read(apiBaseUrlProvider.notifier).set(null);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Reset Default'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              ref.read(apiBaseUrlProvider.notifier).set(controller.text.trim());
+              Navigator.pop(ctx);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authControllerProvider);
-    final loading = auth.stage == AuthStage.unknown;
+    // Only spin if submitting or already authenticated and redirecting.
+    final loading = _submitting || auth.stage == AuthStage.authenticated;
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -142,39 +204,52 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               ),
             ),
             SafeArea(
-              child: Center(
-                child: SingleChildScrollView(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-                  child: FadeTransition(
-                    opacity: _fade,
-                    child: SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0, 0.05),
-                        end: Offset.zero,
-                      ).animate(
-                        CurvedAnimation(
-                          parent: _fade,
-                          curve: Curves.easeOut,
-                        ),
-                      ),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 420),
-                        child: _LoginCard(
-                          username: _username,
-                          password: _password,
-                          obscure: _obscure,
-                          onToggleObscure: () =>
-                              setState(() => _obscure = !_obscure),
-                          error: auth.error,
-                          loading: loading,
-                          onSubmit: _submit,
-                          onGoogleSignIn: _handleGoogleSignIn,
+              child: Stack(
+                children: [
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: IconButton(
+                      icon: const Icon(Icons.settings_outlined, color: Colors.white70),
+                      tooltip: 'Server Configuration',
+                      onPressed: _showServerConfigDialog,
+                    ),
+                  ),
+                  Center(
+                    child: SingleChildScrollView(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                      child: FadeTransition(
+                        opacity: _fade,
+                        child: SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(0, 0.05),
+                            end: Offset.zero,
+                          ).animate(
+                            CurvedAnimation(
+                              parent: _fade,
+                              curve: Curves.easeOut,
+                            ),
+                          ),
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 420),
+                            child: _LoginCard(
+                              username: _username,
+                              password: _password,
+                              obscure: _obscure,
+                              onToggleObscure: () =>
+                                  setState(() => _obscure = !_obscure),
+                              error: auth.error,
+                              loading: loading,
+                              onSubmit: _submit,
+                              onGoogleSignIn: _handleGoogleSignIn,
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
+                ],
               ),
             ),
           ],
@@ -229,7 +304,7 @@ class _LoginCard extends ConsumerWidget {
                   color: AppColors.primaryLight,
                   borderRadius: BorderRadius.circular(AppTokens.radiusKpiIcon),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.currency_rupee,
                   color: AppColors.primary,
                   size: 24,
@@ -239,7 +314,7 @@ class _LoginCard extends ConsumerWidget {
               RichText(
                 text: TextSpan(
                   style: AppTypography.display,
-                  children: const [
+                  children: [
                     TextSpan(
                       text: 'Loan',
                       style: TextStyle(color: AppColors.textPrimary),
@@ -307,50 +382,52 @@ class _LoginCard extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 12),
-          const Row(
-            children: [
-              Expanded(child: Divider(color: AppColors.border)),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: Text('OR',
-                    style: TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12)),
-              ),
-              Expanded(child: Divider(color: AppColors.border)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 48,
-            child: OutlinedButton.icon(
-              icon: const Icon(Icons.g_mobiledata,
-                  color: AppColors.textPrimary, size: 28),
-              label: const Text('Continue with Google',
-                  style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w600)),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppColors.border),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
-              ),
-              onPressed: onGoogleSignIn,
+          if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) ...[
+            const Row(
+              children: [
+                Expanded(child: Divider(color: AppColors.border)),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: Text('OR',
+                      style: TextStyle(
+                          color: AppColors.textSecondary, fontSize: 12)),
+                ),
+                Expanded(child: Divider(color: AppColors.border)),
+              ],
             ),
-          ),
-          const SizedBox(height: 24),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 48,
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.g_mobiledata,
+                    color: AppColors.textPrimary, size: 28),
+                label: const Text('Continue with Google',
+                    style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: AppColors.border),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: onGoogleSignIn,
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
           Center(
             child: Wrap(
               alignment: WrapAlignment.center,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 const Text(
-                  'New to LoanTrack? ',
+                  'New to ZoloFund? ',
                   style:
                       TextStyle(color: AppColors.textSecondary, fontSize: 13),
                 ),
                 GestureDetector(
                   onTap: () => context.push('/register'),
-                  child: const Text(
+                  child: Text(
                     'Register Business',
                     style: TextStyle(
                       color: AppColors.primary,
@@ -360,6 +437,21 @@ class _LoginCard extends ConsumerWidget {
                   ),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Center(
+            child: GestureDetector(
+              onTap: () => context.push('/borrower/login'),
+              child: Text(
+                'Are you a Borrower? Access Borrower Portal',
+                style: TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
             ),
           ),
         ],

@@ -16,8 +16,8 @@ const inter = Inter({
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
   title: {
-    default: 'LoanTrack — Loan Tracking & Field Collection Software for Lenders',
-    template: '%s · LoanTrack',
+    default: 'ZoloFund — Loan Tracking & Field Collection Software for Lenders',
+    template: '%s · ZoloFund',
   },
   description: siteConfig.description,
   keywords: baseKeywords,
@@ -29,14 +29,14 @@ export const metadata: Metadata = {
     siteName: siteConfig.name,
     locale: siteConfig.locale,
     url: siteConfig.url,
-    title: 'LoanTrack — Loan Tracking & Field Collection Software',
+    title: 'ZoloFund — Loan Tracking & Field Collection Software',
     description: siteConfig.description,
     images: [OG_IMAGE],
   },
   twitter: {
     card: 'summary_large_image',
     site: siteConfig.twitter,
-    title: 'LoanTrack — Loan Tracking & Field Collection Software',
+    title: 'ZoloFund — Loan Tracking & Field Collection Software',
     description: siteConfig.description,
     images: [OG_IMAGE.url],
   },

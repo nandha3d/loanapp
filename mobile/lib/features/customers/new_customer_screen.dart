@@ -4,31 +4,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:zolofund/core/network/api_exception.dart';
+import 'package:zolofund/core/network/authed_image.dart';
+import 'package:zolofund/core/network/dio_client.dart';
 
-import 'package:loantrack/core/l10n/language_controller.dart';
-import 'package:loantrack/shared/utils/photo_crop.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/models/analytics.dart';
-import 'package:loantrack/data/models/customer.dart';
-import 'package:loantrack/data/models/route_model.dart';
-import 'package:loantrack/data/repositories/customer_repository.dart';
-import 'package:loantrack/data/services/analytics_service.dart';
-import 'package:loantrack/data/services/customer_service.dart';
-import 'package:loantrack/data/services/settings_service.dart';
-import 'package:loantrack/core/gps/gps_service.dart';
-import 'package:loantrack/data/services/upload_service.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/features/location/location_picker_screen.dart';
+import 'package:zolofund/shared/utils/photo_crop.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/models/customer.dart';
+import 'package:zolofund/data/models/route_model.dart';
+import 'package:zolofund/data/repositories/customer_repository.dart';
+import 'package:zolofund/data/services/customer_service.dart';
+import 'package:zolofund/data/services/settings_service.dart';
+import 'package:zolofund/core/gps/gps_service.dart';
+import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/data/models/user.dart';
+import 'package:zolofund/data/services/upload_service.dart';
 
 // ── Providers ──────────────────────────────────────────────────────────────
 
 final _routeListProvider = FutureProvider.autoDispose<List<AppRoute>>((ref) {
   return ref.watch(settingsServiceProvider).routes();
-});
-
-final _agentListProvider =
-    FutureProvider.autoDispose<List<AgentPerformance>>((ref) {
-  return ref.watch(analyticsServiceProvider).agents();
 });
 
 // ── Local models ───────────────────────────────────────────────────────────
@@ -122,7 +121,6 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
       _phoneCtrl.text = c.phone;
       _addressCtrl.text = c.address ?? '';
       _routeId = c.routeId;
-      _agentId = c.agentId;
       _panCtrl.text = c.pan ?? '';
       _emailCtrl.text = c.email ?? '';
       _companyNameCtrl.text = c.companyName ?? '';
@@ -173,7 +171,6 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
   final List<_GuarantorEntry> _guarantors = [];
   final List<_CollectionPointEntry> _collectionPoints = [];
   String? _routeId;
-  String? _agentId;
   bool _submitting = false;
   String? _error;
   final Map<String, String?> _fieldErrors = {};
@@ -230,7 +227,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                 ),
               ),
               ListTile(
-                leading: const Icon(Icons.camera_alt_outlined,
+                leading: Icon(Icons.camera_alt_outlined,
                     color: AppColors.primary,),
                 title: Text(t.x('btn.take_photo')),
                 onTap: () {
@@ -239,7 +236,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.photo_library_outlined,
+                leading: Icon(Icons.photo_library_outlined,
                     color: AppColors.primary,),
                 title: Text(t.x('btn.choose_gallery')),
                 onTap: () {
@@ -277,7 +274,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                 ),
               ),
               ListTile(
-                leading: const Icon(Icons.camera_alt_outlined,
+                leading: Icon(Icons.camera_alt_outlined,
                     color: AppColors.primary,),
                 title: Text(t.x('btn.scan_doc')),
                 onTap: () {
@@ -286,7 +283,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.photo_library_outlined,
+                leading: Icon(Icons.photo_library_outlined,
                     color: AppColors.primary,),
                 title: Text(t.x('btn.choose_gallery')),
                 onTap: () {
@@ -325,7 +322,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                 ),
               ),
               ListTile(
-                leading: const Icon(Icons.camera_alt_outlined,
+                leading: Icon(Icons.camera_alt_outlined,
                     color: AppColors.primary,),
                 title: Text(t.x('btn.take_photo')),
                 onTap: () {
@@ -334,7 +331,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.photo_library_outlined,
+                leading: Icon(Icons.photo_library_outlined,
                     color: AppColors.primary,),
                 title: Text(t.x('btn.choose_gallery')),
                 onTap: () {
@@ -394,7 +391,8 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
     if (aadhar.isNotEmpty && !RegExp(r'^\d{12}$').hasMatch(aadhar)) {
       errs['aadhar'] = t.x('err.aadhar_invalid');
     }
-    if (!_isEdit && _routeId == null) errs['route'] = t.x('err.route_required');
+    final isChit = AppType.userIsChit(ref.read(authControllerProvider).user);
+    if (!_isEdit && _routeId == null && !isChit) errs['route'] = t.x('err.route_required');
     setState(() => _fieldErrors
       ..clear()
       ..addAll(errs),);
@@ -445,7 +443,6 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
     if (guarantorPayloads.isNotEmpty) m['guarantors'] = guarantorPayloads;
     if (_kycStatus != null) m['kycStatus'] = _kycStatus;
     if (_routeId != null) m['routeId'] = _routeId;
-    if (_agentId != null) m['agentId'] = _agentId;
     return m;
   }
 
@@ -485,12 +482,18 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
           final r = await uploader.uploadFile(_companyLogo!, contentType: 'image/jpeg');
           logoUrl = r.url;
         }
+        String? editedPhotoUrl;
+        if (_photo != null) {
+          final r = await uploader.uploadFile(_photo!, contentType: 'image/jpeg');
+          editedPhotoUrl = r.url;
+        }
         final patch = <String, dynamic>{
           'name': _nameCtrl.text.trim(),
           'phone': _phoneCtrl.text.trim(),
           'address': _addressCtrl.text.trim().isEmpty
               ? null
               : _addressCtrl.text.trim(),
+          if (editedPhotoUrl != null) 'profilePhoto': editedPhotoUrl,
           ..._extendedFields(logoUrl, guarantorPayloads),
         };
         if (_aadharCtrl.text.trim().isNotEmpty) {
@@ -543,7 +546,6 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                 ? null
                 : _aadharCtrl.text.trim(),
             routeId: _routeId,
-            agentId: _agentId,
             photoUrl: photoUrl,
             kycDocs: kycInputs,
             extra: _extendedFields(logoUrl, guarantorPayloads),
@@ -562,138 +564,44 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
       } else {
         context.go('/customers');
       }
+    } on ApiException catch (e) {
+      if (e.code == 'CUSTOMER_ALREADY_EXISTS' && e.data != null) {
+        final custMap = e.data['customer'] as Map<String, dynamic>?;
+        if (custMap != null) {
+          final existingCust = Customer.fromJson(custMap);
+          final select = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Customer Already Exists'),
+              content: Text('Customer "${existingCust.name}" (${existingCust.customerCode}) is already created with this phone number. Do you want to select that customer?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('No'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Yes, Select'),
+                ),
+              ],
+            ),
+          );
+          if (select == true) {
+            if (!mounted) return;
+            if (widget.returnTo == 'loan' && context.canPop()) {
+              context.pop(existingCust);
+            } else {
+              context.go('/customers/${existingCust.id}');
+            }
+            return;
+          }
+        }
+      }
+      setState(() => _error = e.message);
     } catch (e) {
       setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) setState(() => _submitting = false);
-    }
-  }
-
-  // ── New agent dialog ──────────────────────────────────────────────────
-
-  Future<void> _showNewAgentDialog() async {
-    final t = T.of(ref);
-    final nameCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
-    final emailCtrl = TextEditingController();
-    final passCtrl = TextEditingController();
-
-    final created = await showDialog<AgentPerformance>(
-      context: context,
-      builder: (ctx) {
-        String? err;
-        bool creating = false;
-        return StatefulBuilder(
-          builder: (ctx, setLocal) => AlertDialog(
-            title: Text(t.x('dlg.add_agent')),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (err != null) ...[
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.dangerBg,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(err!,
-                          style: const TextStyle(
-                              color: AppColors.danger, fontSize: 13,),),
-                    ),
-                    const SizedBox(height: 10),
-                  ],
-                  TextField(
-                    controller: nameCtrl,
-                    textCapitalization: TextCapitalization.words,
-                    decoration: InputDecoration(labelText: t.x('fld.agent_name')),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: phoneCtrl,
-                    keyboardType: TextInputType.phone,
-                    decoration: InputDecoration(labelText: t.x('fld.phone')),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: emailCtrl,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: InputDecoration(labelText: t.x('fld.email')),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: passCtrl,
-                    obscureText: true,
-                    decoration: InputDecoration(labelText: t.x('fld.password_label')),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: Text(t.x('common.cancel')),
-              ),
-              FilledButton(
-                style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primary,),
-                onPressed: creating
-                    ? null
-                    : () async {
-                        if (nameCtrl.text.trim().isEmpty ||
-                            phoneCtrl.text.trim().isEmpty ||
-                            emailCtrl.text.trim().isEmpty ||
-                            passCtrl.text.isEmpty) {
-                          setLocal(() => err = t.x('err.all_fields_required'));
-                          return;
-                        }
-                        setLocal(() {
-                          creating = true;
-                          err = null;
-                        });
-                        try {
-                          final agent = await ref
-                              .read(settingsServiceProvider)
-                              .createAgent(
-                                name: nameCtrl.text.trim(),
-                                email: emailCtrl.text.trim(),
-                                phone: phoneCtrl.text.trim(),
-                                password: passCtrl.text,
-                              );
-                          if (ctx.mounted) Navigator.pop(ctx, agent);
-                        } catch (e) {
-                          setLocal(() {
-                            creating = false;
-                            err = e
-                                .toString()
-                                .replaceFirst('Exception: ', '');
-                          });
-                        }
-                      },
-                child: creating
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2,),
-                      )
-                    : Text(t.x('btn.create_agent')),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-
-    nameCtrl.dispose();
-    phoneCtrl.dispose();
-    emailCtrl.dispose();
-    passCtrl.dispose();
-
-    if (created != null) {
-      ref.invalidate(_agentListProvider);
-      setState(() => _agentId = created.id);
     }
   }
 
@@ -746,7 +654,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
   Widget build(BuildContext context) {
     final t = T.of(ref);
     final routesAsync = ref.watch(_routeListProvider);
-    final agentsAsync = ref.watch(_agentListProvider);
+    final isChit = AppType.userIsChit(ref.watch(authControllerProvider).user);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -779,14 +687,15 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (!_isEdit) ...[
-                        _PhotoAvatar(
-                          photo: _photo,
-                          label: t.x('btn.add_photo'),
-                          onTap: _showPhotoSourcePicker,
-                        ),
-                        const SizedBox(width: 16),
-                      ],
+                      _PhotoAvatar(
+                        photo: _photo,
+                        existingUrl: absoluteMediaUrl(
+                            ref.watch(mediaBaseUrlProvider),
+                            widget.editCustomer?.photoUrl,),
+                        label: t.x('btn.add_photo'),
+                        onTap: _showPhotoSourcePicker,
+                      ),
+                      const SizedBox(width: 16),
                       Expanded(
                         child: Column(
                           children: [
@@ -913,95 +822,53 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
 
                   const SizedBox(height: 20),
 
-                  // ── Route + Agent ──────────────────────────────────────────
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: _LabeledField(
-                          label: t.x('fld.route_line'),
-                          required: true,
-                          trailing: TextButton(
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            onPressed: _showNewRouteDialog,
-                            child: Text(
-                              t.x('btn.new_route'),
-                              style: AppTypography.caption
-                                  .copyWith(color: AppColors.primary),
-                            ),
-                          ),
-                          child: routesAsync.when(
-                            loading: () => _dropdownSkeleton(),
-                            error: (_, __) => _dropdownError(t.x('err.routes_unavail')),
-                            data: (routes) => _AppDropdown<String>(
-                              value: _routeId,
-                              hint: t.x('fld.select_route'),
-                              error: _fieldErrors['route'],
-                              items: routes
-                                  .map(
-                                    (r) => DropdownMenuItem(
-                                      value: r.id,
-                                      child: Text(
-                                        r.name,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: (v) => setState(() {
-                                _routeId = v;
-                                _fieldErrors.remove('route');
-                              }),
-                            ),
-                          ),
+                  // ── Route (the route's assigned agent becomes this
+                  // customer's collecting agent — no separate agent picker;
+                  // agent↔route assignment lives in Settings → Routes, same
+                  // as web). ────────────────────────────────────────────────
+                  if (!isChit) ...[
+                    _LabeledField(
+                      label: t.x('fld.route_line'),
+                      required: true,
+                      trailing: TextButton(
+                        style: TextButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        onPressed: _showNewRouteDialog,
+                        child: Text(
+                          t.x('btn.new_route'),
+                          style: AppTypography.caption
+                              .copyWith(color: AppColors.primary),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _LabeledField(
-                          label: t.x('fld.assigned_agent'),
-                          trailing: TextButton(
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            onPressed: _showNewAgentDialog,
-                            child: Text(
-                              t.x('btn.new_agent'),
-                              style: AppTypography.caption
-                                  .copyWith(color: AppColors.primary),
-                            ),
-                          ),
-                          child: agentsAsync.when(
-                            loading: () => _dropdownSkeleton(),
-                            error: (_, __) => _dropdownError(t.x('err.agents_unavail')),
-                            data: (agents) => _AppDropdown<String>(
-                              value: _agentId,
-                              hint: t.x('fld.select_agent'),
-                              items: agents
-                                  .map(
-                                    (a) => DropdownMenuItem(
-                                      value: a.id,
-                                      child: Text(
-                                        a.name,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: (v) =>
-                                  setState(() => _agentId = v),
-                            ),
-                          ),
+                      child: routesAsync.when(
+                        loading: () => _dropdownSkeleton(),
+                        error: (_, __) => _dropdownError(t.x('err.routes_unavail')),
+                        data: (routes) => _AppDropdown<String>(
+                          value: _routeId,
+                          hint: t.x('fld.select_route'),
+                          error: _fieldErrors['route'],
+                          items: routes
+                              .map(
+                                (r) => DropdownMenuItem(
+                                  value: r.id,
+                                  child: Text(
+                                    r.name,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (v) => setState(() {
+                            _routeId = v;
+                            _fieldErrors.remove('route');
+                          }),
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -1071,7 +938,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                     label: Text(t.x('btn.add_guarantor')),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.primary,
-                      side: const BorderSide(color: AppColors.primary),
+                      side: BorderSide(color: AppColors.primary),
                     ),
                   ),
                 ],
@@ -1150,7 +1017,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
   }
 
   Future<void> _fillGpsForPoint(_CollectionPointEntry cp) async {
-    final pos = await ref.read(gpsServiceProvider).currentPosition();
+    final pos = await ref.read(gpsServiceProvider).currentOrLastKnown();
     if (pos == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1162,6 +1029,30 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
     setState(() {
       cp.lat = pos.latitude;
       cp.lng = pos.longitude;
+    });
+  }
+
+  Future<void> _pickMapForPoint(_CollectionPointEntry cp) async {
+    final picked = await Navigator.of(context).push<PickedLocation>(
+      MaterialPageRoute(
+        builder: (_) => LocationPickerScreen(
+          initialLat: cp.lat,
+          initialLng: cp.lng,
+          title: T.of(ref).x('btn.pin_on_map'),
+        ),
+      ),
+    );
+    if (picked == null) return;
+    setState(() {
+      cp.lat = picked.lat;
+      cp.lng = picked.lng;
+      // Auto-fill the address from the map only when the field is still empty,
+      // so a manually typed address is never overwritten.
+      if (cp.address.text.trim().isEmpty &&
+          picked.address != null &&
+          picked.address!.isNotEmpty) {
+        cp.address.text = picked.address!;
+      }
     });
   }
 
@@ -1178,7 +1069,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.place_outlined, size: 18, color: AppColors.primary),
+              Icon(Icons.place_outlined, size: 18, color: AppColors.primary),
               const SizedBox(width: 8),
               Text(t.x('sec.collection_points'), style: AppTypography.sectionTitle),
             ],
@@ -1200,6 +1091,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                 }
               }),
               onUseGps: () => _fillGpsForPoint(_collectionPoints[i]),
+              onPickMap: () => _pickMapForPoint(_collectionPoints[i]),
             ),
             const SizedBox(height: 10),
           ],
@@ -1210,7 +1102,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
             label: Text(t.x('btn.add_collection_point')),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.primary,
-              side: const BorderSide(color: AppColors.primary),
+              side: BorderSide(color: AppColors.primary),
             ),
           ),
         ],
@@ -1293,7 +1185,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
             onTap: () => setState(() => _showCompany = !_showCompany),
             child: Row(
               children: [
-                const Icon(Icons.business_center_outlined,
+                Icon(Icons.business_center_outlined,
                     size: 18, color: AppColors.primary,),
                 const SizedBox(width: 8),
                 Expanded(
@@ -1421,7 +1313,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-        borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+        borderSide: BorderSide(color: AppColors.primary, width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppTokens.radiusSm),
@@ -1465,14 +1357,23 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
 
 // ── Photo avatar ────────────────────────────────────────────────────────────
 
-class _PhotoAvatar extends StatelessWidget {
-  const _PhotoAvatar({required this.photo, required this.label, required this.onTap});
+class _PhotoAvatar extends ConsumerWidget {
+  const _PhotoAvatar({
+    required this.photo,
+    required this.label,
+    required this.onTap,
+    this.existingUrl,
+  });
   final File? photo;
+  final String? existingUrl;
   final String label;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hasExisting = photo == null &&
+        existingUrl != null &&
+        existingUrl!.isNotEmpty;
     return GestureDetector(
       onTap: onTap,
       child: Column(
@@ -1489,9 +1390,14 @@ class _PhotoAvatar extends StatelessWidget {
                       image: FileImage(photo!),
                       fit: BoxFit.cover,
                     )
-                  : null,
+                  : hasExisting
+                      ? DecorationImage(
+                          image: authedImage(ref, existingUrl!),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
             ),
-            child: photo == null
+            child: (photo == null && !hasExisting)
                 ? const Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -1617,12 +1523,12 @@ class _AppDropdown<V> extends StatelessWidget {
 // ── Section card ─────────────────────────────────────────────────────────────
 
 class _SectionCard extends StatelessWidget {
-  const _SectionCard({
+  _SectionCard({
     required this.icon,
     required this.title,
     required this.child,
-    this.iconColor = AppColors.primary,
-  });
+    Color? iconColor,
+  }) : iconColor = iconColor ?? AppColors.primary;
   final IconData icon;
   final String title;
   final Widget child;
@@ -1680,7 +1586,7 @@ class _UploadButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.cloud_upload_outlined,
+            Icon(Icons.cloud_upload_outlined,
                 color: AppColors.primary, size: 20,),
             const SizedBox(width: 8),
             Text(
@@ -1783,6 +1689,7 @@ class _CollectionPointTile extends ConsumerWidget {
     required this.onChanged,
     required this.onMarkPrimary,
     required this.onUseGps,
+    required this.onPickMap,
   });
 
   final _CollectionPointEntry entry;
@@ -1791,6 +1698,7 @@ class _CollectionPointTile extends ConsumerWidget {
   final VoidCallback onChanged;
   final VoidCallback onMarkPrimary;
   final VoidCallback onUseGps;
+  final VoidCallback onPickMap;
 
   static InputDecoration _dec(String hint) => InputDecoration(
         hintText: hint,
@@ -1808,7 +1716,7 @@ class _CollectionPointTile extends ConsumerWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+          borderSide: BorderSide(color: AppColors.primary, width: 1.5),
         ),
       );
 
@@ -1917,15 +1825,22 @@ class _CollectionPointTile extends ConsumerWidget {
                 ),
               ),
               OutlinedButton.icon(
-                onPressed: onUseGps,
-                icon: const Icon(Icons.my_location, size: 16),
-                label: Text(t.x('btn.use_my_gps')),
+                onPressed: onPickMap,
+                icon: const Icon(Icons.map_outlined, size: 16),
+                label: Text(t.x('btn.pin_on_map')),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.primary,
-                  side: const BorderSide(color: AppColors.primary),
+                  side: BorderSide(color: AppColors.primary),
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: onUseGps,
+                tooltip: t.x('btn.use_my_gps'),
+                icon: const Icon(Icons.my_location, size: 20),
+                color: AppColors.primary,
               ),
             ],
           ),
@@ -1965,7 +1880,7 @@ class _GuarantorTile extends ConsumerWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+          borderSide: BorderSide(color: AppColors.primary, width: 1.5),
         ),
       );
 
@@ -2137,7 +2052,7 @@ class _GuarantorTile extends ConsumerWidget {
                             : Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  const Icon(Icons.add_a_photo_outlined,
+                                  Icon(Icons.add_a_photo_outlined,
                                       size: 16, color: AppColors.primary,),
                                   const SizedBox(width: 6),
                                   Text(

@@ -1,11 +1,12 @@
 'use client';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@supabase/ssr';
 
 // Browser Supabase client (anon public key). Drives the user-facing auth
 // handshakes only: Google OAuth redirect + email OTP / magic-link send. The
 // resulting Supabase access token is handed to our NextAuth `supabase` provider
-// which mints the real app session. Sessions are persisted so the token survives
-// the OAuth/magic-link redirect back to /auth/callback.
+// which mints the real app session. Supabase SSR stores the PKCE verifier and
+// session in cookies so the OAuth/magic-link redirect can survive the callback.
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -21,12 +22,12 @@ export function getSupabaseBrowser(): SupabaseClient {
     throw new Error('Supabase browser client not configured (missing NEXT_PUBLIC_SUPABASE_URL / ANON_KEY)');
   }
   if (!cached) {
-    cached = createClient(url, anonKey, {
+    cached = createBrowserClient(url, anonKey, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        // We exchange the ?code ourselves in /auth/callback (explicit, so errors
-        // surface and there's no single-use double-exchange race).
+        // We exchange the ?code ourselves in /auth/callback so errors surface
+        // clearly and there is no single-use double-exchange race.
         detectSessionInUrl: false,
         flowType: 'pkce',
       },

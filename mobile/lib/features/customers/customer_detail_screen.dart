@@ -1,20 +1,28 @@
-import 'package:loantrack/core/currency/currency_controller.dart';
+import 'dart:typed_data';
+
+import 'package:zolofund/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:printing/printing.dart';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
-import 'package:url_launcher/url_launcher.dart';import 'package:loantrack/core/l10n/language_controller.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/core/network/authed_image.dart';
-import 'package:loantrack/data/models/customer.dart';
-import 'package:loantrack/data/repositories/customer_repository.dart';
-import 'package:loantrack/shared/widgets/app_badge.dart';
-import 'package:loantrack/shared/widgets/app_button.dart';
-import 'package:loantrack/shared/widgets/skeleton.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/network/authed_image.dart';
+import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/models/customer.dart';
+import 'package:zolofund/data/models/user.dart';
+import 'package:zolofund/data/repositories/customer_repository.dart';
+import 'package:zolofund/shared/widgets/app_badge.dart';
+import 'package:zolofund/shared/widgets/app_button.dart';
+import 'package:zolofund/shared/widgets/skeleton.dart';
 
 class CustomerDetailScreen extends ConsumerWidget {
   const CustomerDetailScreen({super.key, required this.id});
@@ -48,6 +56,7 @@ class _DetailBody extends ConsumerStatefulWidget {
 
 class _DetailBodyState extends ConsumerState<_DetailBody> {
   bool _suspending = false;
+  bool _printingReceipt = false;
 
   Future<void> _toggleSuspend() async {
     setState(() => _suspending = true);
@@ -70,10 +79,36 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
     }
   }
 
+  Future<void> _openCollectionReceipt() async {
+    setState(() => _printingReceipt = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final bytes = await ref
+          .read(customerRepositoryProvider)
+          .collectionReceiptPdf(widget.customer.id);
+      if (bytes.isEmpty) throw Exception('Empty receipt');
+      await Printing.layoutPdf(
+        onLayout: (_) async => Uint8List.fromList(bytes),
+        name: 'passbook-${widget.customer.customerCode}.pdf',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Could not open passbook: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _printingReceipt = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = widget.customer;
     final t = T.of(ref);
+    final isChit = AppType.userIsChit(ref.watch(authControllerProvider).user);
 
     return Column(
       children: [
@@ -86,10 +121,12 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
               const SizedBox(height: 14),
               _RiskCard(customer: c, t: t),
               const SizedBox(height: 14),
-              _KpiStrip(customer: c, t: t),
-              const SizedBox(height: 14),
-              _LoansSection(customer: c, t: t),
-              const SizedBox(height: 14),
+              if (!isChit) ...[
+                _KpiStrip(customer: c, t: t),
+                const SizedBox(height: 14),
+                _LoansSection(customer: c, t: t),
+                const SizedBox(height: 14),
+              ],
               _IdentitySection(customer: c, t: t),
               const SizedBox(height: 14),
               if (c.companyName != null && c.companyName!.isNotEmpty) ...[
@@ -121,36 +158,58 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
               border: Border(top: BorderSide(color: AppColors.border)),
               boxShadow: AppTokens.shadowLg,
             ),
-            child: Row(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: AppButton(
-                    label: c.status == 'suspended'
-                        ? t.x('cust.unsuspend')
-                        : t.x('cust.suspend'),
-                    variant: c.status == 'suspended'
-                        ? AppButtonVariant.secondary
-                        : AppButtonVariant.danger,
-                    expand: true,
-                    loading: _suspending,
-                    onPressed: _toggleSuspend,
+                if (!isChit) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _printingReceipt ? null : _openCollectionReceipt,
+                      icon: _printingReceipt
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.picture_as_pdf_outlined),
+                      label: const Text('Collection passbook'),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: AppButton(
-                    label: t.x('cust.edit_profile'),
-                    expand: true,
-                    onPressed: () async {
-                      await context.push<Object?>(
-                        '/customers/${c.id}/edit',
-                        extra: c,
-                      );
-                      // Refresh the detail (and its score) after returning.
-                      ref.invalidate(customerDetailProvider(c.id));
-                    },
-                  ),
+                  const SizedBox(height: 12),
+                ],
+                Row(
+                  children: [
+                    Expanded(
+                      child: AppButton(
+                        label: c.status == 'suspended'
+                            ? t.x('cust.unsuspend')
+                            : t.x('cust.suspend'),
+                        variant: c.status == 'suspended'
+                            ? AppButtonVariant.secondary
+                            : AppButtonVariant.danger,
+                        expand: true,
+                        loading: _suspending,
+                        onPressed: _toggleSuspend,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: AppButton(
+                        label: t.x('cust.edit_profile'),
+                        expand: true,
+                        onPressed: () async {
+                          await context.push<Object?>(
+                            '/customers/${c.id}/edit',
+                            extra: c,
+                          );
+                          // Refresh the detail (and its score) after returning.
+                          ref.invalidate(customerDetailProvider(c.id));
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -181,7 +240,7 @@ class _Header extends ConsumerWidget {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 22),
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
           child: Column(
             children: [
               Row(
@@ -198,37 +257,89 @@ class _Header extends ConsumerWidget {
                       letterSpacing: 0.5,
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.more_vert, color: Colors.white),
-                    onPressed: () {},
+                  Builder(
+                    builder: (context) {
+                      final role = ref.read(authControllerProvider).user?.role;
+                      final canDelete = role == UserRole.admin ||
+                          role == UserRole.superadmin ||
+                          role == UserRole.developer;
+                      return PopupMenuButton<String>(
+                        icon: const Icon(Icons.more_vert, color: Colors.white),
+                        onSelected: (value) {
+                          if (value == 'edit') {
+                            context.push(
+                              '/customers/${customer.id}/edit',
+                              extra: customer,
+                            );
+                          } else if (value == 'delete') {
+                            _confirmDelete(context, ref, customer);
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'edit',
+                            child: ListTile(
+                              leading: Icon(Icons.edit_outlined),
+                              title: Text('Edit Profile'),
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ),
+                          if (canDelete)
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: ListTile(
+                                leading:
+                                    Icon(Icons.delete_outline, color: AppColors.danger),
+                                title: Text('Delete Customer',
+                                    style: TextStyle(color: AppColors.danger),),
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                        ],
+                      );
+                    },
                   ),
                 ],
               ),
-              const SizedBox(height: 6),
-              _PhotoOrInitials(customer: customer, size: 86),
-              const SizedBox(height: 12),
-              Text(
-                customer.name,
-                style: AppTypography.heroLabel.copyWith(
-                  color: Colors.white,
-                  fontSize: 20,
-                ),
-              ),
               const SizedBox(height: 4),
+              // Compact header: big photo on the left, identity on the right —
+              // fills the card width instead of a small centered circle.
               Row(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    customer.customerCode,
-                    style: AppTypography.body.copyWith(
-                      color: Colors.white60,
-                      fontFamily: 'monospace',
+                  const SizedBox(width: 4),
+                  _PhotoOrInitials(customer: customer, size: 104),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          customer.name,
+                          style: AppTypography.heroLabel.copyWith(
+                            color: Colors.white,
+                            fontSize: 22,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          customer.customerCode,
+                          style: AppTypography.body.copyWith(
+                            color: Colors.white60,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: AppBadge(
+                            label: customer.status,
+                            kind: _badgeForStatus(customer.status),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  AppBadge(
-                    label: customer.status,
-                    kind: _badgeForStatus(customer.status),
                   ),
                 ],
               ),
@@ -237,6 +348,53 @@ class _Header extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _confirmDelete(
+    BuildContext context,
+    WidgetRef ref,
+    Customer customer,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Customer'),
+        content: Text(
+          'Delete ${customer.name}? This cannot be undone from the app. '
+          'Customers with an open loan cannot be deleted.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await ref.read(customerRepositoryProvider).delete(customer.id);
+      ref.invalidate(customerListProvider);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Customer deleted')),
+      );
+      context.go('/customers');
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
   }
 
   BadgeKind _badgeForStatus(String s) {
@@ -262,8 +420,10 @@ class _PhotoOrInitials extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final url = customer.photoUrl;
-    if (url != null && url.isNotEmpty) {
+    // Server returns a relative /api/files/... path — authedImage absolutizes
+    // it and attaches the Bearer token the /api/files route requires.
+    final url = customer.photoUrl ?? '';
+    if (url.isNotEmpty) {
       return Container(
         width: size,
         height: size,
@@ -306,7 +466,7 @@ class _QuickContact extends ConsumerWidget {
 
   Future<void> _launch(Uri uri) async {
     if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
   }
 
@@ -470,7 +630,8 @@ class _RiskCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(t.x('cust.risk_score'), style: AppTypography.sectionTitle),
-              const Icon(Icons.info_outline, color: AppColors.textLight, size: 18),
+              const Icon(Icons.info_outline,
+                  color: AppColors.textLight, size: 18),
             ],
           ),
           const SizedBox(height: 32),
@@ -521,7 +682,8 @@ class _ScoreMeter extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             grade.toUpperCase(),
-            style: AppTypography.caption.copyWith(color: AppColors.textLight, fontWeight: FontWeight.w800),
+            style: AppTypography.caption.copyWith(
+                color: AppColors.textLight, fontWeight: FontWeight.w800),
           ),
         ],
       );
@@ -539,7 +701,8 @@ class _ScoreMeter extends StatelessWidget {
         const SizedBox(height: 16),
         Text(
           grade.toUpperCase(),
-          style: AppTypography.caption.copyWith(color: color, fontWeight: FontWeight.w800),
+          style: AppTypography.caption
+              .copyWith(color: color, fontWeight: FontWeight.w800),
         ),
       ],
     );
@@ -561,49 +724,77 @@ class _ScoreMeterPainter extends CustomPainter {
     // Draw arcs
     paint.color = AppColors.danger;
     canvas.drawArc(rect, math.pi, math.pi * 0.36, false, paint);
-    
+
     paint.color = AppColors.warning;
-    canvas.drawArc(rect, math.pi + (math.pi * 0.36), math.pi * 0.27, false, paint);
-    
+    canvas.drawArc(
+        rect, math.pi + (math.pi * 0.36), math.pi * 0.27, false, paint);
+
     paint.color = AppColors.success;
-    canvas.drawArc(rect, math.pi + (math.pi * 0.63), math.pi * 0.37, false, paint);
+    canvas.drawArc(
+        rect, math.pi + (math.pi * 0.63), math.pi * 0.37, false, paint);
 
     // Calc pct for indicator
     final double pct = ((score - 300) / (850 - 300)).clamp(0.0, 1.0);
     final angle = math.pi + (math.pi * pct);
     final radius = size.width / 2;
     final center = Offset(size.width / 2, size.height);
-    
+
     final indicatorX = center.dx + radius * math.cos(angle);
     final indicatorY = center.dy + radius * math.sin(angle);
 
     // Draw the white circle with colored border
-    final indicatorPaint = Paint()..color = Colors.white..style = PaintingStyle.fill;
+    final indicatorPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
     canvas.drawCircle(Offset(indicatorX, indicatorY), 10, indicatorPaint);
-    
-    final Color currentColor = pct < 0.36 ? AppColors.danger : (pct < 0.63 ? AppColors.warning : AppColors.success);
-    final borderPaint = Paint()..color = currentColor..style = PaintingStyle.stroke..strokeWidth = 4;
+
+    final Color currentColor = pct < 0.36
+        ? AppColors.danger
+        : (pct < 0.63 ? AppColors.warning : AppColors.success);
+    final borderPaint = Paint()
+      ..color = currentColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4;
     canvas.drawCircle(Offset(indicatorX, indicatorY), 10, borderPaint);
 
     // Texts
     final textPainter300 = TextPainter(
-      text: const TextSpan(text: '300', style: TextStyle(color: AppColors.textLight, fontSize: 11, fontWeight: FontWeight.bold)),
+      text: const TextSpan(
+          text: '300',
+          style: TextStyle(
+              color: AppColors.textLight,
+              fontSize: 11,
+              fontWeight: FontWeight.bold)),
       textDirection: ui.TextDirection.ltr,
     )..layout();
     textPainter300.paint(canvas, Offset(0, size.height + 8));
 
     final textPainter850 = TextPainter(
-      text: const TextSpan(text: '850', style: TextStyle(color: AppColors.textLight, fontSize: 11, fontWeight: FontWeight.bold)),
+      text: const TextSpan(
+          text: '850',
+          style: TextStyle(
+              color: AppColors.textLight,
+              fontSize: 11,
+              fontWeight: FontWeight.bold)),
       textDirection: ui.TextDirection.ltr,
     )..layout();
-    textPainter850.paint(canvas, Offset(size.width - textPainter850.width, size.height + 8));
+    textPainter850.paint(
+        canvas, Offset(size.width - textPainter850.width, size.height + 8));
 
     // Main Score
     final scorePainter = TextPainter(
-      text: TextSpan(text: '$score', style: const TextStyle(color: Color(0xFF111827), fontSize: 36, fontWeight: FontWeight.w900)),
+      text: TextSpan(
+          text: '$score',
+          style: const TextStyle(
+              color: Color(0xFF111827),
+              fontSize: 36,
+              fontWeight: FontWeight.w900)),
       textDirection: ui.TextDirection.ltr,
     )..layout();
-    scorePainter.paint(canvas, Offset(center.dx - scorePainter.width / 2, size.height - scorePainter.height + 6));
+    scorePainter.paint(
+        canvas,
+        Offset(center.dx - scorePainter.width / 2,
+            size.height - scorePainter.height + 6));
   }
 
   @override
@@ -725,7 +916,8 @@ class _LoansSection extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(vertical: 14),
           child: Row(
             children: [
-              const Icon(Icons.info_outline, color: AppColors.textLight, size: 18),
+              const Icon(Icons.info_outline,
+                  color: AppColors.textLight, size: 18),
               const SizedBox(width: 8),
               Text(
                 t.x('cust.no_loans_yet'),
@@ -828,6 +1020,17 @@ class _LoanRow extends StatelessWidget {
 
 // ───────────────────────────── Identity / KYC ───────────────────────
 
+/// The customer's stored location — captured (or last-known-fallback) at
+/// creation time — regardless of whether the viewer's device has a live GPS
+/// fix right now. Prefers the primary collection point, else the first one
+/// with coordinates.
+CustomerCollectionPoint? _primaryGpsPoint(Customer customer) {
+  final withGps =
+      customer.collectionPoints.where((p) => p.latitude != null && p.longitude != null);
+  if (withGps.isEmpty) return null;
+  return withGps.firstWhere((p) => p.isPrimary, orElse: () => withGps.first);
+}
+
 class _IdentitySection extends StatelessWidget {
   const _IdentitySection({required this.customer, required this.t});
   final Customer customer;
@@ -849,6 +1052,23 @@ class _IdentitySection extends StatelessWidget {
               icon: Icons.location_on_outlined,
               label: t.x('fld.address_label'),
               value: customer.address!,
+            ),
+          if (_primaryGpsPoint(customer) != null)
+            Builder(
+              builder: (context) {
+                final p = _primaryGpsPoint(customer)!;
+                return _IdRow(
+                  icon: Icons.my_location_outlined,
+                  label: 'GPS location',
+                  value: 'View on map',
+                  valueColor: AppColors.primary,
+                  onTap: () => launchUrl(
+                    Uri.parse(
+                        'https://www.google.com/maps/search/?api=1&query=${p.latitude},${p.longitude}',),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                );
+              },
             ),
           if (customer.aadharNumberMasked != null)
             _IdRow(
@@ -901,14 +1121,16 @@ class _IdRow extends StatelessWidget {
     required this.label,
     required this.value,
     this.valueColor,
+    this.onTap,
   });
   final IconData icon;
   final String label, value;
   final Color? valueColor;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         children: [
@@ -939,6 +1161,7 @@ class _IdRow extends StatelessWidget {
         ],
       ),
     );
+    return onTap != null ? GestureDetector(onTap: onTap, child: row) : row;
   }
 }
 
@@ -990,8 +1213,11 @@ class _GuarantorsSection extends ConsumerWidget {
                       children: [
                         Text(g.name, style: AppTypography.bodyLarge),
                         Text(
-                          [g.phone, if (g.relation != null && g.relation!.isNotEmpty) g.relation]
-                              .join(' · '),
+                          [
+                            g.phone,
+                            if (g.relation != null && g.relation!.isNotEmpty)
+                              g.relation
+                          ].join(' · '),
                           style: AppTypography.caption,
                         ),
                       ],
@@ -1001,7 +1227,7 @@ class _GuarantorsSection extends ConsumerWidget {
                     onPressed: () async {
                       final uri = Uri(scheme: 'tel', path: g.phone);
                       if (await canLaunchUrl(uri)) {
-                        await launchUrl(uri);
+                        await launchUrl(uri, mode: LaunchMode.externalApplication);
                       }
                     },
                     icon: const Icon(
@@ -1044,7 +1270,7 @@ class _CompanySection extends ConsumerWidget {
                         width: 48,
                         height: 48,
                         color: AppColors.primaryLight,
-                        child: const Icon(Icons.business, color: AppColors.primary),
+                        child: Icon(Icons.business, color: AppColors.primary),
                       ),
                     ),
                   ),
@@ -1057,7 +1283,8 @@ class _CompanySection extends ConsumerWidget {
                           customer.companyName ?? '',
                           style: AppTypography.nameLg.copyWith(fontSize: 16),
                         ),
-                        if (customer.designation != null && customer.designation!.isNotEmpty)
+                        if (customer.designation != null &&
+                            customer.designation!.isNotEmpty)
                           Text(
                             customer.designation!,
                             style: AppTypography.caption,
@@ -1074,7 +1301,8 @@ class _CompanySection extends ConsumerWidget {
               label: 'Company',
               value: customer.companyName ?? '—',
             ),
-          if (customer.businessType != null && customer.businessType!.isNotEmpty)
+          if (customer.businessType != null &&
+              customer.businessType!.isNotEmpty)
             _IdRow(
               icon: Icons.category_outlined,
               label: 'Business Type',
@@ -1092,7 +1320,8 @@ class _CompanySection extends ConsumerWidget {
               label: 'Income',
               value: '₹${customer.monthlyIncome!.toStringAsFixed(0)}',
             ),
-          if (customer.companyAddress != null && customer.companyAddress!.isNotEmpty)
+          if (customer.companyAddress != null &&
+              customer.companyAddress!.isNotEmpty)
             _IdRow(
               icon: Icons.location_on_outlined,
               label: 'Work Address',
@@ -1123,12 +1352,12 @@ class _SecurityChequesSection extends ConsumerWidget {
                   Container(
                     width: 36,
                     height: 36,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       color: AppColors.primaryLight,
                       shape: BoxShape.circle,
                     ),
                     alignment: Alignment.center,
-                    child: const Icon(
+                    child: Icon(
                       Icons.account_balance_wallet_outlined,
                       color: AppColors.primary,
                       size: 18,
@@ -1139,25 +1368,34 @@ class _SecurityChequesSection extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Cheque #${c.chequeNumber}', style: AppTypography.bodyLarge),
+                        Text('Cheque #${c.chequeNumber}',
+                            style: AppTypography.bodyLarge),
                         Text(
-                          [c.bankName, if (c.amount != null) '₹${c.amount!.toStringAsFixed(0)}']
-                              .join(' · '),
+                          [
+                            c.bankName,
+                            if (c.amount != null)
+                              '₹${c.amount!.toStringAsFixed(0)}'
+                          ].join(' · '),
                           style: AppTypography.caption,
                         ),
                       ],
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: c.status == 'active' ? AppColors.successBg : AppColors.border,
+                      color: c.status == 'active'
+                          ? AppColors.successBg
+                          : AppColors.border,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       c.status.toUpperCase(),
                       style: AppTypography.tiny.copyWith(
-                        color: c.status == 'active' ? AppColors.success : AppColors.textSecondary,
+                        color: c.status == 'active'
+                            ? AppColors.success
+                            : AppColors.textSecondary,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -1173,13 +1411,69 @@ class _SecurityChequesSection extends ConsumerWidget {
 
 // ───────────────────────────── KYC docs ─────────────────────────────
 
+bool _looksLikeImage(String url) {
+  final lower = url.toLowerCase();
+  return lower.endsWith('.jpg') ||
+      lower.endsWith('.jpeg') ||
+      lower.endsWith('.png') ||
+      lower.endsWith('.webp') ||
+      lower.endsWith('.heic');
+}
+
 class _KycDocsSection extends ConsumerWidget {
   const _KycDocsSection({required this.docs});
   final List<KycDocument> docs;
 
+  void _openDoc(
+      BuildContext context, WidgetRef ref, KycDocument d, String url,) {
+    if (_looksLikeImage(d.url)) {
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => Dialog(
+          backgroundColor: Colors.black,
+          insetPadding: const EdgeInsets.all(12),
+          child: Stack(
+            children: [
+              InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 4,
+                child: Center(
+                  child: Image(
+                    image: authedImage(ref, d.url),
+                    errorBuilder: (_, __, ___) => const Padding(
+                      padding: EdgeInsets.all(32),
+                      child: Icon(Icons.broken_image_outlined,
+                          color: Colors.white54, size: 48,),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 6,
+                right: 6,
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      return;
+    }
+    () async {
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    }();
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = T.of(ref);
+    final mediaBase = ref.watch(mediaBaseUrlProvider);
     return _Card(
       title: t.x('sec.kyc_docs'),
       trailing: Text('${docs.length}', style: AppTypography.caption),
@@ -1189,35 +1483,57 @@ class _KycDocsSection extends ConsumerWidget {
         children: [
           for (final d in docs)
             InkWell(
-              onTap: () async {
-                final uri = Uri.parse(d.url);
-                if (await canLaunchUrl(uri)) {
-                  await launchUrl(uri, mode: LaunchMode.externalApplication);
-                }
-              },
+              onTap: () =>
+                  _openDoc(context, ref, d, absoluteMediaUrl(mediaBase, d.url)),
               borderRadius: BorderRadius.circular(10),
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
+                width: 92,
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: AppColors.background,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: AppColors.border),
                 ),
-                child: Row(
+                child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
-                      Icons.attach_file_rounded,
-                      size: 14,
-                      color: AppColors.textSecondary,
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: _looksLikeImage(d.url)
+                          ? Image(
+                              image: authedImage(ref, d.url),
+                              width: 76,
+                              height: 76,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                width: 76,
+                                height: 76,
+                                color: AppColors.surface,
+                                alignment: Alignment.center,
+                                child: const Icon(
+                                  Icons.insert_drive_file_outlined,
+                                  color: AppColors.textLight,
+                                ),
+                              ),
+                            )
+                          : Container(
+                              width: 76,
+                              height: 76,
+                              color: AppColors.surface,
+                              alignment: Alignment.center,
+                              child: const Icon(
+                                Icons.picture_as_pdf_outlined,
+                                color: AppColors.textLight,
+                                size: 28,
+                              ),
+                            ),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(height: 6),
                     Text(
                       d.type.toUpperCase(),
-                      style: AppTypography.caption,
+                      style: AppTypography.tiny,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -1299,7 +1615,8 @@ class _ErrorDetail extends ConsumerWidget {
             children: [
               const Icon(Icons.cloud_off, size: 56, color: AppColors.textLight),
               const SizedBox(height: 12),
-              Text(t.x('err.could_not_load_customer'), style: AppTypography.sectionTitle),
+              Text(t.x('err.could_not_load_customer'),
+                  style: AppTypography.sectionTitle),
               const SizedBox(height: 6),
               Text(
                 message,

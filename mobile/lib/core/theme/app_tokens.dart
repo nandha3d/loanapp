@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:loantrack/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
 
 /// Spacing, radius, shadow, transition tokens.
 /// Verbatim from design.md.

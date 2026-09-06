@@ -21,7 +21,7 @@ export const getActiveBranchId = cache(async (): Promise<string | null> => {
 
   if (role === 'superadmin') {
     const headerStore = await headers();
-    const forwardedBranchId = headerStore.get('x-loantrack-active-branch');
+    const forwardedBranchId = headerStore.get('x-zolofund-active-branch');
     const cookieStore = await cookies();
     const cookieBranchId = cookieStore.get('active_branch_id')?.value;
     const activeBranchId = forwardedBranchId || cookieBranchId;
@@ -63,6 +63,8 @@ export const getActiveBranchId = cache(async (): Promise<string | null> => {
 
   return user?.branchId ?? null;
 });
+
+export { branchScopeWhere } from './branchScope';
 
 export async function getBranchEnabledModules(branchId: string): Promise<ModuleKey[]> {
   const branch = await prisma.branch.findUnique({

@@ -1,3 +1,6 @@
+> **SUPERSEDED — do not follow.** This file was auto-generated and has drifted from the codebase.
+> The current, binding reference is `ENGINEERING_REFERENCE.md` at the repo root. Kept only as history.
+
 # DOMAIN.md — Business Domain Models & Relationships
 
 > Auto-generated from `loanapp` codebase analysis
@@ -6,7 +9,7 @@
 
 ## Domain Overview
 
-LoanTrack manages three financial service verticals on a shared multi-tenant platform:
+ZoloFund manages three financial service verticals on a shared multi-tenant platform:
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -37,7 +40,7 @@ LoanTrack manages three financial service verticals on a shared multi-tenant pla
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | String (CUID) | Primary key |
-| `name` | String | Display name (default: "LoanTrack") |
+| `name` | String | Display name (default: "ZoloFund") |
 | `slug` | String | Subdomain identifier (unique) |
 | `status` | String | `active`, `suspended` |
 | `deletedAt` | DateTime? | Soft delete |

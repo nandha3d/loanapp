@@ -1,8 +1,8 @@
 import prisma from '@/lib/db';
 import { ADMIN_API_ROLES, AUTHENTICATED_API_ROLES, isApiError, requireApiContext, scopedBranchWhere } from '@/lib/apiAuth';
-import { getAgentRouteIds } from '@/lib/access';
 import { apiError, apiSuccess } from '@/lib/utils';
 import { decryptAadharNumber, encryptAadharNumber, maskAadharNumber } from '@/lib/pii';
+import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 
 const CUSTOMER_UPDATE_FIELDS = ['name', 'phone', 'address', 'aadharNumber', 'kycStatus'] as const;
 
@@ -11,13 +11,14 @@ async function findScopedCustomer(id: string, context: any) {
     OR: [{ id }, { customerCode: id }],
     tenantId: context.tenantId,
     appType: context.appType,
-    ...scopedBranchWhere(context),
   };
 
+  // AND, not a spread: the agent clause is itself an OR and would otherwise
+  // overwrite the id/customerCode OR above.
   if (context.role === 'agent') {
-    const routeIds = await getAgentRouteIds(context.userId);
-    if (routeIds.length === 0) return null;
-    where.routeId = { in: routeIds };
+    where.AND = [buildAgentCustomerAccessWhere({ userId: context.userId })];
+  } else {
+    where.AND = [scopedBranchWhere(context)];
   }
 
   return prisma.customer.findFirst({

@@ -1,9 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import PasswordInput from '@/components/ui/PasswordInput';
 import { useRouter } from 'next/navigation';
 import { validateEmail } from '@/lib/validation/contact';
 import { getSupabaseBrowser, isSupabaseAuthEnabled } from '@/lib/supabase/browser';
+import { currentOriginWithBasePath, withBasePath } from '@/lib/public-path';
 
 type Step = 'email' | 'reset' | 'sent';
 
@@ -35,7 +37,7 @@ export default function ForgotPasswordPage() {
           email: ec.value,
           options: {
             shouldCreateUser: false,
-            emailRedirectTo: `${window.location.origin}/auth/callback?intent=reset`,
+            emailRedirectTo: `${currentOriginWithBasePath()}/auth/callback?intent=reset`,
           },
         });
       } catch (err) {
@@ -99,7 +101,7 @@ export default function ForgotPasswordPage() {
     <div className="login-wrapper">
       <div className="login-card">
         <div className="login-logo">
-          <img src="/assets/logo.svg" alt="LoanTrack" />
+          <img src={withBasePath('/assets/logo.svg')} alt="ZoloFund" />
           <h1>Loan<span>Track</span></h1>
         </div>
         <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '.85rem', marginBottom: '24px' }}>
@@ -164,8 +166,7 @@ export default function ForgotPasswordPage() {
             </div>
             <div className="form-group">
               <label className="form-label" htmlFor="newPassword">New password</label>
-              <input
-                type="password"
+              <PasswordInput
                 id="newPassword"
                 className="form-control"
                 placeholder="At least 8 characters"
@@ -177,8 +178,7 @@ export default function ForgotPasswordPage() {
             </div>
             <div className="form-group">
               <label className="form-label" htmlFor="confirm">Confirm password</label>
-              <input
-                type="password"
+              <PasswordInput
                 id="confirm"
                 className="form-control"
                 placeholder="Re-enter password"
@@ -195,7 +195,7 @@ export default function ForgotPasswordPage() {
         )}
 
         <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '.85rem', color: 'var(--text-secondary)' }}>
-          <a href="/login" style={{ color: 'var(--primary)', fontWeight: 600 }}>Back to sign in</a>
+          <a href={withBasePath('/login')} style={{ color: 'var(--primary)', fontWeight: 600 }}>Back to sign in</a>
         </p>
       </div>
     </div>

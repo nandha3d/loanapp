@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateDeveloperCredentials } from './actions';
+import PasswordInput from '@/components/ui/PasswordInput';
 
 type Props = {
   user: {
@@ -214,8 +215,7 @@ export default function SettingsClient({ user, stats }: Props) {
                   </h4>
                   <div className="form-group">
                     <label className="form-label">Current Password</label>
-                    <input
-                      type="password"
+                    <PasswordInput
                       name="currentPassword"
                       className="form-control"
                       placeholder="Enter current password"
@@ -224,8 +224,7 @@ export default function SettingsClient({ user, stats }: Props) {
                   </div>
                   <div className="form-group">
                     <label className="form-label">New Password</label>
-                    <input
-                      type="password"
+                    <PasswordInput
                       name="newPassword"
                       className="form-control"
                       placeholder="Enter new password"
@@ -234,8 +233,7 @@ export default function SettingsClient({ user, stats }: Props) {
                   </div>
                   <div className="form-group" style={{ marginBottom: 0 }}>
                     <label className="form-label">Confirm New Password</label>
-                    <input
-                      type="password"
+                    <PasswordInput
                       name="confirmPassword"
                       className="form-control"
                       placeholder="Re-enter new password"

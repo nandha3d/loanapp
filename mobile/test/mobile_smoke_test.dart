@@ -6,8 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 
-import 'package:loantrack/app.dart';
-import 'package:loantrack/core/network/dio_client.dart';
+import 'package:zolofund/app.dart';
+import 'package:zolofund/core/network/dio_client.dart';
 
 class _SmokeAdapter implements HttpClientAdapter {
   @override
@@ -55,6 +55,6 @@ void main() {
     });
 
     expect(find.byType(App), findsOneWidget);
-    expect(find.textContaining('LoanTrack'), findsWidgets);
+    expect(find.textContaining('ZoloFund'), findsWidgets);
   });
 }

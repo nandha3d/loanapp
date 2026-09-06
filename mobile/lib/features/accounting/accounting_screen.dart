@@ -4,17 +4,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:loantrack/core/currency/currency_controller.dart';
-import 'package:loantrack/core/l10n/language_controller.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/models/reports.dart';
-import 'package:loantrack/data/services/reports_service.dart';
-import 'package:loantrack/data/services/accounting_service.dart';
-import 'package:loantrack/shared/widgets/bottom_nav.dart';
-import 'package:loantrack/shared/widgets/app_button.dart';
-import 'package:loantrack/shared/widgets/skeleton.dart';
+import 'package:zolofund/core/currency/currency_controller.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/models/reports.dart';
+import 'package:zolofund/data/services/reports_service.dart';
+import 'package:zolofund/data/services/accounting_service.dart';
+import 'package:zolofund/shared/widgets/bottom_nav.dart';
+import 'package:zolofund/shared/widgets/app_button.dart';
+import 'package:zolofund/shared/widgets/skeleton.dart';
 
 final _accountingSummaryProvider =
     FutureProvider.autoDispose<AccountingSummary>((ref) {
@@ -115,22 +115,23 @@ class _AccountingScreenState extends ConsumerState<AccountingScreen> {
   String _titleForView(T t) {
     return switch (_activeView) {
       'dashboard' => t.x('title.accounting'),
-      'coa' => 'Chart of Accounts',
-      'journal' => 'Journal Entries',
-      'periods' => 'Fiscal Periods',
-      'statements' => 'Financial Statements',
-      'cashflow' => 'Cash Flow',
-      'approvals' => 'Accounting Approvals',
-      'budget' => 'Budget',
-      'tax' => 'Tax & GST',
-      'vendors' => 'Vendors & Bills',
-      'export' => 'Export Runs',
-      'settings' => 'Premium Settings',
+      'coa' => t.x('accounting.chart_of_accounts'),
+      'journal' => t.x('accounting.manual_journals'),
+      'periods' => t.x('accounting.fiscal_periods'),
+      'statements' => t.x('accounting.financial_reports'),
+      'cashflow' => t.x('accounting.cash_flow'),
+      'approvals' => t.x('accounting.approvals'),
+      'budget' => t.x('accounting.budget'),
+      'tax' => t.x('accounting.tax_gst'),
+      'vendors' => t.x('accounting.vendors_bills'),
+      'export' => t.x('accounting.export_runs'),
+      'settings' => t.x('accounting.premium_settings'),
       _ => t.x('title.accounting'),
     };
   }
 
   Widget _buildDashboardView(BuildContext context) {
+    final t = T.of(ref);
     final summaryAsync = ref.watch(_accountingSummaryProvider);
 
     return RefreshIndicator(
@@ -147,7 +148,7 @@ class _AccountingScreenState extends ConsumerState<AccountingScreen> {
           const SizedBox(height: 16),
 
           // Premium Operations Menu
-          Text('Premium Accounting Operations',
+          Text(t.x('accounting.premium_operations'),
               style: AppTypography.sectionTitle),
           const SizedBox(height: 12),
           GridView.count(
@@ -159,73 +160,73 @@ class _AccountingScreenState extends ConsumerState<AccountingScreen> {
             childAspectRatio: 1.4,
             children: [
               _MenuTile(
-                title: 'Chart of Accounts',
+                title: t.x('accounting.chart_of_accounts'),
                 icon: Icons.account_tree_outlined,
                 color: Colors.blue,
                 onTap: () => setState(() => _activeView = 'coa'),
               ),
               _MenuTile(
-                title: 'Manual Journals',
+                title: t.x('accounting.manual_journals'),
                 icon: Icons.edit_note_outlined,
                 color: Colors.amber,
                 onTap: () => setState(() => _activeView = 'journal'),
               ),
               _MenuTile(
-                title: 'Bank Rec',
+                title: t.x('accounting.bank_rec'),
                 icon: Icons.account_balance_outlined,
                 color: Colors.green,
                 onTap: () => context.go('/accounting/bank-rec'),
               ),
               _MenuTile(
-                title: 'Fiscal Periods',
+                title: t.x('accounting.fiscal_periods'),
                 icon: Icons.lock_clock_outlined,
                 color: Colors.red,
                 onTap: () => setState(() => _activeView = 'periods'),
               ),
               _MenuTile(
-                title: 'Financial Reports',
+                title: t.x('accounting.financial_reports'),
                 icon: Icons.trending_up_outlined,
                 color: Colors.purple,
                 onTap: () => setState(() => _activeView = 'statements'),
               ),
               _MenuTile(
-                title: 'Cash Flow',
+                title: t.x('accounting.cash_flow'),
                 icon: Icons.waterfall_chart_outlined,
                 color: Colors.teal,
                 onTap: () => setState(() => _activeView = 'cashflow'),
               ),
               _MenuTile(
-                title: 'Approvals',
+                title: t.x('accounting.approvals'),
                 icon: Icons.task_alt_outlined,
                 color: Colors.indigo,
                 onTap: () => setState(() => _activeView = 'approvals'),
               ),
               _MenuTile(
-                title: 'Budget',
+                title: t.x('accounting.budget'),
                 icon: Icons.savings_outlined,
                 color: Colors.cyan,
                 onTap: () => setState(() => _activeView = 'budget'),
               ),
               _MenuTile(
-                title: 'Tax & GST',
+                title: t.x('accounting.tax_gst'),
                 icon: Icons.receipt_long_outlined,
                 color: Colors.deepOrange,
                 onTap: () => setState(() => _activeView = 'tax'),
               ),
               _MenuTile(
-                title: 'Vendors',
+                title: t.x('accounting.vendors'),
                 icon: Icons.store_outlined,
                 color: Colors.brown,
                 onTap: () => setState(() => _activeView = 'vendors'),
               ),
               _MenuTile(
-                title: 'Export Runs',
+                title: t.x('accounting.export_runs'),
                 icon: Icons.ios_share_outlined,
                 color: Colors.blueGrey,
                 onTap: () => setState(() => _activeView = 'export'),
               ),
               _MenuTile(
-                title: 'Premium Settings',
+                title: t.x('accounting.premium_settings'),
                 icon: Icons.tune_outlined,
                 color: Colors.grey,
                 onTap: () => setState(() => _activeView = 'settings'),
@@ -499,11 +500,12 @@ class _CashflowView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
     final async = ref.watch(_cashflowProvider);
     return _AsyncMapView(
       async: async,
-      title: 'Cash flow summary',
+      title: t.x('accounting.cashflow_summary'),
       rows: (data) => [
         _InfoRow('Inflow', fmt.format(_num(data['totalInflow']))),
         _InfoRow('Outflow', fmt.format(_num(data['totalOutflow']))),
@@ -529,12 +531,13 @@ class _AccountingApprovalsView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
     final async = ref.watch(_accountingApprovalsProvider);
     return _AsyncListView(
       async: async,
-      title: 'Pending approvals',
-      emptyTitle: 'No pending accounting approvals',
+      title: t.x('accounting.pending_approvals'),
+      emptyTitle: t.x('accounting.no_pending_approvals'),
       rowBuilder: (row) => _InfoRow(
         '${row['entityType'] ?? 'approval'} - L${row['level'] ?? 1}',
         '${fmt.format(_num(row['amount']))} - ${row['status'] ?? ''}',
@@ -548,12 +551,13 @@ class _BudgetView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
     final async = ref.watch(_budgetsProvider);
     return _AsyncListView(
       async: async,
-      title: 'Budgets',
-      emptyTitle: 'No budgets configured',
+      title: t.x('accounting.budgets'),
+      emptyTitle: t.x('accounting.no_budgets'),
       rowBuilder: (row) => _InfoRow(
         row['name']?.toString() ?? 'Budget',
         '${row['fiscalYear'] ?? ''} - ${row['status'] ?? ''} - ${fmt.format(_num(row['annualTotal']))}',
@@ -567,11 +571,12 @@ class _TaxView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
     final async = ref.watch(_taxProvider);
     return _AsyncMapView(
       async: async,
-      title: 'Tax & GST summary',
+      title: t.x('accounting.tax_gst_summary'),
       rows: (data) {
         final gst = Map<String, dynamic>.from((data['gst'] as Map?) ?? {});
         return [
@@ -600,12 +605,13 @@ class _VendorsView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
     final async = ref.watch(_vendorsProvider);
     return _AsyncListView(
       async: async,
-      title: 'Vendors',
-      emptyTitle: 'No vendors configured',
+      title: t.x('accounting.vendors'),
+      emptyTitle: t.x('accounting.no_vendors'),
       rowBuilder: (row) => _InfoRow(
         row['name']?.toString() ?? 'Vendor',
         '${row['openBillCount'] ?? 0} open bills - ${fmt.format(_num(row['outstanding']))}',
@@ -619,11 +625,12 @@ class _ExportRunsView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     final async = ref.watch(_exportRunsProvider);
     return _AsyncListView(
       async: async,
-      title: 'Recent export runs',
-      emptyTitle: 'No export runs yet',
+      title: t.x('accounting.recent_export_runs'),
+      emptyTitle: t.x('accounting.no_export_runs'),
       rowBuilder: (row) => _InfoRow(
         row['filename']?.toString() ?? 'Export',
         '${row['kind'] ?? ''} - ${row['periodKey'] ?? ''}',
@@ -637,11 +644,12 @@ class _PremiumSettingsView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
     final async = ref.watch(_premiumSettingsProvider);
     return _AsyncMapView(
       async: async,
-      title: 'Premium settings',
+      title: t.x('accounting.premium_settings'),
       rows: (data) => [
         _InfoRow(
             'Fiscal year start', 'Month ${data['fiscalYearStartMonth'] ?? 4}'),
@@ -1315,8 +1323,7 @@ class _PeriodsViewState extends ConsumerState<_PeriodsView> {
               ],
               if (status == 'locked' || status == 'soft_locked') ...[
                 ListTile(
-                  leading:
-                      const Icon(Icons.lock_open, color: AppColors.primary),
+                  leading: Icon(Icons.lock_open, color: AppColors.primary),
                   title: const Text('Unlock Period'),
                   onTap: () {
                     Navigator.pop(context);

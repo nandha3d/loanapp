@@ -64,7 +64,7 @@ export async function GET() {
     };
 
     let csv = '';
-    csv += `# LoanTrack Database Backup - Generated on ${new Date().toISOString()}\n`;
+    csv += `# ZoloFund Database Backup - Generated on ${new Date().toISOString()}\n`;
     csv += `# Tenant ID: ${tenantId}\n\n`;
 
     // 1. Customers Section
@@ -102,7 +102,7 @@ export async function GET() {
     return new Response(csv, {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': `attachment; filename="loantrack-backup-${new Date().toISOString().slice(0,10)}.csv"`
+        'Content-Disposition': `attachment; filename="zolofund-backup-${new Date().toISOString().slice(0,10)}.csv"`
       }
     });
 

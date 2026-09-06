@@ -65,7 +65,7 @@ export default function Footer() {
         </div>
 
         <div className="mk-footer__bottom">
-          <span>© {new Date().getFullYear()} LoanTrack. All rights reserved.</span>
+          <span>© {new Date().getFullYear()} ZoloFund. All rights reserved.</span>
           <span style={{ display: 'flex', gap: 20 }}>
             <Link href="/contact">Privacy Policy</Link>
             <Link href="/contact">Terms of Use</Link>

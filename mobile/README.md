@@ -1,6 +1,6 @@
-# LoanTrack Mobile (Flutter)
+# ZoloFund Mobile (Flutter)
 
-Native Android + iOS client for the LoanTrack microlending / chit fund platform. Built per `../LoanTrack_Flutter_Project.md` (spec) and `../design.md` (visual tokens).
+Native Android + iOS client for the ZoloFund microlending / chit fund platform. Built per `../ZoloFund_Flutter_Project.md` (spec) and `../design.md` (visual tokens).
 
 ## Status
 
@@ -15,15 +15,15 @@ Native Android + iOS client for the LoanTrack microlending / chit fund platform.
 ## First-time setup
 
 This repo has the `mobile/ios` and `mobile/android` directories generated using:
-- **Bundle ID / Application ID**: `com.loantrack.app` (standardized across Android and iOS)
-- **App Display Name**: `LoanTrack`
+- **Bundle ID / Application ID**: `com.zolofund.app` (standardized across Android and iOS)
+- **App Display Name**: `ZoloFund`
 - **iOS Deployment Target**: `15.0`
 
 If you ever need to regenerate the native folders (preserving your existing `lib/` and `pubspec.yaml`), run:
 
 ```powershell
 # 1) Generate native folders
-flutter create . --project-name loantrack --org com.loantrack --platforms=android,ios
+flutter create . --project-name zolofund --org com.zolofund --platforms=android,ios
 
 # 2) Install dependencies
 flutter pub get
@@ -46,11 +46,11 @@ flutter run --dart-define=API_BASE_URL=http://localhost:3000/api/v1
 Note that `localhost` is **not reachable** on a real iPhone. When testing on a real iPhone 16, you must:
 1. Make sure your server and iPhone are on the same local Wi-Fi network and use the host computer's local IP address (e.g. `http://192.168.1.100:3000/api/v1`), OR
 2. Expose the Next.js server using an HTTPS tunnel (e.g., using `ngrok http 3000` or `localtunnel`), OR
-3. Point to your production domain (e.g., `https://your-production-domain.com/api/v1`).
+3. Point to production at `https://app.animazon.in/api/v1`.
 
 Build/run command for real device:
 ```powershell
-flutter run --dart-define=API_BASE_URL=https://your-production-domain.com/api/v1
+flutter run --dart-define=API_BASE_URL=https://app.animazon.in/api/v1
 ```
 
 ## Backend env vars
@@ -97,7 +97,7 @@ lib/
 
 ## Deviations from the spec
 
-These are conscious choices that differ from `LoanTrack_Flutter_Project.md`. Confirmed with the user.
+These are conscious choices that differ from `ZoloFund_Flutter_Project.md`. Confirmed with the user.
 
 1. **Package versions = latest stable** as of 2026-05, not the version ranges pinned in spec §2.1.
 2. **No freezed / no Retrofit / no build_runner.** Models are hand-written immutable Dart classes with `fromJson`. `AuthService` calls Dio directly. Saves a codegen step at the cost of slightly more boilerplate — easy to migrate later if needed.
@@ -124,7 +124,7 @@ Each sprint also adds the corresponding `/api/v1/*` wrappers server-side.
 flutter pub get                      # install deps
 flutter analyze                      # static analysis
 flutter test                         # run unit tests (none yet — Sprint 9)
-flutter build apk --release          # Android release
+flutter build apk --release          # Android release; defaults to app.animazon.in
 flutter build ios --release          # iOS release (macOS only)
 ```
 

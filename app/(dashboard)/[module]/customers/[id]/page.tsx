@@ -1,11 +1,13 @@
 import { serverFetch } from '@/lib/api-client/server';
-import { getDefaultTenantId, getSetting } from '@/lib/tenant';
+import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { redirect } from 'next/navigation';
 import CustomerProfileClient from './CustomerProfileClient';
 import { notFound } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { getDictionary } from '@/lib/i18n';
 import { getSubscription } from '@/lib/subscription';
+import prisma from '@/lib/db';
+import { buildChitCustomerProfile } from '@/lib/chits/customerSummary';
 
 export default async function CustomerProfilePage({
   params
@@ -39,6 +41,47 @@ export default async function CustomerProfilePage({
   const sub = await getSubscription(tenantId);
   const kycEnabled = sub?.kycEnabled || false;
   const tenantKycMethod = await getSetting(tenantId, 'kyc_method', 'manual_upload');
+  // Chitfunds is chit-only — no loan origination, so hide loan affordances.
+  const appType = await getUserAppType();
+  const loansEnabled = appType !== 'chitfunds';
+  const chitMembershipRecords = appType === 'chitfunds'
+    ? await prisma.chitMember.findMany({
+        where: {
+          customerId: customer.id,
+          chitGroup: {
+            tenantId,
+            appType: 'chitfunds',
+            deletedAt: null,
+          },
+        },
+        select: {
+          id: true,
+          memberNumber: true,
+          ticketNo: true,
+          subscriberStatus: true,
+          hasWon: true,
+          chitGroup: {
+            select: {
+              id: true,
+              groupCode: true,
+              name: true,
+              status: true,
+            },
+          },
+          subscriptions: {
+            select: {
+              dueAmount: true,
+              dividendAmount: true,
+              interestAmount: true,
+              penaltyAmount: true,
+              paidAmount: true,
+            },
+          },
+        },
+        orderBy: { joinedAt: 'desc' },
+      })
+    : [];
+  const chitProfile = buildChitCustomerProfile(chitMembershipRecords);
 
   // Serialize Decimal fields for client component
   const serializedCustomer = JSON.parse(JSON.stringify(customer));
@@ -51,6 +94,10 @@ export default async function CustomerProfilePage({
       dict={dict}
       kycEnabled={kycEnabled}
       tenantKycMethod={tenantKycMethod}
+      loansEnabled={loansEnabled}
+      appType={appType}
+      chitSummary={chitProfile.summary}
+      chitMemberships={chitProfile.memberships}
     />
   );
 }

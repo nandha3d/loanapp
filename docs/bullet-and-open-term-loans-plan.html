@@ -1,0 +1,350 @@
+<title>Bullet and Open Term Loans</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --paper: #f4f5f2; --sheet: #ffffff; --sheet-2: #eceee9;
+    --ink: #14181f; --ink-soft: #5a6270; --rule: #d8dbd4;
+    --accent: #1f4e79;
+    --yes: #0f6b3f; --yes-bg: #e2efe6;
+    --no: #a52b1e; --no-bg: #f8e7e4;
+    --part: #8a5a12; --part-bg: #f6eddc;
+    --sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0f1216; --sheet: #161a20; --sheet-2: #1c2129;
+      --ink: #e6e9ee; --ink-soft: #99a2af; --rule: #2b323c;
+      --accent: #7fb0e0;
+      --yes: #5cc98d; --yes-bg: #10301f;
+      --no: #ff8b80; --no-bg: #37191a;
+      --part: #e2b45f; --part-bg: #2e2617;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0f1216; --sheet: #161a20; --sheet-2: #1c2129;
+    --ink: #e6e9ee; --ink-soft: #99a2af; --rule: #2b323c;
+    --accent: #7fb0e0;
+    --yes: #5cc98d; --yes-bg: #10301f;
+    --no: #ff8b80; --no-bg: #37191a;
+    --part: #e2b45f; --part-bg: #2e2617;
+  }
+
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.6; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 44px 20px 90px; }
+  h1, h2, h3 { text-wrap: balance; }
+  h1 { font-size: 1.75rem; margin: 0 0 8px; letter-spacing: -.015em; }
+  h2 { font-size: 1.12rem; margin: 44px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--rule); }
+  h3 { font-size: .95rem; margin: 26px 0 8px; }
+  p { max-width: 74ch; }
+  .eyebrow { font-family: var(--mono); font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin: 0 0 10px; }
+  .lede { color: var(--ink-soft); margin: 0 0 8px; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .88rem; margin: 8px 0 4px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { font-family: var(--mono); font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-soft); font-weight: 500; }
+  td.num, th.num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  code { font-family: var(--mono); font-size: .88em; }
+
+  .tag { font-family: var(--mono); font-size: .68rem; font-weight: 500; padding: 2px 8px; border-radius: 2px; white-space: nowrap; text-transform: uppercase; letter-spacing: .05em; }
+  .t-yes { background: var(--yes-bg); color: var(--yes); }
+  .t-no { background: var(--no-bg); color: var(--no); }
+  .t-part { background: var(--part-bg); color: var(--part); }
+
+  .ex { background: var(--sheet); border: 1px solid var(--rule); border-left: 3px solid var(--accent); border-radius: 3px; padding: 4px 18px 16px; margin: 16px 0; }
+  .ex h3 { margin-top: 16px; }
+  .ex .note { color: var(--ink-soft); font-size: .87rem; margin: 10px 0 0; }
+  pre { font-family: var(--mono); font-size: .78rem; line-height: 1.7; background: var(--sheet-2); border: 1px solid var(--rule); border-radius: 3px; padding: 13px 15px; overflow-x: auto; margin: 10px 0; }
+
+  ol.phases { list-style: none; counter-reset: phase; padding: 0; margin: 0; }
+  ol.phases > li { counter-increment: phase; position: relative; padding-left: 46px; margin-bottom: 26px; }
+  ol.phases > li::before { content: counter(phase); position: absolute; left: 0; top: 1px; width: 30px; height: 30px; border-radius: 50%; background: var(--sheet); border: 1px solid var(--rule); color: var(--accent); font-family: var(--mono); font-size: .82rem; display: grid; place-items: center; }
+  ol.phases h3 { margin: 2px 0 4px; }
+  .meta { font-family: var(--mono); font-size: .72rem; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+  ul.files { list-style: none; padding: 0; margin: 8px 0 0; font-family: var(--mono); font-size: .78rem; color: var(--ink-soft); }
+  ul.files li { padding: 2px 0; }
+
+  .callout { background: var(--no-bg); border: 1px solid var(--rule); border-left: 3px solid var(--no); border-radius: 3px; padding: 14px 16px; margin: 14px 0; }
+  .callout p { margin: 0; max-width: 82ch; }
+  .callout .h { font-weight: 600; color: var(--no); }
+
+  .decide { background: var(--sheet); border: 1px solid var(--rule); border-radius: 3px; padding: 4px 18px 16px; }
+  .decide li { margin-bottom: 10px; }
+  footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--rule); color: var(--ink-soft); font-size: .82rem; }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">ZoloFund · lending products</p>
+  <h1>Bullet and open-term loans</h1>
+  <p class="lede">Interest-only exists and works — for a fixed monthly tenure. What is missing is a <strong>term expressed as a period</strong>: a 15-day advance settled in one payment, and an open pledge that runs until the borrower closes it.</p>
+
+  <h2>1. What exists today</h2>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Capability</th><th>State</th><th>Where</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Interest-only in loan creation</strong> — monthly interest dues, principal as a bullet at closure</td>
+        <td><span class="tag t-yes">exists</span></td>
+        <td>Third button in Repayment Plan Model, <code>LoanForm.tsx:890</code></td>
+      </tr>
+      <tr>
+        <td>Off by default, per tenant</td>
+        <td><span class="tag t-part">flag</span></td>
+        <td><code>AppSetting interest_only_enabled</code> = <code>'1'</code>. Settings → Features. Enforced server-side at <code>app/api/v1/loans/route.ts:251</code>, not only in the UI</td>
+      </tr>
+      <tr>
+        <td>Principal servicing — part-payment and full closure</td>
+        <td><span class="tag t-yes">exists</span></td>
+        <td><code>POST /api/v1/loans/[id]/principal</code> (<code>action: part | close</code>). Agents blocked; admins only</td>
+      </tr>
+      <tr>
+        <td>Part-payment reduces every future month's interest</td>
+        <td><span class="tag t-yes">exists</span></td>
+        <td>Interest is computed on <code>outstandingPrincipal</code>, not the original</td>
+      </tr>
+      <tr>
+        <td>Deduct interest and lend the net</td>
+        <td><span class="tag t-yes">exists</span></td>
+        <td><code>upfront_fixed</code> (flat ₹) and <code>upfront_percentage</code></td>
+      </tr>
+      <tr>
+        <td>Accrual for an <em>arbitrary</em> period, part months included</td>
+        <td><span class="tag t-part">gold only</span></td>
+        <td><code>lib/gold/pledgeInterest.ts</code> — whole months + leftover days, with a <code>full</code> / <code>prorated</code> rule. Not reachable from a micro-lending loan</td>
+      </tr>
+      <tr>
+        <td>Renew a loan</td>
+        <td><span class="tag t-part">thin</span></td>
+        <td><code>POST /api/v1/loans/[id]/renew</code> — see the defects in §5</td>
+      </tr>
+      <tr>
+        <td><strong>Term expressed in days</strong> — "₹1,00,000 for 15 days"</td>
+        <td><span class="tag t-no">missing</span></td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td><strong>Single payment at maturity</strong> (no periodic instalments)</td>
+        <td><span class="tag t-no">missing</span></td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td><strong>Open-ended interest-only</strong> — no fixed end date</td>
+        <td><span class="tag t-no">missing</span></td>
+        <td>—</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>2. The gap, in one sentence</h2>
+
+  <p>A loan's term is stored as <code>frequency × tenure</code> — <em>an instalment count</em>, never a period. So "15 days" has no expression: <code>tenure: 1, frequency: 'daily'</code> means one payment <em>tomorrow</em>, and <code>tenure: 15</code> means fifteen daily collections. The product the borrower is actually buying — take money now, hand back principal plus a fixed charge on a named date — cannot be written down.</p>
+
+  <p>Everything else the request describes already exists in some form. The fix is one new axis, not a new engine.</p>
+
+  <h2>3. Proposed model — two independent axes</h2>
+
+  <p>Today one control (<code>deductionType</code>) conflates <em>what is charged</em> with <em>how the money comes back</em>. Split them:</p>
+
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr><th>Term shape ↓ &nbsp; Charge →</th><th>Deducted upfront</th><th>Added at the end</th><th>Monthly interest, principal at close</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <th>Instalments — <code>n × cadence</code></th>
+        <td><span class="tag t-yes">exists</span> <code>upfront_fixed / _percentage</code></td>
+        <td><span class="tag t-yes">exists</span> <code>emi_flat / emi_floating</code></td>
+        <td><span class="tag t-yes">exists</span> <code>interest_only</code>, monthly only</td>
+      </tr>
+      <tr>
+        <th>Bullet — one payment, term in days</th>
+        <td><span class="tag t-no">new</span> ← the "deduct and lend" 15-day advance</td>
+        <td><span class="tag t-no">new</span> ← the "fixed interest at the end" 15-day advance</td>
+        <td><span class="tag t-no">new</span> ← short interest-only with a hard maturity</td>
+      </tr>
+      <tr>
+        <th>Open — runs until closed</th>
+        <td>n/a</td>
+        <td>n/a</td>
+        <td><span class="tag t-no">new</span> ← the renewable pledge; reuses the gold accrual</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>The whole plan is: fill the six empty cells with <strong>one new field pair</strong> (<code>termType</code>, <code>termDays</code>) and <strong>one promoted function</strong> (the gold accrual), rather than adding a sixth interest model.</p>
+
+  <h2>4. Worked examples</h2>
+
+  <div class="ex">
+    <h3>A · ₹1,00,000 for 15 days, interest at the end</h3>
+    <pre>termType   bullet          termDays 15        charge  flat 3%
+start      2026-06-01      maturity 2026-06-16
+
+disbursed          1,00,000     ← borrower receives the full principal
+interest            3,000       = 1,00,000 × 3%
+schedule           1 row: 2026-06-16 due 1,03,000
+totalPayable       1,03,000</pre>
+    <p class="note">Effective cost 3% for 15 days ≈ <strong>73% p.a.</strong> — worth surfacing on the form, because "3%" reads cheap next to a monthly rate.</p>
+  </div>
+
+  <div class="ex">
+    <h3>B · The same advance, interest deducted at the door</h3>
+    <pre>termType   bullet          termDays 15        charge  3% upfront
+disbursed            97,000     ← 1,00,000 − 3,000
+schedule           1 row: 2026-06-16 due 1,00,000
+totalPayable       1,00,000</pre>
+    <p class="note">Same ₹3,000 in the lender's pocket, but the borrower funds it themselves: 3,000 / 97,000 over 15 days ≈ <strong>75.3% p.a.</strong> The two variants are not equivalent and the form should show both yields side by side when the operator switches.</p>
+  </div>
+
+  <div class="ex">
+    <h3>C · Fixed-tenure interest-only — <span class="tag t-yes">works today</span></h3>
+    <pre>₹5,00,000 · 2% per month · 12 months · due on the 5th
+
+monthlyInterest      10,000      = 5,00,000 × 2%
+schedule             12 × 10,000  (interest only)
+principal at close  5,00,000      bullet, OUTSIDE the schedule
+totalPayable        6,20,000      APR 24%
+
+close in month 7, six dues paid, one unpaid:
+  totalDueToClose   5,10,000     = principal + interest already billed
+                                   (months 8-12 are NOT charged)</pre>
+    <p class="note">Turn on <code>interest_only_enabled</code> and this is available now. No code needed.</p>
+  </div>
+
+  <div class="ex">
+    <h3>D · Open-ended interest-only — <span class="tag t-no">new</span></h3>
+    <pre>₹2,00,000 · 2.5% per month · no end date
+monthlyInterest       5,000
+
+borrower closes after 3 months and 8 days:
+  rule = full        4 months charged → 20,000  → redemption 2,20,000
+  rule = prorated    3 + 8/30 = 3.267 → 16,333  → redemption 2,16,333
+
+part-payment of 50,000 in month 2:
+  outstandingPrincipal  1,50,000
+  monthly interest from then on  3,750</pre>
+    <p class="note">This is <code>pledgeInterestDue()</code> exactly as gold already runs it — promoted out of <code>lib/gold/</code> and made available to any lending module. The partial-month rule becomes a tenant setting; <code>full</code> matches the market norm ("one month's interest for 23 days").</p>
+  </div>
+
+  <div class="ex">
+    <h3>E · Renewal at maturity</h3>
+    <pre>Example C matures. Interest was serviced; the principal was not.
+
+renew → old loan closed, new loan created:
+  principal        5,00,000     carried
+  interestRate     2%/month     carried   ← today's route DROPS this
+  fresh schedule   12 × 10,000
+  renewedFromId    <old loan id>          ← today: stuffed into voucherRef
+
+if 10,000 interest is still unpaid, two paths, operator's explicit choice:
+  a. collect it first, then renew
+  b. capitalise it: new principal 5,10,000, monthly interest 10,200</pre>
+    <p class="note">Silently doing (b) is how a book quietly compounds. It must be a checkbox with an audit trail, never the default.</p>
+  </div>
+
+  <h2>5. Defects found in the existing renew route</h2>
+
+  <div class="callout">
+    <p><span class="h">Renewal closes a loan with unpaid dues and moves no money.</span> <code>app/api/v1/loans/[id]/renew/route.ts</code> sets the old loan to <code>closed</code> unconditionally — arrears and their penalty context disappear from the book. It also copies <code>perInstalment</code> but not <code>interestRate</code>, <code>outstandingPrincipal</code> or <code>totalPayable</code>, so renewing an interest-only loan produces one whose monthly interest computes to <strong>zero</strong>. No wallet float moves, no GL entry is posted, and the link to the previous contract lives in <code>voucherRef</code> as a string.</p>
+  </div>
+
+  <p>Phase 3 fixes these regardless of which term shapes are approved — an interest-only renewal is unusable until it lands.</p>
+
+  <h2>6. Implementation</h2>
+
+  <ol class="phases">
+    <li>
+      <p class="meta">No code · today</p>
+      <h3>Turn on what already ships</h3>
+      <p>Set <code>interest_only_enabled = '1'</code> for the tenant (Settings → Features), originate example C, service it with a part-payment, close it. This confirms the existing half and gives the team the vocabulary before anything is built.</p>
+    </li>
+
+    <li>
+      <p class="meta">Core change · unlocks examples A and B</p>
+      <h3>Bullet term — a period, one payment</h3>
+      <p>Add <code>termType</code> (<code>scheduled | bullet | open</code>, default <code>scheduled</code>) and <code>termDays</code> to <code>Loan</code> and <code>LoanPackage</code>. Reuse the existing <code>endDate</code> as the maturity — no new date column. <code>calculateLoanPreview</code> gains the shape: for <code>bullet</code>, tenure is 1 and the schedule is a single row dated <code>start + termDays</code>, carrying the whole payable. Every charge model keeps working unchanged behind it, which is what makes A and B one feature rather than two.</p>
+      <ul class="files">
+        <li>lib/loanCalculator.ts · lib/utils.ts (calculateInstalmentDates, calculateEndDate)</li>
+        <li>app/api/v1/loans/route.ts — accept and validate the pair (and validate <code>frequency</code>, which is currently unchecked)</li>
+        <li>LoanForm.tsx — a Term control: cadence + count, or days-to-maturity</li>
+        <li>prisma migration · tests/calc cases · docs/CALCULATION_LOGIC.md §2, §4</li>
+      </ul>
+    </li>
+
+    <li>
+      <p class="meta">Depends on 2 · unlocks example D</p>
+      <h3>Open term — accrual instead of a schedule</h3>
+      <p>Promote <code>lib/gold/pledgeInterest.ts</code> to a shared <code>lib/interest/accrual.ts</code> (gold keeps importing it, unchanged). An <code>open</code> interest-only loan is originated with <strong>no schedule rows</strong>; a monthly cron mints each interest due as it falls, idempotent per <code>(loanId, period)</code>, so the agent worklist and the collection flow keep working untouched. <code>/loans/[id]/principal</code> computes interest by accrual rather than by summing instalments. Partial-month rule becomes a tenant setting, defaulting to <code>full</code>.</p>
+      <ul class="files">
+        <li>lib/interest/accrual.ts (promoted) · lib/interestOnly.ts</li>
+        <li>app/api/cron/accrue-interest-only/route.ts (new)</li>
+        <li>app/api/v1/loans/[id]/principal/route.ts</li>
+        <li>MONEY-3 amended: interest-only requires a monthly cadence <em>or</em> an open term</li>
+      </ul>
+    </li>
+
+    <li>
+      <p class="meta">Independent of 2 and 3 · fixes live defects</p>
+      <h3>Renewal that carries the contract</h3>
+      <p>Carry <code>interestRate</code>, <code>outstandingPrincipal</code> and <code>totalPayable</code>. Add <code>renewedFromId</code>. Refuse to renew over unsettled arrears unless the operator explicitly capitalises them, and record which was chosen. Post the accounting: a renewal that advances fresh cash is a disbursement and must move float and hit the GL.</p>
+      <ul class="files">
+        <li>app/api/v1/loans/[id]/renew/route.ts · prisma migration · e2e case</li>
+      </ul>
+    </li>
+
+    <li>
+      <p class="meta">Small · after 2</p>
+      <h3>Products, so it is configured once</h3>
+      <p>Extend <code>LoanPackage</code> with the term pair so a branch defines "15-day bridge @ 3%" once and originates from it, instead of retyping terms per loan.</p>
+    </li>
+  </ol>
+
+  <h2>7. What this touches that is load-bearing</h2>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Rule</th><th>Effect</th></tr></thead>
+    <tbody>
+      <tr><td><code>MONEY-1</code></td><td>Holds. Every new shape still generates through <code>calculateLoanPreview</code> — no inline schedule anywhere.</td></tr>
+      <tr><td><code>MONEY-3</code></td><td><strong>Amended.</strong> Interest-only currently requires a monthly frequency; an open term has no frequency at all.</td></tr>
+      <tr><td><code>MONEY-4</code>, <code>MONEY-5</code></td><td>Hold, and now cover the open shape: <code>outstandingPrincipal</code> becomes the single source of what is owed.</td></tr>
+      <tr><td><code>MONEY-9</code></td><td>Snapshot the term shape and the partial-month rule onto the loan. A settings change must never re-price a live contract.</td></tr>
+      <tr><td><code>MONEY-10</code>, <code>MONEY-11</code></td><td>Unchanged. A bullet loan has one instalment; the fill order is trivially satisfied.</td></tr>
+      <tr><td><code>MONEY-14</code></td><td>Decide whether a bullet loan accrues daily penalty past maturity, or a flat overdue charge. Today's per-day accrual would apply by default — probably not what a 15-day product wants.</td></tr>
+      <tr><td><code>NPA-1</code></td><td>Works unchanged: an open loan's oldest unpaid interest due starts the clock. An open loan with no dues yet is <code>standard</code>.</td></tr>
+      <tr><td><code>ACC-*</code></td><td>Bullet and open originations post like any other disbursal; the accrual cron posts interest income when a due is minted, not when it is collected.</td></tr>
+      <tr><td><code>TEST-1</code>, <code>TEST-2</code></td><td>Each shape lands with cases in <code>tests/calc/cases.json</code> — the maths is pure and testable without a database.</td></tr>
+      <tr><td><code>DOC-1</code></td><td><code>ENGINEERING_REFERENCE.md</code> §10.1 and <code>docs/CALCULATION_LOGIC.md</code> §2 and §4 move in the same commits.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>8. Decisions needed before phase 2</h2>
+
+  <div class="decide">
+    <ol>
+      <li><strong>Term unit for bullet loans</strong> — days only, or days <em>and</em> months? Days alone covers "15 days" and "3 months" (90); months avoid the 28/30/31 argument on a 3-month product.</li>
+      <li><strong>Partial-month rule default</strong> — <code>full</code> (a part month bills as a whole one, the market norm and gold's current default) or <code>prorated</code>. Per tenant, or per loan?</li>
+      <li><strong>Penalty on a bullet loan past maturity</strong> — the existing per-day accrual, a flat overdue charge, or rolled interest?</li>
+      <li><strong>Open-term ceiling</strong> — does an open loan run indefinitely, or auto-flag for review after N months? RBI classification keeps running either way.</li>
+      <li><strong>Renewal with arrears</strong> — block until cleared, or allow capitalising into the new principal with an explicit tick?</li>
+      <li><strong>Scope</strong> — micro-lending only, or every lending module (<code>autofinance</code>, <code>goldloan</code>, <code>property</code>, <code>productfinance</code>) at once? The change is in shared code, so all-modules costs little more than one.</li>
+    </ol>
+  </div>
+
+  <footer>
+    Evidence: <code>lib/loanCalculator.ts</code>, <code>lib/interestOnly.ts</code>, <code>lib/gold/pledgeInterest.ts</code>,
+    <code>app/api/v1/loans/route.ts</code>, <code>app/api/v1/loans/[id]/renew/route.ts</code>,
+    <code>app/(dashboard)/[module]/loans/new/LoanForm.tsx</code>.
+    Formulas: <code>docs/CALCULATION_LOGIC.md</code>.
+  </footer>
+</div>

@@ -1,7 +1,7 @@
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
-import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
+import { getDefaultTenantId, getSetting } from '@/lib/tenant';
 import { requireModule } from '@/lib/moduleGate';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import Link from '@/components/layout/DashboardLink';
@@ -19,7 +19,7 @@ export default async function ChitsPage({
   if (!session) redirect('/login');
 
   const tenantId = await getDefaultTenantId();
-  const appType = await getUserAppType();
+  const appType = 'chitfunds';
   if (userRole === 'agent') redirect(modulePath(appType, '/collection'));
   const dict = await getDictionary(tenantId);
   try {
@@ -59,7 +59,10 @@ export default async function ChitsPage({
         orderBy: { createdAt: 'desc' },
         include: {
           _count: { select: { members: true, auctions: true } },
-          auctions: { where: { status: 'completed' }, select: { id: true } },
+          auctions: {
+            orderBy: { periodNumber: 'asc' },
+            select: { id: true, periodNumber: true, status: true, scheduledAt: true, auctionDate: true, roomStatus: true },
+          },
         },
       }),
       prisma.chitGroup.count({ where: { tenantId, appType, status: 'active', ...(branchId ? { branchId } : {}) } }),
@@ -97,9 +100,16 @@ export default async function ChitsPage({
       <div className="card">
         <div className="card-header">
           <h3>💰 {dict.chits.chitFundGroups}</h3>
-          <Link href="/chits/new" className="btn btn-primary btn-sm">
-            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>add</span> {dict.chits.newChitGroup}
-          </Link>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {userRole !== 'agent' && (
+              <Link href="/chits/payments" className="btn btn-ghost btn-sm">
+                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>receipt_long</span> Payment proofs
+              </Link>
+            )}
+            <Link href="/chits/new" className="btn btn-primary btn-sm">
+              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>add</span> {dict.chits.newChitGroup}
+            </Link>
+          </div>
         </div>
 
         <form method="GET" className="filter-bar" style={{ marginBottom: '16px' }}>
@@ -120,35 +130,43 @@ export default async function ChitsPage({
             <Link href="/chits/new" className="btn btn-primary btn-sm">{dict.chits.createFirst}</Link>
           </div>
         ) : (
-          <div className="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th>{dict.chits.name}</th>
-                  <th>{dict.chits.chitValue}</th>
-                  <th>{dict.chits.monthly}</th>
-                  <th>{dict.chits.members}</th>
-                  <th>{dict.chits.auctionsDone}</th>
-                  <th>{dict.chits.startDate}</th>
-                  <th>{dict.chits.status}</th>
-                  <th>{dict.chits.action}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {groups.map((g) => (
-                  <tr key={g.id}>
-                    <td><strong>{g.name}</strong></td>
-                    <td>{formatCurrency(Number(g.chitValue), currencySymbol)}</td>
-                    <td>{formatCurrency(Number(g.monthlyContrib), currencySymbol)}</td>
-                    <td>{g._count.members} / {g.totalMembers}</td>
-                    <td>{g.auctions.length} / {g.durationMonths}</td>
-                    <td>{formatDate(g.startDate)}</td>
-                    <td><span className={`badge badge-${g.status === 'active' ? 'success' : g.status === 'completed' ? 'info' : 'secondary'}`}>{g.status}</span></td>
-                    <td><Link href={`/chits/${g.id}`} className="btn btn-ghost btn-sm">{dict.chits.view}</Link></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(235px, 1fr))', gap: '12px' }}>
+            {groups.map((g) => {
+              const completedAuctions = g.auctions.filter((a: any) => ['confirmed', 'paid', 'completed'].includes(a.status));
+              const nextAuction = g.auctions.find((a: any) => ['pending', 'notice_sent', 'in_progress'].includes(a.status));
+              return (
+                <div key={g.id} className="card" style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '100%' }}>
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px', marginBottom: '8px' }}>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 600, lineHeight: 1.2 }}>{g.name}</h4>
+                        <div style={{ fontSize: '.72rem', color: 'var(--text-secondary)' }}>{g.groupCode ?? g.id}</div>
+                      </div>
+                      <span className={`badge badge-${g.status === 'active' ? 'success' : g.status === 'completed' ? 'info' : 'secondary'}`} style={{ fontSize: '0.68rem', padding: '2px 6px' }}>{g.status}</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '.78rem', marginBottom: '10px', backgroundColor: 'var(--bg-hover, rgba(0,0,0,0.02))', padding: '8px', borderRadius: '6px' }}>
+                      <div><span style={{ color: 'var(--text-secondary)' }}>{dict.chits.chitValue}</span><br /><strong style={{ fontSize: '0.85rem' }}>{formatCurrency(Number(g.chitValue), currencySymbol)}</strong></div>
+                      <div><span style={{ color: 'var(--text-secondary)' }}>{dict.chits.monthly}</span><br /><strong style={{ fontSize: '0.85rem' }}>{formatCurrency(Number(g.monthlyContrib), currencySymbol)}</strong></div>
+                      <div><span style={{ color: 'var(--text-secondary)' }}>{dict.chits.members}</span><br /><strong>{g._count.members} / {g.totalMembers}</strong></div>
+                      <div><span style={{ color: 'var(--text-secondary)' }}>{dict.chits.auctionsDone}</span><br /><strong>{completedAuctions.length} / {g.durationMonths}</strong></div>
+                    </div>
+                    <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)', minHeight: '32px', marginBottom: '10px', lineHeight: 1.3 }}>
+                      {nextAuction
+                        ? <><strong>Next:</strong> Period {nextAuction.periodNumber} · {formatDate(nextAuction.scheduledAt ?? nextAuction.auctionDate)} {nextAuction.scheduledAt ? new Date(nextAuction.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</>
+                        : <>Started {formatDate(g.startDate)}</>}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px', marginTop: 'auto' }}>
+                    <Link href={`/chits/${g.id}`} className="btn btn-ghost btn-sm" style={{ flex: 1, padding: '4px 8px', fontSize: '0.78rem', textAlign: 'center' }}>{dict.chits.view}</Link>
+                    {nextAuction && (
+                      <Link href={`/chits/${g.id}/auctions/${nextAuction.id}`} className="btn btn-secondary btn-sm" style={{ flex: 1.4, padding: '4px 8px', fontSize: '0.78rem', textAlign: 'center' }}>
+                        {g.auctionType === 'open_live' ? 'Enter room' : 'Manage'}
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

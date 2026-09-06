@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { flagForRepo, clearRepoFlag } from '../actions';
 import Link from '@/components/layout/DashboardLink';
+import { useRegisterBreadcrumbLabel } from '@/components/layout/BreadcrumbLabelContext';
 
 interface Vehicle {
   id: string;
@@ -36,6 +37,7 @@ export default function VehicleDetailClient({
 }) {
   const d = dict.vehicles;
   const router = useRouter();
+  useRegisterBreadcrumbLabel(vehicle.id, vehicle.registrationNo);
   const [showRepoModal, setShowRepoModal] = useState(false);
   const [repoReason, setRepoReason] = useState('');
   const [loading, setLoading] = useState(false);

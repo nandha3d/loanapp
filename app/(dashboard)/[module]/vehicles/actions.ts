@@ -7,6 +7,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { requireModule } from '@/lib/moduleGate';
 import { modulePath } from '@/types/modules';
+import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 
 async function requireAdmin() {
   const session = await auth();
@@ -34,13 +35,18 @@ const vehicleSchema = z.object({
 });
 
 export async function createVehicle(formData: FormData) {
-  const session = await requireAdmin();
+  // Agents may file vehicles too (to admin approval); only block unauthenticated.
+  const session = await auth();
+  const role = (session?.user as any)?.role;
+  if (!session?.user) redirect('/login');
+  const userId = session.user.id as string;
+  const isAgent = role === 'agent';
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
   await requireModule(tenantId, 'autofinance');
 
   const rawData = Object.fromEntries(formData.entries());
-  
+
   // Convert empty strings to null for optional fields to avoid validation/DB errors
   for (const key of Object.keys(rawData)) {
     if (rawData[key] === '') rawData[key] = null as any;
@@ -52,14 +58,33 @@ export async function createVehicle(formData: FormData) {
   }
   const data = parsed.data;
 
-  // Security: verify customer belongs to this tenant
-  const customer = await prisma.customer.findFirst({ where: { id: data.customerId, tenantId } });
+  // Security: customer must be in scope — agents by customer-linkage, others tenant-wide.
+  const customer = await prisma.customer.findFirst({
+    where: {
+      id: data.customerId,
+      tenantId,
+      ...(isAgent ? buildAgentCustomerAccessWhere({ userId }) : {}),
+    },
+  });
   if (!customer) throw new Error('Customer not found or not in your tenant');
 
-  // Security: if loanId given, verify it belongs to this tenant's customer
+  // Security: if loanId given, verify it belongs to this tenant (and, for agents,
+  // to the same customer the vehicle is filed under).
   if (data.loanId) {
-    const loan = await prisma.loan.findFirst({ where: { id: data.loanId, tenantId } });
+    const loan = await prisma.loan.findFirst({
+      where: { id: data.loanId, tenantId, ...(isAgent ? { customerId: data.customerId } : {}) },
+    });
     if (!loan) throw new Error('Loan not found or not in your tenant');
+  }
+
+  // An agent's vehicle waits for admin approval unless they hold the bypass.
+  let status = 'active';
+  if (isAgent) {
+    const agent = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { bypassVehicleApproval: true },
+    });
+    status = agent?.bypassVehicleApproval ? 'active' : 'pending_review';
   }
 
   const insuranceExpiry = data.insuranceExpiry ? new Date(data.insuranceExpiry) : null;
@@ -81,6 +106,7 @@ export async function createVehicle(formData: FormData) {
       rcDocPath: data.rcDocPath || null,
       insurancePath: data.insurancePath || null,
       insuranceExpiry,
+      status,
     },
   });
 
@@ -94,6 +120,23 @@ export async function createVehicle(formData: FormData) {
       newValue: JSON.stringify({ registrationNo: data.registrationNo, make: data.make, model: data.model }),
     },
   });
+
+  if (status === 'pending_review') {
+    const { notifyApprovers } = await import('@/lib/notify/approvers');
+    const { getActiveBranchId } = await import('@/lib/branch');
+    await notifyApprovers({
+      tenantId,
+      branchId: customer.branchId,
+      requesterBranchId: await getActiveBranchId(),
+      requesterRole: role,
+      appType,
+      type: 'approval_pending',
+      icon: 'directions_car',
+      title: 'Vehicle awaiting approval',
+      message: `Vehicle ${data.registrationNo} was submitted and needs review.`,
+      link: modulePath(appType, '/approvals'),
+    });
+  }
 
   revalidatePath(modulePath(appType, '/vehicles'));
   redirect(modulePath(appType, `/vehicles/${vehicle.id}`));

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/services/pricing_service.dart';
-import 'package:loantrack/data/models/pricing.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/services/pricing_service.dart';
+import 'package:zolofund/data/models/pricing.dart';
 
 class PricingCatalogScreen extends ConsumerStatefulWidget {
   const PricingCatalogScreen({super.key});

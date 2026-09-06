@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/models/route_model.dart';
-import 'package:loantrack/data/services/settings_service.dart';
-import 'package:loantrack/shared/widgets/app_button.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/models/route_model.dart';
+import 'package:zolofund/data/services/settings_service.dart';
+import 'package:zolofund/shared/widgets/app_button.dart';
 
 class SettingsDetailScreen extends ConsumerStatefulWidget {
   const SettingsDetailScreen({
@@ -32,6 +32,7 @@ class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
   final _textController5 = TextEditingController();
   final _textController6 = TextEditingController();
   bool _boolVal1 = false;
+  bool _showSecret = false;
   List<LoanPackage> _packages = [];
 
   @override
@@ -217,10 +218,15 @@ class _SettingsDetailScreenState extends ConsumerState<SettingsDetailScreen> {
           const SizedBox(height: 12),
           TextField(
             controller: _textController2,
-            obscureText: true,
-            decoration: const InputDecoration(
+            obscureText: !_showSecret,
+            decoration: InputDecoration(
               labelText: 'Bureau API Key / Secret *',
-              border: OutlineInputBorder(),
+              border: const OutlineInputBorder(),
+              suffixIcon: IconButton(
+                tooltip: _showSecret ? 'Hide secret' : 'Show secret',
+                icon: Icon(_showSecret ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                onPressed: () => setState(() => _showSecret = !_showSecret),
+              ),
             ),
           ),
         ],

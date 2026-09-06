@@ -1,5 +1,5 @@
 // PM2 process manager config (INFRA-01).
-// Used on Hostinger VPS to run LoanTrack with auto-restart + clustering.
+// Used on Hostinger VPS to run ZoloFund with auto-restart + clustering.
 //
 // First-time setup:
 //   npm ci --production

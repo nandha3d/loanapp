@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/services/settings_service.dart';
-import 'package:loantrack/shared/widgets/skeleton.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/services/settings_service.dart';
+import 'package:zolofund/shared/widgets/skeleton.dart';
 
 /// Per-tenant payment gateway: Tier-0 UPI VPA + Tier-1 Razorpay keys.
 class PaymentGatewayScreen extends ConsumerStatefulWidget {
@@ -25,6 +25,8 @@ class _PaymentGatewayScreenState extends ConsumerState<PaymentGatewayScreen> {
   bool _saving = false;
   bool _keySecretSet = false;
   bool _webhookSecretSet = false;
+  bool _showKeySecret = false;
+  bool _showWebhookSecret = false;
   String? _error;
 
   @override
@@ -150,10 +152,15 @@ class _PaymentGatewayScreenState extends ConsumerState<PaymentGatewayScreen> {
                             'Key Secret${_keySecretSet ? ' · saved (blank = keep)' : ''}',),
                         TextField(
                           controller: _keySecret,
-                          obscureText: true,
+                          obscureText: !_showKeySecret,
                           decoration: InputDecoration(
                             hintText: _keySecretSet ? '••••••••' : 'Key secret',
                             border: const OutlineInputBorder(),
+                            suffixIcon: IconButton(
+                              tooltip: _showKeySecret ? 'Hide secret' : 'Show secret',
+                              icon: Icon(_showKeySecret ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                              onPressed: () => setState(() => _showKeySecret = !_showKeySecret),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -161,12 +168,17 @@ class _PaymentGatewayScreenState extends ConsumerState<PaymentGatewayScreen> {
                             'Webhook Secret${_webhookSecretSet ? ' · saved (blank = keep)' : ''}',),
                         TextField(
                           controller: _webhookSecret,
-                          obscureText: true,
+                          obscureText: !_showWebhookSecret,
                           decoration: InputDecoration(
                             hintText: _webhookSecretSet
                                 ? '••••••••'
                                 : 'Webhook secret',
                             border: const OutlineInputBorder(),
+                            suffixIcon: IconButton(
+                              tooltip: _showWebhookSecret ? 'Hide secret' : 'Show secret',
+                              icon: Icon(_showWebhookSecret ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                              onPressed: () => setState(() => _showWebhookSecret = !_showWebhookSecret),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 8),

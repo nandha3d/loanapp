@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'package:loantrack/shared/widgets/bottom_nav.dart';
-import 'package:loantrack/shared/widgets/empty_state.dart';
+import 'package:zolofund/shared/widgets/bottom_nav.dart';
+import 'package:zolofund/shared/widgets/empty_state.dart';
 
 /// Placeholder screen for modules not yet built (post-Sprint-1 work).
 class StubScreen extends StatelessWidget {

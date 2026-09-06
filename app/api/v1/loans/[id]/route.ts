@@ -2,14 +2,16 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
-import { computeRestructure, restructuredAmountFor } from '@/lib/restructure';
+import { computeRestructure, restructuredAmountFor, computeExtendedSchedule } from '@/lib/restructure';
 import { calculateEndDate } from '@/lib/utils';
-import { calculateLoanPreview } from '@/lib/loanCalculator';
+import { calculateLoanPreview, isInterestOnly } from '@/lib/loanCalculator';
+import { isInterestOnlyEnabled } from '@/lib/features';
 import { validateGuarantorPhone } from '@/lib/guarantorPolicy';
 import { encryptAadharNumber, decryptAadharNumber } from '@/lib/pii';
 import { writeAudit } from '@/lib/audit';
-import { validateLoanNumericInputs } from '@/lib/loanPolicy';
+import { validateLoanNumericInputs, buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 import { hasFinancialActivity } from '@/lib/repayments';
+import { modulePath } from '@/types/modules';
 
 export async function GET(
   req: NextRequest,
@@ -20,16 +22,25 @@ export async function GET(
   const ctx = auth.context;
   const { id } = await params;
 
+  const loanWhere: any = {
+    OR: [
+      { id },
+      { loanCode: id }
+    ],
+    tenantId: ctx.tenantId,
+    appType: ctx.appType,
+  };
+  if (ctx.role === 'agent') {
+    // Agents see only their own customers' loans (linkage), regardless of branch.
+    loanWhere.customer = buildAgentCustomerAccessWhere({ userId: ctx.userId });
+  } else {
+    // AND, not Object.assign: keeps the scope from colliding with the
+    // id/loanCode OR above, and keeps detail identical to the list scope.
+    loanWhere.AND = [scopedBranchWhere(ctx)];
+  }
+
   const loan = await prisma.loan.findFirst({
-    where: {
-      OR: [
-        { id },
-        { loanCode: id }
-      ],
-      tenantId: ctx.tenantId,
-      appType: ctx.appType,
-      ...scopedBranchWhere(ctx),
-    },
+    where: loanWhere,
     include: {
       customer: {
         include: {
@@ -49,20 +60,85 @@ export async function GET(
       penalties: { orderBy: { createdAt: 'desc' } },
       collaterals: true,
       guarantor: true,
+      goldCollateral: true,
+      propertyCollateral: true,
+      productFinanceItem: true,
+      payments: {
+        orderBy: { paymentDate: 'asc' }
+      }
     },
   });
   if (!loan) return fail('Loan not found', 404);
 
+  // Date string YYYY-MM-DD in UTC — instalment dueDates are stored at UTC
+  // midnight, so UTC getters keep the calendar date stable on any server TZ.
+  const toDateStr = (dateInput: Date | string) => {
+    const d = new Date(dateInput);
+    const yyyy = d.getUTCFullYear();
+    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(d.getUTCDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  // Anchor "today" to the IST business day (matches /api/v1/collection/today
+  // and the web client running in the user's browser) so statuses and the
+  // restructured rate don't drift when the server runs in UTC.
+  const IST_OFFSET_MS = 330 * 60 * 1000;
+  const istNow = new Date(Date.now() + IST_OFFSET_MS);
+  const today = new Date(
+    Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()),
+  );
+
+  // Per-instalment receivedAmount comes straight from the DB — it is the
+  // actual money recorded on each row (no redistribution, no payment-to-row
+  // guessing), so web, mobile and reports all read identical figures.
+  const preMappedInstalments = loan.instalments.map((inst) => {
+    const actualAmount = Number(inst.receivedAmount ?? 0);
+    const isPaid = actualAmount >= Number(inst.dueAmount);
+    const isPartial = actualAmount > 0 && actualAmount < Number(inst.dueAmount);
+
+    let computedStatus = inst.status;
+    if (inst.status !== 'waived') {
+      if (isPaid) {
+        computedStatus = 'paid';
+      } else if (isPartial) {
+        computedStatus = 'partial';
+      } else if (new Date(inst.dueDate) < today) {
+        computedStatus = 'missed';
+      } else if (toDateStr(inst.dueDate) === toDateStr(today)) {
+        computedStatus = 'due today';
+      } else {
+        computedStatus = 'upcoming';
+      }
+    }
+
+    return {
+      ...inst,
+      receivedAmount: actualAmount,
+      status: computedStatus,
+    };
+  });
+
   // Restructured rate — computed server-side (single source of truth). Each
   // instalment gets a `restructuredAmount`; the loan carries the loan-level
   // figures. Clients render these directly and never recompute.
-  const restructure = computeRestructure(loan.instalments);
-  const instalments = loan.instalments.map((inst) => ({
+  const restructure = computeRestructure(preMappedInstalments, loan.frequency, loan.endDate, today);
+  const instalments = preMappedInstalments.map((inst) => ({
     ...inst,
-    restructuredAmount: restructuredAmountFor(inst, restructure.restructuredRate),
+    restructuredAmount: restructuredAmountFor(inst, restructure.restructuredRate, today),
   }));
 
-  return ok({ ...loan, instalments, restructure });
+  // Default "extend term" projection — same server-side source of truth the
+  // web page uses for its heatmap tail cells, so mobile can render the
+  // identical projected extra days without re-deriving the math.
+  const extendedSchedule = computeExtendedSchedule(
+    preMappedInstalments,
+    Number(loan.perInstalment),
+    loan.frequency,
+    today,
+  );
+
+  return ok({ ...loan, instalments, restructure, extendedSchedule });
 }
 
 /**
@@ -158,21 +234,21 @@ export async function PATCH(
     },
   });
 
-  await prisma.systemNotification
-    .create({
-      data: {
-        tenantId: ctx.tenantId,
-        branchId: loan.branchId,
-        appType: ctx.appType,
-        type: 'loan_edit_review',
-        icon: 'rate_review',
-        title: 'Loan edit pending review',
-        message: `Edit requested for loan ${loan.loanCode}.`,
-        link: '/approvals',
-        targetRole: 'admin',
-      },
-    })
-    .catch(() => {});
+  // Branch admins + tenant superadmins, one per-user row each (own read state)
+  // plus a push — not a single shared admin row.
+  const { notifyApprovers } = await import('@/lib/notify/approvers');
+  await notifyApprovers({
+    tenantId: ctx.tenantId,
+    branchId: loan.branchId,
+    requesterBranchId: ctx.branchId,
+    requesterRole: ctx.role,
+    appType: ctx.appType,
+    type: 'loan_edit_review',
+    icon: 'rate_review',
+    title: 'Loan edit pending review',
+    message: `Edit requested for loan ${loan.loanCode}.`,
+    link: modulePath(ctx.appType, '/approvals'),
+  });
 
   return ok({ requested: true, changes: proposed });
 }
@@ -222,6 +298,12 @@ export async function PUT(
     const numericValidation = validateLoanNumericInputs({ principal, rate, tenure, penaltyRate });
     if (!numericValidation.valid) {
       return fail(numericValidation.error, 400);
+    }
+
+    // Same opt-in gate as origination, so an edit can't switch a loan onto a model
+    // the tenant isn't entitled to.
+    if (isInterestOnly(interestType) && !(await isInterestOnlyEnabled(ctx.tenantId))) {
+      return fail('Interest-Only is not enabled for this account', 403);
     }
 
     const guarantorPhoneValidation = validateGuarantorPhone({
@@ -308,7 +390,14 @@ export async function PUT(
           collateralDetails,
           totalPayable,
           guarantorId: currentGuarantorId,
-          totalInstalments: tenure
+          totalInstalments: calculation.schedule.length,
+          // Keep servicing state in step with the edited terms. Switching a loan
+          // away from Interest-Only clears both so the columns never hold stale
+          // figures for a model that doesn't use them. An edit can only reach here
+          // before any money has moved (hasFinancialActivity guard above), so
+          // resetting outstanding principal to the new principal is safe.
+          interestRate: isInterestOnly(interestType) ? rate : null,
+          outstandingPrincipal: isInterestOnly(interestType) ? principal : null,
         }
       });
 

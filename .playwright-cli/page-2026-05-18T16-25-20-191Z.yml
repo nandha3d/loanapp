@@ -3,7 +3,7 @@
     - complementary [ref=e3]:
       - generic [ref=e4]:
         - generic [ref=e6]: account_balance
-        - heading "LoanTrack" [level=2] [ref=e7]
+        - heading "ZoloFund" [level=2] [ref=e7]
       - navigation [ref=e8]:
         - generic [ref=e9]: Main
         - link "dashboard Dashboard" [ref=e10] [cursor=pointer]:

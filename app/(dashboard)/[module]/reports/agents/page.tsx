@@ -1,13 +1,18 @@
 import prisma from '@/lib/db';
-import { getDefaultTenantId } from '@/lib/tenant';
+import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { formatCurrency } from '@/lib/utils';
+import { getActiveBranchId } from '@/lib/branch';
+import { branchScopeWhere } from '@/lib/branchScope';
 
 export default async function AgentPerformanceReport() {
   const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  // A branch admin rates their own agents, not the whole tenant's (SCOPE-3).
+  const activeBranchId = await getActiveBranchId();
 
   // Aggregate performance data per agent
   const agentStats = await prisma.user.findMany({
-    where: { tenantId, role: 'agent' },
+    where: { tenantId, appType, role: 'agent', status: 'active', ...branchScopeWhere(activeBranchId) },
     include: {
       collectionEntries: {
         where: { submittedAt: { gte: new Date(new Date().setDate(new Date().getDate() - 30)) } },

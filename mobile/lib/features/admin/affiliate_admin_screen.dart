@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/services/admin_service.dart';
-import 'package:loantrack/shared/widgets/app_button.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/services/admin_service.dart';
+import 'package:zolofund/shared/widgets/app_button.dart';
 
 class AffiliateAdminScreen extends ConsumerStatefulWidget {
   const AffiliateAdminScreen({super.key});
@@ -145,7 +145,7 @@ class _AffiliateAdminScreenState extends ConsumerState<AffiliateAdminScreen> wit
                                 children: [
                                   Text('Affiliate Settings', style: AppTypography.nameLg.copyWith(fontSize: 16)),
                                   IconButton(
-                                    icon: const Icon(Icons.edit_outlined, color: AppColors.primary, size: 20),
+                                    icon: Icon(Icons.edit_outlined, color: AppColors.primary, size: 20),
                                     onPressed: () => _showConfigSheet(context, config),
                                   ),
                                 ],
@@ -398,7 +398,7 @@ class _AffiliateAdminScreenState extends ConsumerState<AffiliateAdminScreen> wit
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.done_all, color: AppColors.primary),
+                leading: Icon(Icons.done_all, color: AppColors.primary),
                 title: const Text('Mark as GRANTED'),
                 onTap: () async {
                   final messenger = ScaffoldMessenger.of(this.context);

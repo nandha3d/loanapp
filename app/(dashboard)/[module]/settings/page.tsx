@@ -7,6 +7,9 @@ import { getDictionary } from '@/lib/i18n';
 import { modulePath } from '@/types/modules';
 import { getSubscription } from '@/lib/subscription';
 import { getActiveBranchId } from '@/lib/branch';
+import { branchScopeWhere } from '@/lib/branchScope';
+import { branchOrSharedWhere } from '@/lib/masterDataScope';
+import { serverFetch } from '@/lib/api-client/server';
 
 export default async function SettingsPage() {
   const session = await auth();
@@ -19,21 +22,28 @@ export default async function SettingsPage() {
   const tenantId = await getDefaultTenantId();
   const dict = await getDictionary(tenantId);
   
-  const [routes, rawPackages, users, settings, currentUser, subscription, bureauCredential] = await Promise.all([
-    prisma.route.findMany({ 
-      where: { tenantId, appType },
-      include: { 
-        assignedAgent: true, 
+  // Routes, products and the staff picker all belong to the branch being
+  // administered — a branch admin configures their own branch, not the tenant
+  // (SCOPE-3). Packages additionally keep their tenant-wide rows visible.
+  const scopeBranchId = await getActiveBranchId();
+  const branchScope = branchScopeWhere(scopeBranchId);
+
+  const [routes, rawPackages, users, settings, currentUser, subscription, bureauCredential, notificationTemplates] = await Promise.all([
+    prisma.route.findMany({
+      where: { tenantId, appType, ...branchScope },
+      include: {
+        assignedAgent: true,
         _count: { select: { customers: true } },
         routeAgents: { include: { agent: { select: { id: true, name: true } } } }
       }
     }),
-    prisma.loanPackage.findMany({ where: { tenantId, appType } }),
-    prisma.user.findMany({ where: { tenantId, appType } }),
+    prisma.loanPackage.findMany({ where: { tenantId, appType, ...branchOrSharedWhere(scopeBranchId) } }),
+    prisma.user.findMany({ where: { tenantId, appType, ...branchScope } }),
     getTenantSettings(tenantId),
     prisma.user.findUnique({ where: { id: session?.user?.id } }),
     getSubscription(tenantId),
     prisma.bureauCredential.findUnique({ where: { tenantId } }),
+    prisma.notificationTemplate.findMany({ where: { tenantId } }),
   ]);
 
   const packages = rawPackages.map(p => ({
@@ -43,6 +53,12 @@ export default async function SettingsPage() {
     perInstalment: p.perInstalment.toString(),
     penaltyRate: p.penaltyRate.toString(),
   }));
+
+  const safeSettings = {
+    ...settings,
+    msg91_auth_key: '',
+    smtp_pass: '',
+  };
 
   // ── Scoped agent management (Users tab): resolve the ONE branch this actor
   // manages for the current module, then list its agents. ──
@@ -66,13 +82,41 @@ export default async function SettingsPage() {
     }
   }
 
-  let branchAgents: { id: string; name: string; username: string; phone: string; status: string }[] = [];
+  let branchAgents: {
+    id: string;
+    name: string;
+    username: string;
+    phone: string;
+    status: string;
+    aadharNumber?: string | null;
+    dob?: Date | null;
+    experience?: string | null;
+    age?: number | null;
+    bypassLoanApproval?: boolean;
+    bypassCustomerApproval?: boolean;
+    autoReleaseFloat?: boolean;
+    feeConfirmationMandatory?: boolean;
+  }[] = [];
   let manageBranchName: string | null = null;
   if (manageBranchId) {
     const [agents, br] = await Promise.all([
       prisma.user.findMany({
         where: { tenantId, appType, role: 'agent', branchId: manageBranchId },
-        select: { id: true, name: true, username: true, phone: true, status: true },
+        select: {
+          id: true,
+          name: true,
+          username: true,
+          phone: true,
+          status: true,
+          aadharNumber: true,
+          dob: true,
+          experience: true,
+          age: true,
+          bypassLoanApproval: true,
+          bypassCustomerApproval: true,
+          autoReleaseFloat: true,
+          feeConfirmationMandatory: true,
+        },
         orderBy: { name: 'asc' },
       }),
       prisma.branch.findUnique({ where: { id: manageBranchId }, select: { name: true } }),
@@ -97,12 +141,29 @@ export default async function SettingsPage() {
     };
   }
 
+  // Gold master data + config for the Gold Master settings tab (gold module only).
+  let goldMaster: any = null;
+  let goldConfig: any = null;
+  if (appType === 'goldloan') {
+    try {
+      const { getGoldConfig } = await import('@/lib/gold/settings');
+      const [m, cfg] = await Promise.all([
+        serverFetch<any>('/gold/master').catch(() => null),
+        getGoldConfig(tenantId).catch(() => null),
+      ]);
+      goldMaster = m?.data ?? null;
+      goldConfig = cfg;
+    } catch { goldMaster = null; goldConfig = null; }
+  }
+
   return (
-    <SettingsClient 
-      routes={routes} 
-      packages={packages} 
+    <SettingsClient
+      routes={routes}
+      packages={packages}
+      goldMaster={goldMaster}
+      goldConfig={goldConfig}
       users={users} 
-      settings={settings} 
+      settings={safeSettings}
       currencySymbol={settings.currency_symbol || '₹'}
       dict={dict}
       currentUser={currentUser}
@@ -113,6 +174,7 @@ export default async function SettingsPage() {
       branchAgents={branchAgents}
       manageBranchId={manageBranchId}
       manageBranchName={manageBranchName}
+      notificationTemplates={notificationTemplates}
     />
   );
 }

@@ -1,24 +1,31 @@
+import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { notFound, redirect } from 'next/navigation';
 import { headers, cookies } from 'next/headers';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
-import { getDefaultTenantId } from '@/lib/tenant';
+import { getDefaultTenantId, getTenantSettings } from '@/lib/tenant';
 import { getAppConfig } from '@/lib/appConfig';
+import { getThemePreset, THEME_SETTING_KEY } from '@/lib/themes';
 import { getDictionary, getCurrentLanguage } from '@/lib/i18n';
 import BranchSwitcher from '@/components/layout/BranchSwitcher';
 import { getActiveBranchId, getSuperadminBranches } from '@/lib/branch';
+import { branchScopeWhere } from '@/lib/branchScope';
 import {
   ALL_MODULES,
   isModuleKey,
   isRouteEnabledForModules,
-  modulePath,
+  mergeModuleLists,
   normalizeModuleList,
+  parseModulePath,
   type ModuleKey,
 } from '@/types/modules';
-import { getSubscription, isTenantSubscriptionExpired } from '@/lib/subscription';
-import SubscriptionExpiredModal from '@/components/layout/SubscriptionExpiredModal';
+import { getSubscription, getTenantSubscriptionAccessState } from '@/lib/subscription';
 import TrialBanner from '@/components/TrialBanner';
+import OnboardingTour from '@/components/onboarding/OnboardingTour';
+import MobileBottomNav from '@/components/layout/MobileBottomNav';
+import WebPushManager from '@/components/push/WebPushManager';
+import { BreadcrumbLabelProvider } from '@/components/layout/BreadcrumbLabelContext';
 
 export default async function DashboardLayout({
   children,
@@ -33,7 +40,7 @@ export default async function DashboardLayout({
     redirect('/login');
   }
 
-  const user = session.user as any;
+  const user = session.user as { id?: string; name?: string | null; role?: string };
   const role = user.role as string;
   const userId = user.id as string;
   const { module } = await params;
@@ -44,6 +51,14 @@ export default async function DashboardLayout({
 
   const requestedModule: ModuleKey = module;
   const tenantId = await getDefaultTenantId();
+  const sub = await getSubscription(tenantId);
+  const access = getTenantSubscriptionAccessState(sub);
+  if (role !== 'developer' && access.blocked) {
+    const canManageBilling = role === 'superadmin' || role === 'admin';
+    redirect(canManageBilling
+      ? `/portal/billing?reason=${encodeURIComponent(access.reason || 'payment_required')}`
+      : '/portal?billing=required');
+  }
   const appConfig = getAppConfig(requestedModule);
   const dict = await getDictionary(tenantId);
   const lang = await getCurrentLanguage(tenantId);
@@ -54,23 +69,27 @@ export default async function DashboardLayout({
   } else if (role === 'superadmin') {
     const rawBranches = await getSuperadminBranches(tenantId, userId);
     const activeBranchId = await getActiveBranchId();
+    const activeBranchCookie = (await cookies()).get('active_branch_id')?.value;
     const activeBranch = rawBranches.find((branch) => branch.id === activeBranchId) ?? rawBranches[0];
-    enabledModules = activeBranch ? normalizeModuleList(activeBranch.enabledModules) : [...ALL_MODULES];
+    enabledModules = activeBranchCookie === 'all'
+      ? mergeModuleLists(...rawBranches.map((branch) => branch.enabledModules))
+      : activeBranch
+        ? normalizeModuleList(activeBranch.enabledModules)
+        : [...ALL_MODULES];
   } else {
     const { getActiveModules } = await import('@/lib/branch');
     enabledModules = await getActiveModules();
   }
 
-  if (!enabledModules.includes(requestedModule)) {
-    const fallback = enabledModules[0];
-    if (fallback) {
-      redirect(modulePath(fallback, '/dashboard'));
-    }
-    redirect('/portal');
+  const headerStore = await headers();
+  const pathname = headerStore.get('x-zolofund-path') || '';
+  const pagePath = pathname ? parseModulePath(pathname).page : '';
+  const isSharedProfileRoute = pagePath === '/profile';
+
+  if (!enabledModules.includes(requestedModule) && !isSharedProfileRoute) {
+    redirect(`/portal?moduleAccess=denied&module=${encodeURIComponent(requestedModule)}`);
   }
 
-  const headerStore = await headers();
-  const pathname = headerStore.get('x-loantrack-path') || '';
   if (pathname && !isRouteEnabledForModules(pathname, [requestedModule])) {
     notFound();
   }
@@ -101,17 +120,67 @@ export default async function DashboardLayout({
     }
   }
 
-  const sub = await getSubscription(tenantId);
-  const isExpired = isTenantSubscriptionExpired(sub);
+  // Pending-approvals count for the Sidebar badge (admins/superadmins only).
+  // Scope to the active branch when one is selected; superadmin "all"/none =
+  // tenant-wide. Cheap indexed counts.
+  let pendingApprovals = 0;
+  if (role === 'admin' || role === 'superadmin' || role === 'developer') {
+    const scopeBranchId =
+      activeBranchId && activeBranchId !== 'all'
+        ? activeBranchId
+        : role === 'admin'
+          ? (await getActiveBranchId()) ?? undefined
+          : undefined;
+    // Same scope the Approvals page uses, so the badge never lights up for rows
+    // the page then filters out.
+    const branchScope = branchScopeWhere(scopeBranchId);
+    const base = {
+      tenantId,
+      appType: requestedModule,
+      status: 'pending_review',
+    };
+    const [pc, pl, pv, pr] = await Promise.all([
+      prisma.customer.count({
+        where: { ...base, ...branchScope },
+      }),
+      prisma.loan.count({
+        where: { ...base, ...branchScope },
+      }),
+      requestedModule === 'autofinance'
+        ? prisma.vehicle.count({
+            where: {
+              tenantId,
+              appType: requestedModule,
+              status: 'pending_review',
+              deletedAt: null,
+              ...(scopeBranchId ? { customer: branchScope } : {}),
+            },
+          })
+        : Promise.resolve(0),
+      prisma.approvalRequest.count({
+        where: {
+          tenantId,
+          appType: requestedModule,
+          status: 'pending',
+          ...(scopeBranchId ? { requestedBy: branchScope } : {}),
+        },
+      }),
+    ]);
+    pendingApprovals = pc + pl + pv + pr;
+  }
+
+  // Tenant theme preset (Settings → Theme) overrides the per-module colours.
+  const tenantSettings = await getTenantSettings(tenantId);
+  const theme = getThemePreset(tenantSettings[THEME_SETTING_KEY]);
 
   return (
     <div
-      className="app-layout"
+      className={`app-layout${role === 'agent' ? ' has-bottom-nav' : ''}`}
       style={{
-        '--primary': appConfig.primaryColor,
-        '--primary-dark': appConfig.primaryDark,
-        '--primary-light': appConfig.primaryLight,
-        '--accent': appConfig.accentColor,
+        '--primary': theme?.primary ?? appConfig.primaryColor,
+        '--primary-dark': theme?.primaryDark ?? appConfig.primaryDark,
+        '--primary-light': theme?.primaryLight ?? appConfig.primaryLight,
+        '--accent': theme?.accent ?? appConfig.accentColor,
       } as React.CSSProperties}
     >
       <Sidebar
@@ -122,19 +191,33 @@ export default async function DashboardLayout({
         userName={user.name || 'User'}
         modulePrefix={`/${requestedModule}`}
         subscription={sub}
+        pendingApprovals={pendingApprovals}
       />
       <main className="main-content">
-        <Topbar
-          dict={dict}
-          currentLang={lang}
-          branchSwitcher={<BranchSwitcher branches={branches} activeBranchId={activeBranchId} />}
-        />
-        <div className="page-content fade-up" style={{ position: 'relative' }}>
-          <SubscriptionExpiredModal isExpired={isExpired} role={role} />
-          <TrialBanner sub={sub} />
-          {children}
-        </div>
+        <BreadcrumbLabelProvider>
+          <Topbar
+            dict={dict}
+            currentLang={lang}
+            branchSwitcher={<BranchSwitcher branches={branches} activeBranchId={activeBranchId} />}
+          />
+          <div className="page-content fade-up" style={{ position: 'relative' }}>
+            <TrialBanner sub={sub} />
+            <OnboardingTour module={requestedModule} role={role} />
+            <WebPushManager
+              config={{
+                apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? '',
+                authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? '',
+                projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? '',
+                messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ?? '',
+                appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID ?? '',
+                vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY ?? '',
+              }}
+            />
+            {children}
+          </div>
+        </BreadcrumbLabelProvider>
       </main>
+      {role === 'agent' && <MobileBottomNav modulePrefix={`/${requestedModule}`} dict={dict} />}
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { getActiveBranchId, branchScopeWhere } from '@/lib/branch';
 import prisma from '@/lib/db';
 import { getDefaultTenantId, getSetting, getUserAppType } from '@/lib/tenant';
 import { requireModule } from '@/lib/moduleGate';
@@ -25,8 +26,11 @@ export default async function NewChitGroupPage() {
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
   const dict = await getDictionary(tenantId);
 
+  // SCOPE-12: the member picker is branch work. Tenant-wide, a superadmin on
+  // one branch could enrol another branch's customers into a chit group.
+  const activeBranchId = await getActiveBranchId();
   const customers = await prisma.customer.findMany({
-    where: { tenantId, appType, status: 'active' },
+    where: { tenantId, appType, status: 'active', ...branchScopeWhere(activeBranchId) },
     select: { id: true, name: true, customerCode: true },
     orderBy: { name: 'asc' },
   });

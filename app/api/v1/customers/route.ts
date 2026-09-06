@@ -1,13 +1,15 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail, parseCursorPaging } from '@/lib/api/v1-envelope';
-import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
+import { requireMobileContext, resolveWriteBranchId, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { getAgentRouteIds } from '@/lib/access';
 import { encryptAadharNumber } from '@/lib/pii';
 import { getBranding } from '@/lib/tenant';
 import { generateCode } from '@/lib/utils';
 import { writeAudit } from '@/lib/audit';
 import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
+import { notifyApprovers } from '@/lib/notify/approvers';
+import { modulePath } from '@/types/modules';
 
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
@@ -25,12 +27,19 @@ export async function GET(req: NextRequest) {
   const where: any = {
     tenantId: ctx.tenantId,
     appType: ctx.appType,
-    ...scopedBranchWhere(ctx),
     AND: [],
   };
 
   if (ctx.role === 'agent') {
+    // Agents scope by customer-linkage (agentId / route), NOT branch — a branch
+    // pin falsely hides their own customers whose branchId is null or differs
+    // from the agent's home branch.
     where.AND.push(buildAgentCustomerAccessWhere({ userId: ctx.userId }));
+  } else {
+    // Strictly the caller's own branch. A customer takes the branch of its
+    // ROUTE, so it can sit on a branch other than its filing agent's — but that
+    // record still belongs to the route's branch and to nobody else.
+    where.AND.push(scopedBranchWhere(ctx));
   }
 
   if (q) {
@@ -164,6 +173,7 @@ export async function POST(req: NextRequest) {
         companyEmail?: string;
         companyLogo?: string;
         designation?: string;
+        preferredCollectionTime?: string;
         collectionPoints?: Array<{
           name?: string;
           address?: string;
@@ -175,6 +185,29 @@ export async function POST(req: NextRequest) {
     | null;
   if (!body?.name || !body?.phone) {
     return fail('name and phone are required', 400);
+  }
+
+  const normalizedPhone = body.phone.trim();
+  const existingCustomer = await prisma.customer.findFirst({
+    where: {
+      tenantId: ctx.tenantId,
+      appType: ctx.appType,
+      phone: normalizedPhone,
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      name: true,
+      customerCode: true,
+    },
+  });
+
+  if (existingCustomer) {
+    return NextResponse.json({
+      data: { customer: existingCustomer },
+      error: 'Customer already exists with this phone number',
+      code: 'CUSTOMER_ALREADY_EXISTS',
+    }, { status: 409 });
   }
 
   // Normalise collection points (mirror web: drop entries missing name/address).
@@ -198,75 +231,172 @@ export async function POST(req: NextRequest) {
 
   try {
     const branding = await getBranding(ctx.tenantId);
-    const count = await prisma.customer.count({
-      where: {
-        tenantId: ctx.tenantId,
-        appType: ctx.appType,
-        ...scopedBranchWhere(ctx),
-      },
-    });
-    const customerCode = generateCode(branding.customerCodePrefix, count + 1, 4);
 
-    const customer = await prisma.customer.create({
-      data: {
-        tenantId: ctx.tenantId,
-        appType: ctx.appType,
-        branchId: ctx.branchId,
-        customerCode,
-        name: body.name,
-        phone: body.phone,
-        address: body.address ?? null,
-        aadharNumber: encryptAadharNumber(body.aadharNumber ?? null),
-        routeId: ctx.role === 'agent' ? null : body.routeId ?? null,
-        agentId: ctx.role === 'agent' ? ctx.userId : body.agentId ?? null,
-        status: 'pending_review',
-        profilePhoto: body.photoUrl ?? null,
-        // Extended profile fields (web parity)
-        email: body.email ?? null,
-        pan: body.pan ?? null,
-        occupation: body.occupation ?? null,
-        monthlyIncome: monthlyIncome != null && !Number.isNaN(monthlyIncome) ? monthlyIncome : null,
-        companyName: body.companyName ?? null,
-        companyType: body.companyType ?? null,
-        businessType: body.businessType ?? null,
-        gstNumber: body.gstNumber ?? null,
-        companyPan: body.companyPan ?? null,
-        companyRegNo: body.companyRegNo ?? null,
-        companyAddress: body.companyAddress ?? null,
-        companyPhone: body.companyPhone ?? null,
-        companyEmail: body.companyEmail ?? null,
-        companyLogo: body.companyLogo ?? null,
-        designation: body.designation ?? null,
-        kycDocuments: body.kycDocs && body.kycDocs.length > 0
-          ? {
-              create: body.kycDocs.map((d) => ({
-                docType: d.type,
-                filePath: d.url,
-                fileName: d.url.split('/').pop() || 'document',
-              })),
-            }
-          : undefined,
-        collectionPoints: collectionPoints.length > 0
-          ? { create: collectionPoints }
-          : undefined,
-      },
-      include: {
-        route: { select: { id: true, name: true } },
-        kycDocuments: true,
-        collectionPoints: true,
-      },
-    });
+    let bypassCustomerApproval = false;
+    if (['admin', 'superadmin', 'developer'].includes(ctx.role)) {
+      bypassCustomerApproval = true;
+    } else if (ctx.role === 'agent') {
+      const agent = await prisma.user.findUnique({
+        where: { id: ctx.userId },
+        select: { bypassCustomerApproval: true },
+      });
+      if (agent?.bypassCustomerApproval) {
+        bypassCustomerApproval = true;
+      }
+    }
 
-    await writeAudit({
-      tenantId: ctx.tenantId,
-      userId: ctx.userId,
-      action: 'create',
-      entityType: 'customer',
-      entityId: customer.id,
-      newValue: { customerCode, name: body.name },
-    });
+    // Route → agent linkage. The route's primary agent becomes the customer's
+    // collecting agent (shared agents still see them via routeAgents). There is
+    // no per-customer agent picker any more — agent↔route assignment lives in
+    // Settings → Routes. Agents may only file customers on a route assigned to
+    // them. The customer also inherits the route's branch so branch views stay
+    // consistent (fixes customers/loans landing with a null branch).
+    let resolvedRouteId: string | null = body.routeId ?? null;
+    let resolvedAgentId: string | null = body.agentId ?? null;
+    let routeBranchId: string | null = null;
+    if (ctx.role === 'agent') {
+      const myRoutes = await getAgentRouteIds(ctx.userId);
+      if (resolvedRouteId && !myRoutes.includes(resolvedRouteId)) {
+        return fail('You can only add customers to a route assigned to you.', 403);
+      }
+      if (!resolvedRouteId && myRoutes.length === 1) resolvedRouteId = myRoutes[0];
+    }
+    if (resolvedRouteId) {
+      const route = await prisma.route.findFirst({
+        where: { id: resolvedRouteId, tenantId: ctx.tenantId },
+        select: { assignedAgentId: true, branchId: true },
+      });
+      if (!route) return fail('Selected route not found.', 400);
+      resolvedAgentId = route.assignedAgentId ?? (ctx.role === 'agent' ? ctx.userId : null);
+      routeBranchId = route.branchId;
+    } else if (ctx.role === 'agent') {
+      resolvedAgentId = ctx.userId;
+    }
+    // The route's branch owns the customer; the caller's ACTIVE branch is only
+    // the fallback for a routeless one. Never the caller's home branch — that is
+    // how a superadmin's customers landed on the superadmin's own branch and
+    // surfaced in that branch admin's list.
+    const resolvedBranchId = await resolveWriteBranchId(ctx, routeBranchId);
 
-    return ok(customer);
+    // Retry loop to handle race conditions on customer code generation
+    const MAX_RETRIES = 5;
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        // Find the highest existing customer code number instead of using count
+        // This prevents collisions when customers are deleted
+        const prefix = branding.customerCodePrefix || 'CUS';
+        const lastCustomer = await prisma.customer.findFirst({
+          where: {
+            tenantId: ctx.tenantId,
+            customerCode: { startsWith: prefix },
+          },
+          orderBy: { customerCode: 'desc' },
+          select: { customerCode: true },
+        });
+
+        let nextSeq = 1;
+        if (lastCustomer?.customerCode) {
+          const numPart = lastCustomer.customerCode.slice(prefix.length);
+          const parsed = parseInt(numPart, 10);
+          if (!isNaN(parsed)) {
+            nextSeq = parsed + 1;
+          }
+        }
+
+        const customerCode = generateCode(prefix, nextSeq, 4);
+
+        const customer = await prisma.customer.create({
+          data: {
+            tenantId: ctx.tenantId,
+            appType: ctx.appType,
+            branchId: resolvedBranchId,
+            customerCode,
+            name: body.name,
+            phone: body.phone,
+            address: body.address ?? null,
+            aadharNumber: encryptAadharNumber(body.aadharNumber ?? null),
+            routeId: resolvedRouteId,
+            agentId: resolvedAgentId,
+            status: bypassCustomerApproval ? 'active' : 'pending_review',
+            profilePhoto: body.photoUrl ?? null,
+            // Extended profile fields (web parity)
+            email: body.email ?? null,
+            pan: body.pan ?? null,
+            occupation: body.occupation ?? null,
+            monthlyIncome: monthlyIncome != null && !Number.isNaN(monthlyIncome) ? monthlyIncome : null,
+            companyName: body.companyName ?? null,
+            companyType: body.companyType ?? null,
+            businessType: body.businessType ?? null,
+            gstNumber: body.gstNumber ?? null,
+            companyPan: body.companyPan ?? null,
+            companyRegNo: body.companyRegNo ?? null,
+            companyAddress: body.companyAddress ?? null,
+            companyPhone: body.companyPhone ?? null,
+            companyEmail: body.companyEmail ?? null,
+            companyLogo: body.companyLogo ?? null,
+            designation: body.designation ?? null,
+            preferredCollectionTime: body.preferredCollectionTime ?? null,
+            kycDocuments: body.kycDocs && body.kycDocs.length > 0
+              ? {
+                  create: body.kycDocs.map((d) => ({
+                    docType: d.type,
+                    filePath: d.url,
+                    fileName: d.url.split('/').pop() || 'document',
+                  })),
+                }
+              : undefined,
+            collectionPoints: collectionPoints.length > 0
+              ? { create: collectionPoints }
+              : undefined,
+          },
+          include: {
+            route: { select: { id: true, name: true } },
+            kycDocuments: true,
+            collectionPoints: true,
+          },
+        });
+
+        await writeAudit({
+          tenantId: ctx.tenantId,
+          userId: ctx.userId,
+          action: 'create',
+          entityType: 'customer',
+          entityId: customer.id,
+          newValue: { customerCode, name: body.name },
+        });
+
+        if (!bypassCustomerApproval) {
+          await notifyApprovers({
+            tenantId: ctx.tenantId,
+            branchId: resolvedBranchId,
+            // The customer takes its ROUTE's branch, which may not be the filing
+            // agent's — that agent's admin must still be told. Inert for any
+            // other role: an admin/superadmin files for every branch.
+            requesterBranchId: ctx.branchId,
+            requesterRole: ctx.role,
+            appType: ctx.appType,
+            type: 'approval_pending',
+            icon: 'person_add',
+            title: 'Customer awaiting approval',
+            message: `${body.name} (${customerCode}) was submitted and needs review.`,
+            link: modulePath(ctx.appType, '/approvals'),
+          });
+        }
+
+        return ok(customer);
+      } catch (retryErr: any) {
+        // P2002 = Prisma unique constraint violation — retry with next sequence
+        const isPrismaUniqueError =
+          retryErr?.code === 'P2002' ||
+          retryErr?.message?.includes('Unique constraint');
+        if (isPrismaUniqueError && attempt < MAX_RETRIES - 1) {
+          continue;
+        }
+        throw retryErr;
+      }
+    }
+
+    return fail('Customer create failed after retries', 500);
   } catch (e: any) {
     return fail(e?.message ?? 'Customer create failed', 500);
   }

@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { compare } from 'bcryptjs';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { issueMobileToken, issueRefreshToken } from '@/lib/api/v1-auth';
+import { issueMobileToken, issueRefreshToken, loginWindowFailure } from '@/lib/api/v1-auth';
 import { extractTenantSlugFromHost } from '@/lib/tenant';
 
 /**
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
 
     const user = await prisma.user.findFirst({
       where: {
-        OR: [{ username }, { phone: username }],
+        OR: [{ username }, { phone: username }, { email: username }],
         status: 'active',
         ...(tenantId ? { tenantId } : {}),
       },
@@ -47,6 +47,9 @@ export async function POST(req: NextRequest) {
     }
     const valid = await compare(body.password, user.passwordHash);
     if (!valid) return fail('Invalid credentials', 401);
+
+    const windowFailure = loginWindowFailure(user);
+    if (windowFailure) return windowFailure;
 
     if (user.totpSecret) {
       // Caller must follow up with /api/v1/auth/2fa
