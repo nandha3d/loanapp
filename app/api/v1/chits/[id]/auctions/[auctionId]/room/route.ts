@@ -51,7 +51,15 @@ export async function POST(
       if (action === 'open') {
         const fresh = await tx.chitAuction.findUnique({ where: { id: auctionId }, select: { roomStatus: true } });
         if (fresh && ['open', 'extended'].includes(fresh.roomStatus)) throw new HttpError(409, 'Room is already open');
-        const durationMinutes = Number(body?.durationMinutes) || 30;
+        // CF-266 — `|| 30` turned an explicit 0 into a 30-minute room: the
+        // operator asked for something impossible and was handed a default
+        // instead of an error. Only an ABSENT value takes the default; an
+        // explicit 0/-10/NaN falls through to openRoom's > 0 check (400).
+        const rawDuration = body?.durationMinutes;
+        const durationMinutes =
+          rawDuration === undefined || rawDuration === null || rawDuration === ''
+            ? 30
+            : Number(rawDuration);
         const result = await openAuctionRoom(tx, {
           auctionId,
           durationMinutes,

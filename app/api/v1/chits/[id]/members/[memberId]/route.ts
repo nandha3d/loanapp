@@ -23,7 +23,20 @@ export async function PATCH(
       },
     });
     if (!member) return fail('Chit member not found', 404);
+
+    // API-5 / API-7 / X-12 — a supplied customerId was silently dropped, so
+    // attaching another tenant's customer answered 200 as if it had worked.
+    // Resolve it inside this tenant; anything else is 404 (never 403, which
+    // would confirm the row exists elsewhere).
     const data: any = {};
+    if (body?.customerId !== undefined) {
+      const customer = await prisma.customer.findFirst({
+        where: { id: String(body.customerId), tenantId: ctx.tenantId },
+        select: { id: true },
+      });
+      if (!customer) return fail('Customer not found', 404);
+      data.customerId = customer.id;
+    }
     if (body?.ticketNo !== undefined) data.ticketNo = body.ticketNo;
     if (body?.fractionNo !== undefined) data.fractionNo = body.fractionNo;
     if (body?.ticketShare !== undefined) data.ticketShare = Number(body.ticketShare);

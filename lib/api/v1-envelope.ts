@@ -53,6 +53,14 @@ export function fail(error: string, status = 400): NextResponse {
  * untyped errors while letting validators surface a proper 4xx.
  */
 export function failFromError(e: any, fallback = 'Request failed'): NextResponse {
-  const status = e instanceof HttpError ? e.status : 500;
+  // HttpError carries its own status; so does InsufficientFloatError (409,
+  // MONEY-16). Anything else is a genuine server fault.
+  const carried = typeof e?.status === 'number' && e.status >= 400 && e.status <= 599
+    ? e.status
+    : null;
+  const status = e instanceof HttpError ? e.status : carried ?? 500;
+  if (e?.name === 'InsufficientFloatError') {
+    return fail(`Insufficient float: available ${e.available}, required ${e.required}`, e.status ?? 409);
+  }
   return fail(e?.message ?? fallback, status);
 }

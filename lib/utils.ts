@@ -121,12 +121,15 @@ function daysInMonth(year: number, monthIndex: number): number {
  * 31 Jan + 1 month → 28/29 Feb (never 3 Mar). Handles negative months too.
  */
 export function addMonthsClamped(from: Date, months: number): Date {
-  const targetMonthIndex = from.getMonth() + months;
-  const targetYear = from.getFullYear() + Math.floor(targetMonthIndex / 12);
+  // UTC throughout: pledge dates are stored as UTC instants, and using local
+  // components would slip the calendar day east of Greenwich (the same defect
+  // that made chit periods land a day early under Asia/Calcutta).
+  const targetMonthIndex = from.getUTCMonth() + months;
+  const targetYear = from.getUTCFullYear() + Math.floor(targetMonthIndex / 12);
   const normalizedMonth = ((targetMonthIndex % 12) + 12) % 12;
-  const clampedDay = Math.min(from.getDate(), daysInMonth(targetYear, normalizedMonth));
+  const daysInTarget = new Date(Date.UTC(targetYear, normalizedMonth + 1, 0)).getUTCDate();
   const d = new Date(from);
-  d.setFullYear(targetYear, normalizedMonth, clampedDay);
+  d.setUTCFullYear(targetYear, normalizedMonth, Math.min(from.getUTCDate(), daysInTarget));
   return d;
 }
 

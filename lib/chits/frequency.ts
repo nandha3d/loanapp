@@ -39,13 +39,21 @@ export function parseFrequency(group: {
 // Clamped month math: if the start day exceeds the number of days in the
 // target month, clamp to the last day of that month instead of letting
 // `setMonth` overflow into the next month.
+// All arithmetic is in UTC. Period dates are stored and compared as UTC
+// instants, but `new Date(y, m, 1)` builds a LOCAL midnight: east of Greenwich
+// that instant is the PREVIOUS day in UTC, so under Asia/Calcutta a 15 Jan
+// start produced 14 Jan for every period (CF-140/141/142). Reading and writing
+// the UTC components keeps the calendar day the operator chose.
 function addMonthsClamped(date: Date, months: number): Date {
+  const targetMonth = date.getUTCMonth() + months;
+  const targetYear = date.getUTCFullYear() + Math.floor(targetMonth / 12);
+  const normalizedMonth = ((targetMonth % 12) + 12) % 12;
+  // Day 0 of the following month is the last day of the target month, so this
+  // also picks up 29 Feb in a leap year.
+  const daysInTarget = new Date(Date.UTC(targetYear, normalizedMonth + 1, 0)).getUTCDate();
   const d = new Date(date);
-  const targetMonth = d.getMonth() + months;
-  const candidate = new Date(d.getFullYear(), targetMonth, 1);
-  const daysInTarget = new Date(candidate.getFullYear(), candidate.getMonth() + 1, 0).getDate();
-  candidate.setDate(Math.min(d.getDate(), daysInTarget));
-  return candidate;
+  d.setUTCFullYear(targetYear, normalizedMonth, Math.min(date.getUTCDate(), daysInTarget));
+  return d;
 }
 
 export function nextPeriodDate(startDate: Date, period: number, freq: FrequencyConfig): Date {

@@ -4,6 +4,8 @@ import prisma from '@/lib/db';
 type Tx = Prisma.TransactionClient;
 
 export class InsufficientFloatError extends Error {
+  /** MONEY-16 — a refusal the caller can act on, never a server fault. */
+  readonly status = 409;
   constructor(public available: number, public required: number) {
     super('insufficient_float');
     this.name = 'InsufficientFloatError';
@@ -348,13 +350,24 @@ export async function chitPayoutFromBranch(
   input: { tenantId: string; appType: string; branchId: string; amount: number; refId: string; byUserId?: string | null },
 ): Promise<number> {
   if (!(input.amount > 0)) return 0;
-  return applyBranch(tx, input.tenantId, input.appType, input.branchId, -input.amount, {
-    type: 'disburse',
-    refType: 'chit',
-    refId: input.refId,
-    note: 'Chit prize payout',
-    byUserId: input.byUserId ?? null,
-  });
+  // MONEY-16 / X-14 — the chit pool is physical cash in a physical office and
+  // must never go negative. A prize larger than the pool is refused with
+  // InsufficientFloatError (409) instead of overdrawing the branch.
+  return applyBranch(
+    tx,
+    input.tenantId,
+    input.appType,
+    input.branchId,
+    -input.amount,
+    {
+      type: 'disburse',
+      refType: 'chit',
+      refId: input.refId,
+      note: 'Chit prize payout',
+      byUserId: input.byUserId ?? null,
+    },
+    true,
+  );
 }
 
 /** Credits an agent's float when they collect a repayment (cash now in hand). */
