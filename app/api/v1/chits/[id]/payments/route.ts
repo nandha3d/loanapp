@@ -12,7 +12,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id: chitGroupId } = await params;
 
   try {
-    const body = await req.json();
+    // CF-719 — a broken body is invalid input, not a server fault.
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== 'object') return fail('Invalid JSON body', 400);
     const memberId = String(body?.memberId ?? '');
     const periodNumber = Number(body?.periodNumber);
     const amount = Number(body?.amount ?? body?.paidAmount);

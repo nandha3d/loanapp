@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail, failFromError, HttpError } from '@/lib/api/v1-envelope';
 import { requireMobileContext, resolveWriteBranchId, scopedBranchWhere } from '@/lib/api/v1-auth';
-import { validateChitConfig } from '@/lib/chits/validation';
+import { validateChitConfig, assertValidCommissionPct } from '@/lib/chits/validation';
 import { generateCode } from '@/lib/utils';
 
 function dateOrNow(value?: string) {
@@ -59,6 +59,14 @@ export async function POST(req: NextRequest) {
   if (memberIds.length > totalMembers) return fail('memberIds cannot exceed totalMembers', 400);
 
   try {
+    // CHIT-28 / CF-040 — the foreman commission cap is enforced in the web
+    // action but the API path skipped it, so a 7% commission persisted under a
+    // 5% cap. Both surfaces are the same capability.
+    assertValidCommissionPct({
+      commissionPct,
+      foremanCommissionCapPct:
+        body?.foremanCommissionCapPct == null ? null : Number(body.foremanCommissionCapPct),
+    });
     validateChitConfig({
       auctionType: body?.auctionType ?? 'open_manual',
       commissionBasis: body?.commissionBasis ?? 'BID_DISCOUNT',

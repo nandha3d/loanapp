@@ -135,3 +135,42 @@ export async function placeChitBid(tx: any, params: PlaceChitBidParams) {
   });
   return created;
 }
+/**
+ * Record a bid that was AWARDED rather than competitively placed: the foreman
+ * ticket taking period 1, and the winner of a lottery / fixed-rotation draw.
+ *
+ * CHIT-7 says a `ChitBid` row is never written directly, and the web action and
+ * the mobile route each had their own `chitBid.create`. These awards deliberately
+ * skip the competitive checks in `placeChitBid` (there is no room, no increment
+ * and no rival bid to beat), so they get their own entry point here instead of
+ * being forced through a validation path that does not describe them — but the
+ * write itself lives in this service, where it can be found and audited.
+ */
+export async function recordAwardedChitBid(
+  tx: any,
+  input: {
+    tenantId: string;
+    branchId: string | null;
+    auctionId: string;
+    chitGroupId: string;
+    memberId: string;
+    bidAmount: number;
+    bidDiscount: number;
+    remarks: string;
+    createdById?: string;
+  },
+) {
+  return tx.chitBid.create({
+    data: {
+      tenantId: input.tenantId,
+      branchId: input.branchId,
+      auctionId: input.auctionId,
+      chitGroupId: input.chitGroupId,
+      memberId: input.memberId,
+      bidAmount: input.bidAmount,
+      bidDiscount: input.bidDiscount,
+      remarks: input.remarks,
+      createdById: input.createdById,
+    },
+  });
+}

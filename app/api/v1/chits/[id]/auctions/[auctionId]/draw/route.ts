@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
+import { recordAwardedChitBid } from '@/lib/chits/bidService';
 import { ok, fail , failFromError} from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { calculateFixedDiscountPrize } from '@/lib/chits/calculations';
@@ -72,18 +73,17 @@ export async function POST(
     });
 
     const updated = await prisma.$transaction(async (tx) => {
-      const bid = await tx.chitBid.create({
-        data: {
-          tenantId: ctx.tenantId,
-          branchId: auction.chitGroup.branchId,
-          auctionId: auction.id,
-          chitGroupId: id,
-          memberId: winnerMember.id,
-          bidAmount: fixed.prizeAmount,
-          bidDiscount: fixed.bidDiscount,
-          remarks: drawEvidence,
-          createdById: ctx.userId,
-        },
+      // CHIT-7 — the ChitBid write lives in the bid service, never here.
+      const bid = await recordAwardedChitBid(tx, {
+        tenantId: ctx.tenantId,
+        branchId: auction.chitGroup.branchId,
+        auctionId: auction.id,
+        chitGroupId: id,
+        memberId: winnerMember.id,
+        bidAmount: fixed.prizeAmount,
+        bidDiscount: fixed.bidDiscount,
+        remarks: drawEvidence,
+        createdById: ctx.userId,
       });
       const result = await finalizeAuctionInTx(tx, {
         scope: { tenantId: ctx.tenantId, appType: 'chitfunds', userId: ctx.userId },

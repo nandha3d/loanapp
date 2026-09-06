@@ -34,7 +34,7 @@ import {
 import { syncRoom, ringBellManually, buildBellState } from '@/lib/chits/bell';
 import { buildAuctionTimeline } from '@/lib/chits/timeline';
 import { buildWinnerSummary } from '@/lib/chits/winnerSummary';
-import { placeChitBid } from '@/lib/chits/bidService';
+import { placeChitBid, recordAwardedChitBid } from '@/lib/chits/bidService';
 import { releaseChitPrizePayout } from '@/lib/chits/payout';
 import { assertCanReleasePrizePayout } from '@/lib/chits/security';
 import {
@@ -420,18 +420,17 @@ export async function activateChitGroup(groupId: string) {
         const branch = group.branchId
           ? await tx.branch.findUnique({ where: { id: group.branchId }, select: { code: true } })
           : null;
-        const bid = await tx.chitBid.create({
-          data: {
-            tenantId: scope.tenantId,
-            branchId: group.branchId,
-            auctionId: periodOne.id,
-            chitGroupId: group.id,
-            memberId: foremanMember.id,
-            bidAmount: fixed.prizeAmount,
-            bidDiscount: fixed.bidDiscount,
-            remarks: 'Foreman ticket — period 1 prize taken without auction',
-            createdById: scope.userId || undefined,
-          },
+        // CHIT-7 — the ChitBid write lives in the bid service, never here.
+        const bid = await recordAwardedChitBid(tx, {
+          tenantId: scope.tenantId,
+          branchId: group.branchId,
+          auctionId: periodOne.id,
+          chitGroupId: group.id,
+          memberId: foremanMember.id,
+          bidAmount: fixed.prizeAmount,
+          bidDiscount: fixed.bidDiscount,
+          remarks: 'Foreman ticket — period 1 prize taken without auction',
+          createdById: scope.userId || undefined,
         });
         await finalizeAuctionInTx(tx, {
           scope,
@@ -797,18 +796,17 @@ export async function drawAuctionWinner(auctionId: string) {
   });
 
   await prisma.$transaction(async (tx) => {
-    const bid = await tx.chitBid.create({
-      data: {
-        tenantId: scope.tenantId,
-        branchId: auction.chitGroup.branchId,
-        auctionId: auction.id,
-        chitGroupId: auction.chitGroupId,
-        memberId: winnerMember.id,
-        bidAmount: fixed.prizeAmount,
-        bidDiscount: fixed.bidDiscount,
-        remarks: drawEvidence,
-        createdById: scope.userId || undefined,
-      },
+    // CHIT-7 — the ChitBid write lives in the bid service, never here.
+    const bid = await recordAwardedChitBid(tx, {
+      tenantId: scope.tenantId,
+      branchId: auction.chitGroup.branchId,
+      auctionId: auction.id,
+      chitGroupId: auction.chitGroupId,
+      memberId: winnerMember.id,
+      bidAmount: fixed.prizeAmount,
+      bidDiscount: fixed.bidDiscount,
+      remarks: drawEvidence,
+      createdById: scope.userId || undefined,
     });
     await finalizeAuctionInTx(tx, {
       scope,
