@@ -120,7 +120,9 @@ export async function GET(req: NextRequest) {
       prisma.route.findMany({
         where: { tenantId: ctx.tenantId, appType: ctx.appType, status: 'active', ...scopedBranchWhere(ctx) },
         include: {
-          routeAgents: { include: { agent: true } },
+          // X-13 — `agent: true` returned the whole User row, passwordHash
+          // included. Only the agent's id/name is rendered.
+          routeAgents: { include: { agent: { select: { id: true, name: true } } } },
           customers: {
             select: {
               id: true,
@@ -142,7 +144,8 @@ export async function GET(req: NextRequest) {
         where: { tenantId: ctx.tenantId, user: { role: { not: 'developer' }, ...scopedBranchWhere(ctx) } },
         orderBy: { createdAt: 'desc' },
         take: 8,
-        include: { user: true },
+        // X-13 — the audit row only renders the actor's name/role.
+        include: { user: { select: { id: true, name: true, role: true } } },
       }),
       // Actual cash collected today — ALL collection entries submitted today,
       // regardless of which instalment (today's, overdue, or future) they hit.

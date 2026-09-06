@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail, parseCursorPaging } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
+import { VEHICLE_TYPES } from '@/lib/autofinance/vehicleTypes';
 import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 
 export async function GET(req: NextRequest) {
@@ -76,9 +77,13 @@ export async function POST(req: NextRequest) {
   const ctx = auth.context;
 
   try {
-    const body = (await req.json()) as Record<string, unknown>;
+    // AUTO-554 — a broken body is invalid input, not a server fault.
+    const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
+    if (!body || typeof body !== 'object') return fail('Invalid JSON body', 400);
     const customerId = String(body.customerId || '');
-    const registrationNo = String(body.registrationNo || '').trim();
+    // AF-4 — normalise exactly as the origination route does, or the same plate
+    // is stored two ways ("  tn39ab1234 " and "TN39AB1234") and never matches.
+    const registrationNo = String(body.registrationNo || '').trim().toUpperCase();
     const make = String(body.make || '').trim();
     const model = String(body.model || '').trim();
     if (!customerId || !registrationNo || !make || !model) {
@@ -110,6 +115,13 @@ export async function POST(req: NextRequest) {
       status = agent?.bypassVehicleApproval ? 'active' : 'pending_review';
     }
 
+    // AUTO-036 — every report groups on vehicleType, so an unknown value must be
+    // refused rather than stored raw.
+    const vehicleType = body.vehicleType ? String(body.vehicleType).trim().toLowerCase() : 'two_wheeler';
+    if (!(VEHICLE_TYPES as readonly string[]).includes(vehicleType)) {
+      return fail(`Invalid vehicleType "${vehicleType}" — expected one of ${VEHICLE_TYPES.join(', ')}`, 400);
+    }
+
     const dup = await prisma.vehicle.findFirst({
       where: { tenantId: ctx.tenantId, appType: ctx.appType, registrationNo, deletedAt: null },
       select: { id: true },
@@ -128,7 +140,7 @@ export async function POST(req: NextRequest) {
         color: body.color ? String(body.color) : null,
         engineNo: body.engineNo ? String(body.engineNo) : null,
         chassisNo: body.chassisNo ? String(body.chassisNo) : null,
-        vehicleType: body.vehicleType ? String(body.vehicleType) : 'two_wheeler',
+        vehicleType,
         insuranceExpiry: body.insuranceExpiry ? new Date(String(body.insuranceExpiry)) : null,
         status,
       },
