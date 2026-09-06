@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail, parseCursorPaging } from '@/lib/api/v1-envelope';
+import { normalisePropertyCollateral, normaliseProductItem } from '@/lib/secured/validation';
 import { requireMobileContext, resolveWriteBranchId, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { getAgentRouteIds } from '@/lib/access';
 import { buildAgentCustomerAccessWhere, canAgentAccessCustomer, canCreateLoanForRole, validateLoanNumericInputs } from '@/lib/loanPolicy';
@@ -353,6 +354,48 @@ export async function POST(req: NextRequest) {
           termType,
           termDays,
         });
+
+    // Secured lending (property / product finance) reuses the loan lifecycle and
+    // only adds a collateral register, so that register is the ONLY record of
+    // what backs the advance. Validate and DERIVE here — before the transaction,
+    // so a refusal never leaves a partial write (X-6) — rather than writing the
+    // request through raw.
+    const rawPropertyInput: any = body.propertyCollateral;
+    const rawProductInput: any = body.productItem ?? body.productFinanceItem;
+
+    // PPF-023 / PPF-102 — GOLD-3 refuses a gold origination with no collateral;
+    // a mortgage or a consumer-durable advance is no different. A product loan
+    // with no item is an unsecured personal loan wearing the wrong label.
+    if (ctx.appType === 'property' && (!rawPropertyInput || typeof rawPropertyInput !== 'object')) {
+      return fail('Property collateral is required for a property loan', 400);
+    }
+    if (ctx.appType === 'productfinance' && (!rawProductInput || typeof rawProductInput !== 'object')) {
+      return fail('A financed item is required for a product-finance loan', 400);
+    }
+
+    let propertyCollateralData: Record<string, unknown> | null = null;
+    let productItemData: Record<string, unknown> | null = null;
+    try {
+      if (rawPropertyInput && typeof rawPropertyInput === 'object') {
+        propertyCollateralData = normalisePropertyCollateral(rawPropertyInput, { principal });
+      }
+      if (rawProductInput && typeof rawProductInput === 'object') {
+        productItemData = normaliseProductItem(rawProductInput, { principal, tenure });
+      }
+    } catch (err: any) {
+      return fail(err?.message ?? 'Invalid collateral', err?.status ?? 400);
+    }
+
+    // PPF-104 — one physical appliance is not collateral for two loans.
+    if (productItemData?.serialNo) {
+      const clash = await prisma.productFinanceItem.findFirst({
+        where: { tenantId: ctx.tenantId, serialNo: String(productItemData.serialNo) },
+        select: { id: true },
+      });
+      if (clash) {
+        return fail(`Serial "${productItemData.serialNo}" is already financed on another loan`, 409);
+      }
+    }
 
     const goldInput: any = body.goldCollateral;
     let goldOrigination: null | {
@@ -723,59 +766,28 @@ export async function POST(req: NextRequest) {
         });
     }
 
-    // Property collateral (mortgage).
-    const propertyInput: any = body.propertyCollateral;
-    if (propertyInput && typeof propertyInput === 'object') {
+    // Property collateral (mortgage). Validated + derived above.
+    if (propertyCollateralData) {
         await tx.propertyCollateral.create({
           data: {
             tenantId: ctx.tenantId,
             branchId: loan.branchId,
             loanId: loan.id,
             customerId,
-            propertyType: propertyInput.propertyType ?? null,
-            address: propertyInput.address ?? null,
-            surveyNo: propertyInput.surveyNo ?? null,
-            extentValue: propertyInput.extentValue != null ? Number(propertyInput.extentValue) : null,
-            extentUnit: propertyInput.extentUnit ?? null,
-            marketValue: propertyInput.marketValue != null ? Number(propertyInput.marketValue) : null,
-            eligibleLtvPercent: propertyInput.eligibleLtvPercent != null ? Number(propertyInput.eligibleLtvPercent) : null,
-            eligibleAmount: propertyInput.eligibleAmount != null ? Number(propertyInput.eligibleAmount) : null,
-            encumbranceStatus: propertyInput.encumbranceStatus ?? null,
-            registrationNo: propertyInput.registrationNo ?? null,
-            valuerName: propertyInput.valuerName ?? null,
-            valuationDate: propertyInput.valuationDate ? new Date(propertyInput.valuationDate) : null,
-            titleDeedPath: propertyInput.titleDeedPath ?? null,
-            ecPath: propertyInput.ecPath ?? null,
-            taxReceiptPath: propertyInput.taxReceiptPath ?? null,
-            photoPath: propertyInput.photoPath ?? null,
+            ...(propertyCollateralData as any),
           },
         });
     }
 
-    // Product-finance item.
-    const productInput: any = body.productItem ?? body.productFinanceItem;
-    if (productInput && typeof productInput === 'object') {
+    // Product-finance item. Validated + derived above.
+    if (productItemData) {
         await tx.productFinanceItem.create({
           data: {
             tenantId: ctx.tenantId,
             branchId: loan.branchId,
             loanId: loan.id,
             customerId,
-            category: productInput.category ?? null,
-            productName: productInput.productName ?? null,
-            brand: productInput.brand ?? null,
-            modelNo: productInput.modelNo ?? null,
-            serialNo: productInput.serialNo ?? null,
-            dealerName: productInput.dealerName ?? null,
-            dealerId: productInput.dealerId ?? null,
-            invoiceNo: productInput.invoiceNo ?? null,
-            invoiceAmount: productInput.invoiceAmount != null ? Number(productInput.invoiceAmount) : null,
-            downPayment: productInput.downPayment != null ? Number(productInput.downPayment) : null,
-            financedAmount: productInput.financedAmount != null ? Number(productInput.financedAmount) : null,
-            tenureMonths: productInput.tenureMonths != null ? Number(productInput.tenureMonths) : null,
-            warrantyExpiry: productInput.warrantyExpiry ? new Date(productInput.warrantyExpiry) : null,
-            invoicePath: productInput.invoicePath ?? null,
-            photoPath: productInput.photoPath ?? null,
+            ...(productItemData as any),
           },
         });
     }
