@@ -176,11 +176,20 @@ export function getRoleRedirectTarget(
     return '/portal';
   }
 
-  if (pathname === '/') {
+  // Agents are excluded: the portal is a module switcher they may not use
+  // (§7.2), and app/page.tsx resolves `/` to their own agent-dashboard. Sending
+  // them to /portal here would ping-pong against the agent rule below.
+  if (pathname === '/' && role !== 'agent') {
     return '/portal';
   }
 
   if (role === 'agent') {
+    // §7.2 — the portal is the module/branch selector; an agent may not switch
+    // modules, so send them back to their own workspace (ML-067). `/` resolves
+    // the agent's appType server-side in app/page.tsx.
+    if (pathname === '/portal' || pathname.startsWith('/portal/')) {
+      return '/';
+    }
     if (module && (page === '/reports' || page.startsWith('/reports/'))) {
       return `/${module}/collection`;
     }
@@ -190,8 +199,11 @@ export function getRoleRedirectTarget(
     if (!module && AGENT_BLOCKED.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
       return '/portal';
     }
-    if (pathname.startsWith('/customers/new') && hasEditSearch) {
-      return null;
+    // §7.2 — an agent may CREATE a customer but never edit one, so the create
+    // form carrying ?edit=<id> is the edit form and must be refused (ML-163).
+    // Check the module-stripped page so /<module>/customers/new matches too.
+    if ((module ? page : pathname).startsWith('/customers/new') && hasEditSearch) {
+      return module ? `/${module}/customers` : '/customers';
     }
     if (module && page.match(/^\/customers\/[^/]+\/edit/)) {
       return `/${module}/customers`;

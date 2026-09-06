@@ -7,6 +7,11 @@ export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
   const ctx = auth.context;
+  // §7.2 / ROLE-4 — analytics is not an agent capability, and the handler must
+  // refuse it server-side rather than relying on the proxy redirect.
+  if (!['admin', 'superadmin', 'developer'].includes(ctx.role)) {
+    return fail('Forbidden', 403);
+  }
 
   const now = new Date();
   const from = new Date(now);

@@ -1,3 +1,4 @@
+import { sanitizeCustomer } from '@/lib/api/sanitizeCustomer';
 import prisma from '@/lib/db';
 import { ADMIN_API_ROLES, AUTHENTICATED_API_ROLES, isApiError, requireApiContext, scopedBranchWhere } from '@/lib/apiAuth';
 import { apiError, apiSuccess } from '@/lib/utils';
@@ -44,7 +45,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const customer = await findScopedCustomer(id, context);
     if (!customer) return apiError('Customer not found', 404);
     return apiSuccess({
-      ...customer,
+      ...sanitizeCustomer(customer),
       aadharNumber: maskAadharNumber(decryptAadharNumber(customer.aadharNumber)),
       guarantors: customer.guarantors.map((guarantor) => ({
         ...guarantor,
@@ -88,7 +89,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     });
 
     return apiSuccess({
-      ...updated,
+      ...sanitizeCustomer(updated),
       aadharNumber: maskAadharNumber(decryptAadharNumber(updated.aadharNumber)),
     });
   } catch (error: any) {
@@ -117,7 +118,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
       },
     });
 
-    return apiSuccess(updated);
+    return apiSuccess(sanitizeCustomer(updated));
   } catch (error: any) {
     return apiError(error.message, 500);
   }

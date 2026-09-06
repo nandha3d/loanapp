@@ -256,6 +256,12 @@ export async function POST(req: NextRequest) {
     if (isInterestOnly(deductionType) && !(await isInterestOnlyEnabled(ctx.tenantId))) {
       return fail('Interest-Only is not enabled for this account', 403);
     }
+    // MONEY-3 — the Interest-Only rate is quoted PER MONTH. Billing it on any
+    // other cadence would charge a monthly figure daily/weekly, so reject the
+    // origination rather than silently mis-billing it.
+    if (isInterestOnly(deductionType) && frequency !== 'monthly') {
+      return fail('Interest-Only requires a monthly frequency — the rate is per month', 400);
+    }
     // Same shape as Interest-Only: opt-in per tenant, enforced here because the
     // web form is one of several ways into this route.
     if (isBulletTerm(termType) && !(await isBulletTermEnabled(ctx.tenantId))) {

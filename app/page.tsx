@@ -15,14 +15,22 @@ export default async function Home() {
     redirect('/portal');
   }
 
-  if (role === 'admin' || role === 'agent') {
+  // §7.2 — an agent may not switch modules, so the portal (the module/branch
+  // selector) is never their landing page even when the tenant runs several
+  // modules. They go straight to their own appType's workspace.
+  if (role === 'agent') {
+    const module = (session.user as any).appType || 'microlending';
+    redirect(modulePath(module, '/agent-dashboard'));
+  }
+
+  if (role === 'admin') {
     const { getActiveModules } = await import('@/lib/branch');
     const modules = await getActiveModules();
     if (modules.length > 1) {
       redirect('/portal');
     }
     const module = modules[0] ?? 'microlending';
-    redirect(modulePath(module, role === 'agent' ? '/agent-dashboard' : '/dashboard'));
+    redirect(modulePath(module, '/dashboard'));
   }
   
   redirect('/portal');

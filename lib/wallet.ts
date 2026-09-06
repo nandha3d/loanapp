@@ -160,13 +160,24 @@ export async function releaseToAgent(input: {
   if (!(input.amount > 0)) throw new Error('amount must be positive');
   return prisma.$transaction(async (tx) => {
     if (input.branchId) {
-      await applyBranch(tx, input.tenantId, input.appType, input.branchId, -input.amount, {
-        type: 'release',
-        refType: 'agent',
-        refId: input.agentId,
-        note: input.note,
-        byUserId: input.byUserId,
-      });
+      // MONEY-16 — float never goes negative. Releasing more than the pool
+      // physically holds must raise InsufficientFloatError (surfaced as 409),
+      // not quietly overdraw the branch. Same hard block collectFromAgent uses.
+      await applyBranch(
+        tx,
+        input.tenantId,
+        input.appType,
+        input.branchId,
+        -input.amount,
+        {
+          type: 'release',
+          refType: 'agent',
+          refId: input.agentId,
+          note: input.note,
+          byUserId: input.byUserId,
+        },
+        true,
+      );
     }
     const agentBalance = await applyAgent(tx, input.tenantId, input.appType, input.agentId, input.amount, {
       type: 'release',

@@ -7,7 +7,9 @@ export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
   const ctx = auth.context;
-  if (!['admin', 'superadmin', 'developer', 'agent'].includes(ctx.role)) {
+  // §7.2 — penalties are not an agent capability, and ROLE-4 requires the
+  // handler to refuse it rather than relying on the proxy redirect.
+  if (!['admin', 'superadmin', 'developer'].includes(ctx.role)) {
     return fail('Forbidden', 403);
   }
 

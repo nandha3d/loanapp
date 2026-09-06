@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
+import { sanitizeCustomer, sanitizeCustomers } from '@/lib/api/sanitizeCustomer';
 import { ok, fail, parseCursorPaging } from '@/lib/api/v1-envelope';
 import { requireMobileContext, resolveWriteBranchId, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { getAgentRouteIds } from '@/lib/access';
@@ -90,7 +91,7 @@ export async function GET(req: NextRequest) {
         }),
       ]);
 
-      return ok(rows, {
+      return ok(sanitizeCustomers(rows), {
         page,
         limit,
         total,
@@ -125,7 +126,7 @@ export async function GET(req: NextRequest) {
         : [];
       const totalMap = new Map(totals.map((t) => [t.customerId, Number(t._sum.principal ?? 0)]));
       const enriched = data.map((c) => ({
-        ...c,
+        ...sanitizeCustomer(c),
         activeLoanCount: c._count.loans,
         activeLoanPrincipal: totalMap.get(c.id) ?? 0,
       }));
@@ -383,7 +384,7 @@ export async function POST(req: NextRequest) {
           });
         }
 
-        return ok(customer);
+        return ok(sanitizeCustomer(customer));
       } catch (retryErr: any) {
         // P2002 = Prisma unique constraint violation — retry with next sequence
         const isPrismaUniqueError =

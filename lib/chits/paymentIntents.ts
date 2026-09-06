@@ -27,7 +27,7 @@ export async function createChitPaymentIntent(params: {
     },
   });
   if (!subscription) throw new HttpError(404, 'Subscription not found');
-  if (subscription.member.customerId !== params.customerId) throw new HttpError(403, 'You do not own this subscription');
+  if (subscription.member.customerId !== params.customerId) throw new HttpError(404, 'Subscription not found');
   if (subscription.member.chitGroup.tenantId !== params.tenantId) throw new HttpError(404, 'Subscription not found');
   if (subscription.status === 'paid') throw new HttpError(409, 'This period is already fully paid');
 

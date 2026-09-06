@@ -17,8 +17,16 @@ export async function GET(req: NextRequest) {
 
   try {
     // Fetch all agents in the tenant
+    // SCOPE-12 — the live map is a branch's own work. Without this filter the
+    // Erode map listed Head Office's agents (and vice versa). `ctx.branchId` is
+    // the ACTIVE branch: null means "All Branches" was deliberately selected.
     const agents = await prisma.user.findMany({
-      where: { tenantId: ctx.tenantId, role: 'agent', status: 'active' },
+      where: {
+        tenantId: ctx.tenantId,
+        role: 'agent',
+        status: 'active',
+        ...(ctx.branchId ? { branchId: ctx.branchId } : {}),
+      },
       select: { id: true, name: true, phone: true },
     });
 

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
+import { sanitizeCustomer } from '@/lib/api/sanitizeCustomer';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import {
   MobileTokenClaims,
@@ -100,7 +101,7 @@ export async function GET(
   const creditScore = calculateCreditScore(customer.loans);
 
   return ok({
-    ...customer,
+    ...sanitizeCustomer(customer),
     creditScore,
     aadharNumber: maskAadharNumber(decryptAadharNumber(customer.aadharNumber)),
     guarantors: customer.guarantors.map((g) => ({
@@ -119,7 +120,9 @@ export async function PATCH(
   const ctx = auth.context;
 
   // Agents may update customers on their own routes (findScopedCustomer enforces scope).
-  if (!['admin', 'superadmin', 'developer', 'agent'].includes(ctx.role)) {
+  // §7.2 — an agent may CREATE a customer (pending review) but may not edit
+  // one. ROLE-4: the handler refuses it, not just the web form.
+  if (!['admin', 'superadmin', 'developer'].includes(ctx.role)) {
     return fail('Forbidden', 403);
   }
 

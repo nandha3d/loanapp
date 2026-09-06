@@ -1,3 +1,4 @@
+import { sanitizeCustomers } from '@/lib/api/sanitizeCustomer';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { apiSuccess, apiError } from '@/lib/utils';
@@ -68,7 +69,7 @@ export async function GET(request: Request) {
       }),
     ]);
 
-    return apiSuccess({ customers, total, page, limit, pages: Math.ceil(total / limit) });
+    return apiSuccess({ customers: sanitizeCustomers(customers), total, page, limit, pages: Math.ceil(total / limit) });
   } catch (error: any) {
     return apiError(error.message, 500);
   }

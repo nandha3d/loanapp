@@ -10,7 +10,13 @@ assert.equal(getRoleRedirectTarget('/loans', 'agent'), null);
 assert.equal(getRoleRedirectTarget('/customers/new', 'agent'), null);
 assert.equal(getRoleRedirectTarget('/customers/customer-1/edit', 'agent'), '/customers');
 assert.equal(getRoleRedirectTarget('/reports', 'agent'), '/portal');
-assert.equal(getRoleRedirectTarget('/portal', 'agent'), null);
+// ML-067 / §7.2 — the portal is the module switcher; an agent is sent back to
+// their own workspace ('/' resolves their appType in app/page.tsx).
+assert.equal(getRoleRedirectTarget('/portal', 'agent'), '/');
+// ML-163 — /customers/new?edit=<id> IS the edit form; an agent may create a
+// customer but never edit one.
+assert.equal(getRoleRedirectTarget('/customers/new', 'agent', true), '/customers');
+assert.equal(getRoleRedirectTarget('/microlending/customers/new', 'agent', true), '/microlending/customers');
 assert.equal(getRoleRedirectTarget('/dashboard', 'developer'), '/admin');
 assert.equal(getRoleRedirectTarget('/microlending/dashboard', 'developer'), null);
 assert.equal(getRoleRedirectTarget('/microlending/reports', 'agent'), '/microlending/collection');

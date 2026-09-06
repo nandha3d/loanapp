@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
-import { releaseToAgent } from '@/lib/wallet';
+import { releaseToAgent, InsufficientFloatError } from '@/lib/wallet';
 import { writeAudit } from '@/lib/audit';
 
 /**
@@ -55,6 +55,11 @@ export async function POST(req: NextRequest) {
 
     return ok({ agentId, agentBalance });
   } catch (e: any) {
+    // MONEY-16 / X-14 — an over-release is a refusal the caller can act on
+    // (409 with available/required), never a server fault and never suppressed.
+    if (e instanceof InsufficientFloatError) {
+      return fail(`Insufficient float: available ${e.available}, required ${e.required}`, 409);
+    }
     return fail(e?.message ?? 'Fund release failed', 500);
   }
 }

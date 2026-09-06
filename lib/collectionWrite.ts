@@ -327,7 +327,10 @@ export async function recordCollection(
   // Cash-in-hand: a collecting agent now holds this cash -> credit their float.
   // Best-effort so a missing wallet table never breaks collection (mirrors the
   // v1 collection route). Self-pay callers pass creditFloat=false.
-  if (input.creditFloat) {
+  // MONEY-17 — ONLY cash legs move physical float. A bank/UPI/cheque/DD leg is
+  // recorded in the cash book and GL but nobody handed the agent a note, so it
+  // must leave the float untouched (the bulk path already gates on cashApplied).
+  if (input.creditFloat && paymentMode === 'cash') {
     try {
       await creditCollection(tx, { tenantId, appType, agentId, amount: applied, entryId: entry.id });
     } catch (err) {
