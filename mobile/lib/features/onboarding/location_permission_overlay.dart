@@ -38,7 +38,6 @@ Future<void> maybeRequestCorePermissions(BuildContext context) async {
             'ZoloFund needs a few permissions to work in the field:\n\n'
             '• Location — collection visits and route tracking\n'
             '• Camera & Photos — customer photos and KYC documents\n'
-            '• Phone & SMS — call or message customers in one tap\n'
             '• Microphone — voice entry of amounts\n'
             '• Notifications — payment and approval alerts\n\n'
             'Grant them now so nothing interrupts you during collection.',
@@ -66,8 +65,6 @@ Future<void> maybeRequestCorePermissions(BuildContext context) async {
   // Android 13+ scoped photos; older versions fall back to storage.
   await Permission.photos.request();
   await Permission.storage.request();
-  await Permission.phone.request();
-  await Permission.sms.request();
   await Permission.microphone.request();
   await Permission.notification.request();
 }
