@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatCurrency, formatDate, getBadgeClass, getInitials, getPaginationPages } from '@/lib/utils';
 import { submitCollectionEntry, submitLoanCollection, requestCollectionEdit, requestCashHandover, pingAgentLocation } from './actions';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -189,8 +189,25 @@ export default function CollectionClient({
   const [page, setPage] = useState(1);
   const [dateFilter, setDateFilter] = useState(() => searchParams.get('date') || '');
   const [customerFilter, setCustomerFilter] = useState('');
-  const [routeFilter, setRouteFilter] = useState('');
+  const [routeFilter, setRouteFilter] = useState(() => searchParams.get('routeId') || searchParams.get('route') || '');
   const [statusFilter, setStatusFilter] = useState('');
+
+  const handleRouteChange = useCallback((selectedRouteId: string) => {
+    setRouteFilter(selectedRouteId);
+    setPage(1);
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (selectedRouteId) {
+        params.set('routeId', selectedRouteId);
+        params.delete('route');
+      } else {
+        params.delete('routeId');
+        params.delete('route');
+      }
+      const newQuery = params.toString();
+      window.history.replaceState(null, '', newQuery ? `${window.location.pathname}?${newQuery}` : window.location.pathname);
+    }
+  }, []);
   const initialTab: 'all' | 'today' | 'overdue' = useMemo(() => {
     const tab = searchParams.get('tab');
     if (tab === 'overdue') return 'overdue';
@@ -323,6 +340,67 @@ export default function CollectionClient({
     return Array.from(map.values());
   }, [todayInstalments, overdueInstalments]);
 
+  // Helper to test if a row matches the selected route (by ID or Name)
+  const rowMatchesRoute = useCallback((row: CollectionRow, targetRoute: string) => {
+    if (!targetRoute) return true;
+    const custRouteId = row.loan?.customer?.route?.id || (row.loan?.customer as any)?.routeId;
+    const custRouteName = row.loan?.customer?.route?.name;
+    return custRouteId === targetRoute || custRouteName === targetRoute;
+  }, []);
+
+  // Complete list of routes available for switching: merge server routes + any unique route found in worklist
+  const availableRoutes = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>();
+    for (const r of routes) {
+      if (r?.id && r?.name) {
+        map.set(r.id, { id: r.id, name: r.name });
+      }
+    }
+    for (const row of allInstalments) {
+      const r = row.loan?.customer?.route;
+      if (r?.id && r?.name && !map.has(r.id)) {
+        map.set(r.id, { id: r.id, name: r.name });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [routes, allInstalments]);
+
+  // Route customer & dues breakdown for badges and quick switcher
+  const routeStats = useMemo(() => {
+    const stats: Record<string, { customerIds: Set<string>; todayCount: number; overdueCount: number; todayDue: number; overdueAmount: number }> = {};
+    for (const r of availableRoutes) {
+      stats[r.id] = { customerIds: new Set(), todayCount: 0, overdueCount: 0, todayDue: 0, overdueAmount: 0 };
+    }
+    for (const row of allInstalments) {
+      const rId = row.loan?.customer?.route?.id;
+      if (rId && stats[rId]) {
+        stats[rId].customerIds.add(row.loan.customer.id);
+        if (row.source === 'today') {
+          stats[rId].todayCount++;
+          stats[rId].todayDue += row.dueAmount;
+        } else {
+          stats[rId].overdueCount++;
+          stats[rId].overdueAmount += row.outstandingAmount;
+        }
+      }
+    }
+    return stats;
+  }, [availableRoutes, allInstalments]);
+
+  // Distinct customer count across all loaded instalments
+  const totalDistinctCustomers = useMemo(() => {
+    const s = new Set<string>();
+    for (const row of allInstalments) {
+      if (row.loan?.customer?.id) s.add(row.loan.customer.id);
+    }
+    return s.size;
+  }, [allInstalments]);
+
+  const activeRouteObj = useMemo(() => {
+    if (!routeFilter) return null;
+    return availableRoutes.find((r) => r.id === routeFilter || r.name === routeFilter) || null;
+  }, [availableRoutes, routeFilter]);
+
   const filteredRows = useMemo(() => {
     return allInstalments.filter((row) => {
       // Mutual exclusion harmonisation:
@@ -359,8 +437,7 @@ export default function CollectionClient({
         || routeName.includes(search);
 
       // Route filter: match route ID, customer routeId, or route name
-      const custRouteId = row.loan?.customer?.route?.id || (row.loan?.customer as any)?.routeId;
-      const matchesRoute = !routeFilter || custRouteId === routeFilter || row.loan?.customer?.route?.name === routeFilter;
+      const matchesRoute = rowMatchesRoute(row, routeFilter);
 
       // Status filter: handle both semantic meanings and status keys
       const statusInfo = deriveInstalmentStatus(row, todayISO);
@@ -401,34 +478,58 @@ export default function CollectionClient({
     });
   }, [allInstalments, typeFilter, customerFilter, dateFilter, routeFilter, statusFilter, frequencyFilter, sessionFilter, overdueMinDays, overdueMaxDays, todayISO]);
 
-  const todayTotals = useMemo(() => ({
-    due: collectionSummary.todayExpected,
-    collected: collectionSummary.todayCollected,
-    outstanding: collectionSummary.todayOutstanding,
-    pendingCount: collectionSummary.todayPendingCount,
-  }), [collectionSummary]);
+  const todayTotals = useMemo(() => {
+    if (!routeFilter) {
+      return {
+        due: collectionSummary.todayExpected,
+        collected: collectionSummary.todayCollected,
+        outstanding: collectionSummary.todayOutstanding,
+        pendingCount: collectionSummary.todayPendingCount,
+      };
+    }
+    const routeTodayRows = todayInstalments.filter((r) => rowMatchesRoute(r, routeFilter));
+    const due = routeTodayRows.reduce((sum, r) => sum + (Number(r.dueAmount) || 0), 0);
+    const collected = routeTodayRows.reduce((sum, r) => sum + (Number(r.receivedAmount) || 0), 0);
+    const outstanding = Math.max(0, due - collected);
+    const pendingCount = routeTodayRows.filter((r) => r.outstandingAmount > 0).length;
+    return { due, collected, outstanding, pendingCount };
+  }, [collectionSummary, routeFilter, todayInstalments, rowMatchesRoute]);
 
-  const overdueTotals = useMemo(() => ({
-    amount: collectionSummary.overdueOutstanding,
-    dueTotal: collectionSummary.overdueTotalTillToday,
-    recovered: collectionSummary.overdueCollectedToday,
-    count: collectionSummary.overduePendingCount,
-    maxDays: overdueInstalments.reduce((max, row) => Math.max(max, row.daysOverdue), 0),
-  }), [collectionSummary, overdueInstalments]);
+  const overdueTotals = useMemo(() => {
+    if (!routeFilter) {
+      return {
+        amount: collectionSummary.overdueOutstanding,
+        dueTotal: collectionSummary.overdueTotalTillToday,
+        recovered: collectionSummary.overdueCollectedToday,
+        count: collectionSummary.overduePendingCount,
+        maxDays: overdueInstalments.reduce((max, row) => Math.max(max, row.daysOverdue), 0),
+      };
+    }
+    const routeOverdueRows = overdueInstalments.filter((r) => rowMatchesRoute(r, routeFilter));
+    const amount = routeOverdueRows.reduce((sum, r) => sum + (Number(r.outstandingAmount) || 0), 0);
+    const dueTotal = routeOverdueRows.reduce((sum, r) => sum + (Number(r.dueAmount) || 0), 0);
+    const recovered = routeOverdueRows.reduce((sum, r) => sum + (Number(r.receivedAmount) || 0), 0);
+    const count = routeOverdueRows.filter((r) => r.outstandingAmount > 0).length;
+    const maxDays = routeOverdueRows.reduce((max, r) => Math.max(max, r.daysOverdue || 0), 0);
+    return { amount, dueTotal, recovered, count, maxDays };
+  }, [collectionSummary, overdueInstalments, routeFilter, rowMatchesRoute]);
 
   // Customer worklist progress for today: how many distinct customers due today
   // have had something collected. Drives the "Customers" completion bar.
   const customerProgress = useMemo(() => {
     const dueSet = new Set<string>();
     const doneSet = new Set<string>();
-    for (const row of todayInstalments) {
+    const sourceRows = routeFilter
+      ? todayInstalments.filter((r) => rowMatchesRoute(r, routeFilter))
+      : todayInstalments;
+    for (const row of sourceRows) {
       if (getIstDateStr(row.dueDate) !== todayISO && row.dueDate.slice(0, 10) !== todayISO) continue;
       const cid = row.loan.customer.id;
       dueSet.add(cid);
       if (row.outstandingAmount <= 0) doneSet.add(cid);
     }
     return { total: dueSet.size, done: doneSet.size };
-  }, [todayInstalments, todayISO]);
+  }, [todayInstalments, todayISO, routeFilter, rowMatchesRoute]);
 
   const pct = (num: number, den: number) => (den > 0 ? Math.min(100, Math.round((num / den) * 100)) : 0);
 
@@ -649,7 +750,7 @@ export default function CollectionClient({
   const clearFilters = () => {
     setDateFilter('');
     setCustomerFilter('');
-    setRouteFilter('');
+    handleRouteChange('');
     setStatusFilter('');
     setFrequencyFilter('');
     setSessionFilter('');
@@ -1201,57 +1302,207 @@ export default function CollectionClient({
 
   return (
     <>
-      <div className="card" style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div className="profile-avatar" style={{ width: '48px', height: '48px', fontSize: '1rem' }}>{getInitials(agentName)}</div>
-          <div>
-            <h3 style={{ fontSize: '1rem' }}>{agentName} - {agentRole === 'admin' ? dict.roles.admin : dict.roles.agent}</h3>
-            <p style={{ fontSize: '.8rem', color: 'var(--text-secondary)' }}>
-              {dict.collection.route}: <strong>{routeName}</strong> · Today: {todayStr}
-            </p>
+      <div className="card" style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div className="profile-avatar" style={{ width: '48px', height: '48px', fontSize: '1rem' }}>{getInitials(agentName)}</div>
+            <div>
+              <h3 style={{ fontSize: '1rem', margin: 0, fontWeight: 700 }}>
+                {agentName} - {agentRole === 'admin' ? dict.roles.admin : dict.roles.agent}
+              </h3>
+              <p style={{ fontSize: '.8rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+                Today: <strong>{todayStr}</strong> · {dict.collection.route}: <strong style={{ color: activeRouteObj ? 'var(--primary)' : 'inherit' }}>{activeRouteObj ? activeRouteObj.name : routeName}</strong>
+              </p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <Link href="/collection/runs" className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>route</span>
+              Route Runs
+            </Link>
+            <Link href="/collection/self-pay" className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>qr_code_2</span>
+              Self-Pay
+            </Link>
+            <span className="badge badge-active" style={{ fontSize: '.8rem', padding: '6px 14px' }}>{dict.collection.online}</span>
+            {agentRole === 'agent' && dailyCollection && dailyCollection.totalCollected > 0 && dailyCollection.status === 'open' && (
+              <button 
+                className="btn btn-primary btn-sm" 
+                onClick={async () => {
+                  if (!confirm(`Submit handover of ${formatCurrency(dailyCollection.totalCollected, currencySymbol)}?`)) return;
+                  setLoading(true);
+                  const res = await requestCashHandover();
+                  setLoading(false);
+                  if (res.success) {
+                    alert('Handover requested successfully');
+                    router.refresh();
+                  } else {
+                    alert(res.error || 'Failed to submit handover');
+                  }
+                }}
+                disabled={loading}
+              >
+                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>payments</span>
+                {dict.collection.submitHandover}
+              </button>
+            )}
+            {dailyCollection?.status === 'pending_handover' && (
+              <span className="badge" style={{ fontSize: '.8rem', padding: '6px 14px', background: 'rgba(245,158,11,.1)', color: '#D97706' }}>
+                {dict.collection.handoverPending}
+              </span>
+            )}
+            {dailyCollection?.status === 'settled' && (
+              <span className="badge" style={{ fontSize: '.8rem', padding: '6px 14px', background: 'rgba(16,185,129,.1)', color: 'var(--success)' }}>
+                {dict.collection.handoverSettled}
+              </span>
+            )}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <Link href="/collection/runs" className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>route</span>
-            Route Runs
-          </Link>
-          <Link href="/collection/self-pay" className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>qr_code_2</span>
-            Self-Pay
-          </Link>
-          <span className="badge badge-active" style={{ fontSize: '.8rem', padding: '6px 14px' }}>{dict.collection.online}</span>
-          {agentRole === 'agent' && dailyCollection && dailyCollection.totalCollected > 0 && dailyCollection.status === 'open' && (
-            <button 
-              className="btn btn-primary btn-sm" 
-              onClick={async () => {
-                if (!confirm(`Submit handover of ${formatCurrency(dailyCollection.totalCollected, currencySymbol)}?`)) return;
-                setLoading(true);
-                const res = await requestCashHandover();
-                setLoading(false);
-                if (res.success) {
-                  alert('Handover requested successfully');
-                  router.refresh();
-                } else {
-                  alert(res.error || 'Failed to submit handover');
-                }
+
+        {/* ── Prominent Route Switcher Bar ── */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '12px',
+          padding: '10px 14px',
+          background: 'var(--bg-card-subtle, rgba(99,102,241,0.04))',
+          borderRadius: '8px',
+          border: '1px solid var(--border)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              color: 'var(--text-primary)',
+            }}>
+              <span className="material-icons-outlined" style={{ fontSize: '18px', color: 'var(--primary)' }}>alt_route</span>
+              {dict.collection.switchRoute || 'Switch Route'}:
+            </span>
+
+            {/* Quick Switch Pills */}
+            <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => handleRouteChange('')}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: '20px',
+                  border: !routeFilter ? '1.5px solid var(--primary)' : '1px solid var(--border)',
+                  background: !routeFilter ? 'var(--primary)' : 'var(--card-bg, #fff)',
+                  color: !routeFilter ? '#fff' : 'var(--text-secondary)',
+                  fontWeight: !routeFilter ? 700 : 500,
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>🌐 {dict.collection.allRoutes || 'All Routes'}</span>
+                <span style={{
+                  fontSize: '0.72rem',
+                  padding: '1px 6px',
+                  borderRadius: '10px',
+                  background: !routeFilter ? 'rgba(255,255,255,0.25)' : 'var(--bg-card-subtle, rgba(0,0,0,0.06))',
+                  color: !routeFilter ? '#fff' : 'var(--text-light)',
+                  fontWeight: 700,
+                }}>
+                  {totalDistinctCustomers}
+                </span>
+              </button>
+
+              {availableRoutes.map((r) => {
+                const isSelected = routeFilter === r.id || routeFilter === r.name;
+                const rStats = routeStats[r.id];
+                const custCount = rStats ? rStats.customerIds.size : 0;
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => handleRouteChange(r.id)}
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: '20px',
+                      border: isSelected ? '1.5px solid var(--primary)' : '1px solid var(--border)',
+                      background: isSelected ? 'var(--primary)' : 'var(--card-bg, #fff)',
+                      color: isSelected ? '#fff' : 'var(--text-secondary)',
+                      fontWeight: isSelected ? 700 : 500,
+                      fontSize: '0.8rem',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <span>📍 {r.name}</span>
+                    {custCount > 0 && (
+                      <span style={{
+                        fontSize: '0.72rem',
+                        padding: '1px 6px',
+                        borderRadius: '10px',
+                        background: isSelected ? 'rgba(255,255,255,0.25)' : 'var(--bg-card-subtle, rgba(0,0,0,0.06))',
+                        color: isSelected ? '#fff' : 'var(--text-light)',
+                        fontWeight: 700,
+                      }}>
+                        {custCount}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Dropdown for route selection */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <select
+              aria-label={dict.collection.switchRoute || 'Switch Route'}
+              value={routeFilter}
+              onChange={(e) => handleRouteChange(e.target.value)}
+              style={{
+                padding: '6px 12px',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                borderRadius: '6px',
+                border: '1px solid var(--border)',
+                background: 'var(--card-bg, #fff)',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                outline: 'none',
+                minWidth: '150px',
               }}
-              disabled={loading}
             >
-              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>payments</span>
-              {dict.collection.submitHandover}
-            </button>
-          )}
-          {dailyCollection?.status === 'pending_handover' && (
-            <span className="badge" style={{ fontSize: '.8rem', padding: '6px 14px', background: 'rgba(245,158,11,.1)', color: '#D97706' }}>
-              {dict.collection.handoverPending}
-            </span>
-          )}
-          {dailyCollection?.status === 'settled' && (
-            <span className="badge" style={{ fontSize: '.8rem', padding: '6px 14px', background: 'rgba(16,185,129,.1)', color: 'var(--success)' }}>
-              {dict.collection.handoverSettled}
-            </span>
-          )}
+              <option value="">🌐 {dict.collection.allRoutes || 'All Routes'} ({totalDistinctCustomers})</option>
+              {availableRoutes.map((r) => {
+                const rStats = routeStats[r.id];
+                const custCount = rStats ? rStats.customerIds.size : 0;
+                return (
+                  <option key={r.id} value={r.id}>
+                    📍 {r.name} {custCount > 0 ? `(${custCount} customers)` : ''}
+                  </option>
+                );
+              })}
+            </select>
+
+            {routeFilter && (
+              <button
+                type="button"
+                onClick={() => handleRouteChange('')}
+                className="btn btn-ghost btn-sm"
+                style={{ fontSize: '0.75rem', padding: '4px 8px', color: 'var(--text-secondary)' }}
+                title="Reset to All Routes"
+              >
+                ✕ {dict.penalties?.clear || 'Clear'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1388,9 +1639,17 @@ export default function CollectionClient({
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">{dict.collection.routeLine}</label>
-            <select className="form-control" value={routeFilter} onChange={(event) => setRouteFilter(event.target.value)}>
-              <option value="">{dict.collection.allRoutes}</option>
-              {routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}
+            <select className="form-control" value={routeFilter} onChange={(event) => handleRouteChange(event.target.value)}>
+              <option value="">{dict.collection.allRoutes} ({totalDistinctCustomers})</option>
+              {availableRoutes.map((route) => {
+                const rStats = routeStats[route.id];
+                const custCount = rStats ? rStats.customerIds.size : 0;
+                return (
+                  <option key={route.id} value={route.id}>
+                    {route.name} {custCount > 0 ? `(${custCount})` : ''}
+                  </option>
+                );
+              })}
             </select>
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>

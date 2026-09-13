@@ -344,6 +344,8 @@ export const en = {
     missedList: 'Missed Instalments',
     agent: 'Agent',
     route: 'Route',
+    switchRoute: 'Switch Route',
+    activeRoute: 'Active Route',
     collected: 'Collected',
     pending: 'Pending',
     markPaid: 'Mark Paid',

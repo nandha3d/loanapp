@@ -344,6 +344,8 @@ export const hi = {
     missedList: 'छूटी हुई किस्तें',
     agent: 'एजेंट',
     route: 'रूट',
+    switchRoute: 'रूट बदलें',
+    activeRoute: 'सक्रिय रूट',
     collected: 'संग्रहीत',
     pending: 'लंबित',
     markPaid: 'भुगतान चिह्नित करें',

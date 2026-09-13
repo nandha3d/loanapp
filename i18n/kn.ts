@@ -344,6 +344,8 @@ export const kn = {
     missedList: 'ತಪ್ಪಿಸಿದ ಕಂತುಗಳು',
     agent: 'ಏಜೆಂಟ್',
     route: 'ಮಾರ್ಗ',
+    switchRoute: 'ಮಾರ್ಗ ಬದಲಾಯಿಸಿ',
+    activeRoute: 'ಸಕ್ರಿಯ ಮಾರ್ಗ',
     collected: 'ವಸೂಲಾಯಿತು',
     pending: 'ಬಾಕಿ',
     markPaid: 'ಪಾವತಿಸಲಾಗಿದೆ ಎಂದು ಗುರುತಿಸಿ',

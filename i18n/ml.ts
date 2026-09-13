@@ -344,6 +344,8 @@ export const ml = {
     missedList: 'വിട്ടുപോയ തവണകൾ',
     agent: 'ഏജന്റ്',
     route: 'റൂട്ട്',
+    switchRoute: 'റൂട്ട് മാറ്റുക',
+    activeRoute: 'സജീവ റൂട്ട്',
     collected: 'പിരിച്ചത്',
     pending: 'പെൻഡിങ്',
     markPaid: 'അടച്ചതായി അടയാളപ്പെടുത്തുക',

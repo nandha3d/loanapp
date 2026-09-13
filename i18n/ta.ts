@@ -344,6 +344,8 @@ export const ta = {
     missedList: 'தவறிய தவணைகள்',
     agent: 'முகவர்',
     route: 'வழித்தடம்',
+    switchRoute: 'வழித்தடத்தை மாற்று',
+    activeRoute: 'செயலில் உள்ள வழித்தடம்',
     collected: 'வசூலிக்கப்பட்டது',
     pending: 'நிலுவையில் உள்ளது',
     markPaid: 'செலுத்தப்பட்டது',

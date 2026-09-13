@@ -344,6 +344,8 @@ export const te = {
     missedList: 'తప్పిన వాయిదాలు',
     agent: 'ఏజెంట్',
     route: 'రూట్',
+    switchRoute: 'రూట్ మార్చండి',
+    activeRoute: 'క్రియాశీల రూట్',
     collected: 'వసూలు',
     pending: 'పెండింగ్',
     markPaid: 'చెల్లించబడిందని గుర్తు',
