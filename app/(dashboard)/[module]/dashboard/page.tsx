@@ -15,6 +15,7 @@ import { getDictionary } from '@/lib/i18n';
 import HpOperationsWidgets from '@/components/autofinance/HpOperationsWidgets';
 import { getTodayDueList, getPromisedCustomers } from '@/lib/autofinance/dashboard';
 import { getDayClosingSnapshot, getDayClosingGate } from '../operations/actions';
+import CollectionBreakdownCards, { FrequencyKey } from './CollectionBreakdownCards';
 
 type DashboardInstalment = {
   id: string;
@@ -190,7 +191,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
         receivedAmount: true,
         status: true,
         instalmentNo: true,
-        loan: { select: { customerId: true } },
+        loan: { select: { customerId: true, frequency: true } },
       },
     }),
     prisma.instalment.findMany({
@@ -328,6 +329,82 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     overdueCollectedToday += m.overdueCollectedToday;
   }
   const overdueTotalTillToday = overdueOutstanding + overdueCollectedToday;
+
+  // Frequency-wise breakdown for Today's Collection:
+  const todayFrequencyBreakdown: Record<FrequencyKey, { expected: number; collected: number; remaining: number; count: number; pct: number }> = {
+    daily: { expected: 0, collected: 0, remaining: 0, count: 0, pct: 0 },
+    weekly: { expected: 0, collected: 0, remaining: 0, count: 0, pct: 0 },
+    monthly: { expected: 0, collected: 0, remaining: 0, count: 0, pct: 0 },
+  };
+
+  for (const item of todayInstalments) {
+    const rawFreq = (item.loan?.frequency || '').toLowerCase().trim();
+    let freq: FrequencyKey = 'daily';
+    if (rawFreq === 'weekly' || rawFreq === 'biweekly') freq = 'weekly';
+    else if (rawFreq === 'monthly') freq = 'monthly';
+    else freq = 'daily';
+
+    const due = Number(item.dueAmount || 0);
+    const rec = Math.min(Number(item.receivedAmount || 0), due);
+    const rem = Math.max(0, due - Number(item.receivedAmount || 0));
+
+    todayFrequencyBreakdown[freq].expected += due;
+    todayFrequencyBreakdown[freq].collected += rec;
+    todayFrequencyBreakdown[freq].remaining += rem;
+    todayFrequencyBreakdown[freq].count += 1;
+  }
+
+  for (const key of ['daily', 'weekly', 'monthly'] as FrequencyKey[]) {
+    const b = todayFrequencyBreakdown[key];
+    b.pct = b.expected > 0
+      ? Math.min(100, Math.round((b.collected / b.expected) * 100))
+      : (b.collected > 0 ? 100 : 0);
+  }
+
+  // Frequency-wise breakdown for Overdue Collection:
+  const loanFrequencyMap = new Map<string, FrequencyKey>();
+  for (const item of overdueInstalmentsForTotals as any[]) {
+    const rawFreq = (item.loan?.frequency || '').toLowerCase().trim();
+    let freq: FrequencyKey = 'daily';
+    if (rawFreq === 'weekly' || rawFreq === 'biweekly') freq = 'weekly';
+    else if (rawFreq === 'monthly') freq = 'monthly';
+    else freq = 'daily';
+    loanFrequencyMap.set(item.loanId, freq);
+  }
+
+  const overdueCustomersByFreq: Record<FrequencyKey, Set<string>> = {
+    daily: new Set(),
+    weekly: new Set(),
+    monthly: new Set(),
+  };
+
+  for (const item of overdueForTotals as any[]) {
+    const freq = loanFrequencyMap.get(item.loanId) || 'daily';
+    if (item.loan?.customerId) {
+      overdueCustomersByFreq[freq].add(item.loan.customerId);
+    }
+  }
+
+  const overdueFrequencyBreakdown: Record<FrequencyKey, { totalOverdue: number; collectedToday: number; remaining: number; customerCount: number; pct: number }> = {
+    daily: { totalOverdue: 0, collectedToday: 0, remaining: 0, customerCount: overdueCustomersByFreq.daily.size, pct: 0 },
+    weekly: { totalOverdue: 0, collectedToday: 0, remaining: 0, customerCount: overdueCustomersByFreq.weekly.size, pct: 0 },
+    monthly: { totalOverdue: 0, collectedToday: 0, remaining: 0, customerCount: overdueCustomersByFreq.monthly.size, pct: 0 },
+  };
+
+  for (const [loanId, m] of metricsByLoan.entries()) {
+    const freq = loanFrequencyMap.get(loanId) || 'daily';
+    overdueFrequencyBreakdown[freq].totalOverdue += m.overdueTotalTillToday;
+    overdueFrequencyBreakdown[freq].collectedToday += m.overdueCollectedToday;
+    overdueFrequencyBreakdown[freq].remaining += m.overdueOutstanding;
+  }
+
+  for (const key of ['daily', 'weekly', 'monthly'] as FrequencyKey[]) {
+    const b = overdueFrequencyBreakdown[key];
+    b.pct = b.totalOverdue > 0
+      ? Math.min(100, Math.round((b.collectedToday / b.totalOverdue) * 100))
+      : 0;
+  }
+
   const pendingPenaltyTotal = Math.max(
     0,
     Number(pendingPenalties._sum.grossPenalty || 0) -
@@ -397,10 +474,12 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     todayExpected,
     todayCollected,
     todayGap,
+    todayFrequencyBreakdown,
     overdueAmount: overdueOutstanding,
     overdueCollectedToday,
     overdueTotalTillToday,
     overdueCustomerCount,
+    overdueFrequencyBreakdown,
     pendingPenaltyTotal,
     pendingPenaltyCount: pendingPenalties._count,
     overdueInstalments,
@@ -1254,135 +1333,28 @@ export default async function DashboardPage() {
           currencySymbol={branding.currencySymbol ?? '₹'}
         />
       )}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '12px' }}>
-      {/* Combined Today's Collection Progress Card */}
-      <Link href="/collection" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
-        <div className="card" style={{ height: '100%', padding: '20px 24px', background: 'linear-gradient(135deg, #f8faff 0%, #fff 100%)', border: '1px solid #e2e8f0' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span className="material-icons-outlined" style={{ color: 'var(--primary)', fontSize: '20px' }}>today</span>
-              <span style={{ fontWeight: 700, fontSize: '1rem', color: '#1e293b' }}>{d.todayCollection}</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: collectedPct >= 100 ? '#dcfce7' : collectedPct > 50 ? '#fef3c7' : '#fee2e2', padding: '4px 12px', borderRadius: '20px' }}>
-              <span className="material-icons-outlined" style={{ fontSize: '14px', color: collectedPct >= 100 ? '#16a34a' : collectedPct > 50 ? '#d97706' : '#dc2626' }}>
-                {collectedPct >= 100 ? 'check_circle' : 'schedule'}
-              </span>
-              <span style={{ fontWeight: 700, fontSize: '.85rem', color: collectedPct >= 100 ? '#16a34a' : collectedPct > 50 ? '#d97706' : '#dc2626' }}>
-                {collectedPct}% collected
-              </span>
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '20px' }}>
-            <div style={{ background: '#fff', borderRadius: '12px', padding: '14px 16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                <span className="material-icons-outlined" style={{ fontSize: '16px', color: '#64748b' }}>trending_up</span>
-                <span style={{ fontSize: '.72rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>{dict.reports.expected}</span>
-              </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#1e293b' }}>{formatCurrency(data.todayExpected, branding.currencySymbol)}</div>
-            </div>
-            <div style={{ background: '#f0fdf4', borderRadius: '12px', padding: '14px 16px', border: '1px solid #bbf7d0', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                <span className="material-icons-outlined" style={{ fontSize: '16px', color: '#16a34a' }}>check_circle</span>
-                <span style={{ fontSize: '.72rem', color: '#16a34a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>{dict.reports.collected}</span>
-              </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#15803d' }}>{formatCurrency(data.todayCollected, branding.currencySymbol)}</div>
-            </div>
-            <div style={{ background: data.todayGap > 0 ? '#fef2f2' : '#f0fdf4', borderRadius: '12px', padding: '14px 16px', border: `1px solid ${data.todayGap > 0 ? '#fecaca' : '#bbf7d0'}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                <span className="material-icons-outlined" style={{ fontSize: '16px', color: data.todayGap > 0 ? '#dc2626' : '#16a34a' }}>
-                  {data.todayGap > 0 ? 'pending' : 'check_circle'}
-                </span>
-                <span style={{ fontSize: '.72rem', color: data.todayGap > 0 ? '#dc2626' : '#16a34a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>{dict.loanDetail.remaining}</span>
-              </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 700, color: data.todayGap > 0 ? '#b91c1c' : '#15803d' }}>{formatCurrency(data.todayGap, branding.currencySymbol)}</div>
-            </div>
-          </div>
-
-          <div>
-            <div style={{ width: '100%', height: '10px', background: '#e2e8f0', borderRadius: '8px', overflow: 'hidden', display: 'flex' }}>
-              {collectedPct > 0 && (
-                <div style={{ width: `${collectedPct}%`, height: '100%', background: 'linear-gradient(90deg, #10B981 0%, #059669 100%)', borderRadius: collectedPct >= 100 ? '8px' : '8px 0 0 8px', transition: 'width 0.5s ease' }} />
-              )}
-              {remainingPct > 0 && collectedPct > 0 && (
-                <div style={{ width: `${remainingPct}%`, height: '100%', background: '#fecaca' }} />
-              )}
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', fontSize: '.68rem', color: '#94a3b8' }}>
-              <span>{branding.currencySymbol}0</span>
-              <span style={{ color: '#10B981', fontWeight: 600 }}>{formatCurrency(data.todayCollected, branding.currencySymbol)} collected</span>
-              <span>{formatCurrency(data.todayExpected, branding.currencySymbol)}</span>
-            </div>
-          </div>
-        </div>
-      </Link>
-
-      {/* Overdue Collection Card — past-due instalments only (yesterday & earlier) */}
-      <Link href="/collection?tab=overdue" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
-        <div className="card" style={{ height: '100%', padding: '20px 24px', background: 'linear-gradient(135deg, #fff7f7 0%, #fff 100%)', border: '1px solid #fecaca' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span className="material-icons-outlined" style={{ color: '#dc2626', fontSize: '20px' }}>warning_amber</span>
-              <span style={{ fontWeight: 700, fontSize: '1rem', color: '#1e293b' }}>{d.overdueCollection}</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: overduePct >= 100 ? '#dcfce7' : '#fee2e2', padding: '4px 12px', borderRadius: '20px' }}>
-              <span className="material-icons-outlined" style={{ fontSize: '14px', color: overduePct >= 100 ? '#16a34a' : '#dc2626' }}>
-                {overduePct >= 100 ? 'check_circle' : 'history'}
-              </span>
-              <span style={{ fontWeight: 700, fontSize: '.85rem', color: overduePct >= 100 ? '#16a34a' : '#dc2626' }}>
-                {overduePct}% recovered today
-              </span>
-            </div>
-          </div>
-          {/* Plain-language explainer so the card is self-explanatory */}
-          <div style={{ fontSize: '.72rem', color: '#94a3b8', marginBottom: '14px' }}>
-            Past dues only (not today&apos;s). &quot;Total&quot; is what was overdue at the start of today; it re-bases tomorrow as anything unpaid rolls over.
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '20px' }}>
-            <div style={{ background: '#fff', borderRadius: '12px', padding: '14px 16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                <span className="material-icons-outlined" style={{ fontSize: '16px', color: '#64748b' }}>receipt_long</span>
-                <span style={{ fontSize: '.72rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>{d.totalOverdue}</span>
-              </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#1e293b' }}>{formatCurrency(data.overdueTotalTillToday, branding.currencySymbol)}</div>
-            </div>
-            <div style={{ background: '#f0fdf4', borderRadius: '12px', padding: '14px 16px', border: '1px solid #bbf7d0', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                <span className="material-icons-outlined" style={{ fontSize: '16px', color: '#16a34a' }}>check_circle</span>
-                <span style={{ fontSize: '.72rem', color: '#16a34a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>{d.collectedToday}</span>
-              </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#15803d' }}>{formatCurrency(data.overdueCollectedToday, branding.currencySymbol)}</div>
-            </div>
-            <div style={{ background: data.overdueAmount > 0 ? '#fef2f2' : '#f0fdf4', borderRadius: '12px', padding: '14px 16px', border: `1px solid ${data.overdueAmount > 0 ? '#fecaca' : '#bbf7d0'}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                <span className="material-icons-outlined" style={{ fontSize: '16px', color: data.overdueAmount > 0 ? '#dc2626' : '#16a34a' }}>
-                  {data.overdueAmount > 0 ? 'pending' : 'check_circle'}
-                </span>
-                <span style={{ fontSize: '.72rem', color: data.overdueAmount > 0 ? '#dc2626' : '#16a34a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>{dict.loanDetail.remaining}</span>
-              </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 700, color: data.overdueAmount > 0 ? '#b91c1c' : '#15803d' }}>{formatCurrency(data.overdueAmount, branding.currencySymbol)}</div>
-            </div>
-          </div>
-
-          <div>
-            <div style={{ width: '100%', height: '10px', background: '#e2e8f0', borderRadius: '8px', overflow: 'hidden', display: 'flex' }}>
-              {overduePct > 0 && (
-                <div style={{ width: `${overduePct}%`, height: '100%', background: 'linear-gradient(90deg, #10B981 0%, #059669 100%)', borderRadius: overduePct >= 100 ? '8px' : '8px 0 0 8px', transition: 'width 0.5s ease' }} />
-              )}
-              {overdueRemainingPct > 0 && overduePct > 0 && (
-                <div style={{ width: `${overdueRemainingPct}%`, height: '100%', background: '#fecaca' }} />
-              )}
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', fontSize: '.68rem', color: '#94a3b8' }}>
-              <span>{branding.currencySymbol}0</span>
-              <span style={{ color: '#dc2626', fontWeight: 600 }}>{formatCurrency(data.overdueAmount, branding.currencySymbol)} still due</span>
-              <span>{formatCurrency(data.overdueTotalTillToday, branding.currencySymbol)}</span>
-            </div>
-          </div>
-        </div>
-      </Link>
-      </div>
+      <CollectionBreakdownCards
+        todayData={{
+          expected: data.todayExpected,
+          collected: data.todayCollected,
+          remaining: data.todayGap,
+          pct: collectedPct,
+          breakdown: data.todayFrequencyBreakdown,
+        }}
+        overdueData={{
+          totalOverdue: data.overdueTotalTillToday,
+          collectedToday: data.overdueCollectedToday,
+          remaining: data.overdueAmount,
+          pct: overduePct,
+          breakdown: data.overdueFrequencyBreakdown,
+        }}
+        currencySymbol={branding.currencySymbol ?? '₹'}
+        dict={{
+          dashboard: d as any,
+          reports: dict.reports as any,
+          loanDetail: dict.loanDetail as any,
+        }}
+      />
 
       <div className="kpi-grid" style={{ marginTop: '12px' }}>
         <Link href="/customers?status=active" className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>

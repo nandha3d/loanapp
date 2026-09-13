@@ -318,4 +318,65 @@ test('7. Frequency and Session filter case-insensitivity and trim', () => {
   assert.strictEqual(anytime[0].id, 'r2');
 });
 
+test('8. Type filter All (71) and Overdue (66) pagination in instalment view vs customer view', () => {
+  const todayISO = '2026-09-13';
+  // Generate 71 sample instalments across 5 customers:
+  // Chithra (21 insts: 20 overdue, 1 today)
+  // Dinesh (16 insts: 15 overdue, 1 today)
+  // Dinesh electronic (16 insts: 15 overdue, 1 today)
+  // Sundher (16 insts: 15 overdue, 1 today)
+  // Veeraraj (2 insts: 1 overdue, 1 today)
+  const allInstalments: any[] = [];
+  const customers = [
+    { id: 'c1', name: 'Chithra', count: 21 },
+    { id: 'c2', name: 'Dinesh', count: 16 },
+    { id: 'c3', name: 'Dinesh electronic', count: 16 },
+    { id: 'c4', name: 'Sundher', count: 16 },
+    { id: 'c5', name: 'Veeraraj', count: 2 },
+  ];
+
+  for (const c of customers) {
+    for (let i = 1; i <= c.count; i++) {
+      const isToday = i === c.count;
+      allInstalments.push({
+        id: `${c.id}_inst_${i}`,
+        source: isToday ? 'today' : 'overdue',
+        dueDate: isToday ? '2026-09-13T00:00:00.000Z' : `2026-08-${String(i).padStart(2, '0')}T00:00:00.000Z`,
+        dueAmount: 85,
+        receivedAmount: 0,
+        outstandingAmount: 85,
+        daysOverdue: isToday ? 0 : 20 - i + 1,
+        loan: {
+          loanCode: `DL_${c.id}`,
+          customer: { id: c.id, name: c.name, customerCode: `CUST_${c.id}` },
+        },
+      });
+    }
+  }
+
+  assert.strictEqual(allInstalments.length, 71);
+
+  // When filtering by 'today'
+  const todayRows = filterRows(allInstalments, { typeFilter: 'today' }, todayISO);
+  assert.strictEqual(todayRows.length, 5);
+
+  // When filtering by 'all'
+  const allRows = filterRows(allInstalments, { typeFilter: 'all' }, todayISO);
+  assert.strictEqual(allRows.length, 71);
+  const pageSize = 20;
+  const allTotalPages = Math.ceil(allRows.length / pageSize);
+  assert.strictEqual(allTotalPages, 4);
+  assert.strictEqual(allRows.slice(0, 20).length, 20);
+  assert.strictEqual(allRows.slice(60, 80).length, 11);
+
+  // When filtering by 'overdue'
+  const overdueRows = filterRows(allInstalments, { typeFilter: 'overdue' }, todayISO);
+  assert.strictEqual(overdueRows.length, 66);
+  const overdueTotalPages = Math.ceil(overdueRows.length / pageSize);
+  assert.strictEqual(overdueTotalPages, 4);
+  assert.strictEqual(overdueRows.slice(0, 20).length, 20);
+  assert.strictEqual(overdueRows.slice(60, 80).length, 6);
+});
+
 console.log('--- ALL COLLECTION FILTER UNIT TESTS PASSED ---');
+

@@ -206,6 +206,7 @@ export default function CollectionClient({
   const [overdueMaxDays, setOverdueMaxDays] = useState('');
   const [selectedLoanForCustomer, setSelectedLoanForCustomer] = useState<Record<string, string>>({});
   // Which customer rows are expanded to reveal their per-loan sub-rows.
+  const [viewMode, setViewMode] = useState<'instalments' | 'grouped'>('instalments');
   const [expandedCustomers, setExpandedCustomers] = useState<Set<string>>(new Set());
   const toggleCustomerExpand = (customerId: string) =>
     setExpandedCustomers((prev) => {
@@ -659,7 +660,7 @@ export default function CollectionClient({
 
   useEffect(() => {
     setPage(1);
-  }, [typeFilter, customerFilter, dateFilter, routeFilter, statusFilter, frequencyFilter, sessionFilter, overdueMinDays, overdueMaxDays]);
+  }, [typeFilter, customerFilter, dateFilter, routeFilter, statusFilter, frequencyFilter, sessionFilter, overdueMinDays, overdueMaxDays, viewMode]);
 
   const hasActiveFilters = Boolean(
     dateFilter ||
@@ -674,7 +675,9 @@ export default function CollectionClient({
   );
 
   const pageSize = 20;
-  const totalPages = Math.max(1, Math.ceil(unifiedGroups.length / pageSize));
+  const currentTotalCount = viewMode === 'instalments' ? filteredRows.length : unifiedGroups.length;
+  const totalPages = Math.max(1, Math.ceil(currentTotalCount / pageSize));
+  const paginatedRows = filteredRows.slice((page - 1) * pageSize, page * pageSize);
   const paginatedGroups = unifiedGroups.slice((page - 1) * pageSize, page * pageSize);
   const pageButtons = getPaginationPages(page, totalPages);
 
@@ -877,6 +880,146 @@ export default function CollectionClient({
     </div>
   );
 
+  const renderInstalmentRows = (rows: CollectionRow[]) => (
+    <div className="table-wrapper collection-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>{dict.customers.title}</th>
+            <th>{dict.sidebar.loans}</th>
+            <th>{dict.collection.dueDate}</th>
+            <th>{dict.collection.dueTodayLabel}</th>
+            <th>{dict.collection.receivedLabel}</th>
+            <th>{dict.collection.outstandingLabel}</th>
+            <th>{dict.collection.overdueLabel}</th>
+            <th>{dict.collection.statusLabel}</th>
+            <th>{dict.collection.actionLabel}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((instalment) => {
+            const isSettled = instalment.outstandingAmount <= 0;
+            const statusInfo = deriveInstalmentStatus(instalment, todayISO);
+            const isDueToday = getIstDateStr(instalment.dueDate) === todayISO || instalment.dueDate.slice(0, 10) === todayISO;
+            const fig = loanFiguresFor(instalment);
+            const cust = instalment.loan.customer;
+
+            return (
+              <tr key={instalment.id} className="collection-entry" style={{ opacity: isSettled ? 0.62 : 1 }}>
+                <td data-label={dict.customers.title}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div className="profile-avatar" style={{ width: '32px', height: '32px', fontSize: '.75rem', flexShrink: 0 }}>
+                      {getInitials(cust.name)}
+                    </div>
+                    <div>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <Link href={`/customers/${cust.customerCode}`}>
+                          <strong>{cust.name}</strong>
+                        </Link>
+                        {cust.phone && (
+                          <a
+                            href={`tel:${cust.phone}`}
+                            title="Call"
+                            style={{ display: 'flex', color: 'var(--success, #16a34a)' }}
+                          >
+                            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>call</span>
+                          </a>
+                        )}
+                      </span>
+                      <div style={{ fontSize: '.72rem', color: 'var(--text-light)', marginTop: '2px' }}>
+                        {cust.customerCode} · {cust.route?.name || '-'}
+                      </div>
+                    </div>
+                  </div>
+                </td>
+                <td data-label={dict.sidebar.loans}>
+                  <Link href={`/loans/${instalment.loan.loanCode}`} style={{ fontWeight: 600 }}>
+                    {instalment.loan.loanCode}
+                  </Link>
+                  <div style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>
+                    #{instalment.instalmentNo} · {instalment.loan.frequency}
+                  </div>
+                </td>
+                <td data-label={dict.collection.dueDate}>
+                  {formatDate(instalment.dueDate)}
+                </td>
+                <td data-label={dict.collection.dueTodayLabel}>
+                  {isDueToday && instalment.outstandingAmount > 0
+                    ? formatCurrency(instalment.dueAmount, currencySymbol)
+                    : '-'}
+                </td>
+                <td data-label={dict.collection.receivedLabel}>
+                  {instalment.receivedAmount > 0
+                    ? formatCurrency(instalment.receivedAmount, currencySymbol)
+                    : '-'}
+                </td>
+                <td
+                  data-label={dict.collection.outstandingLabel}
+                  title={`Instalment Outstanding: ${formatCurrency(instalment.outstandingAmount, currencySymbol)}\nTotal Loan Outstanding: ${formatCurrency(fig.totalOutstanding, currencySymbol)}`}
+                  style={{ fontWeight: 700, color: instalment.outstandingAmount > 0 ? 'var(--danger)' : 'var(--success)', cursor: 'help' }}
+                >
+                  {formatCurrency(instalment.outstandingAmount, currencySymbol)}
+                  <span style={{ display: 'block', fontSize: '.7rem', fontWeight: 400, color: 'var(--text-light)' }}>
+                    Loan: {formatCurrency(fig.totalOutstanding, currencySymbol)}
+                  </span>
+                </td>
+                <td data-label={dict.collection.overdueLabel}>
+                  {instalment.daysOverdue > 0 && instalment.outstandingAmount > 0 ? (
+                    <span style={{ color: 'var(--danger)', fontWeight: 600 }}>
+                      {instalment.daysOverdue}d · {formatCurrency(instalment.overdueAmount, currencySymbol)}
+                    </span>
+                  ) : '-'}
+                </td>
+                <td data-label={dict.collection.statusLabel}>
+                  <span className={getBadgeClass(statusInfo.key)} style={{ textTransform: 'capitalize' }}>
+                    {statusInfo.label}
+                  </span>
+                </td>
+                <td data-label={dict.collection.actionLabel}>
+                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    {isSettled ? (
+                      <>
+                        <button className="btn btn-ghost btn-sm" onClick={() => openModal(instalment)}>
+                          <span className="material-icons-outlined" style={{ fontSize: '14px' }}>{isAdmin ? 'edit' : 'history_edu'}</span>
+                          {isAdmin ? dict.collection.editLabel : dict.collection.requestLabel}
+                        </button>
+                        {receiptPdfEnabled && instalment.collectionEntry?.id && (
+                          <a
+                            href={`/api/receipts/${instalment.collectionEntry.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn-ghost btn-sm"
+                            title="Download Receipt"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}
+                          >
+                            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>receipt_long</span>
+                            {dict.collection.receiptLabel}
+                          </a>
+                        )}
+                      </>
+                    ) : (
+                      <button className="btn btn-primary btn-sm" onClick={() => openModal(instalment)}>
+                        <span className="material-icons-outlined" style={{ fontSize: '14px' }}>payments</span>
+                        {dict.collection.payLabel}
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+          {rows.length === 0 && (
+            <tr>
+              <td colSpan={9} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-light)' }}>
+                {dict.collection.noInstalmentsMatch}
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+
   const renderUnifiedRows = (groups: UnifiedGroup[]) => (
     <div className="table-wrapper collection-table-wrap">
       <table>
@@ -895,19 +1038,19 @@ export default function CollectionClient({
         </thead>
         <tbody>
           {groups.map((group) => {
-            const multi = group.loanCodes.length > 1;
+            const canExpand = group.loanCodes.length > 1 || group.instalments.length > 1;
             const expanded = expandedCustomers.has(group.customerId);
             const pm = metricsFor(group.instalments);
             return (
               <Fragment key={group.customerId}>
                 <tr
                   className="collection-entry"
-                  style={{ opacity: pm.isSettled ? 0.62 : 1, cursor: multi ? 'pointer' : undefined }}
-                  onClick={multi ? () => toggleCustomerExpand(group.customerId) : undefined}
+                  style={{ opacity: pm.isSettled ? 0.62 : 1, cursor: canExpand ? 'pointer' : undefined }}
+                  onClick={canExpand ? () => toggleCustomerExpand(group.customerId) : undefined}
                 >
                   <td data-label={dict.customers.title}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      {multi ? (
+                      {canExpand ? (
                         <span className="material-icons-outlined" style={{ fontSize: '20px', color: 'var(--text-light)', transition: 'transform .2s', transform: expanded ? 'rotate(90deg)' : 'none' }}>chevron_right</span>
                       ) : (
                         <span style={{ width: '20px', flexShrink: 0 }} />
@@ -956,7 +1099,7 @@ export default function CollectionClient({
                     </div>
                   </td>
                   <td data-label={dict.sidebar.loans} onClick={(e) => e.stopPropagation()}>
-                    {multi ? (
+                    {group.loanCodes.length > 1 ? (
                       <button
                         type="button"
                         onClick={() => toggleCustomerExpand(group.customerId)}
@@ -965,13 +1108,22 @@ export default function CollectionClient({
                         {dict.collection.allLoans} ({group.loanCodes.length})
                         <span className="material-icons-outlined" style={{ fontSize: '16px', transition: 'transform .2s', transform: expanded ? 'rotate(180deg)' : 'none' }}>expand_more</span>
                       </button>
+                    ) : group.instalments.length > 1 ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleCustomerExpand(group.customerId)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px', fontSize: '.8rem', fontWeight: 600, cursor: 'pointer', background: 'var(--primary-light, #FFF3E0)', color: 'var(--primary-dark, #E8930C)', border: '1px solid var(--primary, #F5A623)', borderRadius: '999px' }}
+                      >
+                        {group.loanCodes[0]} ({group.instalments.length})
+                        <span className="material-icons-outlined" style={{ fontSize: '16px', transition: 'transform .2s', transform: expanded ? 'rotate(180deg)' : 'none' }}>expand_more</span>
+                      </button>
                     ) : (
                       <Link href={`/loans/${group.loanCodes[0]}`}>{group.loanCodes[0]}</Link>
                     )}
                   </td>
                   {renderRowCells(group.instalments, group)}
                 </tr>
-                {multi && expanded && group.loanCodes.map((code) => {
+                {canExpand && expanded && group.loanCodes.length > 1 && group.loanCodes.map((code) => {
                   const loanInsts = group.instalments.filter(i => i.loan.loanCode === code);
                   if (loanInsts.length === 0) return null;
                   const cm = metricsFor(loanInsts);
@@ -981,6 +1133,54 @@ export default function CollectionClient({
                       <td style={{ paddingLeft: '54px', color: 'var(--text-light)' }}>↳</td>
                       <td><Link href={`/loans/${code}`} style={{ fontSize: '.82rem', fontWeight: 600 }}>{code}</Link></td>
                       {renderRowCells(loanInsts, subGroup)}
+                    </tr>
+                  );
+                })}
+                {canExpand && expanded && group.loanCodes.length === 1 && group.instalments.map((inst) => {
+                  const isSettled = inst.outstandingAmount <= 0;
+                  const statusInfo = deriveInstalmentStatus(inst, todayISO);
+                  const isDueToday = getIstDateStr(inst.dueDate) === todayISO || inst.dueDate.slice(0, 10) === todayISO;
+                  return (
+                    <tr key={inst.id} className="collection-entry" style={{ background: 'var(--bg-light, #FAFBFC)', opacity: isSettled ? 0.62 : 1 }}>
+                      <td style={{ paddingLeft: '54px', color: 'var(--text-light)', fontSize: '.8rem' }}>
+                        ↳ #{inst.instalmentNo}
+                      </td>
+                      <td>
+                        <Link href={`/loans/${inst.loan.loanCode}`} style={{ fontSize: '.82rem', fontWeight: 600 }}>
+                          {inst.loan.loanCode}
+                        </Link>
+                      </td>
+                      <td>{formatDate(inst.dueDate)}</td>
+                      <td>{isDueToday && inst.outstandingAmount > 0 ? formatCurrency(inst.dueAmount, currencySymbol) : '-'}</td>
+                      <td>{inst.receivedAmount > 0 ? formatCurrency(inst.receivedAmount, currencySymbol) : '-'}</td>
+                      <td style={{ fontWeight: 700, color: inst.outstandingAmount > 0 ? 'var(--danger)' : 'var(--success)' }}>
+                        {formatCurrency(inst.outstandingAmount, currencySymbol)}
+                      </td>
+                      <td>
+                        {inst.daysOverdue > 0 && inst.outstandingAmount > 0 ? (
+                          <span style={{ color: 'var(--danger)', fontWeight: 600 }}>
+                            {inst.daysOverdue}d · {formatCurrency(inst.overdueAmount, currencySymbol)}
+                          </span>
+                        ) : '-'}
+                      </td>
+                      <td>
+                        <span className={getBadgeClass(statusInfo.key)} style={{ textTransform: 'capitalize' }}>
+                          {statusInfo.label}
+                        </span>
+                      </td>
+                      <td>
+                        {isSettled ? (
+                          <button className="btn btn-ghost btn-sm" onClick={() => openModal(inst)}>
+                            <span className="material-icons-outlined" style={{ fontSize: '14px' }}>{isAdmin ? 'edit' : 'history_edu'}</span>
+                            {isAdmin ? dict.collection.editLabel : dict.collection.requestLabel}
+                          </button>
+                        ) : (
+                          <button className="btn btn-primary btn-sm" onClick={() => openModal(inst)}>
+                            <span className="material-icons-outlined" style={{ fontSize: '14px' }}>payments</span>
+                            {dict.collection.payLabel}
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -1114,10 +1314,35 @@ export default function CollectionClient({
           <h3 style={{ fontSize: '1rem', margin: 0 }}>
             {dict.collection.collections}
             <span style={{ fontSize: '.8rem', fontWeight: 400, color: 'var(--text-light)', marginLeft: '8px' }}>
-              {filteredRows.length} {dict.accounting.of} {allInstalments.length} {dict.collection.instalments}
+              {viewMode === 'instalments'
+                ? `${filteredRows.length} ${dict.accounting.of} ${allInstalments.length} ${dict.collection.instalments}`
+                : `${unifiedGroups.length} ${dict.customers.title.toLowerCase()} (${filteredRows.length} ${dict.collection.instalments})`}
             </span>
           </h3>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'inline-flex', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', overflow: 'hidden' }}>
+              <button
+                type="button"
+                className={`btn btn-sm ${viewMode === 'instalments' ? 'btn-primary' : 'btn-ghost'}`}
+                style={{ borderRadius: 0, padding: '4px 10px', fontSize: '.8rem' }}
+                onClick={() => setViewMode('instalments')}
+                title="View individual instalments"
+              >
+                <span className="material-icons-outlined" style={{ fontSize: '15px' }}>view_list</span>
+                {dict.collection.instalments || 'Instalments'} ({filteredRows.length})
+              </button>
+              <button
+                type="button"
+                className={`btn btn-sm ${viewMode === 'grouped' ? 'btn-primary' : 'btn-ghost'}`}
+                style={{ borderRadius: 0, padding: '4px 10px', fontSize: '.8rem' }}
+                onClick={() => setViewMode('grouped')}
+                title="Group summary by customer"
+              >
+                <span className="material-icons-outlined" style={{ fontSize: '15px' }}>groups</span>
+                {dict.customers.title || 'Customers'} ({unifiedGroups.length})
+              </button>
+            </div>
+
             {gpsTrackingEnabled && (
               <button type="button" className={`btn btn-sm ${isSortedByNearest ? 'btn-primary' : 'btn-ghost'}`} onClick={handleSortByNearest}>
                 <span className="material-icons-outlined" style={{ fontSize: '14px' }}>my_location</span>
@@ -1238,7 +1463,7 @@ export default function CollectionClient({
           </div>
         </div>
 
-        {renderUnifiedRows(paginatedGroups)}
+        {viewMode === 'instalments' ? renderInstalmentRows(paginatedRows) : renderUnifiedRows(paginatedGroups)}
         {renderMobileCards(paginatedGroups)}
 
         {totalPages > 1 && (

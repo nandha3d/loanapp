@@ -392,4 +392,68 @@ assert.equal(Number.isNaN(barHeight(0, 0)), false, 'Zero-state bar height is not
 assert.equal(Number.isFinite(progressPct(0, 0)), true, 'Zero-state progress is finite');
 assert.equal(Number.isFinite(splitProportions(0, 0).total), true, 'Zero-state split total is finite');
 
+// --- Frequency Breakdown (Daily, Weekly, Monthly) ---
+
+type FreqKey = 'daily' | 'weekly' | 'monthly';
+
+function computeTodayFreqBreakdown(instalments: Array<{ due: number; rec: number; freq: string }>) {
+  const breakdown: Record<FreqKey, { expected: number; collected: number; remaining: number; count: number; pct: number }> = {
+    daily: { expected: 0, collected: 0, remaining: 0, count: 0, pct: 0 },
+    weekly: { expected: 0, collected: 0, remaining: 0, count: 0, pct: 0 },
+    monthly: { expected: 0, collected: 0, remaining: 0, count: 0, pct: 0 },
+  };
+  for (const i of instalments) {
+    const f = (i.freq === 'weekly' || i.freq === 'biweekly' ? 'weekly' : i.freq === 'monthly' ? 'monthly' : 'daily') as FreqKey;
+    const due = Number(i.due || 0);
+    const rec = Math.min(Number(i.rec || 0), due);
+    const rem = Math.max(0, due - Number(i.rec || 0));
+    breakdown[f].expected += due;
+    breakdown[f].collected += rec;
+    breakdown[f].remaining += rem;
+    breakdown[f].count += 1;
+  }
+  for (const k of ['daily', 'weekly', 'monthly'] as FreqKey[]) {
+    const b = breakdown[k];
+    b.pct = b.expected > 0 ? Math.min(100, Math.round((b.collected / b.expected) * 100)) : (b.collected > 0 ? 100 : 0);
+  }
+  return breakdown;
+}
+
+const mockTodayInstalments = [
+  { due: 1000, rec: 500, freq: 'daily' },
+  { due: 500, rec: 500, freq: 'daily' },
+  { due: 2000, rec: 1000, freq: 'weekly' },
+  { due: 5000, rec: 0, freq: 'monthly' },
+];
+
+const todayRes = computeTodayFreqBreakdown(mockTodayInstalments);
+assert.equal(todayRes.daily.expected, 1500, 'Daily expected sum = 1500');
+assert.equal(todayRes.daily.collected, 1000, 'Daily collected sum = 1000');
+assert.equal(todayRes.daily.remaining, 500, 'Daily remaining sum = 500');
+assert.equal(todayRes.daily.pct, 67, 'Daily pct = 67%');
+
+assert.equal(todayRes.weekly.expected, 2000, 'Weekly expected sum = 2000');
+assert.equal(todayRes.weekly.collected, 1000, 'Weekly collected sum = 1000');
+assert.equal(todayRes.weekly.remaining, 1000, 'Weekly remaining sum = 1000');
+assert.equal(todayRes.weekly.pct, 50, 'Weekly pct = 50%');
+
+assert.equal(todayRes.monthly.expected, 5000, 'Monthly expected sum = 5000');
+assert.equal(todayRes.monthly.collected, 0, 'Monthly collected sum = 0');
+assert.equal(todayRes.monthly.remaining, 5000, 'Monthly remaining sum = 5000');
+assert.equal(todayRes.monthly.pct, 0, 'Monthly pct = 0%');
+
+// Sum of frequencies equals grand total
+const grandExpected = mockTodayInstalments.reduce((s, i) => s + i.due, 0);
+const sumFreqExpected = todayRes.daily.expected + todayRes.weekly.expected + todayRes.monthly.expected;
+assert.equal(sumFreqExpected, grandExpected, 'Sum of frequency expected equals grand expected (8500)');
+
+const grandCollected = mockTodayInstalments.reduce((s, i) => s + Math.min(i.rec, i.due), 0);
+const sumFreqCollected = todayRes.daily.collected + todayRes.weekly.collected + todayRes.monthly.collected;
+assert.equal(sumFreqCollected, grandCollected, 'Sum of frequency collected equals grand collected (2000)');
+
+const grandRemaining = mockTodayInstalments.reduce((s, i) => s + Math.max(0, i.due - i.rec), 0);
+const sumFreqRemaining = todayRes.daily.remaining + todayRes.weekly.remaining + todayRes.monthly.remaining;
+assert.equal(sumFreqRemaining, grandRemaining, 'Sum of frequency remaining equals grand remaining (6500)');
+
 console.log('Dashboard KPI unit/integration tests passed');
+
