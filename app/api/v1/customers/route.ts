@@ -119,7 +119,12 @@ export async function GET(req: NextRequest) {
       const totals = customerIds.length
         ? await prisma.loan.groupBy({
             by: ['customerId'],
-            where: { customerId: { in: customerIds }, status: 'active' },
+            where: {
+              customerId: { in: customerIds },
+              status: 'active',
+              tenantId: ctx.tenantId,
+              appType: ctx.appType,
+            },
             _sum: { principal: true },
           })
         : [];
@@ -263,7 +268,7 @@ export async function POST(req: NextRequest) {
     }
     if (resolvedRouteId) {
       const route = await prisma.route.findFirst({
-        where: { id: resolvedRouteId, tenantId: ctx.tenantId },
+        where: { id: resolvedRouteId, tenantId: ctx.tenantId, appType: ctx.appType },
         select: { assignedAgentId: true, branchId: true },
       });
       if (!route) return fail('Selected route not found.', 400);

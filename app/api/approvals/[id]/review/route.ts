@@ -1,3 +1,5 @@
+import { LOAN_PRECLOSE_REQUEST } from '@/lib/loanPreclosePolicy';
+import { getDictionary } from '@/lib/i18n';
 import prisma from '@/lib/db';
 import { ADMIN_API_ROLES, isApiError, requireApiContext } from '@/lib/apiAuth';
 import { apiError, apiSuccess } from '@/lib/utils';
@@ -19,6 +21,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       where: { id, tenantId: context.tenantId, appType: context.appType },
     });
     if (!approval || approval.status !== 'pending') return apiError('Request not found or already processed', 404);
+
+    // This frozen legacy handler does not execute loan preclose settlements.
+    if (approval.requestType === LOAN_PRECLOSE_REQUEST) return apiError((await getDictionary(context.tenantId)).precloseRequest.unavailable, 403);
 
     if (action === 'approve' && approval.requestType === 'customer_edit' && approval.entityType === 'customer') {
       const customer = await prisma.customer.findFirst({

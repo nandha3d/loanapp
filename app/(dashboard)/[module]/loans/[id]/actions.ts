@@ -271,3 +271,17 @@ export async function precloseLoanAdmin(formData: FormData) {
     return { success: false, error: err.message || 'Preclose failed' };
   }
 }
+
+export async function requestLoanPreclose(formData: FormData) {
+  try {
+    const apiContext = await getApiRequestContext();
+    const res = await apiFetch<any>('/approvals', {
+      ...apiContext, method: 'POST',
+      body: JSON.stringify({ requestType: 'loan_preclose', entityType: 'loan', entityId: formData.get('loanId'),
+        requestedChanges: { amount: Number(formData.get('amount')), paymentMode: formData.get('paymentMode'), remarks: formData.get('remarks') || '' },
+        reason: formData.get('reason') }),
+    });
+    if (res.error) return { success: false, error: res.error };
+    return { success: true };
+  } catch { return { success: false, error: null }; }
+}

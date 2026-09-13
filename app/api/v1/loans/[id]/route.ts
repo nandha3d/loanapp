@@ -166,8 +166,19 @@ export async function PATCH(
   const ctx = auth.context;
   const { id } = await params;
 
+  const patchWhere: any = {
+    id,
+    tenantId: ctx.tenantId,
+    appType: ctx.appType,
+  };
+  if (ctx.role === 'agent') {
+    patchWhere.customer = buildAgentCustomerAccessWhere({ userId: ctx.userId });
+  } else {
+    Object.assign(patchWhere, scopedBranchWhere(ctx));
+  }
+
   const loan = await prisma.loan.findFirst({
-    where: { id, tenantId: ctx.tenantId, appType: ctx.appType, ...scopedBranchWhere(ctx) },
+    where: patchWhere,
   });
   if (!loan) return fail('Loan not found', 404);
 
@@ -267,7 +278,7 @@ export async function PUT(
 
   const { id: loanId } = await params;
   const loan = await prisma.loan.findFirst({
-    where: { id: loanId, tenantId: ctx.tenantId, appType: ctx.appType },
+    where: { id: loanId, tenantId: ctx.tenantId, appType: ctx.appType, ...scopedBranchWhere(ctx) },
     include: { guarantor: true, customer: { select: { phone: true } }, goldCollateral: true }
   });
 

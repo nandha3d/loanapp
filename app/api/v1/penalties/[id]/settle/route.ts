@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
+import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 
 export async function PATCH(
   req: NextRequest,
@@ -35,6 +36,23 @@ export async function PATCH(
       penalty.loan.appType !== ctx.appType
     ) {
       return fail('Penalty not found', 404);
+    }
+
+    if (ctx.role === 'agent') {
+      const hasAccess = await prisma.loan.findFirst({
+        where: {
+          id: penalty.loanId,
+          tenantId: ctx.tenantId,
+          appType: ctx.appType,
+          customer: buildAgentCustomerAccessWhere({ userId: ctx.userId }),
+        },
+        select: { id: true },
+      });
+      if (!hasAccess) return fail('Penalty not found', 404);
+    } else if (ctx.branchId && ctx.role === 'admin') {
+      if (penalty.loan.branchId !== ctx.branchId) {
+        return fail('Penalty not found', 404);
+      }
     }
 
     const data: any = { status: action === 'waive' ? 'waived' : 'settled' };

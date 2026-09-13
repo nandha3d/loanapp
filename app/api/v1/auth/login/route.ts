@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { compare } from 'bcryptjs';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
@@ -12,33 +12,64 @@ import { extractTenantSlugFromHost } from '@/lib/tenant';
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json().catch(() => null)) as
-      | { username?: string; password?: string }
+      | { username?: string; password?: string; tenantSlug?: string }
       | null;
     if (!body?.username || !body?.password) {
       return fail('username and password are required', 400);
     }
     const username = String(body.username).trim().toLowerCase();
-
-    const slug =
-      req.headers.get('x-tenant-slug') ||
+    const explicitSlug = (body.tenantSlug ? String(body.tenantSlug).trim().toLowerCase() : null) ||
+      req.headers.get('x-tenant-slug')?.trim().toLowerCase() ||
       extractTenantSlugFromHost(req.headers.get('host'));
+
     let tenantId: string | null = null;
-    if (slug) {
+    if (explicitSlug) {
       const tenant = await prisma.tenant.findUnique({
-        where: { slug },
+        where: { slug: explicitSlug },
         select: { id: true, status: true },
       });
-      if (tenant && tenant.status === 'active') tenantId = tenant.id;
+      if (!tenant || tenant.status !== 'active') {
+        return fail('Invalid credentials', 401);
+      }
+      tenantId = tenant.id;
     }
 
-    const user = await prisma.user.findFirst({
-      where: {
-        OR: [{ username }, { phone: username }, { email: username }],
-        status: 'active',
-        ...(tenantId ? { tenantId } : {}),
-      },
-      include: { tenant: { select: { slug: true, status: true } } },
-    });
+    let user: any = null;
+    if (tenantId) {
+      user = await prisma.user.findFirst({
+        where: {
+          OR: [{ username }, { phone: username }, { email: username }],
+          status: 'active',
+          tenantId,
+        },
+        include: { tenant: { select: { slug: true, status: true } } },
+      });
+    } else {
+      // If tenant was not specified, verify whether accounts exist across distinct tenants
+      const matchingUsers = await prisma.user.findMany({
+        where: {
+          OR: [{ username }, { phone: username }, { email: username }],
+          status: 'active',
+          tenant: { status: 'active' },
+        },
+        include: { tenant: { select: { slug: true, status: true } } },
+        take: 5,
+      });
+
+      const distinctTenantIds = new Set(matchingUsers.map((u) => u.tenantId));
+      if (distinctTenantIds.size > 1) {
+        return NextResponse.json(
+          {
+            data: null,
+            error: 'Multiple organizations found for this account. Please specify your organization ID or tenant slug.',
+            code: 'TENANT_REQUIRED',
+            pagination: null,
+          },
+          { status: 409 },
+        );
+      }
+      user = matchingUsers[0] ?? null;
+    }
     if (!user || user.tenant.status !== 'active') {
       return fail('Invalid credentials', 401);
     }

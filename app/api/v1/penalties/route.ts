@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
   const ctx = auth.context;
-  if (!['admin', 'superadmin', 'developer', 'agent'].includes(ctx.role)) {
+  if (!['admin', 'superadmin', 'developer'].includes(ctx.role)) {
     return fail('Forbidden', 403);
   }
 
@@ -60,7 +60,12 @@ export async function POST(req: NextRequest) {
     }
 
     const loan = await prisma.loan.findFirst({
-      where: { id: loanId, tenantId: ctx.tenantId },
+      where: {
+        id: loanId,
+        tenantId: ctx.tenantId,
+        appType: ctx.appType,
+        ...scopedBranchWhere(ctx),
+      },
     });
     if (!loan) return fail('Loan not found', 404);
 

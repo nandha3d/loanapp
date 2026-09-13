@@ -1,3 +1,5 @@
+import { LOAN_PRECLOSE_REQUEST } from '@/lib/loanPreclosePolicy';
+import { precloseApprovalVisibility } from '@/lib/loanPrecloseRequests';
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { getDefaultTenantId, getBranding, getUserAppType, getSetting } from '@/lib/tenant';
@@ -114,7 +116,10 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
           tenantId,
           appType,
           status: 'pending',
-          ...(branchId ? { requestedBy: { branchId } } : {}),
+          ...(branchId && appType === 'microlending' ? { OR: [
+            { requestType: { not: LOAN_PRECLOSE_REQUEST }, requestedBy: { branchId: branchId } },
+            await precloseApprovalVisibility(tenantId, appType, branchId),
+          ] } : (branchId ? { requestedBy: { branchId: branchId } } : {})),
         },
       }),
       prisma.loan.count({

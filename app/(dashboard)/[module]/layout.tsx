@@ -1,3 +1,5 @@
+import { LOAN_PRECLOSE_REQUEST } from '@/lib/loanPreclosePolicy';
+import { precloseApprovalVisibility } from '@/lib/loanPrecloseRequests';
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { notFound, redirect } from 'next/navigation';
@@ -162,7 +164,10 @@ export default async function DashboardLayout({
           tenantId,
           appType: requestedModule,
           status: 'pending',
-          ...(scopeBranchId ? { requestedBy: branchScope } : {}),
+          ...(scopeBranchId && requestedModule === 'microlending' ? { OR: [
+            { requestType: { not: LOAN_PRECLOSE_REQUEST }, requestedBy: { branchId: scopeBranchId } },
+            await precloseApprovalVisibility(tenantId, requestedModule, scopeBranchId),
+          ] } : (scopeBranchId ? { requestedBy: { branchId: scopeBranchId } } : {})),
         },
       }),
     ]);

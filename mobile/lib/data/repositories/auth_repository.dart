@@ -17,8 +17,13 @@ class AuthRepository {
   Future<User?> login({
     required String username,
     required String password,
+    String? tenantSlug,
   }) async {
-    final result = await _service.login(username: username, password: password);
+    final result = await _service.login(
+      username: username,
+      password: password,
+      tenantSlug: tenantSlug,
+    );
     if (result.requiresTotp) {
       await _storage.savePendingTotpUser(username);
       return null;

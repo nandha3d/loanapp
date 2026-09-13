@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
-import { requireApiContext, ADMIN_API_ROLES } from '@/lib/apiAuth';
-import { apiError, apiSuccess } from '@/lib/utils';
+import { resolveActor } from '@/lib/api/dualAuth';
+import { ok, fail } from '@/lib/api/v1-envelope';
 import { getReportDefinitionForAppType } from '@/lib/reports/catalog';
 import type { AppType } from '@/lib/appConfig';
 
@@ -9,15 +9,18 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
-    const authResult = await requireApiContext(ADMIN_API_ROLES);
-    if ('response' in authResult && authResult.response) return authResult.response;
-    const context = 'context' in authResult ? authResult.context : (authResult as any);
+    const context = await resolveActor(req);
+    if (!context) return fail('Unauthorized', 401);
+
+    if (context.role === 'agent') {
+      return fail('Forbidden', 403);
+    }
 
     const { slug } = await params;
     const definition = getReportDefinitionForAppType(context.appType as AppType, slug);
 
     if (!definition) {
-      return apiError(`Report builder for slug '${slug}' not found`, 404);
+      return fail(`Report builder for slug '${slug}' not found`, 404);
     }
 
     const { searchParams } = new URL(req.url);
@@ -61,8 +64,8 @@ export async function GET(
       groupId,
     });
 
-    return apiSuccess(payload);
+    return ok(payload);
   } catch (error: any) {
-    return apiError(error.message, 500);
+    return fail(error.message, 500);
   }
 }

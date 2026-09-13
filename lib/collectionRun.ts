@@ -182,10 +182,15 @@ export async function openRun(
     return existing;
   }
 
+  const route = await prisma.route.findFirst({
+    where: { id: input.routeId, tenantId: actor.tenantId, appType: actor.appType },
+    select: { id: true, branchId: true },
+  });
+
   return prisma.collectionRun.create({
     data: {
       tenantId: actor.tenantId,
-      branchId: actor.branchId,
+      branchId: route?.branchId ?? actor.branchId ?? null,
       appType: actor.appType,
       agentId: actor.agentId,
       routeId: input.routeId,

@@ -1539,6 +1539,12 @@ export default function SettingsClient({
           </div>
         </div>
         <form onSubmit={handleFeaturesSubmit}>
+          {effAppType === 'microlending' && (
+            <label style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+              <input type="checkbox" name="agent_preclose_requests_enabled" value="true" defaultChecked={settings.agent_preclose_requests_enabled === '1'} />
+              <span><strong>{dict.precloseRequest.feature}</strong><span style={{ display: 'block' }}>{dict.precloseRequest.hint}</span></span>
+            </label>
+          )}
           {/* Every flag here is registered in FEATURE_FLAG_KEYS (lib/features.ts);
               the save action writes exactly that list, so a checkbox without a
               registered key would silently do nothing. */}

@@ -1,4 +1,23 @@
 export const en = {
+  precloseRequest: {
+    "title": "Request loan preclose",
+    "feature": "Agent preclose requests (Micro Lending)",
+    "hint": "Send the full settlement amount to an admin or superadmin for approval. The loan closes only when approved.",
+    "reviewHint": "Approving this request records the settlement and closes the loan.",
+    "amount": "Settlement amount",
+    "submit": "Send request",
+    "pending": "Preclose request pending approval",
+    "approved": "Preclose approved. The loan is closed.",
+    "rejected": "Preclose request rejected.",
+    "unavailable": "Preclose requests are not available for this role or module, or the feature is disabled.",
+    "invalid": "Please enter valid request details and a reason.",
+    "notFound": "Loan or pending request not found.",
+    "ineligible": "Only active or overdue instalment loans can be requested for preclose.",
+    "amountChanged": "The settlement must match the current outstanding balance. Refresh the loan and submit a new request; reject any stale pending request first.",
+    "loanCode": "Loan number",
+    "paymentMode": "Payment mode",
+    "remarks": "Remarks"
+},
   dashboard: {
     title: 'Dashboard',
     expectedCollection: "Today's Expected Collection",

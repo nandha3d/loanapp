@@ -1,3 +1,5 @@
+import { LOAN_PRECLOSE_REQUEST } from '@/lib/loanPreclosePolicy';
+import { precloseApprovalVisibility } from '@/lib/loanPrecloseRequests';
 import prisma from '@/lib/db';
 import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import ApprovalsClient from './ApprovalsClient';
@@ -30,7 +32,11 @@ export default async function ApprovalsPage() {
   if (userRole === 'agent') {
     where.requestedById = userId;
   } else if (activeBranchId) {
-    where.requestedBy = branchScope;
+    if (appType !== 'microlending') where.requestedBy = branchScope;
+    else where.OR = [
+      { requestType: { not: LOAN_PRECLOSE_REQUEST }, requestedBy: branchScope },
+      await precloseApprovalVisibility(tenantId, appType, activeBranchId),
+    ];
   }
 
   const requests = await prisma.approvalRequest.findMany({ 

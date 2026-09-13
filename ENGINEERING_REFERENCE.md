@@ -356,6 +356,14 @@ Order of operations, all inside one Serializable transaction:
 - **MONEY-12** — Schedules MUST NOT be modified once `hasFinancialActivity(loanId)` is true.
 - **MONEY-13** — Collection writes are idempotent through `buildCollectionIdempotencyKey()` — `(tenantId, agentId, instalmentId, amount, mode, date)`. A retried mobile submission must not double-post. Never bypass it.
 
+#### Micro Lending agent preclose requests
+
+- **PRECLOSE-1** — `agent_preclose_requests_enabled` is a per-tenant opt-in, default off. Only `microlending` agents may submit `loan_preclose` approval requests, and only for linked customers' active/overdue, non-interest-only loans. The direct preclose endpoint continues to reject agents.
+- **PRECLOSE-2** — A request stores the full current outstanding amount (`totalPayable - totalCollected`, rounded to paise), payment mode, remarks and reason. Filing or rejecting it never records a payment or closes the loan. An admin/superadmin (or existing developer reviewer) approves the specific settlement; it is not a reusable permission grant.
+- **PRECLOSE-3** — Review visibility follows the subject loan's own branch, never the requester's branch. Review rechecks tenant, module, active branch, loan status and current balance. A stale request must be rejected and resubmitted; approval must not silently substitute another amount.
+- **PRECLOSE-4** — Request creation serializes on the loan row; review atomically claims a pending request and performs the existing settlement and audit within one transaction. Direct Micro Lending preclose and approval execution lock the same loan before reading unpaid dues. Notifications run after commit. No request may settle twice.
+- **PRECLOSE-5** — `lib/loanPreclose.ts` holds the existing settlement implementation shared by direct admin preclose and approved requests. Its allocation/accounting behavior is preserved; no interest-only principal servicing or other module gains an agent preclose path. The frozen legacy `/api/approvals` handlers do not expose or process this new request type.
+
 ### 10.4 Penalties — `lib/penalties.ts`
 
 - **MONEY-14** — Accrual = `Σ max(0, daysOverdue − grace) × penaltyPerDay`, capped by `maxCap` when non-zero. Per-tenant settings: `default_penalty_per_day`, `penalty_grace_period`, `penalty_max_cap`. **This describes `calculatePenaltyAccrual` (the cron) only.** A second accrual, `ensurePendingPenaltiesForMissedLoans`, runs on every dashboard load, the penalties page and `GET /api/penalties`, and computes `count(missed instalments) × Loan.penaltyRate` — no grace, no cap — writing the same `Penalty.grossPenalty` rows, where the larger figure wins. Opening a page can therefore push a borrower's penalty past the tenant's configured cap. Live divergence, documented in `docs/CALCULATION_LOGIC.md` §14.1; one of the two has to move.

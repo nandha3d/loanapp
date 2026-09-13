@@ -1,3 +1,4 @@
+import { AGENT_PRECLOSE_FLAG } from './loanPreclosePolicy';
 import { getSetting } from '@/lib/tenant';
 
 /**
@@ -23,7 +24,7 @@ export const BULLET_TERM_FLAG = 'bullet_term_enabled';
  * unreachable from the UI and can only be set by scripts/set-tenant-flag.js, so
  * add new flags here as they land.
  */
-export const FEATURE_FLAG_KEYS: readonly string[] = [INTEREST_ONLY_FLAG, BULLET_TERM_FLAG];
+export const FEATURE_FLAG_KEYS: readonly string[] = [INTEREST_ONLY_FLAG, BULLET_TERM_FLAG, AGENT_PRECLOSE_FLAG];
 
 /**
  * Interest-Only (Check/Gold Base) repayment model: monthly dues are interest only

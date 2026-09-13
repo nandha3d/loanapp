@@ -123,6 +123,8 @@ final _allModules = <_ModuleItem>[
     label: 'Penalties',
     subtitle: 'Manage & settle overdue fines',
     route: '/penalties',
+    moduleKey: 'penalties',
+    minRole: UserRole.admin,
     color: AppColors.danger,
     bgColor: AppColors.dangerBg,
   ),
@@ -269,7 +271,7 @@ class MoreScreen extends ConsumerWidget {
     // Simple mode (U4): field agents see only daily-work items. Admin roles
     // keep the full grid regardless of the toggle - never hides capability.
     // '/customers' counts as daily work — it moved here from the bottom nav.
-    const dailyWorkRoutes = {'/customers', '/penalties', '/wallet', '/settings'};
+    const dailyWorkRoutes = {'/customers', '/wallet', '/settings'};
     final visible = user == null
         ? <_ModuleItem>[]
         : _allModules

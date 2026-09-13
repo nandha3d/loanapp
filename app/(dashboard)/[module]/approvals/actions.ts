@@ -1,5 +1,8 @@
 'use server';
 
+import { LOAN_PRECLOSE_REQUEST } from '@/lib/loanPreclosePolicy';
+import { reviewLoanPrecloseRequest } from '@/lib/loanPrecloseRequests';
+
 import prisma from '@/lib/db';
 import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { revalidatePath } from 'next/cache';
@@ -44,6 +47,16 @@ export async function reviewRequest(formData: FormData) {
   const reviewNotes = formData.get('reviewNotes') as string;
 
   try {
+    const precloseRequest = await prisma.approvalRequest.findFirst({
+      where: { id: requestId, tenantId, appType, requestType: LOAN_PRECLOSE_REQUEST }, select: { id: true },
+    });
+    if (precloseRequest) {
+      const result = await reviewLoanPrecloseRequest({ tenantId, appType, userId, role: userRole,
+        branchId: await getActiveBranchId() }, requestId, action, reviewNotes || '');
+      revalidatePath(modulePath(appType, '/approvals'));
+      revalidatePath(modulePath(appType, '/loans'), 'layout');
+      return result;
+    }
     const result = await prisma.$transaction(async (tx) => {
       // 1. Atomically claim the request by updating status to approved/rejected
       const updateResult = await tx.approvalRequest.updateMany({

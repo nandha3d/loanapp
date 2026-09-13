@@ -97,6 +97,29 @@ type BrowserGpsCapture = {
   timestamp?: string;
 };
 
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+function getIstDateStr(dateInput: string | Date | null | undefined): string {
+  if (!dateInput) return '';
+  const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  if (isNaN(d.getTime())) return '';
+  const ist = new Date(d.getTime() + IST_OFFSET_MS);
+  const y = ist.getUTCFullYear();
+  const m = String(ist.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(ist.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function getLocalDateStr(dateInput: string | Date | null | undefined): string {
+  if (!dateInput) return '';
+  const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  if (isNaN(d.getTime())) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 // Single source of truth for an instalment's *displayed* status. The DB `status`
 // column lags reality — an instalment stays 'upcoming' until a nightly batch job
 // flips it to 'missed' — so we derive from money + due date instead. Crucially, an
@@ -104,12 +127,13 @@ type BrowserGpsCapture = {
 // as overdue/missed.
 function deriveInstalmentStatus(
   inst: { dueDate: string; receivedAmount: number; outstandingAmount: number; daysOverdue: number },
-  todayISO: string,
+  todayStr: string,
 ): { key: string; label: string } {
   if (inst.outstandingAmount <= 0 && inst.receivedAmount > 0) return { key: 'paid', label: 'Paid' };
-  if (inst.receivedAmount > 0) return { key: 'partial', label: 'Partial' };
+  if (inst.receivedAmount > 0 && inst.daysOverdue === 0) return { key: 'partial', label: 'Partial' };
   if (inst.daysOverdue > 0) return { key: 'missed', label: 'Missed' };
-  if (inst.dueDate.slice(0, 10) > todayISO) return { key: 'upcoming', label: 'Upcoming' };
+  const dueIst = getIstDateStr(inst.dueDate);
+  if (dueIst > todayStr) return { key: 'upcoming', label: 'Upcoming' };
   return { key: 'due today', label: 'Due Today' };
 }
 
@@ -167,15 +191,15 @@ export default function CollectionClient({
   const [customerFilter, setCustomerFilter] = useState('');
   const [routeFilter, setRouteFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'today' | 'overdue'>(
-    () => {
-      const tab = searchParams.get('tab');
-      if (tab === 'overdue') return 'overdue';
-      if (tab === 'all') return 'all';
-      // Default to today's worklist — the agent's day-to-day view.
-      return 'today';
-    },
-  );
+  const initialTab: 'all' | 'today' | 'overdue' = useMemo(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'overdue') return 'overdue';
+    if (tab === 'all') return 'all';
+    // Default to today's worklist — the agent's day-to-day view.
+    return 'today';
+  }, [searchParams]);
+
+  const [typeFilter, setTypeFilter] = useState<'all' | 'today' | 'overdue'>(initialTab);
   const [frequencyFilter, setFrequencyFilter] = useState('');
   const [sessionFilter, setSessionFilter] = useState('');
   const [overdueMinDays, setOverdueMinDays] = useState('');
@@ -199,7 +223,7 @@ export default function CollectionClient({
 
   const isAdmin = agentRole === 'admin' || agentRole === 'superadmin';
   const modalRef = useRef<HTMLDivElement>(null);
-  const todayISO = new Date().toISOString().slice(0, 10);
+  const todayISO = useMemo(() => getIstDateStr(new Date()), []);
 
   // Browser-agent tracking: agents using the mobile-browser view (not the APK)
   // stream location pings while this page is open, so they show up on the
@@ -300,30 +324,76 @@ export default function CollectionClient({
 
   const filteredRows = useMemo(() => {
     return allInstalments.filter((row) => {
-      // Type filter
-      if (typeFilter === 'today' && row.source !== 'today') return false;
-      if (typeFilter === 'overdue' && row.source !== 'overdue') return false;
+      // Mutual exclusion harmonisation:
+      // If user specifically selects statusFilter === 'missed' or enters overdueMinDays > 0,
+      // do not drop overdue rows even if typeFilter was left on 'today'.
+      // If user specifically selects statusFilter === 'due today', do not drop today rows even if typeFilter was 'overdue'.
+      // If user selects a dateFilter that differs from today, do not restrict to today's source.
+      const isOverdueTargeted = statusFilter === 'missed' || (overdueMinDays !== '' && Number(overdueMinDays) > 0);
+      const isTodayTargeted = statusFilter === 'due today';
+      const isDateSpecific = Boolean(dateFilter && dateFilter !== todayISO);
 
-      const dueDate = new Date(row.dueDate).toISOString().slice(0, 10);
-      const matchesDate = !dateFilter || dueDate === dateFilter;
+      if (typeFilter === 'today' && !isOverdueTargeted && !isDateSpecific && row.source !== 'today') return false;
+      if (typeFilter === 'overdue' && !isTodayTargeted && !isDateSpecific && row.source !== 'overdue') return false;
+
+      // Due date comparison: match against IST date, local date, UTC ISO slice, or raw date string
+      const istDate = getIstDateStr(row.dueDate);
+      const localDate = getLocalDateStr(row.dueDate);
+      const utcDate = new Date(row.dueDate).toISOString().slice(0, 10);
+      const rawDate = typeof row.dueDate === 'string' ? row.dueDate.slice(0, 10) : '';
+      const matchesDate = !dateFilter || istDate === dateFilter || localDate === dateFilter || utcDate === dateFilter || rawDate === dateFilter;
+
+      // Customer / Loan search: search name, customerCode, phone, loanCode, and route name null-safely
       const search = customerFilter.trim().toLowerCase();
+      const custName = (row.loan?.customer?.name || '').toLowerCase();
+      const custCode = (row.loan?.customer?.customerCode || '').toLowerCase();
+      const custPhone = (row.loan?.customer?.phone || '').toLowerCase();
+      const loanCode = (row.loan?.loanCode || '').toLowerCase();
+      const routeName = (row.loan?.customer?.route?.name || '').toLowerCase();
       const matchesCustomer = !search
-        || row.loan.customer.name.toLowerCase().includes(search)
-        || row.loan.customer.customerCode.toLowerCase().includes(search)
-        || row.loan.loanCode.toLowerCase().includes(search);
-      const matchesRoute = !routeFilter || row.loan.customer.route?.id === routeFilter;
-      const matchesStatus = !statusFilter || deriveInstalmentStatus(row, todayISO).key === statusFilter;
-      const matchesFrequency = !frequencyFilter || row.loan.frequency === frequencyFilter;
-      const preferredSession = (row.loan.customer.preferredCollectionTime || '').toLowerCase();
+        || custName.includes(search)
+        || custCode.includes(search)
+        || custPhone.includes(search)
+        || loanCode.includes(search)
+        || routeName.includes(search);
+
+      // Route filter: match route ID, customer routeId, or route name
+      const custRouteId = row.loan?.customer?.route?.id || (row.loan?.customer as any)?.routeId;
+      const matchesRoute = !routeFilter || custRouteId === routeFilter || row.loan?.customer?.route?.name === routeFilter;
+
+      // Status filter: handle both semantic meanings and status keys
+      const statusInfo = deriveInstalmentStatus(row, todayISO);
+      let matchesStatus = true;
+      if (statusFilter) {
+        if (statusFilter === 'missed') {
+          matchesStatus = statusInfo.key === 'missed' || (row.daysOverdue > 0 && row.outstandingAmount > 0) || (row.source === 'overdue' && row.outstandingAmount > 0);
+        } else if (statusFilter === 'due today') {
+          matchesStatus = statusInfo.key === 'due today' || (row.source === 'today' && row.daysOverdue === 0 && row.outstandingAmount > 0);
+        } else if (statusFilter === 'partial') {
+          matchesStatus = statusInfo.key === 'partial' || (row.receivedAmount > 0 && row.outstandingAmount > 0);
+        } else if (statusFilter === 'paid') {
+          matchesStatus = statusInfo.key === 'paid' || (row.outstandingAmount <= 0 && row.receivedAmount > 0) || row.status === 'paid';
+        } else if (statusFilter === 'upcoming') {
+          matchesStatus = statusInfo.key === 'upcoming' || istDate > todayISO;
+        } else {
+          matchesStatus = statusInfo.key === statusFilter;
+        }
+      }
+
+      // Frequency filter: case-insensitive and null-safe
+      const matchesFrequency = !frequencyFilter || (row.loan?.frequency || '').toLowerCase() === frequencyFilter.toLowerCase();
+
+      // Session filter: trim and support 'anytime' and 'other'
+      const preferredSession = (row.loan?.customer?.preferredCollectionTime || '').toLowerCase().trim();
       const knownSessions = ['morning', 'afternoon', 'evening', 'night'];
       const matchesSession = !sessionFilter
-        || (sessionFilter === 'anytime' && !preferredSession)
-        || (sessionFilter === 'other' && !!preferredSession && !knownSessions.includes(preferredSession))
+        || (sessionFilter === 'anytime' && (!preferredSession || preferredSession === 'anytime'))
+        || (sessionFilter === 'other' && !!preferredSession && !knownSessions.includes(preferredSession) && preferredSession !== 'anytime')
         || preferredSession === sessionFilter;
 
       // Overdue days range filter
-      const minD = overdueMinDays ? Number(overdueMinDays) : 0;
-      const maxD = overdueMaxDays ? Number(overdueMaxDays) : Infinity;
+      const minD = overdueMinDays !== '' && !isNaN(Number(overdueMinDays)) ? Number(overdueMinDays) : 0;
+      const maxD = overdueMaxDays !== '' && !isNaN(Number(overdueMaxDays)) ? Number(overdueMaxDays) : Infinity;
       const matchesOverdueDays = row.daysOverdue >= minD && row.daysOverdue <= maxD;
 
       return matchesDate && matchesCustomer && matchesRoute && matchesStatus && matchesFrequency && matchesSession && matchesOverdueDays;
@@ -351,7 +421,7 @@ export default function CollectionClient({
     const dueSet = new Set<string>();
     const doneSet = new Set<string>();
     for (const row of todayInstalments) {
-      if (row.dueDate.slice(0, 10) !== todayISO) continue;
+      if (getIstDateStr(row.dueDate) !== todayISO && row.dueDate.slice(0, 10) !== todayISO) continue;
       const cid = row.loan.customer.id;
       dueSet.add(cid);
       if (row.outstandingAmount <= 0) doneSet.add(cid);
@@ -442,7 +512,7 @@ export default function CollectionClient({
     const rows = Array.from(map.values());
     const totalOutstanding = rows.reduce((s, r) => s + r.outstandingAmount, 0);
     const todayDue = rows
-      .filter((r) => r.dueDate.slice(0, 10) === todayISO)
+      .filter((r) => getIstDateStr(r.dueDate) === todayISO || r.dueDate.slice(0, 10) === todayISO)
       .reduce((s, r) => s + r.outstandingAmount, 0);
     return { rows, totalOutstanding, todayDue, overdue: Math.max(0, totalOutstanding - todayDue) };
   };
@@ -582,7 +652,7 @@ export default function CollectionClient({
     setStatusFilter('');
     setFrequencyFilter('');
     setSessionFilter('');
-    setTypeFilter('all');
+    setTypeFilter(initialTab);
     setOverdueMinDays('');
     setOverdueMaxDays('');
   };
@@ -591,7 +661,17 @@ export default function CollectionClient({
     setPage(1);
   }, [typeFilter, customerFilter, dateFilter, routeFilter, statusFilter, frequencyFilter, sessionFilter, overdueMinDays, overdueMaxDays]);
 
-  const hasActiveFilters = dateFilter || customerFilter || routeFilter || statusFilter || frequencyFilter || sessionFilter || typeFilter !== 'all' || overdueMinDays || overdueMaxDays;
+  const hasActiveFilters = Boolean(
+    dateFilter ||
+    customerFilter ||
+    routeFilter ||
+    statusFilter ||
+    frequencyFilter ||
+    sessionFilter ||
+    typeFilter !== initialTab ||
+    overdueMinDays ||
+    overdueMaxDays
+  );
 
   const pageSize = 20;
   const totalPages = Math.max(1, Math.ceil(unifiedGroups.length / pageSize));
@@ -608,7 +688,7 @@ export default function CollectionClient({
     return {
       ...group,
       earliestDueDate: group.instalments.map(i => i.dueDate).sort()[0],
-      dueToday: group.instalments.filter(i => i.dueDate.slice(0, 10) === todayISO).reduce((s, i) => s + i.dueAmount, 0),
+      dueToday: group.instalments.filter(i => getIstDateStr(i.dueDate) === todayISO || i.dueDate.slice(0, 10) === todayISO).reduce((s, i) => s + i.dueAmount, 0),
       receivedAmount: group.instalments.reduce((s, i) => s + i.receivedAmount, 0),
       totalOutstanding: group.instalments.reduce((s, i) => s + i.outstandingAmount, 0),
       totalOverdue: group.instalments.filter(i => i.daysOverdue > 0).reduce((s, i) => s + i.overdueAmount, 0),
@@ -622,7 +702,7 @@ export default function CollectionClient({
   // and each expanded per-loan sub-row.
   const metricsFor = (insts: UnifiedGroup['instalments']) => {
     const earliestDateIso = insts.map(i => i.dueDate).sort()[0] || '';
-    const dueTodayAmount = insts.filter(i => i.dueDate.slice(0, 10) === todayISO).reduce((s, i) => s + i.dueAmount, 0);
+    const dueTodayAmount = insts.filter(i => getIstDateStr(i.dueDate) === todayISO || i.dueDate.slice(0, 10) === todayISO).reduce((s, i) => s + i.dueAmount, 0);
     const receivedAmount = insts.reduce((s, i) => s + i.receivedAmount, 0);
     const uniqueLoans = Array.from(new Map(insts.map(i => [i.loan.id, i.loan])).values());
     const totalLoanPayable = uniqueLoans.reduce((s, l) => s + l.totalPayable, 0);
@@ -1064,7 +1144,18 @@ export default function CollectionClient({
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">{dict.collection.dueDate}</label>
-            <input type="date" className="form-control" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} />
+            <input
+              type="date"
+              className="form-control"
+              value={dateFilter}
+              onChange={(event) => {
+                const val = event.target.value;
+                setDateFilter(val);
+                if (val && val !== todayISO && typeFilter === 'today') {
+                  setTypeFilter('all');
+                }
+              }}
+            />
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">{dict.collection.customerLoan}</label>
@@ -1079,7 +1170,21 @@ export default function CollectionClient({
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">{dict.collection.statusLabel}</label>
-            <select className="form-control" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+            <select
+              className="form-control"
+              value={statusFilter}
+              onChange={(event) => {
+                const val = event.target.value;
+                setStatusFilter(val);
+                if (val === 'missed' && typeFilter === 'today') {
+                  setTypeFilter('overdue');
+                } else if (val === 'due today' && typeFilter === 'overdue') {
+                  setTypeFilter('today');
+                } else if (val === 'upcoming' && typeFilter !== 'all') {
+                  setTypeFilter('all');
+                }
+              }}
+            >
               <option value="">{dict.collection.all}</option>
               <option value="due today">{dict.collection.dueTodayLabel}</option>
               <option value="missed">{dict.collection.overdueLabel} / {dict.collection.missed}</option>
@@ -1112,7 +1217,20 @@ export default function CollectionClient({
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">{dict.collection.overdueMinDays}</label>
-            <input type="number" className="form-control" value={overdueMinDays} onChange={(event) => setOverdueMinDays(event.target.value)} placeholder="0" min={0} />
+            <input
+              type="number"
+              className="form-control"
+              value={overdueMinDays}
+              onChange={(event) => {
+                const val = event.target.value;
+                setOverdueMinDays(val);
+                if (val !== '' && Number(val) > 0 && typeFilter === 'today') {
+                  setTypeFilter('overdue');
+                }
+              }}
+              placeholder="0"
+              min={0}
+            />
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">{dict.collection.overdueMaxDays}</label>

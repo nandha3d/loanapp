@@ -1,3 +1,4 @@
+import { AGENT_PRECLOSE_FLAG, LOAN_PRECLOSE_REQUEST, canRequestLoanPreclose, isPrecloseRequestLoan } from '@/lib/loanPreclosePolicy';
 import { serverFetch } from '@/lib/api-client/server';
 import prisma from '@/lib/db';
 import { getDefaultTenantId, getSetting, getTenantName } from '@/lib/tenant';
@@ -135,6 +136,14 @@ export default async function LoanDetailPage({
     };
   }
 
+  const agentPrecloseEnabled = loan.appType === 'microlending' && role === 'agent' &&
+    canRequestLoanPreclose(role, loan.appType, await getSetting(tenantId, AGENT_PRECLOSE_FLAG, '0') === '1') && isPrecloseRequestLoan(loan);
+  const precloseRequest = agentPrecloseEnabled && userId ? await prisma.approvalRequest.findFirst({
+    where: { tenantId, appType: loan.appType, entityType: 'loan', entityId: loan.id,
+      requestType: LOAN_PRECLOSE_REQUEST, requestedById: userId },
+    orderBy: { createdAt: 'desc' }, select: { status: true, reviewNotes: true },
+  }) : null;
+
   return (
     <>
     <LoanDetailClient
@@ -147,6 +156,8 @@ export default async function LoanDetailPage({
       upiId={upiId}
       payeeName={tenantName}
       goldServicing={goldServicing}
+      agentPrecloseEnabled={agentPrecloseEnabled}
+      precloseRequest={precloseRequest}
     />
     {hp && (
       <HpCustomer360

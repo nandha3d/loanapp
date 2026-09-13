@@ -8,6 +8,10 @@ export async function GET(req: NextRequest) {
   if (auth.response) return auth.response;
   const ctx = auth.context;
 
+  if (ctx.role === 'agent') {
+    return fail('Forbidden', 403);
+  }
+
   const { searchParams } = new URL(req.url);
   const dateParam = searchParams.get('date');
   const date = dateParam ? new Date(dateParam) : new Date();

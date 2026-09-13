@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     }
 
     const branch = await prisma.branch.findFirst({
-      where: { id: branchId, tenantId: ctx.tenantId },
+      where: { id: branchId, tenantId: ctx.tenantId, ...scopedBranchWhere(ctx) },
       select: { id: true },
     });
     if (!branch) return fail('Branch not found', 404);

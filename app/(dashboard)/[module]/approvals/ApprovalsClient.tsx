@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Modal from '@/components/Modal';
 import { reviewRequest, reviewPendingLoan, approveCustomerCreation, rejectCustomerCreation, approveVehicleCreation, rejectVehicleCreation } from './actions';
 import { useRouter } from 'next/navigation';
+import { LOAN_PRECLOSE_REQUEST } from '@/lib/loanPreclosePolicy';
 
 export default function ApprovalsClient({
   requests,
@@ -21,6 +22,15 @@ export default function ApprovalsClient({
   dict: any;
 }) {
   const d = dict.approvals;
+  const precloseDetails = (request: any) => {
+    const changes = JSON.parse(request.requestedChanges);
+    return <div>
+      <p><strong>{dict.precloseRequest.title}</strong></p>
+      {['loanCode', 'amount', 'paymentMode', 'remarks'].map(key => <div key={key}>
+        <strong>{dict.precloseRequest[key]}:</strong> {key === 'paymentMode' ? ({ cash: dict.loanDetail.cash, upi: dict.loanDetail.upi, cheque: dict.loanDetail.cheque, bank_transfer: dict.loanDetail.bankTransfer } as Record<string, string>)[changes[key]] : changes[key]}
+      </div>)}
+    </div>;
+  };
   const router = useRouter();
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -532,11 +542,11 @@ export default function ApprovalsClient({
                         <td style={{ padding: '16px 20px' }}>{new Date(req.createdAt).toLocaleDateString()}</td>
                         <td style={{ padding: '16px 20px' }}>{req.requestedBy?.name}</td>
                         <td style={{ padding: '16px 20px', textTransform: 'capitalize' }}>
-                          {req.requestType === 'cash_handover' ? d.cashHandover : req.entityType}
+                          {req.requestType === LOAN_PRECLOSE_REQUEST ? dict.precloseRequest.title : req.requestType === 'cash_handover' ? d.cashHandover : req.entityType}
                         </td>
                         <td style={{ padding: '16px 20px' }}>
                           <div style={{ fontSize: '0.85rem' }}>
-                            {Object.keys(changes).map(k => (
+                            {req.requestType === LOAN_PRECLOSE_REQUEST ? precloseDetails(req) : Object.keys(changes).map(k => (
                               <div key={k}><strong>{k}:</strong> {req.requestType === 'cash_handover' && k === 'amount' ? `₹${changes[k]}` : changes[k]}</div>
                             ))}
                           </div>
@@ -550,7 +560,7 @@ export default function ApprovalsClient({
                             borderRadius: '12px',
                             fontSize: '0.75rem'
                           }}>
-                            {req.status}
+                            {req.requestType === LOAN_PRECLOSE_REQUEST ? dict.precloseRequest[req.status] : req.status}
                           </span>
                         </td>
                         <td style={{ padding: '16px 20px', textAlign: 'right' }}>
@@ -588,9 +598,9 @@ export default function ApprovalsClient({
 
             <div>
               <h4 style={{ margin: '0 0 8px 0', fontSize: '1rem', fontWeight: 600 }}>{d.requestedChanges}:</h4>
-              <pre style={{ background: 'var(--bg-dark)', padding: '12px', borderRadius: 'var(--radius-sm)', overflowX: 'auto', fontSize: '0.85rem', margin: 0 }}>
+              {selectedRequest.requestType === LOAN_PRECLOSE_REQUEST ? <>{precloseDetails(selectedRequest)}<p>{dict.precloseRequest.reviewHint}</p></> : <pre style={{ background: 'var(--bg-dark)', padding: '12px', borderRadius: 'var(--radius-sm)', overflowX: 'auto', fontSize: '0.85rem', margin: 0 }}>
                 {JSON.stringify(JSON.parse(selectedRequest.requestedChanges), null, 2)}
-              </pre>
+              </pre>}
               <p style={{ marginTop: '12px', fontSize: '0.9rem' }}><strong>{d.reason}:</strong> {selectedRequest.reason}</p>
             </div>
 

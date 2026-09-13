@@ -1,7 +1,9 @@
+import { LOAN_PRECLOSE_REQUEST } from '@/lib/loanPreclosePolicy';
+import { PrecloseRequestError, reviewLoanPrecloseRequest, precloseApprovalVisibility } from '@/lib/loanPrecloseRequests';
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { requireMobileContext } from '@/lib/api/v1-auth';
+import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 
 export async function PATCH(
   req: NextRequest,
@@ -22,9 +24,30 @@ export async function PATCH(
     const note = body.note ? String(body.note) : null;
 
     // A. Check if this is a general approval request
+    const requestWhere: any = {
+      id,
+      tenantId: ctx.tenantId,
+      appType: ctx.appType,
+      status: 'pending',
+    };
+    if (ctx.branchId && ctx.role === 'admin') {
+      if (ctx.appType !== 'microlending') {
+        requestWhere.requestedBy = { branchId: ctx.branchId };
+      } else {
+        requestWhere.OR = [
+          { requestType: { not: LOAN_PRECLOSE_REQUEST }, requestedBy: { branchId: ctx.branchId } },
+          await precloseApprovalVisibility(ctx.tenantId, ctx.appType, ctx.branchId),
+        ];
+      }
+    }
+
     const request = await prisma.approvalRequest.findFirst({
-      where: { id, tenantId: ctx.tenantId, appType: ctx.appType, status: 'pending' },
+      where: requestWhere,
     });
+
+    if (request?.requestType === LOAN_PRECLOSE_REQUEST) {
+      return ok(await reviewLoanPrecloseRequest(ctx, id, 'reject', note ?? ''));
+    }
 
     if (request) {
       const updated = await prisma.approvalRequest.update({
@@ -53,7 +76,7 @@ export async function PATCH(
 
     // B. Check if this is a pending customer creation
     const customer = await prisma.customer.findFirst({
-      where: { id, tenantId: ctx.tenantId, appType: ctx.appType, status: 'pending_review' },
+      where: { id, tenantId: ctx.tenantId, appType: ctx.appType, status: 'pending_review', ...scopedBranchWhere(ctx) },
     });
 
     if (customer) {
@@ -95,7 +118,7 @@ export async function PATCH(
 
     // C. Check if this is a pending loan request
     const loan = await prisma.loan.findFirst({
-      where: { id, tenantId: ctx.tenantId, appType: ctx.appType, status: 'pending_review' },
+      where: { id, tenantId: ctx.tenantId, appType: ctx.appType, status: 'pending_review', ...scopedBranchWhere(ctx) },
     });
 
     if (loan) {
@@ -137,6 +160,6 @@ export async function PATCH(
 
     return fail('Approval target not found or already processed', 404);
   } catch (e: any) {
-    return fail(e?.message ?? 'Review failed', 500);
+    return fail(e?.message ?? 'Review failed', e instanceof PrecloseRequestError ? e.status : 500);
   }
 }

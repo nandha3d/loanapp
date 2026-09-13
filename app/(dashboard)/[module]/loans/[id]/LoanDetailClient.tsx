@@ -11,6 +11,8 @@ import { calculateCreditScore } from '@/lib/creditScore';
 import { computeExtendedSchedule } from '@/lib/restructure';
 import { getCreditScoreGaugePresentation } from '@/lib/creditScoreGauge';
 import NachPanel from './NachPanel';
+import LoanPrecloseRequest from './LoanPrecloseRequest';
+import { precloseOutstanding } from '@/lib/loanPreclosePolicy';
 import LoanTimeline from './LoanTimeline';
 import { useDashboardPath } from '@/components/layout/useDashboardPath';
 import { useRegisterBreadcrumbLabel } from '@/components/layout/BreadcrumbLabelContext';
@@ -161,6 +163,8 @@ export default function LoanDetailClient({
   upiId = '',
   payeeName = 'ZoloFund',
   goldServicing = null,
+  agentPrecloseEnabled = false,
+  precloseRequest = null,
 }: {
   loan: any;
   currencySymbol: string;
@@ -171,6 +175,8 @@ export default function LoanDetailClient({
   upiId?: string;
   payeeName?: string;
   goldServicing?: any;
+  agentPrecloseEnabled?: boolean;
+  precloseRequest?: { status: string; reviewNotes: string | null } | null;
 }) {
   const d = dict.loanDetail;
   const router = useRouter();
@@ -1329,6 +1335,9 @@ export default function LoanDetailClient({
                 <Link href={`/loans/${loan.loanCode}/edit`} className="btn btn-ghost" style={{ justifyContent: 'center', border: '1px solid var(--border)' }}>
                   {isAdmin ? d.editLoan : 'Request Loan Edit'}
                 </Link>
+                {agentPrecloseEnabled && (
+                  <LoanPrecloseRequest loanId={loan.id} amount={precloseOutstanding(loan)} currencySymbol={currencySymbol} dict={dict} request={precloseRequest} />
+                )}
                 {isAdmin && (
                   <>
                     {isInterestOnlyLoan ? (

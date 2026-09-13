@@ -149,7 +149,7 @@ export async function PATCH(
     // (The per-customer agent picker was removed — assignment lives in Settings.)
     if (typeof data.routeId === 'string' && data.routeId) {
       const route = await prisma.route.findFirst({
-        where: { id: data.routeId, tenantId: ctx.tenantId },
+        where: { id: data.routeId, tenantId: ctx.tenantId, appType: ctx.appType },
         select: { assignedAgentId: true, branchId: true },
       });
       if (route) {

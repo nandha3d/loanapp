@@ -264,15 +264,18 @@ export async function POST(req: NextRequest) {
     if (Number.isNaN(startDate.getTime())) {
       return fail('Invalid start date', 400);
     }
+    const customerWhere: any = {
+      id: customerId,
+      tenantId: ctx.tenantId,
+      appType: ctx.appType,
+    };
+    if (ctx.role === 'agent') {
+      customerWhere.AND = [buildAgentCustomerAccessWhere({ userId: ctx.userId })];
+    } else {
+      Object.assign(customerWhere, scopedBranchWhere(ctx));
+    }
     const customer = await prisma.customer.findFirst({
-      where: {
-        id: customerId,
-        tenantId: ctx.tenantId,
-        appType: ctx.appType,
-        // Match the list scope, or an admin could see a customer they then
-        // could not raise a loan for.
-        ...scopedBranchWhere(ctx),
-      },
+      where: customerWhere,
     });
     if (!customer) return fail('Customer not found', 404);
 

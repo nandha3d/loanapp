@@ -8,6 +8,10 @@ export async function GET(req: NextRequest) {
   if (auth.response) return auth.response;
   const ctx = auth.context;
 
+  if (ctx.role === 'agent') {
+    return fail('Forbidden', 403);
+  }
+
   const { searchParams } = new URL(req.url);
   const agentId = searchParams.get('agentId');
   const from = new Date(searchParams.get('from') ?? new Date(Date.now() - 30 * 86400000));

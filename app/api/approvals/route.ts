@@ -1,3 +1,4 @@
+import { LOAN_PRECLOSE_REQUEST } from '@/lib/loanPreclosePolicy';
 import prisma from '@/lib/db';
 import { AUTHENTICATED_API_ROLES, isApiError, requireApiContext } from '@/lib/apiAuth';
 import { apiError, apiSuccess } from '@/lib/utils';
@@ -13,7 +14,8 @@ export async function GET(request: Request) {
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
     const skip = (page - 1) * limit;
 
-    const where: any = { tenantId: context.tenantId, appType: context.appType };
+    // New loan preclose requests use the branch-scoped v1 approval queue.
+    const where: any = { tenantId: context.tenantId, appType: context.appType, requestType: { not: LOAN_PRECLOSE_REQUEST } };
     if (status) where.status = status;
     if (context.role === 'agent') where.requestedById = context.userId;
 

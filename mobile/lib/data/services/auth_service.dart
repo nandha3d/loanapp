@@ -23,10 +23,15 @@ class AuthService {
   Future<LoginResult> login({
     required String username,
     required String password,
+    String? tenantSlug,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.login,
-      data: {'username': username, 'password': password},
+      data: {
+        'username': username,
+        'password': password,
+        if (tenantSlug != null && tenantSlug.isNotEmpty) 'tenantSlug': tenantSlug,
+      },
     );
     return unwrapEnvelope(res, (dynamic d) {
       final map = d as Map<String, dynamic>;

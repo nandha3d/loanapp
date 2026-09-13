@@ -3,7 +3,7 @@ import prisma from '@/lib/db';
 import { ok, fail, parseCursorPaging } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
-import { isCollectionDay } from '@/lib/collectionPolicy';
+import { COLLECTIBLE_LOAN_STATUSES, isCollectionDay } from '@/lib/collectionPolicy';
 
 /**
  * Returns today's instalments grouped by route for the current user.
@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
   const loanWhere: any = {
     tenantId: ctx.tenantId,
     appType: ctx.appType,
+    status: { in: [...COLLECTIBLE_LOAN_STATUSES] },
   };
   if (ctx.role === 'agent') {
     // Agents are scoped to their own customers (agentId / route assignment), NOT

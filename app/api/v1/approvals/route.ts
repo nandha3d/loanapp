@@ -1,3 +1,5 @@
+import { LOAN_PRECLOSE_REQUEST } from '@/lib/loanPreclosePolicy';
+import { PrecloseRequestError, submitLoanPrecloseRequest, precloseApprovalVisibility } from '@/lib/loanPrecloseRequests';
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
@@ -24,7 +26,11 @@ export async function GET(req: NextRequest) {
   if (ctx.role === 'agent') {
     where.requestedById = ctx.userId;
   } else if (scopeBranchId) {
-    where.requestedBy = branchScope;
+    if (ctx.appType !== 'microlending') where.requestedBy = branchScope;
+    else where.OR = [
+      { requestType: { not: LOAN_PRECLOSE_REQUEST }, requestedBy: branchScope },
+      await precloseApprovalVisibility(ctx.tenantId, ctx.appType, scopeBranchId),
+    ];
   }
 
   try {
@@ -260,6 +266,10 @@ export async function POST(req: NextRequest) {
       return fail('requestType, entityType, and entityId are required', 400);
     }
 
+    if (requestType === LOAN_PRECLOSE_REQUEST) {
+      return ok(await submitLoanPrecloseRequest(ctx, body));
+    }
+
     const request = await prisma.approvalRequest.create({
       data: {
         tenantId: ctx.tenantId,
@@ -305,6 +315,6 @@ export async function POST(req: NextRequest) {
     return ok(request);
   } catch (e: any) {
     console.error('[/api/v1/approvals POST]', e);
-    return fail(e?.message ?? 'Approval request creation failed', 500);
+    return fail(e?.message ?? 'Approval request creation failed', e instanceof PrecloseRequestError ? e.status : 500);
   }
 }

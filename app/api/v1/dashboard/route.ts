@@ -60,11 +60,11 @@ export async function GET(req: NextRequest) {
       prisma.loan.count({ where: { ...baseLoan, status: 'overdue' } }),
       prisma.customer.count({ where: { ...baseCustomer, status: { not: 'blacklisted' } } }),
       prisma.instalment.findMany({
-        where: { loan: baseLoan, dueDate: { gte: today, lt: tomorrow } },
+        where: { loan: { ...baseLoan, status: { in: ['active', 'overdue'] } }, dueDate: { gte: today, lt: tomorrow } },
         include: { loan: { include: { customer: { select: { id: true, name: true, customerCode: true, profilePhoto: true } } } } },
         orderBy: { dueDate: 'asc' },
       }),
-      prisma.penalty.count({ where: { loan: baseLoan, status: 'pending' } }),
+      prisma.penalty.count({ where: { loan: { ...baseLoan, status: { in: ['active', 'overdue'] } }, status: 'pending' } }),
       prisma.user.count({
         where: {
           tenantId: ctx.tenantId,
@@ -101,7 +101,7 @@ export async function GET(req: NextRequest) {
       }),
       // Top overdue instalments for defaulter alerts (only need 10).
       prisma.instalment.findMany({
-        where: { loan: baseLoan, dueDate: { lt: today }, status: { in: ['upcoming', 'missed', 'partial'] } },
+        where: { loan: { ...baseLoan, status: { in: ['active', 'overdue'] } }, dueDate: { lt: today }, status: { in: ['upcoming', 'missed', 'partial'] } },
         select: {
           id: true, dueDate: true, dueAmount: true, receivedAmount: true,
           loan: { select: { id: true, loanCode: true, customer: { select: { id: true, name: true, customerCode: true, profilePhoto: true } } } },
@@ -189,7 +189,7 @@ export async function GET(req: NextRequest) {
       collectionsByMode,
     ] = await Promise.all([
       prisma.loan.aggregate({
-        where: baseLoan,
+        where: { ...baseLoan, status: { in: ['active', 'overdue', 'closed', 'settled'] } },
         _sum: { principal: true, disbursed: true, totalCollected: true },
       }),
       prisma.collectionEntry.groupBy({
@@ -260,8 +260,8 @@ export async function GET(req: NextRequest) {
 
     let bestPayer = '—';
     if (topRepayer.length > 0 && topRepayer[0].customerId) {
-      const cust = await prisma.customer.findUnique({
-        where: { id: topRepayer[0].customerId },
+      const cust = await prisma.customer.findFirst({
+        where: { id: topRepayer[0].customerId, tenantId: ctx.tenantId },
         select: { name: true },
       });
       if (cust) bestPayer = cust.name;

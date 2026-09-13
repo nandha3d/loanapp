@@ -22,20 +22,29 @@ function startOfToday() {
   return startOfBusinessToday();
 }
 
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+function getIstCalendarDayNumber(dateInput: Date | string): number {
+  const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  const ist = new Date(d.getTime() + IST_OFFSET_MS);
+  return Math.floor(Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate()) / 86400000);
+}
+
 function enrichInstalment(instalment: any, today: Date) {
   const dueAmount = Number(instalment.dueAmount);
   const receivedAmount = Number(instalment.receivedAmount || 0);
   const outstandingAmount = Math.max(0, dueAmount - receivedAmount);
   const dueDate = new Date(instalment.dueDate);
-  dueDate.setHours(0, 0, 0, 0);
-  const daysOverdue = Math.max(0, Math.floor((today.getTime() - dueDate.getTime()) / (24 * 60 * 60 * 1000)));
+  const todayDayNum = getIstCalendarDayNumber(today);
+  const dueDayNum = getIstCalendarDayNumber(dueDate);
+  const daysOverdue = Math.max(0, todayDayNum - dueDayNum);
+  const isOverdue = dueDayNum < todayDayNum;
 
   return {
     ...instalment,
     dueAmount,
     receivedAmount,
     outstandingAmount,
-    overdueAmount: dueDate < today ? outstandingAmount : 0,
+    overdueAmount: isOverdue ? outstandingAmount : 0,
     daysOverdue,
     loan: {
       ...instalment.loan,
