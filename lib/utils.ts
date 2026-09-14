@@ -107,8 +107,33 @@ export function calculateEndDate(startDate: Date, frequency: string, tenure: num
   if (frequency === 'daily') end.setDate(end.getDate() + tenure);
   else if (frequency === 'weekly') end.setDate(end.getDate() + tenure * 7);
   else if (frequency === 'biweekly') end.setDate(end.getDate() + tenure * 14);
+  else if (frequency === 'single_payment') end.setMonth(end.getMonth() + 1);
   else end.setMonth(end.getMonth() + tenure);
   return end;
+}
+
+export function calculateCustomDurationDates(
+  startDate: Date,
+  endDate: Date | string | null | undefined,
+  tenure: number,
+): Date[] {
+  const count = Math.max(1, tenure);
+  if (!endDate) {
+    return calculateInstalmentDates(startDate, 'monthly', count);
+  }
+  const end = new Date(endDate);
+  const startMs = startDate.getTime();
+  const endMs = end.getTime();
+  const span = endMs - startMs;
+  if (span <= 0 || count <= 1) {
+    return [end];
+  }
+  const dates: Date[] = [];
+  for (let i = 1; i <= count; i++) {
+    const d = new Date(startMs + Math.round(i * (span / count)));
+    dates.push(d);
+  }
+  return dates;
 }
 
 function daysInMonth(year: number, monthIndex: number): number {

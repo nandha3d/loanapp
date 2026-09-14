@@ -83,6 +83,7 @@ class LoanService {
     required String frequency,
     required DateTime startDate,
     int? dueDay,
+    DateTime? endDate,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
       '${Endpoints.loans}/calculate',
@@ -94,6 +95,7 @@ class LoanService {
         'frequency': frequency,
         'startDate': startDate.toIso8601String(),
         if (dueDay != null) 'dueDay': dueDay,
+        if (endDate != null) 'endDate': endDate.toIso8601String(),
       },
     );
     return unwrapEnvelope(
@@ -115,6 +117,7 @@ class LoanService {
     String? collateralDetails,
     String? voucherRef,
     int? dueDay,
+    DateTime? endDate,
     Map<String, dynamic>? guarantor,
     List<Map<String, dynamic>>? securityCheques,
     Map<String, dynamic>? goldCollateral,
@@ -136,6 +139,7 @@ class LoanService {
         if (collateralDetails != null) 'collateralDetails': collateralDetails,
         if (voucherRef != null) 'voucherRef': voucherRef,
         if (dueDay != null) 'dueDay': dueDay,
+        if (endDate != null) 'endDate': endDate.toIso8601String(),
         if (guarantor != null) 'guarantor': guarantor,
         if (securityCheques != null) 'securityCheques': securityCheques,
         if (goldCollateral != null) 'goldCollateral': goldCollateral,

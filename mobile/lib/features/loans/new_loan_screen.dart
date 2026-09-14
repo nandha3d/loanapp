@@ -257,6 +257,7 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
   final _deduction = TextEditingController(text: '3000');
   final _tenure = TextEditingController(text: '100');
   String _frequency = 'daily';
+  DateTime _customEndDate = DateTime.now().add(const Duration(days: 30));
   int? _dueDay; // day-of-month (monthly) / day-of-week (weekly); null for daily
   DateTime _startDate = DateTime.now();
   final _penaltyRate = TextEditingController(text: '1.5');
@@ -617,17 +618,21 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
   String _weekdayLabel(int d) => _weekdays[(d - 1).clamp(0, 6)];
 
   Future<void> _recalc() async {
-    if (_principalNum <= 0 || _tenureNum <= 0) return;
+    final isSingle = _frequency == 'single_payment';
+    final isCustom = _frequency == 'custom_duration';
+    final tenureVal = isSingle ? 1 : _tenureNum;
+    if (_principalNum <= 0 || tenureVal <= 0) return;
     setState(() => _calculating = true);
     try {
       _calc = await ref.read(loanServiceProvider).calculate(
             principal: _principalNum,
             interestRate: _deductionNum,
             interestType: _deductionType,
-            tenure: _tenureNum,
+            tenure: tenureVal,
             frequency: _frequency,
             startDate: _startDate,
-            dueDay: _frequency == 'daily' ? null : _dueDay,
+            dueDay: (_frequency == 'daily' || isSingle || isCustom) ? null : _dueDay,
+            endDate: (isSingle || isCustom) ? _customEndDate : null,
           );
     } catch (e) {
       _error = e.toString();
@@ -716,15 +721,20 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
         productPhotoUrl = r.url;
       }
 
+      final isSingle = _frequency == 'single_payment';
+      final isCustom = _frequency == 'custom_duration';
+      final tenureVal = isSingle ? 1 : _tenureNum;
+
       final loan = await ref.read(loanServiceProvider).create(
             customerId: _customer!.id,
             principal: _principalNum,
             deduction: _deductionNum,
             deductionType: _deductionType,
-            tenure: _tenureNum,
+            tenure: tenureVal,
             frequency: _frequency,
             startDate: _startDate,
-            dueDay: _frequency == 'daily' ? null : _dueDay,
+            dueDay: (_frequency == 'daily' || isSingle || isCustom) ? null : _dueDay,
+            endDate: (isSingle || isCustom) ? _customEndDate : null,
             penaltyRate: double.tryParse(_penaltyRate.text) ?? 0,
             loanType: _loanType,
             collateralDetails: _buildCollateralJson(),
@@ -1410,24 +1420,50 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
         const SizedBox(height: 12),
         Text(tr.x('fld.frequency'), style: AppTypography.label),
         const SizedBox(height: 6),
-        SegmentedButton<String>(
-          segments: [
-            ButtonSegment(value: 'daily', label: Text(tr.x('plan.daily'))),
-            ButtonSegment(value: 'weekly', label: Text(tr.x('plan.weekly'))),
-            ButtonSegment(value: 'monthly', label: Text(tr.x('plan.monthly'))),
+        DropdownButtonFormField<String>(
+          value: _frequency,
+          isExpanded: true,
+          decoration: InputDecoration(
+            isDense: true,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+            ),
+          ),
+          items: [
+            DropdownMenuItem(value: 'daily', child: Text(tr.x('plan.daily'))),
+            DropdownMenuItem(value: 'weekly', child: Text(tr.x('plan.weekly'))),
+            DropdownMenuItem(value: 'monthly', child: Text(tr.x('plan.monthly'))),
+            DropdownMenuItem(
+              value: 'single_payment',
+              child: Text(tr.x('plan.single_payment')),
+            ),
+            DropdownMenuItem(
+              value: 'custom_duration',
+              child: Text(tr.x('plan.custom_duration')),
+            ),
           ],
-          selected: {_frequency},
-          onSelectionChanged: (s) => setState(() {
-            _frequency = s.first;
-            if (_frequency == 'daily') _dueDay = null;
-          }),
+          onChanged: (v) {
+            if (v == null) return;
+            setState(() {
+              _frequency = v;
+              if (_frequency == 'daily' ||
+                  _frequency == 'single_payment' ||
+                  _frequency == 'custom_duration') {
+                _dueDay = null;
+              }
+              if (_frequency == 'single_payment') {
+                _tenure.text = '1';
+              }
+            });
+            _recalc();
+          },
         ),
-        if (_frequency != 'daily') ...[
+        if (_frequency == 'weekly' || _frequency == 'monthly') ...[
           const SizedBox(height: 12),
           Text(tr.x('fld.due_day'), style: AppTypography.label),
           const SizedBox(height: 6),
           DropdownButtonFormField<int>(
-            initialValue: _dueDay,
+            value: _dueDay,
             isExpanded: true,
             decoration: InputDecoration(
               isDense: true,
@@ -1454,34 +1490,126 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
             },
           ),
         ],
-        const SizedBox(height: 12),
-        AppTextField(
-          label: tr.x('fld.tenure'),
-          controller: _tenure,
-          keyboardType: TextInputType.number,
-        ),
+        if (_frequency != 'single_payment') ...[
+          const SizedBox(height: 12),
+          AppTextField(
+            label: _frequency == 'custom_duration'
+                ? tr.x('fld.num_installments')
+                : tr.x('fld.tenure'),
+            controller: _tenure,
+            keyboardType: TextInputType.number,
+            onChanged: (_) => _recalc(),
+          ),
+        ],
         const SizedBox(height: 12),
         AppTextField(
           label: tr.x('fld.penalty_rate'),
           controller: _penaltyRate,
           keyboardType: TextInputType.number,
         ),
-        const SizedBox(height: 12),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text(tr.x('fld.start_date'), style: AppTypography.label),
-          subtitle: Text(DateFormat('dd MMM yyyy').format(_startDate)),
-          trailing: const Icon(Icons.calendar_today_outlined),
-          onTap: () async {
-            final picked = await showDatePicker(
-              context: context,
-              initialDate: _startDate,
-              firstDate: DateTime.now().subtract(const Duration(days: 30)),
-              lastDate: DateTime.now().add(const Duration(days: 365)),
-            );
-            if (picked != null) setState(() => _startDate = picked);
-          },
-        ),
+        if (_frequency == 'single_payment') ...[
+          const SizedBox(height: 12),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(tr.x('fld.start_date'), style: AppTypography.label),
+            subtitle: Text(DateFormat('dd MMM yyyy').format(_startDate)),
+            trailing: const Icon(Icons.calendar_today_outlined),
+            onTap: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _startDate,
+                firstDate: DateTime.now().subtract(const Duration(days: 30)),
+                lastDate: DateTime.now().add(const Duration(days: 365)),
+              );
+              if (picked != null) {
+                setState(() => _startDate = picked);
+                _recalc();
+              }
+            },
+          ),
+          const SizedBox(height: 12),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(tr.x('fld.repayment_date'), style: AppTypography.label),
+            subtitle: Text(DateFormat('dd MMM yyyy').format(_customEndDate)),
+            trailing: const Icon(Icons.event_outlined),
+            onTap: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _customEndDate.isAfter(_startDate)
+                    ? _customEndDate
+                    : _startDate.add(const Duration(days: 30)),
+                firstDate: _startDate,
+                lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+              );
+              if (picked != null) {
+                setState(() => _customEndDate = picked);
+                _recalc();
+              }
+            },
+          ),
+        ] else if (_frequency == 'custom_duration') ...[
+          const SizedBox(height: 12),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(tr.x('fld.from_date'), style: AppTypography.label),
+            subtitle: Text(DateFormat('dd MMM yyyy').format(_startDate)),
+            trailing: const Icon(Icons.calendar_today_outlined),
+            onTap: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _startDate,
+                firstDate: DateTime.now().subtract(const Duration(days: 30)),
+                lastDate: DateTime.now().add(const Duration(days: 365)),
+              );
+              if (picked != null) {
+                setState(() => _startDate = picked);
+                _recalc();
+              }
+            },
+          ),
+          const SizedBox(height: 12),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(tr.x('fld.to_date'), style: AppTypography.label),
+            subtitle: Text(DateFormat('dd MMM yyyy').format(_customEndDate)),
+            trailing: const Icon(Icons.event_outlined),
+            onTap: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _customEndDate.isAfter(_startDate)
+                    ? _customEndDate
+                    : _startDate.add(const Duration(days: 30)),
+                firstDate: _startDate,
+                lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+              );
+              if (picked != null) {
+                setState(() => _customEndDate = picked);
+                _recalc();
+              }
+            },
+          ),
+        ] else ...[
+          const SizedBox(height: 12),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(tr.x('fld.start_date'), style: AppTypography.label),
+            subtitle: Text(DateFormat('dd MMM yyyy').format(_startDate)),
+            trailing: const Icon(Icons.calendar_today_outlined),
+            onTap: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _startDate,
+                firstDate: DateTime.now().subtract(const Duration(days: 30)),
+                lastDate: DateTime.now().add(const Duration(days: 365)),
+              );
+              if (picked != null) {
+                setState(() => _startDate = picked);
+                _recalc();
+              }
+            },
+          ),
+        ],
       ],
     );
   }
@@ -1639,12 +1767,37 @@ class _NewLoanScreenState extends ConsumerState<NewLoanScreen> {
               _kv(tr.x('rev.principal'), fmt.format(_principalNum)),
               _kv(tr.x('rev.deduction_type'), _deductionType),
               _kv(tr.x('rev.deduction'), _deduction.text),
-              _kv(tr.x('rev.tenure'), _tenure.text),
-              _kv(tr.x('rev.frequency'), _frequency),
+              if (_frequency != 'single_payment')
+                _kv(
+                  _frequency == 'custom_duration'
+                      ? tr.x('fld.num_installments')
+                      : tr.x('rev.tenure'),
+                  _tenure.text,
+                ),
               _kv(
-                tr.x('rev.start'),
+                tr.x('rev.frequency'),
+                _frequency == 'single_payment'
+                    ? tr.x('plan.single_payment')
+                    : _frequency == 'custom_duration'
+                        ? tr.x('plan.custom_duration')
+                        : _frequency,
+              ),
+              _kv(
+                _frequency == 'custom_duration'
+                    ? tr.x('fld.from_date')
+                    : tr.x('rev.start'),
                 DateFormat('dd MMM yyyy').format(_startDate),
               ),
+              if (_frequency == 'single_payment')
+                _kv(
+                  tr.x('fld.repayment_date'),
+                  DateFormat('dd MMM yyyy').format(_customEndDate),
+                )
+              else if (_frequency == 'custom_duration')
+                _kv(
+                  tr.x('fld.to_date'),
+                  DateFormat('dd MMM yyyy').format(_customEndDate),
+                ),
               _kv(tr.x('rev.penalty'), _penaltyRate.text),
               if (_loanType == 'cheque') ...[
                 if (_chequeBankName.text.isNotEmpty)

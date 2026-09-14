@@ -1,4 +1,4 @@
-import { calculateEndDate, calculateInstalmentDates } from './utils';
+import { calculateCustomDurationDates, calculateEndDate, calculateInstalmentDates } from './utils';
 
 export type InterestType =
   | 'upfront_fixed'
@@ -52,6 +52,8 @@ export type LoanCalculationInput = {
   termType?: TermType | string | null;
   /** `bullet` only: days from the start date to the single due date. */
   termDays?: number | null;
+  /** Optional custom end date for custom_duration or single_payment. */
+  endDate?: Date | string | null;
 };
 
 export type LoanCalculationResult = {
@@ -223,7 +225,11 @@ export function calculateLoanPreview(input: LoanCalculationInput): LoanCalculati
   // counts instalments and has no notion of "in 15 days".
   const dates = isBulletTerm(termType)
     ? [calculateEndDate(startDate, 'daily', termDays)]
-    : calculateInstalmentDates(startDate, frequency, tenure, input.dueDay);
+    : frequency === 'single_payment'
+      ? [input.endDate ? new Date(input.endDate) : calculateEndDate(startDate, 'monthly', 1)]
+      : frequency === 'custom_duration'
+        ? calculateCustomDurationDates(startDate, input.endDate, tenure)
+        : calculateInstalmentDates(startDate, frequency, tenure, input.dueDay);
 
   return {
     principal,

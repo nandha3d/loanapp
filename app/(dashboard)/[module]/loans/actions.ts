@@ -136,6 +136,7 @@ export async function createLoan(formData: FormData) {
       // route defaults to 'scheduled' — the shape it has always produced.
       termType: (formData.get('termType') as string) || 'scheduled',
       termDays: formData.get('termDays') ? Number(formData.get('termDays')) : null,
+      endDate: (formData.get('endDate') || formData.get('repaymentDate')) as string || null,
       securityCheques,
       guarantor: {
         name: formData.get('guarantorName') as string,

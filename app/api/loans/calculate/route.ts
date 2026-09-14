@@ -16,6 +16,7 @@ export async function POST(req: NextRequest) {
       // existed — so an older client keeps getting exactly what it got before.
       termType = 'scheduled',
       termDays = null,
+      endDate = null,
     } = body;
 
     const calculation = calculateLoanPreview({
@@ -28,6 +29,7 @@ export async function POST(req: NextRequest) {
       dueDay,
       termType,
       termDays: termDays == null ? null : Number(termDays),
+      endDate,
     });
 
     return NextResponse.json({

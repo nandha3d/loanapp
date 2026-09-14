@@ -258,7 +258,7 @@ export async function POST(req: NextRequest) {
     }
     // Same shape as Interest-Only: opt-in per tenant, enforced here because the
     // web form is one of several ways into this route.
-    if (isBulletTerm(termType) && !(await isBulletTermEnabled(ctx.tenantId))) {
+    if (isBulletTerm(termType) && frequency !== 'single_payment' && !(await isBulletTermEnabled(ctx.tenantId))) {
       return fail('Single-payment (bullet) loans are not enabled for this account', 403);
     }
     if (Number.isNaN(startDate.getTime())) {
@@ -349,6 +349,7 @@ export async function POST(req: NextRequest) {
           dueDay,
           termType,
           termDays,
+          endDate: body.endDate || null,
         });
 
     const goldInput: any = body.goldCollateral;
@@ -445,6 +446,8 @@ export async function POST(req: NextRequest) {
       weekly: 'WL',
       biweekly: 'BWL',
       monthly: 'ML',
+      single_payment: 'SPL',
+      custom_duration: 'CDL',
     };
     // A bullet loan has no cadence, so its contract number is keyed on the term
     // shape instead. Existing prefixes are untouched (ORIG-1: the counter behind

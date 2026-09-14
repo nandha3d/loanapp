@@ -181,7 +181,8 @@ export default function LoanForm({
     invoiceAmount: pf.invoiceAmount ? Number(pf.invoiceAmount) : null,
     downPayment: pf.downPayment ? Number(pf.downPayment) : null,
   });
-  const [isLoanTypeExpanded, setIsLoanTypeExpanded] = useState(true);
+  const [isLoanTypeExpanded, setIsLoanTypeExpanded] = useState(false);
+  const [customEndDate, setCustomEndDate] = useState<string>(formatDateISO(calculateEndDate(new Date(), 'monthly', 1)));
   
   // Dynamic Collateral State
   const [chequeBankName, setChequeBankName] = useState('');
@@ -312,8 +313,19 @@ export default function LoanForm({
   // Debounced API Call for Calculation
   useEffect(() => {
     const p = Number(principal);
-    const t = Number(tenure);
-    if (!p || !t || (termType === 'bullet' && !Number(termDays))) {
+    const isSingle = frequency === 'single_payment';
+    const isCustom = frequency === 'custom_duration';
+    const t = isSingle ? 1 : Number(tenure);
+
+    let calcTermDays = termDays === '' ? null : Number(termDays);
+    if (isSingle && startDate && customEndDate) {
+      const s = new Date(startDate).getTime();
+      const e = new Date(customEndDate).getTime();
+      calcTermDays = Math.max(1, Math.round((e - s) / (1000 * 60 * 60 * 24)));
+    }
+    const effectiveTermType = isSingle ? 'bullet' : (termType === 'bullet' ? 'bullet' : 'scheduled');
+
+    if (!p || !t || (effectiveTermType === 'bullet' && !calcTermDays)) {
       setCalculatedData({ disbursedAmount: p || 0, totalPayable: p || 0, perInstalment: 0, deduction: 0 });
       return;
     }
@@ -330,9 +342,10 @@ export default function LoanForm({
             tenure: t,
             frequency,
             startDate,
-            dueDay: dueDay === '' ? null : Number(dueDay),
-            termType,
-            termDays: termDays === '' ? null : Number(termDays),
+            dueDay: (isSingle || isCustom || dueDay === '') ? null : Number(dueDay),
+            termType: effectiveTermType,
+            termDays: calcTermDays,
+            endDate: (isSingle || isCustom) ? customEndDate : null,
           })
         });
         if (res.ok) {
@@ -347,7 +360,7 @@ export default function LoanForm({
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [principal, interestType, interestRate, tenure, frequency, startDate, dueDay, termType, termDays]);
+  }, [principal, interestType, interestRate, tenure, frequency, startDate, dueDay, termType, termDays, customEndDate]);
 
   const handleCustomerChange = async (id: string) => {
     const cust = localCustomers.find(c => c.id === id);
@@ -418,13 +431,15 @@ export default function LoanForm({
   };
 
   const t = Number(tenure) || 0;
-  // A bullet term ends on its maturity date; a cadence loan ends after `tenure`
-  // periods. Both go through calculateEndDate — only the unit differs.
-  const endDate = termType === 'bullet'
-    ? (startDate && Number(termDays) > 0
-        ? calculateEndDate(new Date(startDate), 'daily', Number(termDays))
-        : null)
-    : (startDate && t > 0 ? calculateEndDate(new Date(startDate), frequency, t) : null);
+  // A bullet or single payment term ends on its repayment date; custom duration ends on customEndDate;
+  // a cadence loan ends after `tenure` periods.
+  const endDate = frequency === 'single_payment' || frequency === 'custom_duration'
+    ? (customEndDate ? new Date(customEndDate) : null)
+    : termType === 'bullet'
+      ? (startDate && Number(termDays) > 0
+          ? calculateEndDate(new Date(startDate), 'daily', Number(termDays))
+          : null)
+      : (startDate && t > 0 ? calculateEndDate(new Date(startDate), frequency, t) : null);
 
   const loanTypeLabels: Record<string, string> = {
     cheque: appType === 'autofinance' ? 'Vehicle / Cheque' : (dict.loans.chequeBased || 'Cheque Based'),
@@ -503,18 +518,20 @@ export default function LoanForm({
 
   return (
     <div className="grid-60-40" style={{ alignItems: 'start' }}>
-      <div className="card">
-        <div className="card-header" style={{ flexWrap: 'wrap', gap: '10px' }}>
-          <h3>📝 {dict.loans.createTitle}</h3>
-          <select className="form-control" style={{ width: 'auto', fontSize: '1rem', padding: '10px' }} onChange={e => handlePackageChange(e.target.value)} value={packageId}>
-            <option value="">Premade Template</option>
-            {localPackages.map(pkg => (
-              <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
-            ))}
-          </select>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div className="card" style={{ border: '1px solid var(--border)' }}>
+          <div className="card-header" style={{ flexWrap: 'wrap', gap: '10px', margin: 0 }}>
+            <h3 style={{ margin: 0 }}>📝 {dict.loans.createTitle}</h3>
+            <select className="form-control" style={{ width: 'auto', fontSize: '1rem', padding: '10px' }} onChange={e => handlePackageChange(e.target.value)} value={packageId}>
+              <option value="">{dict.loans.premadeTemplate || 'Premade Template'}</option>
+              {localPackages.map(pkg => (
+                <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        <form action={async (fd: FormData) => {
+        <form style={{ display: 'flex', flexDirection: 'column', gap: '20px' }} action={async (fd: FormData) => {
           setLoading(true);
           setLimitError(null);
           fd.set('collateralDetails', getCollateralDetailsJson());
@@ -523,6 +540,18 @@ export default function LoanForm({
           if (isGoldModule || loanType === 'gold') fd.set('goldCollateralJson', buildGoldCollateralJson());
           if (isPropertyModule || loanType === 'property') fd.set('propertyCollateralJson', buildPropertyCollateralJson());
           if (isProductModule) fd.set('productItemJson', buildProductItemJson());
+          if (frequency === 'single_payment') {
+            fd.set('tenure', '1');
+            fd.set('termType', 'bullet');
+            const s = new Date(startDate).getTime();
+            const e = new Date(customEndDate).getTime();
+            const days = Math.max(1, Math.round((e - s) / (1000 * 60 * 60 * 24)));
+            fd.set('termDays', String(days));
+            fd.set('endDate', customEndDate);
+          } else if (frequency === 'custom_duration') {
+            fd.set('termType', 'scheduled');
+            fd.set('endDate', customEndDate);
+          }
           // Shrink camera photos before they hit the Server Action body limit.
           await compressFormDataImages(fd);
           const result = await createLoan(fd);
@@ -532,7 +561,7 @@ export default function LoanForm({
           }
         }}>
           {limitError && (
-            <div style={{ background: 'var(--danger-bg, #fee2e2)', color: 'var(--danger)', padding: '12px 16px', borderRadius: 'var(--radius-sm)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ background: 'var(--danger-bg, #fee2e2)', color: 'var(--danger)', padding: '12px 16px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span className="material-icons-outlined" style={{ fontSize: '18px' }}>block</span>
               {limitError}
             </div>
@@ -540,62 +569,66 @@ export default function LoanForm({
           <input type="hidden" name="packageId" value={packageId} />
           <input type="hidden" name="loanType" value={loanType} />
           
-          <div style={{ marginBottom: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
-            <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1rem', color: 'var(--primary-dark)' }}>
-              <span className="material-icons-outlined">person</span> 👤 {dict.customers.registerTitle || 'Customer Selection'}
-            </h4>
-          </div>
-          <div className="form-group">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <label className="form-label" style={{ margin: 0 }}>{dict.customers.fullName} *</label>
-              <button type="button" onClick={() => setIsCustomerModalOpen(true)} className="btn btn-ghost btn-sm" style={{ padding: 0, height: 'auto', color: 'var(--primary)', fontSize: '.8rem' }}>
-                {dict.loans.newCustomer}
-              </button>
+          {/* Section 1: Customer Selection */}
+          <div className="card" style={{ border: '1px solid var(--border)' }}>
+            <div className="card-header" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '16px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1.05rem', color: 'var(--primary-dark)', fontWeight: 600 }}>
+                <span className="material-icons-outlined">person</span> 👤 {dict.loans.customerSelection || dict.customers.registerTitle || 'Customer Selection'}
+              </h3>
             </div>
-            <select 
-              name="customerId" className="form-control" required 
-              value={selectedCustomer?.id || ''}
-              onChange={(e) => handleCustomerChange(e.target.value)}
-              style={{ fontSize: '1rem', padding: '12px' }}
-            >
-              <option value="">{dict.loans.searchCustomer}</option>
-              {localCustomers.map(c => (
-                <option key={c.id} value={c.id}>{c.customerCode} — {c.name} ({c.route?.name || 'No Route'})</option>
-              ))}
-            </select>
-          </div>
+            <div className="form-group" style={{ marginBottom: selectedCustomer ? '16px' : 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <label className="form-label" style={{ margin: 0 }}>{dict.customers.fullName} *</label>
+                <button type="button" onClick={() => setIsCustomerModalOpen(true)} className="btn btn-ghost btn-sm" style={{ padding: 0, height: 'auto', color: 'var(--primary)', fontSize: '.8rem' }}>
+                  {dict.loans.newCustomer}
+                </button>
+              </div>
+              <select 
+                name="customerId" className="form-control" required 
+                value={selectedCustomer?.id || ''}
+                onChange={(e) => handleCustomerChange(e.target.value)}
+                style={{ fontSize: '1rem', padding: '12px' }}
+              >
+                <option value="">{dict.loans.searchCustomer}</option>
+                {localCustomers.map(c => (
+                  <option key={c.id} value={c.id}>{c.customerCode} — {c.name} ({c.route?.name || 'No Route'})</option>
+                ))}
+              </select>
+            </div>
 
-          {selectedCustomer && (
-            <div style={{ display: 'block', marginBottom: '18px' }} className="card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '20px', padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)' }}>
-                <div className="profile-avatar" style={{ width: '120px', height: '120px', fontSize: '2rem', borderRadius: '24px', border: '3px solid var(--border)', flexShrink: 0, overflow: 'hidden' }}>
-                  {selectedCustomer.profilePhoto ? (
-                    <img src={selectedCustomer.profilePhoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--primary)', color: '#FFF' }}>
-                      {selectedCustomer.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <Link href={`/customers/${selectedCustomer.customerCode}`} target="_blank">
-                    <strong>{selectedCustomer.name}</strong>
-                  </Link>
-                  <br />
-                  <span style={{ fontSize: '.78rem', color: 'var(--text-secondary)' }}>
-                    {selectedCustomer.phone} · {selectedCustomer.route?.name} · {selectedCustomer.kycStatus}
-                  </span>
+            {selectedCustomer && (
+              <div style={{ display: 'block', marginTop: '16px' }} className="card">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '20px', padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)' }}>
+                  <div className="profile-avatar" style={{ width: '100px', height: '100px', fontSize: '1.8rem', borderRadius: '20px', border: '3px solid var(--border)', flexShrink: 0, overflow: 'hidden' }}>
+                    {selectedCustomer.profilePhoto ? (
+                      <img src={selectedCustomer.profilePhoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--primary)', color: '#FFF' }}>
+                        {selectedCustomer.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <Link href={`/customers/${selectedCustomer.customerCode}`} target="_blank">
+                      <strong>{selectedCustomer.name}</strong>
+                    </Link>
+                    <br />
+                    <span style={{ fontSize: '.78rem', color: 'var(--text-secondary)' }}>
+                      {selectedCustomer.phone} · {selectedCustomer.route?.name} · {selectedCustomer.kycStatus}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-          
-          {/* Collateral Header (Always Visible) */}
-          <div style={{ marginTop: '32px', marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
-            <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1.05rem', color: 'var(--primary-dark)', fontWeight: 600 }}>
-              <span className="material-icons-outlined">settings</span> ⚙️ {dict.loans.loanType || 'Loan Configuration'}
-            </h4>
+            )}
           </div>
+          
+          {/* Section 2: Loan Type & Collateral */}
+          <div className="card" style={{ border: '1px solid var(--border)' }}>
+            <div className="card-header" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '16px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1.05rem', color: 'var(--primary-dark)', fontWeight: 600 }}>
+                <span className="material-icons-outlined">settings</span> ⚙️ {dict.loans.loanConfiguration || dict.loans.loanType || 'Loan Configuration'}
+              </h3>
+            </div>
 
           {/* Loan-type selector — hidden in single-product modules */}
           {!isGoldModule && !isPropertyModule && !isProductModule && (
@@ -889,274 +922,350 @@ export default function LoanForm({
               )}
             </div>
           )}
+          </div>
 
-          <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '20px' }}>
-            <div style={{ flex: '1', minWidth: '220px' }}>
-              <label className="form-label" style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--text)', marginBottom: '8px', display: 'block' }}>
-                {dict.loans.principal} ({currencySymbol}) *
-              </label>
-              <input 
-                type="number" 
-                name="principal" 
-                className="form-control" 
-                placeholder={dict.creditInsights.placeholders.principal} 
-                value={principal} 
-                onChange={e => setPrincipal(e.target.value ? Number(e.target.value) : '')} 
-                required 
-                style={{ fontSize: '1.4rem', fontWeight: 'bold', padding: '14px', height: '54px', borderRadius: 'var(--radius-sm)' }} 
-              />
+          {/* Section 3: Loan Amount & Repayment Plan */}
+          <div className="card" style={{ border: '1px solid var(--border)' }}>
+            <div className="card-header" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '16px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1.05rem', color: 'var(--primary-dark)', fontWeight: 600 }}>
+                <span className="material-icons-outlined">payments</span> 💰 {dict.loans.loanAmountRepayment || 'Loan Amount & Repayment Plan'}
+              </h3>
             </div>
 
-            <div style={{ flex: '1.2', minWidth: '300px' }}>
-              <label className="form-label" style={{ fontWeight: '600', marginBottom: '8px', display: 'block' }}>{dict.loans.repaymentPlanModel}</label>
-              <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '4px', background: 'var(--bg-alt)', height: '54px', alignItems: 'center' }}>
-                <button
-                  type="button"
-                  onClick={() => setCalcModel('upfront')}
-                  style={planButtonStyle(!isEmiAddition && !isInterestOnlyPlan)}
-                >
-                  <span>⬇️</span> {dict.loans.upfront}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setCalcModel('emi')}
-                  style={planButtonStyle(isEmiAddition)}
-                >
-                  <span>📈</span> {dict.loans.emi}
-                </button>
-
-                {interestOnlyEnabled && !isBulletPlan && (
-                  <button
-                    type="button"
-                    onClick={() => setCalcModel('interest_only')}
-                    style={planButtonStyle(isInterestOnlyPlan)}
-                  >
-                    <span>🔁</span> {dict.loans.interestOnly}
-                  </button>
-                )}
+            <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '20px' }}>
+              <div style={{ flex: '1', minWidth: '220px' }}>
+                <label className="form-label" style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--text)', marginBottom: '8px', display: 'block' }}>
+                  {dict.loans.principal} ({currencySymbol}) *
+                </label>
+                <input 
+                  type="number" 
+                  name="principal" 
+                  className="form-control" 
+                  placeholder={dict.creditInsights.placeholders.principal} 
+                  value={principal} 
+                  onChange={e => setPrincipal(e.target.value ? Number(e.target.value) : '')} 
+                  required 
+                  style={{ fontSize: '1.4rem', fontWeight: 'bold', padding: '14px', height: '54px', borderRadius: 'var(--radius-sm)' }} 
+                />
               </div>
-            </div>
 
-            {bulletTermEnabled && (
-              <div style={{ flex: '1', minWidth: '260px' }}>
-                <label className="form-label" style={{ fontWeight: '600', marginBottom: '8px', display: 'block' }}>{dict.loans.termShape}</label>
+              <div style={{ flex: '1.2', minWidth: '300px' }}>
+                <label className="form-label" style={{ fontWeight: '600', marginBottom: '8px', display: 'block' }}>{dict.loans.repaymentPlanModel}</label>
                 <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '4px', background: 'var(--bg-alt)', height: '54px', alignItems: 'center' }}>
                   <button
                     type="button"
-                    onClick={() => setTermShape('scheduled')}
-                    style={planButtonStyle(!isBulletPlan)}
+                    onClick={() => setCalcModel('upfront')}
+                    style={planButtonStyle(!isEmiAddition && !isInterestOnlyPlan)}
                   >
-                    <span>📅</span> {dict.loans.termInstalments}
+                    <span>⬇️</span> {dict.loans.upfront}
                   </button>
+
                   <button
                     type="button"
-                    onClick={() => setTermShape('bullet')}
-                    style={planButtonStyle(isBulletPlan)}
+                    onClick={() => setCalcModel('emi')}
+                    style={planButtonStyle(isEmiAddition)}
                   >
-                    <span>🎯</span> {dict.loans.termSinglePayment}
+                    <span>📈</span> {dict.loans.emi}
                   </button>
+
+                  {interestOnlyEnabled && !isBulletPlan && (
+                    <button
+                      type="button"
+                      onClick={() => setCalcModel('interest_only')}
+                      style={planButtonStyle(isInterestOnlyPlan)}
+                    >
+                      <span>🔁</span> {dict.loans.interestOnly}
+                    </button>
+                  )}
                 </div>
               </div>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', background: 'var(--bg-alt)', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', marginBottom: '20px', marginTop: '-10px' }}>
-            {isInterestOnlyPlan ? (
-              <span style={{ fontSize: '.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                {dict.loans.interestOnlyHint}
-              </span>
-            ) : !isEmiAddition ? (
-              <>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '.9rem', cursor: 'pointer', fontWeight: 500 }}>
-                  <input type="radio" checked={interestType === 'upfront_fixed'} onChange={() => setInterestType('upfront_fixed')} style={{ accentColor: 'var(--primary)' }} /> {dict.loans.fixedAmount}
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '.9rem', cursor: 'pointer', fontWeight: 500 }}>
-                  <input type="radio" checked={interestType === 'upfront_percentage'} onChange={() => setInterestType('upfront_percentage')} style={{ accentColor: 'var(--primary)' }} /> {dict.loans.percentage}
-                </label>
-              </>
-            ) : (
-              <>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '.9rem', cursor: 'pointer', fontWeight: 500 }}>
-                  <input type="radio" checked={interestType === 'emi_flat'} onChange={() => setInterestType('emi_flat')} style={{ accentColor: 'var(--primary)' }} /> {dict.loans.flatInterest}
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '.9rem', cursor: 'pointer', fontWeight: 500 }}>
-                  <input type="radio" checked={interestType === 'emi_floating'} onChange={() => setInterestType('emi_floating')} style={{ accentColor: 'var(--primary)' }} /> {dict.loans.floatingApr}
-                </label>
-              </>
-            )}
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">
-              {isInterestOnlyPlan
-                ? `${dict.loans.monthlyInterestRate} *`
-                : interestType === 'upfront_percentage' || interestType.includes('emi_')
-                  ? `Interest / Rate (%) *`
-                  : `${dict.loans.deduction} Amount (${currencySymbol}) *`}
-            </label>
-            <input
-              type="number"
-              name="deduction"
-              className="form-control"
-              step={isInterestOnlyPlan ? '0.001' : undefined}
-              placeholder={isInterestOnlyPlan ? 'e.g. 2.5 (per month)' : interestType.includes('percentage') || interestType.includes('emi_') ? 'e.g. 10 (for 10%)' : dict.creditInsights.placeholders.deduction}
-              value={interestRate}
-              onChange={e => setInterestRate(e.target.value ? Number(e.target.value) : '')}
-              required
-              style={{ fontSize: '1.1rem', padding: '12px' }}
-            />
-            {isInterestOnlyPlan && interestRate !== '' && (
-              <div style={{ marginTop: '8px', fontSize: '.85rem', color: 'var(--primary-dark)', fontWeight: 600 }}>
-                {interestRate}% / month = {Number(interestRate) * 12}% {dict.loans.aprEquivalent}
-              </div>
-            )}
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">{dict.loans.netDisbursed}</label>
-              <div className="form-computed" style={{ color: 'var(--primary-dark)' }}>{currencySymbol}{calculatedData.disbursedAmount.toLocaleString()}</div>
             </div>
-            <div className="form-group">
-              <label className="form-label">{dict.loans.totalPayable}</label>
-              <div className="form-computed">{currencySymbol}{calculatedData.totalPayable.toLocaleString()}</div>
-            </div>
-            {isBulletPlan && calculatedData.effectiveAnnualPercent != null && (
-              <div className="form-group">
-                <label className="form-label">{dict.loans.effectiveAnnualRate}</label>
-                <div className="form-computed">{calculatedData.effectiveAnnualPercent}%</div>
-              </div>
-            )}
-          </div>
 
-          {isInterestOnlyPlan && (
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', background: 'var(--bg-alt)', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', marginBottom: '20px' }}>
+              {isInterestOnlyPlan ? (
+                <span style={{ fontSize: '.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                  {dict.loans.interestOnlyHint}
+                </span>
+              ) : !isEmiAddition ? (
+                <>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '.9rem', cursor: 'pointer', fontWeight: 500 }}>
+                    <input type="radio" checked={interestType === 'upfront_fixed'} onChange={() => setInterestType('upfront_fixed')} style={{ accentColor: 'var(--primary)' }} /> {dict.loans.fixedAmount}
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '.9rem', cursor: 'pointer', fontWeight: 500 }}>
+                    <input type="radio" checked={interestType === 'upfront_percentage'} onChange={() => setInterestType('upfront_percentage')} style={{ accentColor: 'var(--primary)' }} /> {dict.loans.percentage}
+                  </label>
+                </>
+              ) : (
+                <>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '.9rem', cursor: 'pointer', fontWeight: 500 }}>
+                    <input type="radio" checked={interestType === 'emi_flat'} onChange={() => setInterestType('emi_flat')} style={{ accentColor: 'var(--primary)' }} /> {dict.loans.flatInterest}
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '.9rem', cursor: 'pointer', fontWeight: 500 }}>
+                    <input type="radio" checked={interestType === 'emi_floating'} onChange={() => setInterestType('emi_floating')} style={{ accentColor: 'var(--primary)' }} /> {dict.loans.floatingApr}
+                  </label>
+                </>
+              )}
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">
+                {isInterestOnlyPlan
+                  ? `${dict.loans.monthlyInterestRate} *`
+                  : interestType === 'upfront_percentage' || interestType.includes('emi_')
+                    ? `Interest / Rate (%) *`
+                    : `${dict.loans.deduction} Amount (${currencySymbol}) *`}
+              </label>
+              <input
+                type="number"
+                name="deduction"
+                className="form-control"
+                step={isInterestOnlyPlan ? '0.001' : undefined}
+                placeholder={isInterestOnlyPlan ? 'e.g. 2.5 (per month)' : interestType.includes('percentage') || interestType.includes('emi_') ? 'e.g. 10 (for 10%)' : dict.creditInsights.placeholders.deduction}
+                value={interestRate}
+                onChange={e => setInterestRate(e.target.value ? Number(e.target.value) : '')}
+                required
+                style={{ fontSize: '1.1rem', padding: '12px' }}
+              />
+              {isInterestOnlyPlan && interestRate !== '' && (
+                <div style={{ marginTop: '8px', fontSize: '.85rem', color: 'var(--primary-dark)', fontWeight: 600 }}>
+                  {interestRate}% / month = {Number(interestRate) * 12}% {dict.loans.aprEquivalent}
+                </div>
+              )}
+            </div>
+
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">{dict.loans.monthlyInterest}</label>
-                <div className="form-computed" style={{ fontWeight: 'bold', color: 'var(--primary-dark)' }}>
-                  {currencySymbol}{(calculatedData.monthlyInterest ?? 0).toLocaleString()}
-                </div>
+                <label className="form-label">{dict.loans.netDisbursed}</label>
+                <div className="form-computed" style={{ color: 'var(--primary-dark)' }}>{currencySymbol}{calculatedData.disbursedAmount.toLocaleString()}</div>
               </div>
               <div className="form-group">
-                <label className="form-label">{dict.loans.principalAtClosure}</label>
-                <div className="form-computed" style={{ fontWeight: 'bold' }}>
-                  {currencySymbol}{(calculatedData.principalDueAtClosure ?? 0).toLocaleString()}
+                <label className="form-label">{dict.loans.totalPayable}</label>
+                <div className="form-computed">{currencySymbol}{calculatedData.totalPayable.toLocaleString()}</div>
+              </div>
+              {isBulletPlan && calculatedData.effectiveAnnualPercent != null && (
+                <div className="form-group">
+                  <label className="form-label">{dict.loans.effectiveAnnualRate}</label>
+                  <div className="form-computed">{calculatedData.effectiveAnnualPercent}%</div>
+                </div>
+              )}
+            </div>
+
+            {isInterestOnlyPlan && (
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">{dict.loans.monthlyInterest}</label>
+                  <div className="form-computed" style={{ fontWeight: 'bold', color: 'var(--primary-dark)' }}>
+                    {currencySymbol}{(calculatedData.monthlyInterest ?? 0).toLocaleString()}
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">{dict.loans.principalAtClosure}</label>
+                  <div className="form-computed" style={{ fontWeight: 'bold' }}>
+                    {currencySymbol}{(calculatedData.principalDueAtClosure ?? 0).toLocaleString()}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* The term axis decides which controls mean anything: a cadence loan
-              needs a frequency, a due day and an instalment count; a bullet needs a
-              number of days and nothing else. termType always posts, so the route
-              never has to infer the shape. */}
-          <input type="hidden" name="termType" value={termType} />
-          {isBulletPlan ? (
+            <input type="hidden" name="termType" value={frequency === 'single_payment' ? 'bullet' : 'scheduled'} />
             <div className="form-row">
-              {/* frequency still posts: every downstream reader (contract prefix,
-                  collection cadence, reports) expects the field to exist. */}
-              <input type="hidden" name="frequency" value={frequency} />
-              <input type="hidden" name="tenure" value={1} />
               <div className="form-group">
-                <label className="form-label">{dict.loans.daysToMaturity} *</label>
-                <input
-                  type="number"
-                  name="termDays"
-                  min={1}
-                  step={1}
-                  className="form-control"
-                  value={termDays}
-                  onChange={e => setTermDays(e.target.value ? Number(e.target.value) : '')}
-                  required
-                  style={{ fontSize: '1.1rem', padding: '12px' }}
-                />
+                <label className="form-label">{dict.loans.frequency} *</label>
+                <select 
+                  name="frequency" 
+                  className="form-control" 
+                  value={frequency} 
+                  onChange={e => { 
+                    const newFreq = e.target.value;
+                    setFrequency(newFreq); 
+                    setDueDay(''); 
+                    if (newFreq === 'single_payment') {
+                      setTenure(1);
+                      setTermType('bullet');
+                    } else if (newFreq === 'custom_duration') {
+                      if (!tenure || Number(tenure) === 1) setTenure(2);
+                      setTermType('scheduled');
+                    } else {
+                      setTermType('scheduled');
+                    }
+                  }} 
+                  required 
+                  style={{ fontSize: '1rem', padding: '12px' }}
+                >
+                  {!isInterestOnlyPlan && <option value="daily">{dict.creditInsights.daily}</option>}
+                  {!isInterestOnlyPlan && <option value="weekly">{dict.creditInsights.weekly}</option>}
+                  {!isInterestOnlyPlan && <option value="biweekly">{dict.loans.biWeekly}</option>}
+                  <option value="monthly">{dict.creditInsights.monthly}</option>
+                  {!isInterestOnlyPlan && <option value="single_payment">{dict.loans.singlePayment}</option>}
+                  {!isInterestOnlyPlan && <option value="custom_duration">{dict.loans.customDuration}</option>}
+                </select>
               </div>
-              <div className="form-group">
-                <label className="form-label">{dict.loans.maturityDate}</label>
-                <div className="form-computed">{calculatedData.maturityDate ? formatDateISO(new Date(calculatedData.maturityDate)) : '—'}</div>
-              </div>
-              <div className="form-group">
-                <label className="form-label">{dict.loans.singlePaymentDue}</label>
-                <div className="form-computed" style={{ fontWeight: 'bold' }}>
-                  {currencySymbol}{calculatedData.totalPayable.toLocaleString()}
+
+              {(frequency === 'weekly' || frequency === 'biweekly') && (
+                <div className="form-group">
+                  <label className="form-label">{dict.loans.dueDay} *</label>
+                  <select name="dueDay" className="form-control" value={dueDay} onChange={e => setDueDay(e.target.value ? Number(e.target.value) : '')} required style={{ fontSize: '1rem', padding: '12px' }}>
+                    <option value="">{dict.loans.selectDay}</option>
+                    {[dict.loans.sunday, dict.loans.monday, dict.loans.tuesday, dict.loans.wednesday, dict.loans.thursday, dict.loans.friday, dict.loans.saturday].map((day: string, i: number) => (
+                      <option key={i} value={i}>{day}</option>
+                    ))}
+                  </select>
                 </div>
-              </div>
+              )}
+
+              {frequency === 'monthly' && (
+                <div className="form-group">
+                  <label className="form-label">{dict.loans.dueDateLabel} *</label>
+                  <select name="dueDay" className="form-control" value={dueDay} onChange={e => setDueDay(e.target.value ? Number(e.target.value) : '')} required style={{ fontSize: '1rem', padding: '12px' }}>
+                    <option value="">{dict.loans.selectDate}</option>
+                    {Array.from({ length: 28 }, (_, i) => i + 1).map(d => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {frequency === 'single_payment' && (
+                <input type="hidden" name="tenure" value={1} />
+              )}
+
+              {frequency === 'custom_duration' && (
+                <div className="form-group">
+                  <label className="form-label">{dict.loans.numberOfInstallments} *</label>
+                  <input 
+                    type="number" 
+                    name="tenure" 
+                    min={1}
+                    className="form-control" 
+                    placeholder="e.g. 2" 
+                    value={tenure} 
+                    onChange={e => setTenure(e.target.value ? Number(e.target.value) : '')} 
+                    required 
+                    style={{ fontSize: '1.1rem', padding: '12px' }} 
+                  />
+                </div>
+              )}
+
+              {frequency !== 'single_payment' && frequency !== 'custom_duration' && (
+                <div className="form-group">
+                  <label className="form-label">{dict.loans.tenure} *</label>
+                  <input 
+                    type="number" 
+                    name="tenure" 
+                    className="form-control" 
+                    placeholder={dict.creditInsights.placeholders.tenure} 
+                    value={tenure} 
+                    onChange={e => setTenure(e.target.value ? Number(e.target.value) : '')} 
+                    required 
+                    style={{ fontSize: '1.1rem', padding: '12px' }} 
+                  />
+                </div>
+              )}
             </div>
-          ) : (
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">{dict.loans.frequency} *</label>
-              {/* Interest-Only quotes a monthly rate, so its schedule is monthly by
-                  definition (enforced in lib/loanCalculator.ts). The option list is
-                  narrowed rather than the control disabled — a disabled select
-                  submits no value, which would drop `frequency` from the payload. */}
-              <select name="frequency" className="form-control" value={frequency} onChange={e => { setFrequency(e.target.value); setDueDay(''); }} required style={{ fontSize: '1rem', padding: '12px' }}>
-                {!isInterestOnlyPlan && <option value="daily">{dict.creditInsights.daily}</option>}
-                {!isInterestOnlyPlan && <option value="weekly">{dict.creditInsights.weekly}</option>}
-                {!isInterestOnlyPlan && <option value="biweekly">{dict.loans.biWeekly}</option>}
-                <option value="monthly">{dict.creditInsights.monthly}</option>
-              </select>
+
+            <div className="form-row">
+              {frequency === 'single_payment' ? (
+                <>
+                  <div className="form-group">
+                    <label className="form-label">{dict.loans.startDate} *</label>
+                    <input
+                      type="date"
+                      name="startDate"
+                      className="form-control"
+                      value={startDate}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setStartDate(val);
+                        if (val) {
+                          const nextEnd = calculateEndDate(new Date(val), 'monthly', 1);
+                          setCustomEndDate(formatDateISO(nextEnd));
+                        }
+                      }}
+                      required
+                      style={{ fontSize: '1rem', padding: '12px' }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{dict.loans.repaymentDate} *</label>
+                    <input
+                      type="date"
+                      name="repaymentDate"
+                      className="form-control"
+                      value={customEndDate}
+                      onChange={e => setCustomEndDate(e.target.value)}
+                      required
+                      style={{ fontSize: '1rem', padding: '12px' }}
+                    />
+                  </div>
+                </>
+              ) : frequency === 'custom_duration' ? (
+                <>
+                  <div className="form-group">
+                    <label className="form-label">{dict.loans.fromDate} *</label>
+                    <input
+                      type="date"
+                      name="startDate"
+                      className="form-control"
+                      value={startDate}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setStartDate(val);
+                        if (val) {
+                          const tCount = Math.max(1, Number(tenure) || 2);
+                          const nextEnd = calculateEndDate(new Date(val), 'monthly', tCount);
+                          setCustomEndDate(formatDateISO(nextEnd));
+                        }
+                      }}
+                      required
+                      style={{ fontSize: '1rem', padding: '12px' }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{dict.loans.toDate} *</label>
+                    <input
+                      type="date"
+                      name="endDate"
+                      className="form-control"
+                      value={customEndDate}
+                      onChange={e => setCustomEndDate(e.target.value)}
+                      required
+                      style={{ fontSize: '1rem', padding: '12px' }}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="form-group">
+                    <label className="form-label">{dict.loans.startDate} *</label>
+                    <input type="date" name="startDate" className="form-control" value={startDate} onChange={e => setStartDate(e.target.value)} required style={{ fontSize: '1rem', padding: '12px' }} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{dict.loans.endDate}</label>
+                    <div className="form-computed">{endDate ? formatDateISO(endDate) : '—'}</div>
+                  </div>
+                </>
+              )}
             </div>
-            {(frequency === 'weekly' || frequency === 'biweekly') && (
+
+            <div className="form-row" style={{ marginBottom: 0 }}>
               <div className="form-group">
-                <label className="form-label">{dict.loans.dueDay} *</label>
-                <select name="dueDay" className="form-control" value={dueDay} onChange={e => setDueDay(e.target.value ? Number(e.target.value) : '')} required style={{ fontSize: '1rem', padding: '12px' }}>
-                  <option value="">{dict.loans.selectDay}</option>
-                  {[dict.loans.sunday, dict.loans.monday, dict.loans.tuesday, dict.loans.wednesday, dict.loans.thursday, dict.loans.friday, dict.loans.saturday].map((day: string, i: number) => (
-                    <option key={i} value={i}>{day}</option>
-                  ))}
-                </select>
+                <label className="form-label">{dict.loans.perInstalment}</label>
+                <div className="form-computed" style={{ fontWeight: 'bold' }}>{currencySymbol}{calculatedData.perInstalment.toLocaleString()}</div>
               </div>
-            )}
-            {frequency === 'monthly' && (
               <div className="form-group">
-                <label className="form-label">{dict.loans.dueDateLabel} *</label>
-                <select name="dueDay" className="form-control" value={dueDay} onChange={e => setDueDay(e.target.value ? Number(e.target.value) : '')} required style={{ fontSize: '1rem', padding: '12px' }}>
-                  <option value="">{dict.loans.selectDate}</option>
-                  {Array.from({ length: 28 }, (_, i) => i + 1).map(d => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
+                <label className="form-label">{dict.loans.penaltyMissed} ({currencySymbol})</label>
+                <input type="number" name="penaltyRate" className="form-control" value={penalty} onChange={e => setPenalty(Number(e.target.value))} style={{ fontSize: '1rem', padding: '12px' }} />
               </div>
-            )}
-            <div className="form-group">
-              <label className="form-label">{dict.loans.tenure} *</label>
-              <input type="number" name="tenure" className="form-control" placeholder={dict.creditInsights.placeholders.tenure} value={tenure} onChange={e => setTenure(e.target.value ? Number(e.target.value) : '')} required style={{ fontSize: '1.1rem', padding: '12px' }} />
-            </div>
-          </div>
-          )}
-
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">{dict.loans.startDate} *</label>
-              <input type="date" name="startDate" className="form-control" value={startDate} onChange={e => setStartDate(e.target.value)} required style={{ fontSize: '1rem', padding: '12px' }} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">{dict.loans.endDate}</label>
-              <div className="form-computed">{endDate ? formatDateISO(endDate) : '—'}</div>
             </div>
           </div>
 
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">{dict.loans.perInstalment}</label>
-              <div className="form-computed" style={{ fontWeight: 'bold' }}>{currencySymbol}{calculatedData.perInstalment.toLocaleString()}</div>
+          {/* Section 4: Security Cheques */}
+          <div className="card" style={{ border: '1px solid var(--border)' }}>
+            <div className="card-header" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '16px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1.05rem', color: 'var(--primary-dark)', fontWeight: 600 }}>
+                <span className="material-icons-outlined">security</span> 🏦 {dict.loans.securityCheques || 'Security Cheques'}
+              </h3>
             </div>
-            <div className="form-group">
-              <label className="form-label">{dict.loans.penaltyMissed} ({currencySymbol})</label>
-              <input type="number" name="penaltyRate" className="form-control" value={penalty} onChange={e => setPenalty(Number(e.target.value))} style={{ fontSize: '1rem', padding: '12px' }} />
-            </div>
-          </div>
-
-          <div style={{ marginTop: '32px', marginBottom: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
-            <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1rem', color: 'var(--primary-dark)' }}>
-              <span className="material-icons-outlined">security</span> 🏦 {dict.loans.securityCheques || 'Collateral & Cheques'}
-            </h4>
-          </div>
-
-          <div style={{ marginTop: '24px' }}>
-            <h4 style={{ margin: '0 0 12px', fontSize: '.9rem', fontWeight: 600 }}>🏦 {dict.loans.securityCheques || 'Security Cheques'}</h4>
             <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '14px', background: 'var(--bg)' }}>
               {cheques.map((cheque, index) => (
                 <div key={cheque.id} style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '8px' }}>
@@ -1185,111 +1294,123 @@ export default function LoanForm({
               </button>
             </div>
           </div>
-          
-          <div style={{ marginTop: '32px', marginBottom: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
-            <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1rem', color: 'var(--primary-dark)' }}>
-              <span className="material-icons-outlined">verified_user</span> 🛡️ Guarantor Details
-            </h4>
-          </div>
 
-          {selectedCustomer?.guarantors?.length > 0 && (
-            <div style={{ marginBottom: '12px' }}>
-              <label className="form-label" style={{ fontSize: '.75rem', opacity: .7 }}>Existing Guarantors for this customer:</label>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {selectedCustomer.guarantors.map((g: any) => (
+          {/* Section 5: Guarantor Details */}
+          <div className="card" style={{ border: '1px solid var(--border)' }}>
+            <div className="card-header" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '16px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1.05rem', color: 'var(--primary-dark)', fontWeight: 600 }}>
+                <span className="material-icons-outlined">verified_user</span> 🛡️ {dict.customers.guarantorSuretySection || 'Guarantor Details'}
+              </h3>
+            </div>
+
+            {selectedCustomer?.guarantors?.length > 0 && (
+              <div style={{ marginBottom: '12px' }}>
+                <label className="form-label" style={{ fontSize: '.75rem', opacity: .7 }}>Existing Guarantors for this customer:</label>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {selectedCustomer.guarantors.map((g: any) => (
+                    <button 
+                      key={g.id} 
+                      type="button" 
+                      className="btn btn-ghost btn-sm" 
+                      onClick={() => pickExistingGuarantor(g)}
+                      style={{ padding: '4px 12px', fontSize: '.8rem', border: '1px solid var(--border)', borderRadius: '20px' }}
+                    >
+                      👤 {g.name}
+                    </button>
+                  ))}
                   <button 
-                    key={g.id} 
                     type="button" 
                     className="btn btn-ghost btn-sm" 
-                    onClick={() => pickExistingGuarantor(g)}
-                    style={{ padding: '4px 12px', fontSize: '.8rem', border: '1px solid var(--border)', borderRadius: '20px' }}
+                    onClick={() => pickExistingGuarantor({})}
+                    style={{ padding: '4px 12px', fontSize: '.8rem', border: '1px dashed var(--border)', borderRadius: '20px' }}
                   >
-                    👤 {g.name}
+                    ➕ New Guarantor
                   </button>
-                ))}
-                <button 
-                  type="button" 
-                  className="btn btn-ghost btn-sm" 
-                  onClick={() => pickExistingGuarantor({})}
-                  style={{ padding: '4px 12px', fontSize: '.8rem', border: '1px dashed var(--border)', borderRadius: '20px' }}
-                >
-                  ➕ New Guarantor
-                </button>
-              </div>
-            </div>
-          )}
-
-          <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '14px', background: 'var(--bg)' }}>
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">{dict.loans.guarantorName} *</label>
-                <input type="text" name="guarantorName" className="form-control" placeholder={dict.loans.guarantorName} value={guarantorName} onChange={e => setGuarantorName(e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">{dict.loans.guarantorPhone} *</label>
-                <input type="tel" name="guarantorPhone" className="form-control" placeholder={dict.loans.guarantorPhone} value={guarantorPhone} onChange={e => setGuarantorPhone(e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} />
-              </div>
-            </div>
-            
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Aadhar Number</label>
-                <input type="text" name="guarantorAadhar" className="form-control" placeholder="12-digit Aadhar" value={guarantorAadhar} onChange={e => setGuarantorAadhar(e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Relation</label>
-                <select name="guarantorRelation" className="form-control" value={guarantorRelation} onChange={e => setGuarantorRelation(e.target.value)} style={{ fontSize: '1rem', padding: '10px' }}>
-                  <option value="">Select Relation</option>
-                  <option value="Friend">Friend</option>
-                  <option value="Relative">Relative</option>
-                  <option value="Colleague">Colleague</option>
-                  <option value="Business Partner">Business Partner</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Guarantor Address</label>
-              <textarea name="guarantorAddress" className="form-control" rows={2} placeholder="Complete address" value={guarantorAddress} onChange={e => setGuarantorAddress(e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Guarantor Photo</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                <div style={{ 
-                  width: '140px', height: '140px', borderRadius: '12px', 
-                  border: '2px dashed var(--border)', background: 'var(--bg)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden'
-                }}>
-                  {guarantorPhotoPreview ? (
-                    <img src={guarantorPhotoPreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    <span className="material-icons-outlined" style={{ fontSize: '48px', color: 'var(--text-light)' }}>add_a_photo</span>
-                  )}
                 </div>
-                <div>
-                  <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', display: 'inline-block', marginBottom: '8px' }}>
-                    Choose Photo
-                    <input type="file" name="guarantorPhoto" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleGuarantorPhotoChange} />
-                  </label>
-                  <p style={{ fontSize: '.75rem', color: 'var(--text-secondary)', margin: 0 }}>Upload a clear passport size photo.</p>
+              </div>
+            )}
+
+            <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '14px', background: 'var(--bg)' }}>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">{dict.loans.guarantorName} *</label>
+                  <input type="text" name="guarantorName" className="form-control" placeholder={dict.loans.guarantorName} value={guarantorName} onChange={e => setGuarantorName(e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">{dict.loans.guarantorPhone} *</label>
+                  <input type="tel" name="guarantorPhone" className="form-control" placeholder={dict.loans.guarantorPhone} value={guarantorPhone} onChange={e => setGuarantorPhone(e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} />
+                </div>
+              </div>
+              
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Aadhar Number</label>
+                  <input type="text" name="guarantorAadhar" className="form-control" placeholder="12-digit Aadhar" value={guarantorAadhar} onChange={e => setGuarantorAadhar(e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Relation</label>
+                  <select name="guarantorRelation" className="form-control" value={guarantorRelation} onChange={e => setGuarantorRelation(e.target.value)} style={{ fontSize: '1rem', padding: '10px' }}>
+                    <option value="">Select Relation</option>
+                    <option value="Friend">Friend</option>
+                    <option value="Relative">Relative</option>
+                    <option value="Colleague">Colleague</option>
+                    <option value="Business Partner">Business Partner</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Guarantor Address</label>
+                <textarea name="guarantorAddress" className="form-control" rows={2} placeholder="Complete address" value={guarantorAddress} onChange={e => setGuarantorAddress(e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Guarantor Photo</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                  <div style={{ 
+                    width: '140px', height: '140px', borderRadius: '12px', 
+                    border: '2px dashed var(--border)', background: 'var(--bg)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden'
+                  }}>
+                    {guarantorPhotoPreview ? (
+                      <img src={guarantorPhotoPreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <span className="material-icons-outlined" style={{ fontSize: '48px', color: 'var(--text-light)' }}>add_a_photo</span>
+                    )}
+                  </div>
+                  <div>
+                    <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', display: 'inline-block', marginBottom: '8px' }}>
+                      Choose Photo
+                      <input type="file" name="guarantorPhoto" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleGuarantorPhotoChange} />
+                    </label>
+                    <p style={{ fontSize: '.75rem', color: 'var(--text-secondary)', margin: 0 }}>Upload a clear passport size photo.</p>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="form-group" style={{ marginTop: '16px' }}>
-            <label className="form-label">{dict.loans.voucherRef}</label>
-            <input type="text" name="voucherRef" className="form-control" placeholder={dict.loans.voucherRef} style={{ fontSize: '1rem', padding: '12px' }} />
-          </div>
+          {/* Section 6: Origination Actions */}
+          <div className="card" style={{ border: '1px solid var(--border)' }}>
+            <div className="card-header" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '16px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1.05rem', color: 'var(--primary-dark)', fontWeight: 600 }}>
+                <span className="material-icons-outlined">send</span> 🚀 {dict.loans.originationActions || 'Disbursal & Confirmation'}
+              </h3>
+            </div>
 
-          <div className="form-actions" style={{ marginTop: '24px' }}>
-            <button type="submit" className="btn btn-primary" disabled={loading || !selectedCustomer} style={{ padding: '12px 24px', fontSize: '1rem' }}>
-              <span className="material-icons-outlined" style={{ fontSize: '18px' }}>check</span> 
-              {loading ? dict.loans.creating : dict.loans.submit}
-            </button>
-            <Link href="/loans" className="btn btn-ghost" style={{ padding: '12px 24px', fontSize: '1rem' }}>{dict.loans.cancel}</Link>
+            <div className="form-group">
+              <label className="form-label">{dict.loans.voucherRef}</label>
+              <input type="text" name="voucherRef" className="form-control" placeholder={dict.loans.voucherRef} style={{ fontSize: '1rem', padding: '12px' }} />
+            </div>
+
+            <div className="form-actions" style={{ marginTop: '20px' }}>
+              <button type="submit" className="btn btn-primary" disabled={loading || !selectedCustomer} style={{ padding: '12px 24px', fontSize: '1rem' }}>
+                <span className="material-icons-outlined" style={{ fontSize: '18px' }}>check</span> 
+                {loading ? dict.loans.creating : dict.loans.submit}
+              </button>
+              <Link href="/loans" className="btn btn-ghost" style={{ padding: '12px 24px', fontSize: '1rem' }}>{dict.loans.cancel}</Link>
+            </div>
           </div>
         </form>
       </div>
