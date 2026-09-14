@@ -326,6 +326,8 @@ export const kn = {
     customCadence: 'ಕಸ್ಟಮ್ ಅವಧಿ',
     singlePayment: 'ಒಂದೇ ಪಾವತಿ',
     customDuration: 'ಕಸ್ಟಮ್ ಅವಧಿ',
+    custom: 'ಕಸ್ಟಮ್',
+    multipleInstallments: 'ಬಹು ಕಂತುಗಳು',
     repaymentDate: 'ಮರುಪಾವತಿ ದಿನಾಂಕ',
     numberOfInstallments: 'ಕಂತುಗಳ ಸಂಖ್ಯೆ',
     fromDate: 'ಪ್ರಾರಂಭ ದಿನಾಂಕ',

@@ -63,7 +63,8 @@ function RegisterForm() {
     phone: emptyAvailabilityField,
     email: emptyAvailabilityField,
   });
-  const [selectedPlan, setSelectedPlan] = useState('basic');
+  const [selectedPlan, setSelectedPlan] = useState('free');
+  const [paymentOption, setPaymentOption] = useState<'pay_now' | 'trial'>('pay_now');
   const [selectedModules, setSelectedModules] = useState(['microlending']);
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -103,13 +104,14 @@ function RegisterForm() {
         const res = await fetch('/api/pricing');
         const data = await res.json();
         if (data.success) {
-          const paidPlans = (data.plans || []).filter((plan: any) => Number(plan.monthlyPrice) > 0);
-          setCatalog({ ...data, plans: paidPlans });
-          // SaaS is trial-then-paid; zero-price legacy plans are never offered.
-          if (paidPlans.length > 0) {
-            setSelectedPlan(paidPlans[0].plan);
+          const plans = data.plans || [];
+          setCatalog({ ...data, plans });
+          if (plans.length > 0) {
+            // Default to collector/basic if available, or first plan
+            const defaultPlan = plans.find((p: any) => p.plan === 'collector' || p.plan === 'basic') || plans[0];
+            setSelectedPlan(defaultPlan.plan);
           } else {
-            setError('No paid subscription plans are currently available.');
+            setError('No subscription plans are currently available.');
           }
         } else {
           setError('Failed to load pricing information');
@@ -329,6 +331,7 @@ function RegisterForm() {
             selectedPlan,
             selectedModules,
             selectedAddons,
+            paymentOption: selectedPlan === 'free' ? 'free' : paymentOption,
             referralCode
           }
         : {
@@ -340,6 +343,7 @@ function RegisterForm() {
             selectedPlan,
             selectedModules,
             selectedAddons,
+            paymentOption: selectedPlan === 'free' ? 'free' : paymentOption,
             referralCode
           };
 
@@ -378,6 +382,13 @@ function RegisterForm() {
       }
 
       // Successfully registered.
+      // If Razorpay subscription checkout URL was generated (direct payment),
+      // redirect the user immediately to payment options!
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+        return;
+      }
+
       if (isGoogleRegister) {
         // Bridge the existing Supabase (Google) session straight into the app
         // session. Fall back to the legacy NextAuth Google provider if needed.
@@ -619,7 +630,7 @@ function RegisterForm() {
           {step === 3 && (
             <div>
               <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: '24px' }}>
-                Select a subscription plan that fits your business scale. Your free trial starts after registration; payment is required when it ends.
+                Select a subscription plan that fits your business scale. Choose Free to get started immediately, or a paid plan with direct payment or trial options.
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
                 {catalog.plans.map((p: any) => {
@@ -646,14 +657,14 @@ function RegisterForm() {
                         {p.plan}
                       </span>
                       <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                        ₹{p.monthlyPrice}
-                        <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 400 }}>/vertical/mo</span>
+                        {p.monthlyPrice === 0 ? 'Free' : `₹${p.monthlyPrice}`}
+                        {p.monthlyPrice > 0 && <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 400 }}>/vertical/mo</span>}
                       </div>
                       <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '8px 0 16px', minHeight: '36px' }}>
                         {p.description}
                       </p>
                       <div style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--primary)', marginBottom: '12px' }}>
-                        {Number(p.trialDays) > 0 ? `${p.trialDays}-day free trial` : '14-day free trial'}
+                        {p.monthlyPrice === 0 ? 'Free forever' : (Number(p.trialDays) > 0 ? `${p.trialDays}-day trial or pay now` : 'Direct activation')}
                       </div>
                       <div style={{ borderTop: '1px solid var(--border)', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.78rem', color: 'var(--text-secondary)', textAlign: 'left', flexGrow: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -758,9 +769,80 @@ function RegisterForm() {
 
                   {/* Pricing Quote Table */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.85rem' }}>
-                    <div style={{ padding: '10px 12px', borderRadius: '8px', background: 'var(--bg-light)', color: 'var(--text-secondary)' }}>
-                      No payment is taken today. Access pauses at the end of the free trial until subscription payment is completed.
-                    </div>
+                    {selectedPlan === 'free' ? (
+                      <div style={{ padding: '12px 14px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', color: 'var(--text-primary)' }}>
+                        <strong style={{ display: 'block', color: 'var(--success)', marginBottom: '4px' }}>Free Tier Plan</strong>
+                        Always free with up to 25 active loans and 1 agent. No payment or credit card required today.
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '8px' }}>
+                        <label style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                          Subscription Activation Choice
+                        </label>
+                        
+                        <div
+                          onClick={() => setPaymentOption('pay_now')}
+                          style={{
+                            padding: '12px 16px', borderRadius: '8px', cursor: 'pointer',
+                            border: `2px solid ${paymentOption === 'pay_now' ? 'var(--primary)' : 'var(--border)'}`,
+                            background: paymentOption === 'pay_now' ? 'var(--bg-light)' : 'transparent',
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <input
+                              type="radio"
+                              name="payment_pref"
+                              checked={paymentOption === 'pay_now'}
+                              onChange={() => setPaymentOption('pay_now')}
+                            />
+                            <div>
+                              <div style={{ fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                Pay Now & Activate Subscription
+                                <span className="badge badge-primary" style={{ fontSize: '0.65rem' }}>Direct Checkout</span>
+                              </div>
+                              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                Pay ₹{quote.total}/mo now via Razorpay. Your workspace is immediately fully activated.
+                              </div>
+                            </div>
+                          </div>
+                          <span style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '0.95rem' }}>
+                            ₹{quote.total}/mo
+                          </span>
+                        </div>
+
+                        <div
+                          onClick={() => setPaymentOption('trial')}
+                          style={{
+                            padding: '12px 16px', borderRadius: '8px', cursor: 'pointer',
+                            border: `2px solid ${paymentOption === 'trial' ? 'var(--primary)' : 'var(--border)'}`,
+                            background: paymentOption === 'trial' ? 'var(--bg-light)' : 'transparent',
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <input
+                              type="radio"
+                              name="payment_pref"
+                              checked={paymentOption === 'trial'}
+                              onChange={() => setPaymentOption('trial')}
+                            />
+                            <div>
+                              <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                                Start 14-Day Free Trial
+                              </div>
+                              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                Full access for 14 days without upfront charge. Payment required at the end of the trial.
+                              </div>
+                            </div>
+                          </div>
+                          <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                            14 Days Free
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span>Base Vertical Subscription ({selectedPlan.toUpperCase()})</span>
                       <strong style={{ color: 'var(--text-primary)' }}>₹{quote.base}/mo</strong>
@@ -794,7 +876,7 @@ function RegisterForm() {
                   style={{ marginTop: '4px' }}
                 />
                 <label htmlFor="terms" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                  I accept the Terms of Service, privacy policy and authorize ZoloFund to set up my workspace trial database immediately.
+                  I accept the Terms of Service, privacy policy and authorize ZoloFund to set up my workspace database immediately.
                 </label>
               </div>
 
@@ -819,7 +901,13 @@ function RegisterForm() {
               </button>
             ) : (
               <button type="submit" className="btn btn-primary" disabled={loading}>
-                {loading ? 'Setting up Workspace...' : 'Register Business'}
+                {loading
+                  ? (paymentOption === 'pay_now' && selectedPlan !== 'free' ? 'Preparing Payment...' : 'Setting up Workspace...')
+                  : selectedPlan === 'free'
+                  ? 'Register Free Workspace'
+                  : paymentOption === 'pay_now'
+                  ? `Proceed to Payment (₹${quote.total})`
+                  : 'Start 14-Day Free Trial'}
               </button>
             )}
           </div>

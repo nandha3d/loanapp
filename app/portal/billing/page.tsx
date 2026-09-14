@@ -202,7 +202,7 @@ export default async function PortalBillingPage() {
                     <CheckoutButton
                       planId={p.plan}
                       label={p.plan === plan
-                        ? (access.blocked ? 'Renew current plan' : 'Set up recurring payment')
+                        ? (access.blocked ? 'Renew current plan' : 'Pay & Activate Subscription')
                         : `Choose ${p.displayName}`}
                     />
                   )}

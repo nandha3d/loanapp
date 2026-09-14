@@ -104,6 +104,6 @@ assert.match(checkoutAction, /data:\s*\{ razorpaySubId: subscription\.id \}/, 'c
 assert.match(checkoutAction, /redirect\(checkoutUrl\)/, 'checkout redirects to Razorpay');
 assert.match(webhook, /subscription\.notes\?\.tenant_id/, 'webhook can recover tenant linkage from signed notes');
 assert.match(webhook, /status: 'processing'/, 'webhook reserves an idempotency record before billing mutations');
-assert.match(registration, /monthlyPrice:\s*\{ gt: 0 \}|monthlyPrice <= 0/, 'SaaS registration rejects permanent-free plans');
+assert.match(registration, /monthlyPrice < 0/, 'SaaS registration validates active plan catalog pricing');
 
 console.log('SaaS subscription lifecycle regression checks passed');

@@ -326,6 +326,8 @@ export const te = {
     customCadence: 'అనుకూల వ్యవధి',
     singlePayment: 'సింగిల్ చెల్లింపు',
     customDuration: 'అనుకూల కాలపరిమితి',
+    custom: 'అనుకూల',
+    multipleInstallments: 'బహుళ వాయిదాలు',
     repaymentDate: 'తిరిగి చెల్లించే తేదీ',
     numberOfInstallments: 'వాయిదాల సంఖ్య',
     fromDate: 'ప్రారంభ తేదీ',

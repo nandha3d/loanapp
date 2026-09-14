@@ -107,7 +107,7 @@ export function calculateEndDate(startDate: Date, frequency: string, tenure: num
   if (frequency === 'daily') end.setDate(end.getDate() + tenure);
   else if (frequency === 'weekly') end.setDate(end.getDate() + tenure * 7);
   else if (frequency === 'biweekly') end.setDate(end.getDate() + tenure * 14);
-  else if (frequency === 'single_payment') end.setMonth(end.getMonth() + 1);
+  else if (frequency === 'single_payment' || ((frequency === 'custom' || frequency === 'custom_duration') && tenure === 1)) end.setMonth(end.getMonth() + 1);
   else end.setMonth(end.getMonth() + tenure);
   return end;
 }

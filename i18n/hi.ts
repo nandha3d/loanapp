@@ -326,6 +326,8 @@ export const hi = {
     customCadence: 'कस्टम अवधि',
     singlePayment: 'एकल भुगतान',
     customDuration: 'कस्टम अवधि',
+    custom: 'कस्टम',
+    multipleInstallments: 'एकाधिक किश्तें',
     repaymentDate: 'पुनर्भुगतान तिथि',
     numberOfInstallments: 'किश्तों की संख्या',
     fromDate: 'प्रारंभ तिथि',

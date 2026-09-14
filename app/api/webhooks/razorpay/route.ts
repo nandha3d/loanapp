@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { calculateVerticalSubscriptionPricing } from '@/lib/pricing';
 import { verifyRazorpayWebhookSignature } from '@/lib/razorpay';
+import { getPlatformPaymentSettings } from '@/lib/platformPayment';
 import {
   normalizeEnabledModules,
   normalizeRazorpaySubscriptionStatus,
@@ -69,7 +70,8 @@ export async function POST(request: NextRequest) {
   });
   if (!rateLimit.allowed) return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
 
-  const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+  const platformConfig = await getPlatformPaymentSettings();
+  const webhookSecret = platformConfig.webhookSecret;
   if (!webhookSecret) {
     return NextResponse.json({ error: 'Webhook is not configured' }, { status: 500 });
   }

@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { getPlatformPaymentSettings } from '@/lib/platformPayment';
 
 export function verifyRazorpayWebhookSignature(body: string, secret: string, signature: string | null): boolean {
   if (!signature) return false;
@@ -60,11 +61,12 @@ async function razorpayFailure(res: Response, action: string): Promise<RazorpayA
   return new RazorpayApiError(description || `Razorpay ${action} failed`, res.status, code);
 }
 
-function getPlatformRazorpayAuth(): string {
-  const keyId = process.env.RAZORPAY_KEY_ID;
-  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+async function getPlatformRazorpayAuth(): Promise<string> {
+  const config = await getPlatformPaymentSettings();
+  const keyId = config.keyId;
+  const keySecret = config.keySecret;
   if (!keyId || !keySecret) {
-    throw new RazorpayApiError('Razorpay keys not configured', 0, 'KEYS_MISSING');
+    throw new RazorpayApiError('Razorpay keys not configured. Please configure them in Developer Payment Settings.', 0, 'KEYS_MISSING');
   }
   return Buffer.from(`${keyId}:${keySecret}`).toString('base64');
 }
@@ -139,14 +141,16 @@ export async function createRazorpayPlan(input: {
     throw new Error('Subscription amount must be greater than zero');
   }
 
-  if (process.env.RAZORPAY_MOCK_CHECKOUT === 'true') {
+  const config = await getPlatformPaymentSettings();
+  if (config.mockCheckout) {
     return `plan_mock_${input.planId}_${Math.round(input.amountRupees * 100)}`;
   }
 
+  const auth = await getPlatformRazorpayAuth();
   const res = await fetch('https://api.razorpay.com/v1/plans', {
     method: 'POST',
     headers: {
-      Authorization: `Basic ${getPlatformRazorpayAuth()}`,
+      Authorization: `Basic ${auth}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -235,7 +239,8 @@ export async function createRazorpaySubscription(
   tenantId: string,
   options: RazorpaySubscriptionOptions = {},
 ): Promise<RazorpaySubscriptionResult> {
-  if (process.env.RAZORPAY_MOCK_CHECKOUT === 'true') {
+  const config = await getPlatformPaymentSettings();
+  if (config.mockCheckout) {
     const request = buildRazorpaySubscriptionRequest(planId, tenantId, options);
     return {
       id: `mock_sub_${tenantId}_${request.plan_id}`,
@@ -245,11 +250,12 @@ export async function createRazorpaySubscription(
   }
 
   const requestBody = buildRazorpaySubscriptionRequest(planId, tenantId, options);
+  const auth = await getPlatformRazorpayAuth();
 
   const res = await fetch('https://api.razorpay.com/v1/subscriptions', {
     method: 'POST',
     headers: {
-      Authorization: `Basic ${getPlatformRazorpayAuth()}`,
+      Authorization: `Basic ${auth}`,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify(requestBody)
@@ -271,8 +277,9 @@ export async function createRazorpaySubscription(
 export async function getRazorpaySubscription(subscriptionId: string): Promise<RazorpaySubscriptionResult | null> {
   if (!subscriptionId.startsWith('sub_')) return null;
 
+  const auth = await getPlatformRazorpayAuth();
   const res = await fetch(`https://api.razorpay.com/v1/subscriptions/${encodeURIComponent(subscriptionId)}`, {
-    headers: { Authorization: `Basic ${getPlatformRazorpayAuth()}` },
+    headers: { Authorization: `Basic ${auth}` },
   });
   if (!res.ok) return null;
 

@@ -132,14 +132,11 @@ export async function initiateCheckout(planId: string): Promise<CheckoutResult> 
           amountRupees: pricing.totalMonthlyPrice,
         });
       }
-      const now = Date.now();
-      const trialEnd = current.trialEndsAt?.getTime() ?? 0;
-      const startAt = trialEnd > now + 5 * 60 * 1000
-        ? Math.floor(trialEnd / 1000)
-        : undefined;
+      // Immediate payment: charge at checkout so the subscription is paid and activated now,
+      // without deferring the first charge to the end of the trial period.
       const subscription = await createRazorpaySubscription(catalog.plan, tenantId, {
         razorpayPlanId,
-        startAt,
+        startAt: undefined,
       });
 
       await prisma.tenantSubscription.update({
@@ -154,14 +151,13 @@ export async function initiateCheckout(planId: string): Promise<CheckoutResult> 
       message: error instanceof Error ? error.message : 'Unknown error',
     });
     // Billing is owner/admin-only, so the operator seeing this message is the
-    // person who can fix a misconfiguration. Saying "try again" for a rejected
-    // API key just sends them round the same loop.
+    // person who can fix a misconfiguration.
     if (error instanceof RazorpayApiError) {
       if (error.code === 'KEYS_MISSING') {
-        return { error: 'Razorpay is not configured for this deployment. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET, then try again.' };
+        return { error: 'Razorpay is not configured for this deployment. Configure your API keys in Developer Payment Settings, then try again.' };
       }
       if (error.status === 401) {
-        return { error: 'Razorpay rejected the API credentials for this deployment. Verify RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET belong to the same live Razorpay account, then try again.' };
+        return { error: 'Razorpay rejected the API credentials for this deployment. Verify your Key ID and Secret in Developer Payment Settings, then try again.' };
       }
       return { error: `Razorpay could not start this checkout: ${error.message}` };
     }

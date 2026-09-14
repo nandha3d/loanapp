@@ -4,6 +4,12 @@ import { generateTenantSlug } from '@/lib/slug';
 import { calculateVerticalSubscriptionPricing, normalizeSelectedModules } from '@/lib/pricing';
 import { validateIndianMobile } from '@/lib/validation/contact';
 import { findUserUniqueConflicts } from '@/lib/userUniqueness';
+import {
+  createRazorpayPlan,
+  createRazorpaySubscription,
+  getConfiguredRazorpayPlanId,
+  normalizeRazorpayPlanId,
+} from '@/lib/razorpay';
 
 export async function POST(request: Request) {
   try {
@@ -28,6 +34,7 @@ export async function POST(request: Request) {
       selectedPlan,
       selectedModules = [],
       selectedAddons = [],
+      paymentOption,
       referralCode
     } = body;
 
@@ -133,15 +140,18 @@ export async function POST(request: Request) {
       ? null
       : await prisma.subscriptionPlanCatalog.findUnique({ where: { plan: selectedPlan } });
 
-    if (!standaloneClaim && (!planCatalog || !planCatalog.isActive || planCatalog.monthlyPrice <= 0)) {
+    if (!standaloneClaim && (!planCatalog || !planCatalog.isActive || planCatalog.monthlyPrice < 0)) {
       return NextResponse.json(
-        { success: false, error: 'Select an active paid SaaS plan' },
+        { success: false, error: 'Select an active SaaS plan' },
         { status: 400 }
       );
     }
 
+    const isPaidPlan = !standaloneClaim && Boolean(planCatalog && planCatalog.monthlyPrice > 0);
+    const effectivePaymentOption = isPaidPlan ? (paymentOption || 'pay_now') : 'free';
+
     let basePlanPrice = 0, modulesPrice = 0, addonsPrice = 0, totalMonthlyPrice = 0;
-    if (!standaloneClaim) {
+    if (isPaidPlan) {
       const addonsCatalog = await prisma.addonCatalog.findMany({
         where: { addon: { in: selectedAddons } }
       });
@@ -176,10 +186,11 @@ export async function POST(request: Request) {
         }
       });
 
-      // 3. Create TenantSubscription (lifetime + unlimited for a standalone claim).
-      // Every SaaS plan gets a time-limited trial. Only a custom-domain
-      // standalone claim is lifetime-free.
-      const trialDays = standaloneClaim ? 0 : (planCatalog!.trialDays || 14);
+      // 3. Create TenantSubscription.
+      // If pay_now on paid plan or free plan, trialDays = 0.
+      const trialDays = (standaloneClaim || !isPaidPlan || effectivePaymentOption === 'pay_now')
+        ? 0
+        : (planCatalog!.trialDays || 14);
       const trialEndsAt = trialDays > 0
         ? (() => { const d = new Date(); d.setDate(d.getDate() + trialDays); d.setHours(23,59,59,999); return d; })()
         : null;
@@ -309,13 +320,42 @@ export async function POST(request: Request) {
       };
     });
 
+    let checkoutUrl: string | null = null;
+    if (isPaidPlan && effectivePaymentOption === 'pay_now' && totalMonthlyPrice > 0 && planCatalog) {
+      try {
+        let razorpayPlanId =
+          normalizeRazorpayPlanId(planCatalog.razorpayPlanId) ??
+          getConfiguredRazorpayPlanId(planCatalog.plan);
+        if (!razorpayPlanId) {
+          razorpayPlanId = await createRazorpayPlan({
+            tenantId: result.tenantId,
+            planId: planCatalog.plan,
+            displayName: planCatalog.displayName,
+            amountRupees: totalMonthlyPrice,
+          });
+        }
+        const subscription = await createRazorpaySubscription(planCatalog.plan, result.tenantId, {
+          razorpayPlanId,
+          startAt: undefined, // Charge immediately
+        });
+        await prisma.tenantSubscription.update({
+          where: { tenantId: result.tenantId },
+          data: { razorpaySubId: subscription.id },
+        });
+        checkoutUrl = subscription.short_url;
+      } catch (rzpErr) {
+        console.error('[GOOGLE_REGISTER_RAZORPAY_INIT_ERROR]', rzpErr);
+      }
+    }
+
     return NextResponse.json(
       {
         success: true,
         message: 'Tenant registered successfully via Google',
         tenantId: result.tenantId,
         tenantSlug: result.tenantSlug,
-        username: result.username
+        username: result.username,
+        checkoutUrl,
       },
       { status: 201 }
     );

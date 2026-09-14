@@ -326,6 +326,8 @@ export const ta = {
     customCadence: 'விருப்ப அட்டவணை',
     singlePayment: 'ஒரே தவணை செலுத்துதல்',
     customDuration: 'தனிப்பயன் காலம்',
+    custom: 'தனிப்பயன்',
+    multipleInstallments: 'பல தவணைகள்',
     repaymentDate: 'திருப்பிச் செலுத்தும் தேதி',
     numberOfInstallments: 'தவணைகளின் எண்ணிக்கை',
     fromDate: 'தொடக்கத் தேதி',
