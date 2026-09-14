@@ -108,7 +108,7 @@ export function decryptField(value: string | null | undefined, rawKey?: string):
     return value;
   }
 
-  const [, version, ivValue, tagValue, encryptedValue] = value.split(':');
+  const [, , version, ivValue, tagValue, encryptedValue] = value.split(':');
   if (version !== 'v1' || !ivValue || !tagValue || !encryptedValue) {
     throw new Error('Unsupported field encryption payload.');
   }
