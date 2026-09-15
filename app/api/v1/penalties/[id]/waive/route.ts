@@ -3,6 +3,7 @@ import { compare } from 'bcryptjs';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
+import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 
 export async function POST(
   req: NextRequest,
@@ -60,6 +61,23 @@ export async function POST(
       penalty.loan.appType !== ctx.appType
     ) {
       return fail('Penalty not found', 404);
+    }
+
+    if (ctx.role === 'agent') {
+      const hasAccess = await prisma.loan.findFirst({
+        where: {
+          id: penalty.loanId,
+          tenantId: ctx.tenantId,
+          appType: ctx.appType,
+          customer: buildAgentCustomerAccessWhere({ userId: ctx.userId }),
+        },
+        select: { id: true },
+      });
+      if (!hasAccess) return fail('Penalty not found', 404);
+    } else if (ctx.branchId && ctx.role === 'admin') {
+      if (penalty.loan.branchId !== ctx.branchId) {
+        return fail('Penalty not found', 404);
+      }
     }
 
     const gross = Number(penalty.grossPenalty);

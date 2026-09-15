@@ -1,6 +1,6 @@
-# LoanTrack — Cost & Profit Projection
+# ZoloFund — Cost & Profit Projection
 
-**Scope:** SaaS unit economics for the LoanTrack lending platform, with SMS/WhatsApp cost absorbed by the platform owner (not billed to clients).
+**Scope:** SaaS unit economics for the ZoloFund lending platform, with SMS/WhatsApp cost absorbed by the platform owner (not billed to clients).
 **Base scenario:** 50 subscribed clients (tenants), 50 customers (borrowers) each = **2,500 borrowers total**.
 **Currency:** INR. **GST:** 18% (collected from client, remitted to govt → pass-through, not platform cost).
 **Status:** Projection / planning model. All figures are estimates with stated assumptions.

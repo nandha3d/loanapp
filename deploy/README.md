@@ -1,6 +1,24 @@
-# LoanTrack — VPS Deployment
+# ZoloFund — VPS Deployment
 
 Files in this folder support Phase 1 infrastructure (INFRA-01, INFRA-02, INFRA-05).
+
+## Production server
+
+| | |
+|---|---|
+| Provider / location | Hostinger VPS — India, Mumbai 2 |
+| Hostname | `srv1731573.hstgr.cloud` |
+| IPv4 | `187.127.177.121` |
+| OS | Ubuntu 24.04 (OpenLiteSpeed + Node.js image) |
+| SSH user | `root` (key auth) |
+| Backups | Hostinger snapshot, weekly — see `backup-db.sh` for the DB-level dump |
+
+Both hosts are served by this one box; the app forks on the `Host` header — see
+[../docs/multi-domain-architecture.md](../docs/multi-domain-architecture.md).
+
+> Weekly snapshots mean up to 7 days of data loss on a restore. `backup-db.sh`
+> (daily mysqldump) is the actual recovery path for the database — verify it is
+> installed in cron before relying on the provider schedule.
 
 ## Files
 
@@ -19,9 +37,9 @@ sudo apt-get install -y nodejs nginx mysql-server
 sudo npm install -g pm2
 
 # 2. Create app user + directories
-sudo useradd -m -s /bin/bash loantrack
-sudo mkdir -p /home/loantrack/app /var/backups/loantrack /etc/loantrack
-sudo chown -R loantrack:loantrack /home/loantrack /var/backups/loantrack
+sudo useradd -m -s /bin/bash zolofund
+sudo mkdir -p /home/loantrack/app /var/backups/zolofund /etc/zolofund
+sudo chown -R zolofund:zolofund /home/loantrack /var/backups/zolofund
 
 # 3. Deploy code (rsync / git clone / unzip — your choice)
 sudo -u loantrack rsync -av --delete ./ /home/loantrack/app/
@@ -37,6 +55,9 @@ MOBILE_JWT_SECRET=<64-hex random>
 PII_ENCRYPTION_KEY=<64-hex random>
 CRON_SECRET=<32-hex random>
 NEXT_PUBLIC_APP_URL=https://YOUR_DOMAIN
+# Set this only when serving the app from a subpath, e.g. https://YOUR_DOMAIN/ZoloFund.
+# Leave empty when serving from the domain root.
+NEXT_PUBLIC_BASE_PATH=
 NEXT_PUBLIC_ROOT_DOMAIN=YOUR_DOMAIN
 TRUST_PROXY=true
 EOF
@@ -92,27 +113,27 @@ FLUSH PRIVILEGES;
 SQL
 
 # Backup config
-sudo tee /etc/loantrack/backup.env >/dev/null <<'EOF'
+sudo tee /etc/zolofund/backup.env >/dev/null <<'EOF'
 DB_HOST=localhost
 DB_USER=loantrack_backup
 DB_PASS=STRONG_PASS_2
-DB_NAME=loantrack
-BACKUP_DIR=/var/backups/loantrack
+DB_NAME=zolofund
+BACKUP_DIR=/var/backups/zolofund
 RETENTION_DAYS=30
-# RCLONE_REMOTE=b2:loantrack-backups   # uncomment for offsite
+# RCLONE_REMOTE=b2:zolofund-backups   # uncomment for offsite
 EOF
-sudo chmod 600 /etc/loantrack/backup.env
+sudo chmod 600 /etc/zolofund/backup.env
 
 # Install script
-sudo cp deploy/backup-db.sh /usr/local/bin/loantrack-backup
-sudo chmod +x /usr/local/bin/loantrack-backup
+sudo cp deploy/backup-db.sh /usr/local/bin/zolofund-backup
+sudo chmod +x /usr/local/bin/zolofund-backup
 
 # Cron — 02:00 daily
-echo '0 2 * * * /usr/local/bin/loantrack-backup >> /var/log/loantrack-backup.log 2>&1' \
-  | sudo tee /etc/cron.d/loantrack-backup
+echo '0 2 * * * /usr/local/bin/zolofund-backup >> /var/log/zolofund-backup.log 2>&1' \
+  | sudo tee /etc/cron.d/zolofund-backup
 
 # Test once now
-sudo /usr/local/bin/loantrack-backup
+sudo /usr/local/bin/zolofund-backup
 ```
 
 ## Firewall (INFRA-08)

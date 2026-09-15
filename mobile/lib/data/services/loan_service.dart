@@ -1,17 +1,20 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:loantrack/core/network/api_exception.dart';
-import 'package:loantrack/core/network/dio_client.dart';
-import 'package:loantrack/data/models/loan.dart';
-import 'package:loantrack/data/models/loan_calc.dart';
-import 'package:loantrack/shared/constants/endpoints.dart';
+import 'package:zolofund/core/network/api_exception.dart';
+import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/data/models/loan.dart';
+import 'package:zolofund/data/models/loan_calc.dart';
+import 'package:zolofund/shared/constants/endpoints.dart';
 
 class LoanService {
   LoanService(this._dio);
   final Dio _dio;
 
-  Future<List<Map<String, dynamic>>> list({String? customerId, String? status}) async {
+  Future<List<Map<String, dynamic>>> list({
+    String? customerId,
+    String? status,
+  }) async {
     // The API is cursor-paginated (default 20, max 100 per page). Follow the
     // cursor and accumulate every page so the list shows ALL loans — previously
     // only the first 20 ever loaded, which is why the mobile list looked short
@@ -80,6 +83,7 @@ class LoanService {
     required String frequency,
     required DateTime startDate,
     int? dueDay,
+    DateTime? endDate,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
       '${Endpoints.loans}/calculate',
@@ -91,6 +95,7 @@ class LoanService {
         'frequency': frequency,
         'startDate': startDate.toIso8601String(),
         if (dueDay != null) 'dueDay': dueDay,
+        if (endDate != null) 'endDate': endDate.toIso8601String(),
       },
     );
     return unwrapEnvelope(
@@ -112,8 +117,12 @@ class LoanService {
     String? collateralDetails,
     String? voucherRef,
     int? dueDay,
+    DateTime? endDate,
     Map<String, dynamic>? guarantor,
     List<Map<String, dynamic>>? securityCheques,
+    Map<String, dynamic>? goldCollateral,
+    Map<String, dynamic>? propertyCollateral,
+    Map<String, dynamic>? productItem,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.loans,
@@ -130,8 +139,13 @@ class LoanService {
         if (collateralDetails != null) 'collateralDetails': collateralDetails,
         if (voucherRef != null) 'voucherRef': voucherRef,
         if (dueDay != null) 'dueDay': dueDay,
+        if (endDate != null) 'endDate': endDate.toIso8601String(),
         if (guarantor != null) 'guarantor': guarantor,
         if (securityCheques != null) 'securityCheques': securityCheques,
+        if (goldCollateral != null) 'goldCollateral': goldCollateral,
+        if (propertyCollateral != null)
+          'propertyCollateral': propertyCollateral,
+        if (productItem != null) 'productItem': productItem,
       },
     );
     return unwrapEnvelope(
@@ -140,7 +154,11 @@ class LoanService {
     );
   }
 
-  Future<void> performAction(String id, String action, {Map<String, dynamic>? data}) async {
+  Future<void> performAction(
+    String id,
+    String action, {
+    Map<String, dynamic>? data,
+  }) async {
     final res = await _dio.post<Map<String, dynamic>>(
       '${Endpoints.loans}/$id/$action',
       data: data,
@@ -153,7 +171,7 @@ class LoanService {
       '${Endpoints.loans}/$loanId/statement',
       options: Options(responseType: ResponseType.bytes),
     );
-    return res.data ?? const <int>[];
+    return unwrapPdfBytes(res);
   }
 }
 

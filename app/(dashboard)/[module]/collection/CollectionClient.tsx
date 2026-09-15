@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatCurrency, formatDate, getBadgeClass, getInitials, getPaginationPages } from '@/lib/utils';
-import { submitCollectionEntry, requestCollectionEdit, requestCashHandover } from './actions';
+import { submitCollectionEntry, submitLoanCollection, requestCollectionEdit, requestCashHandover, pingAgentLocation } from './actions';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from '@/components/layout/DashboardLink';
 
@@ -30,6 +30,8 @@ type CollectionRow = {
       id: string;
       name: string;
       customerCode: string;
+      phone?: string | null;
+      preferredCollectionTime?: string | null;
       route?: { id: string; name: string } | null;
       collectionPoints?: { id: string; name: string; address: string; latitude: number | null; longitude: number | null; isPrimary: boolean }[];
     };
@@ -42,16 +44,32 @@ type RouteOption = {
   name: string;
 };
 
+type CollectionSummary = {
+  todayExpected: number;
+  todayCollected: number;
+  todayOutstanding: number;
+  todayPendingCount: number;
+  todayPaidCount: number;
+  overdueTotalTillToday: number;
+  overdueCollectedToday: number;
+  overdueOutstanding: number;
+  overduePendingCount: number;
+};
+
 type UnifiedGroup = {
   customerId: string;
   customerName: string;
   customerCode: string;
+  customerPhone?: string | null;
   routeName: string;
+  preferredCollectionTime?: string | null;
   instalments: CollectionRow[];
   loanCodes: string[];
   collectionPoints: { id: string; name: string; address: string; latitude: number | null; longitude: number | null; isPrimary: boolean }[];
   distanceToAgent?: number;
   nearestPointName?: string;
+  mapLat?: number;
+  mapLng?: number;
 };
 
 type CustomerOverdueGroup = {
@@ -79,6 +97,29 @@ type BrowserGpsCapture = {
   timestamp?: string;
 };
 
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+function getIstDateStr(dateInput: string | Date | null | undefined): string {
+  if (!dateInput) return '';
+  const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  if (isNaN(d.getTime())) return '';
+  const ist = new Date(d.getTime() + IST_OFFSET_MS);
+  const y = ist.getUTCFullYear();
+  const m = String(ist.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(ist.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function getLocalDateStr(dateInput: string | Date | null | undefined): string {
+  if (!dateInput) return '';
+  const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  if (isNaN(d.getTime())) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 // Single source of truth for an instalment's *displayed* status. The DB `status`
 // column lags reality — an instalment stays 'upcoming' until a nightly batch job
 // flips it to 'missed' — so we derive from money + due date instead. Crucially, an
@@ -86,12 +127,13 @@ type BrowserGpsCapture = {
 // as overdue/missed.
 function deriveInstalmentStatus(
   inst: { dueDate: string; receivedAmount: number; outstandingAmount: number; daysOverdue: number },
-  todayISO: string,
+  todayStr: string,
 ): { key: string; label: string } {
   if (inst.outstandingAmount <= 0 && inst.receivedAmount > 0) return { key: 'paid', label: 'Paid' };
-  if (inst.receivedAmount > 0) return { key: 'partial', label: 'Partial' };
+  if (inst.receivedAmount > 0 && inst.daysOverdue === 0) return { key: 'partial', label: 'Partial' };
   if (inst.daysOverdue > 0) return { key: 'missed', label: 'Missed' };
-  if (inst.dueDate.slice(0, 10) > todayISO) return { key: 'upcoming', label: 'Upcoming' };
+  const dueIst = getIstDateStr(inst.dueDate);
+  if (dueIst > todayStr) return { key: 'upcoming', label: 'Upcoming' };
   return { key: 'due today', label: 'Due Today' };
 }
 
@@ -116,6 +158,7 @@ export default function CollectionClient({
   currencySymbol,
   dict,
   dailyCollection,
+  collectionSummary,
   receiptPdfEnabled = false,
   gpsTrackingEnabled = false,
 }: {
@@ -128,6 +171,7 @@ export default function CollectionClient({
   currencySymbol: string;
   dict: any;
   dailyCollection: { id: string; status: string; totalCollected: number } | null;
+  collectionSummary: CollectionSummary;
   receiptPdfEnabled?: boolean;
   gpsTrackingEnabled?: boolean;
 }) {
@@ -137,26 +181,56 @@ export default function CollectionClient({
   const [overdueCustomerGroup, setOverdueCustomerGroup] = useState<CustomerOverdueGroup | null>(null);
   const [loading, setLoading] = useState(false);
   const [amount, setAmount] = useState(0);
+  // Which preset card the agent picked in the collect popup ('today' | 'total').
+  const [selectedCard, setSelectedCard] = useState<'today' | 'total'>('today');
   const [mode, setMode] = useState('cash');
   const [remarks, setRemarks] = useState('');
   const [reason, setReason] = useState('');
   const [page, setPage] = useState(1);
   const [dateFilter, setDateFilter] = useState(() => searchParams.get('date') || '');
   const [customerFilter, setCustomerFilter] = useState('');
-  const [routeFilter, setRouteFilter] = useState('');
+  const [routeFilter, setRouteFilter] = useState(() => searchParams.get('routeId') || searchParams.get('route') || '');
   const [statusFilter, setStatusFilter] = useState('');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'today' | 'overdue'>(
-    () => {
-      const tab = searchParams.get('tab');
-      if (tab === 'overdue') return 'overdue';
-      if (tab === 'today') return 'today';
-      return 'all';
-    },
-  );
+
+  const handleRouteChange = useCallback((selectedRouteId: string) => {
+    setRouteFilter(selectedRouteId);
+    setPage(1);
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (selectedRouteId) {
+        params.set('routeId', selectedRouteId);
+        params.delete('route');
+      } else {
+        params.delete('routeId');
+        params.delete('route');
+      }
+      const newQuery = params.toString();
+      window.history.replaceState(null, '', newQuery ? `${window.location.pathname}?${newQuery}` : window.location.pathname);
+    }
+  }, []);
+  const initialTab: 'all' | 'today' | 'overdue' = useMemo(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'overdue') return 'overdue';
+    if (tab === 'all') return 'all';
+    // Default to today's worklist — the agent's day-to-day view.
+    return 'today';
+  }, [searchParams]);
+
+  const [typeFilter, setTypeFilter] = useState<'all' | 'today' | 'overdue'>(initialTab);
   const [frequencyFilter, setFrequencyFilter] = useState('');
+  const [sessionFilter, setSessionFilter] = useState('');
   const [overdueMinDays, setOverdueMinDays] = useState('');
   const [overdueMaxDays, setOverdueMaxDays] = useState('');
   const [selectedLoanForCustomer, setSelectedLoanForCustomer] = useState<Record<string, string>>({});
+  // Which customer rows are expanded to reveal their per-loan sub-rows.
+  const [viewMode, setViewMode] = useState<'instalments' | 'grouped'>('instalments');
+  const [expandedCustomers, setExpandedCustomers] = useState<Set<string>>(new Set());
+  const toggleCustomerExpand = (customerId: string) =>
+    setExpandedCustomers((prev) => {
+      const next = new Set(prev);
+      if (next.has(customerId)) next.delete(customerId); else next.add(customerId);
+      return next;
+    });
   const [gpsStatusText, setGpsStatusText] = useState('');
   const [agentLocation, setAgentLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [isSortedByNearest, setIsSortedByNearest] = useState(false);
@@ -167,7 +241,41 @@ export default function CollectionClient({
 
   const isAdmin = agentRole === 'admin' || agentRole === 'superadmin';
   const modalRef = useRef<HTMLDivElement>(null);
-  const todayISO = new Date().toISOString().slice(0, 10);
+  const todayISO = useMemo(() => getIstDateStr(new Date()), []);
+
+  // Browser-agent tracking: agents using the mobile-browser view (not the APK)
+  // stream location pings while this page is open, so they show up on the
+  // Agent Tracking map/log exactly like app users. Batched and flushed every
+  // 30s — same cadence as the app's GpsPinger.
+  useEffect(() => {
+    if (agentRole !== 'agent' || typeof navigator === 'undefined' || !navigator.geolocation) return;
+    const buffer: { lat: number; lng: number; accuracyM?: number; speedMps?: number; capturedAt?: string }[] = [];
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        buffer.push({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracyM: pos.coords.accuracy ?? undefined,
+          speedMps: pos.coords.speed ?? undefined,
+          capturedAt: new Date(pos.timestamp).toISOString(),
+        });
+        if (buffer.length > 100) buffer.splice(0, buffer.length - 100);
+      },
+      () => {}, // denied/unavailable — entry-level GPS capture still applies
+      { enableHighAccuracy: false, maximumAge: 15000 },
+    );
+    const flush = setInterval(() => {
+      if (buffer.length === 0) return;
+      const batch = buffer.splice(0, buffer.length);
+      pingAgentLocation(batch).catch(() => {
+        buffer.unshift(...batch.slice(-100));
+      });
+    }, 30_000);
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+      clearInterval(flush);
+    };
+  }, [agentRole]);
 
   // DEF-031 / DEF-032: Trap focus within modal and close on Escape
   useEffect(() => {
@@ -232,47 +340,198 @@ export default function CollectionClient({
     return Array.from(map.values());
   }, [todayInstalments, overdueInstalments]);
 
+  // Helper to test if a row matches the selected route (by ID or Name)
+  const rowMatchesRoute = useCallback((row: CollectionRow, targetRoute: string) => {
+    if (!targetRoute) return true;
+    const custRouteId = row.loan?.customer?.route?.id || (row.loan?.customer as any)?.routeId;
+    const custRouteName = row.loan?.customer?.route?.name;
+    return custRouteId === targetRoute || custRouteName === targetRoute;
+  }, []);
+
+  // Complete list of routes available for switching: merge server routes + any unique route found in worklist
+  const availableRoutes = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>();
+    for (const r of routes) {
+      if (r?.id && r?.name) {
+        map.set(r.id, { id: r.id, name: r.name });
+      }
+    }
+    for (const row of allInstalments) {
+      const r = row.loan?.customer?.route;
+      if (r?.id && r?.name && !map.has(r.id)) {
+        map.set(r.id, { id: r.id, name: r.name });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [routes, allInstalments]);
+
+  // Route customer & dues breakdown for badges and quick switcher
+  const routeStats = useMemo(() => {
+    const stats: Record<string, { customerIds: Set<string>; todayCount: number; overdueCount: number; todayDue: number; overdueAmount: number }> = {};
+    for (const r of availableRoutes) {
+      stats[r.id] = { customerIds: new Set(), todayCount: 0, overdueCount: 0, todayDue: 0, overdueAmount: 0 };
+    }
+    for (const row of allInstalments) {
+      const rId = row.loan?.customer?.route?.id;
+      if (rId && stats[rId]) {
+        stats[rId].customerIds.add(row.loan.customer.id);
+        if (row.source === 'today') {
+          stats[rId].todayCount++;
+          stats[rId].todayDue += row.dueAmount;
+        } else {
+          stats[rId].overdueCount++;
+          stats[rId].overdueAmount += row.outstandingAmount;
+        }
+      }
+    }
+    return stats;
+  }, [availableRoutes, allInstalments]);
+
+  // Distinct customer count across all loaded instalments
+  const totalDistinctCustomers = useMemo(() => {
+    const s = new Set<string>();
+    for (const row of allInstalments) {
+      if (row.loan?.customer?.id) s.add(row.loan.customer.id);
+    }
+    return s.size;
+  }, [allInstalments]);
+
+  const activeRouteObj = useMemo(() => {
+    if (!routeFilter) return null;
+    return availableRoutes.find((r) => r.id === routeFilter || r.name === routeFilter) || null;
+  }, [availableRoutes, routeFilter]);
+
   const filteredRows = useMemo(() => {
     return allInstalments.filter((row) => {
-      // Type filter
-      if (typeFilter === 'today' && row.source !== 'today') return false;
-      if (typeFilter === 'overdue' && row.source !== 'overdue') return false;
+      // Mutual exclusion harmonisation:
+      // If user specifically selects statusFilter === 'missed' or enters overdueMinDays > 0,
+      // do not drop overdue rows even if typeFilter was left on 'today'.
+      // If user specifically selects statusFilter === 'due today', do not drop today rows even if typeFilter was 'overdue'.
+      // If user selects a dateFilter that differs from today, do not restrict to today's source.
+      const isOverdueTargeted = statusFilter === 'missed' || (overdueMinDays !== '' && Number(overdueMinDays) > 0);
+      const isTodayTargeted = statusFilter === 'due today';
+      const isDateSpecific = Boolean(dateFilter && dateFilter !== todayISO);
 
-      const dueDate = new Date(row.dueDate).toISOString().slice(0, 10);
-      const matchesDate = !dateFilter || dueDate === dateFilter;
+      if (typeFilter === 'today' && !isOverdueTargeted && !isDateSpecific && row.source !== 'today') return false;
+      if (typeFilter === 'overdue' && !isTodayTargeted && !isDateSpecific && row.source !== 'overdue') return false;
+
+      // Due date comparison: match against IST date, local date, UTC ISO slice, or raw date string
+      const istDate = getIstDateStr(row.dueDate);
+      const localDate = getLocalDateStr(row.dueDate);
+      const utcDate = new Date(row.dueDate).toISOString().slice(0, 10);
+      const rawDate = typeof row.dueDate === 'string' ? row.dueDate.slice(0, 10) : '';
+      const matchesDate = !dateFilter || istDate === dateFilter || localDate === dateFilter || utcDate === dateFilter || rawDate === dateFilter;
+
+      // Customer / Loan search: search name, customerCode, phone, loanCode, and route name null-safely
       const search = customerFilter.trim().toLowerCase();
+      const custName = (row.loan?.customer?.name || '').toLowerCase();
+      const custCode = (row.loan?.customer?.customerCode || '').toLowerCase();
+      const custPhone = (row.loan?.customer?.phone || '').toLowerCase();
+      const loanCode = (row.loan?.loanCode || '').toLowerCase();
+      const routeName = (row.loan?.customer?.route?.name || '').toLowerCase();
       const matchesCustomer = !search
-        || row.loan.customer.name.toLowerCase().includes(search)
-        || row.loan.customer.customerCode.toLowerCase().includes(search)
-        || row.loan.loanCode.toLowerCase().includes(search);
-      const matchesRoute = !routeFilter || row.loan.customer.route?.id === routeFilter;
-      const matchesStatus = !statusFilter || deriveInstalmentStatus(row, todayISO).key === statusFilter;
-      const matchesFrequency = !frequencyFilter || row.loan.frequency === frequencyFilter;
+        || custName.includes(search)
+        || custCode.includes(search)
+        || custPhone.includes(search)
+        || loanCode.includes(search)
+        || routeName.includes(search);
+
+      // Route filter: match route ID, customer routeId, or route name
+      const matchesRoute = rowMatchesRoute(row, routeFilter);
+
+      // Status filter: handle both semantic meanings and status keys
+      const statusInfo = deriveInstalmentStatus(row, todayISO);
+      let matchesStatus = true;
+      if (statusFilter) {
+        if (statusFilter === 'missed') {
+          matchesStatus = statusInfo.key === 'missed' || (row.daysOverdue > 0 && row.outstandingAmount > 0) || (row.source === 'overdue' && row.outstandingAmount > 0);
+        } else if (statusFilter === 'due today') {
+          matchesStatus = statusInfo.key === 'due today' || (row.source === 'today' && row.daysOverdue === 0 && row.outstandingAmount > 0);
+        } else if (statusFilter === 'partial') {
+          matchesStatus = statusInfo.key === 'partial' || (row.receivedAmount > 0 && row.outstandingAmount > 0);
+        } else if (statusFilter === 'paid') {
+          matchesStatus = statusInfo.key === 'paid' || (row.outstandingAmount <= 0 && row.receivedAmount > 0) || row.status === 'paid';
+        } else if (statusFilter === 'upcoming') {
+          matchesStatus = statusInfo.key === 'upcoming' || istDate > todayISO;
+        } else {
+          matchesStatus = statusInfo.key === statusFilter;
+        }
+      }
+
+      // Frequency filter: case-insensitive and null-safe
+      const matchesFrequency = !frequencyFilter || (row.loan?.frequency || '').toLowerCase() === frequencyFilter.toLowerCase();
+
+      // Session filter: trim and support 'anytime' and 'other'
+      const preferredSession = (row.loan?.customer?.preferredCollectionTime || '').toLowerCase().trim();
+      const knownSessions = ['morning', 'afternoon', 'evening', 'night'];
+      const matchesSession = !sessionFilter
+        || (sessionFilter === 'anytime' && (!preferredSession || preferredSession === 'anytime'))
+        || (sessionFilter === 'other' && !!preferredSession && !knownSessions.includes(preferredSession) && preferredSession !== 'anytime')
+        || preferredSession === sessionFilter;
 
       // Overdue days range filter
-      const minD = overdueMinDays ? Number(overdueMinDays) : 0;
-      const maxD = overdueMaxDays ? Number(overdueMaxDays) : Infinity;
+      const minD = overdueMinDays !== '' && !isNaN(Number(overdueMinDays)) ? Number(overdueMinDays) : 0;
+      const maxD = overdueMaxDays !== '' && !isNaN(Number(overdueMaxDays)) ? Number(overdueMaxDays) : Infinity;
       const matchesOverdueDays = row.daysOverdue >= minD && row.daysOverdue <= maxD;
 
-      return matchesDate && matchesCustomer && matchesRoute && matchesStatus && matchesFrequency && matchesOverdueDays;
+      return matchesDate && matchesCustomer && matchesRoute && matchesStatus && matchesFrequency && matchesSession && matchesOverdueDays;
     });
-  }, [allInstalments, typeFilter, customerFilter, dateFilter, routeFilter, statusFilter, frequencyFilter, overdueMinDays, overdueMaxDays, todayISO]);
+  }, [allInstalments, typeFilter, customerFilter, dateFilter, routeFilter, statusFilter, frequencyFilter, sessionFilter, overdueMinDays, overdueMaxDays, todayISO]);
 
   const todayTotals = useMemo(() => {
-    return {
-      due: todayInstalments.reduce((sum, row) => sum + row.dueAmount, 0),
-      collected: todayInstalments.reduce((sum, row) => sum + Math.min(row.receivedAmount, row.dueAmount), 0),
-      outstanding: todayInstalments.reduce((sum, row) => sum + row.outstandingAmount, 0),
-    };
-  }, [todayInstalments]);
+    if (!routeFilter) {
+      return {
+        due: collectionSummary.todayExpected,
+        collected: collectionSummary.todayCollected,
+        outstanding: collectionSummary.todayOutstanding,
+        pendingCount: collectionSummary.todayPendingCount,
+      };
+    }
+    const routeTodayRows = todayInstalments.filter((r) => rowMatchesRoute(r, routeFilter));
+    const due = routeTodayRows.reduce((sum, r) => sum + (Number(r.dueAmount) || 0), 0);
+    const collected = routeTodayRows.reduce((sum, r) => sum + (Number(r.receivedAmount) || 0), 0);
+    const outstanding = Math.max(0, due - collected);
+    const pendingCount = routeTodayRows.filter((r) => r.outstandingAmount > 0).length;
+    return { due, collected, outstanding, pendingCount };
+  }, [collectionSummary, routeFilter, todayInstalments, rowMatchesRoute]);
 
   const overdueTotals = useMemo(() => {
-    return {
-      amount: overdueInstalments.reduce((sum, row) => sum + row.overdueAmount, 0),
-      count: overdueInstalments.length,
-      maxDays: overdueInstalments.reduce((max, row) => Math.max(max, row.daysOverdue), 0),
-    };
-  }, [overdueInstalments]);
+    if (!routeFilter) {
+      return {
+        amount: collectionSummary.overdueOutstanding,
+        dueTotal: collectionSummary.overdueTotalTillToday,
+        recovered: collectionSummary.overdueCollectedToday,
+        count: collectionSummary.overduePendingCount,
+        maxDays: overdueInstalments.reduce((max, row) => Math.max(max, row.daysOverdue), 0),
+      };
+    }
+    const routeOverdueRows = overdueInstalments.filter((r) => rowMatchesRoute(r, routeFilter));
+    const amount = routeOverdueRows.reduce((sum, r) => sum + (Number(r.outstandingAmount) || 0), 0);
+    const dueTotal = routeOverdueRows.reduce((sum, r) => sum + (Number(r.dueAmount) || 0), 0);
+    const recovered = routeOverdueRows.reduce((sum, r) => sum + (Number(r.receivedAmount) || 0), 0);
+    const count = routeOverdueRows.filter((r) => r.outstandingAmount > 0).length;
+    const maxDays = routeOverdueRows.reduce((max, r) => Math.max(max, r.daysOverdue || 0), 0);
+    return { amount, dueTotal, recovered, count, maxDays };
+  }, [collectionSummary, overdueInstalments, routeFilter, rowMatchesRoute]);
+
+  // Customer worklist progress for today: how many distinct customers due today
+  // have had something collected. Drives the "Customers" completion bar.
+  const customerProgress = useMemo(() => {
+    const dueSet = new Set<string>();
+    const doneSet = new Set<string>();
+    const sourceRows = routeFilter
+      ? todayInstalments.filter((r) => rowMatchesRoute(r, routeFilter))
+      : todayInstalments;
+    for (const row of sourceRows) {
+      if (getIstDateStr(row.dueDate) !== todayISO && row.dueDate.slice(0, 10) !== todayISO) continue;
+      const cid = row.loan.customer.id;
+      dueSet.add(cid);
+      if (row.outstandingAmount <= 0) doneSet.add(cid);
+    }
+    return { total: dueSet.size, done: doneSet.size };
+  }, [todayInstalments, todayISO, routeFilter, rowMatchesRoute]);
+
+  const pct = (num: number, den: number) => (den > 0 ? Math.min(100, Math.round((num / den) * 100)) : 0);
 
   const unifiedGroups = useMemo<UnifiedGroup[]>(() => {
     const map = new Map<string, UnifiedGroup>();
@@ -283,7 +542,9 @@ export default function CollectionClient({
           customerId: cid,
           customerName: row.loan.customer.name,
           customerCode: row.loan.customer.customerCode,
+          customerPhone: row.loan.customer.phone || null,
           routeName: row.loan.customer.route?.name || '-',
+          preferredCollectionTime: row.loan.customer.preferredCollectionTime || null,
           instalments: [],
           loanCodes: [],
           collectionPoints: row.loan.customer.collectionPoints || [],
@@ -299,7 +560,16 @@ export default function CollectionClient({
       g.instalments.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
     }
     
-    let groups = Array.from(map.values()).sort((a, b) => a.customerName.localeCompare(b.customerName));
+    const groups = Array.from(map.values()).sort((a, b) => a.customerName.localeCompare(b.customerName));
+
+    for (const g of groups) {
+      const withGps = g.collectionPoints.filter((cp) => cp.latitude != null && cp.longitude != null);
+      const point = withGps.find((cp) => cp.isPrimary) || withGps[0];
+      if (point) {
+        g.mapLat = point.latitude!;
+        g.mapLng = point.longitude!;
+      }
+    }
 
     if (isSortedByNearest && agentLocation) {
       groups.forEach(g => {
@@ -334,14 +604,36 @@ export default function CollectionClient({
     year: 'numeric',
   });
 
+  // Loan-level figures for the collect popup: today's due and total outstanding
+  // (overdue + today + any future) across ALL the loan's open instalments.
+  const loanFiguresFor = (instalment: CollectionRow) => {
+    const map = new Map<string, CollectionRow>();
+    [...todayInstalments, ...overdueInstalments]
+      .filter((r) => r.loan.id === instalment.loan.id)
+      .forEach((r) => map.set(r.id, r));
+    const rows = Array.from(map.values());
+    const totalOutstanding = rows.reduce((s, r) => s + r.outstandingAmount, 0);
+    const todayDue = rows
+      .filter((r) => getIstDateStr(r.dueDate) === todayISO || r.dueDate.slice(0, 10) === todayISO)
+      .reduce((s, r) => s + r.outstandingAmount, 0);
+    return { rows, totalOutstanding, todayDue, overdue: Math.max(0, totalOutstanding - todayDue) };
+  };
+
   const openModal = (instalment: CollectionRow) => {
     const isPaid = instalment.receivedAmount > 0;
-    // Default to THIS instalment's own outstanding (not the whole loan) — payment
-    // is recorded against the chosen instalment as-is ("actual"); the agent pays
-    // each row individually. Capping at its due avoids silently dropping surplus.
-    const defaultDue =
-      instalment.outstandingAmount > 0 ? instalment.outstandingAmount : instalment.dueAmount;
-    setAmount(isPaid ? instalment.receivedAmount : defaultDue);
+    if (isPaid) {
+      // Edit/correction path stays single-instalment (admin edits, or agent edit
+      // requests) — unchanged behaviour, recorded against THIS instalment only.
+      setAmount(instalment.receivedAmount);
+    } else {
+      // New collection: default to today's due; if nothing is due today (pure
+      // overdue catch-up) default to the full outstanding. Actual keeps the
+      // payment on the collection-date row; Distributed is display-only.
+      const fig = loanFiguresFor(instalment);
+      const defaultAmt = fig.todayDue > 0 ? fig.todayDue : fig.totalOutstanding;
+      setSelectedCard(fig.todayDue > 0 ? 'today' : 'total');
+      setAmount(defaultAmt);
+    }
     setMode('cash');
     setRemarks('');
     setReason('');
@@ -418,7 +710,6 @@ export default function CollectionClient({
           alert(result.error || 'Failed to submit request');
         }
       } else {
-        fd.set('receivedAmount', String(amount));
         fd.set('paymentMode', mode);
         fd.set('remarks', remarks);
         const gps = await captureCurrentLocation();
@@ -428,7 +719,19 @@ export default function CollectionClient({
         if (gps.accuracy !== undefined) fd.set('gpsAccuracy', String(gps.accuracy));
         if (gps.altitude !== undefined && gps.altitude !== null) fd.set('gpsAltitude', String(gps.altitude));
         if (gps.timestamp) fd.set('gpsTimestamp', gps.timestamp);
-        const result = await submitCollectionEntry(fd);
+
+        // New collection (instalment never paid) records loan-wide on the
+        // collection-date row for Actual. Admin correction of an already-paid
+        // instalment stays a single-instalment write.
+        let result;
+        if (modal.receivedAmount === 0) {
+          fd.set('loanId', modal.loan.id);
+          fd.set('amount', String(amount));
+          result = await submitLoanCollection(fd);
+        } else {
+          fd.set('receivedAmount', String(amount));
+          result = await submitCollectionEntry(fd);
+        }
         setLoading(false);
         if (result.success) {
           setModal(null);
@@ -447,22 +750,35 @@ export default function CollectionClient({
   const clearFilters = () => {
     setDateFilter('');
     setCustomerFilter('');
-    setRouteFilter('');
+    handleRouteChange('');
     setStatusFilter('');
     setFrequencyFilter('');
-    setTypeFilter('all');
+    setSessionFilter('');
+    setTypeFilter(initialTab);
     setOverdueMinDays('');
     setOverdueMaxDays('');
   };
 
   useEffect(() => {
     setPage(1);
-  }, [typeFilter, customerFilter, dateFilter, routeFilter, statusFilter, frequencyFilter, overdueMinDays, overdueMaxDays]);
+  }, [typeFilter, customerFilter, dateFilter, routeFilter, statusFilter, frequencyFilter, sessionFilter, overdueMinDays, overdueMaxDays, viewMode]);
 
-  const hasActiveFilters = dateFilter || customerFilter || routeFilter || statusFilter || frequencyFilter || typeFilter !== 'all' || overdueMinDays || overdueMaxDays;
+  const hasActiveFilters = Boolean(
+    dateFilter ||
+    customerFilter ||
+    routeFilter ||
+    statusFilter ||
+    frequencyFilter ||
+    sessionFilter ||
+    typeFilter !== initialTab ||
+    overdueMinDays ||
+    overdueMaxDays
+  );
 
   const pageSize = 20;
-  const totalPages = Math.max(1, Math.ceil(unifiedGroups.length / pageSize));
+  const currentTotalCount = viewMode === 'instalments' ? filteredRows.length : unifiedGroups.length;
+  const totalPages = Math.max(1, Math.ceil(currentTotalCount / pageSize));
+  const paginatedRows = filteredRows.slice((page - 1) * pageSize, page * pageSize);
   const paginatedGroups = unifiedGroups.slice((page - 1) * pageSize, page * pageSize);
   const pageButtons = getPaginationPages(page, totalPages);
 
@@ -476,7 +792,7 @@ export default function CollectionClient({
     return {
       ...group,
       earliestDueDate: group.instalments.map(i => i.dueDate).sort()[0],
-      dueToday: group.instalments.filter(i => i.dueDate.slice(0, 10) === todayISO).reduce((s, i) => s + i.dueAmount, 0),
+      dueToday: group.instalments.filter(i => getIstDateStr(i.dueDate) === todayISO || i.dueDate.slice(0, 10) === todayISO).reduce((s, i) => s + i.dueAmount, 0),
       receivedAmount: group.instalments.reduce((s, i) => s + i.receivedAmount, 0),
       totalOutstanding: group.instalments.reduce((s, i) => s + i.outstandingAmount, 0),
       totalOverdue: group.instalments.filter(i => i.daysOverdue > 0).reduce((s, i) => s + i.overdueAmount, 0),
@@ -485,8 +801,328 @@ export default function CollectionClient({
     };
   };
 
+  // Aggregate one set of instalments (a whole customer, or a single loan) into
+  // the figures shown in a collection row. Reused for the parent customer row
+  // and each expanded per-loan sub-row.
+  const metricsFor = (insts: UnifiedGroup['instalments']) => {
+    const earliestDateIso = insts.map(i => i.dueDate).sort()[0] || '';
+    const dueTodayAmount = insts.filter(i => getIstDateStr(i.dueDate) === todayISO || i.dueDate.slice(0, 10) === todayISO).reduce((s, i) => s + i.dueAmount, 0);
+    const receivedAmount = insts.reduce((s, i) => s + i.receivedAmount, 0);
+    const uniqueLoans = Array.from(new Map(insts.map(i => [i.loan.id, i.loan])).values());
+    const totalLoanPayable = uniqueLoans.reduce((s, l) => s + l.totalPayable, 0);
+    const totalLoanCollected = uniqueLoans.reduce((s, l) => s + l.totalCollected, 0);
+    const totalLoanOutstanding = totalLoanPayable - totalLoanCollected;
+    const remainingInstalments = uniqueLoans.reduce((s, l) => s + (l.totalInstalments - l.paidCount), 0);
+    const overdueInstalments = insts.filter(i => i.daysOverdue > 0 && i.outstandingAmount > 0);
+    const maxDaysOverdue = overdueInstalments.length > 0 ? Math.max(...overdueInstalments.map(i => i.daysOverdue)) : 0;
+    const totalOverdueAmount = overdueInstalments.reduce((s, i) => s + i.overdueAmount, 0);
+    const keys = insts.map(i => deriveInstalmentStatus(i, todayISO).key);
+    const displayStatus = keys.every(k => k === 'paid') ? 'Paid'
+      : keys.some(k => k === 'missed') ? 'Overdue'
+      : keys.some(k => k === 'partial') ? 'Partial'
+      : keys.some(k => k === 'due today') ? 'Due Today'
+      : 'Upcoming';
+    const isSettled = insts.every(i => i.outstandingAmount <= 0);
+    const unpaidInstalments = insts.filter(i => i.outstandingAmount > 0);
+    return { earliestDateIso, dueTodayAmount, receivedAmount, totalLoanPayable, totalLoanCollected, totalLoanOutstanding, remainingInstalments, overdueInstalments, maxDaysOverdue, totalOverdueAmount, displayStatus, isSettled, unpaidInstalments };
+  };
+
+  // The 7 data cells (due date → action) shared by parent and sub-rows.
+  const renderRowCells = (insts: UnifiedGroup['instalments'], sg: UnifiedGroup) => {
+    const m = metricsFor(insts);
+    return (
+      <>
+        <td data-label={dict.collection.dueDate}>{m.earliestDateIso ? formatDate(m.earliestDateIso) : '-'}</td>
+        <td data-label={dict.collection.dueTodayLabel}>{m.dueTodayAmount > 0 ? formatCurrency(m.dueTodayAmount, currencySymbol) : '-'}</td>
+        <td data-label={dict.collection.receivedLabel}>{m.receivedAmount > 0 ? formatCurrency(m.receivedAmount, currencySymbol) : '-'}</td>
+        <td
+          data-label={dict.collection.outstandingLabel}
+          title={`Total Payable: ${formatCurrency(m.totalLoanPayable, currencySymbol)}\nTotal Paid: ${formatCurrency(m.totalLoanCollected, currencySymbol)}\nRemaining Instalments: ${m.remainingInstalments}`}
+          style={{ fontWeight: 700, color: m.totalLoanOutstanding > 0 ? 'var(--danger)' : 'var(--success)', cursor: 'help' }}
+        >
+          {formatCurrency(m.totalLoanOutstanding, currencySymbol)}
+        </td>
+        <td data-label={dict.collection.overdueLabel} onClick={(e) => e.stopPropagation()}>
+          {m.overdueInstalments.length > 0 ? (
+            <button className="btn btn-ghost btn-sm" onClick={() => setOverdueCustomerGroup(buildOverdueGroup(sg))} style={{ padding: '2px 6px', height: 'auto', minHeight: '26px' }}>
+              <span style={{ color: 'var(--danger)', fontWeight: 600 }}>{m.maxDaysOverdue}d</span>
+              <span style={{ margin: '0 4px', color: 'var(--text-light)' }}>·</span>
+              <span>{formatCurrency(m.totalOverdueAmount, currencySymbol)}</span>
+            </button>
+          ) : '-'}
+        </td>
+        <td data-label={dict.collection.statusLabel}>
+          <span className={getBadgeClass(m.displayStatus.toLowerCase())} style={{ textTransform: 'capitalize' }}>
+            {m.displayStatus}
+          </span>
+        </td>
+        <td data-label={dict.collection.actionLabel} onClick={(e) => e.stopPropagation()}>
+          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+            {m.unpaidInstalments.length === 0 ? (
+              <>
+                <button className="btn btn-ghost btn-sm" onClick={() => openModal(insts[0])}>
+                  <span className="material-icons-outlined" style={{ fontSize: '14px' }}>{isAdmin ? 'edit' : 'history_edu'}</span> {isAdmin ? dict.collection.editLabel : dict.collection.requestLabel}
+                </button>
+                {receiptPdfEnabled && insts[0]?.collectionEntry?.id && (
+                  <a
+                    href={`/api/receipts/${insts[0].collectionEntry.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-ghost btn-sm"
+                    title="Download Receipt"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}
+                  >
+                    <span className="material-icons-outlined" style={{ fontSize: '16px' }}>receipt_long</span>
+                    {dict.collection.receiptLabel}
+                  </a>
+                )}
+              </>
+            ) : (
+              <button className="btn btn-primary btn-sm" onClick={() => m.unpaidInstalments.length === 1 ? openModal(m.unpaidInstalments[0]) : setOverdueCustomerGroup(buildOverdueGroup(sg))}>
+                <span className="material-icons-outlined" style={{ fontSize: '14px' }}>payments</span> {dict.collection.payLabel}
+              </button>
+            )}
+          </div>
+        </td>
+      </>
+    );
+  };
+
+  // App-like card list for mobile (the table is hidden <=768px via CSS). Big
+  // name, big due, big Pay button — scannable and thumb-friendly.
+  const renderMobileCards = (groups: UnifiedGroup[]) => (
+    <div className="collection-cards">
+      {groups.map((group) => {
+        const m = metricsFor(group.instalments);
+        const settled = m.unpaidInstalments.length === 0;
+        const payAmount = m.dueTodayAmount > 0 ? m.dueTodayAmount : m.totalLoanOutstanding;
+        return (
+          <div key={group.customerId} className="collect-card" style={{ opacity: m.isSettled ? 0.7 : 1 }}>
+            <div className="collect-card-head">
+              <div className="profile-avatar" style={{ width: 40, height: 40, fontSize: '.9rem', flexShrink: 0 }}>
+                {getInitials(group.customerName)}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <Link href={`/customers/${group.customerCode}`} onClick={(e) => e.stopPropagation()} style={{ fontWeight: 700, fontSize: '1.02rem' }}>
+                  {group.customerName}
+                </Link>
+                <div className="collect-muted" style={{ textTransform: 'none', letterSpacing: 0 }}>
+                  {group.loanCodes.join(', ')} · {group.routeName}
+                </div>
+              </div>
+              {group.customerPhone && (
+                <a
+                  href={`tel:${group.customerPhone}`}
+                  onClick={(e) => e.stopPropagation()}
+                  title="Call"
+                  style={{ display: 'flex', color: 'var(--success, #16a34a)', flexShrink: 0 }}
+                >
+                  <span className="material-icons-outlined" style={{ fontSize: '20px' }}>call</span>
+                </a>
+              )}
+              {group.mapLat != null && group.mapLng != null && (
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${group.mapLat},${group.mapLng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  title="Open location in Maps"
+                  style={{ display: 'flex', color: 'var(--primary-dark, #b45309)', flexShrink: 0 }}
+                >
+                  <span className="material-icons-outlined" style={{ fontSize: '20px' }}>location_on</span>
+                </a>
+              )}
+              <span className={getBadgeClass(m.displayStatus.toLowerCase())} style={{ textTransform: 'capitalize', flexShrink: 0 }}>
+                {m.displayStatus}
+              </span>
+            </div>
+
+            <div className="collect-card-figs">
+              <div>
+                <span className="collect-muted">{dict.collection.dueTodayLabel}</span>
+                <b className="collect-big">{formatCurrency(m.dueTodayAmount, currencySymbol)}</b>
+              </div>
+              <div>
+                <span className="collect-muted">{dict.collection.outstandingLabel}</span>
+                <b style={{ fontSize: '1rem', fontWeight: 800, color: m.totalLoanOutstanding > 0 ? 'var(--danger)' : 'var(--success)' }}>
+                  {formatCurrency(m.totalLoanOutstanding, currencySymbol)}
+                </b>
+              </div>
+              {m.totalOverdueAmount > 0 && (
+                <div>
+                  <span className="collect-muted">{dict.collection.overdueLabel} · {m.maxDaysOverdue}d</span>
+                  <b style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--danger)' }}>{formatCurrency(m.totalOverdueAmount, currencySymbol)}</b>
+                </div>
+              )}
+            </div>
+
+            {settled ? (
+              <button className="btn btn-secondary btn-block" onClick={() => openModal(group.instalments[0])}>
+                <span className="material-icons-outlined" style={{ fontSize: 18 }}>{isAdmin ? 'edit' : 'history_edu'}</span>
+                {isAdmin ? dict.collection.editLabel : dict.collection.requestLabel}
+              </button>
+            ) : (
+              <button
+                className="btn btn-primary btn-block collect-big-pay"
+                onClick={() => (m.unpaidInstalments.length === 1 ? openModal(m.unpaidInstalments[0]) : setOverdueCustomerGroup(buildOverdueGroup(group)))}
+              >
+                <span className="material-icons-outlined" style={{ fontSize: 20 }}>payments</span>
+                {dict.collection.payLabel} {formatCurrency(payAmount, currencySymbol)}
+              </button>
+            )}
+          </div>
+        );
+      })}
+      {groups.length === 0 && (
+        <div className="collect-card" style={{ textAlign: 'center', color: 'var(--text-light)' }}>
+          {dict.collection.noInstalmentsMatch}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderInstalmentRows = (rows: CollectionRow[]) => (
+    <div className="table-wrapper collection-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>{dict.customers.title}</th>
+            <th>{dict.sidebar.loans}</th>
+            <th>{dict.collection.dueDate}</th>
+            <th>{dict.collection.dueTodayLabel}</th>
+            <th>{dict.collection.receivedLabel}</th>
+            <th>{dict.collection.outstandingLabel}</th>
+            <th>{dict.collection.overdueLabel}</th>
+            <th>{dict.collection.statusLabel}</th>
+            <th>{dict.collection.actionLabel}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((instalment) => {
+            const isSettled = instalment.outstandingAmount <= 0;
+            const statusInfo = deriveInstalmentStatus(instalment, todayISO);
+            const isDueToday = getIstDateStr(instalment.dueDate) === todayISO || instalment.dueDate.slice(0, 10) === todayISO;
+            const fig = loanFiguresFor(instalment);
+            const cust = instalment.loan.customer;
+
+            return (
+              <tr key={instalment.id} className="collection-entry" style={{ opacity: isSettled ? 0.62 : 1 }}>
+                <td data-label={dict.customers.title}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div className="profile-avatar" style={{ width: '32px', height: '32px', fontSize: '.75rem', flexShrink: 0 }}>
+                      {getInitials(cust.name)}
+                    </div>
+                    <div>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <Link href={`/customers/${cust.customerCode}`}>
+                          <strong>{cust.name}</strong>
+                        </Link>
+                        {cust.phone && (
+                          <a
+                            href={`tel:${cust.phone}`}
+                            title="Call"
+                            style={{ display: 'flex', color: 'var(--success, #16a34a)' }}
+                          >
+                            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>call</span>
+                          </a>
+                        )}
+                      </span>
+                      <div style={{ fontSize: '.72rem', color: 'var(--text-light)', marginTop: '2px' }}>
+                        {cust.customerCode} · {cust.route?.name || '-'}
+                      </div>
+                    </div>
+                  </div>
+                </td>
+                <td data-label={dict.sidebar.loans}>
+                  <Link href={`/loans/${instalment.loan.loanCode}`} style={{ fontWeight: 600 }}>
+                    {instalment.loan.loanCode}
+                  </Link>
+                  <div style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>
+                    #{instalment.instalmentNo} · {instalment.loan.frequency}
+                  </div>
+                </td>
+                <td data-label={dict.collection.dueDate}>
+                  {formatDate(instalment.dueDate)}
+                </td>
+                <td data-label={dict.collection.dueTodayLabel}>
+                  {isDueToday && instalment.outstandingAmount > 0
+                    ? formatCurrency(instalment.dueAmount, currencySymbol)
+                    : '-'}
+                </td>
+                <td data-label={dict.collection.receivedLabel}>
+                  {instalment.receivedAmount > 0
+                    ? formatCurrency(instalment.receivedAmount, currencySymbol)
+                    : '-'}
+                </td>
+                <td
+                  data-label={dict.collection.outstandingLabel}
+                  title={`Instalment Outstanding: ${formatCurrency(instalment.outstandingAmount, currencySymbol)}\nTotal Loan Outstanding: ${formatCurrency(fig.totalOutstanding, currencySymbol)}`}
+                  style={{ fontWeight: 700, color: instalment.outstandingAmount > 0 ? 'var(--danger)' : 'var(--success)', cursor: 'help' }}
+                >
+                  {formatCurrency(instalment.outstandingAmount, currencySymbol)}
+                  <span style={{ display: 'block', fontSize: '.7rem', fontWeight: 400, color: 'var(--text-light)' }}>
+                    Loan: {formatCurrency(fig.totalOutstanding, currencySymbol)}
+                  </span>
+                </td>
+                <td data-label={dict.collection.overdueLabel}>
+                  {instalment.daysOverdue > 0 && instalment.outstandingAmount > 0 ? (
+                    <span style={{ color: 'var(--danger)', fontWeight: 600 }}>
+                      {instalment.daysOverdue}d · {formatCurrency(instalment.overdueAmount, currencySymbol)}
+                    </span>
+                  ) : '-'}
+                </td>
+                <td data-label={dict.collection.statusLabel}>
+                  <span className={getBadgeClass(statusInfo.key)} style={{ textTransform: 'capitalize' }}>
+                    {statusInfo.label}
+                  </span>
+                </td>
+                <td data-label={dict.collection.actionLabel}>
+                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    {isSettled ? (
+                      <>
+                        <button className="btn btn-ghost btn-sm" onClick={() => openModal(instalment)}>
+                          <span className="material-icons-outlined" style={{ fontSize: '14px' }}>{isAdmin ? 'edit' : 'history_edu'}</span>
+                          {isAdmin ? dict.collection.editLabel : dict.collection.requestLabel}
+                        </button>
+                        {receiptPdfEnabled && instalment.collectionEntry?.id && (
+                          <a
+                            href={`/api/receipts/${instalment.collectionEntry.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn-ghost btn-sm"
+                            title="Download Receipt"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}
+                          >
+                            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>receipt_long</span>
+                            {dict.collection.receiptLabel}
+                          </a>
+                        )}
+                      </>
+                    ) : (
+                      <button className="btn btn-primary btn-sm" onClick={() => openModal(instalment)}>
+                        <span className="material-icons-outlined" style={{ fontSize: '14px' }}>payments</span>
+                        {dict.collection.payLabel}
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+          {rows.length === 0 && (
+            <tr>
+              <td colSpan={9} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-light)' }}>
+                {dict.collection.noInstalmentsMatch}
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+
   const renderUnifiedRows = (groups: UnifiedGroup[]) => (
-    <div className="table-wrapper">
+    <div className="table-wrapper collection-table-wrap">
       <table>
         <thead>
           <tr>
@@ -503,128 +1139,153 @@ export default function CollectionClient({
         </thead>
         <tbody>
           {groups.map((group) => {
-            const currentLoanCode = selectedLoanForCustomer[group.customerId] || 'all';
-            const visibleInstalments = currentLoanCode === 'all' 
-              ? group.instalments 
-              : group.instalments.filter(i => i.loan.loanCode === currentLoanCode);
-
-            const earliestDateIso = visibleInstalments.map(i => i.dueDate).sort()[0] || '';
-            const dueTodayAmount = visibleInstalments.filter(i => i.dueDate.slice(0, 10) === todayISO).reduce((sum, i) => sum + i.dueAmount, 0);
-            const receivedAmount = visibleInstalments.reduce((sum, i) => sum + i.receivedAmount, 0);
-            
-            const uniqueLoans = Array.from(new Map(visibleInstalments.map(i => [i.loan.id, i.loan])).values());
-            const totalLoanPayable = uniqueLoans.reduce((sum, l) => sum + l.totalPayable, 0);
-            const totalLoanCollected = uniqueLoans.reduce((sum, l) => sum + l.totalCollected, 0);
-            const totalLoanOutstanding = totalLoanPayable - totalLoanCollected;
-            const remainingInstalments = uniqueLoans.reduce((sum, l) => sum + (l.totalInstalments - l.paidCount), 0);
-
-            const overdueInstalments = visibleInstalments.filter(i => i.daysOverdue > 0 && i.outstandingAmount > 0);
-            const maxDaysOverdue = overdueInstalments.length > 0 ? Math.max(...overdueInstalments.map(i => i.daysOverdue)) : 0;
-            const totalOverdueAmount = overdueInstalments.reduce((sum, i) => sum + i.overdueAmount, 0);
-
-            // Roll the customer's (possibly multi-loan) instalments into one badge.
-            // Priority: all paid → Paid; any overdue → Overdue; any partial → Partial;
-            // any due today → Due Today; otherwise Upcoming.
-            const keys = visibleInstalments.map(i => deriveInstalmentStatus(i, todayISO).key);
-            const displayStatus = keys.every(k => k === 'paid') ? 'Paid'
-              : keys.some(k => k === 'missed') ? 'Overdue'
-              : keys.some(k => k === 'partial') ? 'Partial'
-              : keys.some(k => k === 'due today') ? 'Due Today'
-              : 'Upcoming';
-
-            const isSettled = visibleInstalments.every(i => i.outstandingAmount <= 0);
-            const unpaidInstalments = visibleInstalments.filter(i => i.outstandingAmount > 0);
-
+            const canExpand = group.loanCodes.length > 1 || group.instalments.length > 1;
+            const expanded = expandedCustomers.has(group.customerId);
+            const pm = metricsFor(group.instalments);
             return (
-              <tr key={group.customerId} className="collection-entry" style={{ opacity: isSettled ? 0.62 : 1 }}>
-                <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div className="profile-avatar" style={{ width: '32px', height: '32px', fontSize: '.75rem', flexShrink: 0 }}>
-                      {getInitials(group.customerName)}
-                    </div>
-                    <Link href={`/customers/${group.customerCode}`}>
-                      <strong>{group.customerName}</strong>
-                    </Link>
-                    {group.distanceToAgent !== undefined && group.distanceToAgent !== Infinity && (
-                      <div style={{ fontSize: '.75rem', color: 'var(--text-light)', marginTop: '2px' }}>
-                        <span className="material-icons-outlined" style={{ fontSize: '12px', verticalAlign: 'middle', marginRight: '2px' }}>location_on</span>
-                        {group.distanceToAgent < 1 
-                          ? `${Math.round(group.distanceToAgent * 1000)}m away` 
-                          : `${group.distanceToAgent.toFixed(1)}km away`} 
-                        {group.nearestPointName && ` (${group.nearestPointName})`}
-                      </div>
-                    )}
-                  </div>
-                </td>
-                <td>
-                  {group.loanCodes.length === 1 ? (
-                    <Link href={`/loans/${group.loanCodes[0]}`}>{group.loanCodes[0]}</Link>
-                  ) : (
-                    <select 
-                      className="form-control" 
-                      style={{ padding: '2px 24px 2px 8px', fontSize: '.8rem', height: 'auto', minHeight: '28px' }}
-                      value={currentLoanCode} 
-                      onChange={(e) => handleLoanChange(group.customerId, e.target.value)}
-                    >
-                      <option value="all">{dict.collection.allLoans} ({group.loanCodes.length})</option>
-                      {group.loanCodes.map(code => (
-                        <option key={code} value={code}>{code}</option>
-                      ))}
-                    </select>
-                  )}
-                </td>
-                <td>{earliestDateIso ? formatDate(earliestDateIso) : '-'}</td>
-                <td>{dueTodayAmount > 0 ? formatCurrency(dueTodayAmount, currencySymbol) : '-'}</td>
-                <td>{receivedAmount > 0 ? formatCurrency(receivedAmount, currencySymbol) : '-'}</td>
-                <td 
-                  title={`Total Payable: ${formatCurrency(totalLoanPayable, currencySymbol)}\nTotal Paid: ${formatCurrency(totalLoanCollected, currencySymbol)}\nRemaining Instalments: ${remainingInstalments}`}
-                  style={{ fontWeight: 700, color: totalLoanOutstanding > 0 ? 'var(--danger)' : 'var(--success)', cursor: 'help' }}
+              <Fragment key={group.customerId}>
+                <tr
+                  className="collection-entry"
+                  style={{ opacity: pm.isSettled ? 0.62 : 1, cursor: canExpand ? 'pointer' : undefined }}
+                  onClick={canExpand ? () => toggleCustomerExpand(group.customerId) : undefined}
                 >
-                  {formatCurrency(totalLoanOutstanding, currencySymbol)}
-                </td>
-                <td>
-                  {overdueInstalments.length > 0 ? (
-                    <button className="btn btn-ghost btn-sm" onClick={() => setOverdueCustomerGroup(buildOverdueGroup(group))} style={{ padding: '2px 6px', height: 'auto', minHeight: '26px' }}>
-                      <span style={{ color: 'var(--danger)', fontWeight: 600 }}>{maxDaysOverdue}d</span>
-                      <span style={{ margin: '0 4px', color: 'var(--text-light)' }}>·</span>
-                      <span>{formatCurrency(totalOverdueAmount, currencySymbol)}</span>
-                    </button>
-                  ) : '-'}
-                </td>
-                <td>
-                  <span className={getBadgeClass(displayStatus.toLowerCase())} style={{ textTransform: 'capitalize' }}>
-                    {displayStatus}
-                  </span>
-                </td>
-                <td>
-                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                    {unpaidInstalments.length === 0 ? (
-                      <>
-                        <button className="btn btn-ghost btn-sm" onClick={() => openModal(visibleInstalments[0])}>
-                          <span className="material-icons-outlined" style={{ fontSize: '14px' }}>{isAdmin ? 'edit' : 'history_edu'}</span> {isAdmin ? dict.collection.editLabel : dict.collection.requestLabel}
-                        </button>
-                        {receiptPdfEnabled && visibleInstalments[0]?.collectionEntry?.id && (
-                          <a
-                            href={`/api/receipts/${visibleInstalments[0].collectionEntry.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="btn btn-ghost btn-sm"
-                            title="Download Receipt"
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}
-                          >
-                            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>receipt_long</span>
-                            {dict.collection.receiptLabel}
-                          </a>
+                  <td data-label={dict.customers.title}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      {canExpand ? (
+                        <span className="material-icons-outlined" style={{ fontSize: '20px', color: 'var(--text-light)', transition: 'transform .2s', transform: expanded ? 'rotate(90deg)' : 'none' }}>chevron_right</span>
+                      ) : (
+                        <span style={{ width: '20px', flexShrink: 0 }} />
+                      )}
+                      <div className="profile-avatar" style={{ width: '32px', height: '32px', fontSize: '.75rem', flexShrink: 0 }}>
+                        {getInitials(group.customerName)}
+                      </div>
+                      <div>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <Link href={`/customers/${group.customerCode}`} onClick={(e) => e.stopPropagation()}>
+                            <strong>{group.customerName}</strong>
+                          </Link>
+                          {group.customerPhone && (
+                            <a
+                              href={`tel:${group.customerPhone}`}
+                              onClick={(e) => e.stopPropagation()}
+                              title="Call"
+                              style={{ display: 'flex', color: 'var(--success, #16a34a)' }}
+                            >
+                              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>call</span>
+                            </a>
+                          )}
+                          {group.mapLat != null && group.mapLng != null && (
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${group.mapLat},${group.mapLng}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              title="Open location in Maps"
+                              style={{ display: 'flex', color: 'var(--primary-dark, #b45309)' }}
+                            >
+                              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>location_on</span>
+                            </a>
+                          )}
+                        </span>
+                        {group.distanceToAgent !== undefined && group.distanceToAgent !== Infinity && (
+                          <div style={{ fontSize: '.75rem', color: 'var(--text-light)', marginTop: '2px' }}>
+                            <span className="material-icons-outlined" style={{ fontSize: '12px', verticalAlign: 'middle', marginRight: '2px' }}>location_on</span>
+                            {group.distanceToAgent < 1
+                              ? `${Math.round(group.distanceToAgent * 1000)}m away`
+                              : `${group.distanceToAgent.toFixed(1)}km away`}
+                            {group.nearestPointName && ` (${group.nearestPointName})`}
+                          </div>
                         )}
-                      </>
-                    ) : (
-                      <button className="btn btn-primary btn-sm" onClick={() => unpaidInstalments.length === 1 ? openModal(unpaidInstalments[0]) : setOverdueCustomerGroup(buildOverdueGroup(group))}>
-                        <span className="material-icons-outlined" style={{ fontSize: '14px' }}>payments</span> {dict.collection.payLabel}
+                      </div>
+                    </div>
+                  </td>
+                  <td data-label={dict.sidebar.loans} onClick={(e) => e.stopPropagation()}>
+                    {group.loanCodes.length > 1 ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleCustomerExpand(group.customerId)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px', fontSize: '.8rem', fontWeight: 600, cursor: 'pointer', background: 'var(--primary-light, #FFF3E0)', color: 'var(--primary-dark, #E8930C)', border: '1px solid var(--primary, #F5A623)', borderRadius: '999px' }}
+                      >
+                        {dict.collection.allLoans} ({group.loanCodes.length})
+                        <span className="material-icons-outlined" style={{ fontSize: '16px', transition: 'transform .2s', transform: expanded ? 'rotate(180deg)' : 'none' }}>expand_more</span>
                       </button>
+                    ) : group.instalments.length > 1 ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleCustomerExpand(group.customerId)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px', fontSize: '.8rem', fontWeight: 600, cursor: 'pointer', background: 'var(--primary-light, #FFF3E0)', color: 'var(--primary-dark, #E8930C)', border: '1px solid var(--primary, #F5A623)', borderRadius: '999px' }}
+                      >
+                        {group.loanCodes[0]} ({group.instalments.length})
+                        <span className="material-icons-outlined" style={{ fontSize: '16px', transition: 'transform .2s', transform: expanded ? 'rotate(180deg)' : 'none' }}>expand_more</span>
+                      </button>
+                    ) : (
+                      <Link href={`/loans/${group.loanCodes[0]}`}>{group.loanCodes[0]}</Link>
                     )}
-                  </div>
-                </td>
-              </tr>
+                  </td>
+                  {renderRowCells(group.instalments, group)}
+                </tr>
+                {canExpand && expanded && group.loanCodes.length > 1 && group.loanCodes.map((code) => {
+                  const loanInsts = group.instalments.filter(i => i.loan.loanCode === code);
+                  if (loanInsts.length === 0) return null;
+                  const cm = metricsFor(loanInsts);
+                  const subGroup: UnifiedGroup = { ...group, instalments: loanInsts, loanCodes: [code] };
+                  return (
+                    <tr key={`${group.customerId}__${code}`} className="collection-entry" style={{ background: 'var(--bg-light, #FAFBFC)', opacity: cm.isSettled ? 0.62 : 1 }}>
+                      <td style={{ paddingLeft: '54px', color: 'var(--text-light)' }}>↳</td>
+                      <td><Link href={`/loans/${code}`} style={{ fontSize: '.82rem', fontWeight: 600 }}>{code}</Link></td>
+                      {renderRowCells(loanInsts, subGroup)}
+                    </tr>
+                  );
+                })}
+                {canExpand && expanded && group.loanCodes.length === 1 && group.instalments.map((inst) => {
+                  const isSettled = inst.outstandingAmount <= 0;
+                  const statusInfo = deriveInstalmentStatus(inst, todayISO);
+                  const isDueToday = getIstDateStr(inst.dueDate) === todayISO || inst.dueDate.slice(0, 10) === todayISO;
+                  return (
+                    <tr key={inst.id} className="collection-entry" style={{ background: 'var(--bg-light, #FAFBFC)', opacity: isSettled ? 0.62 : 1 }}>
+                      <td style={{ paddingLeft: '54px', color: 'var(--text-light)', fontSize: '.8rem' }}>
+                        ↳ #{inst.instalmentNo}
+                      </td>
+                      <td>
+                        <Link href={`/loans/${inst.loan.loanCode}`} style={{ fontSize: '.82rem', fontWeight: 600 }}>
+                          {inst.loan.loanCode}
+                        </Link>
+                      </td>
+                      <td>{formatDate(inst.dueDate)}</td>
+                      <td>{isDueToday && inst.outstandingAmount > 0 ? formatCurrency(inst.dueAmount, currencySymbol) : '-'}</td>
+                      <td>{inst.receivedAmount > 0 ? formatCurrency(inst.receivedAmount, currencySymbol) : '-'}</td>
+                      <td style={{ fontWeight: 700, color: inst.outstandingAmount > 0 ? 'var(--danger)' : 'var(--success)' }}>
+                        {formatCurrency(inst.outstandingAmount, currencySymbol)}
+                      </td>
+                      <td>
+                        {inst.daysOverdue > 0 && inst.outstandingAmount > 0 ? (
+                          <span style={{ color: 'var(--danger)', fontWeight: 600 }}>
+                            {inst.daysOverdue}d · {formatCurrency(inst.overdueAmount, currencySymbol)}
+                          </span>
+                        ) : '-'}
+                      </td>
+                      <td>
+                        <span className={getBadgeClass(statusInfo.key)} style={{ textTransform: 'capitalize' }}>
+                          {statusInfo.label}
+                        </span>
+                      </td>
+                      <td>
+                        {isSettled ? (
+                          <button className="btn btn-ghost btn-sm" onClick={() => openModal(inst)}>
+                            <span className="material-icons-outlined" style={{ fontSize: '14px' }}>{isAdmin ? 'edit' : 'history_edu'}</span>
+                            {isAdmin ? dict.collection.editLabel : dict.collection.requestLabel}
+                          </button>
+                        ) : (
+                          <button className="btn btn-primary btn-sm" onClick={() => openModal(inst)}>
+                            <span className="material-icons-outlined" style={{ fontSize: '14px' }}>payments</span>
+                            {dict.collection.payLabel}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </Fragment>
             );
           })}
           {groups.length === 0 && (
@@ -641,107 +1302,298 @@ export default function CollectionClient({
 
   return (
     <>
-      <div className="card" style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div className="profile-avatar" style={{ width: '48px', height: '48px', fontSize: '1rem' }}>{getInitials(agentName)}</div>
-          <div>
-            <h3 style={{ fontSize: '1rem' }}>{agentName} - {agentRole === 'admin' ? dict.roles.admin : dict.roles.agent}</h3>
-            <p style={{ fontSize: '.8rem', color: 'var(--text-secondary)' }}>
-              {dict.collection.route}: <strong>{routeName}</strong> · Today: {todayStr}
-            </p>
+      <div className="card" style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div className="profile-avatar" style={{ width: '48px', height: '48px', fontSize: '1rem' }}>{getInitials(agentName)}</div>
+            <div>
+              <h3 style={{ fontSize: '1rem', margin: 0, fontWeight: 700 }}>
+                {agentName} - {agentRole === 'admin' ? dict.roles.admin : dict.roles.agent}
+              </h3>
+              <p style={{ fontSize: '.8rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+                Today: <strong>{todayStr}</strong> · {dict.collection.route}: <strong style={{ color: activeRouteObj ? 'var(--primary)' : 'inherit' }}>{activeRouteObj ? activeRouteObj.name : routeName}</strong>
+              </p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <Link href="/collection/runs" className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>route</span>
+              Route Runs
+            </Link>
+            <Link href="/collection/self-pay" className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>qr_code_2</span>
+              Self-Pay
+            </Link>
+            <span className="badge badge-active" style={{ fontSize: '.8rem', padding: '6px 14px' }}>{dict.collection.online}</span>
+            {agentRole === 'agent' && dailyCollection && dailyCollection.totalCollected > 0 && dailyCollection.status === 'open' && (
+              <button 
+                className="btn btn-primary btn-sm" 
+                onClick={async () => {
+                  if (!confirm(`Submit handover of ${formatCurrency(dailyCollection.totalCollected, currencySymbol)}?`)) return;
+                  setLoading(true);
+                  const res = await requestCashHandover();
+                  setLoading(false);
+                  if (res.success) {
+                    alert('Handover requested successfully');
+                    router.refresh();
+                  } else {
+                    alert(res.error || 'Failed to submit handover');
+                  }
+                }}
+                disabled={loading}
+              >
+                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>payments</span>
+                {dict.collection.submitHandover}
+              </button>
+            )}
+            {dailyCollection?.status === 'pending_handover' && (
+              <span className="badge" style={{ fontSize: '.8rem', padding: '6px 14px', background: 'rgba(245,158,11,.1)', color: '#D97706' }}>
+                {dict.collection.handoverPending}
+              </span>
+            )}
+            {dailyCollection?.status === 'settled' && (
+              <span className="badge" style={{ fontSize: '.8rem', padding: '6px 14px', background: 'rgba(16,185,129,.1)', color: 'var(--success)' }}>
+                {dict.collection.handoverSettled}
+              </span>
+            )}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <Link href="/collection/runs" className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>route</span>
-            Route Runs
-          </Link>
-          <Link href="/collection/self-pay" className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>qr_code_2</span>
-            Self-Pay
-          </Link>
-          <span className="badge badge-active" style={{ fontSize: '.8rem', padding: '6px 14px' }}>{dict.collection.online}</span>
-          {agentRole === 'agent' && dailyCollection && dailyCollection.totalCollected > 0 && dailyCollection.status === 'open' && (
-            <button 
-              className="btn btn-primary btn-sm" 
-              onClick={async () => {
-                if (!confirm(`Submit handover of ${formatCurrency(dailyCollection.totalCollected, currencySymbol)}?`)) return;
-                setLoading(true);
-                const res = await requestCashHandover();
-                setLoading(false);
-                if (res.success) {
-                  alert('Handover requested successfully');
-                  router.refresh();
-                } else {
-                  alert(res.error || 'Failed to submit handover');
-                }
+
+        {/* ── Prominent Route Switcher Bar ── */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '12px',
+          padding: '10px 14px',
+          background: 'var(--bg-card-subtle, rgba(99,102,241,0.04))',
+          borderRadius: '8px',
+          border: '1px solid var(--border)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              color: 'var(--text-primary)',
+            }}>
+              <span className="material-icons-outlined" style={{ fontSize: '18px', color: 'var(--primary)' }}>alt_route</span>
+              {dict.collection.switchRoute || 'Switch Route'}:
+            </span>
+
+            {/* Quick Switch Pills */}
+            <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => handleRouteChange('')}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: '20px',
+                  border: !routeFilter ? '1.5px solid var(--primary)' : '1px solid var(--border)',
+                  background: !routeFilter ? 'var(--primary)' : 'var(--card-bg, #fff)',
+                  color: !routeFilter ? '#fff' : 'var(--text-secondary)',
+                  fontWeight: !routeFilter ? 700 : 500,
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>🌐 {dict.collection.allRoutes || 'All Routes'}</span>
+                <span style={{
+                  fontSize: '0.72rem',
+                  padding: '1px 6px',
+                  borderRadius: '10px',
+                  background: !routeFilter ? 'rgba(255,255,255,0.25)' : 'var(--bg-card-subtle, rgba(0,0,0,0.06))',
+                  color: !routeFilter ? '#fff' : 'var(--text-light)',
+                  fontWeight: 700,
+                }}>
+                  {totalDistinctCustomers}
+                </span>
+              </button>
+
+              {availableRoutes.map((r) => {
+                const isSelected = routeFilter === r.id || routeFilter === r.name;
+                const rStats = routeStats[r.id];
+                const custCount = rStats ? rStats.customerIds.size : 0;
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => handleRouteChange(r.id)}
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: '20px',
+                      border: isSelected ? '1.5px solid var(--primary)' : '1px solid var(--border)',
+                      background: isSelected ? 'var(--primary)' : 'var(--card-bg, #fff)',
+                      color: isSelected ? '#fff' : 'var(--text-secondary)',
+                      fontWeight: isSelected ? 700 : 500,
+                      fontSize: '0.8rem',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <span>📍 {r.name}</span>
+                    {custCount > 0 && (
+                      <span style={{
+                        fontSize: '0.72rem',
+                        padding: '1px 6px',
+                        borderRadius: '10px',
+                        background: isSelected ? 'rgba(255,255,255,0.25)' : 'var(--bg-card-subtle, rgba(0,0,0,0.06))',
+                        color: isSelected ? '#fff' : 'var(--text-light)',
+                        fontWeight: 700,
+                      }}>
+                        {custCount}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Dropdown for route selection */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <select
+              aria-label={dict.collection.switchRoute || 'Switch Route'}
+              value={routeFilter}
+              onChange={(e) => handleRouteChange(e.target.value)}
+              style={{
+                padding: '6px 12px',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                borderRadius: '6px',
+                border: '1px solid var(--border)',
+                background: 'var(--card-bg, #fff)',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                outline: 'none',
+                minWidth: '150px',
               }}
-              disabled={loading}
             >
-              <span className="material-icons-outlined" style={{ fontSize: '16px' }}>payments</span>
-              {dict.collection.submitHandover}
-            </button>
-          )}
-          {dailyCollection?.status === 'pending_handover' && (
-            <span className="badge" style={{ fontSize: '.8rem', padding: '6px 14px', background: 'rgba(245,158,11,.1)', color: '#D97706' }}>
-              {dict.collection.handoverPending}
-            </span>
-          )}
-          {dailyCollection?.status === 'settled' && (
-            <span className="badge" style={{ fontSize: '.8rem', padding: '6px 14px', background: 'rgba(16,185,129,.1)', color: 'var(--success)' }}>
-              {dict.collection.handoverSettled}
-            </span>
-          )}
+              <option value="">🌐 {dict.collection.allRoutes || 'All Routes'} ({totalDistinctCustomers})</option>
+              {availableRoutes.map((r) => {
+                const rStats = routeStats[r.id];
+                const custCount = rStats ? rStats.customerIds.size : 0;
+                return (
+                  <option key={r.id} value={r.id}>
+                    📍 {r.name} {custCount > 0 ? `(${custCount} customers)` : ''}
+                  </option>
+                );
+              })}
+            </select>
+
+            {routeFilter && (
+              <button
+                type="button"
+                onClick={() => handleRouteChange('')}
+                className="btn btn-ghost btn-sm"
+                style={{ fontSize: '0.75rem', padding: '4px 8px', color: 'var(--text-secondary)' }}
+                title="Reset to All Routes"
+              >
+                ✕ {dict.penalties?.clear || 'Clear'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      <div className="summary-bar" style={{ marginBottom: '20px' }}>
-        <div className="summary-item">
-          <div className="summary-item-icon" style={{ background: 'rgba(249,115,22,.12)' }}>
-            <span className="material-icons-outlined" style={{ color: 'var(--primary)', fontSize: '18px' }}>today</span>
+      {(() => {
+        const todayPct = pct(todayTotals.collected, todayTotals.due);
+        const overduePct = pct(overdueTotals.recovered, overdueTotals.dueTotal);
+        const custPct = pct(customerProgress.done, customerProgress.total);
+        const ProgressCard = ({
+          icon, tone, title, badge, big, bigColor, barPct, sub,
+        }: {
+          icon: string; tone: string; title: string; badge?: string;
+          big: string; bigColor: string; barPct: number; sub: string;
+        }) => (
+          <div className="card" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ width: 34, height: 34, borderRadius: 9, display: 'grid', placeItems: 'center', background: `${tone}1f`, color: tone, flexShrink: 0 }}>
+                <span className="material-icons-outlined" style={{ fontSize: '18px' }}>{icon}</span>
+              </div>
+              <span style={{ fontSize: '.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{title}</span>
+              {badge && <span style={{ marginLeft: 'auto', fontSize: '.7rem', fontWeight: 700, color: tone, background: `${tone}1f`, padding: '2px 8px', borderRadius: 999 }}>{badge}</span>}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+              <span style={{ fontSize: '1.3rem', fontWeight: 800, color: bigColor }}>{big}</span>
+              <span style={{ fontSize: '1rem', fontWeight: 800, color: tone }}>{barPct}%</span>
+            </div>
+            <div style={{ height: 8, background: 'var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+              <div style={{ width: `${barPct}%`, height: '100%', background: tone, borderRadius: 6, transition: 'width .4s ease' }} />
+            </div>
+            <span style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>{sub}</span>
           </div>
-          <div className="summary-label">{dict.collection.todayDue}</div>
-          <div className="summary-value">{formatCurrency(todayTotals.due, currencySymbol)}</div>
-        </div>
-        <div className="summary-item">
-          <div className="summary-item-icon" style={{ background: 'rgba(16,185,129,.12)' }}>
-            <span className="material-icons-outlined" style={{ color: 'var(--success)', fontSize: '18px' }}>check_circle</span>
+        );
+        return (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px', marginBottom: '20px' }}>
+            <ProgressCard
+              icon="today" tone="#10B981" title={dict.collection.todayDue}
+              big={`${formatCurrency(todayTotals.collected, currencySymbol)} / ${formatCurrency(todayTotals.due, currencySymbol)}`}
+              bigColor="var(--text)" barPct={todayPct}
+              sub={`${dict.collection.collectedToday} · ${formatCurrency(todayTotals.outstanding, currencySymbol)} left`}
+            />
+            <ProgressCard
+              icon="warning_amber" tone="#EF4444" title={dict.collection.overdueLabel}
+              badge={`${overdueTotals.count} · ${overdueTotals.maxDays}d`}
+              big={`${formatCurrency(overdueTotals.recovered, currencySymbol)} / ${formatCurrency(overdueTotals.dueTotal, currencySymbol)}`}
+              bigColor="var(--text)" barPct={overduePct}
+              sub={`${formatCurrency(overdueTotals.amount, currencySymbol)} ${dict.collection.overdueLabel.toLowerCase()} pending`}
+            />
+            <ProgressCard
+              icon="groups" tone="#6366F1" title={dict.customers.title}
+              badge={`${customerProgress.done}/${customerProgress.total}`}
+              big={`${customerProgress.done} / ${customerProgress.total}`}
+              bigColor="var(--text)" barPct={custPct}
+              sub={`${customerProgress.done} ${dict.collection.collectedToday.toLowerCase()} · ${customerProgress.total - customerProgress.done} left`}
+            />
           </div>
-          <div className="summary-label">{dict.collection.collectedToday}</div>
-          <div className="summary-value" style={{ color: 'var(--success)' }}>{formatCurrency(todayTotals.collected, currencySymbol)}</div>
-        </div>
-        <div className="summary-item">
-          <div className="summary-item-icon" style={{ background: 'rgba(245,158,11,.12)' }}>
-            <span className="material-icons-outlined" style={{ color: '#D97706', fontSize: '18px' }}>account_balance_wallet</span>
-          </div>
-          <div className="summary-label">{dict.collection.todayBalance}</div>
-          <div className="summary-value" style={{ color: '#D97706' }}>{formatCurrency(todayTotals.outstanding, currencySymbol)}</div>
-        </div>
-        <div className="summary-item">
-          <div className="summary-item-icon" style={{ background: 'rgba(239,68,68,.12)' }}>
-            <span className="material-icons-outlined" style={{ color: 'var(--danger)', fontSize: '18px' }}>warning_amber</span>
-          </div>
-          <div className="summary-label">{dict.collection.overdueLabel} ({overdueTotals.count})</div>
-          <div className="summary-value" style={{ color: 'var(--danger)' }}>{formatCurrency(overdueTotals.amount, currencySymbol)}</div>
-        </div>
-        <div className="summary-item">
-          <div className="summary-item-icon" style={{ background: 'rgba(99,102,241,.12)' }}>
-            <span className="material-icons-outlined" style={{ color: '#6366F1', fontSize: '18px' }}>schedule</span>
-          </div>
-          <div className="summary-label">{dict.collection.oldestDue}</div>
-          <div className="summary-value" style={{ color: '#6366F1' }}>{overdueTotals.maxDays}d</div>
-        </div>
-      </div>
+        );
+      })()}
 
       <div className="card" style={{ marginBottom: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
           <h3 style={{ fontSize: '1rem', margin: 0 }}>
             {dict.collection.collections}
             <span style={{ fontSize: '.8rem', fontWeight: 400, color: 'var(--text-light)', marginLeft: '8px' }}>
-              {filteredRows.length} {dict.accounting.of} {allInstalments.length} {dict.collection.instalments}
+              {viewMode === 'instalments'
+                ? `${filteredRows.length} ${dict.accounting.of} ${allInstalments.length} ${dict.collection.instalments}`
+                : `${unifiedGroups.length} ${dict.customers.title.toLowerCase()} (${filteredRows.length} ${dict.collection.instalments})`}
             </span>
           </h3>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'inline-flex', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', overflow: 'hidden' }}>
+              <button
+                type="button"
+                className={`btn btn-sm ${viewMode === 'instalments' ? 'btn-primary' : 'btn-ghost'}`}
+                style={{ borderRadius: 0, padding: '4px 10px', fontSize: '.8rem' }}
+                onClick={() => setViewMode('instalments')}
+                title="View individual instalments"
+              >
+                <span className="material-icons-outlined" style={{ fontSize: '15px' }}>view_list</span>
+                {dict.collection.instalments || 'Instalments'} ({filteredRows.length})
+              </button>
+              <button
+                type="button"
+                className={`btn btn-sm ${viewMode === 'grouped' ? 'btn-primary' : 'btn-ghost'}`}
+                style={{ borderRadius: 0, padding: '4px 10px', fontSize: '.8rem' }}
+                onClick={() => setViewMode('grouped')}
+                title="Group summary by customer"
+              >
+                <span className="material-icons-outlined" style={{ fontSize: '15px' }}>groups</span>
+                {dict.customers.title || 'Customers'} ({unifiedGroups.length})
+              </button>
+            </div>
+
             {gpsTrackingEnabled && (
               <button type="button" className={`btn btn-sm ${isSortedByNearest ? 'btn-primary' : 'btn-ghost'}`} onClick={handleSortByNearest}>
                 <span className="material-icons-outlined" style={{ fontSize: '14px' }}>my_location</span>
@@ -768,7 +1620,18 @@ export default function CollectionClient({
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">{dict.collection.dueDate}</label>
-            <input type="date" className="form-control" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} />
+            <input
+              type="date"
+              className="form-control"
+              value={dateFilter}
+              onChange={(event) => {
+                const val = event.target.value;
+                setDateFilter(val);
+                if (val && val !== todayISO && typeFilter === 'today') {
+                  setTypeFilter('all');
+                }
+              }}
+            />
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">{dict.collection.customerLoan}</label>
@@ -776,14 +1639,36 @@ export default function CollectionClient({
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">{dict.collection.routeLine}</label>
-            <select className="form-control" value={routeFilter} onChange={(event) => setRouteFilter(event.target.value)}>
-              <option value="">{dict.collection.allRoutes}</option>
-              {routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}
+            <select className="form-control" value={routeFilter} onChange={(event) => handleRouteChange(event.target.value)}>
+              <option value="">{dict.collection.allRoutes} ({totalDistinctCustomers})</option>
+              {availableRoutes.map((route) => {
+                const rStats = routeStats[route.id];
+                const custCount = rStats ? rStats.customerIds.size : 0;
+                return (
+                  <option key={route.id} value={route.id}>
+                    {route.name} {custCount > 0 ? `(${custCount})` : ''}
+                  </option>
+                );
+              })}
             </select>
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">{dict.collection.statusLabel}</label>
-            <select className="form-control" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+            <select
+              className="form-control"
+              value={statusFilter}
+              onChange={(event) => {
+                const val = event.target.value;
+                setStatusFilter(val);
+                if (val === 'missed' && typeFilter === 'today') {
+                  setTypeFilter('overdue');
+                } else if (val === 'due today' && typeFilter === 'overdue') {
+                  setTypeFilter('today');
+                } else if (val === 'upcoming' && typeFilter !== 'all') {
+                  setTypeFilter('all');
+                }
+              }}
+            >
               <option value="">{dict.collection.all}</option>
               <option value="due today">{dict.collection.dueTodayLabel}</option>
               <option value="missed">{dict.collection.overdueLabel} / {dict.collection.missed}</option>
@@ -803,8 +1688,33 @@ export default function CollectionClient({
             </select>
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Session</label>
+            <select className="form-control" value={sessionFilter} onChange={(event) => setSessionFilter(event.target.value)}>
+              <option value="">All sessions</option>
+              <option value="anytime">Anytime</option>
+              <option value="morning">Morning</option>
+              <option value="afternoon">Afternoon</option>
+              <option value="evening">Evening</option>
+              <option value="night">Night</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">{dict.collection.overdueMinDays}</label>
-            <input type="number" className="form-control" value={overdueMinDays} onChange={(event) => setOverdueMinDays(event.target.value)} placeholder="0" min={0} />
+            <input
+              type="number"
+              className="form-control"
+              value={overdueMinDays}
+              onChange={(event) => {
+                const val = event.target.value;
+                setOverdueMinDays(val);
+                if (val !== '' && Number(val) > 0 && typeFilter === 'today') {
+                  setTypeFilter('overdue');
+                }
+              }}
+              placeholder="0"
+              min={0}
+            />
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">{dict.collection.overdueMaxDays}</label>
@@ -812,7 +1722,8 @@ export default function CollectionClient({
           </div>
         </div>
 
-        {renderUnifiedRows(paginatedGroups)}
+        {viewMode === 'instalments' ? renderInstalmentRows(paginatedRows) : renderUnifiedRows(paginatedGroups)}
+        {renderMobileCards(paginatedGroups)}
 
         {totalPages > 1 && (
           <div className="pagination" style={{ justifyContent: 'center', marginTop: '12px' }}>
@@ -905,7 +1816,6 @@ export default function CollectionClient({
               {/* Per-instalment list */}
               <div style={{ padding: '8px 0' }}>
                 {overdueCustomerGroup.instalments.map((inst, idx) => {
-                  const isPaid = inst.receivedAmount > 0;
                   return (
                     <div
                       key={inst.id}
@@ -961,7 +1871,8 @@ export default function CollectionClient({
                         </div>
                       </div>
 
-                      {/* Days overdue */}
+                      {/* Days overdue — read-only mapped day, no per-row Pay
+                          (settle the whole loan via the footer button instead). */}
                       {inst.daysOverdue > 0 && (
                         <span style={{
                           flexShrink: 0,
@@ -976,33 +1887,38 @@ export default function CollectionClient({
                           {inst.daysOverdue}d
                         </span>
                       )}
-
-                      {/* Pay button */}
-                      {isPaid ? (
-                        isAdmin ? (
-                          <button className="btn btn-ghost btn-sm" style={{ flexShrink: 0 }}
-                            onClick={() => { setOverdueCustomerGroup(null); openModal(inst); }}>
-                            <span className="material-icons-outlined" style={{ fontSize: '13px' }}>edit</span> {dict.collection.editLabel}
-                          </button>
-                        ) : (
-                          <button className="btn btn-ghost btn-sm" style={{ flexShrink: 0 }}
-                            onClick={() => { setOverdueCustomerGroup(null); openModal(inst); }}>
-                            <span className="material-icons-outlined" style={{ fontSize: '13px' }}>history_edu</span> {dict.collection.requestLabel}
-                          </button>
-                        )
-                      ) : (
-                        <button className="btn btn-primary btn-sm" style={{ flexShrink: 0 }}
-                          onClick={() => { setOverdueCustomerGroup(null); openModal(inst); }}>
-                          <span className="material-icons-outlined" style={{ fontSize: '13px' }}>payments</span> {dict.collection.payLabel}
-                        </button>
-                      )}
                     </div>
                   );
                 })}
               </div>
             </div>
 
-            <div className="modal-footer">
+            <div className="modal-footer" style={{ flexWrap: 'wrap', gap: '8px' }}>
+              {(() => {
+                // One Collect button per distinct loan with something unpaid. Each
+                // opens the loan-wide collect popup.
+                const loanMap = new Map<string, { code: string; inst: CollectionRow; outstanding: number }>();
+                for (const inst of overdueCustomerGroup.instalments) {
+                  if (inst.outstandingAmount <= 0) continue;
+                  const key = inst.loan.id;
+                  if (!loanMap.has(key)) {
+                    loanMap.set(key, { code: inst.loan.loanCode, inst, outstanding: 0 });
+                  }
+                  loanMap.get(key)!.outstanding += inst.outstandingAmount;
+                }
+                const loans = Array.from(loanMap.values());
+                const multi = loans.length > 1;
+                return loans.map((l) => (
+                  <button
+                    key={l.code}
+                    className="btn btn-primary"
+                    onClick={() => { setOverdueCustomerGroup(null); openModal(l.inst); }}
+                  >
+                    <span className="material-icons-outlined" style={{ fontSize: '16px' }}>payments</span>
+                    {dict.collection.payLabel}{multi ? ` ${l.code}` : ''} · {formatCurrency(l.outstanding, currencySymbol)}
+                  </button>
+                ));
+              })()}
               <button className="btn btn-secondary" onClick={() => setOverdueCustomerGroup(null)}>{dict.collection.closeLabel}</button>
             </div>
           </div>
@@ -1016,7 +1932,11 @@ export default function CollectionClient({
           .forEach(r => uniqueRowsMap.set(r.id, r));
         const uniqueRows = Array.from(uniqueRowsMap.values());
         const totalLoanOutstanding = uniqueRows.reduce((sum, r) => sum + r.outstandingAmount, 0);
-        const hasOverdue = totalLoanOutstanding > modal.outstandingAmount && modal.receivedAmount === 0;
+        const dueTodayForLoan = uniqueRows
+          .filter((r) => r.dueDate.slice(0, 10) === todayISO)
+          .reduce((sum, r) => sum + r.outstandingAmount, 0);
+        const overdueForLoan = Math.max(0, totalLoanOutstanding - dueTodayForLoan);
+        const isNewCollect = modal.receivedAmount === 0;
 
         return (
         <div className="modal-overlay show" onClick={(event) => { if (event.target === event.currentTarget) setModal(null); }}>
@@ -1037,43 +1957,59 @@ export default function CollectionClient({
                 </div>
               </div>
               
-              {hasOverdue && (
-                <div style={{ 
-                  background: 'rgba(239, 68, 68, 0.08)', 
-                  border: '1px solid rgba(239, 68, 68, 0.16)', 
-                  borderRadius: 'var(--radius-sm)', 
-                  padding: '16px', 
-                  marginBottom: '16px' 
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <span style={{ fontSize: '.75rem', color: 'var(--danger)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{dict.collection.totalOutstandingBalance}</span>
-                      <div style={{ fontSize: '1.6rem', fontWeight: 900, color: 'var(--danger)', marginTop: '2px', lineHeight: 1.1 }}>
-                        {formatCurrency(totalLoanOutstanding, currencySymbol)}
-                      </div>
-                      <span style={{ fontSize: '.7rem', color: 'var(--text-secondary)', display: 'block', marginTop: '4px' }}>{dict.collection.includesPreviousOverdue}</span>
-                    </div>
-                    <Link 
-                      href={`/loans/${modal.loan.loanCode}`} 
-                      className="btn" 
-                      style={{ 
-                        background: 'var(--primary)', 
-                        color: '#fff', 
-                        border: 'none', 
-                        padding: '10px 16px', 
-                        borderRadius: 'var(--radius-sm)', 
-                        fontSize: '.85rem', 
-                        fontWeight: 600, 
-                        textDecoration: 'none',
-                        boxShadow: 'var(--shadow-sm)'
+              {isNewCollect && (
+                <>
+                  {/* Two preset amount cards. Pick one to fill the amount, then
+                      edit freely. Actual stores it on the collection-date row. */}
+                  <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedCard('today'); setAmount(dueTodayForLoan); }}
+                      style={{
+                        flex: 1, textAlign: 'left', cursor: 'pointer',
+                        background: selectedCard === 'today' ? 'rgba(245,158,11,0.08)' : 'var(--bg)',
+                        border: `2px solid ${selectedCard === 'today' ? 'var(--primary)' : 'var(--border)'}`,
+                        borderRadius: 'var(--radius-sm)', padding: '12px 14px',
                       }}
                     >
-                      {dict.collection.outstandingDetails}
+                      <div style={{ fontSize: '.72rem', fontWeight: 600, color: selectedCard === 'today' ? 'var(--primary)' : 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                        {dict.collection.todayDue}
+                      </div>
+                      <div style={{ fontSize: '1.3rem', fontWeight: 800, marginTop: '4px', color: 'var(--text)' }}>
+                        {formatCurrency(dueTodayForLoan, currencySymbol)}
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedCard('total'); setAmount(totalLoanOutstanding); }}
+                      style={{
+                        flex: 1, textAlign: 'left', cursor: 'pointer',
+                        background: selectedCard === 'total' ? 'rgba(239,68,68,0.08)' : 'var(--bg)',
+                        border: `2px solid ${selectedCard === 'total' ? 'var(--danger)' : 'var(--border)'}`,
+                        borderRadius: 'var(--radius-sm)', padding: '12px 14px',
+                      }}
+                    >
+                      <div style={{ fontSize: '.72rem', fontWeight: 600, color: selectedCard === 'total' ? 'var(--danger)' : 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                        {dict.collection.totalDue}
+                      </div>
+                      <div style={{ fontSize: '1.3rem', fontWeight: 800, marginTop: '4px', color: 'var(--text)' }}>
+                        {formatCurrency(totalLoanOutstanding, currencySymbol)}
+                      </div>
+                      {overdueForLoan > 0 && (
+                        <div style={{ fontSize: '.66rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                          {dict.collection.includesPreviousOverdue}
+                        </div>
+                      )}
+                    </button>
+                  </div>
+                  <div style={{ textAlign: 'right', marginBottom: '14px' }}>
+                    <Link href={`/loans/${modal.loan.loanCode}`} style={{ fontSize: '.78rem', color: 'var(--primary)', fontWeight: 600 }}>
+                      {dict.collection.outstandingDetails} →
                     </Link>
                   </div>
-                </div>
+                </>
               )}
-              
+
               {modal.receivedAmount > 0 && !isAdmin ? (
                 <div className="form-group">
                   <label className="form-label">{dict.collection.correctAmount} ({currencySymbol}) *</label>

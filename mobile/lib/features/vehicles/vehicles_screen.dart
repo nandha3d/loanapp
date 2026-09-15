@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:loantrack/core/l10n/language_controller.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/models/vehicle.dart';
-import 'package:loantrack/data/services/vehicles_service.dart';
-import 'package:loantrack/shared/widgets/empty_state.dart';
-import 'package:loantrack/shared/widgets/skeleton.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/models/vehicle.dart';
+import 'package:zolofund/data/services/vehicles_service.dart';
+import 'package:zolofund/shared/widgets/empty_state.dart';
+import 'package:zolofund/shared/widgets/skeleton.dart';
 
 // ── Provider ────────────────────────────────────────────────────────────────
 

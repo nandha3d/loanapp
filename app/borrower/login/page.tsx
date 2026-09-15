@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import PasswordInput from '@/components/ui/PasswordInput';
 
 interface TestAccount {
   loanCode: string;
@@ -446,10 +447,10 @@ export default function BorrowerLoginPage() {
                 <span className="material-icons-outlined" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', fontSize: '20px', color: 'rgba(255, 255, 255, 0.4)' }}>
                   lock_outline
                 </span>
-                <input
-                  type="password"
+                <PasswordInput
                   className="form-control"
-                  style={{ paddingLeft: '44px', height: '44px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '10px', color: '#fff', fontSize: '0.9rem' }}
+                  style={{ paddingLeft: '44px', paddingRight: '44px', height: '44px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '10px', color: '#fff', fontSize: '0.9rem' }}
+                  toggleStyle={{ color: 'rgba(255,255,255,0.4)' }}
                   placeholder="Repeat your password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}

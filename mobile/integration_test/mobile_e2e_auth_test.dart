@@ -4,13 +4,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:integration_test/integration_test.dart';
 
-import 'package:loantrack/app.dart';
-import 'package:loantrack/shared/widgets/app_button.dart';
+import 'package:zolofund/app.dart';
+import 'package:zolofund/shared/widgets/app_button.dart';
 
 const agentUser = String.fromEnvironment('E2E_AGENT', defaultValue: 'karthik');
 const agentPass = String.fromEnvironment('E2E_PASS', defaultValue: 'agent123');
 
-Future<void> pumpLoanTrack(WidgetTester tester) async {
+Future<void> pumpZoloFund(WidgetTester tester) async {
   await tester.pumpWidget(const ProviderScope(child: App()));
   await tester.pumpAndSettle(const Duration(seconds: 2));
 }
@@ -35,14 +35,14 @@ void main() {
   group('MOB-E2E-AUTH live authentication', () {
     testWidgets('MOB-AUTH-E2E-001 login screen renders on cold start',
         (tester) async {
-      await pumpLoanTrack(tester);
+      await pumpZoloFund(tester);
       expect(find.byType(TextField), findsAtLeastNWidgets(2));
       expect(find.byType(AppButton), findsWidgets);
     });
 
     testWidgets('MOB-AUTH-E2E-002 seeded agent login leaves login screen',
         (tester) async {
-      await pumpLoanTrack(tester);
+      await pumpZoloFund(tester);
       final ok = await tryLogin(tester, agentUser, agentPass);
       if (!ok) {
         markTestSkipped('backend unavailable, unseeded user, or invalid creds');

@@ -45,6 +45,24 @@ export const STANDARD_VERTICAL_BASES: VerticalBaseCatalogItem[] = [
     isActive: true,
     sortOrder: 3,
   },
+  {
+    id: '',
+    module: 'property',
+    displayName: 'Property Loan',
+    description: 'Property-backed lending, mortgage documents, valuation, and release tracking',
+    monthlyPrice: 0,
+    isActive: true,
+    sortOrder: 4,
+  },
+  {
+    id: '',
+    module: 'productfinance',
+    displayName: 'Product Finance',
+    description: 'Consumer-durable and product financing with dealer and EMI tracking',
+    monthlyPrice: 0,
+    isActive: true,
+    sortOrder: 5,
+  },
 ];
 
 export function withStandardVerticalBases<T extends VerticalBaseCatalogItem>(modules: T[]) {

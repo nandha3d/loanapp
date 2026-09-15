@@ -1,7 +1,10 @@
 'use client';
 
+import { compressFormDataImages } from '@/lib/imageCompression';
 import { useState, useEffect } from 'react';
 import { createLoan } from '../actions';
+import { resolveOrnamentLine, ornamentTotals } from '@/lib/gold/ornaments';
+import { addGoldMaster } from '../../settings/gold-master/actions';
 import { calculateEndDate, formatDateISO } from '@/lib/utils';
 import { getCreditScoreGaugePresentation } from '@/lib/creditScoreGauge';
 import Link from '@/components/layout/DashboardLink';
@@ -50,7 +53,11 @@ export default function LoanForm({
   agents,
   dict,
   appType,
-  viewerRole
+  viewerRole,
+  goldMaster,
+  goldConfig,
+  interestOnlyEnabled,
+  bulletTermEnabled
 }: {
   customers: any[];
   packages: any[];
@@ -62,6 +69,12 @@ export default function LoanForm({
   dict: any;
   appType?: string;
   viewerRole?: string;
+  goldMaster?: { ornamentTypes: any[]; ornamentSpecs: any[]; bankNames: any[] };
+  goldConfig?: any;
+  /** Opt-in per tenant — see lib/features.ts. Hides the Interest-Only plan when off. */
+  interestOnlyEnabled?: boolean;
+  /** Opt-in per tenant — see lib/features.ts. Hides the single-payment term when off. */
+  bulletTermEnabled?: boolean;
 }) {
   const [loading, setLoading] = useState(false);
   const [limitError, setLimitError] = useState<string | null>(null);
@@ -145,12 +158,31 @@ export default function LoanForm({
   const [frequency, setFrequency] = useState('daily');
   const [dueDay, setDueDay] = useState<number | ''>('');
   const [tenure, setTenure] = useState<number | ''>('');
+  // Term axis, independent of the interest model: 'scheduled' is n instalments at
+  // a cadence, 'bullet' is one payment `termDays` from the start date.
+  const [termType, setTermType] = useState<'scheduled' | 'bullet'>('scheduled');
+  const [termDays, setTermDays] = useState<number | ''>('');
   const [startDate, setStartDate] = useState(formatDateISO(new Date()));
   const [penalty, setPenalty] = useState<number>(defaultPenalty);
   const [packageId, setPackageId] = useState('');
 
-  const [loanType, setLoanType] = useState('cheque');
-  const [isLoanTypeExpanded, setIsLoanTypeExpanded] = useState(true);
+  // In the dedicated gold-loan module every loan is a gold pledge — default to
+  // 'gold' and (below) hide the cheque/property type selector.
+  const isGoldModule = appType === 'goldloan';
+  const isPropertyModule = appType === 'property';
+  const isProductModule = appType === 'productfinance';
+  const [loanType, setLoanType] = useState(isGoldModule ? 'gold' : isPropertyModule ? 'property' : isProductModule ? 'other' : 'cheque');
+  const [pf, setPf] = useState({ category: '', productName: '', brand: '', modelNo: '', serialNo: '', dealerName: '', invoiceNo: '', invoiceAmount: '', downPayment: '' });
+  const setPfField = (k: string, v: string) => setPf(p => ({ ...p, [k]: v }));
+  const buildProductItemJson = () => JSON.stringify({
+    category: pf.category || null, productName: pf.productName || null, brand: pf.brand || null,
+    modelNo: pf.modelNo || null, serialNo: pf.serialNo || null, dealerName: pf.dealerName || null,
+    invoiceNo: pf.invoiceNo || null,
+    invoiceAmount: pf.invoiceAmount ? Number(pf.invoiceAmount) : null,
+    downPayment: pf.downPayment ? Number(pf.downPayment) : null,
+  });
+  const [isLoanTypeExpanded, setIsLoanTypeExpanded] = useState(false);
+  const [customEndDate, setCustomEndDate] = useState<string>(formatDateISO(calculateEndDate(new Date(), 'monthly', 1)));
   
   // Dynamic Collateral State
   const [chequeBankName, setChequeBankName] = useState('');
@@ -160,6 +192,72 @@ export default function LoanForm({
   const [goldGrams, setGoldGrams] = useState<number | ''>('');
   const [goldCarat, setGoldCarat] = useState('22K');
   const [goldItems, setGoldItems] = useState('');
+
+  // Multi-ornament pledge: line items + header. Dropdowns come from goldMaster
+  // (DB-driven, no hardcode); rate/LTV defaults come from goldConfig.
+  // Master lists are stateful so a new type/spec/bank added inline appears in the
+  // dropdowns immediately (also written to the master via the server action).
+  const [ornTypes, setOrnTypes] = useState<any[]>(goldMaster?.ornamentTypes ?? []);
+  const [ornSpecs, setOrnSpecs] = useState<any[]>(goldMaster?.ornamentSpecs ?? []);
+  const [ornBanks, setOrnBanks] = useState<any[]>(goldMaster?.bankNames ?? []);
+  const [quickAddKind, setQuickAddKind] = useState<'type' | 'spec' | 'bank'>('type');
+  const [quickAddName, setQuickAddName] = useState('');
+  const [quickAddBusy, setQuickAddBusy] = useState(false);
+  const addMasterInline = async () => {
+    const name = quickAddName.trim();
+    if (!name || quickAddBusy) return;
+    setQuickAddBusy(true);
+    const res = await addGoldMaster(quickAddKind, name, quickAddKind === 'spec' ? { purityKarat: '' } : {});
+    setQuickAddBusy(false);
+    if (res && 'error' in res && res.error) { alert(res.error); return; }
+    const row = { id: `new-${Date.now()}`, name };
+    if (quickAddKind === 'type') setOrnTypes((l) => [...l, row]);
+    else if (quickAddKind === 'spec') setOrnSpecs((l) => [...l, row]);
+    else setOrnBanks((l) => [...l, row]);
+    setQuickAddName('');
+  };
+  const defaultRate = goldConfig?.goldPureRatePerGram ?? '';
+  const blankRow = () => ({ ornamentType: '', specification: '', purityKarat: '22K', quantity: 1, grossWeightGrams: '', wastageGrams: '', netWeightGrams: '', ratePerGram: defaultRate, bankName: '', refNo: '' });
+  const [ornamentRows, setOrnamentRows] = useState<any[]>([blankRow()]);
+  const [goldPacketNo, setGoldPacketNo] = useState('');
+  const [goldStorage, setGoldStorage] = useState('');
+  const updateRow = (i: number, field: string, val: any) =>
+    setOrnamentRows(rows => rows.map((r, idx) => (idx === i ? { ...r, [field]: val } : r)));
+  const addRow = () => setOrnamentRows(rows => [...rows, blankRow()]);
+  const removeRow = (i: number) => setOrnamentRows(rows => (rows.length > 1 ? rows.filter((_, idx) => idx !== i) : rows));
+  const goldTotals = ornamentTotals(ornamentRows.map((r: any) => ({
+    quantity: Number(r.quantity) || 1,
+    grossWeightGrams: Number(r.grossWeightGrams) || 0,
+    wastageGrams: Number(r.wastageGrams) || 0,
+    netWeightGrams: r.netWeightGrams ? Number(r.netWeightGrams) : undefined,
+    ratePerGram: Number(r.ratePerGram) || 0,
+  })));
+  const buildPropertyCollateralJson = () => JSON.stringify({
+    propertyType,
+    address: propertyAddress || null,
+    marketValue: propertyValue !== '' ? Number(propertyValue) : null,
+    eligibleLtvPercent: goldConfig?.defaultLtvPercent ?? null,
+  });
+  const buildGoldCollateralJson = () => JSON.stringify({
+    packetNo: goldPacketNo || null,
+    storageLocation: goldStorage || null,
+    marketRatePerGram: defaultRate !== '' ? Number(defaultRate) : null,
+    eligibleLtvPercent: goldConfig?.defaultLtvPercent ?? null,
+    items: ornamentRows
+      .filter((r: any) => r.ornamentType || r.grossWeightGrams || r.netWeightGrams)
+      .map((r: any) => ({
+        ornamentType: r.ornamentType,
+        specification: r.specification || null,
+        purityKarat: r.purityKarat || null,
+        quantity: Number(r.quantity) || 1,
+        grossWeightGrams: Number(r.grossWeightGrams) || 0,
+        wastageGrams: Number(r.wastageGrams) || 0,
+        netWeightGrams: r.netWeightGrams ? Number(r.netWeightGrams) : undefined,
+        ratePerGram: Number(r.ratePerGram) || 0,
+        bankName: r.bankName || null,
+        refNo: r.refNo || null,
+      })),
+  });
   
   const [propertyType, setPropertyType] = useState('residential');
   const [propertyValue, setPropertyValue] = useState<number | ''>('');
@@ -198,6 +296,12 @@ export default function LoanForm({
     totalPayable: number;
     perInstalment: number;
     deduction: number;
+    // Interest-Only only — see lib/loanCalculator.ts.
+    monthlyInterest?: number;
+    principalDueAtClosure?: number;
+    // Bullet term only.
+    maturityDate?: string;
+    effectiveAnnualPercent?: number;
   }>({ disbursedAmount: 0, totalPayable: 0, perInstalment: 0, deduction: 0 });
 
   useEffect(() => {
@@ -209,8 +313,19 @@ export default function LoanForm({
   // Debounced API Call for Calculation
   useEffect(() => {
     const p = Number(principal);
-    const t = Number(tenure);
-    if (!p || !t) {
+    const isSingle = frequency === 'single_payment';
+    const isCustom = frequency === 'custom_duration';
+    const t = isSingle ? 1 : Number(tenure);
+
+    let calcTermDays = termDays === '' ? null : Number(termDays);
+    if (isSingle && startDate && customEndDate) {
+      const s = new Date(startDate).getTime();
+      const e = new Date(customEndDate).getTime();
+      calcTermDays = Math.max(1, Math.round((e - s) / (1000 * 60 * 60 * 24)));
+    }
+    const effectiveTermType = isSingle ? 'bullet' : (termType === 'bullet' ? 'bullet' : 'scheduled');
+
+    if (!p || !t || (effectiveTermType === 'bullet' && !calcTermDays)) {
       setCalculatedData({ disbursedAmount: p || 0, totalPayable: p || 0, perInstalment: 0, deduction: 0 });
       return;
     }
@@ -227,7 +342,10 @@ export default function LoanForm({
             tenure: t,
             frequency,
             startDate,
-            dueDay: dueDay === '' ? null : Number(dueDay),
+            dueDay: (isSingle || isCustom || dueDay === '') ? null : Number(dueDay),
+            termType: effectiveTermType,
+            termDays: calcTermDays,
+            endDate: (isSingle || isCustom) ? customEndDate : null,
           })
         });
         if (res.ok) {
@@ -242,7 +360,7 @@ export default function LoanForm({
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [principal, interestType, interestRate, tenure, frequency, startDate, dueDay]);
+  }, [principal, interestType, interestRate, tenure, frequency, startDate, dueDay, termType, termDays, customEndDate]);
 
   const handleCustomerChange = async (id: string) => {
     const cust = localCustomers.find(c => c.id === id);
@@ -313,7 +431,15 @@ export default function LoanForm({
   };
 
   const t = Number(tenure) || 0;
-  const endDate = startDate && t > 0 ? calculateEndDate(new Date(startDate), frequency, t) : null;
+  // A bullet or single payment term ends on its repayment date; custom duration ends on customEndDate;
+  // a cadence loan ends after `tenure` periods.
+  const endDate = frequency === 'single_payment' || frequency === 'custom_duration'
+    ? (customEndDate ? new Date(customEndDate) : null)
+    : termType === 'bullet'
+      ? (startDate && Number(termDays) > 0
+          ? calculateEndDate(new Date(startDate), 'daily', Number(termDays))
+          : null)
+      : (startDate && t > 0 ? calculateEndDate(new Date(startDate), frequency, t) : null);
 
   const loanTypeLabels: Record<string, string> = {
     cheque: appType === 'autofinance' ? 'Vehicle / Cheque' : (dict.loans.chequeBased || 'Cheque Based'),
@@ -338,30 +464,96 @@ export default function LoanForm({
 
   // Interest grouping state
   const isEmiAddition = interestType.startsWith('emi_');
-  const setCalcModel = (model: 'upfront' | 'emi') => {
+  const isInterestOnlyPlan = interestType === 'interest_only';
+  const setCalcModel = (model: 'upfront' | 'emi' | 'interest_only') => {
     if (model === 'upfront') setInterestType('upfront_fixed');
-    else setInterestType('emi_flat');
+    else if (model === 'emi') setInterestType('emi_flat');
+    else {
+      // The rate is quoted per month, so the schedule has to be monthly — the API
+      // rejects anything else (lib/loanCalculator.ts).
+      setInterestType('interest_only');
+      setFrequency('monthly');
+      setDueDay('');
+    }
   };
+
+  const isBulletPlan = termType === 'bullet';
+  /**
+   * Switching the term shape. A bullet is one payment, so its tenure is fixed at
+   * 1 and the cadence controls have nothing to say; interest-only quotes a
+   * monthly rate and cannot be billed over a term of days, so the plan falls back
+   * to the upfront model the API will accept.
+   */
+  const setTermShape = (shape: 'scheduled' | 'bullet') => {
+    setTermType(shape);
+    if (shape === 'bullet') {
+      setTenure(1);
+      setDueDay('');
+      if (interestType === 'interest_only' || interestType === 'emi_floating') {
+        setInterestType('upfront_fixed');
+      }
+    } else {
+      setTermDays('');
+      setTenure('');
+    }
+  };
+
+  // Shared styling for the three Repayment Plan Model buttons.
+  const planButtonStyle = (active: boolean): React.CSSProperties => ({
+    flex: 1,
+    height: '100%',
+    borderRadius: 'calc(var(--radius-sm) - 2px)',
+    border: 'none',
+    background: active ? 'var(--primary)' : 'transparent',
+    color: active ? '#fff' : 'var(--text-secondary)',
+    fontWeight: 700,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
+    transition: 'all 0.2s ease',
+    boxShadow: active ? 'var(--shadow-sm)' : 'none',
+  });
 
   return (
     <div className="grid-60-40" style={{ alignItems: 'start' }}>
-      <div className="card">
-        <div className="card-header" style={{ flexWrap: 'wrap', gap: '10px' }}>
-          <h3>📝 {dict.loans.createTitle}</h3>
-          <select className="form-control" style={{ width: 'auto', fontSize: '1rem', padding: '10px' }} onChange={e => handlePackageChange(e.target.value)} value={packageId}>
-            <option value="">Premade Template</option>
-            {localPackages.map(pkg => (
-              <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
-            ))}
-          </select>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div className="card" style={{ border: '1px solid var(--border)' }}>
+          <div className="card-header" style={{ flexWrap: 'wrap', gap: '10px', margin: 0 }}>
+            <h3 style={{ margin: 0 }}>📝 {dict.loans.createTitle}</h3>
+            <select className="form-control" style={{ width: 'auto', fontSize: '1rem', padding: '10px' }} onChange={e => handlePackageChange(e.target.value)} value={packageId}>
+              <option value="">{dict.loans.premadeTemplate || 'Premade Template'}</option>
+              {localPackages.map(pkg => (
+                <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        <form action={async (fd: FormData) => {
+        <form style={{ display: 'flex', flexDirection: 'column', gap: '20px' }} action={async (fd: FormData) => {
           setLoading(true);
           setLimitError(null);
           fd.set('collateralDetails', getCollateralDetailsJson());
           fd.set('deductionType', interestType);
           fd.set('guarantorId', existingGuarantorId || '');
+          if (isGoldModule || loanType === 'gold') fd.set('goldCollateralJson', buildGoldCollateralJson());
+          if (isPropertyModule || loanType === 'property') fd.set('propertyCollateralJson', buildPropertyCollateralJson());
+          if (isProductModule) fd.set('productItemJson', buildProductItemJson());
+          if (frequency === 'single_payment') {
+            fd.set('tenure', '1');
+            fd.set('termType', 'bullet');
+            const s = new Date(startDate).getTime();
+            const e = new Date(customEndDate).getTime();
+            const days = Math.max(1, Math.round((e - s) / (1000 * 60 * 60 * 24)));
+            fd.set('termDays', String(days));
+            fd.set('endDate', customEndDate);
+          } else if (frequency === 'custom_duration') {
+            fd.set('termType', 'scheduled');
+            fd.set('endDate', customEndDate);
+          }
+          // Shrink camera photos before they hit the Server Action body limit.
+          await compressFormDataImages(fd);
           const result = await createLoan(fd);
           if (result && 'error' in result) {
             setLimitError(result.error);
@@ -369,7 +561,7 @@ export default function LoanForm({
           }
         }}>
           {limitError && (
-            <div style={{ background: 'var(--danger-bg, #fee2e2)', color: 'var(--danger)', padding: '12px 16px', borderRadius: 'var(--radius-sm)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ background: 'var(--danger-bg, #fee2e2)', color: 'var(--danger)', padding: '12px 16px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span className="material-icons-outlined" style={{ fontSize: '18px' }}>block</span>
               {limitError}
             </div>
@@ -377,64 +569,69 @@ export default function LoanForm({
           <input type="hidden" name="packageId" value={packageId} />
           <input type="hidden" name="loanType" value={loanType} />
           
-          <div style={{ marginBottom: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
-            <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1rem', color: 'var(--primary-dark)' }}>
-              <span className="material-icons-outlined">person</span> 👤 {dict.customers.registerTitle || 'Customer Selection'}
-            </h4>
-          </div>
-          <div className="form-group">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <label className="form-label" style={{ margin: 0 }}>{dict.customers.fullName} *</label>
-              <button type="button" onClick={() => setIsCustomerModalOpen(true)} className="btn btn-ghost btn-sm" style={{ padding: 0, height: 'auto', color: 'var(--primary)', fontSize: '.8rem' }}>
-                {dict.loans.newCustomer}
-              </button>
+          {/* Section 1: Customer Selection */}
+          <div className="card" style={{ border: '1px solid var(--border)' }}>
+            <div className="card-header" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '16px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1.05rem', color: 'var(--primary-dark)', fontWeight: 600 }}>
+                <span className="material-icons-outlined">person</span> 👤 {dict.loans.customerSelection || dict.customers.registerTitle || 'Customer Selection'}
+              </h3>
             </div>
-            <select 
-              name="customerId" className="form-control" required 
-              value={selectedCustomer?.id || ''}
-              onChange={(e) => handleCustomerChange(e.target.value)}
-              style={{ fontSize: '1rem', padding: '12px' }}
-            >
-              <option value="">{dict.loans.searchCustomer}</option>
-              {localCustomers.map(c => (
-                <option key={c.id} value={c.id}>{c.customerCode} — {c.name} ({c.route?.name || 'No Route'})</option>
-              ))}
-            </select>
-          </div>
+            <div className="form-group" style={{ marginBottom: selectedCustomer ? '16px' : 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <label className="form-label" style={{ margin: 0 }}>{dict.customers.fullName} *</label>
+                <button type="button" onClick={() => setIsCustomerModalOpen(true)} className="btn btn-ghost btn-sm" style={{ padding: 0, height: 'auto', color: 'var(--primary)', fontSize: '.8rem' }}>
+                  {dict.loans.newCustomer}
+                </button>
+              </div>
+              <select 
+                name="customerId" className="form-control" required 
+                value={selectedCustomer?.id || ''}
+                onChange={(e) => handleCustomerChange(e.target.value)}
+                style={{ fontSize: '1rem', padding: '12px' }}
+              >
+                <option value="">{dict.loans.searchCustomer}</option>
+                {localCustomers.map(c => (
+                  <option key={c.id} value={c.id}>{c.customerCode} — {c.name} ({c.route?.name || 'No Route'})</option>
+                ))}
+              </select>
+            </div>
 
-          {selectedCustomer && (
-            <div style={{ display: 'block', marginBottom: '18px' }} className="card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '20px', padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)' }}>
-                <div className="profile-avatar" style={{ width: '120px', height: '120px', fontSize: '2rem', borderRadius: '24px', border: '3px solid var(--border)', flexShrink: 0, overflow: 'hidden' }}>
-                  {selectedCustomer.profilePhoto ? (
-                    <img src={selectedCustomer.profilePhoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--primary)', color: '#FFF' }}>
-                      {selectedCustomer.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <Link href={`/customers/${selectedCustomer.customerCode}`} target="_blank">
-                    <strong>{selectedCustomer.name}</strong>
-                  </Link>
-                  <br />
-                  <span style={{ fontSize: '.78rem', color: 'var(--text-secondary)' }}>
-                    {selectedCustomer.phone} · {selectedCustomer.route?.name} · {selectedCustomer.kycStatus}
-                  </span>
+            {selectedCustomer && (
+              <div style={{ display: 'block', marginTop: '16px' }} className="card">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '20px', padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)' }}>
+                  <div className="profile-avatar" style={{ width: '100px', height: '100px', fontSize: '1.8rem', borderRadius: '20px', border: '3px solid var(--border)', flexShrink: 0, overflow: 'hidden' }}>
+                    {selectedCustomer.profilePhoto ? (
+                      <img src={selectedCustomer.profilePhoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--primary)', color: '#FFF' }}>
+                        {selectedCustomer.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <Link href={`/customers/${selectedCustomer.customerCode}`} target="_blank">
+                      <strong>{selectedCustomer.name}</strong>
+                    </Link>
+                    <br />
+                    <span style={{ fontSize: '.78rem', color: 'var(--text-secondary)' }}>
+                      {selectedCustomer.phone} · {selectedCustomer.route?.name} · {selectedCustomer.kycStatus}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-          
-          {/* Collateral Header (Always Visible) */}
-          <div style={{ marginTop: '32px', marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
-            <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1.05rem', color: 'var(--primary-dark)', fontWeight: 600 }}>
-              <span className="material-icons-outlined">settings</span> ⚙️ {dict.loans.loanType || 'Loan Configuration'}
-            </h4>
+            )}
           </div>
+          
+          {/* Section 2: Loan Type & Collateral */}
+          <div className="card" style={{ border: '1px solid var(--border)' }}>
+            <div className="card-header" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '16px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1.05rem', color: 'var(--primary-dark)', fontWeight: 600 }}>
+                <span className="material-icons-outlined">settings</span> ⚙️ {dict.loans.loanConfiguration || dict.loans.loanType || 'Loan Configuration'}
+              </h3>
+            </div>
 
-          {/* 3 Buttons (Always Visible) */}
+          {/* Loan-type selector — hidden in single-product modules */}
+          {!isGoldModule && !isPropertyModule && !isProductModule && (
           <div className="form-group" style={{ marginBottom: '16px' }}>
             <label className="form-label">{dict.loans.loanType} *</label>
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
@@ -458,6 +655,7 @@ export default function LoanForm({
               ))}
             </div>
           </div>
+          )}
 
           {/* Collapsible Accordion Details Trigger (Below the 3 Buttons) */}
           <div 
@@ -513,29 +711,147 @@ export default function LoanForm({
                 </div>
               )}
 
-              {loanType === 'gold' && (
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">Total Weight (Grams)</label>
-                    <input type="number" className="form-control" value={goldGrams} onChange={e=>setGoldGrams(e.target.value ? Number(e.target.value) : '')} placeholder="e.g. 24.5" />
+              {(isGoldModule || loanType === 'gold') && (
+                <div className="gold-orn">
+                  <style>{`
+                    .gold-orn .go-head { display:flex; align-items:center; justify-content:space-between; margin: 4px 0 12px; }
+                    .gold-orn .go-head h4 { margin:0; font-size:1rem; color:var(--primary-dark); display:flex; gap:8px; align-items:center; }
+                    .gold-orn .go-meta { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+                    .gold-orn .go-meta .fld { flex:1 1 180px; }
+                    .gold-orn .go-meta label { font-size:.72rem; color:var(--text-secondary); display:block; margin-bottom:4px; }
+                    .gold-orn .go-meta .form-control { height:38px; }
+                    .gold-orn .go-table-wrap { border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+                    .gold-orn table { width:100%; border-collapse:collapse; min-width:760px; }
+                    .gold-orn thead th { background:var(--primary-light); color:var(--primary-dark); font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:9px 8px; text-align:left; white-space:nowrap; }
+                    .gold-orn tbody td { padding:6px; border-top:1px solid var(--border); vertical-align:middle; }
+                    .gold-orn tbody tr:nth-child(even) { background:var(--bg, #fafafa); }
+                    .gold-orn .cell-input { width:100%; border:1px solid var(--border); border-radius:8px; padding:8px 8px; font-size:.88rem; background:var(--surface,#fff); }
+                    .gold-orn .cell-input:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 2px var(--primary-light); }
+                    .gold-orn .val-cell { font-weight:700; color:var(--primary-dark); white-space:nowrap; }
+                    .gold-orn .rm-btn { border:none; background:transparent; color:var(--danger); cursor:pointer; font-size:1rem; padding:6px 8px; border-radius:8px; }
+                    .gold-orn .rm-btn:hover:not(:disabled) { background:var(--danger-bg,#fee2e2); }
+                    .gold-orn .rm-btn:disabled { opacity:.3; cursor:not-allowed; }
+                    .gold-orn tfoot td { padding:10px 8px; border-top:2px solid var(--border); font-weight:700; background:var(--primary-light); }
+                    .gold-orn .go-foot { display:flex; justify-content:space-between; align-items:center; margin-top:12px; }
+                    .gold-orn .add-btn { display:inline-flex; align-items:center; gap:6px; border:1.5px dashed var(--primary); color:var(--primary-dark); background:var(--primary-light); border-radius:10px; padding:9px 16px; font-weight:600; cursor:pointer; }
+                    .gold-orn .add-btn:hover { background:var(--primary); color:#fff; }
+                    .gold-orn .num { width:84px; }
+                    .gold-orn .qty { width:58px; }
+                    .gold-orn .go-quickadd { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; align-items:center; }
+                    .gold-orn .go-quickadd select, .gold-orn .go-quickadd input { border:1px solid var(--border); border-radius:9px; padding:8px 10px; font-size:.85rem; }
+                    .gold-orn .go-quickadd input { flex:1 1 160px; }
+                    .gold-orn .go-quickadd button { border:none; background:var(--primary-dark); color:#fff; border-radius:9px; padding:8px 16px; font-weight:600; cursor:pointer; }
+                    .gold-orn .go-quickadd button:disabled { opacity:.5; cursor:not-allowed; }
+                  `}</style>
+
+                  <div className="go-head">
+                    <h4>💎 Ornament Details</h4>
+                    <a href={`/${appType || 'goldloan'}/settings?tab=goldmaster`} style={{ fontSize: '.8rem', color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>⚙ Manage all</a>
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">Purity (Carat)</label>
-                    <select className="form-control" value={goldCarat} onChange={e=>setGoldCarat(e.target.value)}>
-                      <option value="18K">18K</option>
-                      <option value="20K">20K</option>
-                      <option value="22K">22K</option>
-                      <option value="24K">24K</option>
+
+                  {/* Quick-add a new ornament type / spec / bank without leaving the form */}
+                  <div className="go-quickadd">
+                    <select value={quickAddKind} onChange={e=>setQuickAddKind(e.target.value as any)}>
+                      <option value="type">+ Ornament type</option>
+                      <option value="spec">+ Specification</option>
+                      <option value="bank">+ Bank / storage</option>
                     </select>
+                    <input value={quickAddName} onChange={e=>setQuickAddName(e.target.value)} placeholder="New name…" onKeyDown={e=>{ if(e.key==='Enter'){ e.preventDefault(); addMasterInline(); } }} />
+                    <button type="button" onClick={addMasterInline} disabled={quickAddBusy || !quickAddName.trim()}>{quickAddBusy ? '…' : 'Add'}</button>
                   </div>
-                  <div className="form-group" style={{ flex: '1 1 100%' }}>
-                    <label className="form-label">Items Description</label>
-                    <input type="text" className="form-control" value={goldItems} onChange={e=>setGoldItems(e.target.value)} placeholder="e.g. 2 Bangles, 1 Chain" />
+
+                  <div className="go-meta">
+                    <div className="fld">
+                      <label>Packet No</label>
+                      <input type="text" className="form-control" value={goldPacketNo} onChange={e=>setGoldPacketNo(e.target.value)} placeholder="e.g. P-001" />
+                    </div>
+                    <div className="fld">
+                      <label>Storage / Bank</label>
+                      {ornBanks.length > 0 ? (
+                        <select className="form-control" value={goldStorage} onChange={e=>setGoldStorage(e.target.value)}>
+                          <option value="">Select…</option>
+                          {ornBanks.map((b:any)=>(<option key={b.id} value={b.name}>{b.name}</option>))}
+                        </select>
+                      ) : (
+                        <input type="text" className="form-control" value={goldStorage} onChange={e=>setGoldStorage(e.target.value)} placeholder="SELF LOCKER" />
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="go-table-wrap" style={{ overflowX: 'auto' }}>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th style={{ minWidth: 150 }}>Ornament</th>
+                          <th style={{ minWidth: 120 }}>Specification</th>
+                          <th>Qty</th><th>Gross</th><th>Wastage</th><th>Net</th><th>Rate/g</th>
+                          <th>Value</th><th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ornamentRows.map((row, i) => {
+                          const line = resolveOrnamentLine({
+                            quantity: Number(row.quantity) || 1,
+                            grossWeightGrams: Number(row.grossWeightGrams) || 0,
+                            wastageGrams: Number(row.wastageGrams) || 0,
+                            netWeightGrams: row.netWeightGrams ? Number(row.netWeightGrams) : undefined,
+                            ratePerGram: Number(row.ratePerGram) || 0,
+                          });
+                          return (
+                            <tr key={i}>
+                              <td>
+                                {ornTypes.length > 0 ? (
+                                  <select className="cell-input" value={row.ornamentType} onChange={e=>updateRow(i,'ornamentType',e.target.value)}>
+                                    <option value="">Select…</option>
+                                    {ornTypes.map((t:any)=>(<option key={t.id} value={t.name}>{t.name}</option>))}
+                                  </select>
+                                ) : (
+                                  <input className="cell-input" value={row.ornamentType} onChange={e=>updateRow(i,'ornamentType',e.target.value)} placeholder="CHAIN" />
+                                )}
+                              </td>
+                              <td>
+                                {ornSpecs.length > 0 ? (
+                                  <select className="cell-input" value={row.specification} onChange={e=>{const s=ornSpecs.find((x:any)=>x.name===e.target.value); updateRow(i,'specification',e.target.value); if(s?.purityKarat) updateRow(i,'purityKarat',s.purityKarat);}}>
+                                    <option value="">Select…</option>
+                                    {ornSpecs.map((s:any)=>(<option key={s.id} value={s.name}>{s.name}</option>))}
+                                  </select>
+                                ) : (
+                                  <input className="cell-input" value={row.specification} onChange={e=>updateRow(i,'specification',e.target.value)} placeholder="916 22K" />
+                                )}
+                              </td>
+                              <td><input type="number" className="cell-input qty" value={row.quantity} onChange={e=>updateRow(i,'quantity',e.target.value)} /></td>
+                              <td><input type="number" step="0.001" className="cell-input num" value={row.grossWeightGrams} onChange={e=>updateRow(i,'grossWeightGrams',e.target.value)} placeholder="0" /></td>
+                              <td><input type="number" step="0.001" className="cell-input num" value={row.wastageGrams} onChange={e=>updateRow(i,'wastageGrams',e.target.value)} placeholder="0" /></td>
+                              <td><input type="number" step="0.001" className="cell-input num" value={row.netWeightGrams} onChange={e=>updateRow(i,'netWeightGrams',e.target.value)} placeholder={String(line.netWeightGrams || '0')} /></td>
+                              <td><input type="number" step="0.01" className="cell-input num" value={row.ratePerGram} onChange={e=>updateRow(i,'ratePerGram',e.target.value)} /></td>
+                              <td className="val-cell">{currencySymbol}{line.value.toLocaleString('en-IN')}</td>
+                              <td><button type="button" className="rm-btn" onClick={()=>removeRow(i)} disabled={ornamentRows.length<=1} title="Remove">✕</button></td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr>
+                          <td colSpan={2}>Total</td>
+                          <td>{goldTotals.totalQuantity}</td>
+                          <td>{goldTotals.totalGrossWeight}</td>
+                          <td>{goldTotals.totalWastage}</td>
+                          <td>{goldTotals.totalNetWeight}</td>
+                          <td></td>
+                          <td className="val-cell">{currencySymbol}{goldTotals.totalValue.toLocaleString('en-IN')}</td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+
+                  <div className="go-foot">
+                    <button type="button" className="add-btn" onClick={addRow}><span style={{ fontSize: '1.1rem', lineHeight: 1 }}>＋</span> Add ornament</button>
                   </div>
                 </div>
               )}
 
-              {loanType === 'property' && (
+              {(isPropertyModule || loanType === 'property') && (
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label">Property Type</label>
@@ -555,197 +871,401 @@ export default function LoanForm({
                   </div>
                 </div>
               )}
+
+              {isProductModule && (
+                <div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">Product Name</label>
+                      <input className="form-control" value={pf.productName} onChange={e=>setPfField('productName', e.target.value)} placeholder="e.g. LED TV 55 inch" />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Category</label>
+                      <input className="form-control" value={pf.category} onChange={e=>setPfField('category', e.target.value)} placeholder="Electronics" />
+                    </div>
+                  </div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">Brand</label>
+                      <input className="form-control" value={pf.brand} onChange={e=>setPfField('brand', e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Model No</label>
+                      <input className="form-control" value={pf.modelNo} onChange={e=>setPfField('modelNo', e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Serial / IMEI</label>
+                      <input className="form-control" value={pf.serialNo} onChange={e=>setPfField('serialNo', e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">Dealer</label>
+                      <input className="form-control" value={pf.dealerName} onChange={e=>setPfField('dealerName', e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Invoice No</label>
+                      <input className="form-control" value={pf.invoiceNo} onChange={e=>setPfField('invoiceNo', e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">Invoice Amount ({currencySymbol})</label>
+                      <input type="number" className="form-control" value={pf.invoiceAmount} onChange={e=>setPfField('invoiceAmount', e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Down Payment ({currencySymbol})</label>
+                      <input type="number" className="form-control" value={pf.downPayment} onChange={e=>setPfField('downPayment', e.target.value)} />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
+          </div>
 
-          <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '20px' }}>
-            <div style={{ flex: '1', minWidth: '220px' }}>
-              <label className="form-label" style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--text)', marginBottom: '8px', display: 'block' }}>
-                {dict.loans.principal} ({currencySymbol}) *
+          {/* Section 3: Loan Amount & Repayment Plan */}
+          <div className="card" style={{ border: '1px solid var(--border)' }}>
+            <div className="card-header" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '16px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1.05rem', color: 'var(--primary-dark)', fontWeight: 600 }}>
+                <span className="material-icons-outlined">payments</span> 💰 {dict.loans.loanAmountRepayment || 'Loan Amount & Repayment Plan'}
+              </h3>
+            </div>
+
+            <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '20px' }}>
+              <div style={{ flex: '1', minWidth: '220px' }}>
+                <label className="form-label" style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--text)', marginBottom: '8px', display: 'block' }}>
+                  {dict.loans.principal} ({currencySymbol}) *
+                </label>
+                <input 
+                  type="number" 
+                  name="principal" 
+                  className="form-control" 
+                  placeholder={dict.creditInsights.placeholders.principal} 
+                  value={principal} 
+                  onChange={e => setPrincipal(e.target.value ? Number(e.target.value) : '')} 
+                  required 
+                  style={{ fontSize: '1.4rem', fontWeight: 'bold', padding: '14px', height: '54px', borderRadius: 'var(--radius-sm)' }} 
+                />
+              </div>
+
+              <div style={{ flex: '1.2', minWidth: '300px' }}>
+                <label className="form-label" style={{ fontWeight: '600', marginBottom: '8px', display: 'block' }}>{dict.loans.repaymentPlanModel}</label>
+                <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '4px', background: 'var(--bg-alt)', height: '54px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => setCalcModel('upfront')}
+                    style={planButtonStyle(!isEmiAddition && !isInterestOnlyPlan)}
+                  >
+                    <span>⬇️</span> {dict.loans.upfront}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCalcModel('emi')}
+                    style={planButtonStyle(isEmiAddition)}
+                  >
+                    <span>📈</span> {dict.loans.emi}
+                  </button>
+
+                  {interestOnlyEnabled && !isBulletPlan && (
+                    <button
+                      type="button"
+                      onClick={() => setCalcModel('interest_only')}
+                      style={planButtonStyle(isInterestOnlyPlan)}
+                    >
+                      <span>🔁</span> {dict.loans.interestOnly}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', background: 'var(--bg-alt)', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', marginBottom: '20px' }}>
+              {isInterestOnlyPlan ? (
+                <span style={{ fontSize: '.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                  {dict.loans.interestOnlyHint}
+                </span>
+              ) : !isEmiAddition ? (
+                <>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '.9rem', cursor: 'pointer', fontWeight: 500 }}>
+                    <input type="radio" checked={interestType === 'upfront_fixed'} onChange={() => setInterestType('upfront_fixed')} style={{ accentColor: 'var(--primary)' }} /> {dict.loans.fixedAmount}
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '.9rem', cursor: 'pointer', fontWeight: 500 }}>
+                    <input type="radio" checked={interestType === 'upfront_percentage'} onChange={() => setInterestType('upfront_percentage')} style={{ accentColor: 'var(--primary)' }} /> {dict.loans.percentage}
+                  </label>
+                </>
+              ) : (
+                <>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '.9rem', cursor: 'pointer', fontWeight: 500 }}>
+                    <input type="radio" checked={interestType === 'emi_flat'} onChange={() => setInterestType('emi_flat')} style={{ accentColor: 'var(--primary)' }} /> {dict.loans.flatInterest}
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '.9rem', cursor: 'pointer', fontWeight: 500 }}>
+                    <input type="radio" checked={interestType === 'emi_floating'} onChange={() => setInterestType('emi_floating')} style={{ accentColor: 'var(--primary)' }} /> {dict.loans.floatingApr}
+                  </label>
+                </>
+              )}
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">
+                {isInterestOnlyPlan
+                  ? `${dict.loans.monthlyInterestRate} *`
+                  : interestType === 'upfront_percentage' || interestType.includes('emi_')
+                    ? `Interest / Rate (%) *`
+                    : `${dict.loans.deduction} Amount (${currencySymbol}) *`}
               </label>
-              <input 
-                type="number" 
-                name="principal" 
-                className="form-control" 
-                placeholder={dict.creditInsights.placeholders.principal} 
-                value={principal} 
-                onChange={e => setPrincipal(e.target.value ? Number(e.target.value) : '')} 
-                required 
-                style={{ fontSize: '1.4rem', fontWeight: 'bold', padding: '14px', height: '54px', borderRadius: 'var(--radius-sm)' }} 
+              <input
+                type="number"
+                name="deduction"
+                className="form-control"
+                step={isInterestOnlyPlan ? '0.001' : undefined}
+                placeholder={isInterestOnlyPlan ? 'e.g. 2.5 (per month)' : interestType.includes('percentage') || interestType.includes('emi_') ? 'e.g. 10 (for 10%)' : dict.creditInsights.placeholders.deduction}
+                value={interestRate}
+                onChange={e => setInterestRate(e.target.value ? Number(e.target.value) : '')}
+                required
+                style={{ fontSize: '1.1rem', padding: '12px' }}
               />
+              {isInterestOnlyPlan && interestRate !== '' && (
+                <div style={{ marginTop: '8px', fontSize: '.85rem', color: 'var(--primary-dark)', fontWeight: 600 }}>
+                  {interestRate}% / month = {Number(interestRate) * 12}% {dict.loans.aprEquivalent}
+                </div>
+              )}
             </div>
 
-            <div style={{ flex: '1.2', minWidth: '300px' }}>
-              <label className="form-label" style={{ fontWeight: '600', marginBottom: '8px', display: 'block' }}>Repayment Plan Model</label>
-              <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '4px', background: 'var(--bg-alt)', height: '54px', alignItems: 'center' }}>
-                <button 
-                  type="button" 
-                  onClick={() => setCalcModel('upfront')} 
-                  style={{
-                    flex: 1,
-                    height: '100%',
-                    borderRadius: 'calc(var(--radius-sm) - 2px)',
-                    border: 'none',
-                    background: !isEmiAddition ? 'var(--primary)' : 'transparent',
-                    color: !isEmiAddition ? '#fff' : 'var(--text-secondary)',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    transition: 'all 0.2s ease',
-                    boxShadow: !isEmiAddition ? 'var(--shadow-sm)' : 'none'
-                  }}
-                >
-                  <span>⬇️</span> Upfront
-                </button>
-                
-                <button 
-                  type="button" 
-                  onClick={() => setCalcModel('emi')} 
-                  style={{
-                    flex: 1,
-                    height: '100%',
-                    borderRadius: 'calc(var(--radius-sm) - 2px)',
-                    border: 'none',
-                    background: isEmiAddition ? 'var(--primary)' : 'transparent',
-                    color: isEmiAddition ? '#fff' : 'var(--text-secondary)',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    transition: 'all 0.2s ease',
-                    boxShadow: isEmiAddition ? 'var(--shadow-sm)' : 'none'
-                  }}
-                >
-                  <span>📈</span> EMI
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', background: 'var(--bg-alt)', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', marginBottom: '20px', marginTop: '-10px' }}>
-            {!isEmiAddition ? (
-              <>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '.9rem', cursor: 'pointer', fontWeight: 500 }}>
-                  <input type="radio" checked={interestType === 'upfront_fixed'} onChange={() => setInterestType('upfront_fixed')} style={{ accentColor: 'var(--primary)' }} /> Fixed Amount
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '.9rem', cursor: 'pointer', fontWeight: 500 }}>
-                  <input type="radio" checked={interestType === 'upfront_percentage'} onChange={() => setInterestType('upfront_percentage')} style={{ accentColor: 'var(--primary)' }} /> % Percentage
-                </label>
-              </>
-            ) : (
-              <>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '.9rem', cursor: 'pointer', fontWeight: 500 }}>
-                  <input type="radio" checked={interestType === 'emi_flat'} onChange={() => setInterestType('emi_flat')} style={{ accentColor: 'var(--primary)' }} /> Flat Interest
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '.9rem', cursor: 'pointer', fontWeight: 500 }}>
-                  <input type="radio" checked={interestType === 'emi_floating'} onChange={() => setInterestType('emi_floating')} style={{ accentColor: 'var(--primary)' }} /> Floating (APR)
-                </label>
-              </>
-            )}
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">
-              {interestType === 'upfront_percentage' || interestType.includes('emi_')
-                ? `Interest / Rate (%) *`
-                : `${dict.loans.deduction} Amount (${currencySymbol}) *`}
-            </label>
-            <input
-              type="number"
-              name="deduction"
-              className="form-control"
-              placeholder={interestType.includes('percentage') || interestType.includes('emi_') ? 'e.g. 10 (for 10%)' : dict.creditInsights.placeholders.deduction}
-              value={interestRate}
-              onChange={e => setInterestRate(e.target.value ? Number(e.target.value) : '')}
-              required
-              style={{ fontSize: '1.1rem', padding: '12px' }}
-            />
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">{dict.loans.netDisbursed}</label>
-              <div className="form-computed" style={{ color: 'var(--primary-dark)' }}>{currencySymbol}{calculatedData.disbursedAmount.toLocaleString()}</div>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Total Payable</label>
-              <div className="form-computed">{currencySymbol}{calculatedData.totalPayable.toLocaleString()}</div>
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">{dict.loans.frequency} *</label>
-              <select name="frequency" className="form-control" value={frequency} onChange={e => { setFrequency(e.target.value); setDueDay(''); }} required style={{ fontSize: '1rem', padding: '12px' }}>
-                <option value="daily">{dict.creditInsights.daily}</option>
-                <option value="weekly">{dict.creditInsights.weekly}</option>
-                <option value="biweekly">Bi-Weekly</option>
-                <option value="monthly">{dict.creditInsights.monthly}</option>
-              </select>
-            </div>
-            {(frequency === 'weekly' || frequency === 'biweekly') && (
+            <div className="form-row">
               <div className="form-group">
-                <label className="form-label">Due Day *</label>
-                <select name="dueDay" className="form-control" value={dueDay} onChange={e => setDueDay(e.target.value ? Number(e.target.value) : '')} required style={{ fontSize: '1rem', padding: '12px' }}>
-                  <option value="">Select Day</option>
-                  {['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((day, i) => (
-                    <option key={i} value={i}>{day}</option>
-                  ))}
+                <label className="form-label">{dict.loans.netDisbursed}</label>
+                <div className="form-computed" style={{ color: 'var(--primary-dark)' }}>{currencySymbol}{calculatedData.disbursedAmount.toLocaleString()}</div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">{dict.loans.totalPayable}</label>
+                <div className="form-computed">{currencySymbol}{calculatedData.totalPayable.toLocaleString()}</div>
+              </div>
+              {isBulletPlan && calculatedData.effectiveAnnualPercent != null && (
+                <div className="form-group">
+                  <label className="form-label">{dict.loans.effectiveAnnualRate}</label>
+                  <div className="form-computed">{calculatedData.effectiveAnnualPercent}%</div>
+                </div>
+              )}
+            </div>
+
+            {isInterestOnlyPlan && (
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">{dict.loans.monthlyInterest}</label>
+                  <div className="form-computed" style={{ fontWeight: 'bold', color: 'var(--primary-dark)' }}>
+                    {currencySymbol}{(calculatedData.monthlyInterest ?? 0).toLocaleString()}
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">{dict.loans.principalAtClosure}</label>
+                  <div className="form-computed" style={{ fontWeight: 'bold' }}>
+                    {currencySymbol}{(calculatedData.principalDueAtClosure ?? 0).toLocaleString()}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <input type="hidden" name="termType" value={frequency === 'single_payment' ? 'bullet' : 'scheduled'} />
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">{dict.loans.frequency} *</label>
+                <select 
+                  name="frequency" 
+                  className="form-control" 
+                  value={frequency} 
+                  onChange={e => { 
+                    const newFreq = e.target.value;
+                    setFrequency(newFreq); 
+                    setDueDay(''); 
+                    if (newFreq === 'single_payment') {
+                      setTenure(1);
+                      setTermType('bullet');
+                    } else if (newFreq === 'custom_duration') {
+                      if (!tenure || Number(tenure) === 1) setTenure(2);
+                      setTermType('scheduled');
+                    } else {
+                      setTermType('scheduled');
+                    }
+                  }} 
+                  required 
+                  style={{ fontSize: '1rem', padding: '12px' }}
+                >
+                  {!isInterestOnlyPlan && <option value="daily">{dict.creditInsights.daily}</option>}
+                  {!isInterestOnlyPlan && <option value="weekly">{dict.creditInsights.weekly}</option>}
+                  {!isInterestOnlyPlan && <option value="biweekly">{dict.loans.biWeekly}</option>}
+                  <option value="monthly">{dict.creditInsights.monthly}</option>
+                  {!isInterestOnlyPlan && <option value="single_payment">{dict.loans.singlePayment}</option>}
+                  {!isInterestOnlyPlan && <option value="custom_duration">{dict.loans.customDuration}</option>}
                 </select>
               </div>
-            )}
-            {frequency === 'monthly' && (
+
+              {(frequency === 'weekly' || frequency === 'biweekly') && (
+                <div className="form-group">
+                  <label className="form-label">{dict.loans.dueDay} *</label>
+                  <select name="dueDay" className="form-control" value={dueDay} onChange={e => setDueDay(e.target.value ? Number(e.target.value) : '')} required style={{ fontSize: '1rem', padding: '12px' }}>
+                    <option value="">{dict.loans.selectDay}</option>
+                    {[dict.loans.sunday, dict.loans.monday, dict.loans.tuesday, dict.loans.wednesday, dict.loans.thursday, dict.loans.friday, dict.loans.saturday].map((day: string, i: number) => (
+                      <option key={i} value={i}>{day}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {frequency === 'monthly' && (
+                <div className="form-group">
+                  <label className="form-label">{dict.loans.dueDateLabel} *</label>
+                  <select name="dueDay" className="form-control" value={dueDay} onChange={e => setDueDay(e.target.value ? Number(e.target.value) : '')} required style={{ fontSize: '1rem', padding: '12px' }}>
+                    <option value="">{dict.loans.selectDate}</option>
+                    {Array.from({ length: 28 }, (_, i) => i + 1).map(d => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {frequency === 'single_payment' && (
+                <input type="hidden" name="tenure" value={1} />
+              )}
+
+              {frequency === 'custom_duration' && (
+                <div className="form-group">
+                  <label className="form-label">{dict.loans.numberOfInstallments} *</label>
+                  <input 
+                    type="number" 
+                    name="tenure" 
+                    min={1}
+                    className="form-control" 
+                    placeholder="e.g. 2" 
+                    value={tenure} 
+                    onChange={e => setTenure(e.target.value ? Number(e.target.value) : '')} 
+                    required 
+                    style={{ fontSize: '1.1rem', padding: '12px' }} 
+                  />
+                </div>
+              )}
+
+              {frequency !== 'single_payment' && frequency !== 'custom_duration' && (
+                <div className="form-group">
+                  <label className="form-label">{dict.loans.tenure} *</label>
+                  <input 
+                    type="number" 
+                    name="tenure" 
+                    className="form-control" 
+                    placeholder={dict.creditInsights.placeholders.tenure} 
+                    value={tenure} 
+                    onChange={e => setTenure(e.target.value ? Number(e.target.value) : '')} 
+                    required 
+                    style={{ fontSize: '1.1rem', padding: '12px' }} 
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="form-row">
+              {frequency === 'single_payment' ? (
+                <>
+                  <div className="form-group">
+                    <label className="form-label">{dict.loans.startDate} *</label>
+                    <input
+                      type="date"
+                      name="startDate"
+                      className="form-control"
+                      value={startDate}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setStartDate(val);
+                        if (val) {
+                          const nextEnd = calculateEndDate(new Date(val), 'monthly', 1);
+                          setCustomEndDate(formatDateISO(nextEnd));
+                        }
+                      }}
+                      required
+                      style={{ fontSize: '1rem', padding: '12px' }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{dict.loans.repaymentDate} *</label>
+                    <input
+                      type="date"
+                      name="repaymentDate"
+                      className="form-control"
+                      value={customEndDate}
+                      onChange={e => setCustomEndDate(e.target.value)}
+                      required
+                      style={{ fontSize: '1rem', padding: '12px' }}
+                    />
+                  </div>
+                </>
+              ) : frequency === 'custom_duration' ? (
+                <>
+                  <div className="form-group">
+                    <label className="form-label">{dict.loans.fromDate} *</label>
+                    <input
+                      type="date"
+                      name="startDate"
+                      className="form-control"
+                      value={startDate}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setStartDate(val);
+                        if (val) {
+                          const tCount = Math.max(1, Number(tenure) || 2);
+                          const nextEnd = calculateEndDate(new Date(val), 'monthly', tCount);
+                          setCustomEndDate(formatDateISO(nextEnd));
+                        }
+                      }}
+                      required
+                      style={{ fontSize: '1rem', padding: '12px' }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{dict.loans.toDate} *</label>
+                    <input
+                      type="date"
+                      name="endDate"
+                      className="form-control"
+                      value={customEndDate}
+                      onChange={e => setCustomEndDate(e.target.value)}
+                      required
+                      style={{ fontSize: '1rem', padding: '12px' }}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="form-group">
+                    <label className="form-label">{dict.loans.startDate} *</label>
+                    <input type="date" name="startDate" className="form-control" value={startDate} onChange={e => setStartDate(e.target.value)} required style={{ fontSize: '1rem', padding: '12px' }} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{dict.loans.endDate}</label>
+                    <div className="form-computed">{endDate ? formatDateISO(endDate) : '—'}</div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="form-row" style={{ marginBottom: 0 }}>
               <div className="form-group">
-                <label className="form-label">Due Date (Day of Month) *</label>
-                <select name="dueDay" className="form-control" value={dueDay} onChange={e => setDueDay(e.target.value ? Number(e.target.value) : '')} required style={{ fontSize: '1rem', padding: '12px' }}>
-                  <option value="">Select Date</option>
-                  {Array.from({ length: 28 }, (_, i) => i + 1).map(d => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
+                <label className="form-label">{dict.loans.perInstalment}</label>
+                <div className="form-computed" style={{ fontWeight: 'bold' }}>{currencySymbol}{calculatedData.perInstalment.toLocaleString()}</div>
               </div>
-            )}
-            <div className="form-group">
-              <label className="form-label">{dict.loans.tenure} *</label>
-              <input type="number" name="tenure" className="form-control" placeholder={dict.creditInsights.placeholders.tenure} value={tenure} onChange={e => setTenure(e.target.value ? Number(e.target.value) : '')} required style={{ fontSize: '1.1rem', padding: '12px' }} />
+              <div className="form-group">
+                <label className="form-label">{dict.loans.penaltyMissed} ({currencySymbol})</label>
+                <input type="number" name="penaltyRate" className="form-control" value={penalty} onChange={e => setPenalty(Number(e.target.value))} style={{ fontSize: '1rem', padding: '12px' }} />
+              </div>
             </div>
           </div>
 
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">{dict.loans.startDate} *</label>
-              <input type="date" name="startDate" className="form-control" value={startDate} onChange={e => setStartDate(e.target.value)} required style={{ fontSize: '1rem', padding: '12px' }} />
+          {/* Section 4: Security Cheques */}
+          <div className="card" style={{ border: '1px solid var(--border)' }}>
+            <div className="card-header" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '16px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1.05rem', color: 'var(--primary-dark)', fontWeight: 600 }}>
+                <span className="material-icons-outlined">security</span> 🏦 {dict.loans.securityCheques || 'Security Cheques'}
+              </h3>
             </div>
-            <div className="form-group">
-              <label className="form-label">{dict.loans.endDate}</label>
-              <div className="form-computed">{endDate ? endDate.toISOString().split('T')[0] : '—'}</div>
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">{dict.loans.perInstalment}</label>
-              <div className="form-computed" style={{ fontWeight: 'bold' }}>{currencySymbol}{calculatedData.perInstalment.toLocaleString()}</div>
-            </div>
-            <div className="form-group">
-              <label className="form-label">{dict.loans.penaltyMissed} ({currencySymbol})</label>
-              <input type="number" name="penaltyRate" className="form-control" value={penalty} onChange={e => setPenalty(Number(e.target.value))} style={{ fontSize: '1rem', padding: '12px' }} />
-            </div>
-          </div>
-
-          <div style={{ marginTop: '32px', marginBottom: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
-            <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1rem', color: 'var(--primary-dark)' }}>
-              <span className="material-icons-outlined">security</span> 🏦 {dict.loans.securityCheques || 'Collateral & Cheques'}
-            </h4>
-          </div>
-
-          <div style={{ marginTop: '24px' }}>
-            <h4 style={{ margin: '0 0 12px', fontSize: '.9rem', fontWeight: 600 }}>🏦 {dict.loans.securityCheques || 'Security Cheques'}</h4>
             <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '14px', background: 'var(--bg)' }}>
               {cheques.map((cheque, index) => (
                 <div key={cheque.id} style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '8px' }}>
@@ -774,111 +1294,123 @@ export default function LoanForm({
               </button>
             </div>
           </div>
-          
-          <div style={{ marginTop: '32px', marginBottom: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
-            <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1rem', color: 'var(--primary-dark)' }}>
-              <span className="material-icons-outlined">verified_user</span> 🛡️ Guarantor Details
-            </h4>
-          </div>
 
-          {selectedCustomer?.guarantors?.length > 0 && (
-            <div style={{ marginBottom: '12px' }}>
-              <label className="form-label" style={{ fontSize: '.75rem', opacity: .7 }}>Existing Guarantors for this customer:</label>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {selectedCustomer.guarantors.map((g: any) => (
+          {/* Section 5: Guarantor Details */}
+          <div className="card" style={{ border: '1px solid var(--border)' }}>
+            <div className="card-header" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '16px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1.05rem', color: 'var(--primary-dark)', fontWeight: 600 }}>
+                <span className="material-icons-outlined">verified_user</span> 🛡️ {dict.customers.guarantorSuretySection || 'Guarantor Details'}
+              </h3>
+            </div>
+
+            {selectedCustomer?.guarantors?.length > 0 && (
+              <div style={{ marginBottom: '12px' }}>
+                <label className="form-label" style={{ fontSize: '.75rem', opacity: .7 }}>Existing Guarantors for this customer:</label>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {selectedCustomer.guarantors.map((g: any) => (
+                    <button 
+                      key={g.id} 
+                      type="button" 
+                      className="btn btn-ghost btn-sm" 
+                      onClick={() => pickExistingGuarantor(g)}
+                      style={{ padding: '4px 12px', fontSize: '.8rem', border: '1px solid var(--border)', borderRadius: '20px' }}
+                    >
+                      👤 {g.name}
+                    </button>
+                  ))}
                   <button 
-                    key={g.id} 
                     type="button" 
                     className="btn btn-ghost btn-sm" 
-                    onClick={() => pickExistingGuarantor(g)}
-                    style={{ padding: '4px 12px', fontSize: '.8rem', border: '1px solid var(--border)', borderRadius: '20px' }}
+                    onClick={() => pickExistingGuarantor({})}
+                    style={{ padding: '4px 12px', fontSize: '.8rem', border: '1px dashed var(--border)', borderRadius: '20px' }}
                   >
-                    👤 {g.name}
+                    ➕ New Guarantor
                   </button>
-                ))}
-                <button 
-                  type="button" 
-                  className="btn btn-ghost btn-sm" 
-                  onClick={() => pickExistingGuarantor({})}
-                  style={{ padding: '4px 12px', fontSize: '.8rem', border: '1px dashed var(--border)', borderRadius: '20px' }}
-                >
-                  ➕ New Guarantor
-                </button>
-              </div>
-            </div>
-          )}
-
-          <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '14px', background: 'var(--bg)' }}>
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">{dict.loans.guarantorName} *</label>
-                <input type="text" name="guarantorName" className="form-control" placeholder={dict.loans.guarantorName} value={guarantorName} onChange={e => setGuarantorName(e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">{dict.loans.guarantorPhone} *</label>
-                <input type="tel" name="guarantorPhone" className="form-control" placeholder={dict.loans.guarantorPhone} value={guarantorPhone} onChange={e => setGuarantorPhone(e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} />
-              </div>
-            </div>
-            
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Aadhar Number</label>
-                <input type="text" name="guarantorAadhar" className="form-control" placeholder="12-digit Aadhar" value={guarantorAadhar} onChange={e => setGuarantorAadhar(e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Relation</label>
-                <select name="guarantorRelation" className="form-control" value={guarantorRelation} onChange={e => setGuarantorRelation(e.target.value)} style={{ fontSize: '1rem', padding: '10px' }}>
-                  <option value="">Select Relation</option>
-                  <option value="Friend">Friend</option>
-                  <option value="Relative">Relative</option>
-                  <option value="Colleague">Colleague</option>
-                  <option value="Business Partner">Business Partner</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Guarantor Address</label>
-              <textarea name="guarantorAddress" className="form-control" rows={2} placeholder="Complete address" value={guarantorAddress} onChange={e => setGuarantorAddress(e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Guarantor Photo</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                <div style={{ 
-                  width: '140px', height: '140px', borderRadius: '12px', 
-                  border: '2px dashed var(--border)', background: 'var(--bg)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden'
-                }}>
-                  {guarantorPhotoPreview ? (
-                    <img src={guarantorPhotoPreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    <span className="material-icons-outlined" style={{ fontSize: '48px', color: 'var(--text-light)' }}>add_a_photo</span>
-                  )}
                 </div>
-                <div>
-                  <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', display: 'inline-block', marginBottom: '8px' }}>
-                    Choose Photo
-                    <input type="file" name="guarantorPhoto" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleGuarantorPhotoChange} />
-                  </label>
-                  <p style={{ fontSize: '.75rem', color: 'var(--text-secondary)', margin: 0 }}>Upload a clear passport size photo.</p>
+              </div>
+            )}
+
+            <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '14px', background: 'var(--bg)' }}>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">{dict.loans.guarantorName} *</label>
+                  <input type="text" name="guarantorName" className="form-control" placeholder={dict.loans.guarantorName} value={guarantorName} onChange={e => setGuarantorName(e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">{dict.loans.guarantorPhone} *</label>
+                  <input type="tel" name="guarantorPhone" className="form-control" placeholder={dict.loans.guarantorPhone} value={guarantorPhone} onChange={e => setGuarantorPhone(e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} />
+                </div>
+              </div>
+              
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Aadhar Number</label>
+                  <input type="text" name="guarantorAadhar" className="form-control" placeholder="12-digit Aadhar" value={guarantorAadhar} onChange={e => setGuarantorAadhar(e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Relation</label>
+                  <select name="guarantorRelation" className="form-control" value={guarantorRelation} onChange={e => setGuarantorRelation(e.target.value)} style={{ fontSize: '1rem', padding: '10px' }}>
+                    <option value="">Select Relation</option>
+                    <option value="Friend">Friend</option>
+                    <option value="Relative">Relative</option>
+                    <option value="Colleague">Colleague</option>
+                    <option value="Business Partner">Business Partner</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Guarantor Address</label>
+                <textarea name="guarantorAddress" className="form-control" rows={2} placeholder="Complete address" value={guarantorAddress} onChange={e => setGuarantorAddress(e.target.value)} style={{ fontSize: '1rem', padding: '10px' }} />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Guarantor Photo</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                  <div style={{ 
+                    width: '140px', height: '140px', borderRadius: '12px', 
+                    border: '2px dashed var(--border)', background: 'var(--bg)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden'
+                  }}>
+                    {guarantorPhotoPreview ? (
+                      <img src={guarantorPhotoPreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <span className="material-icons-outlined" style={{ fontSize: '48px', color: 'var(--text-light)' }}>add_a_photo</span>
+                    )}
+                  </div>
+                  <div>
+                    <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', display: 'inline-block', marginBottom: '8px' }}>
+                      Choose Photo
+                      <input type="file" name="guarantorPhoto" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleGuarantorPhotoChange} />
+                    </label>
+                    <p style={{ fontSize: '.75rem', color: 'var(--text-secondary)', margin: 0 }}>Upload a clear passport size photo.</p>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="form-group" style={{ marginTop: '16px' }}>
-            <label className="form-label">{dict.loans.voucherRef}</label>
-            <input type="text" name="voucherRef" className="form-control" placeholder={dict.loans.voucherRef} style={{ fontSize: '1rem', padding: '12px' }} />
-          </div>
+          {/* Section 6: Origination Actions */}
+          <div className="card" style={{ border: '1px solid var(--border)' }}>
+            <div className="card-header" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '16px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1.05rem', color: 'var(--primary-dark)', fontWeight: 600 }}>
+                <span className="material-icons-outlined">send</span> 🚀 {dict.loans.originationActions || 'Disbursal & Confirmation'}
+              </h3>
+            </div>
 
-          <div className="form-actions" style={{ marginTop: '24px' }}>
-            <button type="submit" className="btn btn-primary" disabled={loading || !selectedCustomer} style={{ padding: '12px 24px', fontSize: '1rem' }}>
-              <span className="material-icons-outlined" style={{ fontSize: '18px' }}>check</span> 
-              {loading ? dict.loans.creating : dict.loans.submit}
-            </button>
-            <Link href="/loans" className="btn btn-ghost" style={{ padding: '12px 24px', fontSize: '1rem' }}>{dict.loans.cancel}</Link>
+            <div className="form-group">
+              <label className="form-label">{dict.loans.voucherRef}</label>
+              <input type="text" name="voucherRef" className="form-control" placeholder={dict.loans.voucherRef} style={{ fontSize: '1rem', padding: '12px' }} />
+            </div>
+
+            <div className="form-actions" style={{ marginTop: '20px' }}>
+              <button type="submit" className="btn btn-primary" disabled={loading || !selectedCustomer} style={{ padding: '12px 24px', fontSize: '1rem' }}>
+                <span className="material-icons-outlined" style={{ fontSize: '18px' }}>check</span> 
+                {loading ? dict.loans.creating : dict.loans.submit}
+              </button>
+              <Link href="/loans" className="btn btn-ghost" style={{ padding: '12px 24px', fontSize: '1rem' }}>{dict.loans.cancel}</Link>
+            </div>
           </div>
         </form>
       </div>
@@ -1040,7 +1572,7 @@ export default function LoanForm({
 
       <Modal isOpen={isCustomerModalOpen} onClose={() => setIsCustomerModalOpen(false)} title={dict.customers.registerTitle}>
         {routes && agents ? (
-          <CustomerForm routes={routes} agents={agents} onSuccess={handleCustomerCreated} dict={dict} viewerRole={viewerRole} />
+          <CustomerForm appType={appType || 'microlending'} routes={routes} agents={agents} onSuccess={handleCustomerCreated} dict={dict} viewerRole={viewerRole} />
         ) : (
           <p>Loading form...</p>
         )}

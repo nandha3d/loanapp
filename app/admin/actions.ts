@@ -8,15 +8,43 @@ import bcrypt from 'bcryptjs';
 import { checkLimit, normalizeEnabledModules, assertTenantSubscriptionAccess } from '@/lib/subscription';
 import { normalizeModuleList, type ModuleKey } from '@/types/modules';
 import { findUserUniqueConflicts } from '@/lib/userUniqueness';
+import { canManageAdmins, canManageUser, isPrimaryAdmin } from '@/lib/roles';
 
-export async function manageMasterUser(formData: FormData) {
-  const session = await auth();
-  const userRole = (session?.user as any)?.role;
-  const actorTenantId = (session?.user as any)?.tenantId;
-  
-  if (userRole !== 'superadmin' && userRole !== 'developer') {
-    return { success: false, error: 'Unauthorized. Super Admin or Developer only.' };
+// The mobile v1 API authenticates with a Bearer token (no NextAuth cookie),
+// so `auth()` is empty there. Routes that reuse these actions pass the
+// verified mobile context as an explicit actor instead.
+export type ActionActor = { id: string; role: string; tenantId: string; isPrimaryAdmin?: boolean };
+
+async function resolveActionActor(override?: ActionActor): Promise<ActionActor | null> {
+  if (override) {
+    // The v1 bearer token predates the primary-admin flag and does not carry it,
+    // so read it for the one role where it changes the outcome.
+    if (override.role === 'admin' && override.isPrimaryAdmin === undefined) {
+      const dbUser = await prisma.user.findUnique({
+        where: { id: override.id },
+        select: { isPrimaryAdmin: true },
+      });
+      return { ...override, isPrimaryAdmin: !!dbUser?.isPrimaryAdmin };
+    }
+    return override;
   }
+  const session = await auth();
+  const u = session?.user as any;
+  if (!u?.id) return null;
+  return { id: u.id, role: u.role, tenantId: u.tenantId, isPrimaryAdmin: !!u.isPrimaryAdmin };
+}
+
+export async function manageMasterUser(formData: FormData, actorOverride?: ActionActor) {
+  const actor = await resolveActionActor(actorOverride);
+  // Primary admins manage the admins and agents inside their own tenant; the
+  // narrower rules for them are enforced further down.
+  if (!actor || !canManageAdmins(actor)) {
+    return { success: false, error: 'Unauthorized. Primary Admin or above only.' };
+  }
+  const userRole = actor.role;
+  const actorIsPrimaryAdmin = isPrimaryAdmin(actor);
+  const actorTenantId = actor.tenantId;
+  const actorUserId = actor.id;
 
   const id = formData.get('id') as string | null;
   const role = formData.get('role') as string;
@@ -48,9 +76,11 @@ export async function manageMasterUser(formData: FormData) {
       return { success: false, error: err.message };
     }
   }
+
   const name = formData.get('name') as string;
-  const username = formData.get('username') as string;
   const phone = formData.get('phone') as string;
+  const username = ((formData.get('username') as string) || phone).trim().toLowerCase();
+  const email = ((formData.get('email') as string) || '').trim().toLowerCase() || null;
   const password = formData.get('password') as string;
   const requestedAppType = formData.get('appType') as string;
   // For superadmins: branchId is ignored; branchIds[] is the multi-select
@@ -62,6 +92,24 @@ export async function manageMasterUser(formData: FormData) {
   const userModuleList = normalizeModuleList(formData.getAll('userModules'));
   const appType = requestedAppType || adminModules[0] || userModuleList[0] || 'microlending';
 
+  // New optional details & permission switches
+  const aadharNumber = formData.get('aadharNumber') as string | null || null;
+  const dobRaw = formData.get('dob') as string | null;
+  const dob = dobRaw ? new Date(dobRaw) : null;
+  const experience = formData.get('experience') as string | null || null;
+  const ageRaw = formData.get('age') as string | null;
+  const age = ageRaw ? parseInt(ageRaw, 10) : null;
+
+  const bypassLoanApproval = formData.get('bypassLoanApproval') === 'true' || formData.get('bypassLoanApproval') === 'on';
+  const bypassCustomerApproval = formData.get('bypassCustomerApproval') === 'true' || formData.get('bypassCustomerApproval') === 'on';
+  const bypassVehicleApproval = formData.get('bypassVehicleApproval') === 'true' || formData.get('bypassVehicleApproval') === 'on';
+  const autoReleaseFloat = formData.get('autoReleaseFloat') === 'true' || formData.get('autoReleaseFloat') === 'on';
+  const feeConfirmationMandatory = formData.get('feeConfirmationMandatory') === 'true' || formData.get('feeConfirmationMandatory') === 'on';
+  // Only meaningful on an admin, and only a superadmin may set it (guarded below).
+  const wantsPrimaryAdmin =
+    formData.get('isPrimaryAdmin') === 'true' || formData.get('isPrimaryAdmin') === 'on';
+  const nextIsPrimaryAdmin = role === 'admin' && wantsPrimaryAdmin;
+
   if (!name || !username || !phone || !role || !appType) {
     return { success: false, error: 'Missing required fields' };
   }
@@ -69,7 +117,7 @@ export async function manageMasterUser(formData: FormData) {
   if (userRole === 'superadmin') {
     if (branchId) {
       const branch = await prisma.branch.findFirst({
-        where: { id: branchId, superadminId: session?.user?.id }
+        where: { id: branchId, superadminId: actorUserId }
       });
       if (!branch) {
         return { success: false, error: 'Unauthorized: You do not own the target branch.' };
@@ -84,13 +132,13 @@ export async function manageMasterUser(formData: FormData) {
         where: { id, tenantId }
       });
       if (!targetUser) return { success: false, error: 'User not found' };
-      if (targetUser.id !== session?.user?.id) {
+      if (targetUser.id !== actorUserId) {
         if (targetUser.role === 'superadmin') {
           return { success: false, error: 'Unauthorized: Cannot modify other superadmins.' };
         }
         if (targetUser.branchId) {
           const branch = await prisma.branch.findFirst({
-            where: { id: targetUser.branchId, superadminId: session?.user?.id }
+            where: { id: targetUser.branchId, superadminId: actorUserId }
           });
           if (!branch) {
             return { success: false, error: 'Unauthorized: Target user belongs to a branch you do not own.' };
@@ -105,10 +153,38 @@ export async function manageMasterUser(formData: FormData) {
     return { success: false, error: 'Only a developer can manage developer accounts.' };
   }
 
-  const conflicts = await findUserUniqueConflicts({ username, phone }, id);
+  // A primary admin ranks below a superadmin: they may only touch admins and
+  // agents, only inside their own tenant, and may never mint an account at or
+  // above their own rank.
+  if (actorIsPrimaryAdmin) {
+    if (role !== 'admin' && role !== 'agent') {
+      return { success: false, error: 'Unauthorized: A Primary Admin can only manage admins and agents.' };
+    }
+    if (tenantId !== actorTenantId) {
+      return { success: false, error: 'Unauthorized: Target user belongs to another account.' };
+    }
+    if (id) {
+      const targetUser = await prisma.user.findFirst({
+        where: { id, tenantId: actorTenantId },
+        select: { id: true, role: true, isPrimaryAdmin: true },
+      });
+      if (!targetUser) return { success: false, error: 'User not found' };
+      // Strictly-lower rank only, so primary admins can never edit each other.
+      if (targetUser.id !== actorUserId && !canManageUser(actor, targetUser)) {
+        return { success: false, error: 'Unauthorized: You cannot modify this user.' };
+      }
+    }
+    // Promoting another admin to primary would create a peer who could then
+    // demote them. Only a superadmin appoints primary admins.
+    if (formData.get('isPrimaryAdmin') != null) {
+      return { success: false, error: 'Unauthorized: Only a Super Admin can appoint a Primary Admin.' };
+    }
+  }
+
+  const conflicts = await findUserUniqueConflicts({ username, phone, email: email || undefined }, id);
   if (conflicts.length > 0) return { success: false, error: conflicts[0].message };
 
-  const actorId = (session?.user as any)?.id;
+  const actorId = actorUserId;
   const subscription = await prisma.tenantSubscription.findUnique({
     where: { tenantId },
     select: { enabledModules: true },
@@ -143,10 +219,21 @@ export async function manageMasterUser(formData: FormData) {
       name,
       username,
       phone,
+      email,
       role,
       appType,
       branchId,
       status,
+      aadharNumber,
+      dob,
+      experience,
+      age,
+      bypassLoanApproval,
+      bypassCustomerApproval,
+      bypassVehicleApproval,
+      autoReleaseFloat,
+      feeConfirmationMandatory,
+      ...(actorIsPrimaryAdmin ? {} : { isPrimaryAdmin: nextIsPrimaryAdmin }),
     };
     if (password) {
       updateData.passwordHash = await bcrypt.hash(password, 10);
@@ -185,13 +272,25 @@ export async function manageMasterUser(formData: FormData) {
           name,
           username,
           phone,
+          email,
           passwordHash: await bcrypt.hash(password, 10),
           role,
           appType,
           branchId,
-          status
+          status,
+          aadharNumber,
+          dob,
+          experience,
+          age,
+          bypassLoanApproval,
+          bypassCustomerApproval,
+          bypassVehicleApproval,
+          autoReleaseFloat,
+          feeConfirmationMandatory,
+          isPrimaryAdmin: actorIsPrimaryAdmin ? false : nextIsPrimaryAdmin,
         }
       });
+      savedUserId = savedUser.id;
     } catch (err: any) {
       if (err.code === 'P2002') {
         // Prisma's meta.target is a string (MySQL index name) — NOT an array as
@@ -272,7 +371,7 @@ export async function manageMasterUser(formData: FormData) {
 
         // Initialize default settings for branding & system
         const defaultSettings = [
-          { key: 'app_name', value: name || 'LoanTrack', group: 'branding' },
+          { key: 'app_name', value: name || 'ZoloFund', group: 'branding' },
           { key: 'app_tagline', value: 'Micro-Lending Management System', group: 'branding' },
           { key: 'logo_url', value: '/assets/logo.svg', group: 'branding' },
           { key: 'primary_color', value: '#F5A623', group: 'branding' },
@@ -589,13 +688,21 @@ export async function assignAdminModules(data: {
   return { success: true };
 }
 
-export async function toggleUserStatus(userId: string, newStatus: string) {
-  const session = await auth();
-  const role = (session?.user as any)?.role;
-  const actorId = (session?.user as any)?.id;
+export async function toggleUserStatus(userId: string, newStatus: string, actorOverride?: ActionActor) {
+  const actor = await resolveActionActor(actorOverride);
+  const role = actor?.role;
+  const actorId = actor?.id;
   if (role !== 'superadmin' && role !== 'developer') return { success: false };
 
-  const tenantId = await getDefaultTenantId();
+  // Scope: non-developers may only toggle users inside their own tenant.
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { tenantId: true },
+  });
+  if (!target) return { success: false };
+  if (role !== 'developer' && target.tenantId !== actor?.tenantId) {
+    return { success: false };
+  }
 
   await prisma.user.update({
     where: { id: userId },
@@ -604,7 +711,7 @@ export async function toggleUserStatus(userId: string, newStatus: string) {
 
   await prisma.auditLog.create({
     data: {
-      tenantId,
+      tenantId: target.tenantId,
       userId: actorId,
       action: 'update',
       entityType: 'user',
@@ -617,27 +724,175 @@ export async function toggleUserStatus(userId: string, newStatus: string) {
   return { success: true };
 }
 
+/**
+ * Delete a staff user.
+ *
+ * PERMISSION — `canManageUser` (lib/roles.ts): strictly greater rank, so
+ * developer > superadmin > primary admin > admin > agent. Peers can never
+ * delete each other and nobody can delete themselves (equal rank). Everyone
+ * except a developer is confined to their own tenant.
+ *
+ * HARD vs SOFT — a hard delete is NOT safe for a user who has done any work.
+ * 29 foreign keys onto `users` are ON DELETE SET NULL, including
+ * `loans.created_by_id`, `penalties.settled_by_id`, `customers.agent_id` and
+ * `audit_logs.user_id`; a further 8 are RESTRICT (collection entries, daily
+ * collections, cash handovers, journal entries, the approval queues). So a hard
+ * delete either fails outright or silently erases who originated a loan, who
+ * settled a penalty and who verified a KYC — money provenance, gone, with no
+ * way back.
+ *
+ * Therefore: a user with ZERO dependent records is genuinely unused and is
+ * removed outright. Anyone who has touched the book is ARCHIVED instead —
+ * status 'deleted', so they disappear from every list and can no longer sign in
+ * (lib/auth.ts admits only status 'active'), while every row that names them
+ * keeps naming them. The result reports which of the two happened, so the
+ * caller can tell the difference.
+ */
+export async function deleteUser(userId: string, actorOverride?: ActionActor) {
+  const actor = await resolveActionActor(actorOverride);
+  if (!actor?.id) return { success: false, error: 'Not signed in' };
+
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      tenantId: true,
+      role: true,
+      isPrimaryAdmin: true,
+      username: true,
+      name: true,
+      status: true,
+    },
+  });
+  if (!target) return { success: false, error: 'User not found' };
+
+  if (target.id === actor.id) {
+    return { success: false, error: 'You cannot delete your own account.' };
+  }
+  if (!canManageUser(actor, target)) {
+    return { success: false, error: 'You do not have permission to delete this user.' };
+  }
+  // Tenant confinement: only a developer may reach across tenants.
+  if (actor.role !== 'developer' && target.tenantId !== actor.tenantId) {
+    return { success: false, error: 'That user belongs to another tenant.' };
+  }
+  // The last active superadmin must not be removed, or the tenant is left with
+  // nobody who can administer it.
+  if (target.role === 'superadmin') {
+    const remaining = await prisma.user.count({
+      where: {
+        tenantId: target.tenantId,
+        role: 'superadmin',
+        status: 'active',
+        id: { not: target.id },
+      },
+    });
+    if (remaining === 0) {
+      return {
+        success: false,
+        error: "This is the tenant's only active superadmin. Assign another one first.",
+      };
+    }
+  }
+
+  // Does this user have history? Counts cover the RESTRICT tables (which would
+  // block the delete) and the SET NULL tables that carry money provenance.
+  const [
+    collections, dailyCollections, handovers, journals,
+    approvalReqs, accountingApprovals, branchReqs, moduleReqs,
+    loansCreated, customersOwned, routesAssigned,
+  ] = await Promise.all([
+    prisma.collectionEntry.count({ where: { agentId: userId } }),
+    prisma.dailyCollection.count({ where: { agentId: userId } }),
+    prisma.cashHandover.count({ where: { agentId: userId } }),
+    prisma.journalEntry.count({ where: { createdById: userId } }).catch(() => 0),
+    prisma.approvalRequest.count({ where: { requestedById: userId } }).catch(() => 0),
+    prisma.accountingApproval.count({ where: { requestedById: userId } }).catch(() => 0),
+    prisma.branchRequest.count({ where: { requestedById: userId } }).catch(() => 0),
+    prisma.moduleRequest.count({ where: { requestedById: userId } }).catch(() => 0),
+    prisma.loan.count({ where: { createdById: userId } }),
+    prisma.customer.count({ where: { agentId: userId } }),
+    prisma.route.count({ where: { assignedAgentId: userId } }),
+  ]);
+  const history =
+    collections + dailyCollections + handovers + journals +
+    approvalReqs + accountingApprovals + branchReqs + moduleReqs +
+    loansCreated + customersOwned + routesAssigned;
+
+  const label = target.name || target.username;
+
+  if (history === 0) {
+    await prisma.user.delete({ where: { id: userId } });
+  } else {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { status: 'deleted' },
+    });
+  }
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId: target.tenantId,
+      userId: actor.id,
+      action: 'delete',
+      entityType: 'user',
+      entityId: userId,
+      newValue: JSON.stringify({
+        username: target.username,
+        role: target.role,
+        mode: history === 0 ? 'hard_delete' : 'archived',
+        dependentRecords: history,
+      }),
+    },
+  }).catch(() => {});
+
+  revalidatePath('/admin/users');
+  return {
+    success: true,
+    mode: history === 0 ? ('hard_delete' as const) : ('archived' as const),
+    message:
+      history === 0
+        ? `${label} deleted.`
+        : `${label} archived — ${history} linked record(s) keep their history. They can no longer sign in.`,
+  };
+}
+
 // ─── Scoped agent management (module Settings → Users tab) ──────────────────
 // Lets a branch admin / superadmin manage AGENTS within ONE branch + ONE module
 // only. Narrower than manageMasterUser (which is superadmin/dev-only and handles
 // tenant/superadmin creation). Portal /admin/users stays the master editor.
-export async function manageBranchAgent(formData: FormData) {
-  const session = await auth();
-  const user = session?.user as any;
-  const role = user?.role;
-  const actorId = user?.id;
+export async function manageBranchAgent(formData: FormData, actorOverride?: ActionActor) {
+  const actor = await resolveActionActor(actorOverride);
+  const role = actor?.role;
+  const actorId = actor?.id;
   if (role !== 'admin' && role !== 'superadmin' && role !== 'developer') {
     return { success: false, error: 'Unauthorized.' };
   }
-  const tenantId = await getDefaultTenantId();
+  // Mobile actor carries its tenant; web resolves from session/host.
+  const tenantId = actorOverride ? actorOverride.tenantId : await getDefaultTenantId();
 
   const id = (formData.get('id') as string) || null;
   const name = ((formData.get('name') as string) || '').trim();
-  const username = ((formData.get('username') as string) || '').trim().toLowerCase();
   const phone = ((formData.get('phone') as string) || '').trim();
+  const username = ((formData.get('username') as string) || phone).trim().toLowerCase();
+  const email = ((formData.get('email') as string) || '').trim().toLowerCase() || null;
   const password = (formData.get('password') as string) || '';
   const status = (formData.get('status') as string) === 'inactive' ? 'inactive' : 'active';
   const appType = (formData.get('appType') as string) || 'microlending';
+
+  // New optional details & permission switches
+  const aadharNumber = formData.get('aadharNumber') as string | null || null;
+  const dobRaw = formData.get('dob') as string | null;
+  const dob = dobRaw ? new Date(dobRaw) : null;
+  const experience = formData.get('experience') as string | null || null;
+  const ageRaw = formData.get('age') as string | null;
+  const age = ageRaw ? parseInt(ageRaw, 10) : null;
+
+  const bypassLoanApproval = formData.get('bypassLoanApproval') === 'true' || formData.get('bypassLoanApproval') === 'on';
+  const bypassCustomerApproval = formData.get('bypassCustomerApproval') === 'true' || formData.get('bypassCustomerApproval') === 'on';
+  const bypassVehicleApproval = formData.get('bypassVehicleApproval') === 'true' || formData.get('bypassVehicleApproval') === 'on';
+  const autoReleaseFloat = formData.get('autoReleaseFloat') === 'true' || formData.get('autoReleaseFloat') === 'on';
+  const feeConfirmationMandatory = formData.get('feeConfirmationMandatory') === 'true' || formData.get('feeConfirmationMandatory') === 'on';
 
   if (!name || !username || !phone) {
     return { success: false, error: 'Name, username and phone are required.' };
@@ -676,9 +931,10 @@ export async function manageBranchAgent(formData: FormData) {
     return { success: false, error: `Module "${appType}" is not enabled for this branch.` };
   }
 
-  const conflicts = await findUserUniqueConflicts({ username, phone }, id);
+  const conflicts = await findUserUniqueConflicts({ username, phone, email: email || undefined }, id);
   if (conflicts.length > 0) return { success: false, error: conflicts[0].message };
 
+  let savedUserId = id;
   if (id) {
     // Edit — target must be an agent inside the allowed branch
     const target = await prisma.user.findFirst({
@@ -686,7 +942,9 @@ export async function manageBranchAgent(formData: FormData) {
       select: { id: true },
     });
     if (!target) return { success: false, error: 'Agent not found in your branch.' };
-    const data: any = { name, username, phone, status };
+    const data: any = { name, username, phone, email, status,
+      aadharNumber, dob, experience, age,
+      bypassLoanApproval, bypassCustomerApproval, bypassVehicleApproval, autoReleaseFloat, feeConfirmationMandatory };
     if (password) data.passwordHash = await bcrypt.hash(password, 10);
     await prisma.user.update({ where: { id }, data });
     await prisma.auditLog.create({
@@ -701,10 +959,13 @@ export async function manageBranchAgent(formData: FormData) {
     }
     try {
       const created = await prisma.user.create({
-        data: { tenantId, branchId, name, username, phone,
+        data: { tenantId, branchId, name, username, phone, email,
           passwordHash: await bcrypt.hash(password, 10),
-          role: 'agent', appType, status, canCreateLoan: true },
+          role: 'agent', appType, status, canCreateLoan: true,
+          aadharNumber, dob, experience, age,
+          bypassLoanApproval, bypassCustomerApproval, bypassVehicleApproval, autoReleaseFloat, feeConfirmationMandatory },
       });
+      savedUserId = created.id;
       await prisma.auditLog.create({
         data: { tenantId, userId: actorId, action: 'create', entityType: 'user', entityId: created.id,
           newValue: JSON.stringify({ name, username, role: 'agent', appType, status, scope: 'branch_agent' }) },
@@ -719,6 +980,25 @@ export async function manageBranchAgent(formData: FormData) {
       }
       throw err;
     }
+  }
+
+  if (savedUserId && branchId) {
+    // 1. Update UserModule
+    await prisma.userModule.deleteMany({ where: { userId: savedUserId } });
+    await prisma.userModule.create({
+      data: {
+        userId: savedUserId,
+        appType,
+        assignedById: actorId,
+      },
+    });
+
+    // 2. Update UserBranchModule
+    await prisma.userBranchModule.upsert({
+      where: { userId_branchId: { userId: savedUserId, branchId } },
+      update: { enabledModules: JSON.stringify([appType]) },
+      create: { userId: savedUserId, branchId, enabledModules: JSON.stringify([appType]) },
+    });
   }
 
   revalidatePath(`/${appType}/settings`);

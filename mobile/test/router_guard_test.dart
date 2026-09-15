@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:loantrack/core/router/app_router.dart';
-import 'package:loantrack/data/models/user.dart';
+import 'package:zolofund/core/router/app_router.dart';
+import 'package:zolofund/data/models/user.dart';
 
 User _user({
   UserRole role = UserRole.agent,

@@ -91,9 +91,9 @@ assert.match(billingAction, /gpsTrackingEnabled/, 'billing action persists GPS a
 const subscriptionForm = read('app/admin/billing/[tenantId]/SubscriptionForm.tsx');
 assert.match(subscriptionForm, /gpsTrackingEnabled/, 'developer billing form exposes GPS add-on toggle');
 
-const collectionActions = read('app/(dashboard)/[module]/collection/actions.ts');
-assert.match(collectionActions, /normalizeGpsFormData/, 'web collection action normalizes GPS payload');
-assert.match(collectionActions, /verifyAndPersistCollectionLocation/, 'web collection action verifies GPS after save');
+const collectionApi = read('app/api/collection/route.ts');
+assert.match(collectionApi, /normalizeGpsBody/, 'web collection API normalizes GPS payload');
+assert.match(collectionApi, /verifyAndPersistCollectionLocation/, 'web collection API verifies GPS after save');
 
 const heartbeatRoute = read('app/api/gps/heartbeat/route.ts');
 assert.match(heartbeatRoute, /gpsTrackingEnabled/, 'heartbeat API is subscription-gated');

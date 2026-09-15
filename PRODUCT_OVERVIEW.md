@@ -1,12 +1,12 @@
-# LoanTrack — Complete Product Overview
+# ZoloFund — Complete Product Overview
 
 > **The all-in-one lending management platform for microfinance companies, auto finance firms, and chit fund operators.**
 
 ---
 
-## What Is LoanTrack?
+## What Is ZoloFund?
 
-LoanTrack is a complete business management software designed for lending companies of all sizes. Whether you run a small neighborhood lending operation or a large multi-branch financial firm, LoanTrack gives you everything you need to manage your customers, loans, collections, and team — all in one place.
+ZoloFund is a complete business management software designed for lending companies of all sizes. Whether you run a small neighborhood lending operation or a large multi-branch financial firm, ZoloFund gives you everything you need to manage your customers, loans, collections, and team — all in one place.
 
 It works on **web browsers** (laptops, desktops) and as a dedicated **mobile app** on Android and iOS phones, so your team can work from anywhere.
 
@@ -14,7 +14,7 @@ It works on **web browsers** (laptops, desktops) and as a dedicated **mobile app
 
 ## Who Is It For?
 
-LoanTrack serves three types of lending businesses:
+ZoloFund serves three types of lending businesses:
 
 | Business Type | What It Covers |
 |---|---|
@@ -28,7 +28,7 @@ All three can be managed from the same platform — no need for separate softwar
 
 ## Who Uses It Inside Your Company?
 
-LoanTrack has separate logins and dashboards for every type of person in your team:
+ZoloFund has separate logins and dashboards for every type of person in your team:
 
 - **Business Owner / Admin** — Full control over every loan, customer, agent, and report in your company
 - **Field Collection Agents** — A simple mobile app to collect payments, view their daily route, and add new customers
@@ -217,7 +217,7 @@ Full visibility over where your field agents are and what they're doing.
 
 Make informed lending decisions with instant credit checks.
 
-LoanTrack connects directly to India's two leading credit bureaus:
+ZoloFund connects directly to India's two leading credit bureaus:
 
 - **CRIF** — both soft checks (no impact on score) and hard pulls
 - **CIBIL** — both soft checks and hard pulls
@@ -301,7 +301,7 @@ Track everything about a vehicle-backed loan in one place.
 
 Stay compliant with RBI norms automatically.
 
-LoanTrack automatically classifies every loan account by its asset quality every night:
+ZoloFund automatically classifies every loan account by its asset quality every night:
 
 | Classification | Meaning |
 |---|---|
@@ -351,7 +351,7 @@ Grow your business and reward those who refer you.
 
 Serve customers and staff in their native language.
 
-LoanTrack is fully available in **6 Indian languages:**
+ZoloFund is fully available in **6 Indian languages:**
 
 English · Hindi · Kannada · Malayalam · Tamil · Telugu
 
@@ -363,7 +363,7 @@ Every label, button, message, and notification is translated. Language is set pe
 
 Your entire business in your pocket.
 
-The LoanTrack mobile app gives admins and field agents everything they need on their phone:
+The ZoloFund mobile app gives admins and field agents everything they need on their phone:
 
 | What You Can Do | Available |
 |---|---|
@@ -409,7 +409,7 @@ Your business data is protected at every level.
 
 ## 22. Settings & Customization
 
-Set up LoanTrack exactly how your business works.
+Set up ZoloFund exactly how your business works.
 
 Everything is configurable — no developer needed:
 
@@ -431,7 +431,7 @@ Everything is configurable — no developer needed:
 
 # Summary
 
-LoanTrack is a complete, end-to-end lending management platform built specifically for the Indian market. From the moment a customer walks in to the final repayment — and every collection, penalty, approval, and report in between — LoanTrack handles it all.
+ZoloFund is a complete, end-to-end lending management platform built specifically for the Indian market. From the moment a customer walks in to the final repayment — and every collection, penalty, approval, and report in between — ZoloFund handles it all.
 
 | At a Glance | |
 |---|---|
@@ -445,4 +445,4 @@ LoanTrack is a complete, end-to-end lending management platform built specifical
 
 ---
 
-*LoanTrack — Built for lenders, trusted by borrowers.*
+*ZoloFund — Built for lenders, trusted by borrowers.*

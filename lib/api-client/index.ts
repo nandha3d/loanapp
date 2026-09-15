@@ -15,6 +15,7 @@ export interface ApiFetchOptions extends RequestInit {
   token?: string;
   tenantSlug?: string;
   branchId?: string | null;
+  appType?: string | null;
 }
 
 function apiUrl(path: string): string {
@@ -41,7 +42,7 @@ export async function apiFetch<T = unknown>(
   path: string,
   options: ApiFetchOptions = {},
 ): Promise<T> {
-  const { token, tenantSlug, branchId, ...fetchOptions } = options;
+  const { token, tenantSlug, branchId, appType, ...fetchOptions } = options;
 
   const headers = new Headers(fetchOptions.headers);
 
@@ -57,6 +58,9 @@ export async function apiFetch<T = unknown>(
   }
   if (branchId) {
     headers.set('X-Branch-Id', branchId);
+  }
+  if (appType) {
+    headers.set('X-App-Type', appType);
   }
 
   const res = await fetch(apiUrl(path), {

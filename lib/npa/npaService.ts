@@ -3,7 +3,7 @@ import prisma from '@/lib/db';
 import { getTenantProvisioningSummary } from '@/lib/npa/provisioningCalculator';
 import { checkUpgradeEligibility, upgradeNpaToStandard } from '@/lib/npa/npaUpgrade';
 
-const NPA_ROLES = new Set(['admin', 'superadmin']);
+const NPA_ROLES = new Set(['admin', 'superadmin', 'developer']);
 const NPA_CATEGORIES = ['sma_0', 'sma_1', 'sma_2', 'sub_standard', 'doubtful_d1', 'doubtful_d2', 'doubtful_d3', 'loss'];
 
 export type NpaActor = {
@@ -73,6 +73,14 @@ export async function listNpaLoans(
     deletedAt: null,
   };
 
+  if (actor.appType) {
+    where.appType = actor.appType;
+  }
+
+  if (actor.branchId && actor.role !== 'superadmin' && actor.role !== 'developer') {
+    where.branchId = actor.branchId;
+  }
+
   if (input.category) {
     where.npaStatus = input.category;
   } else {
@@ -120,7 +128,7 @@ export async function getNpaHistory(actor: NpaActor, input: { loanId?: string | 
   const loanId = input.loanId;
   if (!loanId) throw new NpaServiceError('loanId query param is required', 400);
 
-  await assertTenantLoan(actor.tenantId, loanId);
+  await assertTenantLoan(actor, loanId);
 
   return prisma.npaHistory.findMany({
     where: { loanId, tenantId: actor.tenantId },
@@ -146,7 +154,7 @@ export async function getNpaUpgradeEligibility(actor: NpaActor, input: { loanId?
   const loanId = input.loanId;
   if (!loanId) throw new NpaServiceError('loanId query param is required', 400);
 
-  await assertTenantLoan(actor.tenantId, loanId);
+  await assertTenantLoan(actor, loanId);
   return checkUpgradeEligibility(loanId);
 }
 
@@ -158,7 +166,7 @@ export async function upgradeNpaLoan(
   const loanId = input.loanId;
   if (!loanId) throw new NpaServiceError('loanId is required', 400);
 
-  await assertTenantLoan(actor.tenantId, loanId);
+  await assertTenantLoan(actor, loanId);
   try {
     await upgradeNpaToStandard(loanId, actor.userId, actor.tenantId, input.notes ?? '');
     return { success: true };
@@ -168,9 +176,22 @@ export async function upgradeNpaLoan(
   }
 }
 
-async function assertTenantLoan(tenantId: string, loanId: string): Promise<void> {
+async function assertTenantLoan(actor: NpaActor, loanId: string): Promise<void> {
+  const where: Prisma.LoanWhereInput = {
+    id: loanId,
+    tenantId: actor.tenantId,
+  };
+
+  if (actor.appType) {
+    where.appType = actor.appType;
+  }
+
+  if (actor.branchId && actor.role !== 'superadmin' && actor.role !== 'developer') {
+    where.branchId = actor.branchId;
+  }
+
   const loan = await prisma.loan.findFirst({
-    where: { id: loanId, tenantId },
+    where,
     select: { id: true },
   });
   if (!loan) throw new NpaServiceError('Loan not found', 404);

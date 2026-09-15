@@ -1,9 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:loantrack/core/network/dio_client.dart';
-import 'package:loantrack/data/models/customer.dart';
-import 'package:loantrack/shared/constants/endpoints.dart';
+import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/data/models/customer.dart';
+import 'package:zolofund/shared/constants/endpoints.dart';
 
 class KycDocInput {
   const KycDocInput({required this.type, required this.url});
@@ -79,6 +79,19 @@ class CustomerService {
       res,
       (dynamic d) => Customer.fromJson(d as Map<String, dynamic>),
     );
+  }
+
+  Future<void> delete(String id) async {
+    final res = await _dio.delete<Map<String, dynamic>>(Endpoints.customer(id));
+    unwrapEnvelope(res, (_) => null);
+  }
+
+  Future<List<int>> collectionReceiptPdf(String id) async {
+    final res = await _dio.get<List<int>>(
+      Endpoints.customerCollectionReceipt(id),
+      options: Options(responseType: ResponseType.bytes),
+    );
+    return unwrapPdfBytes(res);
   }
 }
 

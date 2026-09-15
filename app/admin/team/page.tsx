@@ -50,11 +50,11 @@ export default async function TeamPage() {
       status: 'active',
       ...(userRole === 'superadmin' ? { superadminId: user.id } : {})
     },
-    select: { id: true, name: true, code: true }
+    select: { id: true, name: true, code: true, enabledModules: true }
   });
 
   const activeBranch = activeBranchId 
-    ? await prisma.branch.findUnique({ where: { id: activeBranchId }, select: { name: true, code: true, enabledModules: true } })
+    ? await prisma.branch.findUnique({ where: { id: activeBranchId }, select: { id: true, name: true, code: true, enabledModules: true } })
     : null;
 
   let allowedModules: string[] = [];

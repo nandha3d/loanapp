@@ -19,6 +19,14 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const to = searchParams.get('to');
   const { cursor, limit } = parseCursorPaging(req.url, { defaultLimit: 100, maxLimit: 500 });
 
+  if (auth.context.branchId && auth.context.role === 'admin') {
+    const targetAgent = await prisma.user.findFirst({
+      where: { id, tenantId: auth.context.tenantId, branchId: auth.context.branchId, role: 'agent' },
+      select: { id: true },
+    });
+    if (!targetAgent) return fail('Agent not found', 404);
+  }
+
   const where: any = { agentId: id, tenantId: auth.context.tenantId };
   if (from || to) {
     where.capturedAt = {};

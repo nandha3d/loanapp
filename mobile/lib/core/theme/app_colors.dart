@@ -5,10 +5,22 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
-  // Primary palette
-  static const Color primary = Color(0xFFF5A623);
-  static const Color primaryDark = Color(0xFFE8930C);
-  static const Color primaryLight = Color(0xFFFFF3E0);
+  // Primary palette. Mutable (NOT const): the tenant theme picked by the
+  // superadmin (web Settings → Theme, served by /api/v1/theme) is applied at
+  // runtime by ThemeController. Defaults below match the web globals.css.
+  // Primary palette — ZoloFund brand colors from official logo
+  static const Color defaultPrimary = Color(0xFF7D287E);
+  static const Color defaultPrimaryDark = Color(0xFF5E1B5F);
+  static const Color defaultPrimaryLight = Color(0xFFF6E8F7);
+  static Color primary = defaultPrimary;
+  static Color primaryDark = defaultPrimaryDark;
+  static Color primaryLight = defaultPrimaryLight;
+
+  // Brand accents from ZoloFund logo
+  static const Color brandYellow = Color(0xFFFCF6AB);      // Logo '₹und' pill accent
+  static const Color brandYellowDark = Color(0xFFE8DE70);
+  static const Color brandPurple = Color(0xFF7D287E);
+  static const Color brandPurpleLight = Color(0xFFF6E8F7);
 
   // Surfaces
   static const Color background = Color(0xFFF4F6F9);
@@ -63,7 +75,7 @@ class AppColors {
   static const Color inkBorder = Color(0x1FFFFFFF);    // hairline divider on ink (white 12%)
   static const Color onInk = Color(0xFFF8FAFC);        // primary text/icon on ink
   static const Color onInkMuted = Color(0xFF9AA4B2);   // secondary text on ink
-  static const Color onPrimary = Color(0xFF1A1206);    // text/icon on amber primary
+  static const Color onPrimary = Color(0xFFFFFFFF);    // text/icon on purple primary
 
   // Dark hero-card gradient — matches the home/dashboard hero so other hero
   // cards (e.g. collection's today summary) can share the exact same look.

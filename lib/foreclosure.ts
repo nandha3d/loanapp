@@ -1,4 +1,5 @@
 import prisma from './db';
+import { isInterestOnly } from './loanCalculator';
 
 type MoneyLike = number | string | { toNumber(): number };
 
@@ -41,6 +42,8 @@ export interface ForeclosureLoanSnapshot {
   principal: MoneyLike;
   totalCollected: MoneyLike;
   totalInstalments: number;
+  deductionType?: string | null;
+  outstandingPrincipal?: MoneyLike | null;
   customer: {
     name: string;
     customerCode: string;
@@ -117,7 +120,14 @@ export function buildForeclosureCalculation(
 
   const originalPrincipal = toNumber(loan.principal);
   const totalCollected = toNumber(loan.totalCollected);
-  const principalOutstanding = Math.max(0, originalPrincipal - totalCollected);
+  // For every model except Interest-Only the instalments repay the principal, so
+  // what's left is principal minus what's been collected. Interest-Only instalments
+  // carry INTEREST only — netting them off principal would show a fully-serviced
+  // borrower as owing nothing — so its outstanding principal is tracked explicitly
+  // and only moves on a part-payment.
+  const principalOutstanding = isInterestOnly(loan.deductionType)
+    ? Math.max(0, toNumber(loan.outstandingPrincipal ?? loan.principal))
+    : Math.max(0, originalPrincipal - totalCollected);
 
   const grossPenalty = loan.penalties.reduce((total, penalty) => total + toNumber(penalty.grossPenalty), 0);
   const settledPenalty = loan.penalties.reduce((total, penalty) => total + toNumber(penalty.settledAmount), 0);
@@ -128,12 +138,21 @@ export function buildForeclosureCalculation(
   const safeDiscount = Math.min(Math.max(0, discount || 0), maxDiscount);
   const totalSettlementAmount = Math.max(0, maxDiscount - safeDiscount);
 
-  const lineItems: ForeclosureLineItem[] = [
-    { label: 'Original principal', amount: originalPrincipal, sign: '+' },
-    { label: 'Total collected so far', amount: -totalCollected, sign: '-' },
-    { label: 'Principal outstanding', amount: principalOutstanding, sign: '=', highlight: true },
-    { label: `Net accrued penalty (${missedInstalments} missed instalments)`, amount: netPenaltyDue, sign: '+' },
-  ];
+  // Interest-Only reads differently: collections so far were interest, not principal,
+  // so showing them as a deduction from the principal would misstate the settlement.
+  const lineItems: ForeclosureLineItem[] = isInterestOnly(loan.deductionType)
+    ? [
+        { label: 'Original principal', amount: originalPrincipal, sign: '+' },
+        { label: 'Interest collected so far (does not reduce principal)', amount: totalCollected, sign: '=' },
+        { label: 'Principal outstanding', amount: principalOutstanding, sign: '=', highlight: true },
+        { label: `Net accrued penalty (${missedInstalments} missed instalments)`, amount: netPenaltyDue, sign: '+' },
+      ]
+    : [
+        { label: 'Original principal', amount: originalPrincipal, sign: '+' },
+        { label: 'Total collected so far', amount: -totalCollected, sign: '-' },
+        { label: 'Principal outstanding', amount: principalOutstanding, sign: '=', highlight: true },
+        { label: `Net accrued penalty (${missedInstalments} missed instalments)`, amount: netPenaltyDue, sign: '+' },
+      ];
 
   if (safeDiscount > 0) {
     lineItems.push({ label: 'Settlement discount applied', amount: -safeDiscount, sign: '-' });

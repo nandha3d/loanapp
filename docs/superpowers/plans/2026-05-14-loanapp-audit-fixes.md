@@ -49,8 +49,8 @@ const encrypted = encryptAadharNumber('1234 5678 9012', '0123456789abcdef0123456
 assert.notEqual(encrypted, '1234 5678 9012');
 assert.equal(decryptAadharNumber(encrypted, '0123456789abcdef0123456789abcdef'), '123456789012');
 assert.equal(maskAadharNumber('123456789012'), 'XXXX XXXX 9012');
-assert.equal(extractTenantSlugFromHost('alpha.loantrack.test:3000', 'loantrack.test'), 'alpha');
-assert.equal(extractTenantSlugFromHost('localhost:3000', 'loantrack.test'), null);
+assert.equal(extractTenantSlugFromHost('alpha.zolofund.test:3000', 'zolofund.test'), 'alpha');
+assert.equal(extractTenantSlugFromHost('localhost:3000', 'zolofund.test'), null);
 assert.equal(isTenantHostAllowedForSession({ requestedTenantId: 't1', sessionTenantId: 't1', role: 'admin' }), true);
 assert.equal(isTenantHostAllowedForSession({ requestedTenantId: 't2', sessionTenantId: 't1', role: 'admin' }), false);
 assert.equal(isTenantHostAllowedForSession({ requestedTenantId: 't2', sessionTenantId: 't1', role: 'developer' }), true);
@@ -142,7 +142,7 @@ Encrypt submitted `aadharNumber` fields before writes and decrypt/mask values on
 ### Task 6: Verification and Audit Report
 
 **Files:**
-- Create: `loantrack_end_to_end_markdown_docs/bug fix/loanapp_audit_fix_report.md`
+- Create: `zolofund_end_to_end_markdown_docs/bug fix/loanapp_audit_fix_report.md`
 
 - [ ] **Step 1: Run focused tests**
 

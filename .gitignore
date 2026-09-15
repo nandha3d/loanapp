@@ -17,8 +17,7 @@
 /.next/
 /out/
 
-# test folders
-/tests
+# test OUTPUT folders (not the /tests source dir — that is committed)
 /Testing
 /.playwright/
 /outputs
@@ -59,7 +58,7 @@ scratch/
 scratch.js
 database/
 tmp/
-loantrack_export*.sql
+zolofund_export*.sql
 # test / build reports
 playwright-report/
 test-results/
@@ -89,10 +88,52 @@ mobile/.vscode/
 *.log
 *.yml
 *.zip
-*.sql
-# Prisma migration SQL must be committed — exclude them from the *.sql ignore above.
-!prisma/migrations/**/*.sql
 # GitHub Actions workflows must be committed — exclude them from the *.yml ignore above.
 !.github/workflows/*.yml
 # Devcontainer compose file must be committed — exclude it from the *.yml ignore above.
 !.devcontainer/*.yml
+*.apk
+*.html
+zolofund_marketing_page_en.html
+
+# Flutter: ignore GENERATED dart only — hand-written *.dart source IS committed.
+mobile/**/*.g.dart
+mobile/**/*.freezed.dart
+mobile/**/*.mocks.dart
+mobile/**/*.config.dart
+mobile/lib/data/services/fcm_service.dart
+#mobile/pubspec.lock
+mobile/windows/flutter/generated_plugin_registrant.cc
+mobile/windows/flutter/generated_plugins.cmake
+
+# executables
+mobile/nuget.exe
+*.exe
+
+# SQL: ignore DB DUMPS only (zolofund_export*.sql / *backup*.sql above).
+# Prisma migrations and docs/*.sql ARE committed.
+
+# Playwright
+node_modules/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+
+# self-healing SDLC loop state/artifacts
+/e2e-results/
+scripts/self-heal/.state/
+app-release.apk
+loanapp_source_20260528_191018.zip
+mobile/lib/data/services/fcm_service.dart
+mobile/pubspec.lock
+mobile/pubspec.yaml
+run_flutter.ps1
+
+# Generated test reports. The rendered tracker PAGES are committed — they are the
+# readable record of what was tested and what the last run said, and a reviewer
+# needs them without running the suite. The raw runner output and the ledgers
+# are not: they are large, churn on every run, and are rebuilt by
+# npm run test:calc / test:ml-report / test:cf-report.
+test-report/*
+!test-report/*.html

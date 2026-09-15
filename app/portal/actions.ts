@@ -6,12 +6,20 @@ import { AppType } from '@/lib/appConfig';
 import { auth } from '@/lib/auth';
 import { getDefaultTenantId } from '@/lib/tenant';
 import { getSuperadminBranches, getActiveBranchId } from '@/lib/branch';
-import { modulePath, normalizeModuleList } from '@/types/modules';
+import { isModuleKey, modulePath, normalizeModuleList } from '@/types/modules';
 
 export async function selectApp(appType: AppType) {
+  if (!isModuleKey(appType)) {
+    redirect('/portal?moduleAccess=invalid');
+  }
+
   const cookieStore = await cookies();
   const session = await auth();
   const user = session?.user as any;
+
+  if (!user) {
+    redirect(`/login?callbackUrl=${encodeURIComponent('/portal')}`);
+  }
   
   if (user && user.role === 'superadmin') {
     const tenantId = await getDefaultTenantId();
@@ -33,7 +41,15 @@ export async function selectApp(appType: AppType) {
           secure: process.env.NODE_ENV === 'production',
           sameSite: 'lax',
         });
+      } else {
+        redirect(`/portal?moduleAccess=denied&module=${encodeURIComponent(appType)}`);
       }
+    }
+  } else if (user.role === 'admin' || user.role === 'agent') {
+    const { getActiveModules } = await import('@/lib/branch');
+    const activeModules = await getActiveModules();
+    if (!activeModules.includes(appType)) {
+      redirect(`/portal?moduleAccess=denied&module=${encodeURIComponent(appType)}`);
     }
   }
 
@@ -45,5 +61,5 @@ export async function selectApp(appType: AppType) {
     sameSite: 'lax',
   });
   
-  redirect(modulePath(appType, '/dashboard'));
+  redirect(modulePath(appType, user.role === 'agent' ? '/agent-dashboard' : '/dashboard'));
 }

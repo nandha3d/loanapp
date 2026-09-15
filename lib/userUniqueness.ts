@@ -55,7 +55,7 @@ export async function findUserUniqueConflicts(
       conflicts.push({
         field,
         value,
-        message: `${LABELS[field]} is already in use.`,
+        message: `This ${LABELS[field].toLowerCase()} already exists.`,
       });
     }
   }

@@ -5,6 +5,8 @@ import { redirect } from 'next/navigation';
 import { getDictionary } from '@/lib/i18n';
 import { modulePath } from '@/types/modules';
 import KycReviewClient from './KycReviewClient';
+import { getActiveBranchId } from '@/lib/branch';
+import { branchScopeWhere } from '@/lib/branchScope';
 
 export default async function KycReviewPage({
   params,
@@ -35,10 +37,15 @@ export default async function KycReviewPage({
   });
   const kycEnabled = sub?.kycEnabled || false;
 
-  // Fetch customers with active or pending KYC verification actions
+  // Fetch customers with active or pending KYC verification actions. Scoped to
+  // the reviewer's own branch and module — a KYC queue is a work queue, and an
+  // admin may only act on their own branch's customers (SCOPE-3).
+  const activeBranchId = await getActiveBranchId();
   const pendingKycCustomers = await prisma.customer.findMany({
     where: {
       tenantId,
+      appType,
+      ...branchScopeWhere(activeBranchId),
       kycStatus: {
         in: ['video_under_review', 'video_submitted', 'otp_initiated']
       }

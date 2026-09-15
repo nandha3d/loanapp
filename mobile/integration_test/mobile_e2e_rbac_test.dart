@@ -4,8 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:integration_test/integration_test.dart';
 
-import 'package:loantrack/app.dart';
-import 'package:loantrack/shared/widgets/app_button.dart';
+import 'package:zolofund/app.dart';
+import 'package:zolofund/shared/widgets/app_button.dart';
 
 const agentUser = String.fromEnvironment('E2E_AGENT', defaultValue: 'karthik');
 const agentPass = String.fromEnvironment('E2E_PASS', defaultValue: 'agent123');

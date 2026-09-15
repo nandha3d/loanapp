@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import { useMemo, useState } from 'react';
 
 interface Props {
   agentName:        string;
@@ -12,13 +13,14 @@ interface Props {
   overdueCount:     number;
   myCustomerCount:  number;
   pendingTodayCount:number;
-  recentCollections:{ customerName: string; customerCode: string; loanCode: string; amount: number; time: string }[];
+  recentCollections:{ customerName: string; customerCode: string; loanCode: string; amount: number; time: string; preferredCollectionTime?: string | null }[];
   currencySymbol:   string;
   modulePrefix:     string;
   dict:             any;
 }
 
 export default function AgentDashboardClient(p: Props) {
+  const [sessionFilter, setSessionFilter] = useState('');
   const fmt   = (n: number) => `${p.currencySymbol}${n.toLocaleString('en-IN')}`;
   const pct   = (a: number, b: number) => b === 0 ? 0 : Math.min(100, Math.round((a / b) * 100));
   const todayPct  = pct(p.todayCollected, p.todayExpected);
@@ -26,6 +28,16 @@ export default function AgentDashboardClient(p: Props) {
   const maxExpected = Math.max(...p.weekData.map(d => d.expected), 1);
 
   const hitColor = (h: number) => h >= 80 ? 'var(--success)' : h >= 50 ? 'var(--warning)' : 'var(--danger)';
+  const visibleRecentCollections = useMemo(() => {
+    const known = ['morning', 'afternoon', 'evening', 'night'];
+    return p.recentCollections.filter((collection) => {
+      const session = (collection.preferredCollectionTime || '').toLowerCase();
+      return !sessionFilter
+        || (sessionFilter === 'anytime' && !session)
+        || (sessionFilter === 'other' && !!session && !known.includes(session))
+        || session === sessionFilter;
+    });
+  }, [p.recentCollections, sessionFilter]);
 
   return (
     <div className="page-content">
@@ -135,10 +147,30 @@ export default function AgentDashboardClient(p: Props) {
       {/* ── Recent collections ───────────────────────────────────── */}
       {p.recentCollections.length > 0 && (
         <div className="card" style={{ padding: '20px' }}>
-          <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '12px' }}>{p.dict.dashboard.recentCollections}</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap' }}>
+            <div style={{ fontWeight: 600, fontSize: '14px' }}>{p.dict.dashboard.recentCollections}</div>
+            <select
+              className="form-control"
+              value={sessionFilter}
+              onChange={(event) => setSessionFilter(event.target.value)}
+              style={{ width: '170px', padding: '6px 10px', fontSize: '.8rem' }}
+              aria-label="Filter recent collections by session"
+            >
+              <option value="">All sessions</option>
+              <option value="anytime">Anytime</option>
+              <option value="morning">Morning</option>
+              <option value="afternoon">Afternoon</option>
+              <option value="evening">Evening</option>
+              <option value="night">Night</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {p.recentCollections.map((c, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: i < p.recentCollections.length - 1 ? '1px solid var(--border)' : 'none' }}>
+            {visibleRecentCollections.length === 0 && (
+              <div style={{ padding: '14px 0', color: 'var(--text-secondary)', fontSize: '12px' }}>No recent collections for this session.</div>
+            )}
+            {visibleRecentCollections.map((c, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: i < visibleRecentCollections.length - 1 ? '1px solid var(--border)' : 'none' }}>
                 <div>
                   <div style={{ fontSize: '13px', fontWeight: 600 }}>{c.customerName}</div>
                   <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>

@@ -51,6 +51,9 @@ class AgentCollection {
     required this.receivedAmount,
     this.paymentMode,
     this.submittedAt,
+    this.customerPhoto,
+    this.lat,
+    this.lng,
   });
 
   final String id;
@@ -60,11 +63,18 @@ class AgentCollection {
   final double receivedAmount;
   final String? paymentMode;
   final DateTime? submittedAt;
+  final String? customerPhoto;
+  // Where the entry was collected — photo pin position on the tracking map.
+  final double? lat;
+  final double? lng;
+
+  bool get hasLocation => lat != null && lng != null;
 
   factory AgentCollection.fromJson(Map<String, dynamic> json) {
     double n(dynamic v) => v == null
         ? 0
         : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
+    double? d(dynamic v) => v == null ? null : (v as num).toDouble();
     return AgentCollection(
       id: json['id'] as String,
       customerName: (json['customerName'] as String?) ?? '—',
@@ -75,6 +85,40 @@ class AgentCollection {
       submittedAt: json['submittedAt'] == null
           ? null
           : DateTime.parse(json['submittedAt'] as String).toLocal(),
+      customerPhoto: json['customerPhoto'] as String?,
+      lat: d(json['lat']),
+      lng: d(json['lng']),
+    );
+  }
+}
+
+/// One raw location ping from the agent's trail (history endpoint).
+class AgentPing {
+  const AgentPing({
+    required this.lat,
+    required this.lng,
+    required this.capturedAt,
+    this.accuracyM,
+    this.speedMps,
+    this.isMocked = false,
+  });
+
+  final double lat;
+  final double lng;
+  final DateTime capturedAt;
+  final double? accuracyM;
+  final double? speedMps;
+  final bool isMocked;
+
+  factory AgentPing.fromJson(Map<String, dynamic> json) {
+    double? d(dynamic v) => v == null ? null : (v as num).toDouble();
+    return AgentPing(
+      lat: (json['lat'] as num).toDouble(),
+      lng: (json['lng'] as num).toDouble(),
+      capturedAt: DateTime.parse(json['capturedAt'] as String).toLocal(),
+      accuracyM: d(json['accuracyM']),
+      speedMps: d(json['speedMps']),
+      isMocked: (json['isMocked'] as bool?) ?? false,
     );
   }
 }

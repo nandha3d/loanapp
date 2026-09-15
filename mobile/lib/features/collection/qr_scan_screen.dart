@@ -1,11 +1,11 @@
-import 'package:loantrack/core/currency/currency_controller.dart';
+import 'package:zolofund/core/currency/currency_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
-import 'package:loantrack/core/l10n/language_controller.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/data/services/collection_service.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/data/services/collection_service.dart';
 
 /// Full-screen QR scanner for the agent. Scans the client's payment QR
 /// (`loanpay:<token>`), auto-confirms via the API, and pops with the result.

@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
-import { getDefaultTenantId, getUserAppType, getSetting, getBranding } from '@/lib/tenant';
+import { getDefaultTenantId, getUserAppType, getSetting } from '@/lib/tenant';
 import prisma from '@/lib/db';
 import AgentDashboardClient from './AgentDashboardClient';
 import { getDictionary } from '@/lib/i18n';
@@ -9,10 +9,22 @@ interface Props {
   params: Promise<{ module: string }>;
 }
 
+type RecentCollectionWithCustomer = {
+  receivedAmount: unknown;
+  submittedAt: Date;
+  customer: {
+    name: string;
+    customerCode: string;
+    preferredCollectionTime?: string | null;
+  };
+  loan?: { loanCode?: string | null } | null;
+};
+
 export default async function AgentDashboardPage({ params }: Props) {
   const { module } = await params;
   const session = await auth();
-  const role    = (session?.user as any)?.role;
+  const sessionUser = session?.user as { role?: string; name?: string } | undefined;
+  const role    = sessionUser?.role;
   const userId  = session?.user?.id;
 
   if (role !== 'agent' || !userId) redirect(`/${module}/dashboard`);
@@ -20,21 +32,17 @@ export default async function AgentDashboardPage({ params }: Props) {
   const tenantId    = await getDefaultTenantId();
   const dict        = await getDictionary(tenantId);
   const appType     = await getUserAppType();
-  const branding    = await getBranding(tenantId);
   const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
 
   const todayDate = new Date();
   todayDate.setHours(0, 0, 0, 0);
-  const today = todayDate.toISOString().slice(0, 10);
   
   const weekAgoDate = new Date();
   weekAgoDate.setDate(weekAgoDate.getDate() - 6);
   weekAgoDate.setHours(0, 0, 0, 0);
-  const weekAgo = weekAgoDate.toISOString().slice(0, 10);
   
   const monthStartDate = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
   monthStartDate.setHours(0, 0, 0, 0);
-  const monthStart = monthStartDate.toISOString().slice(0, 10);
 
   // Today's collection record
   const todayRecord = await prisma.dailyCollection.findFirst({
@@ -90,19 +98,22 @@ export default async function AgentDashboardPage({ params }: Props) {
   ]);
 
   // Last 5 collections I submitted
-  const recentCollections = await prisma.collectionEntry.findMany({
+  const collectionEntryDelegate = prisma.collectionEntry as unknown as {
+    findMany(args: unknown): Promise<RecentCollectionWithCustomer[]>;
+  };
+  const recentCollections = await collectionEntryDelegate.findMany({
     where: { agentId: userId },
     orderBy: { submittedAt: 'desc' },
     take: 5,
     include: {
-      customer: { select: { name: true, customerCode: true } },
+      customer: { select: { name: true, customerCode: true, preferredCollectionTime: true } },
       loan:     { select: { loanCode: true } },
     },
   });
 
   return (
     <AgentDashboardClient
-      agentName={(session?.user as any)?.name || 'Agent'}
+      agentName={sessionUser?.name || 'Agent'}
       todayExpected={Number(todayRecord?.totalExpected || 0)}
       todayCollected={Number(todayRecord?.totalCollected || 0)}
       weekData={weekData}
@@ -118,6 +129,7 @@ export default async function AgentDashboardPage({ params }: Props) {
         loanCode:     c.loan?.loanCode ?? '',
         amount:       Number(c.receivedAmount),
         time:         c.submittedAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+        preferredCollectionTime: c.customer.preferredCollectionTime,
       }))}
       currencySymbol={currencySymbol}
       modulePrefix={module}

@@ -2,15 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/models/route_model.dart';
-import 'package:loantrack/data/services/collection_run_service.dart';
-import 'package:loantrack/data/services/settings_service.dart';
-import 'package:loantrack/shared/widgets/bottom_nav.dart';
-import 'package:loantrack/shared/widgets/empty_state.dart';
-import 'package:loantrack/shared/widgets/skeleton.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/models/route_model.dart';
+import 'package:zolofund/data/services/collection_run_service.dart';
+import 'package:zolofund/data/services/settings_service.dart';
+import 'package:zolofund/shared/widgets/bottom_nav.dart';
+import 'package:zolofund/shared/widgets/empty_state.dart';
+import 'package:zolofund/shared/widgets/skeleton.dart';
 
 final _routesProvider = FutureProvider.autoDispose<List<AppRoute>>((ref) {
   return ref.watch(settingsServiceProvider).routes();
@@ -120,7 +120,7 @@ class _RouteTile extends StatelessWidget {
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        leading: const CircleAvatar(
+        leading: CircleAvatar(
           backgroundColor: AppColors.primaryLight,
           child: Icon(Icons.route_rounded, color: AppColors.primary),
         ),
@@ -132,7 +132,7 @@ class _RouteTile extends StatelessWidget {
                 width: 20,
                 height: 20,
                 child: CircularProgressIndicator(strokeWidth: 2),)
-            : const Icon(Icons.play_circle_fill_rounded,
+            : Icon(Icons.play_circle_fill_rounded,
                 color: AppColors.primary, size: 30,),
         onTap: busy ? null : onTap,
       ),

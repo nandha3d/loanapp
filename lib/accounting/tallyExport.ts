@@ -1,6 +1,6 @@
 /**
  * Tally XML export — generates a TallyPrime "Import Data" envelope of
- * Vouchers from posted JournalEntries so accountants can import LoanTrack
+ * Vouchers from posted JournalEntries so accountants can import ZoloFund
  * books into Tally (Gateway of Tally → Import Data → Vouchers).
  *
  * Sign convention per Tally XML spec:
@@ -118,7 +118,7 @@ export async function generateTallyLedgersXml(tenantId: string): Promise<string>
     orderBy: { code: 'asc' },
   });
 
-  // Map LoanTrack account classes to Tally primary groups
+  // Map ZoloFund account classes to Tally primary groups
   const groupMap: Record<string, string> = {
     asset: 'Current Assets',
     liability: 'Current Liabilities',

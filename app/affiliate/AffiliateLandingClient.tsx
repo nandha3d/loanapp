@@ -90,7 +90,7 @@ export default function AffiliateLandingClient({ config }: { config: AffiliateCo
           gap: '12px',
           marginBottom: '50px',
         }}>
-          <img src="/assets/logo.svg" alt="LoanTrack" style={{ width: '40px', height: '40px' }} />
+          <img src="/assets/logo.svg" alt="ZoloFund" style={{ width: '40px', height: '40px' }} />
           <h2 style={{
             fontSize: '1.8rem',
             fontWeight: 800,

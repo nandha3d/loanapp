@@ -1,6 +1,6 @@
 # Database Migration Strategy
 
-The LoanTrack application uses Prisma ORM for database modeling and migrations. Since the application is deployed on Hostinger MySQL (or similar cPanel-based environments), follow this strategy to safely apply schema changes.
+The ZoloFund application uses Prisma ORM for database modeling and migrations. Since the application is deployed on Hostinger MySQL (or similar cPanel-based environments), follow this strategy to safely apply schema changes.
 
 ## 1. Local Development
 

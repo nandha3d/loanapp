@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from 'crypto';
-import { sendEmail } from '@/lib/notify/channels/email';
+import { sendEmail, type EmailResult } from '@/lib/notify/channels/email';
 
 // Stateless email-verification token: base64url(payload).hexSig.
 // No DB column needed — the signature + expiry are self-contained. Activation
@@ -8,7 +8,11 @@ import { sendEmail } from '@/lib/notify/channels/email';
 const TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
 function secret(): string {
-  return process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET ?? 'fallback-secret';
+  // No public-constant fallback: a known signing key makes activation tokens
+  // forgeable by anyone.
+  const s = process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET;
+  if (!s) throw new Error('NEXTAUTH_SECRET or AUTH_SECRET is required for email verification tokens');
+  return s;
 }
 
 function b64url(input: Buffer | string): string {
@@ -58,12 +62,12 @@ export async function sendVerificationEmail(params: {
   email: string;
   name?: string | null;
   userId: string;
-}): Promise<void> {
+}): Promise<EmailResult> {
   const token = signVerifyToken(params.userId);
   const link = `${appBaseUrl()}/api/auth/verify-email?token=${encodeURIComponent(token)}`;
   const { getSetting } = await import('@/lib/tenant');
-  const brandName = await getSetting(params.tenantId, 'app_name', 'LoanTrack');
-  await sendEmail(
+  const brandName = await getSetting(params.tenantId, 'app_name', 'ZoloFund');
+  return sendEmail(
     params.tenantId,
     params.email,
     `Verify your ${brandName} account`,

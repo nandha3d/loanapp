@@ -1,6 +1,6 @@
 # mCollect — Mobile & Digital Collection Spec
 
-**Generated:** 2026-06-04 · **Target app:** LoanTrack (Next.js 16 admin/portal + Flutter field app)
+**Generated:** 2026-06-04 · **Target app:** ZoloFund (Next.js 16 admin/portal + Flutter field app)
 **Scope:** fill the **collection** gaps vs. a modern NBFC-MFI core. **Group lending is explicitly out of scope for this document** — every feature here works for ordinary, individual customers and loans.
 
 ---

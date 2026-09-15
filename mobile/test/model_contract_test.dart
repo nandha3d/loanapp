@@ -2,13 +2,14 @@
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:loantrack/data/models/collection_run.dart';
-import 'package:loantrack/data/models/customer.dart';
-import 'package:loantrack/data/models/instalment.dart';
-import 'package:loantrack/data/models/loan.dart';
-import 'package:loantrack/data/models/user.dart';
-import 'package:loantrack/data/models/vehicle.dart';
-import 'package:loantrack/data/models/wallet.dart';
+import 'package:zolofund/data/models/collection_entry.dart';
+import 'package:zolofund/data/models/collection_run.dart';
+import 'package:zolofund/data/models/customer.dart';
+import 'package:zolofund/data/models/instalment.dart';
+import 'package:zolofund/data/models/loan.dart';
+import 'package:zolofund/data/models/user.dart';
+import 'package:zolofund/data/models/vehicle.dart';
+import 'package:zolofund/data/models/wallet.dart';
 
 void main() {
   group('MOB-MODEL contract tests', () {
@@ -127,14 +128,76 @@ void main() {
       expect(run.isLocked, isTrue);
       expect(txn.isCredit, isTrue);
       expect(vehicle.repoFlag, isTrue);
-      expect(Instalment.fromJson({
-        'id': 'i2',
-        'loanId': 'l1',
-        'instalmentNo': 2,
-        'dueDate': '2099-01-01T00:00:00.000Z',
-        'dueAmount': 100,
-        'status': 'upcoming',
-      }).dynamicStatus, 'upcoming');
+      expect(
+          Instalment.fromJson({
+            'id': 'i2',
+            'loanId': 'l1',
+            'instalmentNo': 2,
+            'dueDate': '2099-01-01T00:00:00.000Z',
+            'dueAmount': 100,
+            'status': 'upcoming',
+          }).dynamicStatus,
+          'upcoming');
+    });
+
+    test('MOB-MODEL-005 collection row bucket helpers stay in sync', () {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day, 9);
+      final past = today.subtract(const Duration(days: 2));
+
+      CollectionRow row({
+        required String id,
+        required DateTime dueDate,
+        required double dueAmount,
+        required double receivedAmount,
+        required String status,
+      }) {
+        return CollectionRow(
+          instalmentId: id,
+          loanId: 'loan-$id',
+          loanCode: 'LN-$id',
+          customerId: 'cust-$id',
+          customerName: 'Customer $id',
+          customerCode: 'C-$id',
+          customerPhone: '9000000000',
+          routeName: 'Route A',
+          dueAmount: dueAmount,
+          receivedAmount: receivedAmount,
+          dueDate: dueDate,
+          status: status,
+        );
+      }
+
+      final todayPartial = row(
+        id: 'today',
+        dueDate: today,
+        dueAmount: 1000,
+        receivedAmount: 400,
+        status: 'partial',
+      );
+      final overduePartial = row(
+        id: 'overdue',
+        dueDate: past,
+        dueAmount: 800,
+        receivedAmount: 300,
+        status: 'partial',
+      );
+      final overduePaid = row(
+        id: 'paid',
+        dueDate: past,
+        dueAmount: 500,
+        receivedAmount: 500,
+        status: 'paid',
+      );
+
+      expect(todayPartial.isTodayBucket, isTrue);
+      expect(todayPartial.todayOutstanding, 600);
+      expect(todayPartial.overdueOutstanding, 0);
+      expect(overduePartial.isOverdueBucket, isTrue);
+      expect(overduePartial.todayOutstanding, 0);
+      expect(overduePartial.overdueOutstanding, 500);
+      expect(overduePaid.isResolved, isTrue);
+      expect(overduePaid.overdueOutstanding, 0);
     });
   });
 }

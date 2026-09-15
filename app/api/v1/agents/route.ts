@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { requireMobileContext } from '@/lib/api/v1-auth';
+import { requireMobileContext, scopedBranchWhere, resolveWriteBranchId } from '@/lib/api/v1-auth';
 import { hash } from 'bcryptjs';
 import { findUserUniqueConflicts } from '@/lib/userUniqueness';
 
@@ -11,12 +11,16 @@ export async function GET(req: NextRequest) {
   const ctx = auth.context;
 
   try {
+    // Branch-scoped like every other list: an admin manages their own branch's
+    // agents. Tenant-wide roles (superadmin on "All Branches", developer) carry
+    // no branchId and keep seeing everyone (SCOPE-3).
     const agents = await prisma.user.findMany({
       where: {
         tenantId: ctx.tenantId,
         appType: ctx.appType,
         role: 'agent',
         status: 'active',
+        ...scopedBranchWhere(ctx),
       },
       select: { id: true, name: true, email: true, phone: true },
       orderBy: { name: 'asc' },
@@ -55,9 +59,14 @@ export async function POST(req: NextRequest) {
     if (conflicts.length > 0) return fail(conflicts[0].message, 409);
 
     const passwordHash = await hash(password, 12);
+    // Stamp the branch the creator is acting on. An unbranched agent is
+    // tenant-wide everywhere else in the app, so leaving this null silently
+    // hands the new agent every branch's work (SCOPE-3).
+    const branchId = await resolveWriteBranchId(ctx);
     const agent = await prisma.user.create({
       data: {
         tenantId: ctx.tenantId,
+        branchId,
         name: name.trim(),
         email: normalizedEmail,
         phone: normalizedPhone,

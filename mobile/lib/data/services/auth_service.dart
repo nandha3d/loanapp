@@ -1,9 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:loantrack/core/network/dio_client.dart';
-import 'package:loantrack/data/models/user.dart';
-import 'package:loantrack/shared/constants/endpoints.dart';
+import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/data/models/user.dart';
+import 'package:zolofund/shared/constants/endpoints.dart';
 
 class LoginResult {
   const LoginResult({this.token, this.refreshToken, this.user, this.requiresTotp = false});
@@ -23,10 +23,15 @@ class AuthService {
   Future<LoginResult> login({
     required String username,
     required String password,
+    String? tenantSlug,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
       Endpoints.login,
-      data: {'username': username, 'password': password},
+      data: {
+        'username': username,
+        'password': password,
+        if (tenantSlug != null && tenantSlug.isNotEmpty) 'tenantSlug': tenantSlug,
+      },
     );
     return unwrapEnvelope(res, (dynamic d) {
       final map = d as Map<String, dynamic>;

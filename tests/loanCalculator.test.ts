@@ -101,6 +101,103 @@ assert.deepEqual(distributeInstalmentAmounts(1000, 3), [333, 333, 334]);
   assert.equal(r.perInstalment, 5_000);
 }
 
+// ── interest_only (Check/Gold Base) ───────────────────────────────────────────
+
+{
+  // The client scenario: ₹10L at 2.5%/month for 12 months. Full principal is
+  // disbursed, each monthly due is one month's interest, and the principal is a
+  // bullet settled at closure.
+  const r = calculateLoanPreview({
+    principal: 1_000_000,
+    interestType: 'interest_only',
+    interestRate: 2.5,
+    tenure: 12,
+    frequency: 'monthly',
+    startDate: '2026-08-05',
+    dueDay: 1,
+  });
+  assert.equal(r.principal, 1_000_000);
+  assert.equal(r.deduction, 0);
+  assert.equal(r.disbursedAmount, 1_000_000, 'nothing is netted off at disbursal');
+  assert.equal(r.monthlyInterest, 25_000);
+  assert.equal(r.aprPercent, 30, '2.5%/month annualises to 30% APR');
+  assert.equal(r.principalDueAtClosure, 1_000_000);
+  assert.equal(r.perInstalment, 25_000);
+  assert.equal(r.totalPayable, 1_300_000, 'principal + 12 months of interest');
+
+  // Every row is the same interest — no remainder dumped on the last one, unlike
+  // the other models.
+  assert.equal(r.schedule.length, 12);
+  r.schedule.forEach((i) => assert.equal(i.dueAmount, 25_000));
+  assert.equal(r.schedule.reduce((s, i) => s + i.dueAmount, 0), 300_000);
+
+  // The manually chosen due day drives the schedule. Asserted in UTC as well as
+  // local: dueDates are persisted and read back as UTC midnight, so a local-midnight
+  // Date would store as the previous day east of UTC (IST turned "the 1st" into the
+  // 31st until lib/utils.ts calculateInstalmentDates was fixed).
+  r.schedule.forEach((i) => {
+    assert.equal(new Date(i.dueDate).getDate(), 1);
+    assert.equal(new Date(i.dueDate).getUTCDate(), 1, 'due day must survive the UTC round-trip');
+  });
+}
+
+{
+  // The schedule sums to interest only — the principal deliberately sits outside
+  // it, which is the invariant every other model holds and this one breaks.
+  const r = calculateLoanPreview({
+    principal: 500_000,
+    interestType: 'interest_only',
+    interestRate: 3,
+    tenure: 6,
+    frequency: 'monthly',
+  });
+  assert.equal(r.monthlyInterest, 15_000);
+  assert.equal(r.schedule.reduce((s, i) => s + i.dueAmount, 0), 90_000);
+  assert.notEqual(r.schedule.reduce((s, i) => s + i.dueAmount, 0), r.totalPayable);
+}
+
+// A monthly rate has no meaning on a daily/weekly schedule.
+for (const frequency of ['daily', 'weekly', 'biweekly']) {
+  assert.throws(
+    () => calculateLoanPreview({
+      principal: 1_000_000,
+      interestType: 'interest_only',
+      interestRate: 2.5,
+      tenure: 12,
+      frequency,
+    }),
+    /monthly frequency/,
+    `interest_only must reject ${frequency}`,
+  );
+}
+
+// Only interest_only carries the servicing extras.
+{
+  const r = calculateLoanPreview({
+    principal: 10_000, interestType: 'upfront_fixed', interestRate: 1_000, tenure: 10,
+  });
+  assert.equal(r.monthlyInterest, undefined);
+  assert.equal(r.aprPercent, undefined);
+  assert.equal(r.principalDueAtClosure, undefined);
+}
+
+// ── upfront regression: the client's deduction scenario ───────────────────────
+
+{
+  // ₹10L at 2.5% → deduct ₹25,000, disburse ₹9,75,000, repay the gross ₹10L.
+  const r = calculateLoanPreview({
+    principal: 1_000_000,
+    interestType: 'upfront_percentage',
+    interestRate: 2.5,
+    tenure: 12,
+    frequency: 'monthly',
+  });
+  assert.equal(r.deduction, 25_000);
+  assert.equal(r.disbursedAmount, 975_000);
+  assert.equal(r.totalPayable, 1_000_000);
+  assert.equal(r.schedule.reduce((s, i) => s + i.dueAmount, 0), 1_000_000);
+}
+
 // ── validation errors ─────────────────────────────────────────────────────────
 
 assert.throws(() => calculateLoanPreview({ principal: 0, tenure: 10 }), /Principal/);

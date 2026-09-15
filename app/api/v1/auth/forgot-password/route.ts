@@ -11,7 +11,9 @@ function timeBucket() {
 }
 
 function generateOtp(email: string, bucket: number): string {
-  const secret = process.env.NEXTAUTH_SECRET ?? 'fallback-secret';
+  // No public-constant fallback: password-reset OTPs must never be forgeable.
+  const secret = process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET;
+  if (!secret) throw new Error('NEXTAUTH_SECRET or AUTH_SECRET is required for password-reset OTP');
   const raw = createHmac('sha256', secret)
     .update(`${email.toLowerCase()}:${bucket}`)
     .digest('hex');
@@ -44,7 +46,7 @@ export async function POST(req: NextRequest) {
 
     if (user) {
       const otp = generateOtp(email, timeBucket());
-      const brandName = await getSetting(user.tenantId, 'app_name', 'LoanTrack');
+      const brandName = await getSetting(user.tenantId, 'app_name', 'ZoloFund');
       await sendEmail(
         user.tenantId,
         email,

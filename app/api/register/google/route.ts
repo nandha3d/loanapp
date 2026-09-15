@@ -2,11 +2,19 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { generateTenantSlug } from '@/lib/slug';
 import { calculateVerticalSubscriptionPricing, normalizeSelectedModules } from '@/lib/pricing';
+import { validateIndianMobile } from '@/lib/validation/contact';
+import { findUserUniqueConflicts } from '@/lib/userUniqueness';
+import {
+  createRazorpayPlan,
+  createRazorpaySubscription,
+  getConfiguredRazorpayPlanId,
+  normalizeRazorpayPlanId,
+} from '@/lib/razorpay';
 
 export async function POST(request: Request) {
   try {
     // Self-registration is disabled once a client's custom domain is claimed.
-    const host = request.headers.get('x-loantrack-host') || request.headers.get('host');
+    const host = request.headers.get('x-zolofund-host') || request.headers.get('host');
     const { getCustomDomainTenantId, isStandaloneDomainHost } = await import('@/lib/tenant');
     if (await getCustomDomainTenantId(host)) {
       return NextResponse.json({ success: false, error: 'Registration is disabled on this domain.' }, { status: 403 });
@@ -26,15 +34,23 @@ export async function POST(request: Request) {
       selectedPlan,
       selectedModules = [],
       selectedAddons = [],
+      paymentOption,
       referralCode
     } = body;
 
     // Validate fields
-    if (!businessName || !ownerPhone || !selectedPlan) {
+    if (!businessName || !ownerPhone || (!standaloneClaim && !selectedPlan)) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
         { status: 400 }
       );
+    }
+
+    if (!standaloneClaim && (typeof selectedPlan !== 'string' || selectedPlan.length > 50)) {
+      return NextResponse.json({ success: false, error: 'Invalid subscription plan' }, { status: 400 });
+    }
+    if (!Array.isArray(selectedModules) || !Array.isArray(selectedAddons)) {
+      return NextResponse.json({ success: false, error: 'Invalid module or add-on selection' }, { status: 400 });
     }
 
     let googleId = directGoogleId;
@@ -83,48 +99,59 @@ export async function POST(request: Request) {
       );
     }
 
-    // ── 2. Check if user already exists in any tenant with this email or googleId ──
+    const phoneCheck = validateIndianMobile(ownerPhone);
+    if (!phoneCheck.ok) {
+      return NextResponse.json({ success: false, error: phoneCheck.error }, { status: 400 });
+    }
+    const phone = phoneCheck.value;
+    // Phone number doubles as the default login username.
+    const username = phone;
+
+    // ── 2. Reject duplicates with a field-specific message ──
+    const conflicts = await findUserUniqueConflicts({ username, phone, email });
+    if (conflicts.length > 0) {
+      return NextResponse.json({ success: false, error: conflicts[0].message }, { status: 409 });
+    }
+
     const existingUser = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { googleId },
-          { email }
-        ]
-      },
+      where: { googleId },
       select: { id: true, tenant: { select: { slug: true } } }
     });
 
     if (existingUser) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: 'An account with this email/Google account is already registered.',
-          existingTenantSlug: existingUser.tenant.slug 
+        {
+          success: false,
+          error: 'An account with this Google account is already registered.',
+          existingTenantSlug: existingUser.tenant.slug
         },
         { status: 409 }
       );
     }
 
-    const ALL_MODULES_LIST = ['microlending', 'autofinance', 'chitfunds', 'goldloan'];
+    const ALL_MODULES_LIST = ['microlending', 'autofinance', 'chitfunds', 'goldloan', 'property', 'productfinance'];
     const finalModules = standaloneClaim ? ALL_MODULES_LIST : normalizeSelectedModules(selectedModules);
 
     // Generate unique slug
     const slug = await generateTenantSlug(businessName, finalModules);
 
     // Fetch plan details from catalog (skipped for a standalone lifetime claim).
-    const planCatalog = await prisma.subscriptionPlanCatalog.findUnique({
-      where: { plan: selectedPlan }
-    });
+    const planCatalog = standaloneClaim
+      ? null
+      : await prisma.subscriptionPlanCatalog.findUnique({ where: { plan: selectedPlan } });
 
-    if (!planCatalog && !standaloneClaim) {
+    if (!standaloneClaim && (!planCatalog || !planCatalog.isActive || planCatalog.monthlyPrice < 0)) {
       return NextResponse.json(
-        { success: false, error: `Selected plan "${selectedPlan}" not found in catalog` },
+        { success: false, error: 'Select an active SaaS plan' },
         { status: 400 }
       );
     }
 
+    const isPaidPlan = !standaloneClaim && Boolean(planCatalog && planCatalog.monthlyPrice > 0);
+    const effectivePaymentOption = isPaidPlan ? (paymentOption || 'pay_now') : 'free';
+
     let basePlanPrice = 0, modulesPrice = 0, addonsPrice = 0, totalMonthlyPrice = 0;
-    if (!standaloneClaim) {
+    if (isPaidPlan) {
       const addonsCatalog = await prisma.addonCatalog.findMany({
         where: { addon: { in: selectedAddons } }
       });
@@ -135,10 +162,6 @@ export async function POST(request: Request) {
         addonsPrice
       ));
     }
-
-    // Generate unique username from email prefix (e.g. karthik from karthik@gmail.com)
-    let username = email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-    if (!username) username = 'user';
 
     // Run transaction
     const result = await prisma.$transaction(async (tx) => {
@@ -163,15 +186,11 @@ export async function POST(request: Request) {
         }
       });
 
-      // 3. Create TenantSubscription (lifetime + unlimited for a standalone claim).
-      // Paid plans get a free trial, then must subscribe (trial gate enforced in
-      // assertTenantSubscriptionAccess). Free plan stays free; standalone=lifetime.
-      const PAID_PLANS = ['basic', 'business', 'enterprise'];
-      const trialDays = standaloneClaim
+      // 3. Create TenantSubscription.
+      // If pay_now on paid plan or free plan, trialDays = 0.
+      const trialDays = (standaloneClaim || !isPaidPlan || effectivePaymentOption === 'pay_now')
         ? 0
-        : PAID_PLANS.includes(selectedPlan)
-          ? (((planCatalog as any)?.trialDays ?? 0) || 14)
-          : 0;
+        : (planCatalog!.trialDays || 14);
       const trialEndsAt = trialDays > 0
         ? (() => { const d = new Date(); d.setDate(d.getDate() + trialDays); d.setHours(23,59,59,999); return d; })()
         : null;
@@ -210,7 +229,7 @@ export async function POST(request: Request) {
           tenantId: tenant.id,
           branchId: branch.id,
           name,
-          phone: ownerPhone,
+          phone,
           email,
           username,
           googleId,
@@ -301,13 +320,42 @@ export async function POST(request: Request) {
       };
     });
 
+    let checkoutUrl: string | null = null;
+    if (isPaidPlan && effectivePaymentOption === 'pay_now' && totalMonthlyPrice > 0 && planCatalog) {
+      try {
+        let razorpayPlanId =
+          normalizeRazorpayPlanId(planCatalog.razorpayPlanId) ??
+          getConfiguredRazorpayPlanId(planCatalog.plan);
+        if (!razorpayPlanId) {
+          razorpayPlanId = await createRazorpayPlan({
+            tenantId: result.tenantId,
+            planId: planCatalog.plan,
+            displayName: planCatalog.displayName,
+            amountRupees: totalMonthlyPrice,
+          });
+        }
+        const subscription = await createRazorpaySubscription(planCatalog.plan, result.tenantId, {
+          razorpayPlanId,
+          startAt: undefined, // Charge immediately
+        });
+        await prisma.tenantSubscription.update({
+          where: { tenantId: result.tenantId },
+          data: { razorpaySubId: subscription.id },
+        });
+        checkoutUrl = subscription.short_url;
+      } catch (rzpErr) {
+        console.error('[GOOGLE_REGISTER_RAZORPAY_INIT_ERROR]', rzpErr);
+      }
+    }
+
     return NextResponse.json(
       {
         success: true,
         message: 'Tenant registered successfully via Google',
         tenantId: result.tenantId,
         tenantSlug: result.tenantSlug,
-        username: result.username
+        username: result.username,
+        checkoutUrl,
       },
       { status: 201 }
     );
@@ -317,7 +365,13 @@ export async function POST(request: Request) {
       const target = err.meta?.target || '';
       if (target.includes('phone')) {
         return NextResponse.json(
-          { success: false, error: 'Phone number is already registered.' },
+          { success: false, error: 'This phone number already exists.' },
+          { status: 409 }
+        );
+      }
+      if (target.includes('email')) {
+        return NextResponse.json(
+          { success: false, error: 'This email already exists.' },
           { status: 409 }
         );
       }

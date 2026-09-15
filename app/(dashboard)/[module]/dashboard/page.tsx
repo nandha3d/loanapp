@@ -1,14 +1,21 @@
+import { LOAN_PRECLOSE_REQUEST } from '@/lib/loanPreclosePolicy';
+import { precloseApprovalVisibility } from '@/lib/loanPrecloseRequests';
 import prisma from '@/lib/db';
 import { auth } from '@/lib/auth';
-import { getDefaultTenantId, getBranding, getUserAppType } from '@/lib/tenant';
+import { getDefaultTenantId, getBranding, getUserAppType, getSetting } from '@/lib/tenant';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { getDistributedInstalmentsAndMetrics } from '@/lib/repayments';
 import Link from '@/components/layout/DashboardLink';
 import { redirect } from 'next/navigation';
 import { getActiveBranchId } from '@/lib/branch';
-import { CollectCashButton, VerifyUpiButton, BulkVerifyUpiButton } from './DashboardActions';
+import { VerifyUpiButton, BulkVerifyUpiButton } from './DashboardActions';
 import CollectionTrendChart from './CollectionTrendChart';
 import { ensurePendingPenaltiesForMissedLoans } from '@/lib/penalties';
 import { getDictionary } from '@/lib/i18n';
+import HpOperationsWidgets from '@/components/autofinance/HpOperationsWidgets';
+import { getTodayDueList, getPromisedCustomers } from '@/lib/autofinance/dashboard';
+import { getDayClosingSnapshot, getDayClosingGate } from '../operations/actions';
+import CollectionBreakdownCards, { FrequencyKey } from './CollectionBreakdownCards';
 
 type DashboardInstalment = {
   id: string;
@@ -110,7 +117,10 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
           tenantId,
           appType,
           status: 'pending',
-          ...(branchId ? { requestedBy: { branchId } } : {}),
+          ...(branchId && appType === 'microlending' ? { OR: [
+            { requestType: { not: LOAN_PRECLOSE_REQUEST }, requestedBy: { branchId: branchId } },
+            await precloseApprovalVisibility(tenantId, appType, branchId),
+          ] } : (branchId ? { requestedBy: { branchId: branchId } } : {})),
         },
       }),
       prisma.loan.count({
@@ -167,13 +177,21 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     prisma.instalment.findMany({
       where: {
         loan: { ...loanWhere, status: { in: ['active', 'overdue'] } },
-        dueDate: { lt: today },
-        status: { in: ['upcoming', 'missed', 'partial'] },
+        status: { not: 'waived' },
+        OR: [
+          { dueDate: { lt: today } },
+          { receivedAmount: { gt: 0 } },
+        ],
       },
       select: {
+        id: true,
+        loanId: true,
+        dueDate: true,
         dueAmount: true,
         receivedAmount: true,
-        loan: { select: { customerId: true } },
+        status: true,
+        instalmentNo: true,
+        loan: { select: { customerId: true, frequency: true, status: true } },
       },
     }),
     prisma.instalment.findMany({
@@ -197,7 +215,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     }),
     // Capital KPI
     prisma.accountEntry.findMany({
-      where: { tenantId, ...(branchId ? { branchId } : {}) },
+      where: { tenantId, appType, ...(branchId ? { branchId } : {}) },
       select: { type: true, amount: true },
     }),
     // Feature 6 & 8: Today's collection entries for cash/UPI split + route-wise.
@@ -279,37 +297,354 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     })
     .filter((item) => item.overdueAmount > 0);
 
-  // Totals are computed from the FULL (un-limited) overdue set so KPIs stay
-  // correct even when the table-feed query is capped at 10 rows.
-  const overdueForTotals = overdueInstalmentsForTotals.filter(
-    (item: any) => outstanding(item) > 0,
+  // Overdue collection — a DAILY snapshot that resets each day:
+  const paymentsToday = await prisma.payment.findMany({
+    where: {
+      tenantId,
+      paymentDate: { gte: today, lt: tomorrow },
+      loan: { ...loanWhere, status: { in: ['active', 'overdue'] } },
+    },
+    select: { loanId: true, amount: true },
+  });
+
+  const { distributedInstalments, metricsByLoan } = getDistributedInstalmentsAndMetrics(
+    overdueInstalmentsForTotals as any,
+    today,
+    paymentsToday,
   );
-  const overdueAmount = overdueForTotals.reduce(
-    (sum: number, item: any) => sum + outstanding(item),
+
+  const overdueForTotals = distributedInstalments.filter(
+    (item: any) => item.overdueAmount > 0,
+  );
+  const overdueOutstanding = overdueForTotals.reduce(
+    (sum: number, item: any) => sum + item.overdueAmount,
     0,
   );
   const overdueCustomerCount = new Set(
     overdueForTotals.map((item: any) => item.loan.customerId),
   ).size;
-  // Overdue collection — a DAILY snapshot that resets each day:
-  //   • Today Collected = today's payments that landed on PAST-DUE instalments.
-  //   • Remaining       = overdue outstanding right now (overdueAmount).
-  //   • Total till today = what was overdue at the START of today
-  //                        = remaining now + what we already recovered today.
-  // Tomorrow this naturally re-bases: today's payments drop out of the "today"
-  // window, and whatever is still outstanding becomes the fresh total overdue.
-  const overduePaidTodayAllocations = await prisma.paymentAllocation.findMany({
-    where: {
-      payment: { tenantId, paymentDate: { gte: today, lt: tomorrow }, loan: { ...loanWhere } },
-      instalment: { dueDate: { lt: today } },
+
+  let overdueCollectedToday = 0;
+  for (const m of metricsByLoan.values()) {
+    overdueCollectedToday += m.overdueCollectedToday;
+  }
+  const overdueTotalTillToday = overdueOutstanding + overdueCollectedToday;
+
+  // Frequency & Status-wise breakdown for Today's Collection:
+  const todayLoansByStatus = {
+    active: {
+      expected: 0,
+      collected: 0,
+      remaining: 0,
+      loans: new Set<string>(),
+      customers: new Set<string>(),
+      pct: 0,
     },
-    select: { amount: true },
-  });
-  const overdueCollectedToday = overduePaidTodayAllocations.reduce(
-    (sum: number, a: any) => sum + Number(a.amount),
-    0,
-  );
-  const overdueTotalTillToday = overdueAmount + overdueCollectedToday;
+    inactive: {
+      expected: 0,
+      collected: 0,
+      remaining: 0,
+      loans: new Set<string>(),
+      customers: new Set<string>(),
+      pct: 0,
+    },
+  };
+
+  const todayFrequencyBreakdown: Record<FrequencyKey, {
+    total: { expected: number; collected: number; remaining: number; loanCount: number; customerCount: number; pct: number };
+    active: { expected: number; collected: number; remaining: number; loanCount: number; customerCount: number; pct: number };
+    inactive: { expected: number; collected: number; remaining: number; loanCount: number; customerCount: number; pct: number };
+  }> = {
+    daily: {
+      total: { expected: 0, collected: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+      active: { expected: 0, collected: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+      inactive: { expected: 0, collected: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+    },
+    weekly: {
+      total: { expected: 0, collected: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+      active: { expected: 0, collected: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+      inactive: { expected: 0, collected: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+    },
+    monthly: {
+      total: { expected: 0, collected: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+      active: { expected: 0, collected: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+      inactive: { expected: 0, collected: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+    },
+  };
+
+  const todayFreqLoans: Record<FrequencyKey, { total: Set<string>; active: Set<string>; inactive: Set<string> }> = {
+    daily: { total: new Set(), active: new Set(), inactive: new Set() },
+    weekly: { total: new Set(), active: new Set(), inactive: new Set() },
+    monthly: { total: new Set(), active: new Set(), inactive: new Set() },
+  };
+  const todayFreqCustomers: Record<FrequencyKey, { total: Set<string>; active: Set<string>; inactive: Set<string> }> = {
+    daily: { total: new Set(), active: new Set(), inactive: new Set() },
+    weekly: { total: new Set(), active: new Set(), inactive: new Set() },
+    monthly: { total: new Set(), active: new Set(), inactive: new Set() },
+  };
+
+  const allTodayLoans = new Set<string>();
+  const allTodayCustomers = new Set<string>();
+
+  for (const item of todayInstalments) {
+    const rawFreq = (item.loan?.frequency || '').toLowerCase().trim();
+    let freq: FrequencyKey = 'daily';
+    if (rawFreq === 'weekly' || rawFreq === 'biweekly') freq = 'weekly';
+    else if (rawFreq === 'monthly') freq = 'monthly';
+    else freq = 'daily';
+
+    const isActive = (item.loan?.status || '').toLowerCase() === 'active';
+    const statusKey: 'active' | 'inactive' = isActive ? 'active' : 'inactive';
+
+    const due = Number(item.dueAmount || 0);
+    const rec = Math.min(Number(item.receivedAmount || 0), due);
+    const rem = Math.max(0, due - Number(item.receivedAmount || 0));
+
+    // Global by status
+    todayLoansByStatus[statusKey].expected += due;
+    todayLoansByStatus[statusKey].collected += rec;
+    todayLoansByStatus[statusKey].remaining += rem;
+
+    if (item.loanId) {
+      todayLoansByStatus[statusKey].loans.add(item.loanId);
+      allTodayLoans.add(item.loanId);
+      todayFreqLoans[freq].total.add(item.loanId);
+      todayFreqLoans[freq][statusKey].add(item.loanId);
+    }
+    if (item.loan?.customerId) {
+      todayLoansByStatus[statusKey].customers.add(item.loan.customerId);
+      allTodayCustomers.add(item.loan.customerId);
+      todayFreqCustomers[freq].total.add(item.loan.customerId);
+      todayFreqCustomers[freq][statusKey].add(item.loan.customerId);
+    }
+
+    // By frequency
+    todayFrequencyBreakdown[freq].total.expected += due;
+    todayFrequencyBreakdown[freq].total.collected += rec;
+    todayFrequencyBreakdown[freq].total.remaining += rem;
+
+    todayFrequencyBreakdown[freq][statusKey].expected += due;
+    todayFrequencyBreakdown[freq][statusKey].collected += rec;
+    todayFrequencyBreakdown[freq][statusKey].remaining += rem;
+  }
+
+  for (const key of ['daily', 'weekly', 'monthly'] as FrequencyKey[]) {
+    const fb = todayFrequencyBreakdown[key];
+    fb.total.loanCount = todayFreqLoans[key].total.size;
+    fb.total.customerCount = todayFreqCustomers[key].total.size;
+    fb.total.pct = fb.total.expected > 0 ? Math.min(100, Math.round((fb.total.collected / fb.total.expected) * 100)) : 0;
+
+    fb.active.loanCount = todayFreqLoans[key].active.size;
+    fb.active.customerCount = todayFreqCustomers[key].active.size;
+    fb.active.pct = fb.active.expected > 0 ? Math.min(100, Math.round((fb.active.collected / fb.active.expected) * 100)) : 0;
+
+    fb.inactive.loanCount = todayFreqLoans[key].inactive.size;
+    fb.inactive.customerCount = todayFreqCustomers[key].inactive.size;
+    fb.inactive.pct = fb.inactive.expected > 0 ? Math.min(100, Math.round((fb.inactive.collected / fb.inactive.expected) * 100)) : 0;
+  }
+
+  todayLoansByStatus.active.pct = todayLoansByStatus.active.expected > 0
+    ? Math.min(100, Math.round((todayLoansByStatus.active.collected / todayLoansByStatus.active.expected) * 100))
+    : 0;
+  todayLoansByStatus.inactive.pct = todayLoansByStatus.inactive.expected > 0
+    ? Math.min(100, Math.round((todayLoansByStatus.inactive.collected / todayLoansByStatus.inactive.expected) * 100))
+    : 0;
+
+  const todayCollectedPct = todayExpected > 0
+    ? Math.min(100, Math.round((todayCollected / todayExpected) * 100))
+    : (todayCollected > 0 ? 100 : 0);
+
+  const todayStatusSummary = {
+    total: {
+      expected: todayExpected,
+      collected: todayCollected,
+      remaining: todayGap,
+      loanCount: allTodayLoans.size,
+      customerCount: allTodayCustomers.size,
+      pct: todayCollectedPct,
+    },
+    active: {
+      expected: todayLoansByStatus.active.expected,
+      collected: todayLoansByStatus.active.collected,
+      remaining: todayLoansByStatus.active.remaining,
+      loanCount: todayLoansByStatus.active.loans.size,
+      customerCount: todayLoansByStatus.active.customers.size,
+      pct: todayLoansByStatus.active.pct,
+    },
+    inactive: {
+      expected: todayLoansByStatus.inactive.expected,
+      collected: todayLoansByStatus.inactive.collected,
+      remaining: todayLoansByStatus.inactive.remaining,
+      loanCount: todayLoansByStatus.inactive.loans.size,
+      customerCount: todayLoansByStatus.inactive.customers.size,
+      pct: todayLoansByStatus.inactive.pct,
+    },
+  };
+
+  // Frequency & Status-wise breakdown for Overdue Collection:
+  const loanFrequencyMap = new Map<string, FrequencyKey>();
+  const loanStatusMap = new Map<string, boolean>();
+  const loanCustomerMap = new Map<string, string>();
+
+  for (const item of overdueInstalmentsForTotals as any[]) {
+    const rawFreq = (item.loan?.frequency || '').toLowerCase().trim();
+    let freq: FrequencyKey = 'daily';
+    if (rawFreq === 'weekly' || rawFreq === 'biweekly') freq = 'weekly';
+    else if (rawFreq === 'monthly') freq = 'monthly';
+    else freq = 'daily';
+    loanFrequencyMap.set(item.loanId, freq);
+
+    const isActive = (item.loan?.status || '').toLowerCase() === 'active';
+    loanStatusMap.set(item.loanId, isActive);
+
+    if (item.loan?.customerId) {
+      loanCustomerMap.set(item.loanId, item.loan.customerId);
+    }
+  }
+
+  const overdueFrequencyBreakdown: Record<FrequencyKey, {
+    total: { totalOverdue: number; collectedToday: number; remaining: number; loanCount: number; customerCount: number; pct: number };
+    active: { totalOverdue: number; collectedToday: number; remaining: number; loanCount: number; customerCount: number; pct: number };
+    inactive: { totalOverdue: number; collectedToday: number; remaining: number; loanCount: number; customerCount: number; pct: number };
+  }> = {
+    daily: {
+      total: { totalOverdue: 0, collectedToday: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+      active: { totalOverdue: 0, collectedToday: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+      inactive: { totalOverdue: 0, collectedToday: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+    },
+    weekly: {
+      total: { totalOverdue: 0, collectedToday: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+      active: { totalOverdue: 0, collectedToday: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+      inactive: { totalOverdue: 0, collectedToday: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+    },
+    monthly: {
+      total: { totalOverdue: 0, collectedToday: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+      active: { totalOverdue: 0, collectedToday: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+      inactive: { totalOverdue: 0, collectedToday: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 },
+    },
+  };
+
+  const overdueLoansByStatus = {
+    active: {
+      totalOverdue: 0,
+      collectedToday: 0,
+      remaining: 0,
+      loans: new Set<string>(),
+      customers: new Set<string>(),
+      pct: 0,
+    },
+    inactive: {
+      totalOverdue: 0,
+      collectedToday: 0,
+      remaining: 0,
+      loans: new Set<string>(),
+      customers: new Set<string>(),
+      pct: 0,
+    },
+  };
+
+  const overdueFreqLoans: Record<FrequencyKey, { total: Set<string>; active: Set<string>; inactive: Set<string> }> = {
+    daily: { total: new Set(), active: new Set(), inactive: new Set() },
+    weekly: { total: new Set(), active: new Set(), inactive: new Set() },
+    monthly: { total: new Set(), active: new Set(), inactive: new Set() },
+  };
+  const overdueFreqCustomers: Record<FrequencyKey, { total: Set<string>; active: Set<string>; inactive: Set<string> }> = {
+    daily: { total: new Set(), active: new Set(), inactive: new Set() },
+    weekly: { total: new Set(), active: new Set(), inactive: new Set() },
+    monthly: { total: new Set(), active: new Set(), inactive: new Set() },
+  };
+
+  const allOverdueLoans = new Set<string>();
+  const allOverdueCustomers = new Set<string>();
+
+  for (const [loanId, m] of metricsByLoan.entries()) {
+    const freq = loanFrequencyMap.get(loanId) || 'daily';
+    const isActive = loanStatusMap.get(loanId) ?? true;
+    const statusKey: 'active' | 'inactive' = isActive ? 'active' : 'inactive';
+    const custId = loanCustomerMap.get(loanId);
+
+    // Global by status
+    overdueLoansByStatus[statusKey].totalOverdue += m.overdueTotalTillToday;
+    overdueLoansByStatus[statusKey].collectedToday += m.overdueCollectedToday;
+    overdueLoansByStatus[statusKey].remaining += m.overdueOutstanding;
+
+    if (m.overdueTotalTillToday > 0 || m.overdueOutstanding > 0) {
+      overdueLoansByStatus[statusKey].loans.add(loanId);
+      allOverdueLoans.add(loanId);
+      overdueFreqLoans[freq].total.add(loanId);
+      overdueFreqLoans[freq][statusKey].add(loanId);
+
+      if (custId) {
+        overdueLoansByStatus[statusKey].customers.add(custId);
+        allOverdueCustomers.add(custId);
+        overdueFreqCustomers[freq].total.add(custId);
+        overdueFreqCustomers[freq][statusKey].add(custId);
+      }
+    }
+
+    // By frequency
+    overdueFrequencyBreakdown[freq].total.totalOverdue += m.overdueTotalTillToday;
+    overdueFrequencyBreakdown[freq].total.collectedToday += m.overdueCollectedToday;
+    overdueFrequencyBreakdown[freq].total.remaining += m.overdueOutstanding;
+
+    overdueFrequencyBreakdown[freq][statusKey].totalOverdue += m.overdueTotalTillToday;
+    overdueFrequencyBreakdown[freq][statusKey].collectedToday += m.overdueCollectedToday;
+    overdueFrequencyBreakdown[freq][statusKey].remaining += m.overdueOutstanding;
+  }
+
+  for (const key of ['daily', 'weekly', 'monthly'] as FrequencyKey[]) {
+    const fb = overdueFrequencyBreakdown[key];
+    fb.total.loanCount = overdueFreqLoans[key].total.size;
+    fb.total.customerCount = overdueFreqCustomers[key].total.size;
+    fb.total.pct = fb.total.totalOverdue > 0 ? Math.min(100, Math.round((fb.total.collectedToday / fb.total.totalOverdue) * 100)) : 0;
+
+    fb.active.loanCount = overdueFreqLoans[key].active.size;
+    fb.active.customerCount = overdueFreqCustomers[key].active.size;
+    fb.active.pct = fb.active.totalOverdue > 0 ? Math.min(100, Math.round((fb.active.collectedToday / fb.active.totalOverdue) * 100)) : 0;
+
+    fb.inactive.loanCount = overdueFreqLoans[key].inactive.size;
+    fb.inactive.customerCount = overdueFreqCustomers[key].inactive.size;
+    fb.inactive.pct = fb.inactive.totalOverdue > 0 ? Math.min(100, Math.round((fb.inactive.collectedToday / fb.inactive.totalOverdue) * 100)) : 0;
+  }
+
+  overdueLoansByStatus.active.pct = overdueLoansByStatus.active.totalOverdue > 0
+    ? Math.min(100, Math.round((overdueLoansByStatus.active.collectedToday / overdueLoansByStatus.active.totalOverdue) * 100))
+    : 0;
+  overdueLoansByStatus.inactive.pct = overdueLoansByStatus.inactive.totalOverdue > 0
+    ? Math.min(100, Math.round((overdueLoansByStatus.inactive.collectedToday / overdueLoansByStatus.inactive.totalOverdue) * 100))
+    : 0;
+
+  const overduePct = overdueTotalTillToday > 0
+    ? Math.min(100, Math.round((overdueCollectedToday / overdueTotalTillToday) * 100))
+    : 0;
+
+  const overdueStatusSummary = {
+    total: {
+      totalOverdue: overdueTotalTillToday,
+      collectedToday: overdueCollectedToday,
+      remaining: overdueOutstanding,
+      loanCount: allOverdueLoans.size,
+      customerCount: overdueCustomerCount,
+      pct: overduePct,
+    },
+    active: {
+      totalOverdue: overdueLoansByStatus.active.totalOverdue,
+      collectedToday: overdueLoansByStatus.active.collectedToday,
+      remaining: overdueLoansByStatus.active.remaining,
+      loanCount: overdueLoansByStatus.active.loans.size,
+      customerCount: overdueLoansByStatus.active.customers.size,
+      pct: overdueLoansByStatus.active.pct,
+    },
+    inactive: {
+      totalOverdue: overdueLoansByStatus.inactive.totalOverdue,
+      collectedToday: overdueLoansByStatus.inactive.collectedToday,
+      remaining: overdueLoansByStatus.inactive.remaining,
+      loanCount: overdueLoansByStatus.inactive.loans.size,
+      customerCount: overdueLoansByStatus.inactive.customers.size,
+      pct: overdueLoansByStatus.inactive.pct,
+    },
+  };
+
   const pendingPenaltyTotal = Math.max(
     0,
     Number(pendingPenalties._sum.grossPenalty || 0) -
@@ -363,6 +698,15 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     });
   }
 
+  // Total Disbursed KPI = GROSS loan book (principal), not the net cash that left
+  // (principal − upfront fee). The `loan_disburse` AccountEntry stays net for the
+  // capital balance; this is a separate, gross figure for the headline KPI.
+  const grossDisbursedAgg = await prisma.loan.aggregate({
+    where: loanWhere,
+    _sum: { principal: true },
+  });
+  const grossDisbursed = Number(grossDisbursedAgg._sum.principal || 0);
+
   return {
     totalCustomers,
     recentLoans,
@@ -370,10 +714,14 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     todayExpected,
     todayCollected,
     todayGap,
-    overdueAmount,
+    todayFrequencyBreakdown,
+    todayStatusSummary,
+    overdueAmount: overdueOutstanding,
     overdueCollectedToday,
     overdueTotalTillToday,
     overdueCustomerCount,
+    overdueFrequencyBreakdown,
+    overdueStatusSummary,
     pendingPenaltyTotal,
     pendingPenaltyCount: pendingPenalties._count,
     overdueInstalments,
@@ -410,9 +758,7 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     bestPayer,
     pendingUpiCollections,
     pendingCashCollections,
-    totalDisbursed: accountEntries
-      .filter((e) => e.type === 'loan_disburse')
-      .reduce((sum, e) => sum + Number(e.amount), 0),
+    totalDisbursed: grossDisbursed,
     totalCollectedAllTime: accountEntries
       .filter((e) => e.type === 'collection')
       .reduce((sum, e) => sum + Number(e.amount), 0),
@@ -758,13 +1104,17 @@ export default async function DashboardPage() {
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
 
-  if (appType === 'chitfunds') redirect('/chits');
-
   const branding = await getBranding(tenantId);
   const dict = await getDictionary(tenantId);
   const d = dict.dashboard;
 
   const activeBranchId = await getActiveBranchId();
+
+  // Manual UPI verification is OFF by default — UPI collections auto-verify
+  // and credit the account at collection time, so the pending panel is only
+  // shown when the tenant explicitly opts into manual review (Settings).
+  const upiManualVerify =
+    (await getSetting(tenantId, 'upi_manual_verification', 'false')) === 'true';
 
   if (appType === 'chitfunds') {
     const chitData = await getChitFundsDashboardData(tenantId, activeBranchId);
@@ -1179,7 +1529,11 @@ export default async function DashboardPage() {
   const remainingPct = 100 - collectedPct;
   const overduePct = data.overdueTotalTillToday > 0 ? Math.min(100, Math.round((data.overdueCollectedToday / data.overdueTotalTillToday) * 100)) : 0;
   const overdueRemainingPct = 100 - overduePct;
-  const totalSplit = data.todayCollected;
+  // Total for the split = the sum of what each payment mode actually collected
+  // today (today's dues + overdue recovery). Using today's-dues-only here made
+  // the % overshoot (e.g. cash 14000 / 450 = 3111%); the denominator must be the
+  // same population as the bars it scales.
+  const totalSplit = Object.values(data.todayByMode).reduce((s: number, a) => s + Number(a || 0), 0);
   const modeConfig: Record<string, { label: string; icon: string; color: string; bg: string }> = {
     cash:   { label: 'Cash',   icon: 'payments',        color: '#16a34a', bg: '#f0fdf4' },
     upi:    { label: 'UPI',    icon: 'qr_code_scanner', color: '#7c3aed', bg: '#f5f3ff' },
@@ -1189,137 +1543,58 @@ export default async function DashboardPage() {
   };
   const activeModes = Object.entries(data.todayByMode).filter(([, amt]) => amt > 0);
 
+  // Auto Finance operations strip: today's due list, promise-to-pay follow-ups,
+  // the EMI calculator and the day-closing gate. Loaded only for that module,
+  // and tolerant of a workspace that has not run the HP migration yet.
+  let hpOps: {
+    dueToday: Awaited<ReturnType<typeof getTodayDueList>>;
+    promises: Awaited<ReturnType<typeof getPromisedCustomers>>;
+    closing: Awaited<ReturnType<typeof getDayClosingSnapshot>> | null;
+    gate: { blocked: boolean; message: string | null };
+  } | null = null;
+
+  if (appType === 'autofinance') {
+    const [dueToday, promises, closing, gate] = await Promise.all([
+      getTodayDueList(tenantId, appType).catch(() => []),
+      getPromisedCustomers(tenantId, appType).catch(() => []),
+      getDayClosingSnapshot().catch(() => null),
+      getDayClosingGate().catch(() => ({ blocked: false, pendingDate: null, message: null })),
+    ]);
+    hpOps = { dueToday, promises, closing, gate };
+  }
+
   return (
     <>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '12px' }}>
-      {/* Combined Today's Collection Progress Card */}
-      <Link href="/collection" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
-        <div className="card" style={{ height: '100%', padding: '20px 24px', background: 'linear-gradient(135deg, #f8faff 0%, #fff 100%)', border: '1px solid #e2e8f0' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span className="material-icons-outlined" style={{ color: 'var(--primary)', fontSize: '20px' }}>today</span>
-              <span style={{ fontWeight: 700, fontSize: '1rem', color: '#1e293b' }}>{d.todayCollection}</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: collectedPct >= 100 ? '#dcfce7' : collectedPct > 50 ? '#fef3c7' : '#fee2e2', padding: '4px 12px', borderRadius: '20px' }}>
-              <span className="material-icons-outlined" style={{ fontSize: '14px', color: collectedPct >= 100 ? '#16a34a' : collectedPct > 50 ? '#d97706' : '#dc2626' }}>
-                {collectedPct >= 100 ? 'check_circle' : 'schedule'}
-              </span>
-              <span style={{ fontWeight: 700, fontSize: '.85rem', color: collectedPct >= 100 ? '#16a34a' : collectedPct > 50 ? '#d97706' : '#dc2626' }}>
-                {collectedPct}% collected
-              </span>
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '20px' }}>
-            <div style={{ background: '#fff', borderRadius: '12px', padding: '14px 16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                <span className="material-icons-outlined" style={{ fontSize: '16px', color: '#64748b' }}>trending_up</span>
-                <span style={{ fontSize: '.72rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>{dict.reports.expected}</span>
-              </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#1e293b' }}>{formatCurrency(data.todayExpected, branding.currencySymbol)}</div>
-            </div>
-            <div style={{ background: '#f0fdf4', borderRadius: '12px', padding: '14px 16px', border: '1px solid #bbf7d0', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                <span className="material-icons-outlined" style={{ fontSize: '16px', color: '#16a34a' }}>check_circle</span>
-                <span style={{ fontSize: '.72rem', color: '#16a34a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>{dict.reports.collected}</span>
-              </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#15803d' }}>{formatCurrency(data.todayCollected, branding.currencySymbol)}</div>
-            </div>
-            <div style={{ background: data.todayGap > 0 ? '#fef2f2' : '#f0fdf4', borderRadius: '12px', padding: '14px 16px', border: `1px solid ${data.todayGap > 0 ? '#fecaca' : '#bbf7d0'}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                <span className="material-icons-outlined" style={{ fontSize: '16px', color: data.todayGap > 0 ? '#dc2626' : '#16a34a' }}>
-                  {data.todayGap > 0 ? 'pending' : 'check_circle'}
-                </span>
-                <span style={{ fontSize: '.72rem', color: data.todayGap > 0 ? '#dc2626' : '#16a34a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>{dict.loanDetail.remaining}</span>
-              </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 700, color: data.todayGap > 0 ? '#b91c1c' : '#15803d' }}>{formatCurrency(data.todayGap, branding.currencySymbol)}</div>
-            </div>
-          </div>
-
-          <div>
-            <div style={{ width: '100%', height: '10px', background: '#e2e8f0', borderRadius: '8px', overflow: 'hidden', display: 'flex' }}>
-              {collectedPct > 0 && (
-                <div style={{ width: `${collectedPct}%`, height: '100%', background: 'linear-gradient(90deg, #10B981 0%, #059669 100%)', borderRadius: collectedPct >= 100 ? '8px' : '8px 0 0 8px', transition: 'width 0.5s ease' }} />
-              )}
-              {remainingPct > 0 && collectedPct > 0 && (
-                <div style={{ width: `${remainingPct}%`, height: '100%', background: '#fecaca' }} />
-              )}
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', fontSize: '.68rem', color: '#94a3b8' }}>
-              <span>{branding.currencySymbol}0</span>
-              <span style={{ color: '#10B981', fontWeight: 600 }}>{formatCurrency(data.todayCollected, branding.currencySymbol)} collected</span>
-              <span>{formatCurrency(data.todayExpected, branding.currencySymbol)}</span>
-            </div>
-          </div>
-        </div>
-      </Link>
-
-      {/* Overdue Collection Card — past-due instalments only (yesterday & earlier) */}
-      <Link href="/collection?tab=overdue" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
-        <div className="card" style={{ height: '100%', padding: '20px 24px', background: 'linear-gradient(135deg, #fff7f7 0%, #fff 100%)', border: '1px solid #fecaca' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span className="material-icons-outlined" style={{ color: '#dc2626', fontSize: '20px' }}>warning_amber</span>
-              <span style={{ fontWeight: 700, fontSize: '1rem', color: '#1e293b' }}>{d.overdueCollection}</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: overduePct >= 100 ? '#dcfce7' : '#fee2e2', padding: '4px 12px', borderRadius: '20px' }}>
-              <span className="material-icons-outlined" style={{ fontSize: '14px', color: overduePct >= 100 ? '#16a34a' : '#dc2626' }}>
-                {overduePct >= 100 ? 'check_circle' : 'history'}
-              </span>
-              <span style={{ fontWeight: 700, fontSize: '.85rem', color: overduePct >= 100 ? '#16a34a' : '#dc2626' }}>
-                {overduePct}% recovered today
-              </span>
-            </div>
-          </div>
-          {/* Plain-language explainer so the card is self-explanatory */}
-          <div style={{ fontSize: '.72rem', color: '#94a3b8', marginBottom: '14px' }}>
-            Past dues only (not today&apos;s). &quot;Total&quot; is what was overdue at the start of today; it re-bases tomorrow as anything unpaid rolls over.
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '20px' }}>
-            <div style={{ background: '#fff', borderRadius: '12px', padding: '14px 16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                <span className="material-icons-outlined" style={{ fontSize: '16px', color: '#64748b' }}>receipt_long</span>
-                <span style={{ fontSize: '.72rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>{d.totalOverdue}</span>
-              </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#1e293b' }}>{formatCurrency(data.overdueTotalTillToday, branding.currencySymbol)}</div>
-            </div>
-            <div style={{ background: '#f0fdf4', borderRadius: '12px', padding: '14px 16px', border: '1px solid #bbf7d0', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                <span className="material-icons-outlined" style={{ fontSize: '16px', color: '#16a34a' }}>check_circle</span>
-                <span style={{ fontSize: '.72rem', color: '#16a34a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>{d.collectedToday}</span>
-              </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#15803d' }}>{formatCurrency(data.overdueCollectedToday, branding.currencySymbol)}</div>
-            </div>
-            <div style={{ background: data.overdueAmount > 0 ? '#fef2f2' : '#f0fdf4', borderRadius: '12px', padding: '14px 16px', border: `1px solid ${data.overdueAmount > 0 ? '#fecaca' : '#bbf7d0'}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                <span className="material-icons-outlined" style={{ fontSize: '16px', color: data.overdueAmount > 0 ? '#dc2626' : '#16a34a' }}>
-                  {data.overdueAmount > 0 ? 'pending' : 'check_circle'}
-                </span>
-                <span style={{ fontSize: '.72rem', color: data.overdueAmount > 0 ? '#dc2626' : '#16a34a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>{dict.loanDetail.remaining}</span>
-              </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 700, color: data.overdueAmount > 0 ? '#b91c1c' : '#15803d' }}>{formatCurrency(data.overdueAmount, branding.currencySymbol)}</div>
-            </div>
-          </div>
-
-          <div>
-            <div style={{ width: '100%', height: '10px', background: '#e2e8f0', borderRadius: '8px', overflow: 'hidden', display: 'flex' }}>
-              {overduePct > 0 && (
-                <div style={{ width: `${overduePct}%`, height: '100%', background: 'linear-gradient(90deg, #10B981 0%, #059669 100%)', borderRadius: overduePct >= 100 ? '8px' : '8px 0 0 8px', transition: 'width 0.5s ease' }} />
-              )}
-              {overdueRemainingPct > 0 && overduePct > 0 && (
-                <div style={{ width: `${overdueRemainingPct}%`, height: '100%', background: '#fecaca' }} />
-              )}
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', fontSize: '.68rem', color: '#94a3b8' }}>
-              <span>{branding.currencySymbol}0</span>
-              <span style={{ color: '#dc2626', fontWeight: 600 }}>{formatCurrency(data.overdueAmount, branding.currencySymbol)} still due</span>
-              <span>{formatCurrency(data.overdueTotalTillToday, branding.currencySymbol)}</span>
-            </div>
-          </div>
-        </div>
-      </Link>
-      </div>
+      {hpOps && (
+        <HpOperationsWidgets
+          dueToday={hpOps.dueToday}
+          promises={hpOps.promises}
+          closing={hpOps.closing}
+          gateBlocked={hpOps.gate.blocked}
+          gateMessage={hpOps.gate.message}
+          currencySymbol={branding.currencySymbol ?? '₹'}
+        />
+      )}
+      <CollectionBreakdownCards
+        todayData={{
+          total: data.todayStatusSummary.total,
+          active: data.todayStatusSummary.active,
+          inactive: data.todayStatusSummary.inactive,
+          breakdown: data.todayFrequencyBreakdown,
+        }}
+        overdueData={{
+          total: data.overdueStatusSummary.total,
+          active: data.overdueStatusSummary.active,
+          inactive: data.overdueStatusSummary.inactive,
+          breakdown: data.overdueFrequencyBreakdown,
+        }}
+        currencySymbol={branding.currencySymbol ?? '₹'}
+        dict={{
+          dashboard: d as any,
+          reports: dict.reports as any,
+          loanDetail: dict.loanDetail as any,
+        }}
+      />
 
       <div className="kpi-grid" style={{ marginTop: '12px' }}>
         <Link href="/customers?status=active" className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>
@@ -1504,16 +1779,13 @@ export default async function DashboardPage() {
                     <th>{dict.sidebar.customers}</th>
                     <th>{d.collectedToday}</th>
                     <th>{dict.loansList.overdue}</th>
-                    <th>{dict.customersList.action}</th>
                   </tr>
                 </thead>
                 <tbody>
+                  {/* Field cash settlement moved to Agent Wallet (handover flow) —
+                      no per-route Collect Cash action here anymore. */}
                   {data.routePerformance.map((route) => {
                     const routeCol = data.routeCollections?.find((rc: any) => rc.routeId === route.id);
-                    const agentId = data.pendingCashCollections?.find((p: any) => p.customer?.routeId === route.id)?.agentId;
-                    const pendingCash = data.pendingCashCollections
-                      ?.filter((p: any) => p.customer?.routeId === route.id)
-                      .reduce((sum: number, p: any) => sum + Number(p.receivedAmount), 0) || 0;
 
                     return (
                       <tr key={route.id}>
@@ -1525,18 +1797,6 @@ export default async function DashboardPage() {
                         </td>
                         <td style={{ color: route.overdue > 0 ? 'var(--danger)' : 'var(--success)', fontWeight: 700 }}>
                           {formatCurrency(route.overdue, branding.currencySymbol)}
-                        </td>
-                        <td>
-                          {agentId && pendingCash > 0 ? (
-                            <CollectCashButton
-                              routeId={route.id}
-                              agentId={agentId}
-                              pendingAmount={pendingCash}
-                              currencySymbol={branding.currencySymbol}
-                            />
-                          ) : (
-                            <span style={{ color: 'var(--text-light)', fontSize: '.8rem' }}>—</span>
-                          )}
                         </td>
                       </tr>
                     );
@@ -1558,7 +1818,7 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid-60-40" style={{ marginTop: '20px' }}>
+      <div className={upiManualVerify ? 'grid-60-40' : ''} style={{ marginTop: '20px' }}>
         <div className="card">
           <div className="card-header">
             <h3>{d.overdueAlerts}</h3>
@@ -1601,6 +1861,7 @@ export default async function DashboardPage() {
           )}
         </div>
 
+        {upiManualVerify && (
         <div className="card">
           <div className="card-header">
             <h3>{d.pendingUpiVerifications}</h3>
@@ -1648,6 +1909,7 @@ export default async function DashboardPage() {
             </div>
           )}
         </div>
+        )}
       </div>
 
       <div className="card" style={{ marginTop: '20px' }}>

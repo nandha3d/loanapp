@@ -1,0 +1,73 @@
+import prisma from '@/lib/db';
+import { getSetting } from '@/lib/tenant';
+import { notFound } from 'next/navigation';
+import Link from '@/components/layout/DashboardLink';
+import AuctionDetailClient from './AuctionDetailClient';
+import { getDictionary } from '@/lib/i18n';
+import { getWebChitScope, scopedChitGroupWhere } from '@/lib/chits/access';
+
+export default async function ChitAuctionDetailPage({ params }: { params: Promise<{ id: string; auctionId: string; module: string }> }) {
+  const { id, auctionId } = await params;
+  const scope = await getWebChitScope();
+  const tenantId = scope.tenantId;
+  const currencySymbol = await getSetting(tenantId, 'currency_symbol', '₹');
+  const dict = await getDictionary(tenantId);
+
+  const auction = await prisma.chitAuction.findFirst({
+    where: { id: auctionId, chitGroup: scopedChitGroupWhere(scope, { OR: [{ id }, { groupCode: id }] }) },
+    include: {
+      chitGroup: {
+        include: {
+          members: {
+            orderBy: { memberNumber: 'asc' },
+            include: { customer: { select: { id: true, name: true } } },
+          },
+        },
+      },
+      bids: {
+        orderBy: { bidTime: 'desc' },
+        include: { member: { include: { customer: { select: { name: true } } } } },
+      },
+      attendance: true,
+      winnerMember: { include: { customer: { select: { name: true } } } },
+    },
+  });
+  if (!auction) notFound();
+
+  const security = auction.winnerMemberId
+    ? await prisma.chitSecurity.findFirst({
+        where: { auctionId: auction.id, chitGroupId: auction.chitGroupId, tenantId },
+        orderBy: { updatedAt: 'desc' },
+      })
+    : null;
+  const securityDocuments = security
+    ? await prisma.chitDocument.findMany({
+        where: {
+          tenantId,
+          appType: scope.appType,
+          entityType: 'chit_security',
+          entityId: security.id,
+        },
+        orderBy: [{ documentType: 'asc' }, { uploadedAt: 'desc' }],
+      })
+    : [];
+
+  return (
+    <div>
+      <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Link href={`/chits/${auction.chitGroup.id}`} className="btn btn-ghost btn-sm">
+          <span className="material-icons-outlined" style={{ fontSize: '16px' }}>arrow_back</span>
+          {auction.chitGroup.name}
+        </Link>
+        <h2 style={{ margin: 0 }}>Auction — Period {auction.periodNumber}</h2>
+      </div>
+      <AuctionDetailClient
+        auction={JSON.parse(JSON.stringify(auction))}
+        security={security ? JSON.parse(JSON.stringify(security)) : null}
+        securityDocuments={JSON.parse(JSON.stringify(securityDocuments))}
+        currencySymbol={currencySymbol}
+        dict={dict}
+      />
+    </div>
+  );
+}

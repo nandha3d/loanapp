@@ -5,7 +5,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
-import 'package:loantrack/data/services/collection_service.dart';
+import 'package:zolofund/data/services/collection_service.dart';
 
 /// Local offline queue for collection submissions.
 ///

@@ -36,6 +36,8 @@ class CollectionRow {
     required this.customerId,
     required this.customerName,
     required this.customerCode,
+    this.customerPhoto,
+    required this.customerPhone,
     required this.routeName,
     required this.dueAmount,
     required this.receivedAmount,
@@ -53,6 +55,8 @@ class CollectionRow {
   final String customerId;
   final String customerName;
   final String customerCode;
+  final String? customerPhoto;
+  final String customerPhone;
   final String? routeName;
   final double dueAmount;
   final double receivedAmount;
@@ -63,13 +67,28 @@ class CollectionRow {
   final String? collectionEntryId;
   final String? frequency;
 
-  double get outstanding => dueAmount - receivedAmount;
+  double get outstanding {
+    final value = dueAmount - receivedAmount;
+    return value > 0 ? value : 0;
+  }
+
+  bool get isResolved => status == 'paid' || outstanding <= 0;
+
   int get daysOverdue {
     final today = DateTime.now();
     final due = DateTime(dueDate.year, dueDate.month, dueDate.day);
     final t = DateTime(today.year, today.month, today.day);
     return t.difference(due).inDays;
   }
+
+  bool get isTodayBucket => daysOverdue <= 0;
+
+  bool get isOverdueBucket => daysOverdue > 0;
+
+  double get todayOutstanding => !isResolved && isTodayBucket ? outstanding : 0;
+
+  double get overdueOutstanding =>
+      !isResolved && isOverdueBucket ? outstanding : 0;
 
   factory CollectionRow.fromJson(Map<String, dynamic> json) {
     double n(dynamic v) => v == null
@@ -85,6 +104,8 @@ class CollectionRow {
       customerId: (customer['id'] as String?) ?? '',
       customerName: (customer['name'] as String?) ?? '—',
       customerCode: (customer['customerCode'] as String?) ?? '',
+      customerPhoto: customer['profilePhoto'] as String?,
+      customerPhone: (customer['phone'] as String?) ?? '',
       routeName: route?['name'] as String?,
       dueAmount: n(json['dueAmount']),
       receivedAmount: n(json['receivedAmount']),
@@ -94,6 +115,50 @@ class CollectionRow {
       lng: customer['lng'] == null ? null : n(customer['lng']),
       collectionEntryId: json['collectionEntryId'] as String?,
       frequency: loan['frequency'] as String?,
+    );
+  }
+}
+
+class SelfPayQueueItem {
+  const SelfPayQueueItem({
+    required this.token,
+    required this.amount,
+    required this.status,
+    required this.channel,
+    required this.createdAt,
+    required this.expiresAt,
+    required this.loanCode,
+    required this.customerName,
+    required this.customerCode,
+    required this.phone,
+  });
+
+  final String token;
+  final double amount;
+  final String status;
+  final String channel;
+  final DateTime createdAt;
+  final DateTime expiresAt;
+  final String loanCode;
+  final String customerName;
+  final String customerCode;
+  final String phone;
+
+  factory SelfPayQueueItem.fromJson(Map<String, dynamic> json) {
+    double n(dynamic v) => v == null
+        ? 0
+        : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
+    return SelfPayQueueItem(
+      token: (json['token'] as String?) ?? '',
+      amount: n(json['amount']),
+      status: (json['status'] as String?) ?? 'active',
+      channel: (json['channel'] as String?) ?? 'upi',
+      createdAt: DateTime.parse(json['createdAt'] as String).toLocal(),
+      expiresAt: DateTime.parse(json['expiresAt'] as String).toLocal(),
+      loanCode: (json['loanCode'] as String?) ?? '',
+      customerName: (json['customerName'] as String?) ?? '-',
+      customerCode: (json['customerCode'] as String?) ?? '',
+      phone: (json['phone'] as String?) ?? '',
     );
   }
 }

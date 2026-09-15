@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { calculateVerticalSubscriptionPricing } from '@/lib/pricing';
 import { getSupabaseBrowser, isSupabaseAuthEnabled } from '@/lib/supabase/browser';
+import { withBasePath } from '@/lib/public-path';
+import PasswordInput from '@/components/ui/PasswordInput';
 
 type AvailabilityFieldState = {
   checking: boolean;
@@ -55,16 +57,14 @@ function RegisterForm() {
   const [ownerEmail, setOwnerEmail] = useState(googleEmail || '');
   const [phoneError, setPhoneError] = useState('');
   const [emailError, setEmailError] = useState('');
-  const [ownerUsername, setOwnerUsername] = useState(
-    googleEmail ? googleEmail.split('@')[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase() : ''
-  );
   const [ownerPassword, setOwnerPassword] = useState('');
   const [availability, setAvailability] = useState<AvailabilityState>({
     username: emptyAvailabilityField,
     phone: emptyAvailabilityField,
     email: emptyAvailabilityField,
   });
-  const [selectedPlan, setSelectedPlan] = useState('basic');
+  const [selectedPlan, setSelectedPlan] = useState('free');
+  const [paymentOption, setPaymentOption] = useState<'pay_now' | 'trial'>('pay_now');
   const [selectedModules, setSelectedModules] = useState(['microlending']);
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -104,10 +104,14 @@ function RegisterForm() {
         const res = await fetch('/api/pricing');
         const data = await res.json();
         if (data.success) {
-          setCatalog(data);
-          // Set default plan to first active plan in catalog
-          if (data.plans?.length > 0) {
-            setSelectedPlan(data.plans[0].plan);
+          const plans = data.plans || [];
+          setCatalog({ ...data, plans });
+          if (plans.length > 0) {
+            // Default to collector/basic if available, or first plan
+            const defaultPlan = plans.find((p: any) => p.plan === 'collector' || p.plan === 'basic') || plans[0];
+            setSelectedPlan(defaultPlan.plan);
+          } else {
+            setError('No subscription plans are currently available.');
           }
         } else {
           setError('Failed to load pricing information');
@@ -122,8 +126,10 @@ function RegisterForm() {
   }, []);
 
   useEffect(() => {
-    const username = ownerUsername.trim();
-    const phone = ownerPhone.trim();
+    // Phone number doubles as the default login username, so check both.
+    const phoneResult = validateIndianMobile(ownerPhone);
+    const phone = phoneResult.ok ? phoneResult.value : ownerPhone.trim();
+    const username = phone;
     const email = (googleEmail || ownerEmail).trim();
     const params = new URLSearchParams();
     if (username) params.set('username', username);
@@ -178,7 +184,7 @@ function RegisterForm() {
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [googleEmail, ownerEmail, ownerPhone, ownerUsername]);
+  }, [googleEmail, ownerEmail, ownerPhone]);
 
   const handleModuleToggle = (moduleKey: string) => {
     if (selectedModules.includes(moduleKey)) {
@@ -223,7 +229,7 @@ function RegisterForm() {
 
   const handleNext = () => {
     if (step === 1) {
-      if (!businessName || !ownerName || !ownerPhone || !ownerUsername || (!isGoogleRegister && !ownerPassword)) {
+      if (!businessName || !ownerName || !ownerPhone || (!isGoogleRegister && !ownerPassword)) {
         setError('Please fill in all owner and business details.');
         return;
       }
@@ -325,6 +331,7 @@ function RegisterForm() {
             selectedPlan,
             selectedModules,
             selectedAddons,
+            paymentOption: selectedPlan === 'free' ? 'free' : paymentOption,
             referralCode
           }
         : {
@@ -332,11 +339,11 @@ function RegisterForm() {
             ownerName,
             ownerPhone,
             ownerEmail,
-            ownerUsername,
             ownerPassword,
             selectedPlan,
             selectedModules,
             selectedAddons,
+            paymentOption: selectedPlan === 'free' ? 'free' : paymentOption,
             referralCode
           };
 
@@ -375,6 +382,13 @@ function RegisterForm() {
       }
 
       // Successfully registered.
+      // If Razorpay subscription checkout URL was generated (direct payment),
+      // redirect the user immediately to payment options!
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+        return;
+      }
+
       if (isGoogleRegister) {
         // Bridge the existing Supabase (Google) session straight into the app
         // session. Fall back to the legacy NextAuth Google provider if needed.
@@ -384,7 +398,7 @@ function RegisterForm() {
           await signIn('google', { callbackUrl: '/portal' });
         }
       } else {
-        router.push(`/login?registerPending=1&username=${encodeURIComponent(ownerUsername)}`);
+        router.push(`/login?registerPending=1&emailSent=${data.emailSent ? 1 : 0}&username=${encodeURIComponent(data.username || ownerPhone)}&email=${encodeURIComponent(ownerEmail || '')}`);
       }
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred');
@@ -409,7 +423,7 @@ function RegisterForm() {
         
         {/* Header */}
         <div className="login-logo" style={{ marginBottom: '16px' }}>
-          <img src="/assets/logo.svg" alt="LoanTrack" />
+          <img src={withBasePath('/assets/logo.svg')} alt="ZoloFund" />
           <h1>Loan<span>Track</span></h1>
         </div>
         <h2 style={{ textAlign: 'center', fontSize: '1.2rem', marginBottom: '8px', color: 'var(--text-primary)' }}>
@@ -501,11 +515,19 @@ function RegisterForm() {
                     required
                   />
                   {phoneError && <small style={{ color: 'var(--danger)', fontSize: '0.75rem' }}>{phoneError}</small>}
-                  {!phoneError && availability.phone.checking && (
+                  {!phoneError && (availability.phone.checking || availability.username.checking) && (
                     <small style={{ color: 'var(--text-light)', fontSize: '0.75rem' }}>Checking phone number...</small>
                   )}
                   {!phoneError && availability.phone.available === false && (
                     <small style={{ color: 'var(--danger)', fontSize: '0.75rem' }}>{availability.phone.message}</small>
+                  )}
+                  {!phoneError && availability.phone.available !== false && availability.username.available === false && (
+                    <small style={{ color: 'var(--danger)', fontSize: '0.75rem' }}>{availability.username.message}</small>
+                  )}
+                  {!phoneError && !availability.phone.checking && !availability.username.checking && availability.phone.available !== false && availability.username.available !== false && (
+                    <small style={{ color: 'var(--text-light)', fontSize: '0.75rem' }}>
+                      Your phone number is also your login username.
+                    </small>
                   )}
                 </div>
               </div>
@@ -537,38 +559,18 @@ function RegisterForm() {
                 </div>
               )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: isGoogleRegister ? '1fr' : '1fr 1fr', gap: '16px' }}>
+              {!isGoogleRegister && (
                 <div className="form-group">
-                  <label className="form-label">Owner Login Username</label>
-                  <input
-                    type="text"
+                  <label className="form-label">Login Password</label>
+                  <PasswordInput
                     className="form-control"
-                    placeholder="Choose login username"
-                    value={ownerUsername}
-                    onChange={(e) => setOwnerUsername(e.target.value)}
+                    placeholder="Choose password"
+                    value={ownerPassword}
+                    onChange={(e) => setOwnerPassword(e.target.value)}
                     required
                   />
-                  {availability.username.checking && (
-                    <small style={{ color: 'var(--text-light)', fontSize: '0.75rem' }}>Checking username...</small>
-                  )}
-                  {availability.username.available === false && (
-                    <small style={{ color: 'var(--danger)', fontSize: '0.75rem' }}>{availability.username.message}</small>
-                  )}
                 </div>
-                {!isGoogleRegister && (
-                  <div className="form-group">
-                    <label className="form-label">Login Password</label>
-                    <input
-                      type="password"
-                      className="form-control"
-                      placeholder="Choose password"
-                      value={ownerPassword}
-                      onChange={(e) => setOwnerPassword(e.target.value)}
-                      required
-                    />
-                  </div>
-                )}
-              </div>
+              )}
             </div>
           )}
 
@@ -596,7 +598,7 @@ function RegisterForm() {
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                         <span className="material-icons-outlined" style={{ fontSize: '24px', color: isEnabled ? 'var(--primary)' : 'var(--text-light)' }}>
-                          {m.module === 'microlending' ? 'monetization_on' : m.module === 'autofinance' ? 'directions_car' : m.module === 'goldloan' ? 'account_balance' : 'groups'}
+                          {m.module === 'microlending' ? 'monetization_on' : m.module === 'autofinance' ? 'directions_car' : m.module === 'goldloan' ? 'account_balance' : m.module === 'property' ? 'home_work' : m.module === 'productfinance' ? 'shopping_bag' : 'groups'}
                         </span>
                         <div style={{ textAlign: 'left' }}>
                           <div style={{ fontWeight: 600, fontSize: '0.92rem' }}>{m.displayName}</div>
@@ -628,7 +630,7 @@ function RegisterForm() {
           {step === 3 && (
             <div>
               <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: '24px' }}>
-                Select a subscription plan that fits your business scale. The selected plan is billed once for each active vertical.
+                Select a subscription plan that fits your business scale. Choose Free to get started immediately, or a paid plan with direct payment or trial options.
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
                 {catalog.plans.map((p: any) => {
@@ -655,12 +657,15 @@ function RegisterForm() {
                         {p.plan}
                       </span>
                       <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                        ₹{p.monthlyPrice}
-                        <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 400 }}>/vertical/mo</span>
+                        {p.monthlyPrice === 0 ? 'Free' : `₹${p.monthlyPrice}`}
+                        {p.monthlyPrice > 0 && <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 400 }}>/vertical/mo</span>}
                       </div>
                       <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '8px 0 16px', minHeight: '36px' }}>
                         {p.description}
                       </p>
+                      <div style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--primary)', marginBottom: '12px' }}>
+                        {p.monthlyPrice === 0 ? 'Free forever' : (Number(p.trialDays) > 0 ? `${p.trialDays}-day trial or pay now` : 'Direct activation')}
+                      </div>
                       <div style={{ borderTop: '1px solid var(--border)', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.78rem', color: 'var(--text-secondary)', textAlign: 'left', flexGrow: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <span className="material-icons-outlined" style={{ fontSize: '14px', color: 'var(--success)' }}>check</span>
@@ -758,12 +763,86 @@ function RegisterForm() {
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ color: 'var(--text-secondary)' }}>Owner Profile</div>
                       <strong style={{ display: 'block', fontSize: '0.95rem', marginTop: '2px' }}>{ownerName}</strong>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>@{ownerUsername} • {ownerPhone}</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{ownerPhone} (login username)</span>
                     </div>
                   </div>
 
                   {/* Pricing Quote Table */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.85rem' }}>
+                    {selectedPlan === 'free' ? (
+                      <div style={{ padding: '12px 14px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', color: 'var(--text-primary)' }}>
+                        <strong style={{ display: 'block', color: 'var(--success)', marginBottom: '4px' }}>Free Tier Plan</strong>
+                        Always free with up to 25 active loans and 1 agent. No payment or credit card required today.
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '8px' }}>
+                        <label style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                          Subscription Activation Choice
+                        </label>
+                        
+                        <div
+                          onClick={() => setPaymentOption('pay_now')}
+                          style={{
+                            padding: '12px 16px', borderRadius: '8px', cursor: 'pointer',
+                            border: `2px solid ${paymentOption === 'pay_now' ? 'var(--primary)' : 'var(--border)'}`,
+                            background: paymentOption === 'pay_now' ? 'var(--bg-light)' : 'transparent',
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <input
+                              type="radio"
+                              name="payment_pref"
+                              checked={paymentOption === 'pay_now'}
+                              onChange={() => setPaymentOption('pay_now')}
+                            />
+                            <div>
+                              <div style={{ fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                Pay Now & Activate Subscription
+                                <span className="badge badge-primary" style={{ fontSize: '0.65rem' }}>Direct Checkout</span>
+                              </div>
+                              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                Pay ₹{quote.total}/mo now via Razorpay. Your workspace is immediately fully activated.
+                              </div>
+                            </div>
+                          </div>
+                          <span style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '0.95rem' }}>
+                            ₹{quote.total}/mo
+                          </span>
+                        </div>
+
+                        <div
+                          onClick={() => setPaymentOption('trial')}
+                          style={{
+                            padding: '12px 16px', borderRadius: '8px', cursor: 'pointer',
+                            border: `2px solid ${paymentOption === 'trial' ? 'var(--primary)' : 'var(--border)'}`,
+                            background: paymentOption === 'trial' ? 'var(--bg-light)' : 'transparent',
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <input
+                              type="radio"
+                              name="payment_pref"
+                              checked={paymentOption === 'trial'}
+                              onChange={() => setPaymentOption('trial')}
+                            />
+                            <div>
+                              <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                                Start 14-Day Free Trial
+                              </div>
+                              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                Full access for 14 days without upfront charge. Payment required at the end of the trial.
+                              </div>
+                            </div>
+                          </div>
+                          <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                            14 Days Free
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span>Base Vertical Subscription ({selectedPlan.toUpperCase()})</span>
                       <strong style={{ color: 'var(--text-primary)' }}>₹{quote.base}/mo</strong>
@@ -797,7 +876,7 @@ function RegisterForm() {
                   style={{ marginTop: '4px' }}
                 />
                 <label htmlFor="terms" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                  I accept the Terms of Service, privacy policy and authorize LoanTrack to set up my workspace trial database immediately.
+                  I accept the Terms of Service, privacy policy and authorize ZoloFund to set up my workspace database immediately.
                 </label>
               </div>
 
@@ -811,7 +890,7 @@ function RegisterForm() {
                 <span className="material-icons-outlined">arrow_back</span> Back
               </button>
             ) : (
-              <a href="/login" className="btn btn-ghost" style={{ textDecoration: 'none' }}>
+              <a href={withBasePath('/login')} className="btn btn-ghost" style={{ textDecoration: 'none' }}>
                 Cancel
               </a>
             )}
@@ -822,7 +901,13 @@ function RegisterForm() {
               </button>
             ) : (
               <button type="submit" className="btn btn-primary" disabled={loading}>
-                {loading ? 'Setting up Workspace...' : 'Register Business'}
+                {loading
+                  ? (paymentOption === 'pay_now' && selectedPlan !== 'free' ? 'Preparing Payment...' : 'Setting up Workspace...')
+                  : selectedPlan === 'free'
+                  ? 'Register Free Workspace'
+                  : paymentOption === 'pay_now'
+                  ? `Proceed to Payment (₹${quote.total})`
+                  : 'Start 14-Day Free Trial'}
               </button>
             )}
           </div>

@@ -148,6 +148,7 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
                 OR: [
                   { username },
                   { phone: username },
+                  { email: username },
                 ],
                 // Status checked after password verification (below) so we can
                 // distinguish "wrong credentials" from "email not verified".
@@ -192,6 +193,18 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
           if (user.status !== 'active') {
             console.warn(`[AUTH_WARN] Inactive account (${user.status}) for user: ${username}`);
             return null;
+          }
+
+          // ── Allowed login window (Auto Finance collection agents) ────────────
+          // Owners are exempt so a mis-set window can never lock the workspace
+          // out of its own admin console.
+          if (user.role !== 'superadmin' && user.role !== 'developer') {
+            const { checkLoginWindow } = await import('./autofinance/operations');
+            const windowCheck = checkLoginWindow(user);
+            if (!windowCheck.allowed) {
+              console.warn(`[AUTH_WARN] Outside login window (${windowCheck.window}) for user: ${username}`);
+              throw new Error('LOGIN_WINDOW_CLOSED');
+            }
           }
 
           // ── 2FA Verification ─────────────────────────────────────────────────
@@ -291,7 +304,7 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
           let hostTenantId: string | null = null;
           try {
             const h = await (await import('next/headers')).headers();
-            const host = h.get('x-loantrack-host') || h.get('host');
+            const host = h.get('x-zolofund-host') || h.get('host');
             hostTenantId = await resolveLoginTenantId(host);
           } catch { /* no host context — fall back to global lookup */ }
 
@@ -351,6 +364,50 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
     }),
   ],
   callbacks: {
+    // Multi-domain SaaS: sign-in/sign-out happens on tenant subdomains and
+    // registered custom domains. The default same-origin check compares against
+    // NEXTAUTH_URL (the root SaaS host), so a logout on a client domain would
+    // bounce the browser to the root host — where a different session (e.g. the
+    // developer account) may still be active. Allow the root domain, its
+    // subdomains, and any tenant-claimed custom domain; everything else falls
+    // back to baseUrl.
+    async redirect({ url, baseUrl }: any) {
+      if (url.startsWith('/')) return `${baseUrl}${url}`;
+      try {
+        const target = new URL(url);
+        if (target.origin === baseUrl) return url;
+        if (target.protocol !== 'https:' && target.protocol !== 'http:') return baseUrl;
+
+        const hostname = target.hostname.toLowerCase();
+        const rootDomain = (
+          process.env.NEXT_PUBLIC_ROOT_DOMAIN || process.env.APP_ROOT_DOMAIN || ''
+        ).toLowerCase().split(':')[0];
+        if (rootDomain && (hostname === rootDomain || hostname.endsWith(`.${rootDomain}`))) {
+          return url;
+        }
+
+        // Explicitly configured standalone client domains (comma-separated,
+        // e.g. "loan.samuraibuiness.in"). Covers domains routed to this app
+        // before any tenant has claimed them (pre-registration), without
+        // opening redirects to arbitrary hosts.
+        const standaloneDomains = (process.env.STANDALONE_DOMAINS || '')
+          .toLowerCase()
+          .split(',')
+          .map((d) => d.trim().split(':')[0])
+          .filter(Boolean);
+        if (standaloneDomains.includes(hostname)) return url;
+
+        const prisma = (await import('./db')).default;
+        const tenant = await prisma.tenant.findUnique({
+          where: { customDomain: hostname },
+          select: { id: true },
+        });
+        if (tenant) return url;
+      } catch (err) {
+        console.error('[AUTH_REDIRECT_CALLBACK_ERROR]', err);
+      }
+      return baseUrl;
+    },
     async signIn({ user, account }: any) {
       if (account?.provider === 'google') {
         try {
@@ -479,6 +536,19 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
       // apiToken already expired) or we're within 2 minutes of expiry.
       if (token.apiToken && (!token.apiTokenExp || Date.now() > (token.apiTokenExp as number) - 2 * 60 * 1000)) {
         try {
+          // Re-read the branch instead of re-signing the one captured at
+          // sign-in. v1 pins an admin/agent to the branch in their token, so a
+          // stale claim left them looking at the branch they were moved OFF:
+          // their customers and loans came from the old branch while the
+          // approvals page, which reads the branch from the DB, showed the new
+          // one. Bounded to one lookup per token refresh (~15 min).
+          const prisma = (await import('./db')).default;
+          const fresh = await prisma.user.findUnique({
+            where: { id: token.userId },
+            select: { branchId: true },
+          });
+          if (fresh) token.branchId = fresh.branchId;
+
           const { issueMobileToken } = await import('@/lib/api/v1-auth');
           const apiToken = await issueMobileToken({
             userId: token.userId,
@@ -504,9 +574,10 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
           const prisma = (await import('./db')).default;
           let dbUser = await prisma.user.findUnique({
             where: { id: token.userId },
-            select: { 
-              role: true, 
-              appType: true, 
+            select: {
+              role: true,
+              isPrimaryAdmin: true,
+              appType: true,
               branchId: true,
               tenantId: true,
               phone: true,
@@ -568,6 +639,7 @@ export const { handlers, signIn, signOut, auth } = (NextAuth as any)({
           // reassign dbUser, which loses the earlier narrowing.
           if (!dbUser) return null;
           (session.user as any).role = dbUser.role;
+          (session.user as any).isPrimaryAdmin = dbUser.isPrimaryAdmin;
           (session.user as any).appType = dbUser.appType;
           (session.user as any).branchId = dbUser.branchId;
           (session.user as any).tenantId = dbUser.tenantId;

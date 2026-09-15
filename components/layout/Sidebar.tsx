@@ -31,6 +31,7 @@ export default function Sidebar({
   userName,
   modulePrefix,
   subscription,
+  pendingApprovals = 0,
 }: {
   appType?: string;
   enabledModules?: string[];
@@ -43,6 +44,7 @@ export default function Sidebar({
     kycEnabled?: boolean;
     premiumAccountingEnabled?: boolean;
   } | null;
+  pendingApprovals?: number;
 }) {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
@@ -57,26 +59,29 @@ export default function Sidebar({
 
   const navItems: NavItem[] = [
     { section: dict.sidebar.sections.main },
-    { id: 'agent-dashboard', icon: 'dashboard', label: dict.sidebar.dashboard, href: '/agent-dashboard', agentOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
-    { id: 'dashboard', icon: 'dashboard', label: dict.sidebar.dashboard, href: '/dashboard', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
-    { id: 'collection', icon: 'point_of_sale', label: dict.sidebar.collection, href: '/collection' },
-    { id: 'route-tracker', icon: 'map', label: dict.sidebar.routeTracker, href: '/route-tracker', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
+    { id: 'agent-dashboard', icon: 'dashboard', label: dict.sidebar.dashboard, href: '/agent-dashboard', agentOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan', 'property', 'productfinance'] },
+    { id: 'dashboard', icon: 'dashboard', label: dict.sidebar.dashboard, href: '/dashboard', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan', 'chitfunds', 'property', 'productfinance'] },
+    { id: 'collection', icon: 'point_of_sale', label: dict.sidebar.collection, href: '/collection', appTypes: ['microlending', 'autofinance', 'goldloan', 'chitfunds', 'property', 'productfinance'] },
+    { id: 'route-tracker', icon: 'map', label: dict.sidebar.routeTracker, href: '/route-tracker', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan', 'property', 'productfinance'] },
     { section: dict.sidebar.sections.management },
     { id: 'customers', icon: 'people', label: dict.sidebar.customers, href: '/customers' },
-    { id: 'loans', icon: 'account_balance', label: dict.sidebar.loans, href: '/loans', appTypes: ['microlending', 'autofinance', 'goldloan'] },
-    { id: 'vehicles', icon: 'directions_car', label: dict.sidebar.vehicles, href: '/vehicles', adminOnly: true, appTypes: ['autofinance'] },
+    { id: 'loans', icon: 'account_balance', label: dict.sidebar.loans, href: '/loans', appTypes: ['microlending', 'autofinance', 'goldloan', 'property', 'productfinance'] },
+    { id: 'vehicles', icon: 'directions_car', label: dict.sidebar.vehicles, href: '/vehicles', appTypes: ['autofinance'] },
+    { id: 'pending-tasks', icon: 'fact_check', label: dict.sidebar.pendingTasks, href: '/pending-tasks', adminOnly: true, appTypes: ['autofinance'] },
+    { id: 'finance-partners', icon: 'handshake', label: dict.sidebar.financePartners, href: '/finance-partners', adminOnly: true, appTypes: ['autofinance'] },
     { id: 'chits', icon: 'savings', label: dict.sidebar.chits, href: '/chits', adminOnly: true, appTypes: ['chitfunds'] },
-    { id: 'penalties', icon: 'gavel', label: dict.sidebar.penalties, href: '/penalties', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
-    { id: 'approvals', icon: 'verified', label: dict.sidebar.approvals, href: '/approvals', appTypes: ['microlending', 'autofinance', 'goldloan'] },
-    { id: 'kyc-review', icon: 'rate_review', label: dict.sidebar.kycReview, href: '/kyc-review', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
-    { id: 'accounting', icon: 'account_balance_wallet', label: dict.sidebar.accounting, href: '/accounting', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
-    { id: 'wallet', icon: 'payments', label: (dict.sidebar as any).wallet || 'Cash Float', href: '/wallet', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
+    { id: 'penalties', icon: 'gavel', label: dict.sidebar.penalties, href: '/penalties', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan', 'property', 'productfinance'] },
+    { id: 'approvals', icon: 'verified', label: dict.sidebar.approvals, href: '/approvals', appTypes: ['microlending', 'autofinance', 'goldloan', 'property', 'productfinance'] },
+    { id: 'kyc-review', icon: 'rate_review', label: dict.sidebar.kycReview, href: '/kyc-review', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan', 'property', 'productfinance'] },
+    { id: 'accounting', icon: 'account_balance_wallet', label: dict.sidebar.accounting, href: '/accounting', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan', 'chitfunds', 'property', 'productfinance'] },
+    { id: 'wallet', icon: 'payments', label: ((dict.sidebar as any).wallet || 'Agent Wallet'), href: '/wallet', appTypes: ['microlending', 'autofinance', 'goldloan', 'property', 'productfinance'] },
     { section: dict.sidebar.sections.insights },
-    { id: 'analytics', icon: 'insights', label: dict.sidebar.analytics, href: '/analytics', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
+    { id: 'analytics', icon: 'insights', label: dict.sidebar.analytics, href: '/analytics', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan', 'chitfunds', 'property', 'productfinance'] },
     { id: 'notifications', icon: 'notifications', label: dict.sidebar.notifications, href: '/notifications' },
     { id: 'settings', icon: 'settings', label: dict.sidebar.settings, href: '/settings', adminOnly: true },
-    { id: 'payment-gateway', icon: 'account_balance', label: 'Payments Gateway', href: '/settings/payment-gateway', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan'] },
+    { id: 'payment-gateway', icon: 'account_balance', label: 'Payments Gateway', href: '/settings/payment-gateway', adminOnly: true, appTypes: ['microlending', 'autofinance', 'goldloan', 'property', 'productfinance'] },
     { section: dict.sidebar.sections.account },
+    { id: 'profile', icon: 'account_circle', label: (dict.sidebar as any).profile || 'Profile', href: '/profile', superadminOnly: true },
     { id: 'branch-requests', icon: 'account_tree', label: dict.sidebar.branchRequests, href: '/branch-requests', superadminOnly: true },
     { id: 'subscription', icon: 'credit_card', label: dict.sidebar.subscription, href: '/subscription', superadminOnly: true },
     { id: 'affiliate', icon: 'handshake', label: dict.sidebar.affiliate || 'Affiliate Program', href: '/affiliate', superadminOnly: true },
@@ -108,7 +113,7 @@ export default function Sidebar({
 
     // Check if the route is enabled for the active app module
     if (item.href) {
-      const alwaysVisible = ['/dashboard', '/agent-dashboard', '/collection', '/approvals', '/settings', '/notifications', '/subscription', '/affiliate', '/portal', '/admin', '/kyc-review'];
+      const alwaysVisible = ['/dashboard', '/agent-dashboard', '/collection', '/approvals', '/settings', '/notifications', '/subscription', '/profile', '/affiliate', '/portal', '/admin', '/kyc-review'];
       if (!alwaysVisible.some((path) => item.href!.startsWith(path))) {
         const routeEnabled = MODULE_ROUTES[userAppType as ModuleKey]?.some((route: string) =>
           item.href!.startsWith(route)
@@ -153,13 +158,13 @@ export default function Sidebar({
 
   return (
     <>
-      <aside className={`sidebar ${isOpen ? 'open' : ''}`} id="sidebar"
-        style={{ '--primary': appConfig.primaryColor, '--primary-dark': appConfig.primaryDark } as React.CSSProperties}
-      >
+      {/* Colours inherit from the .app-layout wrapper so the tenant theme
+          (Settings → Theme) wins over the static per-module palette. */}
+      <aside className={`sidebar ${isOpen ? 'open' : ''}`} id="sidebar">
         <div className="sidebar-brand">
           <div style={{
             width: '36px', height: '36px', borderRadius: '10px',
-            background: appConfig.primaryColor, display: 'flex',
+            background: 'var(--primary)', display: 'flex',
             alignItems: 'center', justifyContent: 'center', flexShrink: 0,
           }}>
             <span className="material-icons-outlined" style={{ color: '#fff', fontSize: '20px' }}>{appConfig.icon}</span>
@@ -181,20 +186,33 @@ export default function Sidebar({
                 onClick={() => document.getElementById('sidebar')?.classList.remove('open')}
               >
                 <span className="material-icons-outlined">{item.icon}</span>
-                {item.label}
+                <span style={{ flex: 1 }}>{item.label}</span>
+                {item.id === 'approvals' && pendingApprovals > 0 && (
+                  <span className="nav-badge" aria-label={`${pendingApprovals} pending approvals`}>
+                    {pendingApprovals > 99 ? '99+' : pendingApprovals}
+                  </span>
+                )}
               </Link>
             );
           })}
         </nav>
 
         <div className="sidebar-footer">
-          <div className="user-info">
+          <Link
+            href={prefixDashboardHref('/profile', hrefModule)}
+            onClick={() => document.getElementById('sidebar')?.classList.remove('open')}
+            className="user-info user-info-link"
+            title="Edit profile"
+          >
             <div className="avatar">{getInitials(userName)}</div>
-            <div>
-              <div className="user-name">{userName}</div>
+            <div style={{ minWidth: 0 }}>
+              <div className="user-name">
+                {userName}
+                <span className="material-icons-outlined user-name-edit-icon">edit</span>
+              </div>
               <div className="user-role">{getRoleName(role)}</div>
             </div>
-          </div>
+          </Link>
           {role !== 'developer' && (role === 'superadmin' || (role === 'admin' && enabledModules.length > 1)) && (
             <Link 
               href="/portal" 

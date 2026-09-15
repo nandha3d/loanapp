@@ -19,9 +19,12 @@ export async function PATCH(
   try {
     const body = await req.json();
     const { toggleUserStatus, manageMasterUser } = await import('@/app/admin/actions');
+    // Server actions normally read the NextAuth cookie session; mobile auth is
+    // a Bearer token, so pass the verified context as the acting user.
+    const actor = { id: ctx.userId, role: ctx.role, tenantId: ctx.tenantId };
 
     if (body.status && Object.keys(body).length === 1) {
-      const res = await toggleUserStatus(id, body.status);
+      const res = await toggleUserStatus(id, body.status, actor);
       if (res.success) return ok({ success: true });
       return fail('Failed to update status', 400);
     }
@@ -38,7 +41,7 @@ export async function PATCH(
     if (body.branchId) formData.append('branchId', body.branchId);
     if (body.status) formData.append('status', body.status);
 
-    const res = await manageMasterUser(formData);
+    const res = await manageMasterUser(formData, actor);
     if (res.success) return ok(res);
     return fail(res.error || 'Failed to update user', 400);
   } catch (e: any) {

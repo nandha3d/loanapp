@@ -1,4 +1,4 @@
-import 'package:loantrack/core/currency/currency_controller.dart';
+import 'package:zolofund/core/currency/currency_controller.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -8,14 +8,15 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 
-import 'package:loantrack/core/l10n/language_controller.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/models/agent_location.dart';
-import 'package:loantrack/features/admin/tracking/tracking_provider.dart';
-import 'package:loantrack/shared/widgets/bottom_nav.dart';
-import 'package:loantrack/shared/widgets/empty_state.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/network/authed_image.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/models/agent_location.dart';
+import 'package:zolofund/features/admin/tracking/tracking_provider.dart';
+import 'package:zolofund/shared/widgets/bottom_nav.dart';
+import 'package:zolofund/shared/widgets/empty_state.dart';
 
 class AgentTrackingScreen extends ConsumerStatefulWidget {
   const AgentTrackingScreen({super.key});
@@ -200,6 +201,14 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen> {
     final fmt = ref.watch(currencyFmtProvider);
     final h = MediaQuery.of(context).size.height;
     final mapHeight = _mapFull ? h : h * 0.42;
+    final range = _resolveRange();
+    final query = (agentId: a.agentId, from: range.from, to: range.to);
+    final trail =
+        ref.watch(agentHistoryProvider(query)).value ?? const <AgentPing>[];
+    final collections = ref.watch(agentCollectionsProvider(query)).value ??
+        const <AgentCollection>[];
+    final pinnedCollections =
+        collections.where((c) => c.hasLocation).toList(growable: false);
 
     return Column(
       children: [
@@ -214,14 +223,61 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen> {
                   children: [
                     TileLayer(
                       urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.loantrack.app',
+                      userAgentPackageName: 'com.zolofund.app',
                     ),
+                    // Route the agent actually travelled (ping trail).
+                    if (trail.length >= 2)
+                      PolylineLayer(
+                        polylines: [
+                          Polyline(
+                            points: [
+                              for (final p in trail) LatLng(p.lat, p.lng),
+                            ],
+                            strokeWidth: 3,
+                            color: AppColors.info.withAlpha(180),
+                          ),
+                        ],
+                      ),
+                    // Small dots at each recorded ping (location + time log
+                    // renders the same points as a list below).
+                    if (trail.isNotEmpty)
+                      CircleLayer(
+                        circles: [
+                          for (final p in trail)
+                            CircleMarker(
+                              point: LatLng(p.lat, p.lng),
+                              radius: 3,
+                              color: AppColors.info,
+                              borderColor: Colors.white,
+                              borderStrokeWidth: 1,
+                            ),
+                        ],
+                      ),
                     MarkerLayer(markers: [
+                      // Customers visited — pinned with their photo, ringed
+                      // green, at the exact collection spot.
+                      for (final c in pinnedCollections)
+                        Marker(
+                          point: LatLng(c.lat!, c.lng!),
+                          width: 40,
+                          height: 40,
+                          child: _customerPin(c),
+                        ),
+                      // Agent's current position — a live dot, not a pin.
                       Marker(
                         point: LatLng(a.lat!, a.lng!),
-                        width: 44,
-                        height: 44,
-                        child: Icon(Icons.location_on, size: 44, color: a.online ? AppColors.success : AppColors.danger),
+                        width: 22,
+                        height: 22,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: a.online ? AppColors.success : AppColors.danger,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 3),
+                            boxShadow: const [
+                              BoxShadow(color: Colors.black38, blurRadius: 6),
+                            ],
+                          ),
+                        ),
                       ),
                     ],),
                   ],
@@ -280,10 +336,137 @@ class _AgentTrackingScreenState extends ConsumerState<AgentTrackingScreen> {
                 if (a.agentPhone.isNotEmpty) _row(Icons.phone_outlined, a.agentPhone),
                 const SizedBox(height: 18),
                 _collectionsTable(t, a.agentId),
+                const SizedBox(height: 18),
+                _trackingLog(t, trail),
               ],
             ),
           ),
       ],
+    );
+  }
+
+  /// Tracking log — every recorded location with its time (newest first),
+  /// same points as the dots on the map. Follows the active date filter.
+  Widget _trackingLog(T t, List<AgentPing> trail) {
+    final rows = trail.reversed.take(200).toList(growable: false);
+    final tf = DateFormat('dd MMM · h:mm:ss a');
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppTokens.radius),
+        boxShadow: AppTokens.shadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+            child: Row(
+              children: [
+                Text(
+                  t.x('admin.tracking_log'),
+                  style: AppTypography.bodyLarge
+                      .copyWith(fontWeight: FontWeight.w700),
+                ),
+                const Spacer(),
+                Text(
+                  '${trail.length} ${t.x('admin.points')}',
+                  style: AppTypography.caption
+                      .copyWith(color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+          if (rows.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Center(
+                child: Text(
+                  t.x('admin.no_tracking_points'),
+                  style: AppTypography.caption,
+                ),
+              ),
+            )
+          else
+            for (final p in rows)
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: const BoxDecoration(
+                  border: Border(top: BorderSide(color: AppColors.border)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      p.isMocked
+                          ? Icons.gps_off_outlined
+                          : Icons.place_outlined,
+                      size: 16,
+                      color:
+                          p.isMocked ? AppColors.danger : AppColors.info,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            tf.format(p.capturedAt),
+                            style: AppTypography.body
+                                .copyWith(fontWeight: FontWeight.w600),
+                          ),
+                          Text(
+                            '${p.lat.toStringAsFixed(5)}, ${p.lng.toStringAsFixed(5)}'
+                            '${p.accuracyM != null ? ' · ±${p.accuracyM!.round()}m' : ''}'
+                            '${p.isMocked ? ' · FAKE GPS' : ''}',
+                            style: AppTypography.extraTiny.copyWith(
+                              color: p.isMocked
+                                  ? AppColors.danger
+                                  : AppColors.textLight,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (p.speedMps != null && p.speedMps! > 0)
+                      Text(
+                        '${(p.speedMps! * 3.6).toStringAsFixed(0)} km/h',
+                        style: AppTypography.caption
+                            .copyWith(color: AppColors.textSecondary),
+                      ),
+                  ],
+                ),
+              ),
+          const SizedBox(height: 6),
+        ],
+      ),
+    );
+  }
+
+  /// Customer photo pin at the collection spot — photo ringed in green, with
+  /// an icon fallback when the customer has no photo.
+  Widget _customerPin(AgentCollection c) {
+    final photo = c.customerPhoto;
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: AppColors.success, width: 2.5),
+        color: Colors.white,
+        boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 5)],
+      ),
+      child: ClipOval(
+        child: photo == null || photo.isEmpty
+            ? const Icon(Icons.person, size: 26, color: AppColors.textLight)
+            : Image(
+                image: authedImage(ref, photo),
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const Icon(
+                  Icons.person,
+                  size: 26,
+                  color: AppColors.textLight,
+                ),
+              ),
+      ),
     );
   }
 
@@ -540,7 +723,7 @@ class _AgentCard extends StatelessWidget {
                     radius: 22,
                     backgroundColor: AppColors.primary.withValues(alpha: 0.12),
                     child: Text(agent.agentName.isNotEmpty ? agent.agentName[0].toUpperCase() : '?',
-                        style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800),),
+                        style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800),),
                   ),
                   Positioned(
                     right: 0,
