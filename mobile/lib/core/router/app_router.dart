@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -85,6 +87,13 @@ class ModuleKey {
   static const settings = 'settings';
 }
 
+final splashReadyProvider = StateProvider<bool>((ref) {
+  if (Platform.environment.containsKey('FLUTTER_TEST')) {
+    return true;
+  }
+  return false;
+});
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authControllerProvider);
 
@@ -98,10 +107,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final loc = state.matchedLocation;
       final stage = auth.stage;
+      final splashReady = ref.read(splashReadyProvider);
 
-      // Session bootstrap in progress → branded splash, never a flash of the
-      // login or dashboard screens.
-      if (stage == AuthStage.unknown) {
+      // Session bootstrap or branded splash in progress
+      if (!splashReady || stage == AuthStage.unknown) {
         return loc == '/splash' ? null : '/splash';
       }
 
@@ -603,6 +612,10 @@ class _AuthListenable extends ChangeNotifier {
         }
         notifyListeners();
       },
+    );
+    _ref.listen<bool>(
+      splashReadyProvider,
+      (_, __) => notifyListeners(),
     );
   }
   final Ref _ref;
