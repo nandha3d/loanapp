@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatCurrency, formatDate, getBadgeClass, getInitials, getPaginationPages } from '@/lib/utils';
-import { submitCollectionEntry, submitLoanCollection, requestCollectionEdit, requestCashHandover, pingAgentLocation } from './actions';
+import { submitCollectionEntry, correctCollectionPayment, submitLoanCollection, requestCollectionEdit, requestCashHandover, pingAgentLocation } from './actions';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from '@/components/layout/DashboardLink';
 
@@ -729,8 +729,8 @@ export default function CollectionClient({
           fd.set('amount', String(amount));
           result = await submitLoanCollection(fd);
         } else {
-          fd.set('receivedAmount', String(amount));
-          result = await submitCollectionEntry(fd);
+          fd.set('correctedAmount', String(amount));
+          result = await correctCollectionPayment(fd);
         }
         setLoading(false);
         if (result.success) {

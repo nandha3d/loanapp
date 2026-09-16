@@ -23,6 +23,8 @@ export async function correctInstalmentPaymentAction(formData: FormData) {
   const correctedAmount = Number(rawAmount);
   const paymentMode = (formData.get('paymentMode') as string) || 'cash';
   const remarks = (formData.get('remarks') as string) || null;
+  const clientAppType = (formData.get('appType') as string) || null;
+  const clientLoanCode = (formData.get('loanCode') as string) || null;
 
   try {
     const session = await auth();
@@ -34,7 +36,7 @@ export async function correctInstalmentPaymentAction(formData: FormData) {
       return { success: false, error: 'Only administrators can directly correct payments. Please submit an edit request.' };
     }
     const tenantId = await getCurrentTenantId();
-    const appType = await getUserAppType();
+    const appType = clientAppType || (await getUserAppType());
     const branchId = await getActiveBranchId();
 
     const result = await correctInstalmentPayment({
@@ -50,12 +52,15 @@ export async function correctInstalmentPaymentAction(formData: FormData) {
       remarks,
     });
 
+    const targetLoanCode = result?.loanCode || clientLoanCode;
     revalidatePath('/loans');
     revalidatePath('/collection');
-    revalidatePath('/dashboard');
     revalidatePath(modulePath(appType, '/loans'));
     revalidatePath(modulePath(appType, '/collection'));
-    revalidatePath(modulePath(appType, '/dashboard'));
+    if (targetLoanCode) {
+      revalidatePath(`/loans/${targetLoanCode}`);
+      revalidatePath(modulePath(appType, `/loans/${targetLoanCode}`));
+    }
     if (result?.loanId) {
       revalidatePath(`/loans/${result.loanId}`);
       revalidatePath(modulePath(appType, `/loans/${result.loanId}`));

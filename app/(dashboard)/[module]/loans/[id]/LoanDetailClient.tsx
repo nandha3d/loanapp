@@ -534,47 +534,52 @@ export default function LoanDetailClient({
   const handleSubmitPayment = async () => {
     if (!paymentModal || payAmount < 0) return;
     setLoading(true);
-    const fd = new FormData();
-    fd.set('instalmentId', paymentModal.id);
-    
-    const isPaid = Number(paymentModal.receivedAmount) > 0;
-    const isEditRequest = isPaid && !isAdmin;
+    try {
+      const fd = new FormData();
+      fd.set('instalmentId', paymentModal.id);
+      if (loan?.appType) fd.set('appType', loan.appType);
+      if (loan?.loanCode) fd.set('loanCode', loan.loanCode);
+      
+      const isPaid = Number(paymentModal.receivedAmount) > 0;
+      const isEditRequest = isPaid && !isAdmin;
 
-    if (isEditRequest) {
-      fd.set('requestedAmount', String(payAmount));
-      fd.set('reason', payReason);
-      const result = await requestCollectionEdit(fd);
-      setLoading(false);
-      if (result.success) {
-        setPaymentModal(null);
-        alert('Edit request submitted successfully.');
+      if (isEditRequest) {
+        fd.set('requestedAmount', String(payAmount));
+        fd.set('reason', payReason);
+        const result = await requestCollectionEdit(fd);
+        if (result?.success) {
+          setPaymentModal(null);
+          alert('Edit request submitted successfully.');
+        } else {
+          alert(result?.error || d.failedToSubmitRequest);
+        }
+      } else if (isPaid && isAdmin) {
+        fd.set('correctedAmount', String(payAmount));
+        fd.set('paymentMode', payMode);
+        fd.set('remarks', payRemarks);
+        const result = await correctInstalmentPaymentAction(fd);
+        if (result?.success) {
+          setPaymentModal(null);
+          router.refresh();
+        } else {
+          alert(result?.error || d.failedToRecordPayment);
+        }
       } else {
-        alert(result.error || d.failedToSubmitRequest);
+        fd.set('receivedAmount', String(payAmount));
+        fd.set('paymentMode', payMode);
+        fd.set('remarks', payRemarks);
+        const result = await markInstalmentPaid(fd);
+        if (result?.success) {
+          setPaymentModal(null);
+          router.refresh();
+        } else {
+          alert(result?.error || d.failedToRecordPayment);
+        }
       }
-    } else if (isPaid && isAdmin) {
-      fd.set('correctedAmount', String(payAmount));
-      fd.set('paymentMode', payMode);
-      fd.set('remarks', payRemarks);
-      const result = await correctInstalmentPaymentAction(fd);
+    } catch (err: any) {
+      alert(err?.message || 'A network error occurred. Please try again.');
+    } finally {
       setLoading(false);
-      if (result.success) {
-        setPaymentModal(null);
-        router.refresh();
-      } else {
-        alert(result.error || d.failedToRecordPayment);
-      }
-    } else {
-      fd.set('receivedAmount', String(payAmount));
-      fd.set('paymentMode', payMode);
-      fd.set('remarks', payRemarks);
-      const result = await markInstalmentPaid(fd);
-      setLoading(false);
-      if (result.success) {
-        setPaymentModal(null);
-        router.refresh();
-      } else {
-        alert(result.error || d.failedToRecordPayment);
-      }
     }
   };
 

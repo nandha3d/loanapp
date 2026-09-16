@@ -58,6 +58,39 @@ export async function submitCollectionEntry(formData: FormData) {
   }
 }
 
+export async function correctCollectionPayment(formData: FormData) {
+  const instalmentId = formData.get('instalmentId') as string;
+  const rawAmount = formData.get('correctedAmount') ?? formData.get('receivedAmount');
+  const correctedAmount = Number(rawAmount);
+  const paymentMode = (formData.get('paymentMode') as string) || 'cash';
+  const remarks = (formData.get('remarks') as string) || null;
+
+  try {
+    const apiContext = await getApiRequestContext();
+    const payload = {
+      instalmentId,
+      correctedAmount,
+      paymentMode,
+      remarks,
+    };
+
+    const res = await apiFetch<any>('/collection/entry', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+      ...apiContext,
+    });
+
+    if (res.error) {
+      return { success: false, error: res.error };
+    }
+
+    await revalidateCollectionSurfaces();
+    return { success: true, data: res.data };
+  } catch (e: any) {
+    return { success: false, error: e.message || 'Failed to correct payment' };
+  }
+}
+
 /**
  * Loan-level collection: one payment recorded on the collection-date row for
  * Actual. Distributed remains a display-only projection.

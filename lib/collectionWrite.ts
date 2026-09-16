@@ -300,7 +300,11 @@ export async function recordCollection(
 
   await tx.instalment.update({
     where: { id: instalment.id },
-    data: { receivedAmount: { increment: applied }, receivedAt: new Date() },
+    data: {
+      receivedAmount: { increment: applied },
+      receivedAt: new Date(),
+      ...(!instalment.collectionEntryId ? { collectionEntryId: entry.id } : {}),
+    },
   });
 
   // Loan reallocation + daily rollup are O(n) each. Loan-level callers can
@@ -658,6 +662,7 @@ export type CorrectInstalmentPaymentInput = {
 export type CorrectInstalmentPaymentResult = {
   instalmentId: string;
   loanId: string;
+  loanCode?: string;
   previousAmount: number;
   correctedAmount: number;
   delta: number;
@@ -784,6 +789,20 @@ export async function correctInstalmentPaymentInTx(
         data: { collectionEntryId: unlinked.id },
       });
       collectionEntryId = unlinked.id;
+      if (unlinked.collectionId) {
+        const all = await tx.collectionEntry.findMany({
+          where: { collectionId: unlinked.collectionId },
+          select: { receivedAmount: true, dueAmount: true },
+        });
+        await tx.dailyCollection.update({
+          where: { id: unlinked.collectionId },
+          data: {
+            totalCollected: all.reduce((s, e) => s + Number(e.receivedAmount), 0),
+            totalExpected: all.reduce((s, e) => s + Number(e.dueAmount), 0),
+            entriesCount: all.length,
+          },
+        });
+      }
     } else {
       const today = startOfDay(new Date());
       const daily = await tx.dailyCollection.upsert({
@@ -872,6 +891,7 @@ export async function correctInstalmentPaymentInTx(
   return {
     instalmentId: instalment.id,
     loanId: instalment.loanId,
+    loanCode: instalment.loan.loanCode,
     previousAmount,
     correctedAmount,
     delta,
