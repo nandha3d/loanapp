@@ -143,6 +143,75 @@ export function allocatePaymentsAcrossInstalments(
 }
 
 /**
+ * Dynamic overdue amount: calculates the true current arrears as of `now`.
+ *
+ * Rather than summing unpaid amounts across historical rows in isolation (which
+ * falsely flags cleared loans or catch-up lump-sum payments as overdue), this
+ * cascades cumulative collections dynamically:
+ * - Prior collections fill past-due instalments chronologically.
+ * - Today's collections satisfy today's due first (MONEY-10), then excess clears past arrears.
+ * - If total collections satisfy all due amounts to date (or loan is closed / outstanding <= 0),
+ *   the overdue amount dynamically recalculates to 0.
+ */
+export function calculateDynamicOverdueAmount(
+  instalments: Array<{
+    dueDate: Date | string;
+    dueAmount: number | Prisma.Decimal | string;
+    receivedAmount?: number | Prisma.Decimal | string | null;
+    status?: string | null;
+  }>,
+  totalCollected: number,
+  outstanding: number,
+  now = new Date(),
+): number {
+  if (outstanding <= 0) return 0;
+
+  const today = startOfDay(now);
+  const todayTime = today.getTime();
+
+  // Waived rows are excluded
+  const payable = instalments.filter((i) => i.status !== 'waived');
+  if (payable.length === 0) return 0;
+
+  // Payments recorded on or for today's date
+  let cToday = 0;
+  for (const inst of payable) {
+    const instDate = startOfDay(new Date(inst.dueDate)).getTime();
+    if (instDate === todayTime) {
+      cToday += Math.max(0, asNumber(inst.receivedAmount ?? 0));
+    }
+  }
+  cToday = Math.min(cToday, totalCollected);
+  const cPrior = Math.max(0, totalCollected - cToday);
+
+  // Past due instalments (strictly before today) sorted chronologically
+  const pastDueInsts = payable
+    .filter((inst) => startOfDay(new Date(inst.dueDate)).getTime() < todayTime)
+    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+
+  // Today's instalment (if any)
+  const todayInsts = payable.filter((inst) => startOfDay(new Date(inst.dueDate)).getTime() === todayTime);
+  const todayDue = todayInsts.reduce((sum, inst) => sum + asNumber(inst.dueAmount), 0);
+
+  // Collections prior to today fill past-due chronologically
+  let remPrior = cPrior;
+  let pastDueRemaining = 0;
+  for (const inst of pastDueInsts) {
+    const due = asNumber(inst.dueAmount);
+    const covered = Math.min(due, remPrior);
+    remPrior = Math.max(0, remPrior - covered);
+    pastDueRemaining += (due - covered);
+  }
+
+  // Today's collections: today's due first, then excess clears past-due arrears
+  const appliedToToday = Math.min(todayDue, cToday);
+  const excessToday = Math.max(0, cToday - appliedToToday);
+
+  const finalOverdue = Math.max(0, pastDueRemaining - excessToday);
+  return Math.min(outstanding, Math.round(finalOverdue * 100) / 100);
+}
+
+/**
  * Loan status implied by its schedule.
  *
  * `principalOutstanding` is only supplied for Interest-Only loans, where the
@@ -275,10 +344,6 @@ export async function reallocateLoanRepayments(
     if (alloc.status === 'paid') summary.paidCount++;
     summary.totalCollected += alloc.receivedAmount;
     summary.outstandingAmount += alloc.outstandingAmount;
-    if (alloc.overdueAmount > 0) {
-      summary.overdueAmount += alloc.overdueAmount;
-      summary.overdueCount++;
-    }
 
     summary.allocations.push({
       ...originalInst,
@@ -290,6 +355,22 @@ export async function reallocateLoanRepayments(
       status: alloc.status as "upcoming" | "missed" | "partial" | "paid" | "waived",
     });
   }
+
+  // Dynamic overdue: recalculate arrears based on total collections vs schedule to date.
+  // Catch-up payments (e.g. paying 3000 after 2 missed days of 1000) or closed loans
+  // dynamically resolve overdue amount to 0.
+  summary.overdueAmount = calculateDynamicOverdueAmount(
+    payable,
+    summary.totalCollected,
+    summary.outstandingAmount,
+    today,
+  );
+  summary.overdueCount = summary.overdueAmount > 0
+    ? payable.filter((i) => {
+        const dueDate = startOfDay(new Date(i.dueDate));
+        return dueDate.getTime() < today.getTime() && Number(i.receivedAmount || 0) < Number(i.dueAmount);
+      }).length
+    : 0;
 
   // Interest-Only loans keep the principal outside the schedule, so settling every
   // interest due is not enough to close them — see resolveLoanStatus.
