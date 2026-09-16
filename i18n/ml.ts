@@ -326,6 +326,8 @@ export const ml = {
     customCadence: 'ഇഷ്ടാനುസൃത ഷെഡ്യൂൾ',
     singlePayment: 'ഒറ്റത്തവണ തിരിച്ചടവ്',
     customDuration: 'ഇഷ്‌ടാനുസൃത കാലയളവ്',
+    custom: 'ഇഷ്‌ടാനുസൃതം',
+    multipleInstallments: 'ഒന്നിലധികം തവണകൾ',
     repaymentDate: 'തിരിച്ചടവ് തീയതി',
     numberOfInstallments: 'തവണകളുടെ എണ്ണം',
     fromDate: 'ആരംഭ തീയതി',

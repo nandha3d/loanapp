@@ -114,22 +114,20 @@ class _BorrowerLoginScreenState extends ConsumerState<BorrowerLoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 // Logo / Branding
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [AppColors.primary, const Color(0xFF6366F1)],
-                    ),
-                    borderRadius: BorderRadius.circular(20),
+                Center(
+                  child: Image.asset(
+                    'assets/images/logo.png',
+                    height: 60,
+                    fit: BoxFit.contain,
                   ),
-                  child: const Icon(Icons.account_balance_wallet,
-                      color: Colors.white, size: 40),
                 ),
                 const SizedBox(height: 24),
-                Text('Borrower Portal',
-                    style: AppTypography.display
-                        .copyWith(color: AppColors.textPrimary)),
+                Text(
+                  'Borrower Portal',
+                  style: AppTypography.display.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 Text(
                   _useOtp
@@ -151,9 +149,12 @@ class _BorrowerLoginScreenState extends ConsumerState<BorrowerLoginScreen> {
                       color: AppColors.dangerBg,
                       borderRadius: BorderRadius.circular(AppTokens.radius),
                     ),
-                    child: Text(_error!,
-                        style: AppTypography.caption
-                            .copyWith(color: AppColors.danger)),
+                    child: Text(
+                      _error!,
+                      style: AppTypography.caption.copyWith(
+                        color: AppColors.danger,
+                      ),
+                    ),
                   ),
                 if (!_useOtp) ...[
                   TextField(
@@ -300,9 +301,12 @@ class _BorrowerLoginScreenState extends ConsumerState<BorrowerLoginScreen> {
                 const SizedBox(height: 24),
                 TextButton(
                   onPressed: () => context.go('/login'),
-                  child: Text('← Back to Agent Login',
-                      style: AppTypography.body
-                          .copyWith(color: AppColors.textSecondary)),
+                  child: Text(
+                    '← Back to Agent Login',
+                    style: AppTypography.body.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
                 ),
               ],
             ),

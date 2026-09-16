@@ -258,7 +258,7 @@ export async function POST(req: NextRequest) {
     }
     // Same shape as Interest-Only: opt-in per tenant, enforced here because the
     // web form is one of several ways into this route.
-    if (isBulletTerm(termType) && frequency !== 'single_payment' && !(await isBulletTermEnabled(ctx.tenantId))) {
+    if (isBulletTerm(termType) && frequency !== 'single_payment' && frequency !== 'custom' && frequency !== 'custom_duration' && !(await isBulletTermEnabled(ctx.tenantId))) {
       return fail('Single-payment (bullet) loans are not enabled for this account', 403);
     }
     if (Number.isNaN(startDate.getTime())) {

@@ -116,6 +116,12 @@ export default async function AdminLayout({
               </Link>
             )}
             {userRole === 'developer' && (
+              <Link href="/admin/settings/payment">
+                <span className="material-icons-outlined">payment</span>
+                Payment Settings
+              </Link>
+            )}
+            {userRole === 'developer' && (
               <Link href="/admin/affiliates">
                 <span className="material-icons-outlined">handshake</span>
                 Affiliate Program

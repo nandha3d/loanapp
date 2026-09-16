@@ -3,15 +3,25 @@
 import { useState, useTransition } from 'react';
 import { initiateCheckout } from './actions';
 
-export function CheckoutButton({ planId, label = 'Continue to payment' }: { planId: string; label?: string }) {
+export function CheckoutButton({ planId, label = 'Pay & Activate' }: { planId: string; label?: string }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <div>
+    <div style={{ width: '100%' }}>
       <button
-        className="btn btn-primary btn-sm"
-        style={{ width: '100%', textAlign: 'center' }}
+        className="btn btn-primary"
+        style={{
+          width: '100%',
+          textAlign: 'center',
+          fontWeight: 700,
+          fontSize: '0.95rem',
+          padding: '10px 16px',
+          borderRadius: '8px',
+          letterSpacing: '0.01em',
+          cursor: isPending ? 'not-allowed' : 'pointer',
+          transition: 'all 0.2s ease',
+        }}
         onClick={() => {
           setError(null);
           startTransition(async () => {
@@ -23,7 +33,24 @@ export function CheckoutButton({ planId, label = 'Continue to payment' }: { plan
       >
         {isPending ? 'Opening secure checkout…' : label}
       </button>
-      {error ? <p role="alert" style={{ color: '#b91c1c', fontSize: '.78rem', marginTop: 8 }}>{error}</p> : null}
+      {error ? (
+        <div
+          role="alert"
+          style={{
+            color: '#b91c1c',
+            backgroundColor: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: '6px',
+            padding: '8px 12px',
+            fontSize: '0.8rem',
+            marginTop: '10px',
+            lineHeight: 1.4,
+            textAlign: 'left',
+          }}
+        >
+          {error}
+        </div>
+      ) : null}
     </div>
   );
 }

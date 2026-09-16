@@ -326,6 +326,8 @@ export const en = {
     customCadence: 'Custom Cadence',
     singlePayment: 'Single Payment',
     customDuration: 'Custom Duration',
+    custom: 'Custom',
+    multipleInstallments: 'Multiple Installments',
     repaymentDate: 'Repayment Date',
     numberOfInstallments: 'Number of Installments',
     fromDate: 'From Date',

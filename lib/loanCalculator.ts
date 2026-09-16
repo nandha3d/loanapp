@@ -227,7 +227,7 @@ export function calculateLoanPreview(input: LoanCalculationInput): LoanCalculati
     ? [calculateEndDate(startDate, 'daily', termDays)]
     : frequency === 'single_payment'
       ? [input.endDate ? new Date(input.endDate) : calculateEndDate(startDate, 'monthly', 1)]
-      : frequency === 'custom_duration'
+      : (frequency === 'custom_duration' || frequency === 'custom')
         ? calculateCustomDurationDates(startDate, input.endDate, tenure)
         : calculateInstalmentDates(startDate, frequency, tenure, input.dueDay);
 

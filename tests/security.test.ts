@@ -4,6 +4,8 @@ import {
   decryptAadharNumber,
   encryptAadharNumber,
   maskAadharNumber,
+  encryptField,
+  decryptField,
 } from '../lib/pii';
 import {
   isTenantTrialExpired,
@@ -27,6 +29,12 @@ assert.equal(decryptAadharNumber(encrypted, piiKey), '123456789012');
 assert.equal(decryptAadharNumber('1234 5678 9012', piiKey), '123456789012');
 assert.equal(maskAadharNumber('123456789012'), 'XXXX XXXX 9012');
 assert.equal(maskAadharNumber(null), null);
+
+// Test field encryption roundtrip
+const sampleSecret = 'rzp_secret_999xyzABC';
+const encryptedField = encryptField(sampleSecret, piiKey);
+assert.ok(encryptedField && encryptedField.startsWith('enc:field:v1:'), 'encryptField creates enc:field:v1 prefix');
+assert.equal(decryptField(encryptedField, piiKey), sampleSecret, 'decryptField successfully roundtrips');
 
 assert.equal(extractTenantSlugFromHost('alpha.zolofund.test:3000', 'zolofund.test'), 'alpha');
 assert.equal(extractTenantSlugFromHost('zolofund.test', 'zolofund.test'), null);

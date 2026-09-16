@@ -38,7 +38,7 @@ class AppTokens {
   ];
 
   static const List<BoxShadow> shadowPrimaryHover = [
-    BoxShadow(color: Color(0x4DF5A623), offset: Offset(0, 4), blurRadius: 12),
+    BoxShadow(color: Color(0x4D7D287E), offset: Offset(0, 4), blurRadius: 12),
   ];
 
   // Transition

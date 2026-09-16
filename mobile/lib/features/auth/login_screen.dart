@@ -110,7 +110,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   void _showServerConfigDialog() {
     final currentUrl = ref.read(apiBaseUrlProvider) ?? kDefaultBaseUrl;
     final controller = TextEditingController(text: currentUrl);
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Server API URL'),
@@ -166,14 +166,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             stops: [0.0, 0.5, 1.0],
             colors: [
               Color(0xFF1A1D23),
-              Color(0xFF2D1F0E),
+              Color(0xFF281429),
               Color(0xFF1A1D23),
             ],
           ),
         ),
         child: Stack(
           children: [
-            // Top-right amber glow
+            // Top-right purple brand glow
             Positioned(
               top: -120,
               right: -120,
@@ -183,12 +183,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
-                    colors: [Color(0x26F5A623), Color(0x00F5A623)],
+                    colors: [Color(0x337D287E), Color(0x007D287E)],
                   ),
                 ),
               ),
             ),
-            // Bottom-left amber glow
+            // Bottom-left purple brand glow
             Positioned(
               bottom: -140,
               left: -140,
@@ -198,7 +198,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
-                    colors: [Color(0x1AF5A623), Color(0x00F5A623)],
+                    colors: [Color(0x267D287E), Color(0x007D287E)],
                   ),
                 ),
               ),
@@ -294,42 +294,12 @@ class _LoginCard extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryLight,
-                  borderRadius: BorderRadius.circular(AppTokens.radiusKpiIcon),
-                ),
-                child: Icon(
-                  Icons.currency_rupee,
-                  color: AppColors.primary,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
-              RichText(
-                text: TextSpan(
-                  style: AppTypography.display,
-                  children: [
-                    TextSpan(
-                      text: 'Loan',
-                      style: TextStyle(color: AppColors.textPrimary),
-                    ),
-                    TextSpan(
-                      text: 'Track',
-                      style: TextStyle(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          Center(
+            child: Image.asset(
+              'assets/images/logo.png',
+              height: 56,
+              fit: BoxFit.contain,
+            ),
           ),
           const SizedBox(height: 32),
           if (error != null) ...[
