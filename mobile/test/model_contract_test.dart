@@ -10,6 +10,7 @@ import 'package:zolofund/data/models/loan.dart';
 import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/models/vehicle.dart';
 import 'package:zolofund/data/models/wallet.dart';
+import 'package:zolofund/data/models/dashboard_summary.dart';
 
 void main() {
   group('MOB-MODEL contract tests', () {
@@ -198,6 +199,108 @@ void main() {
       expect(overduePartial.overdueOutstanding, 500);
       expect(overduePaid.isResolved, isTrue);
       expect(overduePaid.overdueOutstanding, 0);
+    });
+
+    test('MOB-MODEL-006 dashboard summary parses todayBreakdown and overdueBreakdown with fallbacks', () {
+      final summaryWithBreakdowns = DashboardSummary.fromJson({
+        'activeLoans': 10,
+        'overdueLoans': 2,
+        'totalCustomers': 15,
+        'todayExpected': 5000,
+        'todayCollected': 2500,
+        'todayGap': 2500,
+        'hitRate': 50,
+        'todayBreakdown': {
+          'total': {
+            'expected': 5000,
+            'collected': 2500,
+            'remaining': 2500,
+            'loanCount': 10,
+            'customerCount': 8,
+            'pct': 50,
+          },
+          'active': {
+            'expected': 4000,
+            'collected': 2000,
+            'remaining': 2000,
+            'loanCount': 8,
+            'customerCount': 6,
+            'pct': 50,
+          },
+          'inactive': {
+            'expected': 1000,
+            'collected': 500,
+            'remaining': 500,
+            'loanCount': 2,
+            'customerCount': 2,
+            'pct': 50,
+          },
+          'breakdown': {
+            'daily': {
+              'total': {'expected': 3000, 'collected': 1500, 'remaining': 1500, 'loanCount': 6, 'pct': 50},
+              'active': {'expected': 2500, 'collected': 1200, 'remaining': 1300, 'loanCount': 5, 'pct': 48},
+              'inactive': {'expected': 500, 'collected': 300, 'remaining': 200, 'loanCount': 1, 'pct': 60},
+            },
+          },
+        },
+        'overdueBreakdown': {
+          'total': {
+            'totalOverdue': 12000,
+            'collectedToday': 3000,
+            'remaining': 9000,
+            'loanCount': 4,
+            'customerCount': 4,
+            'pct': 25,
+          },
+          'active': {
+            'totalOverdue': 8000,
+            'collectedToday': 2000,
+            'remaining': 6000,
+            'loanCount': 3,
+            'customerCount': 3,
+            'pct': 25,
+          },
+          'inactive': {
+            'totalOverdue': 4000,
+            'collectedToday': 1000,
+            'remaining': 3000,
+            'loanCount': 1,
+            'customerCount': 1,
+            'pct': 25,
+          },
+          'breakdown': {
+            'weekly': {
+              'total': {'totalOverdue': 6000, 'collectedToday': 1500, 'remaining': 4500, 'loanCount': 2, 'pct': 25},
+              'active': {'totalOverdue': 4000, 'collectedToday': 1000, 'remaining': 3000, 'loanCount': 1, 'pct': 25},
+              'inactive': {'totalOverdue': 2000, 'collectedToday': 500, 'remaining': 1500, 'loanCount': 1, 'pct': 25},
+            },
+          },
+        },
+      });
+
+      expect(summaryWithBreakdowns.todayBreakdown.total.expected, 5000);
+      expect(summaryWithBreakdowns.todayBreakdown.active.loanCount, 8);
+      expect(summaryWithBreakdowns.todayBreakdown.breakdown['daily']?.active.remaining, 1300);
+      expect(summaryWithBreakdowns.overdueBreakdown.total.totalOverdue, 12000);
+      expect(summaryWithBreakdowns.overdueBreakdown.breakdown['weekly']?.total.remaining, 4500);
+
+      // Fallback verification when breakdown payload is not provided
+      final summaryWithFallback = DashboardSummary.fromJson({
+        'todayExpected': 2000,
+        'todayCollected': 1000,
+        'todayGap': 1000,
+        'hitRate': 50,
+        'overdueTotalTillToday': 5000,
+        'overdueCollectedToday': 1000,
+        'overdueOutstanding': 4000,
+      });
+
+      expect(summaryWithFallback.todayBreakdown.total.expected, 2000);
+      expect(summaryWithFallback.todayBreakdown.total.collected, 1000);
+      expect(summaryWithFallback.todayBreakdown.total.remaining, 1000);
+      expect(summaryWithFallback.overdueBreakdown.total.totalOverdue, 5000);
+      expect(summaryWithFallback.overdueBreakdown.total.collectedToday, 1000);
+      expect(summaryWithFallback.overdueBreakdown.total.remaining, 4000);
     });
   });
 }

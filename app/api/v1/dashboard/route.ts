@@ -97,6 +97,7 @@ export async function GET(req: NextRequest) {
           receivedAmount: true,
           status: true,
           instalmentNo: true,
+          loan: { select: { id: true, frequency: true, status: true, customerId: true } },
         },
       }),
       // Top overdue instalments for defaulter alerts (only need 10).
@@ -307,6 +308,180 @@ export async function GET(req: NextRequest) {
     }
     const overdueTotalTillToday = overdueOutstanding + overdueCollectedToday;
 
+    // ── Frequency × Status breakdown (web parity) ──────────────────────────
+    type FrequencyKey = 'daily' | 'weekly' | 'monthly';
+    const zeroSub = () => ({ expected: 0, collected: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 });
+    const zeroOverdueSub = () => ({ totalOverdue: 0, collectedToday: 0, remaining: 0, loanCount: 0, customerCount: 0, pct: 0 });
+    const mkSets = () => ({ total: new Set<string>(), active: new Set<string>(), inactive: new Set<string>() });
+
+    // Today's Collection breakdown
+    const todayLoansByStatus = {
+      active: { expected: 0, collected: 0, remaining: 0, loans: new Set<string>(), customers: new Set<string>(), pct: 0 },
+      inactive: { expected: 0, collected: 0, remaining: 0, loans: new Set<string>(), customers: new Set<string>(), pct: 0 },
+    };
+    const todayFrequencyBreakdown: Record<FrequencyKey, { total: ReturnType<typeof zeroSub>; active: ReturnType<typeof zeroSub>; inactive: ReturnType<typeof zeroSub> }> = {
+      daily: { total: zeroSub(), active: zeroSub(), inactive: zeroSub() },
+      weekly: { total: zeroSub(), active: zeroSub(), inactive: zeroSub() },
+      monthly: { total: zeroSub(), active: zeroSub(), inactive: zeroSub() },
+    };
+    const todayFreqLoans: Record<FrequencyKey, ReturnType<typeof mkSets>> = { daily: mkSets(), weekly: mkSets(), monthly: mkSets() };
+    const todayFreqCustomers: Record<FrequencyKey, ReturnType<typeof mkSets>> = { daily: mkSets(), weekly: mkSets(), monthly: mkSets() };
+    const allTodayLoans = new Set<string>();
+    const allTodayCustomers = new Set<string>();
+
+    for (const item of todayInstalments) {
+      const rawFreq = ((item as any).loan?.frequency || '').toLowerCase().trim();
+      let freq: FrequencyKey = 'daily';
+      if (rawFreq === 'weekly' || rawFreq === 'biweekly') freq = 'weekly';
+      else if (rawFreq === 'monthly') freq = 'monthly';
+      const isActive = ((item as any).loan?.status || '').toLowerCase() === 'active';
+      const statusKey: 'active' | 'inactive' = isActive ? 'active' : 'inactive';
+      const due = Number(item.dueAmount || 0);
+      const rec = Math.min(Number(item.receivedAmount || 0), due);
+      const rem = Math.max(0, due - Number(item.receivedAmount || 0));
+
+      todayLoansByStatus[statusKey].expected += due;
+      todayLoansByStatus[statusKey].collected += rec;
+      todayLoansByStatus[statusKey].remaining += rem;
+
+      if (item.loanId) {
+        todayLoansByStatus[statusKey].loans.add(item.loanId);
+        allTodayLoans.add(item.loanId);
+        todayFreqLoans[freq].total.add(item.loanId);
+        todayFreqLoans[freq][statusKey].add(item.loanId);
+      }
+      const custId = (item as any).loan?.customerId;
+      if (custId) {
+        todayLoansByStatus[statusKey].customers.add(custId);
+        allTodayCustomers.add(custId);
+        todayFreqCustomers[freq].total.add(custId);
+        todayFreqCustomers[freq][statusKey].add(custId);
+      }
+
+      todayFrequencyBreakdown[freq].total.expected += due;
+      todayFrequencyBreakdown[freq].total.collected += rec;
+      todayFrequencyBreakdown[freq].total.remaining += rem;
+      todayFrequencyBreakdown[freq][statusKey].expected += due;
+      todayFrequencyBreakdown[freq][statusKey].collected += rec;
+      todayFrequencyBreakdown[freq][statusKey].remaining += rem;
+    }
+
+    for (const key of ['daily', 'weekly', 'monthly'] as FrequencyKey[]) {
+      const fb = todayFrequencyBreakdown[key];
+      fb.total.loanCount = todayFreqLoans[key].total.size;
+      fb.total.customerCount = todayFreqCustomers[key].total.size;
+      fb.total.pct = fb.total.expected > 0 ? Math.min(100, Math.round((fb.total.collected / fb.total.expected) * 100)) : 0;
+      fb.active.loanCount = todayFreqLoans[key].active.size;
+      fb.active.customerCount = todayFreqCustomers[key].active.size;
+      fb.active.pct = fb.active.expected > 0 ? Math.min(100, Math.round((fb.active.collected / fb.active.expected) * 100)) : 0;
+      fb.inactive.loanCount = todayFreqLoans[key].inactive.size;
+      fb.inactive.customerCount = todayFreqCustomers[key].inactive.size;
+      fb.inactive.pct = fb.inactive.expected > 0 ? Math.min(100, Math.round((fb.inactive.collected / fb.inactive.expected) * 100)) : 0;
+    }
+
+    todayLoansByStatus.active.pct = todayLoansByStatus.active.expected > 0
+      ? Math.min(100, Math.round((todayLoansByStatus.active.collected / todayLoansByStatus.active.expected) * 100)) : 0;
+    todayLoansByStatus.inactive.pct = todayLoansByStatus.inactive.expected > 0
+      ? Math.min(100, Math.round((todayLoansByStatus.inactive.collected / todayLoansByStatus.inactive.expected) * 100)) : 0;
+
+    const todayCollectedPct = todayExpected > 0
+      ? Math.min(100, Math.round((todayProgressCollected / todayExpected) * 100))
+      : (todayProgressCollected > 0 ? 100 : 0);
+
+    const todayBreakdown = {
+      total: { expected: todayExpected, collected: todayProgressCollected, remaining: todayGap, loanCount: allTodayLoans.size, customerCount: allTodayCustomers.size, pct: todayCollectedPct },
+      active: { expected: todayLoansByStatus.active.expected, collected: todayLoansByStatus.active.collected, remaining: todayLoansByStatus.active.remaining, loanCount: todayLoansByStatus.active.loans.size, customerCount: todayLoansByStatus.active.customers.size, pct: todayLoansByStatus.active.pct },
+      inactive: { expected: todayLoansByStatus.inactive.expected, collected: todayLoansByStatus.inactive.collected, remaining: todayLoansByStatus.inactive.remaining, loanCount: todayLoansByStatus.inactive.loans.size, customerCount: todayLoansByStatus.inactive.customers.size, pct: todayLoansByStatus.inactive.pct },
+      breakdown: todayFrequencyBreakdown,
+    };
+
+    // Overdue Collection breakdown
+    const loanFrequencyMap = new Map<string, FrequencyKey>();
+    const loanStatusMap = new Map<string, boolean>();
+    const loanCustomerMap = new Map<string, string>();
+    for (const item of allInstalmentsForTotals as any[]) {
+      const rawFreq = (item.loan?.frequency || '').toLowerCase().trim();
+      let freq: FrequencyKey = 'daily';
+      if (rawFreq === 'weekly' || rawFreq === 'biweekly') freq = 'weekly';
+      else if (rawFreq === 'monthly') freq = 'monthly';
+      loanFrequencyMap.set(item.loanId, freq);
+      loanStatusMap.set(item.loanId, (item.loan?.status || '').toLowerCase() === 'active');
+      if (item.loan?.customerId) loanCustomerMap.set(item.loanId, item.loan.customerId);
+    }
+
+    const overdueFrequencyBreakdown: Record<FrequencyKey, { total: ReturnType<typeof zeroOverdueSub>; active: ReturnType<typeof zeroOverdueSub>; inactive: ReturnType<typeof zeroOverdueSub> }> = {
+      daily: { total: zeroOverdueSub(), active: zeroOverdueSub(), inactive: zeroOverdueSub() },
+      weekly: { total: zeroOverdueSub(), active: zeroOverdueSub(), inactive: zeroOverdueSub() },
+      monthly: { total: zeroOverdueSub(), active: zeroOverdueSub(), inactive: zeroOverdueSub() },
+    };
+    const overdueLoansByStatus = {
+      active: { totalOverdue: 0, collectedToday: 0, remaining: 0, loans: new Set<string>(), customers: new Set<string>(), pct: 0 },
+      inactive: { totalOverdue: 0, collectedToday: 0, remaining: 0, loans: new Set<string>(), customers: new Set<string>(), pct: 0 },
+    };
+    const overdueFreqLoans: Record<FrequencyKey, ReturnType<typeof mkSets>> = { daily: mkSets(), weekly: mkSets(), monthly: mkSets() };
+    const overdueFreqCustomers: Record<FrequencyKey, ReturnType<typeof mkSets>> = { daily: mkSets(), weekly: mkSets(), monthly: mkSets() };
+    const allOverdueLoans = new Set<string>();
+    const allOverdueCustomers = new Set<string>();
+
+    for (const [loanId, m] of metricsByLoan.entries()) {
+      const freq = loanFrequencyMap.get(loanId) || 'daily';
+      const isActive = loanStatusMap.get(loanId) ?? true;
+      const statusKey: 'active' | 'inactive' = isActive ? 'active' : 'inactive';
+      const custId = loanCustomerMap.get(loanId);
+
+      overdueLoansByStatus[statusKey].totalOverdue += m.overdueTotalTillToday;
+      overdueLoansByStatus[statusKey].collectedToday += m.overdueCollectedToday;
+      overdueLoansByStatus[statusKey].remaining += m.overdueOutstanding;
+
+      if (m.overdueTotalTillToday > 0 || m.overdueOutstanding > 0) {
+        overdueLoansByStatus[statusKey].loans.add(loanId);
+        allOverdueLoans.add(loanId);
+        overdueFreqLoans[freq].total.add(loanId);
+        overdueFreqLoans[freq][statusKey].add(loanId);
+        if (custId) {
+          overdueLoansByStatus[statusKey].customers.add(custId);
+          allOverdueCustomers.add(custId);
+          overdueFreqCustomers[freq].total.add(custId);
+          overdueFreqCustomers[freq][statusKey].add(custId);
+        }
+      }
+
+      overdueFrequencyBreakdown[freq].total.totalOverdue += m.overdueTotalTillToday;
+      overdueFrequencyBreakdown[freq].total.collectedToday += m.overdueCollectedToday;
+      overdueFrequencyBreakdown[freq].total.remaining += m.overdueOutstanding;
+      overdueFrequencyBreakdown[freq][statusKey].totalOverdue += m.overdueTotalTillToday;
+      overdueFrequencyBreakdown[freq][statusKey].collectedToday += m.overdueCollectedToday;
+      overdueFrequencyBreakdown[freq][statusKey].remaining += m.overdueOutstanding;
+    }
+
+    for (const key of ['daily', 'weekly', 'monthly'] as FrequencyKey[]) {
+      const fb = overdueFrequencyBreakdown[key];
+      fb.total.loanCount = overdueFreqLoans[key].total.size;
+      fb.total.customerCount = overdueFreqCustomers[key].total.size;
+      fb.total.pct = fb.total.totalOverdue > 0 ? Math.min(100, Math.round((fb.total.collectedToday / fb.total.totalOverdue) * 100)) : 0;
+      fb.active.loanCount = overdueFreqLoans[key].active.size;
+      fb.active.customerCount = overdueFreqCustomers[key].active.size;
+      fb.active.pct = fb.active.totalOverdue > 0 ? Math.min(100, Math.round((fb.active.collectedToday / fb.active.totalOverdue) * 100)) : 0;
+      fb.inactive.loanCount = overdueFreqLoans[key].inactive.size;
+      fb.inactive.customerCount = overdueFreqCustomers[key].inactive.size;
+      fb.inactive.pct = fb.inactive.totalOverdue > 0 ? Math.min(100, Math.round((fb.inactive.collectedToday / fb.inactive.totalOverdue) * 100)) : 0;
+    }
+
+    overdueLoansByStatus.active.pct = overdueLoansByStatus.active.totalOverdue > 0
+      ? Math.min(100, Math.round((overdueLoansByStatus.active.collectedToday / overdueLoansByStatus.active.totalOverdue) * 100)) : 0;
+    overdueLoansByStatus.inactive.pct = overdueLoansByStatus.inactive.totalOverdue > 0
+      ? Math.min(100, Math.round((overdueLoansByStatus.inactive.collectedToday / overdueLoansByStatus.inactive.totalOverdue) * 100)) : 0;
+
+    const overduePct = overdueTotalTillToday > 0
+      ? Math.min(100, Math.round((overdueCollectedToday / overdueTotalTillToday) * 100)) : 0;
+
+    const overdueBreakdown = {
+      total: { totalOverdue: overdueTotalTillToday, collectedToday: overdueCollectedToday, remaining: overdueOutstanding, loanCount: allOverdueLoans.size, customerCount: allOverdueCustomers.size, pct: overduePct },
+      active: { totalOverdue: overdueLoansByStatus.active.totalOverdue, collectedToday: overdueLoansByStatus.active.collectedToday, remaining: overdueLoansByStatus.active.remaining, loanCount: overdueLoansByStatus.active.loans.size, customerCount: overdueLoansByStatus.active.customers.size, pct: overdueLoansByStatus.active.pct },
+      inactive: { totalOverdue: overdueLoansByStatus.inactive.totalOverdue, collectedToday: overdueLoansByStatus.inactive.collectedToday, remaining: overdueLoansByStatus.inactive.remaining, loanCount: overdueLoansByStatus.inactive.loans.size, customerCount: overdueLoansByStatus.inactive.customers.size, pct: overdueLoansByStatus.inactive.pct },
+      breakdown: overdueFrequencyBreakdown,
+    };
+
     const defaulterAlerts = overdueDefaulterRows
       .map((item) => ({ ...item, overdueAmount: outstanding(item) }))
       .filter((item) => item.overdueAmount > 0);
@@ -420,6 +595,8 @@ export async function GET(req: NextRequest) {
         loanCode: e.loan?.loanCode ?? '',
       })),
       todayByMode,
+      todayBreakdown,
+      overdueBreakdown,
     });
   } catch (e: any) {
     return fail(e?.message ?? 'Dashboard failed', 500);

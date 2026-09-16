@@ -1,3 +1,151 @@
+/// Metrics per status bucket (expected/collected/remaining/loanCount/customerCount/pct).
+class StatusSubMetrics {
+  const StatusSubMetrics({
+    this.expected = 0,
+    this.collected = 0,
+    this.remaining = 0,
+    this.loanCount = 0,
+    this.customerCount = 0,
+    this.pct = 0,
+  });
+  final double expected;
+  final double collected;
+  final double remaining;
+  final int loanCount;
+  final int customerCount;
+  final double pct;
+
+  factory StatusSubMetrics.fromJson(Map<String, dynamic> json) {
+    double n(dynamic v) => v == null ? 0 : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
+    return StatusSubMetrics(
+      expected: n(json['expected']),
+      collected: n(json['collected']),
+      remaining: n(json['remaining']),
+      loanCount: (json['loanCount'] as num?)?.toInt() ?? 0,
+      customerCount: (json['customerCount'] as num?)?.toInt() ?? 0,
+      pct: n(json['pct']),
+    );
+  }
+}
+
+/// Per-frequency (daily/weekly/monthly) breakdown for today's collection.
+class TodayFrequencyMetrics {
+  const TodayFrequencyMetrics({
+    this.total = const StatusSubMetrics(),
+    this.active = const StatusSubMetrics(),
+    this.inactive = const StatusSubMetrics(),
+  });
+  final StatusSubMetrics total;
+  final StatusSubMetrics active;
+  final StatusSubMetrics inactive;
+
+  factory TodayFrequencyMetrics.fromJson(Map<String, dynamic> json) {
+    return TodayFrequencyMetrics(
+      total: json['total'] != null ? StatusSubMetrics.fromJson(json['total'] as Map<String, dynamic>) : const StatusSubMetrics(),
+      active: json['active'] != null ? StatusSubMetrics.fromJson(json['active'] as Map<String, dynamic>) : const StatusSubMetrics(),
+      inactive: json['inactive'] != null ? StatusSubMetrics.fromJson(json['inactive'] as Map<String, dynamic>) : const StatusSubMetrics(),
+    );
+  }
+}
+
+/// Full today's collection breakdown: status summary + frequency sub-breakdown.
+class TodayCollectionBreakdown {
+  const TodayCollectionBreakdown({
+    this.total = const StatusSubMetrics(),
+    this.active = const StatusSubMetrics(),
+    this.inactive = const StatusSubMetrics(),
+    this.breakdown = const {},
+  });
+  final StatusSubMetrics total;
+  final StatusSubMetrics active;
+  final StatusSubMetrics inactive;
+  final Map<String, TodayFrequencyMetrics> breakdown;
+
+  factory TodayCollectionBreakdown.fromJson(Map<String, dynamic> json) {
+    final bd = json['breakdown'] as Map<String, dynamic>? ?? const {};
+    return TodayCollectionBreakdown(
+      total: json['total'] != null ? StatusSubMetrics.fromJson(json['total'] as Map<String, dynamic>) : const StatusSubMetrics(),
+      active: json['active'] != null ? StatusSubMetrics.fromJson(json['active'] as Map<String, dynamic>) : const StatusSubMetrics(),
+      inactive: json['inactive'] != null ? StatusSubMetrics.fromJson(json['inactive'] as Map<String, dynamic>) : const StatusSubMetrics(),
+      breakdown: bd.map((k, dynamic v) => MapEntry(k, TodayFrequencyMetrics.fromJson(v as Map<String, dynamic>))),
+    );
+  }
+}
+
+/// Overdue status sub-metrics (totalOverdue/collectedToday/remaining).
+class OverdueStatusSubMetrics {
+  const OverdueStatusSubMetrics({
+    this.totalOverdue = 0,
+    this.collectedToday = 0,
+    this.remaining = 0,
+    this.loanCount = 0,
+    this.customerCount = 0,
+    this.pct = 0,
+  });
+  final double totalOverdue;
+  final double collectedToday;
+  final double remaining;
+  final int loanCount;
+  final int customerCount;
+  final double pct;
+
+  factory OverdueStatusSubMetrics.fromJson(Map<String, dynamic> json) {
+    double n(dynamic v) => v == null ? 0 : (v is num ? v.toDouble() : double.tryParse(v.toString()) ?? 0);
+    return OverdueStatusSubMetrics(
+      totalOverdue: n(json['totalOverdue']),
+      collectedToday: n(json['collectedToday']),
+      remaining: n(json['remaining']),
+      loanCount: (json['loanCount'] as num?)?.toInt() ?? 0,
+      customerCount: (json['customerCount'] as num?)?.toInt() ?? 0,
+      pct: n(json['pct']),
+    );
+  }
+}
+
+/// Per-frequency breakdown for overdue collection.
+class OverdueFrequencyMetrics {
+  const OverdueFrequencyMetrics({
+    this.total = const OverdueStatusSubMetrics(),
+    this.active = const OverdueStatusSubMetrics(),
+    this.inactive = const OverdueStatusSubMetrics(),
+  });
+  final OverdueStatusSubMetrics total;
+  final OverdueStatusSubMetrics active;
+  final OverdueStatusSubMetrics inactive;
+
+  factory OverdueFrequencyMetrics.fromJson(Map<String, dynamic> json) {
+    return OverdueFrequencyMetrics(
+      total: json['total'] != null ? OverdueStatusSubMetrics.fromJson(json['total'] as Map<String, dynamic>) : const OverdueStatusSubMetrics(),
+      active: json['active'] != null ? OverdueStatusSubMetrics.fromJson(json['active'] as Map<String, dynamic>) : const OverdueStatusSubMetrics(),
+      inactive: json['inactive'] != null ? OverdueStatusSubMetrics.fromJson(json['inactive'] as Map<String, dynamic>) : const OverdueStatusSubMetrics(),
+    );
+  }
+}
+
+/// Full overdue collection breakdown.
+class OverdueCollectionBreakdown {
+  const OverdueCollectionBreakdown({
+    this.total = const OverdueStatusSubMetrics(),
+    this.active = const OverdueStatusSubMetrics(),
+    this.inactive = const OverdueStatusSubMetrics(),
+    this.breakdown = const {},
+  });
+  final OverdueStatusSubMetrics total;
+  final OverdueStatusSubMetrics active;
+  final OverdueStatusSubMetrics inactive;
+  final Map<String, OverdueFrequencyMetrics> breakdown;
+
+  factory OverdueCollectionBreakdown.fromJson(Map<String, dynamic> json) {
+    final bd = json['breakdown'] as Map<String, dynamic>? ?? const {};
+    return OverdueCollectionBreakdown(
+      total: json['total'] != null ? OverdueStatusSubMetrics.fromJson(json['total'] as Map<String, dynamic>) : const OverdueStatusSubMetrics(),
+      active: json['active'] != null ? OverdueStatusSubMetrics.fromJson(json['active'] as Map<String, dynamic>) : const OverdueStatusSubMetrics(),
+      inactive: json['inactive'] != null ? OverdueStatusSubMetrics.fromJson(json['inactive'] as Map<String, dynamic>) : const OverdueStatusSubMetrics(),
+      breakdown: bd.map((k, dynamic v) => MapEntry(k, OverdueFrequencyMetrics.fromJson(v as Map<String, dynamic>))),
+    );
+  }
+}
+
 class DashboardSummary {
   const DashboardSummary({
     required this.activeLoans,
@@ -27,6 +175,8 @@ class DashboardSummary {
     this.pendingUpiCollections = const [],
     this.pendingCashCollections = const [],
     this.todayByMode = const {},
+    this.todayBreakdown = const TodayCollectionBreakdown(),
+    this.overdueBreakdown = const OverdueCollectionBreakdown(),
   });
 
   final int activeLoans;
@@ -61,6 +211,8 @@ class DashboardSummary {
   final List<TodayActivity> pendingUpiCollections;
   final List<TodayActivity> pendingCashCollections;
   final Map<String, double> todayByMode;
+  final TodayCollectionBreakdown todayBreakdown;
+  final OverdueCollectionBreakdown overdueBreakdown;
 
   factory DashboardSummary.fromJson(Map<String, dynamic> json) {
     double toNum(dynamic v) => v == null
@@ -127,6 +279,24 @@ class DashboardSummary {
           .toList(growable: false),
       todayByMode: (json['todayByMode'] as Map<String, dynamic>? ?? const {})
           .map((k, dynamic v) => MapEntry(k, toNum(v))),
+      todayBreakdown: json['todayBreakdown'] != null
+          ? TodayCollectionBreakdown.fromJson(json['todayBreakdown'] as Map<String, dynamic>)
+          : TodayCollectionBreakdown(
+              total: StatusSubMetrics(expected: toNum(json['todayExpected']), collected: toNum(json['todayCollected']), remaining: toNum(json['todayGap']), pct: toNum(json['hitRate'])),
+              active: const StatusSubMetrics(),
+              inactive: const StatusSubMetrics(),
+            ),
+      overdueBreakdown: json['overdueBreakdown'] != null
+          ? OverdueCollectionBreakdown.fromJson(json['overdueBreakdown'] as Map<String, dynamic>)
+          : OverdueCollectionBreakdown(
+              total: OverdueStatusSubMetrics(
+                totalOverdue: toNum(json['overdueTotalTillToday']),
+                collectedToday: toNum(json['overdueCollectedToday']),
+                remaining: toNum(json['overdueOutstanding']),
+              ),
+              active: const OverdueStatusSubMetrics(),
+              inactive: const OverdueStatusSubMetrics(),
+            ),
     );
   }
 }
