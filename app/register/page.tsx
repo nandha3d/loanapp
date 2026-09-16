@@ -895,10 +895,19 @@ function RegisterForm() {
                   type="checkbox"
                   id="terms"
                   checked={termsAccepted}
-                  onChange={(e) => setTermsAccepted(e.target.checked)}
-                  style={{ marginTop: '4px' }}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setTermsAccepted(checked);
+                    if (checked) {
+                      setError((prev) => (prev.toLowerCase().includes('terms') ? '' : prev));
+                    }
+                  }}
+                  style={{ marginTop: '4px', cursor: 'pointer' }}
                 />
-                <label htmlFor="terms" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                <label
+                  htmlFor="terms"
+                  style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none' }}
+                >
                   I accept the Terms of Service, privacy policy and authorize ZoloFund to set up my workspace database immediately.
                 </label>
               </div>
