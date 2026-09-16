@@ -14,6 +14,7 @@ import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/services/customer_service.dart';
 import 'package:zolofund/features/admin/tracking/tracking_provider.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
+import 'package:zolofund/shared/widgets/module_app_bar_title.dart';
 
 // ── Map pin data ──────────────────────────────────────────────────────────────
 
@@ -287,7 +288,12 @@ class MoreScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: Text(t.x('nav.more')), centerTitle: true),
+      appBar: AppBar(
+        title: ModuleAppBarTitle(
+          subtitle: t.x('nav.more'),
+        ),
+        centerTitle: true,
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

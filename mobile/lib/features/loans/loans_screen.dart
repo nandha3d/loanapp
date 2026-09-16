@@ -17,6 +17,7 @@ import 'package:zolofund/shared/widgets/bottom_nav.dart';
 import 'package:zolofund/shared/widgets/empty_state.dart';
 import 'package:zolofund/shared/widgets/fab_extended.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
+import 'package:zolofund/shared/widgets/module_app_bar_title.dart';
 
 final loansProvider =
     FutureProvider<List<Map<String, dynamic>>>((ref) {
@@ -43,7 +44,9 @@ class _LoansScreenState extends ConsumerState<LoansScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(t.x('title.loans')),
+        title: ModuleAppBarTitle(
+          subtitle: t.x('title.loans'),
+        ),
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),

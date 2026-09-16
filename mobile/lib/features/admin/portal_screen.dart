@@ -14,24 +14,27 @@ import 'package:zolofund/shared/constants/endpoints.dart';
 /// one glassmorphic card per subscribed vertical, plus Quick Access and
 /// System Administration shortcuts. Picking a card sets the active appType
 /// and drops into that module.
-final _verticalsProvider =
-    FutureProvider.autoDispose<List<String>>((ref) async {
+final _verticalsProvider = FutureProvider<List<String>>((ref) async {
   final dio = ref.watch(dioProvider);
-  final res = await dio.get<Map<String, dynamic>>(Endpoints.me);
-  final data = res.data?['data'] as Map<String, dynamic>?;
-  return (data?['verticals'] as List<dynamic>? ?? const [])
-      .whereType<String>()
-      .toList(growable: false);
+  try {
+    final res = await dio.get<Map<String, dynamic>>(Endpoints.me);
+    final data = res.data?['data'] as Map<String, dynamic>?;
+    final list = (data?['verticals'] as List<dynamic>? ?? const [])
+        .whereType<String>()
+        .toList(growable: false);
+    if (list.isNotEmpty) return list;
+  } catch (_) {}
+  final user = ref.read(authControllerProvider).user;
+  return user?.enabledModules ?? const [];
 });
 
-// Portal palette — fixed brand colors matching the web app-selector, not the
-// (mutable) themed AppColors, so both platforms read identically.
-const _kPortalTop = Color(0xFF1A1A2E);
-const _kPortalMid = Color(0xFF16213E);
-const _kPortalBottom = Color(0xFF0F3460);
-const _kGlass = Color(0x0DFFFFFF); // white @ 5%
-const _kGlassHi = Color(0x1FFFFFFF); // white @ 12%
-const _kGlassBorder = Color(0x1AFFFFFF); // white @ 10%
+// Portal palette — rich ZoloFund brand purple gradient and modern glassmorphic surfaces
+const _kPortalTop = Color(0xFF1E0C24);     // Deep brand night purple
+const _kPortalMid = Color(0xFF330E38);     // Brand rich plum purple
+const _kPortalBottom = Color(0xFF140517);  // Deepest velvet purple
+const _kGlass = Color(0x14FFFFFF);         // white @ 8%
+const _kGlassHi = Color(0x24FFFFFF);       // white @ 14%
+const _kGlassBorder = Color(0x24FFFFFF);   // white @ 14%
 const _kWhite70 = Color(0xB3FFFFFF);
 const _kWhite60 = Color(0x99FFFFFF);
 const _kWhite50 = Color(0x80FFFFFF);
@@ -99,6 +102,7 @@ class PortalScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authControllerProvider).user;
     final verticalsAsync = ref.watch(_verticalsProvider);
+    final cachedVerticals = user?.enabledModules ?? const <String>[];
 
     final role = user?.role;
     final isAgent = role == UserRole.agent;
@@ -128,25 +132,29 @@ class PortalScreen extends ConsumerWidget {
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
                     sliver: verticalsAsync.when(
-                      loading: () => const SliverToBoxAdapter(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 40),
-                          child: Center(
-                              child: CircularProgressIndicator(
-                                  color: Colors.white)),
-                        ),
+                      loading: () => _appGrid(
+                        context,
+                        ref,
+                        cachedVerticals.isNotEmpty
+                            ? cachedVerticals
+                            : [user?.appType ?? AppType.microlending],
+                        cols,
                       ),
                       error: (_, __) => _appGrid(
                         context,
                         ref,
-                        [user?.appType ?? AppType.microlending],
+                        cachedVerticals.isNotEmpty
+                            ? cachedVerticals
+                            : [user?.appType ?? AppType.microlending],
                         cols,
                       ),
                       data: (verticals) => _appGrid(
                         context,
                         ref,
                         verticals.isEmpty
-                            ? [user?.appType ?? AppType.microlending]
+                            ? (cachedVerticals.isNotEmpty
+                                ? cachedVerticals
+                                : [user?.appType ?? AppType.microlending])
                             : verticals,
                         cols,
                       ),
@@ -298,17 +306,34 @@ class _TopBar extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 12, 16, 0),
       child: Row(
         children: [
-          // ZoloFund wordmark, small.
-          Text.rich(
-            TextSpan(
-              style: AppTypography.sectionTitle.copyWith(color: Colors.white),
-              children: const [
-                TextSpan(text: 'Loan'),
-                TextSpan(
-                    text: 'Track',
-                    style: TextStyle(color: Color(0xFFF5A623))),
-              ],
-            ),
+          // Official ZoloFund logo with module badge
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.asset(
+                'assets/images/logo.png',
+                height: 32,
+                fit: BoxFit.contain,
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.white.withAlpha(25),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: _kGlassBorder),
+                ),
+                child: const Text(
+                  'Portal · Hub',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ),
+            ],
           ),
           const Spacer(),
           TextButton.icon(
@@ -339,15 +364,21 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          Image.asset(
+            'assets/images/logo.png',
+            height: 52,
+            fit: BoxFit.contain,
+          ),
+          const SizedBox(height: 12),
           Text(
             'Welcome, $userName',
             textAlign: TextAlign.center,
             style: AppTypography.heroNumber
-                .copyWith(color: Colors.white, fontSize: 28),
+                .copyWith(color: Colors.white, fontSize: 26),
           ),
           const SizedBox(height: 6),
           Text(

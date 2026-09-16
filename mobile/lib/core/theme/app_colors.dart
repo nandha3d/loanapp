@@ -77,8 +77,7 @@ class AppColors {
   static const Color onInkMuted = Color(0xFF9AA4B2);   // secondary text on ink
   static const Color onPrimary = Color(0xFFFFFFFF);    // text/icon on purple primary
 
-  // Dark hero-card gradient — matches the home/dashboard hero so other hero
-  // cards (e.g. collection's today summary) can share the exact same look.
-  static const Color heroDarkFrom = Color(0xFF1F2937);
-  static const Color heroDarkTo = Color(0xFF111827);
+  // Theme hero-card gradient — rich ZoloFund brand purple gradient matching the official theme
+  static const Color heroDarkFrom = Color(0xFF4A134B);
+  static const Color heroDarkTo = Color(0xFF230724);
 }

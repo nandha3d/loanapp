@@ -27,6 +27,7 @@ import 'package:zolofund/shared/widgets/empty_state.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
 import 'package:zolofund/features/dashboard/widgets/collect_cash_sheet.dart';
 import 'package:zolofund/features/dashboard/widgets/verify_upi_sheet.dart';
+import 'package:zolofund/shared/widgets/module_app_bar_title.dart';
 
 // Process-lifetime guard so rebuilds can't queue duplicate onboarding dialogs.
 bool _onboardingRequested = false;
@@ -63,7 +64,10 @@ class DashboardScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(t.x('dash.title')),
+        title: ModuleAppBarTitle(
+          title: isChit ? 'Chit Funds' : 'Micro Lending',
+          subtitle: t.x('dash.title'),
+        ),
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.menu),
@@ -347,7 +351,7 @@ class _HeroBalance extends ConsumerWidget {
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF1F2937), Color(0xFF111827)],
+            colors: [AppColors.heroDarkFrom, AppColors.heroDarkTo],
           ),
           boxShadow: AppTokens.shadowLg,
         ),

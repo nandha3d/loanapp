@@ -161,15 +161,20 @@ export default function Sidebar({
       {/* Colours inherit from the .app-layout wrapper so the tenant theme
           (Settings → Theme) wins over the static per-module palette. */}
       <aside className={`sidebar ${isOpen ? 'open' : ''}`} id="sidebar">
-        <div className="sidebar-brand">
-          <div style={{
-            width: '36px', height: '36px', borderRadius: '10px',
-            background: 'var(--primary)', display: 'flex',
-            alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-          }}>
-            <span className="material-icons-outlined" style={{ color: '#fff', fontSize: '20px' }}>{appConfig.icon}</span>
+        <div className="sidebar-brand" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <img
+            src="/logo.png"
+            alt="ZoloFund"
+            style={{ height: '36px', width: 'auto', objectFit: 'contain', flexShrink: 0 }}
+          />
+          <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'inherit', lineHeight: 1.2, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+              {appConfig.name}
+            </span>
+            <span style={{ fontSize: '0.70rem', opacity: 0.65, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              ZoloFund
+            </span>
           </div>
-          <h2>{appConfig.logoText[0]}<span>{appConfig.logoText[1]}</span></h2>
         </div>
 
         <nav className="sidebar-nav">

@@ -251,7 +251,7 @@ class _ChitHeroCard extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF1F2937), Color(0xFF111827)],
+          colors: [AppColors.heroDarkFrom, AppColors.heroDarkTo],
         ),
         boxShadow: AppTokens.shadowLg,
       ),

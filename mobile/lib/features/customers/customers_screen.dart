@@ -14,6 +14,7 @@ import 'package:zolofund/shared/widgets/bottom_nav.dart';
 import 'package:zolofund/shared/widgets/empty_state.dart';
 import 'package:zolofund/shared/widgets/fab_extended.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
+import 'package:zolofund/shared/widgets/module_app_bar_title.dart';
 
 class CustomersScreen extends ConsumerStatefulWidget {
   const CustomersScreen({super.key});
@@ -63,7 +64,9 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(t.x('title.customers')),
+        title: ModuleAppBarTitle(
+          subtitle: t.x('title.customers'),
+        ),
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),

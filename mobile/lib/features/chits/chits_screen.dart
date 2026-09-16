@@ -15,6 +15,7 @@ import 'package:zolofund/features/chits/chit_payment_intents_screen.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
 import 'package:zolofund/shared/widgets/empty_state.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
+import 'package:zolofund/shared/widgets/module_app_bar_title.dart';
 
 final _chitGroupsProvider = FutureProvider.autoDispose<List<ChitGroup>>((ref) {
   return ref.watch(chitServiceProvider).list();
@@ -35,7 +36,10 @@ class ChitsScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(t.x('title.chits')),
+        title: ModuleAppBarTitle(
+          title: 'Chit Funds',
+          subtitle: t.x('title.chits'),
+        ),
         centerTitle: true,
         actions: [
           IconButton(

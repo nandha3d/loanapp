@@ -95,8 +95,6 @@ final splashReadyProvider = StateProvider<bool>((ref) {
 });
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final auth = ref.watch(authControllerProvider);
-
   return GoRouter(
     // Start at the branded splash so the role-based entry redirect always runs
     // on cold start (admins/superadmins → /portal, agents → /dashboard,
@@ -106,6 +104,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     refreshListenable: _AuthListenable(ref),
     redirect: (context, state) {
       final loc = state.matchedLocation;
+      final auth = ref.read(authControllerProvider);
       final stage = auth.stage;
       final splashReady = ref.read(splashReadyProvider);
 
@@ -198,7 +197,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/profile',
         builder: (_, __) {
-          final user = auth.user;
+          final user = ref.read(authControllerProvider).user;
           if (user?.role == UserRole.superadmin) {
             return const SuperadminProfileScreen();
           }
@@ -315,7 +314,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/collection',
         builder: (_, __) {
-          final user = auth.user;
+          final user = ref.read(authControllerProvider).user;
           if (AppType.userIsChit(user)) return const ChitsScreen();
           return const CollectionScreen();
         },

@@ -28,6 +28,7 @@ import 'package:zolofund/data/repositories/dashboard_repository.dart';
 import 'package:zolofund/data/services/collection_service.dart';
 import 'package:zolofund/features/collection/quick_collect_sheet.dart';
 import 'package:zolofund/features/collection/offline_banner.dart';
+import 'package:zolofund/shared/widgets/module_app_bar_title.dart';
 import 'package:zolofund/features/onboarding/location_permission_overlay.dart';
 import 'package:zolofund/shared/widgets/help_sheet.dart';
 import 'package:zolofund/shared/widgets/bottom_nav.dart';
@@ -151,7 +152,9 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(t.x('coll.title')),
+        title: ModuleAppBarTitle(
+          subtitle: t.x('coll.title'),
+        ),
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),

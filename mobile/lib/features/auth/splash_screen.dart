@@ -21,6 +21,7 @@ class SplashScreen extends ConsumerStatefulWidget {
 class _SplashScreenState extends ConsumerState<SplashScreen> {
   VideoPlayerController? _videoController;
   bool _videoInitialized = false;
+  bool _finished = false;
   bool _showFallback = false;
   Timer? _fallbackTimer;
   Timer? _autoTransitionTimer;
@@ -35,8 +36,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       if (mounted) setState(() => _showFallback = true);
     });
 
-    // Auto-advance splash after 5.2s (matching video duration)
-    _autoTransitionTimer = Timer(const Duration(milliseconds: 5200), () {
+    // Initial safe fallback timer in case video fails to initialize
+    _autoTransitionTimer = Timer(const Duration(milliseconds: 6500), () {
       _finishSplash();
     });
   }
@@ -55,6 +56,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         _videoController!.play();
 
         _videoController!.addListener(_videoListener);
+
+        // Dynamic timer synced precisely with actual video duration
+        final duration = _videoController!.value.duration;
+        if (duration > Duration.zero) {
+          _autoTransitionTimer?.cancel();
+          _autoTransitionTimer = Timer(duration, _finishSplash);
+        }
       }).catchError((Object err) {
         debugPrint('[Splash] Video load notice: $err');
         Timer(const Duration(seconds: 2), _finishSplash);
@@ -66,17 +74,20 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   }
 
   void _videoListener() {
-    if (_videoController == null || !_videoController!.value.isInitialized) return;
+    if (_finished || _videoController == null || !_videoController!.value.isInitialized) return;
     final position = _videoController!.value.position;
     final duration = _videoController!.value.duration;
 
-    if (position >= duration && duration > Duration.zero) {
+    if (duration > Duration.zero && position >= duration) {
       _finishSplash();
     }
   }
 
   void _finishSplash() {
-    if (!mounted) return;
+    if (!mounted || _finished) return;
+    _finished = true;
+    _autoTransitionTimer?.cancel();
+    _fallbackTimer?.cancel();
     ref.read(splashReadyProvider.notifier).state = true;
   }
 
@@ -101,52 +112,58 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // 1. Splash Video Player
-            if (_videoInitialized && _videoController != null)
-              Center(
-                child: AspectRatio(
-                  aspectRatio: _videoController!.value.aspectRatio > 0
-                      ? _videoController!.value.aspectRatio
-                      : 9 / 16,
-                  child: VideoPlayer(_videoController!),
-                ),
-              )
-            else
-              // Elegant branded placeholder while video initializes
-              Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0xFF1A1D23),
-                      Color(0xFF281429),
-                      Color(0xFF15171E),
-                    ],
-                  ),
-                ),
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Image.asset(
-                        'assets/images/logo.png',
-                        height: 72,
-                        fit: BoxFit.contain,
-                      ),
-                      const SizedBox(height: 32),
-                      SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    ],
-                  ),
+            // Elegant branded placeholder while video initializes
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFF1E0C24),
+                    Color(0xFF281429),
+                    Color(0xFF15171E),
+                  ],
                 ),
               ),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Image.asset(
+                      'assets/images/logo.png',
+                      height: 84,
+                      fit: BoxFit.contain,
+                    ),
+                    const SizedBox(height: 32),
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // 1. Splash Video Player with smooth fade-in
+            AnimatedOpacity(
+              opacity: _videoInitialized && _videoController != null ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeIn,
+              child: _videoController != null && _videoInitialized
+                  ? Center(
+                      child: AspectRatio(
+                        aspectRatio: _videoController!.value.aspectRatio > 0
+                            ? _videoController!.value.aspectRatio
+                            : 9 / 16,
+                        child: VideoPlayer(_videoController!),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
 
             // 2. Skip Action in top-right corner
             SafeArea(

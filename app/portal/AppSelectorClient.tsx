@@ -28,7 +28,7 @@ export default function AppSelectorClient({
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+      background: 'linear-gradient(135deg, #1e0c24 0%, #38123c 50%, #140517 100%)',
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       padding: '20px',
     }}>
@@ -57,11 +57,28 @@ export default function AppSelectorClient({
         </button>
       </div>
 
-      <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+      <div style={{ textAlign: 'center', marginBottom: '36px' }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
+          <img
+            src="/logo.png"
+            alt="ZoloFund"
+            style={{ height: '64px', width: 'auto', objectFit: 'contain' }}
+          />
+        </div>
+        <div>
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: '6px',
+            background: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.15)',
+            padding: '4px 12px', borderRadius: '20px', marginBottom: '12px', color: '#fff', fontSize: '0.82rem', fontWeight: 600
+          }}>
+            <span className="material-icons-outlined" style={{ fontSize: '15px', color: '#FCF6AB' }}>apps</span>
+            Portal · Module Selector
+          </span>
+        </div>
         <h1 style={{ color: '#fff', fontSize: '2rem', fontWeight: 700, marginBottom: '8px' }}>
           Welcome, {userName}
         </h1>
-        <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '1rem' }}>
+        <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '1rem' }}>
           Select an application to manage
         </p>
         {accessNotice && (
