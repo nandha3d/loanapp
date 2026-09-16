@@ -101,15 +101,14 @@ function RegisterForm() {
   useEffect(() => {
     async function fetchPricing() {
       try {
-        const res = await fetch('/api/pricing');
+        const res = await fetch('/api/pricing', { cache: 'no-store' });
         const data = await res.json();
         if (data.success) {
           const plans = data.plans || [];
           setCatalog({ ...data, plans });
           if (plans.length > 0) {
-            // Default to collector/basic if available, or first plan
-            const defaultPlan = plans.find((p: any) => p.plan === 'collector' || p.plan === 'basic') || plans[0];
-            setSelectedPlan(defaultPlan.plan);
+            // Keep current plan (defaults to 'free') if available, otherwise first plan
+            setSelectedPlan((prev) => (plans.some((p: any) => p.plan === prev) ? prev : plans[0].plan));
           } else {
             setError('No subscription plans are currently available.');
           }
@@ -632,15 +631,25 @@ function RegisterForm() {
               <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: '24px' }}>
                 Select a subscription plan that fits your business scale. Choose Free to get started immediately, or a paid plan with direct payment or trial options.
               </p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '16px' }}>
                 {catalog.plans.map((p: any) => {
                   const isSelected = selectedPlan === p.plan;
-                  let featuresList = [];
+                  let featuresList: string[] = [];
                   try {
-                    featuresList = typeof p.features === 'string' ? JSON.parse(p.features || '[]') : (Array.isArray(p.features) ? p.features : []);
+                    const parsed = typeof p.features === 'string' ? JSON.parse(p.features || '[]') : p.features;
+                    featuresList = Array.isArray(parsed) ? parsed.map(String) : [];
                   } catch(e) {
                     console.error('Failed to parse features:', p.features);
                   }
+
+                  const filteredFeatures = featuresList.filter((f: string) => {
+                    const lower = f.toLowerCase().trim();
+                    return !(
+                      /^(up to \d+|\d+|single|unlimited)\s+(branches?|agents?|loans?|active loans?)$/i.test(lower) ||
+                      /^\d+\s+active loans?$/i.test(lower)
+                    );
+                  });
+
                   return (
                     <div
                       key={p.plan}
@@ -654,7 +663,7 @@ function RegisterForm() {
                       }}
                     >
                       <span className="badge badge-primary" style={{ alignSelf: 'center', marginBottom: '12px', textTransform: 'uppercase', fontSize: '0.68rem', letterSpacing: '0.5px' }}>
-                        {p.plan}
+                        {p.displayName || p.plan}
                       </span>
                       <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                         {p.monthlyPrice === 0 ? 'Free' : `₹${p.monthlyPrice}`}
@@ -663,23 +672,23 @@ function RegisterForm() {
                       <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '8px 0 16px', minHeight: '36px' }}>
                         {p.description}
                       </p>
-                      <div style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--primary)', marginBottom: '12px' }}>
-                        {p.monthlyPrice === 0 ? 'Free forever' : (Number(p.trialDays) > 0 ? `${p.trialDays}-day trial or pay now` : 'Direct activation')}
+                      <div style={{ fontSize: '0.74rem', fontWeight: 700, color: p.monthlyPrice === 0 ? 'var(--success)' : 'var(--primary)', marginBottom: '12px' }}>
+                        {p.monthlyPrice === 0 ? 'Free forever' : (Number(p.trialDays) > 0 ? `${p.trialDays}-day free trial` : 'Direct activation')}
                       </div>
                       <div style={{ borderTop: '1px solid var(--border)', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.78rem', color: 'var(--text-secondary)', textAlign: 'left', flexGrow: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <span className="material-icons-outlined" style={{ fontSize: '14px', color: 'var(--success)' }}>check</span>
-                          Max Branches: {p.maxBranches === 999 ? 'Unlimited' : p.maxBranches}
+                          Max Branches: {p.maxBranches >= 999 ? 'Unlimited' : p.maxBranches}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <span className="material-icons-outlined" style={{ fontSize: '14px', color: 'var(--success)' }}>check</span>
-                          Max Agents: {p.maxAgents === 999 ? 'Unlimited' : p.maxAgents}
+                          Max Agents: {p.maxAgents >= 999 ? 'Unlimited' : p.maxAgents}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <span className="material-icons-outlined" style={{ fontSize: '14px', color: 'var(--success)' }}>check</span>
-                          Max Active Loans: {p.maxActiveLoans === 999999 ? 'Unlimited' : p.maxActiveLoans}
+                          Max Active Loans: {p.maxActiveLoans >= 999999 ? 'Unlimited' : p.maxActiveLoans}
                         </div>
-                        {featuresList.slice(0, 3).map((f: string, i: number) => (
+                        {filteredFeatures.map((f: string, i: number) => (
                           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <span className="material-icons-outlined" style={{ fontSize: '14px', color: 'var(--success)' }}>check</span>
                             {f}
@@ -769,82 +778,96 @@ function RegisterForm() {
 
                   {/* Pricing Quote Table */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.85rem' }}>
-                    {selectedPlan === 'free' ? (
-                      <div style={{ padding: '12px 14px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', color: 'var(--text-primary)' }}>
-                        <strong style={{ display: 'block', color: 'var(--success)', marginBottom: '4px' }}>Free Tier Plan</strong>
-                        Always free with up to 25 active loans and 1 agent. No payment or credit card required today.
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '8px' }}>
-                        <label style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                          Subscription Activation Choice
-                        </label>
-                        
-                        <div
-                          onClick={() => setPaymentOption('pay_now')}
-                          style={{
-                            padding: '12px 16px', borderRadius: '8px', cursor: 'pointer',
-                            border: `2px solid ${paymentOption === 'pay_now' ? 'var(--primary)' : 'var(--border)'}`,
-                            background: paymentOption === 'pay_now' ? 'var(--bg-light)' : 'transparent',
-                            display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <input
-                              type="radio"
-                              name="payment_pref"
-                              checked={paymentOption === 'pay_now'}
-                              onChange={() => setPaymentOption('pay_now')}
-                            />
-                            <div>
-                              <div style={{ fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                Pay Now & Activate Subscription
-                                <span className="badge badge-primary" style={{ fontSize: '0.65rem' }}>Direct Checkout</span>
-                              </div>
-                              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                                Pay ₹{quote.total}/mo now via Razorpay. Your workspace is immediately fully activated.
-                              </div>
-                            </div>
-                          </div>
-                          <span style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '0.95rem' }}>
-                            ₹{quote.total}/mo
-                          </span>
-                        </div>
+                    {(() => {
+                      const selectedPlanObj = catalog?.plans?.find((p: any) => p.plan === selectedPlan);
+                      const isFreePlan = selectedPlan === 'free' || (selectedPlanObj && selectedPlanObj.monthlyPrice === 0);
+                      const planTrialDays = Number(selectedPlanObj?.trialDays ?? 0);
 
-                        <div
-                          onClick={() => setPaymentOption('trial')}
-                          style={{
-                            padding: '12px 16px', borderRadius: '8px', cursor: 'pointer',
-                            border: `2px solid ${paymentOption === 'trial' ? 'var(--primary)' : 'var(--border)'}`,
-                            background: paymentOption === 'trial' ? 'var(--bg-light)' : 'transparent',
-                            display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <input
-                              type="radio"
-                              name="payment_pref"
-                              checked={paymentOption === 'trial'}
-                              onChange={() => setPaymentOption('trial')}
-                            />
-                            <div>
-                              <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                                Start 14-Day Free Trial
-                              </div>
-                              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                                Full access for 14 days without upfront charge. Payment required at the end of the trial.
+                      if (isFreePlan) {
+                        return (
+                          <div style={{ padding: '12px 14px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', color: 'var(--text-primary)' }}>
+                            <strong style={{ display: 'block', color: 'var(--success)', marginBottom: '4px' }}>
+                              {selectedPlanObj?.displayName || 'Free'} Plan
+                            </strong>
+                            {selectedPlanObj?.description || 'Always free with core lending features.'} (Up to {selectedPlanObj?.maxActiveLoans >= 999999 ? 'Unlimited' : (selectedPlanObj?.maxActiveLoans ?? 25)} active loans, {selectedPlanObj?.maxAgents >= 999 ? 'Unlimited' : (selectedPlanObj?.maxAgents ?? 1)} agent{Number(selectedPlanObj?.maxAgents) === 1 ? '' : 's'}, {selectedPlanObj?.maxBranches >= 999 ? 'Unlimited' : (selectedPlanObj?.maxBranches ?? 1)} branch). No payment or credit card required today.
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '8px' }}>
+                          <label style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                            Subscription Activation Choice
+                          </label>
+                          
+                          <div
+                            onClick={() => setPaymentOption('pay_now')}
+                            style={{
+                              padding: '12px 16px', borderRadius: '8px', cursor: 'pointer',
+                              border: `2px solid ${paymentOption === 'pay_now' ? 'var(--primary)' : 'var(--border)'}`,
+                              background: paymentOption === 'pay_now' ? 'var(--bg-light)' : 'transparent',
+                              display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <input
+                                type="radio"
+                                name="payment_pref"
+                                checked={paymentOption === 'pay_now'}
+                                onChange={() => setPaymentOption('pay_now')}
+                              />
+                              <div>
+                                <div style={{ fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  Pay Now & Activate Subscription
+                                  <span className="badge badge-primary" style={{ fontSize: '0.65rem' }}>Direct Checkout</span>
+                                </div>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                  Pay ₹{quote.total}/mo now via Razorpay. Your workspace is immediately fully activated.
+                                </div>
                               </div>
                             </div>
+                            <span style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '0.95rem' }}>
+                              ₹{quote.total}/mo
+                            </span>
                           </div>
-                          <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                            14 Days Free
-                          </span>
+
+                          {planTrialDays > 0 && (
+                            <div
+                              onClick={() => setPaymentOption('trial')}
+                              style={{
+                                padding: '12px 16px', borderRadius: '8px', cursor: 'pointer',
+                                border: `2px solid ${paymentOption === 'trial' ? 'var(--primary)' : 'var(--border)'}`,
+                                background: paymentOption === 'trial' ? 'var(--bg-light)' : 'transparent',
+                                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <input
+                                  type="radio"
+                                  name="payment_pref"
+                                  checked={paymentOption === 'trial'}
+                                  onChange={() => setPaymentOption('trial')}
+                                />
+                                <div>
+                                  <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                                    Start {planTrialDays}-Day Free Trial
+                                  </div>
+                                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                    Full access for {planTrialDays} days without upfront charge. Payment required at the end of the trial.
+                                  </div>
+                                </div>
+                              </div>
+                              <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                                {planTrialDays} Days Free
+                              </span>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
 
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Base Vertical Subscription ({selectedPlan.toUpperCase()})</span>
+                      <span>Base Vertical Subscription ({catalog?.plans?.find((p: any) => p.plan === selectedPlan)?.displayName || selectedPlan.toUpperCase()})</span>
                       <strong style={{ color: 'var(--text-primary)' }}>₹{quote.base}/mo</strong>
                     </div>
 
@@ -902,12 +925,12 @@ function RegisterForm() {
             ) : (
               <button type="submit" className="btn btn-primary" disabled={loading}>
                 {loading
-                  ? (paymentOption === 'pay_now' && selectedPlan !== 'free' ? 'Preparing Payment...' : 'Setting up Workspace...')
-                  : selectedPlan === 'free'
+                  ? (paymentOption === 'pay_now' && selectedPlan !== 'free' && quote.total > 0 ? 'Preparing Payment...' : 'Setting up Workspace...')
+                  : (selectedPlan === 'free' || quote.total === 0)
                   ? 'Register Free Workspace'
                   : paymentOption === 'pay_now'
                   ? `Proceed to Payment (₹${quote.total})`
-                  : 'Start 14-Day Free Trial'}
+                  : `Start ${catalog?.plans?.find((p: any) => p.plan === selectedPlan)?.trialDays || 14}-Day Free Trial`}
               </button>
             )}
           </div>
