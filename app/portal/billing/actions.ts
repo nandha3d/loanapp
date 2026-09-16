@@ -59,38 +59,42 @@ export async function initiateCheckout(planId: string): Promise<CheckoutResult> 
   // tenant embedded in their authenticated session.
   const tenantId = role === 'developer'
     ? await getDefaultTenantId()
-    : sessionUser.tenantId;
+    : (sessionUser.tenantId || await getDefaultTenantId());
   if (!tenantId) return { error: 'No workspace is associated with this account.' };
   const current = await getSubscription(tenantId);
   if (!current) return { error: 'No subscription is configured for this workspace.' };
   if (current.plan === 'lifetime' || current.tenant?.customDomain) {
     return { error: 'This custom-domain workspace has lifetime access and does not require checkout.' };
   }
-  if (current.status === 'authenticated' && current.razorpaySubId) {
+  if (current.status === 'authenticated' && current.razorpaySubId && current.plan === planId) {
     return { error: 'Razorpay payment authorization is already complete. Your first charge is scheduled for the end of the trial.' };
   }
   if (
     current.status === 'active' &&
     current.razorpaySubId &&
     current.currentPeriodEnd &&
-    current.currentPeriodEnd >= new Date()
+    current.currentPeriodEnd >= new Date() &&
+    current.plan === planId
   ) {
-    return { error: 'A recurring subscription is already active. Contact support before changing its plan.' };
+    return { error: 'A recurring subscription is already active for this plan.' };
   }
 
   let checkoutUrl: string | null = null;
   try {
-    // Reuse an unfinished Razorpay subscription so retries do not create
+    // Reuse an unfinished Razorpay subscription so retries for the same plan do not create
     // multiple mandates for the same tenant.
     if (current.razorpaySubId?.startsWith('sub_')) {
       const existing = await getRazorpaySubscription(current.razorpaySubId);
-      if (existing && ['created', 'pending', 'halted'].includes(existing.status)) {
-        checkoutUrl = validateCheckoutUrl(existing.short_url);
-        if (!checkoutUrl) {
-          return { error: 'The existing Razorpay checkout link is unavailable. Please contact support.' };
+      const existingPlan = (existing as { notes?: { loantrack_plan?: string } } | null)?.notes?.loantrack_plan;
+      if (existing && (!existingPlan || existingPlan === planId)) {
+        if (['created', 'pending', 'halted'].includes(existing.status)) {
+          checkoutUrl = validateCheckoutUrl(existing.short_url);
+          if (!checkoutUrl) {
+            return { error: 'The existing Razorpay checkout link is unavailable. Please contact support.' };
+          }
+        } else if (['authenticated', 'active'].includes(existing.status) && current.plan === planId) {
+          return { error: 'This recurring payment is already authorized in Razorpay.' };
         }
-      } else if (existing && ['authenticated', 'active'].includes(existing.status)) {
-        return { error: 'This recurring payment is already authorized in Razorpay.' };
       }
     }
 

@@ -216,7 +216,7 @@ export async function assertTenantSubscriptionAccess(tenantId: string): Promise<
   if (state.blocked) throw new SubscriptionAccessError(state);
 }
 
-export async function checkLimit(tenantId: string, resource: 'loans' | 'agents' | 'vehicles' | 'chits') {
+export async function checkLimit(tenantId: string, resource: 'loans' | 'agents' | 'vehicles' | 'chits' | 'branches') {
   if (!tenantId) return;
   const sub = await prisma.tenantSubscription.findUnique({ where: { tenantId } });
   if (!sub) throw new SubscriptionAccessError(getTenantSubscriptionAccessState(null));
@@ -233,6 +233,13 @@ export async function checkLimit(tenantId: string, resource: 'loans' | 'agents' 
     const count = await prisma.user.count({ where: { tenantId, role: 'agent', status: 'active' } });
     if (count >= sub.maxAgents) {
       throw new Error(`Agent limit reached (${sub.maxAgents}). Upgrade your plan to add more agents.`);
+    }
+  }
+
+  if (resource === 'branches') {
+    const count = await prisma.branch.count({ where: { tenantId, status: 'active' } });
+    if (sub.maxBranches > 0 && count >= sub.maxBranches) {
+      throw new Error(`Branch limit reached (${sub.maxBranches}). Upgrade your plan to create more branches.`);
     }
   }
 

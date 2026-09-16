@@ -2,7 +2,7 @@
 
 import { compressFormDataImages } from '@/lib/imageCompression';
 import { useState } from 'react';
-import { saveSystemSettings, saveFeatureFlags, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, deleteLoanPackage, assignAgentToRoute, removeAgentFromRoute, setPrimaryAgent, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections, saveUpiQrCode, saveNotificationSettings, saveBureauSettings, saveThemeSettings, saveNotificationTemplate } from './actions';
+import { saveSystemSettings, saveFeatureFlags, savePenaltySettings, createRoute, deleteRoute, createLoanPackage, deleteLoanPackage, assignAgentToRoute, removeAgentFromRoute, setPrimaryAgent, generate2faSecret, verifyAndEnable2fa, disable2fa, importCustomers, importCollections, saveUpiQrCode, saveNotificationSettings, saveBureauSettings, saveThemeSettings, saveNotificationTemplate, createTenantBranch, updateTenantBranch, toggleBranchStatus } from './actions';
 import { THEME_PRESETS, THEME_SETTING_KEY } from '@/lib/themes';
 import Modal from '@/components/Modal';
 import Link from 'next/link';
@@ -10,15 +10,16 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { manageBranchAgent, setBranchAgentStatus } from '../../../admin/actions';
 import GoldMasterClient from './gold-master/GoldMasterClient';
 import { isLendingAppType, normalizeSettingsTab } from '@/lib/moduleCapabilities';
+import { MODULE_LABELS, normalizeModuleList, type ModuleKey } from '@/types/modules';
 
 export default function SettingsClient({
   routes, packages, users, settings, currencySymbol, dict, currentUser, subscription, bureauCredential,
   viewerRole, appType, branchAgents = [], manageBranchId = null, manageBranchName = null, goldMaster = null, goldConfig = null,
-  notificationTemplates = []
+  notificationTemplates = [], branches = [], planMaxBranches = 1
 }: {
   routes: any[], packages: any[], users: any[], settings: Record<string, string>, currencySymbol: string, dict: any, currentUser: any, subscription: any, bureauCredential: any,
   viewerRole?: string, appType?: string, branchAgents?: any[], manageBranchId?: string | null, manageBranchName?: string | null, goldMaster?: any, goldConfig?: any,
-  notificationTemplates?: any[]
+  notificationTemplates?: any[], branches?: any[], planMaxBranches?: number
 }) {
   const d = dict.settings;
   const searchParams = useSearchParams();
@@ -42,6 +43,47 @@ export default function SettingsClient({
     window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
   };
   const [loading, setLoading] = useState(false);
+
+  // Branch management state (Branches tab)
+  const [branchModal, setBranchModal] = useState<{
+    id?: string;
+    name: string;
+    code: string;
+    phone: string;
+    address: string;
+    status: string;
+    enabledModules: string[];
+  } | null>(null);
+  const [branchLoading, setBranchLoading] = useState(false);
+  const [branchError, setBranchError] = useState<string | null>(null);
+
+  const tenantModules: ModuleKey[] = normalizeModuleList(subscription?.enabledModules);
+  const activeBranchCount = (branches || []).filter((b: any) => b.status === 'active').length;
+  const isBranchLimitReached = planMaxBranches > 0 && activeBranchCount >= planMaxBranches;
+
+  const submitBranch = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!branchModal?.name?.trim()) {
+      setBranchError('Branch name is required');
+      return;
+    }
+    setBranchLoading(true);
+    setBranchError(null);
+
+    const fd = new FormData(e.currentTarget);
+    if (branchModal.id) fd.set('id', branchModal.id);
+    (branchModal.enabledModules || []).forEach((m) => fd.append('enabledModules', m));
+
+    const res = branchModal.id ? await updateTenantBranch(fd) : await createTenantBranch(fd);
+    setBranchLoading(false);
+
+    if (res.success) {
+      setBranchModal(null);
+      router.refresh();
+    } else {
+      setBranchError(res.error || 'Failed to save branch');
+    }
+  };
 
   // Scoped agent management (Users tab)
   const canManageAgents = viewerRole === 'admin' || viewerRole === 'superadmin' || viewerRole === 'developer';
@@ -192,6 +234,9 @@ export default function SettingsClient({
         )}
         {(viewerRole === 'superadmin' || viewerRole === 'developer') && (
           <div className={`tab ${activeTab === 'theme' ? 'active' : ''}`} onClick={() => setActiveTab('theme')}>{d.tabTheme}</div>
+        )}
+        {(viewerRole === 'superadmin' || viewerRole === 'developer') && (
+          <div className={`tab ${activeTab === 'branches' ? 'active' : ''}`} onClick={() => setActiveTab('branches')}>{d.tabBranches}</div>
         )}
         {currentUser?.role === 'superadmin' && (
           <div className={`tab ${activeTab === 'data' ? 'active' : ''}`} style={{color: 'var(--danger)'}} onClick={() => setActiveTab('data')}>{d.tabData}</div>
@@ -430,6 +475,242 @@ export default function SettingsClient({
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '8px' }}>
             <button type="button" className="btn btn-ghost" onClick={() => setAgentModal(null)}>{d.cancel}</button>
             <button type="submit" className="btn btn-primary" disabled={agentBusy}>{agentBusy ? d.saving : agentModal?.id ? d.save : d.createAgent}</button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Branches Tab */}
+      {(viewerRole === 'superadmin' || viewerRole === 'developer') && (
+        <div className={`tab-content ${activeTab === 'branches' ? 'active' : ''}`}>
+          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <h3>🏢 {d.branchesTitle}</h3>
+              <p style={{ fontSize: '.78rem', color: 'var(--text-secondary)', margin: '2px 0 0' }}>
+                {d.branchesDesc}
+              </p>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span
+                className="badge"
+                style={{
+                  background: isBranchLimitReached ? '#FEE2E2' : '#E0E7FF',
+                  color: isBranchLimitReached ? '#DC2626' : '#4338CA',
+                  padding: '6px 12px',
+                  fontWeight: 600,
+                  fontSize: '0.8rem',
+                }}
+              >
+                {planMaxBranches > 0 ? `${activeBranchCount} / ${planMaxBranches} Branches Used` : `${activeBranchCount} Branches (Unlimited)`}
+              </span>
+              {isBranchLimitReached ? (
+                <Link href={`/${effAppType}/subscription`} className="btn btn-secondary btn-sm">
+                  Upgrade Plan
+                </Link>
+              ) : (
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={() => {
+                    setBranchError(null);
+                    setBranchModal({
+                      name: '',
+                      code: '',
+                      phone: '',
+                      address: '',
+                      status: 'active',
+                      enabledModules: tenantModules.length > 0 ? tenantModules : ['microlending'],
+                    });
+                  }}
+                >
+                  <span className="material-icons-outlined" style={{ fontSize: '14px' }}>add</span> {d.addBranch}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {isBranchLimitReached && (
+            <div style={{ background: '#FEF3C7', color: '#92400E', padding: '10px 16px', borderRadius: '8px', margin: '0 0 16px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+              <span>⚠️ {d.branchLimitReached}</span>
+              <Link href={`/${effAppType}/subscription`} style={{ color: '#92400E', fontWeight: 600, textDecoration: 'underline' }}>
+                View Plans
+              </Link>
+            </div>
+          )}
+
+          <div className="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>{d.branchName}</th>
+                  <th>{d.branchCode}</th>
+                  <th>{d.branchPhone}</th>
+                  <th>{d.branchModules}</th>
+                  <th>Routes</th>
+                  <th>Staff</th>
+                  <th>Status</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(branches || []).map((b: any) => (
+                  <tr key={b.id}>
+                    <td>
+                      <div style={{ fontWeight: 500 }}>{b.name}</div>
+                      {b.address && <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{b.address}</div>}
+                    </td>
+                    <td><code>{b.code || '—'}</code></td>
+                    <td>{b.phone || '—'}</td>
+                    <td>
+                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                        {normalizeModuleList(b.enabledModules).map((m: ModuleKey) => (
+                          <span key={m} className="badge badge-pending" style={{ fontSize: '0.7rem' }}>
+                            {MODULE_LABELS[m] || m}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td>{b._count?.routes ?? 0}</td>
+                    <td>{b._count?.users ?? 0}</td>
+                    <td>
+                      <span className={`badge ${b.status === 'active' ? 'badge-success' : 'badge-danger'}`}>
+                        {b.status === 'active' ? d.branchStatusActive : d.branchStatusInactive}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => {
+                          setBranchError(null);
+                          setBranchModal({
+                            id: b.id,
+                            name: b.name,
+                            code: b.code || '',
+                            phone: b.phone || '',
+                            address: b.address || '',
+                            status: b.status,
+                            enabledModules: normalizeModuleList(b.enabledModules),
+                          });
+                        }}
+                      >
+                        {d.edit}
+                      </button>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={async () => {
+                          const res = await toggleBranchStatus(b.id, b.status);
+                          if (res.success) {
+                            router.refresh();
+                          } else {
+                            alert(res.error);
+                          }
+                        }}
+                        style={{ color: b.status === 'active' ? 'var(--danger)' : 'var(--success)' }}
+                      >
+                        {b.status === 'active' ? d.deactivate : d.activate}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {(!branches || branches.length === 0) && (
+                  <tr>
+                    <td colSpan={8} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-light)' }}>
+                      {d.noBranchesYet}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Branch Modal */}
+      <Modal
+        isOpen={!!branchModal}
+        onClose={() => { setBranchModal(null); setBranchError(null); }}
+        title={branchModal?.id ? d.editBranch : d.addBranch}
+      >
+        <form onSubmit={submitBranch}>
+          {branchError && (
+            <div style={{ background: '#FEE2E2', color: '#DC2626', padding: '8px 12px', borderRadius: '6px', marginBottom: '12px', fontSize: '0.85rem' }}>
+              {branchError}
+            </div>
+          )}
+          <div className="form-group">
+            <label className="form-label">{d.branchName} *</label>
+            <input
+              type="text"
+              name="name"
+              className="form-control"
+              required
+              value={branchModal?.name || ''}
+              onChange={(e) => setBranchModal((prev: any) => ({ ...prev, name: e.target.value }))}
+              placeholder="e.g. Coimbatore Main"
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">{d.branchCode}</label>
+            <input
+              type="text"
+              name="code"
+              className="form-control"
+              value={branchModal?.code || ''}
+              onChange={(e) => setBranchModal((prev: any) => ({ ...prev, code: e.target.value.toUpperCase() }))}
+              placeholder="e.g. CBE-01"
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">{d.branchPhone}</label>
+            <input
+              type="tel"
+              name="phone"
+              className="form-control"
+              value={branchModal?.phone || ''}
+              onChange={(e) => setBranchModal((prev: any) => ({ ...prev, phone: e.target.value }))}
+              placeholder="+91 9876543210"
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">{d.branchAddress}</label>
+            <textarea
+              name="address"
+              className="form-control"
+              rows={2}
+              value={branchModal?.address || ''}
+              onChange={(e) => setBranchModal((prev: any) => ({ ...prev, address: e.target.value }))}
+              placeholder="Physical branch office address"
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">{d.branchModules}</label>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '6px' }}>
+              {tenantModules.map((mod: ModuleKey) => {
+                const checked = branchModal?.enabledModules?.includes(mod);
+                return (
+                  <label key={mod} style={{ display: 'flex', gap: '6px', alignItems: 'center', cursor: 'pointer', fontSize: '0.9rem' }}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => {
+                        const current = branchModal?.enabledModules || [];
+                        const updated = e.target.checked
+                          ? [...current, mod]
+                          : current.filter((m: string) => m !== mod);
+                        setBranchModal((prev: any) => ({ ...prev, enabledModules: updated }));
+                      }}
+                    />
+                    {MODULE_LABELS[mod] || mod}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
+            <button type="button" className="btn btn-ghost" onClick={() => { setBranchModal(null); setBranchError(null); }}>
+              {d.cancel}
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={branchLoading}>
+              {branchLoading ? d.saving : (branchModal?.id ? d.save : d.addBranch)}
+            </button>
           </div>
         </form>
       </Modal>

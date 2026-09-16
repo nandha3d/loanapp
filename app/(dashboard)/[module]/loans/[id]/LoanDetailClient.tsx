@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import { calculateCreditScore } from '@/lib/creditScore';
 import { computeExtendedSchedule } from '@/lib/restructure';
 import { getCreditScoreGaugePresentation } from '@/lib/creditScoreGauge';
+import { calculateDynamicOverdueAmount } from '@/lib/repayments';
 import NachPanel from './NachPanel';
 import LoanPrecloseRequest from './LoanPrecloseRequest';
 import { precloseOutstanding } from '@/lib/loanPreclosePolicy';
@@ -681,26 +682,24 @@ export default function LoanDetailClient({
 
   const { score: creditScore, grade: creditGrade } = calculateCreditScore(loan.customer.loans || []);
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
   
-  // Overdue = sum of the STILL-UNPAID amount on each instalment whose due date
-  // has already passed (today's instalment is not overdue yet). This mirrors the
-  // collection page exactly. The previous formula — (total expected up to today)
-  // minus (ALL collections ever) — drifted toward the full outstanding balance
-  // and overstated the overdue figure, so the loan page disagreed with the
-  // collection page.
-  const duesPending = (loan.instalments || [])
-    .filter((inst: any) => {
-      const dueDate = new Date(inst.dueDate);
-      dueDate.setHours(0, 0, 0, 0);
-      return dueDate < today;
-    })
-    .reduce(
-      (sum: number, inst: any) =>
-        sum + Math.max(0, Number(inst.dueAmount) - Number(inst.receivedAmount || 0)),
-      0,
+  // Dynamic overdue: recalculate arrears based on total collections vs schedule to date.
+  // Catch-up payments (e.g. paying 3000 after 2 missed days of 1000) or closed loans
+  // dynamically resolve overdue amount to 0.
+  const duesPending = useMemo(() => {
+    if (loan.status === 'closed' || outstanding <= 0) return 0;
+    return calculateDynamicOverdueAmount(
+      loan.instalments || [],
+      totalCollected,
+      outstanding,
+      today,
     );
+  }, [loan.status, loan.instalments, totalCollected, outstanding, today]);
 
   const duesPendingBox = duesPending > 0 && (
     <div style={{ 

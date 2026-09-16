@@ -51,7 +51,7 @@ export default async function PortalBillingPage() {
 
   // Fetch subscription plans catalog from DB
   const catalogPlans = await prisma.subscriptionPlanCatalog.findMany({
-    where: { isActive: true, monthlyPrice: { gt: 0 } },
+    where: { isActive: true },
     orderBy: { sortOrder: 'asc' }
   });
 

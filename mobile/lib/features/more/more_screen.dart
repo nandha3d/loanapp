@@ -217,7 +217,7 @@ final _allModules = <_ModuleItem>[
     route: '/settings/payment-gateway',
     color: AppColors.info,
     bgColor: AppColors.infoBg,
-    minRole: UserRole.admin,
+    minRole: UserRole.developer,
   ),
   const _ModuleItem(
     icon: Icons.settings_outlined,

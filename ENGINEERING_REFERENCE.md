@@ -217,6 +217,7 @@ agent (10)  <  admin (20)  <  primary admin (30)  <  superadmin (40)  <  develop
 - **ROLE-1** — Compare privilege with `roleRank()`, `canManageUser()`, `canManageAdmins()`, `isPrimaryAdmin()`. Never invent a new rank table or a new role string.
 - **ROLE-2** — `canManageUser()` requires **strictly greater** rank. Peers can never edit each other. Do not relax this to `>=`.
 - **ROLE-3** — Adding a role means editing `lib/roles.ts` and auditing every `role ===` comparison. Prefer a capability flag on `User` (as with `bypassLoanApproval`, `autoReleaseFloat`) over a new role.
+- **ROLE-6** — **Developer credentials isolation in user management**: Developer accounts (`role: 'developer'`) represent platform-level administration above the tenant boundary. They MUST NEVER be shown, listed, returned, or manageable by `superadmin`, `admin`, or `agent` in any user management view or API (including `/api/v1/admin/users`, `/admin/users`, mobile `Team / Agents`, or staff pickers). Only authenticated users with role `developer` themselves may see or manage developer accounts. If the caller's role is not `developer`, user queries MUST filter out developer accounts (`role: { notIn: ['developer', 'DEVELOPER'] }`), and mutation endpoints MUST refuse modification of developer accounts with `403 Forbidden`.
 
 ### 7.2 Agent restrictions
 
@@ -802,6 +803,7 @@ Each of these has shipped a bug in this repository.
 - **X-21** — Committing a test that is not reachable from a CI runner script.
 - **X-22** — Lowering a coverage threshold or `--no-verify`-ing a hook to get green.
 - **X-23** — Creating an `ApprovalRequest` without a paired `notifyApprovers()` call, or gating that call on the entity/request type (NOTIF-9).
+- **X-24** — Exposing or returning developer credentials/accounts to non-developer roles (`superadmin`, `admin`, `agent`) in user management APIs, lists, or pickers (ROLE-6).
 
 ---
 

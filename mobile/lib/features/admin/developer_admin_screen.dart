@@ -23,10 +23,6 @@ class DeveloperAdminScreen extends ConsumerWidget {
       data: (data) => _pendingCount(data['moduleRequests']),
       orElse: () => 0,
     );
-    final branchPending = requestCounts.maybeWhen(
-      data: (data) => _pendingCount(data['branchRequests']),
-      orElse: () => 0,
-    );
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -162,15 +158,6 @@ class DeveloperAdminScreen extends ConsumerWidget {
               color: AppColors.warning,
               onTap: () {
                 context.go('/admin/module-requests');
-              },
-            ),
-            const SizedBox(height: 8),
-            _QueueTile(
-              label: 'Branch Extension Requests',
-              count: branchPending,
-              color: AppColors.info,
-              onTap: () {
-                context.go('/admin/branch-requests');
               },
             ),
           ],

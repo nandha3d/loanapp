@@ -687,13 +687,61 @@ class _OverdueSummaryCard extends StatelessWidget {
     final today = DateTime(todayStart.year, todayStart.month, todayStart.day);
     final missedCount =
         loan.instalments.where((i) => i.dynamicStatus == 'missed').length;
-    final overdueAmount = loan.instalments.where((i) {
-      final due = DateTime(i.dueDate.year, i.dueDate.month, i.dueDate.day);
-      return due.isBefore(today);
-    }).fold<double>(0, (sum, i) {
-      final out = i.dueAmount - i.receivedAmount;
-      return sum + (out > 0 ? out : 0);
-    });
+    final outstanding = (loan.totalPayable - loan.totalCollected) > 0
+        ? (loan.totalPayable - loan.totalCollected)
+        : 0.0;
+
+    final double overdueAmount;
+    if (outstanding <= 0 || loan.status == 'closed') {
+      overdueAmount = 0;
+    } else {
+      final payable =
+          loan.instalments.where((i) => i.status != 'waived').toList();
+      final totalCollected = loan.totalCollected;
+      double cToday = 0;
+      for (final inst in payable) {
+        final instDate =
+            DateTime(inst.dueDate.year, inst.dueDate.month, inst.dueDate.day);
+        if (instDate.isAtSameMomentAs(today)) {
+          cToday += inst.receivedAmount > 0 ? inst.receivedAmount : 0;
+        }
+      }
+      cToday = cToday > totalCollected ? totalCollected : cToday;
+      final cPrior =
+          (totalCollected - cToday) > 0 ? (totalCollected - cToday) : 0.0;
+
+      final pastDueInsts = payable.where((inst) {
+        final d =
+            DateTime(inst.dueDate.year, inst.dueDate.month, inst.dueDate.day);
+        return d.isBefore(today);
+      }).toList()
+        ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+
+      final todayInsts = payable.where((inst) {
+        final d =
+            DateTime(inst.dueDate.year, inst.dueDate.month, inst.dueDate.day);
+        return d.isAtSameMomentAs(today);
+      }).toList();
+      final todayDue = todayInsts.fold<double>(0, (s, i) => s + i.dueAmount);
+
+      double remPrior = cPrior;
+      double pastDueRemaining = 0;
+      for (final inst in pastDueInsts) {
+        final due = inst.dueAmount;
+        final covered = remPrior < due ? remPrior : due;
+        remPrior = (remPrior - covered) > 0 ? (remPrior - covered) : 0;
+        pastDueRemaining += (due - covered);
+      }
+
+      final appliedToToday = cToday < todayDue ? cToday : todayDue;
+      final excessToday =
+          (cToday - appliedToToday) > 0 ? (cToday - appliedToToday) : 0.0;
+      final finalOverdue = (pastDueRemaining - excessToday) > 0
+          ? (pastDueRemaining - excessToday)
+          : 0.0;
+      overdueAmount =
+          finalOverdue > outstanding ? outstanding : finalOverdue;
+    }
 
     return Container(
       padding: const EdgeInsets.all(14),

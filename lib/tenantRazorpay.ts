@@ -25,19 +25,46 @@ export type TenantRazorpayConfig = {
   webhookSecret: string | null;
 };
 
-/** Resolves a tenant's collections gateway, decrypting secrets. */
-export async function getTenantRazorpayConfig(tenantId: string): Promise<TenantRazorpayConfig> {
-  const [enabled, keyId, keySecretEnc, webhookEnc] = await Promise.all([
-    getSetting(tenantId, KEYS.enabled, 'false'),
+/** Resolves a tenant's collections gateway, defaulting to developer/platform credentials. */
+export async function getTenantRazorpayConfig(tenantId?: string): Promise<TenantRazorpayConfig> {
+  const devKeyId = process.env.RAZORPAY_KEY_ID?.trim() || null;
+  const devKeySecret = process.env.RAZORPAY_KEY_SECRET?.trim() || null;
+  const devWebhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET?.trim() || null;
+
+  if (!tenantId) {
+    return {
+      enabled: Boolean(devKeyId && devKeySecret),
+      keyId: devKeyId,
+      keySecret: devKeySecret,
+      webhookSecret: devWebhookSecret,
+    };
+  }
+
+  const [enabledSetting, keyIdSetting, keySecretEnc, webhookEnc] = await Promise.all([
+    getSetting(tenantId, KEYS.enabled, ''),
     getSetting(tenantId, KEYS.keyId, ''),
     getSetting(tenantId, KEYS.keySecret, ''),
     getSetting(tenantId, KEYS.webhookSecret, ''),
   ]);
+
+  const customKeyId = keyIdSetting.trim() || null;
+  const customKeySecret = keySecretEnc ? decryptField(keySecretEnc) : null;
+  const customWebhookSecret = webhookEnc ? decryptField(webhookEnc) : null;
+
+  const resolvedKeyId = customKeyId || devKeyId;
+  const resolvedKeySecret = customKeySecret || devKeySecret;
+  const resolvedWebhookSecret = customWebhookSecret || devWebhookSecret;
+
+  // If explicitly disabled ('false'), treat as false. Otherwise enabled if valid keys exist.
+  const isEnabled = enabledSetting === 'false'
+    ? false
+    : (enabledSetting === 'true' || Boolean(resolvedKeyId && resolvedKeySecret));
+
   return {
-    enabled: enabled === 'true',
-    keyId: keyId || null,
-    keySecret: keySecretEnc ? decryptField(keySecretEnc) : null,
-    webhookSecret: webhookEnc ? decryptField(webhookEnc) : null,
+    enabled: isEnabled,
+    keyId: resolvedKeyId,
+    keySecret: resolvedKeySecret,
+    webhookSecret: resolvedWebhookSecret,
   };
 }
 
@@ -67,7 +94,7 @@ export async function saveTenantRazorpayConfig(
 }
 
 /** Masked view for settings UI — never returns raw secrets. */
-export async function getTenantRazorpayConfigMasked(tenantId: string) {
+export async function getTenantRazorpayConfigMasked(tenantId?: string) {
   const c = await getTenantRazorpayConfig(tenantId);
   return {
     enabled: c.enabled,

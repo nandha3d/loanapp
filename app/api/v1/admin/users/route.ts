@@ -13,10 +13,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const isDeveloper = ctx.role.toLowerCase() === 'developer';
     const users = await prisma.user.findMany({
       where: {
-        tenantId: ctx.role === 'developer' ? undefined : ctx.tenantId,
+        tenantId: isDeveloper ? undefined : ctx.tenantId,
         deletedAt: null,
+        ...(isDeveloper ? {} : { role: { notIn: ['developer', 'DEVELOPER'] } }),
       },
       select: {
         id: true,
@@ -60,6 +62,10 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
+    const isDeveloper = ctx.role.toLowerCase() === 'developer';
+    if (!isDeveloper && body.role && body.role.toLowerCase() === 'developer') {
+      return fail('Forbidden: Only developers can create or assign developer role', 403);
+    }
     const { manageMasterUser, manageBranchAgent } = await import('@/app/admin/actions');
     // Server actions normally read the NextAuth cookie session; mobile auth is
     // a Bearer token, so pass the verified context as the acting user.
