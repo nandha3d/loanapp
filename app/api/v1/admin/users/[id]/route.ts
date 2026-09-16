@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext } from '@/lib/api/v1-auth';
 
@@ -17,7 +18,22 @@ export async function PATCH(
   const { id } = await params;
 
   try {
+    const isDeveloper = ctx.role.toLowerCase() === 'developer';
+    if (!isDeveloper) {
+      const targetUser = await prisma.user.findUnique({
+        where: { id },
+        select: { role: true, tenantId: true },
+      });
+      if (!targetUser || targetUser.role.toLowerCase() === 'developer' || targetUser.tenantId !== ctx.tenantId) {
+        return fail('Forbidden: Cannot modify developer accounts', 403);
+      }
+    }
+
     const body = await req.json();
+    if (!isDeveloper && body.role && body.role.toLowerCase() === 'developer') {
+      return fail('Forbidden: Cannot assign developer role', 403);
+    }
+
     const { toggleUserStatus, manageMasterUser } = await import('@/app/admin/actions');
     // Server actions normally read the NextAuth cookie session; mobile auth is
     // a Bearer token, so pass the verified context as the acting user.

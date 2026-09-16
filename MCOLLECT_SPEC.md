@@ -30,6 +30,7 @@
 - `lib/tenantRazorpay.ts` — resolves developer platform credentials as the default gateway for all tenants.
 - Webhook routes `POST /api/webhooks/razorpay/collections` and `POST /api/webhooks/razorpay/nach` verify signatures using the platform developer webhook secret.
 - Tenant setup UI `/[module]/settings/payment-gateway` is restricted to developers only, and hidden from tenant admin sidebar navigation.
+- Developer accounts & platform credentials are isolated above tenant boundaries: developer credentials and users are never exposed to superadmins, admins, or field agents in user management (enforced via ROLE-6 in `ENGINEERING_REFERENCE.md`).
 
 **Tiered cashless collection (final model — tenant picks per appetite):**
 - **Tier 0 · UPI VPA (zero setup, default):** tenant enters only their UPI ID → borrower pay page renders a **dynamic UPI-intent QR with the exact amount** (`lib/upiIntent.ts`, real `upi://pay`) → money bank-to-bank into the tenant's account, no PSP. Borrower taps "I've paid" → token marked **`claimed`** (never auto-posts money) → staff confirm in the **Self-Pay queue** (`/[module]/collection/self-pay`, one-tap `confirm`/`reject`, branch-scoped). Sidebar entry added.

@@ -149,8 +149,14 @@ export async function manageMasterUser(formData: FormData, actorOverride?: Actio
   }
 
   // Only developers can create or edit developer accounts
-  if (role === 'developer' && userRole !== 'developer') {
+  if (role?.toLowerCase() === 'developer' && userRole?.toLowerCase() !== 'developer') {
     return { success: false, error: 'Only a developer can manage developer accounts.' };
+  }
+  if (id && userRole?.toLowerCase() !== 'developer') {
+    const existing = await prisma.user.findUnique({ where: { id }, select: { role: true } });
+    if (existing?.role?.toLowerCase() === 'developer') {
+      return { success: false, error: 'Unauthorized: Cannot modify developer accounts.' };
+    }
   }
 
   // A primary admin ranks below a superadmin: they may only touch admins and
@@ -694,14 +700,14 @@ export async function toggleUserStatus(userId: string, newStatus: string, actorO
   const actorId = actor?.id;
   if (role !== 'superadmin' && role !== 'developer') return { success: false };
 
-  // Scope: non-developers may only toggle users inside their own tenant.
+  // Scope: non-developers may only toggle users inside their own tenant, and never a developer.
   const target = await prisma.user.findUnique({
     where: { id: userId },
-    select: { tenantId: true },
+    select: { tenantId: true, role: true },
   });
   if (!target) return { success: false };
-  if (role !== 'developer' && target.tenantId !== actor?.tenantId) {
-    return { success: false };
+  if (role?.toLowerCase() !== 'developer' && (target.tenantId !== actor?.tenantId || target.role?.toLowerCase() === 'developer')) {
+    return { success: false, error: 'Unauthorized' };
   }
 
   await prisma.user.update({
@@ -768,6 +774,9 @@ export async function deleteUser(userId: string, actorOverride?: ActionActor) {
 
   if (target.id === actor.id) {
     return { success: false, error: 'You cannot delete your own account.' };
+  }
+  if (target.role?.toLowerCase() === 'developer' && actor.role?.toLowerCase() !== 'developer') {
+    return { success: false, error: 'You do not have permission to delete this user.' };
   }
   if (!canManageUser(actor, target)) {
     return { success: false, error: 'You do not have permission to delete this user.' };

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:zolofund/core/auth/auth_controller.dart';
+
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
@@ -54,7 +56,14 @@ class _TeamManagementScreenState extends ConsumerState<TeamManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final currentUser = ref.watch(authControllerProvider).user;
+    final isDeveloper = currentUser?.role.toLowerCase() == 'developer';
+
     final filtered = _users.where((u) {
+      final role = (u['role'] as String? ?? '').toLowerCase();
+      // Developer credentials must never be shown to superadmin, admin, or agents
+      if (!isDeveloper && role == 'developer') return false;
+
       final name = (u['name'] as String? ?? '').toLowerCase();
       final phone = (u['phone'] as String? ?? '');
       final branch = (u['branch'] as String? ?? '').toLowerCase();
@@ -63,7 +72,7 @@ class _TeamManagementScreenState extends ConsumerState<TeamManagementScreen> {
       final matchesSearch = name.contains(query) ||
           phone.contains(_searchQuery) ||
           branch.contains(query);
-      final matchesRole = _roleFilter == 'all' || u['role'] == _roleFilter;
+      final matchesRole = _roleFilter == 'all' || role == _roleFilter.toLowerCase();
       return matchesSearch && matchesRole;
     }).toList();
 
