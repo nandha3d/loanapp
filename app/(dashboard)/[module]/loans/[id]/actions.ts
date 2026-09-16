@@ -5,10 +5,66 @@ import { getApiRequestContext } from '@/lib/api-client/server';
 import { revalidatePath } from 'next/cache';
 import { submitCollectionEntry, submitLoanCollection, requestCollectionEdit } from '@/app/(dashboard)/[module]/collection/actions';
 
+import { auth } from '@/lib/auth';
+import { getCurrentTenantId, getUserAppType } from '@/lib/tenant';
+import { getActiveBranchId } from '@/lib/branch';
+import { modulePath } from '@/types/modules';
+import { correctInstalmentPayment } from '@/lib/collectionWrite';
+
 export { requestCollectionEdit };
 
 export async function markInstalmentPaid(formData: FormData) {
   return submitCollectionEntry(formData);
+}
+
+export async function correctInstalmentPaymentAction(formData: FormData) {
+  const instalmentId = formData.get('instalmentId') as string;
+  const rawAmount = formData.get('correctedAmount') ?? formData.get('receivedAmount');
+  const correctedAmount = Number(rawAmount);
+  const paymentMode = (formData.get('paymentMode') as string) || 'cash';
+  const remarks = (formData.get('remarks') as string) || null;
+
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, error: 'Unauthorized' };
+    }
+    const role = session.user.role;
+    if (!['admin', 'superadmin', 'developer'].includes(role)) {
+      return { success: false, error: 'Only administrators can directly correct payments. Please submit an edit request.' };
+    }
+    const tenantId = await getCurrentTenantId();
+    const appType = await getUserAppType();
+    const branchId = await getActiveBranchId();
+
+    const result = await correctInstalmentPayment({
+      tenantId,
+      appType,
+      userId: session.user.id,
+      branchId,
+      role,
+    }, {
+      instalmentId,
+      correctedAmount,
+      paymentMode,
+      remarks,
+    });
+
+    revalidatePath('/loans');
+    revalidatePath('/collection');
+    revalidatePath('/dashboard');
+    revalidatePath(modulePath(appType, '/loans'));
+    revalidatePath(modulePath(appType, '/collection'));
+    revalidatePath(modulePath(appType, '/dashboard'));
+    if (result?.loanId) {
+      revalidatePath(`/loans/${result.loanId}`);
+      revalidatePath(modulePath(appType, `/loans/${result.loanId}`));
+    }
+
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message || 'Failed to correct instalment payment' };
+  }
 }
 
 // Record a bank repledge against a gold loan.

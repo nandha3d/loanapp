@@ -647,3 +647,251 @@ export async function recordActualLoanCollection(
     { timeout: 30000, maxWait: 15000 },
   );
 }
+
+export type CorrectInstalmentPaymentInput = {
+  instalmentId: string;
+  correctedAmount: number;
+  paymentMode?: string | null;
+  remarks?: string | null;
+};
+
+export type CorrectInstalmentPaymentResult = {
+  instalmentId: string;
+  loanId: string;
+  previousAmount: number;
+  correctedAmount: number;
+  delta: number;
+  status: string;
+};
+
+/**
+ * Corrects / updates the collected payment amount on an instalment.
+ * Runs inside caller's transaction.
+ *
+ * Distinct from submitCollectionEntry:
+ * - submitCollectionEntry records NEW incoming collections and blocks if an instalment
+ *   is already fully collected (getCollectionSubmissionBlockReason).
+ * - correctInstalmentPayment is a Payment Correction / Adjustment for admins or approved
+ *   agent requests. It adjusts the target instalment's receivedAmount directly,
+ *   updates collection entries, writes Payment ledger adjustments, and invokes
+ *   reallocateLoanRepayments to recompute the loan's financial status.
+ */
+export async function correctInstalmentPaymentInTx(
+  tx: Tx,
+  actor: CollectionActor,
+  input: CorrectInstalmentPaymentInput,
+): Promise<CorrectInstalmentPaymentResult> {
+  const instalmentId = String(input.instalmentId || '');
+  const correctedAmount = Math.round(Number(input.correctedAmount) * 100) / 100;
+
+  if (!instalmentId || !Number.isFinite(correctedAmount) || correctedAmount < 0) {
+    throw new Error('invalid_amount');
+  }
+
+  const instalment = await tx.instalment.findUnique({
+    where: { id: instalmentId },
+    include: {
+      loan: {
+        include: {
+          customer: true,
+        },
+      },
+      collectionEntry: true,
+    },
+  });
+
+  if (
+    !instalment ||
+    instalment.loan.tenantId !== actor.tenantId ||
+    instalment.loan.appType !== actor.appType
+  ) {
+    throw new Error('not_found');
+  }
+
+  if (actor.branchId && instalment.loan.branchId && instalment.loan.branchId !== actor.branchId) {
+    throw new Error('forbidden');
+  }
+
+  const previousAmount = Math.round(Number(instalment.receivedAmount || 0) * 100) / 100;
+  const delta = Math.round((correctedAmount - previousAmount) * 100) / 100;
+  const paymentMode = input.paymentMode || instalment.paymentMode || 'cash';
+  const remarks = input.remarks ?? instalment.remarks;
+
+  // 1. Update the instalment row
+  const updatedInstalment = await tx.instalment.update({
+    where: { id: instalment.id },
+    data: {
+      receivedAmount: correctedAmount,
+      paymentMode: correctedAmount > 0 ? paymentMode : null,
+      remarks,
+      receivedAt: correctedAmount > 0 ? (instalment.receivedAt || new Date()) : null,
+    },
+  });
+
+  // 2. Synchronize or create CollectionEntry
+  let collectionEntryId = instalment.collectionEntryId;
+  if (collectionEntryId) {
+    const existingEntry = await tx.collectionEntry.findUnique({
+      where: { id: collectionEntryId },
+    });
+    if (existingEntry) {
+      await tx.collectionEntry.update({
+        where: { id: existingEntry.id },
+        data: {
+          receivedAmount: correctedAmount,
+          paymentMode,
+          remarks: remarks ?? existingEntry.remarks,
+        },
+      });
+
+      if (existingEntry.collectionId) {
+        const all = await tx.collectionEntry.findMany({
+          where: { collectionId: existingEntry.collectionId },
+          select: { receivedAmount: true, dueAmount: true },
+        });
+        await tx.dailyCollection.update({
+          where: { id: existingEntry.collectionId },
+          data: {
+            totalCollected: all.reduce((s, e) => s + Number(e.receivedAmount), 0),
+            totalExpected: all.reduce((s, e) => s + Number(e.dueAmount), 0),
+            entriesCount: all.length,
+          },
+        });
+      }
+    }
+  } else if (correctedAmount > 0) {
+    // Check if there is an unlinked collection entry for this loan/customer
+    const unlinked = await tx.collectionEntry.findFirst({
+      where: {
+        loanId: instalment.loanId,
+        tenantId: actor.tenantId,
+        instalment: null,
+      },
+      orderBy: { submittedAt: 'desc' },
+    });
+
+    if (unlinked) {
+      await tx.collectionEntry.update({
+        where: { id: unlinked.id },
+        data: {
+          receivedAmount: correctedAmount,
+          paymentMode,
+          remarks: remarks ?? unlinked.remarks,
+        },
+      });
+      await tx.instalment.update({
+        where: { id: instalment.id },
+        data: { collectionEntryId: unlinked.id },
+      });
+      collectionEntryId = unlinked.id;
+    } else {
+      const today = startOfDay(new Date());
+      const daily = await tx.dailyCollection.upsert({
+        where: {
+          tenantId_appType_agentId_date: {
+            tenantId: actor.tenantId,
+            appType: actor.appType,
+            agentId: actor.userId,
+            date: today,
+          },
+        },
+        update: {},
+        create: {
+          tenantId: actor.tenantId,
+          appType: actor.appType,
+          agentId: actor.userId,
+          branchId: instalment.loan.branchId,
+          routeId: instalment.loan.customer.routeId,
+          date: today,
+          totalExpected: 0,
+          totalCollected: 0,
+          entriesCount: 0,
+          status: 'open',
+        },
+      });
+      const newEntry = await tx.collectionEntry.create({
+        data: {
+          tenantId: actor.tenantId,
+          collectionId: daily.id,
+          customerId: instalment.loan.customerId,
+          loanId: instalment.loanId,
+          dueAmount: Number(instalment.dueAmount),
+          receivedAmount: correctedAmount,
+          paymentMode,
+          remarks: remarks ?? 'Payment correction',
+          agentId: actor.userId,
+          verificationStatus: 'verified',
+          source: 'correction',
+        },
+      });
+      await tx.instalment.update({
+        where: { id: instalment.id },
+        data: { collectionEntryId: newEntry.id },
+      });
+      collectionEntryId = newEntry.id;
+    }
+  }
+
+  // 3. Ledger adjustment: if delta != 0, write Payment & PaymentAllocation
+  if (delta !== 0) {
+    await recordPaymentLedger(tx, {
+      tenantId: actor.tenantId,
+      loanId: instalment.loanId,
+      instalmentId: instalment.id,
+      amount: delta,
+      paymentMode,
+    });
+  }
+
+  // 4. Audit trail
+  await tx.auditLog.create({
+    data: {
+      tenantId: actor.tenantId,
+      userId: actor.userId,
+      action: 'update',
+      entityType: 'payment_correction',
+      entityId: instalment.id,
+      newValue: JSON.stringify({
+        instalmentId: instalment.id,
+        instalmentNo: instalment.instalmentNo,
+        loanId: instalment.loanId,
+        previousAmount,
+        correctedAmount,
+        delta,
+        paymentMode,
+        remarks,
+      }),
+    },
+  });
+
+  // 5. Reallocate loan repayments (updates statuses, totalCollected, paidCount, overdueAmount, loanStatus)
+  const reallocation = await reallocateLoanRepayments(tx, instalment.loanId);
+
+  const updatedRow = reallocation.allocations.find((a) => a.id === instalment.id);
+
+  return {
+    instalmentId: instalment.id,
+    loanId: instalment.loanId,
+    previousAmount,
+    correctedAmount,
+    delta,
+    status: updatedRow?.status ?? updatedInstalment.status,
+  };
+}
+
+export async function correctInstalmentPayment(
+  actor: CollectionActor,
+  input: CorrectInstalmentPaymentInput,
+): Promise<CorrectInstalmentPaymentResult> {
+  // Only admin, superadmin, developer can directly perform payment correction
+  if (!['admin', 'superadmin', 'developer'].includes(actor.role)) {
+    throw new Error('forbidden');
+  }
+
+  return prisma.$transaction(
+    async (tx) => {
+      return correctInstalmentPaymentInTx(tx, actor, input);
+    },
+    { timeout: 30000, maxWait: 15000 },
+  );
+}

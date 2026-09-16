@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import { formatCurrency, formatDate, getBadgeClass, calcPercentage } from '@/lib/utils';
-import { markInstalmentPaid, markLoanCollection, requestCollectionEdit, waiveLoanPenalty, settleLoanPenalty, closeLoan, renewLoan, precloseLoanAdmin, recordGoldServicing, recordBankRepledge, partPayPrincipal, fullCloseLoan } from './actions';
+import { markInstalmentPaid, markLoanCollection, requestCollectionEdit, correctInstalmentPaymentAction, waiveLoanPenalty, settleLoanPenalty, closeLoan, renewLoan, precloseLoanAdmin, recordGoldServicing, recordBankRepledge, partPayPrincipal, fullCloseLoan } from './actions';
 import { createSelfPayLinkAction } from '../../collection/runActions';
 import Link from '@/components/layout/DashboardLink';
 import { useRouter } from 'next/navigation';
@@ -183,7 +183,7 @@ export default function LoanDetailClient({
   const router = useRouter();
   const dashboardPath = useDashboardPath();
   useRegisterBreadcrumbLabel(loan.loanCode, loan.customer?.name ? `${loan.loanCode} — ${loan.customer.name}` : loan.loanCode);
-  const isAdmin = userRole === 'admin' || userRole === 'superadmin';
+  const isAdmin = userRole === 'admin' || userRole === 'superadmin' || userRole === 'developer';
   const totalCollected = Number(loan.totalCollected || 0);
   const totalRepayable = Number(loan.perInstalment) * loan.totalInstalments;
   const outstanding = totalRepayable - totalCollected;
@@ -230,7 +230,7 @@ export default function LoanDetailClient({
         const isPartial = Number(inst.receivedAmount) > 0 && Number(inst.receivedAmount) < Number(inst.dueAmount);
         
         let dynamicStatus = inst.status;
-        if (inst.status !== 'paid' && inst.status !== 'partial') {
+        if (inst.status !== 'paid' && inst.status !== 'partial' && inst.status !== 'waived') {
           if (isPaid) {
             dynamicStatus = 'paid';
           } else if (isPartial) {
@@ -263,7 +263,9 @@ export default function LoanDetailClient({
           inst.receivedAmount = 0;
           const dueDate = new Date(inst.dueDate);
           dueDate.setHours(0, 0, 0, 0);
-          inst.status = dueDate < today ? 'missed' : (toDateStr(dueDate) === todayStr ? 'due today' : 'upcoming');
+          inst.status = inst.status === 'waived'
+            ? 'waived'
+            : (dueDate < today ? 'missed' : (toDateStr(dueDate) === todayStr ? 'due today' : 'upcoming'));
         }
       }
       return dist;
@@ -272,8 +274,9 @@ export default function LoanDetailClient({
   }, [loan.instalments, viewMode, totalCollected]);
 
   const dynamicRemainingCount = useMemo(() => {
+    if (outstanding <= 0 || loan.status === 'closed') return 0;
     return Math.ceil(outstanding / Number(loan.perInstalment));
-  }, [outstanding, loan.perInstalment]);
+  }, [outstanding, loan.perInstalment, loan.status]);
 
   // DEFAULT "extend days" projection: keep paying the normal per-instalment, slide
   // the finish out one period per unpaid due. Recomputed live from outstanding.
@@ -295,9 +298,25 @@ export default function LoanDetailClient({
     }));
   }, [extended, loan.perInstalment, loan.totalInstalments]);
 
+  const waivedInstalments = useMemo(() => {
+    return (loan.instalments || []).filter((i: any) => i.status === 'waived');
+  }, [loan.instalments]);
+
   const dynamicPaidCount = useMemo(() => {
+    if (waivedInstalments.length > 0) {
+      // If instalments were waived (e.g. preclosure early settlement),
+      // the paid period corresponds to instalments up to the preclosure point.
+      const firstWaivedNo = Math.min(...waivedInstalments.map((i: any) => Number(i.instalmentNo)));
+      if (Number.isFinite(firstWaivedNo) && firstWaivedNo > 1) {
+        return firstWaivedNo - 1;
+      }
+      return Math.max(0, loan.totalInstalments - waivedInstalments.length);
+    }
+    if (outstanding <= 0 || loan.status === 'closed') {
+      return loan.totalInstalments;
+    }
     return Math.max(0, loan.totalInstalments - dynamicRemainingCount);
-  }, [loan.totalInstalments, dynamicRemainingCount]);
+  }, [loan.totalInstalments, loan.status, waivedInstalments, outstanding, dynamicRemainingCount]);
 
   const pct = useMemo(() => {
     return Math.round((dynamicPaidCount / loan.totalInstalments) * 100);
@@ -316,6 +335,9 @@ export default function LoanDetailClient({
   // Restructure: spread the entire outstanding amount across the actual remaining days/periods:
   //   rate = outstanding / actualRemainingCount
   const { restructureRemainingCount, adjustedInstallment } = useMemo(() => {
+    if (outstanding <= 0 || loan.status === 'closed') {
+      return { restructureRemainingCount: 0, adjustedInstallment: 0 };
+    }
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const endDate = loan.endDate ? new Date(loan.endDate) : new Date();
@@ -340,9 +362,11 @@ export default function LoanDetailClient({
       restructureRemainingCount: actualCount,
       adjustedInstallment: rate,
     };
-  }, [loan.endDate, loan.frequency, outstanding]);
+  }, [loan.endDate, loan.frequency, loan.status, outstanding]);
 
-  const missedInstalments = displayInstalments.filter((i: any) => i.status === 'missed');
+  const missedInstalments = loan.status === 'closed' || outstanding <= 0
+    ? []
+    : displayInstalments.filter((i: any) => i.status === 'missed');
   const missedCount = missedInstalments.length;
   const recordedPenalty = loan.penalties.reduce((sum: number, p: any) => sum + Number(p.grossPenalty), 0);
   const potentialPenalty = missedCount * Number(loan.penaltyRate);
@@ -513,7 +537,8 @@ export default function LoanDetailClient({
     const fd = new FormData();
     fd.set('instalmentId', paymentModal.id);
     
-    const isEditRequest = Number(paymentModal.receivedAmount) > 0 && !isAdmin;
+    const isPaid = Number(paymentModal.receivedAmount) > 0;
+    const isEditRequest = isPaid && !isAdmin;
 
     if (isEditRequest) {
       fd.set('requestedAmount', String(payAmount));
@@ -525,6 +550,18 @@ export default function LoanDetailClient({
         alert('Edit request submitted successfully.');
       } else {
         alert(result.error || d.failedToSubmitRequest);
+      }
+    } else if (isPaid && isAdmin) {
+      fd.set('correctedAmount', String(payAmount));
+      fd.set('paymentMode', payMode);
+      fd.set('remarks', payRemarks);
+      const result = await correctInstalmentPaymentAction(fd);
+      setLoading(false);
+      if (result.success) {
+        setPaymentModal(null);
+        router.refresh();
+      } else {
+        alert(result.error || d.failedToRecordPayment);
       }
     } else {
       fd.set('receivedAmount', String(payAmount));

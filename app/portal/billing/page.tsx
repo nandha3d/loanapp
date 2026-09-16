@@ -180,13 +180,13 @@ export default async function PortalBillingPage() {
             <h3 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a' }}>Choose Your Subscription</h3>
           </div>
           <p style={{ color: '#475569', marginBottom: '20px', fontSize: '.92rem' }}>
-            Prices include all {Math.max(enabledModulesList.length, 1)} active verticals and your existing add-ons. Payment is handled securely by Razorpay.
+            Choose a subscription plan configured for your organization. Payment is handled securely by Razorpay.
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '32px' }}>
             {catalogPlans.map((p) => {
               const isPopular = p.plan === 'business';
               const isCurrent = p.plan === plan && sub?.currentPeriodEnd && sub.currentPeriodEnd >= new Date();
-              const monthlyTotal = p.monthlyPrice * Math.max(enabledModulesList.length, 1) + (sub?.addonsPrice ?? 0);
+              const isFree = p.monthlyPrice === 0;
               return (
                 <div
                   key={p.plan}
@@ -229,8 +229,8 @@ export default async function PortalBillingPage() {
                       {p.displayName}
                     </div>
                     <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0f172a', marginBottom: '14px' }}>
-                      INR {monthlyTotal}
-                      <span style={{ fontSize: '.85rem', fontWeight: 600, color: '#64748b' }}>/mo</span>
+                      {isFree ? 'Free' : `INR ${p.monthlyPrice.toLocaleString('en-IN')}`}
+                      {!isFree && <span style={{ fontSize: '.85rem', fontWeight: 600, color: '#64748b' }}>/mo</span>}
                     </div>
                     <div style={{ backgroundColor: '#f8fafc', borderRadius: '8px', padding: '12px 8px', marginBottom: '14px', border: '1px solid #e2e8f0' }}>
                       <div style={{ fontSize: '.92rem', fontWeight: 700, color: '#0f172a', marginBottom: '6px' }}>

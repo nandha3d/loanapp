@@ -17,16 +17,18 @@ export async function precloseLoanInTx(
   if (loan.appType === 'microlending') {
     await tx.$queryRaw`SELECT id FROM loans WHERE id = ${id} AND tenant_id = ${ctx.tenantId} AND app_type = ${loan.appType} FOR UPDATE`;
   }
-  // Find all unpaid or partially paid instalments
-  const unpaidInstalments = await tx.instalment.findMany({
-    where: {
-      loanId: id,
-      status: { in: ['upcoming', 'missed', 'partial'] },
-    },
+  // Find all instalments for the loan
+  const allInstalments = await tx.instalment.findMany({
+    where: { loanId: id },
     orderBy: [{ dueDate: 'asc' }, { instalmentNo: 'asc' }],
   });
 
-  if (unpaidInstalments.length === 0) {
+  if (allInstalments.length === 0) {
+    throw new Error('No instalments found for this loan.');
+  }
+
+  const hasUnpaid = allInstalments.some(i => i.status !== 'paid' && i.status !== 'waived');
+  if (!hasUnpaid) {
     throw new Error('All instalments for this loan have already been fully collected.');
   }
 
@@ -60,9 +62,31 @@ export async function precloseLoanInTx(
   if (!rows[0]) throw new Error('DailyCollection not found after upsert');
   const dailyCollectionId = rows[0].id;
 
-  // Pick the instalment closest to today (first one with dueDate >= today, or last if all past-due)
+  // Pick the instalment for preclosure settlement.
+  // When settling preclosure on today, anchor directly to today's instalment so the payment
+  // posts on today's business date and does NOT jump to tomorrow/next day.
   const todayStart = new Date(); todayStart.setHours(0,0,0,0);
-  const closureInst = unpaidInstalments.find(i => new Date(i.dueDate) >= todayStart) || unpaidInstalments[unpaidInstalments.length - 1];
+  const todayInst = allInstalments.find(i => {
+    const d = new Date(i.dueDate);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime() === todayStart.getTime();
+  });
+
+  let closureInst;
+  if (todayInst) {
+    closureInst = todayInst;
+  } else {
+    const lastInst = allInstalments[allInstalments.length - 1];
+    const firstInst = allInstalments[0];
+    if (todayStart.getTime() >= new Date(lastInst.dueDate).getTime()) {
+      closureInst = lastInst;
+    } else if (todayStart.getTime() <= new Date(firstInst.dueDate).getTime()) {
+      closureInst = firstInst;
+    } else {
+      const pastOrCurrent = allInstalments.filter(i => new Date(i.dueDate) <= todayStart);
+      closureInst = pastOrCurrent[pastOrCurrent.length - 1] || allInstalments[0];
+    }
+  }
   const allocationsDesc: string[] = [];
 
   // 1. Create ONE PaymentAllocation for the closure instalment
@@ -122,17 +146,18 @@ export async function precloseLoanInTx(
 
   allocationsDesc.push(`#${closureInst.instalmentNo} (+₹${amount})`);
 
-  // 4. Mark all OTHER unpaid instalments as 'waived'
-  const otherInstIds = unpaidInstalments.filter(i => i.id !== closureInst.id).map(i => i.id);
-  if (otherInstIds.length > 0) {
+  // 4. Mark all other unpaid instalments (future instalments and any remaining arrears) as 'waived'
+  const otherUnpaidInsts = allInstalments.filter(i => i.id !== closureInst.id && i.status !== 'paid');
+  if (otherUnpaidInsts.length > 0) {
+    const otherIds = otherUnpaidInsts.map(i => i.id);
     await tx.instalment.updateMany({
-      where: { id: { in: otherInstIds } },
+      where: { id: { in: otherIds } },
       data: {
         status: 'waived',
         remarks: 'Waived due to Preclosure',
       }
     });
-    allocationsDesc.push(`Waived ${otherInstIds.length} instalments`);
+    allocationsDesc.push(`Waived ${otherIds.length} instalments`);
   }
 
   // Recalculate and reallocate loan totals

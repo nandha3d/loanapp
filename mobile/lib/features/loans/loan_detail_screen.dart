@@ -565,7 +565,9 @@ class _LoanBodyState extends ConsumerState<_LoanBody> {
             dist[i].dueDate.year, dist[i].dueDate.month, dist[i].dueDate.day);
         dist[i] = dist[i].copyWith(
           receivedAmount: 0,
-          status: dDate.isBefore(todayStart) ? 'missed' : 'upcoming',
+          status: dist[i].status == 'waived'
+              ? 'waived'
+              : (dDate.isBefore(todayStart) ? 'missed' : 'upcoming'),
         );
       }
     }
@@ -685,8 +687,9 @@ class _OverdueSummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final todayStart = DateTime.now();
     final today = DateTime(todayStart.year, todayStart.month, todayStart.day);
-    final missedCount =
-        loan.instalments.where((i) => i.dynamicStatus == 'missed').length;
+    final missedCount = (loan.status == 'closed' || (loan.totalPayable - loan.totalCollected) <= 0)
+        ? 0
+        : loan.instalments.where((i) => i.dynamicStatus == 'missed').length;
     final outstanding = (loan.totalPayable - loan.totalCollected) > 0
         ? (loan.totalPayable - loan.totalCollected)
         : 0.0;

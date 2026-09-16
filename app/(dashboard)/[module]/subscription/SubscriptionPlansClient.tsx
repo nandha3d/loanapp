@@ -135,7 +135,7 @@ export default function SubscriptionPlansClient({
         {plans.map((p) => {
           const isCurrent = p.plan.toLowerCase() === currentPlanKey.toLowerCase();
           const isPopular = p.plan.toLowerCase() === 'business';
-          const price = p.calculatedPrice?.totalMonthlyPrice ?? p.monthlyPrice;
+          const isFree = p.monthlyPrice === 0;
 
           return (
             <div
@@ -216,18 +216,14 @@ export default function SubscriptionPlansClient({
                 <div style={{ marginBottom: '20px' }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
                     <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                      ₹{price.toLocaleString()}
+                      {isFree ? 'Free' : `₹${p.monthlyPrice.toLocaleString('en-IN')}`}
                     </span>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-light)', fontWeight: 500 }}>
-                      {d.perMonth || '/mo'}
-                    </span>
+                    {!isFree && (
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-light)', fontWeight: 500 }}>
+                        {d.perMonth || '/mo'}
+                      </span>
+                    )}
                   </div>
-                  {p.calculatedPrice && p.calculatedPrice.modulesPrice > 0 && (
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginTop: '2px' }}>
-                      Base ₹{p.calculatedPrice.basePlanPrice} + Extra Verticals ₹{p.calculatedPrice.modulesPrice}
-                      {p.calculatedPrice.addonsPrice > 0 ? ` + Addons ₹${p.calculatedPrice.addonsPrice}` : ''}
-                    </div>
-                  )}
                 </div>
 
                 {/* Core Resource Quotas */}
@@ -516,12 +512,20 @@ export default function SubscriptionPlansClient({
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '6px' }}>
                 <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>{d.monthlyTotal || 'Total Monthly Charge'}:</span>
                 <span style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--primary, #3b82f6)' }}>
-                  ₹{(selectedPlan.calculatedPrice?.totalMonthlyPrice ?? selectedPlan.monthlyPrice).toLocaleString()}
-                  <span style={{ fontSize: '0.8rem', fontWeight: 400, color: 'var(--text-light)' }}>{d.perMonth || '/mo'}</span>
+                  {selectedPlan.monthlyPrice === 0 ? (
+                    'Free'
+                  ) : (
+                    <>
+                      ₹{selectedPlan.monthlyPrice.toLocaleString('en-IN')}
+                      <span style={{ fontSize: '0.8rem', fontWeight: 400, color: 'var(--text-light)' }}>{d.perMonth || '/mo'}</span>
+                    </>
+                  )}
                 </span>
               </div>
               <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-light)' }}>
-                {d.includesModulesAddons || 'Includes your enabled modules & active add-ons'}. Razorpay will bill this recurring mandate on a monthly cadence.
+                {selectedPlan.monthlyPrice === 0
+                  ? 'Free plan includes core branch, loan, and field agent limits.'
+                  : (d.planBilledMonthly || 'Billed securely via Razorpay on a monthly cadence.')}
               </p>
             </div>
 

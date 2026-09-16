@@ -8,7 +8,7 @@ import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth';
 import { decryptAadharNumber, encryptAadharNumber, isMaskedAadharNumber } from '@/lib/pii';
-import { submitCollectionEntry } from '@/app/(dashboard)/[module]/collection/actions';
+import { correctInstalmentPaymentInTx } from '@/lib/collectionWrite';
 import { calculateLoanPreview } from '@/lib/loanCalculator';
 import { notifyUser } from '@/lib/notify/userNotify';
 import { modulePath } from '@/types/modules';
@@ -57,6 +57,7 @@ export async function reviewRequest(formData: FormData) {
       revalidatePath(modulePath(appType, '/loans'), 'layout');
       return result;
     }
+    const branchId = await getActiveBranchId();
     const result = await prisma.$transaction(async (tx) => {
       // 1. Atomically claim the request by updating status to approved/rejected
       const updateResult = await tx.approvalRequest.updateMany({
@@ -137,14 +138,21 @@ export async function reviewRequest(formData: FormData) {
             ? rawChanges.requestedAmount 
             : undefined;
           
-          if (requestedAmount === undefined) {
-            throw new Error('Invalid collection edit request: missing requestedAmount');
+          if (requestedAmount === undefined || isNaN(Number(requestedAmount)) || Number(requestedAmount) < 0) {
+            throw new Error('Invalid collection edit request: missing or invalid requestedAmount');
           }
           
-          const fd = new FormData();
-          fd.set('instalmentId', request.entityId);
-          fd.set('receivedAmount', String(requestedAmount));
-          await submitCollectionEntry(fd);
+          await correctInstalmentPaymentInTx(tx, {
+            tenantId,
+            appType,
+            userId,
+            branchId,
+            role: userRole,
+          }, {
+            instalmentId: request.entityId,
+            correctedAmount: Number(requestedAmount),
+            remarks: `Approved collection edit request: ${reviewNotes || request.reason || ''}`.trim(),
+          });
         } else if (request.requestType === 'loan_edit' && request.entityType === 'loan') {
           // Verify target loan belongs to this tenant+appType
           const loan = await tx.loan.findFirst({

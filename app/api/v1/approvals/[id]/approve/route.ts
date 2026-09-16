@@ -5,7 +5,7 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { encryptAadharNumber } from '@/lib/pii';
-import { submitCollectionEntry } from '@/app/(dashboard)/[module]/collection/actions';
+import { correctInstalmentPaymentInTx } from '@/lib/collectionWrite';
 import { calculateLoanPreview } from '@/lib/loanCalculator';
 import { calculateEndDate } from '@/lib/utils';
 import { hasFinancialActivity } from '@/lib/repayments';
@@ -98,10 +98,20 @@ export async function PATCH(
         } else if (request.requestType === 'edit_collection') {
           const rawChanges = JSON.parse(request.requestedChanges);
           const requestedAmount = rawChanges.requestedAmount;
-          const fd = new FormData();
-          fd.set('instalmentId', request.entityId);
-          fd.set('receivedAmount', String(requestedAmount));
-          await submitCollectionEntry(fd);
+          if (requestedAmount === undefined || isNaN(Number(requestedAmount)) || Number(requestedAmount) < 0) {
+            throw new Error('Invalid collection edit request: missing or invalid requestedAmount');
+          }
+          await correctInstalmentPaymentInTx(tx, {
+            tenantId: ctx.tenantId,
+            appType: ctx.appType,
+            userId: ctx.userId,
+            branchId: ctx.branchId,
+            role: ctx.role,
+          }, {
+            instalmentId: request.entityId,
+            correctedAmount: Number(requestedAmount),
+            remarks: `Approved collection edit request: ${note || request.reason || ''}`.trim(),
+          });
         } else if (request.requestType === 'loan_edit' && request.entityType === 'loan') {
           const loan = await tx.loan.findFirst({
             where: { id: request.entityId, tenantId: ctx.tenantId, appType: ctx.appType, ...scopedBranchWhere(ctx) },

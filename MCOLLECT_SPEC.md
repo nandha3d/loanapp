@@ -32,6 +32,11 @@
 - Tenant setup UI `/[module]/settings/payment-gateway` is restricted to developers only, and hidden from tenant admin sidebar navigation.
 - Developer accounts & platform credentials are isolated above tenant boundaries: developer credentials and users are never exposed to superadmins, admins, or field agents in user management (enforced via ROLE-6 in `ENGINEERING_REFERENCE.md`).
 
+**Collection edit & correction permissions (ROLE-7):**
+- **Field Agents**: Cannot directly edit or delete recorded payments. To change an instalment payment amount, field agents must submit an `edit_collection` approval request with a mandatory reason for review by an admin or superadmin.
+- **Administrators (Admin / Super Admin / Developer)**: Hold direct privilege to edit/correct recorded instalment payment totals (`correctInstalmentPaymentAction`). Direct edits apply immediately, adjust the collection entry and Payment ledger for the delta, and trigger repayment reallocation without tripping on `already_paid` guards.
+
+
 **Tiered cashless collection (final model — tenant picks per appetite):**
 - **Tier 0 · UPI VPA (zero setup, default):** tenant enters only their UPI ID → borrower pay page renders a **dynamic UPI-intent QR with the exact amount** (`lib/upiIntent.ts`, real `upi://pay`) → money bank-to-bank into the tenant's account, no PSP. Borrower taps "I've paid" → token marked **`claimed`** (never auto-posts money) → staff confirm in the **Self-Pay queue** (`/[module]/collection/self-pay`, one-tap `confirm`/`reject`, branch-scoped). Sidebar entry added.
 - **Tier 1 · Razorpay own keys (built):** auto-reconcile via per-tenant signed webhook.

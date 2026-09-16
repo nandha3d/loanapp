@@ -225,6 +225,7 @@ Agents are field staff on shared devices. They may: create customers (pending re
 
 - **ROLE-4** — `AGENT_BLOCKED` in `proxy.ts` is a **redirect convenience, not a security control**. Every blocked capability MUST also be refused server-side by the handler.
 - **ROLE-5** — Agent permission toggles (`bypassLoanApproval`, `autoReleaseFloat`) MUST NEVER gate non-agent users. Non-agents keep full privilege unconditionally — see the explicit branch in `app/api/v1/loans/route.ts`.
+- **ROLE-7** — **Payment edit and collection correction permissions**: Field agents (`role: 'agent'`) MUST NEVER directly alter, edit, or delete existing recorded collections or instalment payments. Any payment modification by an agent requires an `ApprovalRequest` (`requestType: 'edit_collection'`) stating `requestedAmount` and a mandatory `reason`, pending review by `admin` or `superadmin`. Administrators (`role: 'admin'`, `superadmin`, `developer`) hold direct privilege to correct/update instalment payment totals (`correctInstalmentPayment`). Direct admin edits do not require approval and adjust the instalment's `receivedAmount`, synchronize ledger/collection records, and trigger `reallocateLoanRepayments`. Payment corrections (by admin or upon approval of agent requests) bypass the `already_paid: Instalment is already fully collected` submission block designed for new collection submissions.
 
 ### 7.3 Module gating
 
@@ -356,6 +357,7 @@ Order of operations, all inside one Serializable transaction:
 - **MONEY-11** — Instalment status is derived, never hand-set: `paid` / `partial` / `missed` / `upcoming` / `waived`. Loan status is derived by `resolveLoanStatus()`.
 - **MONEY-12** — Schedules MUST NOT be modified once `hasFinancialActivity(loanId)` is true.
 - **MONEY-13** — Collection writes are idempotent through `buildCollectionIdempotencyKey()` — `(tenantId, agentId, instalmentId, amount, mode, date)`. A retried mobile submission must not double-post. Never bypass it.
+- **MONEY-21** — **Collection submission vs Payment correction**: `submitCollectionEntry` records new incoming collections and is strictly blocked on fully collected instalments by `getCollectionSubmissionBlockReason`. Modifying or correcting existing payments MUST use `correctInstalmentPayment` / `correctInstalmentPaymentInTx`, which updates the instalment amount, records a ledger adjustment for the delta, and executes `reallocateLoanRepayments` inside a transaction. Never call `submitCollectionEntry` inside a transaction or for a payment correction.
 
 #### Micro Lending agent preclose requests
 
@@ -364,6 +366,11 @@ Order of operations, all inside one Serializable transaction:
 - **PRECLOSE-3** — Review visibility follows the subject loan's own branch, never the requester's branch. Review rechecks tenant, module, active branch, loan status and current balance. A stale request must be rejected and resubmitted; approval must not silently substitute another amount.
 - **PRECLOSE-4** — Request creation serializes on the loan row; review atomically claims a pending request and performs the existing settlement and audit within one transaction. Direct Micro Lending preclose and approval execution lock the same loan before reading unpaid dues. Notifications run after commit. No request may settle twice.
 - **PRECLOSE-5** — `lib/loanPreclose.ts` holds the existing settlement implementation shared by direct admin preclose and approved requests. Its allocation/accounting behavior is preserved; no interest-only principal servicing or other module gains an agent preclose path. The frozen legacy `/api/approvals` handlers do not expose or process this new request type.
+- **PRECLOSE-6** — **Settlement Date Anchoring**: When settling a loan via preclosure (direct admin or approval execution), the settlement payment MUST anchor to today's instalment (`sameBusinessDay(dueDate, today)`) if one exists, ensuring the payment records on today's business date and does NOT jump forward to the next day's instalment. All subsequent future instalments (`instalmentNo > closureInst.instalmentNo`) and any remaining arrears are marked `waived`.
+- **PRECLOSE-7** — **Paid Period & Remaining Counts (Web & Mobile Parity)**:
+  - `Paid Period` reflects the actual active loan duration prior to closure. When instalments are waived due to preclosure/early settlement, Paid Period is computed from the instalments up to the preclosure anchor (`firstWaivedNo - 1`, or `totalInstalments - waivedCount`), never blindly displaying full tenure (`totalInstalments`) upon closure.
+  - When a loan is closed or has zero outstanding (`outstanding <= 0`), remaining counts (`Remaining Actual` and `Remaining Extended`) and missed counts MUST clamp to 0 across both web (`LoanDetailClient.tsx`) and mobile (`loan_detail_screen.dart`).
+  - Dynamic status mappers across web and mobile MUST honour `status: 'waived'` and never override past-due waived rows to `missed`.
 
 ### 10.4 Penalties — `lib/penalties.ts`
 
@@ -736,6 +743,10 @@ ships, never by reshaping it.
   fail, either the change is wrong, or the rule genuinely moved — and then this
   document, `docs/CALCULATION_LOGIC.md` and the case move in the same commit
   (DOC-1).
+- **STABLE-7 — UI charts and metrics must never overflow or bleed.** Chart heights must
+  scale against the maximum of all plotted series (both collected and expected), clamp bar
+  heights within 0–100%, clip child elements with `overflow: hidden`, and support responsive
+  layouts on mobile and desktop without unstyled column squishing (UI-1).
 
 ### Adding an API endpoint
 1. `/api/v1/<resource>/route.ts` (or a permanent `/api/*` namespace — §8).
@@ -804,6 +815,9 @@ Each of these has shipped a bug in this repository.
 - **X-22** — Lowering a coverage threshold or `--no-verify`-ing a hook to get green.
 - **X-23** — Creating an `ApprovalRequest` without a paired `notifyApprovers()` call, or gating that call on the entity/request type (NOTIF-9).
 - **X-24** — Exposing or returning developer credentials/accounts to non-developer roles (`superadmin`, `admin`, `agent`) in user management APIs, lists, or pickers (ROLE-6).
+- **X-25** — Allowing agents to directly edit or modify collection payments without admin/superadmin approval (`edit_collection`), or calling `submitCollectionEntry` inside a transaction or for a payment correction (ROLE-7, MONEY-21).
+- **X-26** — Unbounded bar charts or graph heights that scale solely off expected amount without tracking collections, or lacking overflow protection on bar containers (UI-1).
+- **X-27** — Inflating subscription plan pricing cards with per-module multipliers or tenant add-ons instead of showing the authoritative developer subscription plan catalog price (PLAN-1).
 
 ---
 

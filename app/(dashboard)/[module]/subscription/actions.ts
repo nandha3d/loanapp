@@ -67,11 +67,10 @@ export async function simulatePlanUpgrade(planId: string) {
     : [];
   const addonsPrice = addonRows.reduce((sum, addon) => sum + addon.monthlyPrice, 0);
 
-  const pricing = calculateVerticalSubscriptionPricing(
-    catalog.monthlyPrice,
-    enabledModules,
-    addonsPrice,
-  );
+  const isFreePlan = catalog.plan === 'free' || catalog.monthlyPrice === 0;
+  const basePlanPrice = isFreePlan ? 0 : catalog.monthlyPrice;
+  const effectiveAddonsPrice = isFreePlan ? 0 : addonsPrice;
+  const totalMonthlyPrice = basePlanPrice + effectiveAddonsPrice;
 
   const oneMonthLater = new Date();
   oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
@@ -86,22 +85,22 @@ export async function simulatePlanUpgrade(planId: string) {
       maxAgents: catalog.maxAgents,
       currentPeriodEnd: oneMonthLater,
       trialEndsAt: null,
-      basePlanPrice: pricing.basePlanPrice,
-      modulesPrice: pricing.modulesPrice,
-      addonsPrice: pricing.addonsPrice,
-      totalMonthlyPrice: pricing.totalMonthlyPrice,
+      basePlanPrice,
+      modulesPrice: 0,
+      addonsPrice: effectiveAddonsPrice,
+      totalMonthlyPrice,
       razorpaySubId: `sim_${catalog.plan}_${Date.now()}`,
     },
   });
 
-  if (catalog.monthlyPrice > 0) {
+  if (totalMonthlyPrice > 0) {
     await prisma.billingInvoice.create({
       data: {
         tenantId,
         subscriptionId: updated.id,
-        amount: pricing.totalMonthlyPrice,
+        amount: totalMonthlyPrice,
         tax: 0,
-        total: pricing.totalMonthlyPrice,
+        total: totalMonthlyPrice,
         status: 'paid',
         dueDate: oneMonthLater,
         paidAt: new Date(),

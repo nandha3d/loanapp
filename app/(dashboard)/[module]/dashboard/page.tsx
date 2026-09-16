@@ -16,6 +16,7 @@ import HpOperationsWidgets from '@/components/autofinance/HpOperationsWidgets';
 import { getTodayDueList, getPromisedCustomers } from '@/lib/autofinance/dashboard';
 import { getDayClosingSnapshot, getDayClosingGate } from '../operations/actions';
 import CollectionBreakdownCards, { FrequencyKey } from './CollectionBreakdownCards';
+import TodaysActivityCard from './TodaysActivityCard';
 
 type DashboardInstalment = {
   id: string;
@@ -97,6 +98,10 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     bestPayer,
     pendingUpiCollections,
     pendingCashCollections,
+    todayNewLoans,
+    todayNewCustomers,
+    todayClosedLoans,
+    todayApprovals,
   ] = await Promise.all([
     prisma.customer.count({ where: { ...customerWhere, status: 'active' } }),
     prisma.loan.count({
@@ -231,10 +236,38 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
         },
       },
       select: {
+        id: true,
         receivedAmount: true,
+        dueAmount: true,
         paymentMode: true,
-        customer: { select: { routeId: true } },
+        submittedAt: true,
+        verificationStatus: true,
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            customerCode: true,
+            phone: true,
+            routeId: true,
+            route: { select: { id: true, name: true } },
+          },
+        },
+        loan: {
+          select: {
+            id: true,
+            loanCode: true,
+            frequency: true,
+            principal: true,
+          },
+        },
+        agent: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
+      orderBy: { submittedAt: 'desc' },
     }),
     prisma.loan.groupBy({
       by: ['customerId'],
@@ -271,7 +304,97 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
         loan: { appType, ...(branchId ? { branchId } : {}) },
       },
       select: { receivedAmount: true, agentId: true, customer: { select: { routeId: true } } }
-    })
+    }),
+    // New loans created today
+    prisma.loan.findMany({
+      where: {
+        tenantId,
+        appType,
+        ...(branchId ? { branchId } : {}),
+        createdAt: { gte: today, lt: tomorrow },
+      },
+      select: {
+        id: true,
+        loanCode: true,
+        principal: true,
+        frequency: true,
+        tenure: true,
+        createdAt: true,
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            customerCode: true,
+            phone: true,
+            route: { select: { id: true, name: true } },
+          },
+        },
+        createdBy: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    }),
+    // New customers registered today
+    prisma.customer.findMany({
+      where: {
+        tenantId,
+        appType,
+        ...(branchId ? { branchId } : {}),
+        createdAt: { gte: today, lt: tomorrow },
+      },
+      select: {
+        id: true,
+        name: true,
+        customerCode: true,
+        phone: true,
+        createdAt: true,
+        route: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    }),
+    // Loans closed today
+    prisma.loan.findMany({
+      where: {
+        tenantId,
+        appType,
+        ...(branchId ? { branchId } : {}),
+        closedAt: { gte: today, lt: tomorrow },
+      },
+      select: {
+        id: true,
+        loanCode: true,
+        closureType: true,
+        closedAt: true,
+        customer: { select: { id: true, name: true, customerCode: true } },
+      },
+      orderBy: { closedAt: 'desc' },
+      take: 10,
+    }),
+    // Approvals processed today
+    prisma.approvalRequest.findMany({
+      where: {
+        tenantId,
+        appType,
+        ...(branchId ? { requestedBy: { branchId } } : {}),
+        OR: [
+          { createdAt: { gte: today, lt: tomorrow } },
+          { reviewedAt: { gte: today, lt: tomorrow } },
+        ],
+      },
+      select: {
+        id: true,
+        requestType: true,
+        entityType: true,
+        status: true,
+        createdAt: true,
+        reviewedAt: true,
+        requestedBy: { select: { name: true } },
+        reviewedBy: { select: { name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    }),
   ]);
 
   const todayExpected = todayInstalments.reduce((sum, item) => sum + Number(item.dueAmount), 0);
@@ -707,6 +830,105 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
   });
   const grossDisbursed = Number(grossDisbursedAgg._sum.principal || 0);
 
+  // Today's Activity structures
+  const todayPendingDues = todayInstalments
+    .filter((inst) => outstanding(inst) > 0 && inst.loan.status !== 'closed')
+    .map((inst) => ({
+      id: inst.id,
+      type: 'pending' as const,
+      dueAmount: Number(inst.dueAmount),
+      receivedAmount: Number(inst.receivedAmount || 0),
+      remainingAmount: outstanding(inst),
+      dueDate: inst.dueDate,
+      status: (inst.status === 'upcoming' ? 'pending' : inst.status) as 'pending' | 'partial' | 'missed',
+      customer: {
+        id: inst.loan.customer.id,
+        name: inst.loan.customer.name,
+        customerCode: inst.loan.customer.customerCode,
+        phone: (inst.loan.customer as any).phone || null,
+        route: inst.loan.customer.route ? { id: inst.loan.customer.route.id, name: inst.loan.customer.route.name } : null,
+      },
+      loan: {
+        id: inst.loan.id,
+        loanCode: inst.loan.loanCode,
+        frequency: inst.loan.frequency,
+        perInstalment: Number((inst.loan as any).perInstalment || 0),
+      },
+    }));
+
+  const todayPaidItems = todayCollectionEntries.map((e: any) => ({
+    id: e.id,
+    type: 'paid' as const,
+    receivedAmount: Number(e.receivedAmount),
+    dueAmount: Number(e.dueAmount || 0),
+    paymentMode: e.paymentMode || 'cash',
+    submittedAt: e.submittedAt,
+    verificationStatus: e.verificationStatus || 'verified',
+    customer: {
+      id: e.customer?.id || '',
+      name: e.customer?.name || 'Customer',
+      customerCode: e.customer?.customerCode || '—',
+      phone: e.customer?.phone || null,
+      route: e.customer?.route ? { id: e.customer.route.id, name: e.customer.route.name } : null,
+    },
+    loan: {
+      id: e.loan?.id || '',
+      loanCode: e.loan?.loanCode || '—',
+      frequency: e.loan?.frequency || 'daily',
+      principal: Number(e.loan?.principal || 0),
+    },
+    agent: e.agent ? { id: e.agent.id, name: e.agent.name } : null,
+  }));
+
+  const todayNewLoanItems = todayNewLoans.map((l: any) => ({
+    id: l.id,
+    type: 'new_loan' as const,
+    loanCode: l.loanCode,
+    principal: Number(l.principal),
+    frequency: l.frequency,
+    tenure: l.tenure,
+    createdAt: l.createdAt,
+    customer: {
+      id: l.customer?.id || '',
+      name: l.customer?.name || 'Customer',
+      customerCode: l.customer?.customerCode || '—',
+      phone: l.customer?.phone || null,
+      route: l.customer?.route ? { id: l.customer.route.id, name: l.customer.route.name } : null,
+    },
+    createdBy: l.createdBy ? { id: l.createdBy.id, name: l.createdBy.name } : null,
+  }));
+
+  const todayNewCustomerItems = todayNewCustomers.map((c: any) => ({
+    id: c.id,
+    type: 'new_customer' as const,
+    id_cust: c.id,
+    name: c.name,
+    customerCode: c.customerCode,
+    phone: c.phone || null,
+    createdAt: c.createdAt,
+    route: c.route ? { id: c.route.id, name: c.route.name } : null,
+  }));
+
+  const todayOtherItems = [
+    ...todayClosedLoans.map((l: any) => ({
+      id: `close-${l.id}`,
+      type: 'closed_loan' as const,
+      title: `Loan Closed: ${l.loanCode}`,
+      description: `Customer: ${l.customer?.name} (${l.customer?.customerCode}) • ${l.closureType || 'Settled'}`,
+      timestamp: l.closedAt,
+      loanCode: l.loanCode,
+      customerCode: l.customer?.customerCode,
+    })),
+    ...todayApprovals.map((a: any) => ({
+      id: `appr-${a.id}`,
+      type: 'approval' as const,
+      title: `Approval: ${a.requestType.replace('_', ' ')} (${a.entityType})`,
+      description: `Status: ${a.status.toUpperCase()} • Requested by: ${a.requestedBy?.name || 'Staff'}${a.reviewedBy ? ` • Reviewed by: ${a.reviewedBy.name}` : ''}`,
+      timestamp: a.reviewedAt || a.createdAt,
+      status: a.status,
+    })),
+  ];
+
   return {
     totalCustomers,
     recentLoans,
@@ -728,6 +950,13 @@ async function getDashboardData(tenantId: string, appType: string, branchId?: st
     trend,
     routePerformance,
     recentActivity,
+    todaysActivity: {
+      paidItems: todayPaidItems,
+      pendingItems: todayPendingDues,
+      newLoanItems: todayNewLoanItems,
+      newCustomerItems: todayNewCustomerItems,
+      otherItems: todayOtherItems,
+    },
     currentCapital,
     todayCashCollected: todayCollectionEntries
       .filter((e: any) => e.paymentMode === 'cash')
@@ -1912,26 +2141,17 @@ export default async function DashboardPage() {
         )}
       </div>
 
-      <div className="card" style={{ marginTop: '20px' }}>
-        <div className="card-header"><h3>{d.recentActivity}</h3></div>
-        {data.recentActivity.length > 0 ? (
-          <div>
-            {data.recentActivity.map((log) => (
-              <div className="activity-item" key={log.id}>
-                <div className="activity-dot"></div>
-                <div style={{ flex: 1 }}>
-                  <div className="activity-text"><strong>{log.user?.name || 'System'}</strong> - {log.action} {log.entityType}</div>
-                  <div className="activity-time">{formatDate(log.createdAt)}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-light)', fontSize: '.85rem' }}>
-            No activity recorded yet.
-          </div>
-        )}
-      </div>
+      <TodaysActivityCard
+        currencySymbol={branding.currencySymbol ?? '₹'}
+        paidItems={data.todaysActivity.paidItems}
+        pendingItems={data.todaysActivity.pendingItems}
+        newLoanItems={data.todaysActivity.newLoanItems}
+        newCustomerItems={data.todaysActivity.newCustomerItems}
+        otherItems={data.todaysActivity.otherItems}
+        dict={{
+          dashboard: d as any,
+        }}
+      />
     </>
   );
 }
