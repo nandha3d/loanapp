@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/data/models/user.dart';
 
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
@@ -57,7 +58,7 @@ class _TeamManagementScreenState extends ConsumerState<TeamManagementScreen> {
   @override
   Widget build(BuildContext context) {
     final currentUser = ref.watch(authControllerProvider).user;
-    final isDeveloper = currentUser?.role.toLowerCase() == 'developer';
+    final isDeveloper = currentUser?.role == UserRole.developer;
 
     final filtered = _users.where((u) {
       final role = (u['role'] as String? ?? '').toLowerCase();
