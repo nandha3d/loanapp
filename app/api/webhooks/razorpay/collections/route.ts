@@ -50,12 +50,13 @@ export async function POST(request: NextRequest) {
   const tenantId = notesTenantId ?? (await resolveTenantForToken(token, providerRef));
   if (!tenantId) return NextResponse.json({ error: 'Cannot resolve tenant' }, { status: 400 });
 
-  // Verify the signature with THIS tenant's webhook secret.
+  // Verify the signature with gateway webhook secret (or platform developer secret).
   const gateway = await getTenantRazorpayConfig(tenantId);
-  if (!gateway.webhookSecret) {
-    return NextResponse.json({ error: 'Tenant gateway not configured' }, { status: 400 });
+  const webhookSecret = gateway.webhookSecret || process.env.RAZORPAY_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    return NextResponse.json({ error: 'Gateway webhook secret not configured' }, { status: 400 });
   }
-  if (!verifyRazorpayWebhookSignature(rawBody, gateway.webhookSecret, signature)) {
+  if (!verifyRazorpayWebhookSignature(rawBody, webhookSecret, signature)) {
     return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
   }
 

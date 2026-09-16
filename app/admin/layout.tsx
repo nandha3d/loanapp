@@ -32,13 +32,9 @@ export default async function AdminLayout({
   const avatarInitials = userRole === 'developer' ? 'DEV' : userRole === 'superadmin' ? 'SA' : 'BA';
 
   // Fix 21: Fetch pending notification count for developer
-  let pendingBranchRequestCount = 0;
   let pendingModuleRequestCount = 0;
   if (userRole === 'developer') {
-    [pendingBranchRequestCount, pendingModuleRequestCount] = await Promise.all([
-      prisma.branchRequest.count({ where: { status: 'pending' } }),
-      prisma.moduleRequest.count({ where: { status: 'pending' } }),
-    ]);
+    pendingModuleRequestCount = await prisma.moduleRequest.count({ where: { status: 'pending' } });
   }
 
   return (
@@ -84,28 +80,7 @@ export default async function AdminLayout({
                 Branches
               </Link>
             )}
-            {/* Fix 9: Branch Requests link for developer */}
-            {userRole === 'developer' && (
-              <Link href="/admin/branch-requests">
-                <span className="material-icons-outlined">account_tree</span>
-                Branch Requests
-                {pendingBranchRequestCount > 0 && (
-                  <span style={{
-                    marginLeft: 'auto',
-                    background: 'var(--accent)',
-                    color: '#fff',
-                    borderRadius: '10px',
-                    padding: '2px 8px',
-                    fontSize: '0.7rem',
-                    fontWeight: 600,
-                    minWidth: '20px',
-                    textAlign: 'center',
-                  }}>
-                    {pendingBranchRequestCount}
-                  </span>
-                )}
-              </Link>
-            )}
+
             {userRole === 'developer' && (
               <Link href="/admin/module-requests">
                 <span className="material-icons-outlined">extension</span>
@@ -183,9 +158,9 @@ export default async function AdminLayout({
               {/* Optional Search */}
             </div>
             <div className="topbar-actions" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              {/* Fix 21: Notification bell for developer */}
-              {userRole === 'developer' && pendingBranchRequestCount > 0 && (
-                <Link href="/admin/branch-requests" style={{ position: 'relative', color: 'var(--text)', textDecoration: 'none' }}>
+              {/* Notification bell for developer */}
+              {userRole === 'developer' && pendingModuleRequestCount > 0 && (
+                <Link href="/admin/module-requests" style={{ position: 'relative', color: 'var(--text)', textDecoration: 'none' }}>
                   <span className="material-icons-outlined" style={{ fontSize: '22px' }}>notifications</span>
                   <span style={{
                     position: 'absolute', top: '-4px', right: '-6px',
@@ -194,7 +169,7 @@ export default async function AdminLayout({
                     fontSize: '0.65rem', fontWeight: 700,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
-                    {pendingBranchRequestCount}
+                    {pendingModuleRequestCount}
                   </span>
                 </Link>
               )}

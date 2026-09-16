@@ -11,7 +11,7 @@ export default async function PaymentGatewayPage({ params }: { params: Promise<{
   if (!session) redirect('/login');
   const { module } = await params;
   const role = (session.user as { role?: string })?.role;
-  if (!['admin', 'superadmin', 'developer'].includes(role ?? '')) redirect(modulePath(module, '/dashboard'));
+  if (role !== 'developer') redirect(modulePath(module, '/settings'));
 
   const tenantId = await getDefaultTenantId();
   const [config, upiId] = await Promise.all([

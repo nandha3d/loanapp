@@ -28,7 +28,7 @@ export default async function SettingsPage() {
   const scopeBranchId = await getActiveBranchId();
   const branchScope = branchScopeWhere(scopeBranchId);
 
-  const [routes, rawPackages, users, settings, currentUser, subscription, bureauCredential, notificationTemplates] = await Promise.all([
+  const [routes, rawPackages, users, settings, currentUser, subscription, bureauCredential, notificationTemplates, branches] = await Promise.all([
     prisma.route.findMany({
       where: { tenantId, appType, ...branchScope },
       include: {
@@ -44,6 +44,13 @@ export default async function SettingsPage() {
     getSubscription(tenantId),
     prisma.bureauCredential.findUnique({ where: { tenantId } }),
     prisma.notificationTemplate.findMany({ where: { tenantId } }),
+    prisma.branch.findMany({
+      where: { tenantId },
+      include: {
+        _count: { select: { users: true, routes: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    }),
   ]);
 
   const packages = rawPackages.map(p => ({
@@ -175,6 +182,8 @@ export default async function SettingsPage() {
       manageBranchId={manageBranchId}
       manageBranchName={manageBranchName}
       notificationTemplates={notificationTemplates}
+      branches={branches}
+      planMaxBranches={subscription?.maxBranches ?? 1}
     />
   );
 }

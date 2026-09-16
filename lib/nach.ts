@@ -105,7 +105,7 @@ async function rzpDelete(url: string, auth: string) {
 export async function createMandate(input: CreateMandateInput) {
   const gw = await getTenantRazorpayConfig(input.tenantId);
   if (!gw.keyId || !gw.keySecret) {
-    throw new Error('Tenant Razorpay gateway not configured. Set key id + secret in Settings → Payment Gateway.');
+    throw new Error('Razorpay gateway credentials not configured. Please check platform RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.');
   }
 
   const auth = rzpAuth(gw.keyId, gw.keySecret);

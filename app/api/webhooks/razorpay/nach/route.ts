@@ -63,12 +63,13 @@ export async function POST(request: NextRequest) {
   const tenantId = entity?.notes?.tenant_id;
   if (!tenantId) return NextResponse.json({ error: 'Missing tenant_id in notes' }, { status: 400 });
 
-  // Verify signature with tenant's own webhook secret
+  // Verify signature with gateway webhook secret (or platform developer secret)
   const gw = await getTenantRazorpayConfig(tenantId);
-  if (!gw.webhookSecret) {
-    return NextResponse.json({ error: 'Tenant webhook secret not configured' }, { status: 400 });
+  const webhookSecret = gw.webhookSecret || process.env.RAZORPAY_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 400 });
   }
-  if (!verifyRazorpayWebhookSignature(rawBody, gw.webhookSecret, signature)) {
+  if (!verifyRazorpayWebhookSignature(rawBody, webhookSecret, signature)) {
     return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
   }
 

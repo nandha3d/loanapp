@@ -25,11 +25,11 @@
 
 > Enforced in code: `route_run` cash credits agent float; `self_pay_upi` posts a **verified** entry with **no** float credit (money is in the bank). `npm run test:repayments` ✅ · `tsc --noEmit` ✅. Apply with `prisma migrate deploy`.
 
-**Multi-tenant payment gateway (each lender uses their OWN Razorpay account):**
-- Self-pay settles into the **tenant's** bank, not the platform's. Per-tenant keys stored encrypted (`encryptField`, PII key) in `app_settings` group `payments` — separate from the platform env keys that still power subscription billing.
-- `lib/tenantRazorpay.ts` — get/save/resolve tenant gateway; `createRazorpayPaymentLink` now takes explicit (tenant) keys, never env. No keys → graceful fallback to the internal hosted UPI page.
-- Per-tenant webhook `POST /api/webhooks/razorpay/collections`: resolves tenant from `notes.tenant_id` (or token), verifies signature with **that tenant's** secret, idempotency namespaced per tenant. Platform subscription webhook `/api/webhooks/razorpay` left untouched.
-- Admin UI `/[module]/settings/payment-gateway` — enter keys + per-tenant webhook URL/event setup instructions. Secrets write-only (masked, blank = keep).
+**Payment gateway (developer platform credentials):**
+- Uses platform **developer credentials** (`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` in `.env`). Tenants do not need to configure payment gateway credentials.
+- `lib/tenantRazorpay.ts` — resolves developer platform credentials as the default gateway for all tenants.
+- Webhook routes `POST /api/webhooks/razorpay/collections` and `POST /api/webhooks/razorpay/nach` verify signatures using the platform developer webhook secret.
+- Tenant setup UI `/[module]/settings/payment-gateway` is restricted to developers only, and hidden from tenant admin sidebar navigation.
 
 **Tiered cashless collection (final model — tenant picks per appetite):**
 - **Tier 0 · UPI VPA (zero setup, default):** tenant enters only their UPI ID → borrower pay page renders a **dynamic UPI-intent QR with the exact amount** (`lib/upiIntent.ts`, real `upi://pay`) → money bank-to-bank into the tenant's account, no PSP. Borrower taps "I've paid" → token marked **`claimed`** (never auto-posts money) → staff confirm in the **Self-Pay queue** (`/[module]/collection/self-pay`, one-tap `confirm`/`reject`, branch-scoped). Sidebar entry added.

@@ -104,7 +104,7 @@ export default function IntegrationsClient({
           <Webhook label="NACH webhook" value={nachWebhookUrl} />
           {!settings.razorpay.ready && (
             <p style={{ margin: 0, color: 'var(--warning)', fontSize: 13 }}>
-              Add Razorpay Key ID and Secret in Payment Gateway before enabling live mandates.
+              Payment gateway credentials not configured on the platform.
             </p>
           )}
           <button className="btn btn-primary" disabled={pending} type="submit">Save NACH</button>
@@ -116,15 +116,14 @@ export default function IntegrationsClient({
           <div>
             <h3 style={{ margin: 0 }}>Razorpay Payment Gateway</h3>
             <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: 13 }}>
-              Payment links and e-NACH both use this tenant Razorpay account.
+              Payment links and e-NACH are managed centrally via developer credentials.
             </p>
           </div>
-          <a className="btn btn-secondary btn-sm" href={paymentGatewayUrl}>Open gateway setup</a>
+          <StatusBadge active={settings.razorpay.ready} label={settings.razorpay.ready ? 'Platform Gateway Active' : 'Not Configured'} />
         </div>
         <div style={{ display: 'grid', gap: 8, marginTop: 12, fontSize: 14 }}>
-          <Row label="Key ID" value={settings.razorpay.keyId || 'Not set'} />
-          <Row label="Key Secret" value={settings.razorpay.keySecretSet ? 'Saved' : 'Missing'} />
-          <Row label="Webhook Secret" value={settings.razorpay.webhookSecretSet ? 'Saved' : 'Missing'} />
+          <Row label="Status" value={settings.razorpay.ready ? 'Connected via developer credentials' : 'Developer credentials not configured'} />
+          <Row label="Key ID" value={settings.razorpay.keyId ? `${settings.razorpay.keyId.slice(0, 12)}...` : 'Not set'} />
           <Webhook label="Collections webhook" value={collectionsWebhookUrl} />
         </div>
       </section>

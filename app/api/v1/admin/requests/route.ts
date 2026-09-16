@@ -18,16 +18,6 @@ export async function GET(req: NextRequest) {
     const isDev = ctx.role === 'developer';
     const whereClause = isDev ? {} : { tenantId: ctx.tenantId };
 
-    const branchRequests = await prisma.branchRequest.findMany({
-      where: whereClause,
-      include: {
-        requestedBy: { select: { name: true, email: true } },
-        reviewedBy: { select: { name: true } },
-        tenant: { select: { name: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
     const moduleRequests = await prisma.moduleRequest.findMany({
       where: whereClause,
       include: {
@@ -39,21 +29,7 @@ export async function GET(req: NextRequest) {
     });
 
     return ok({
-      branchRequests: branchRequests.map(r => ({
-        id: r.id,
-        tenantId: r.tenantId,
-        tenantName: r.tenant.name,
-        requestedBy: r.requestedBy.name,
-        branchId: r.branchId,
-        branchName: r.branchName,
-        requestedModules: r.requestedModules,
-        reason: r.reason,
-        status: r.status,
-        reviewedBy: r.reviewedBy?.name || null,
-        reviewNote: r.reviewNote,
-        reviewedAt: r.reviewedAt?.toISOString() || null,
-        createdAt: r.createdAt.toISOString(),
-      })),
+      branchRequests: [],
       moduleRequests: moduleRequests.map(r => ({
         id: r.id,
         tenantId: r.tenantId,
@@ -91,71 +67,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (requestType === 'branch') {
-      const branchReq = await prisma.branchRequest.findUnique({
-        where: { id: requestId },
-        include: { requestedBy: { select: { id: true, name: true } } },
-      });
-      if (!branchReq || branchReq.status !== 'pending') {
-        return fail('Request not found or already reviewed', 404);
-      }
-
-      const requestedModules = normalizeModuleList(branchReq.requestedModules);
-      const requestedModulesStr = JSON.stringify(requestedModules);
-
-      if (decision === 'approved') {
-        const sub = await prisma.tenantSubscription.findUnique({
-          where: { tenantId: branchReq.tenantId },
-          select: { enabledModules: true },
-        });
-        if (sub) {
-          const planModules = normalizeModuleList(sub.enabledModules);
-          const invalidModules = requestedModules.filter(m => !planModules.includes(m));
-          if (invalidModules.length > 0) {
-            return fail(`Modules not in tenant subscription: ${invalidModules.join(', ')}`, 400);
-          }
-        }
-
-        if (branchReq.branchId) {
-          await prisma.branch.update({
-            where: { id: branchReq.branchId },
-            data: { enabledModules: requestedModulesStr },
-          });
-        } else {
-          await prisma.branch.create({
-            data: {
-              tenantId: branchReq.tenantId,
-              superadminId: branchReq.requestedById,
-              name: branchReq.branchName ?? 'New Branch',
-              enabledModules: requestedModulesStr,
-              status: 'active',
-            },
-          });
-        }
-      }
-
-      await prisma.branchRequest.update({
-        where: { id: requestId },
-        data: {
-          status: decision,
-          reviewedById: ctx.userId,
-          reviewNote: reviewNote || null,
-          reviewedAt: new Date(),
-        },
-      });
-
-      await prisma.systemNotification.create({
-        data: {
-          tenantId: branchReq.tenantId,
-          appType: 'microlending',
-          type: 'branch_request',
-          icon: decision === 'approved' ? 'check_circle' : 'cancel',
-          title: `Branch request ${decision}`,
-          message: `${branchReq.branchName || 'Branch module request'} was ${decision}.`,
-          link: '/branch-requests',
-        },
-      }).catch(() => {});
-
-      return ok({ success: true });
+      return fail('Branch request review is disabled. Branches are created directly in Settings.', 400);
     }
 
     if (requestType === 'module') {
