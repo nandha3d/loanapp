@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
       submittedAt: { gte: todayStart },
     };
     if (ctx.appType) {
-      entryWhere.appType = ctx.appType;
+      entryWhere.loan = { appType: ctx.appType };
     }
     const entries = await prisma.collectionEntry.findMany({
       where: entryWhere,

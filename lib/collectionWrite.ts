@@ -91,6 +91,7 @@ export type RecordCollectionInput = {
     instalmentNo: number;
     dueAmount: Prisma.Decimal | number | string;
     receivedAmount: Prisma.Decimal | number | string | null;
+    collectionEntryId?: string | null;
     loan: { customerId: string; branchId: string | null; customer: { routeId: string | null } };
   };
   amount: number;
