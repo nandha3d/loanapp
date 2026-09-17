@@ -5,6 +5,7 @@ import Link from '@/components/layout/DashboardLink';
 import { formatCurrency, formatDate, getBadgeClass, getInitials, calcPercentage } from '@/lib/utils';
 import { submitEditRequest } from '@/app/(dashboard)/[module]/approvals/actions';
 import { resetCustomerPassword, updateCustomerGpsAction } from '@/app/(dashboard)/[module]/customers/actions';
+import LocationPickerModal from '@/components/map/LocationPickerModal';
 import { calculateCreditScore } from '@/lib/creditScore';
 import { getCreditScoreGaugePresentation } from '@/lib/creditScoreGauge';
 import { useRegisterBreadcrumbLabel } from '@/components/layout/BreadcrumbLabelContext';
@@ -87,6 +88,7 @@ export default function CustomerProfileClient({
   const [resetLoading, setResetLoading] = useState(false);
 
   const [gpsModalOpen, setGpsModalOpen] = useState(false);
+  const [mapPickerOpen, setMapPickerOpen] = useState(false);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsLat, setGpsLat] = useState<string>(customer.lat != null ? String(customer.lat) : '');
   const [gpsLng, setGpsLng] = useState<string>(customer.lng != null ? String(customer.lng) : '');
@@ -1141,7 +1143,16 @@ export default function CustomerProfileClient({
                     : 'Set or update the primary GPS coordinates used to verify field collection locations for this customer.'}
                 </p>
 
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setMapPickerOpen(true)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <span className="material-icons-outlined" style={{ fontSize: '15px', color: 'var(--primary)' }}>map</span>
+                    Pin on Map
+                  </button>
                   <button
                     type="button"
                     className="btn btn-secondary btn-sm"
@@ -1219,6 +1230,24 @@ export default function CustomerProfileClient({
             </form>
           </div>
         </div>
+      )}
+
+      {mapPickerOpen && (
+        <LocationPickerModal
+          isOpen={mapPickerOpen}
+          onClose={() => setMapPickerOpen(false)}
+          onConfirm={(result) => {
+            setGpsLat(result.lat.toFixed(6));
+            setGpsLng(result.lng.toFixed(6));
+            if (result.address) {
+              setGpsReason(`Pin on map: ${result.address}`);
+            }
+          }}
+          initialLat={gpsLat ? parseFloat(gpsLat) : customer.lat}
+          initialLng={gpsLng ? parseFloat(gpsLng) : customer.lng}
+          initialAddress={customer.address}
+          title={`Pin GPS Location for ${customer.name}`}
+        />
       )}
     </>
   );

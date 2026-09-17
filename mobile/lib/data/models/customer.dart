@@ -35,6 +35,8 @@ class Customer {
     this.companyEmail,
     this.companyLogo,
     this.designation,
+    this.lat,
+    this.lng,
     this.collectionPoints = const [],
     this.securityCheques = const [],
   });
@@ -44,6 +46,8 @@ class Customer {
   final String name;
   final String phone;
   final String? address;
+  final double? lat;
+  final double? lng;
   final String status;
   final String? routeId;
   final String? agentId;
@@ -88,6 +92,8 @@ class Customer {
       name: json['name'] as String,
       phone: json['phone'] as String,
       address: json['address'] as String?,
+      lat: json['lat'] == null ? null : (json['lat'] as num).toDouble(),
+      lng: json['lng'] == null ? null : (json['lng'] as num).toDouble(),
       status: (json['status'] as String?) ?? 'pending_review',
       routeId: json['routeId'] as String?,
       agentId: json['agentId'] as String?,

@@ -20,6 +20,8 @@ import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/customer.dart';
 import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/repositories/customer_repository.dart';
+import 'package:zolofund/core/gps/gps_service.dart';
+import 'package:zolofund/features/location/location_picker_screen.dart';
 import 'package:zolofund/shared/widgets/app_badge.dart';
 import 'package:zolofund/shared/widgets/app_button.dart';
 import 'package:zolofund/shared/widgets/skeleton.dart';
@@ -104,6 +106,145 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
     }
   }
 
+  Future<void> _showGpsRegistrationDialog(Customer customer) async {
+    final t = T.of(ref);
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.pin_drop, color: AppColors.primary, size: 24),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Register GPS for ${customer.name}',
+                      style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Set the 200m geofence anchor used to verify field collection visits for this borrower.',
+                style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withAlpha(25),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.my_location, color: AppColors.primary),
+                ),
+                title: Text(t.x('btn.use_my_gps'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: const Text('Capture device GPS location right now'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final pos = await ref.read(gpsServiceProvider).currentOrLastKnown();
+                  if (pos == null) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(t.x('coll.location_off'))),
+                      );
+                    }
+                    return;
+                  }
+                  try {
+                    await ref.read(customerRepositoryProvider).update(customer.id, {
+                      'lat': pos.latitude,
+                      'lng': pos.longitude,
+                    });
+                    ref.invalidate(customerDetailProvider(customer.id));
+                    ref.invalidate(customerListProvider);
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('GPS coordinates registered successfully!'),
+                          backgroundColor: AppColors.success,
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Failed to update GPS: $e'),
+                          backgroundColor: AppColors.danger,
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
+              const Divider(),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.info.withAlpha(25),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.map_outlined, color: AppColors.info),
+                ),
+                title: Text(t.x('btn.pin_on_map'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: const Text('Search area or drag marker on map to pinpoint house/shop'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final picked = await Navigator.of(context).push<PickedLocation>(
+                    MaterialPageRoute(
+                      builder: (_) => LocationPickerScreen(
+                        initialLat: customer.lat,
+                        initialLng: customer.lng,
+                        title: t.x('btn.pin_on_map'),
+                      ),
+                    ),
+                  );
+                  if (picked == null) return;
+                  try {
+                    await ref.read(customerRepositoryProvider).update(customer.id, {
+                      'lat': picked.lat,
+                      'lng': picked.lng,
+                    });
+                    ref.invalidate(customerDetailProvider(customer.id));
+                    ref.invalidate(customerListProvider);
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('GPS coordinates pinned on map successfully!'),
+                          backgroundColor: AppColors.success,
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Failed to update GPS: $e'),
+                          backgroundColor: AppColors.danger,
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = widget.customer;
@@ -117,6 +258,14 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              if (c.lat == null || c.lng == null) ...[
+                _MissingGpsBanner(
+                  customer: c,
+                  t: t,
+                  onRegister: () => _showGpsRegistrationDialog(c),
+                ),
+                const SizedBox(height: 14),
+              ],
               _QuickContact(customer: c, t: t),
               const SizedBox(height: 14),
               _RiskCard(customer: c, t: t),
@@ -507,7 +656,8 @@ class _QuickContact extends ConsumerWidget {
               ),
             ),
           ),
-          if (customer.address != null && customer.address!.isNotEmpty)
+          if ((customer.lat != null && customer.lng != null) ||
+              (customer.address != null && customer.address!.isNotEmpty))
             Expanded(
               child: _ContactBtn(
                 icon: Icons.directions_rounded,
@@ -515,7 +665,9 @@ class _QuickContact extends ConsumerWidget {
                 color: AppColors.warning,
                 onTap: () => _launch(
                   Uri.parse(
-                    'https://www.google.com/maps/search/?api=1&query=${Uri.encodeQueryComponent(customer.address!)}',
+                    customer.lat != null && customer.lng != null
+                        ? 'https://www.google.com/maps/dir/?api=1&destination=${customer.lat},${customer.lng}'
+                        : 'https://www.google.com/maps/search/?api=1&query=${Uri.encodeQueryComponent(customer.address!)}',
                   ),
                 ),
               ),
@@ -1053,7 +1205,20 @@ class _IdentitySection extends StatelessWidget {
               label: t.x('fld.address_label'),
               value: customer.address!,
             ),
-          if (_primaryGpsPoint(customer) != null)
+          if (customer.lat != null && customer.lng != null)
+            _IdRow(
+              icon: Icons.my_location_outlined,
+              label: 'GPS location',
+              value: '${customer.lat!.toStringAsFixed(5)}, ${customer.lng!.toStringAsFixed(5)} (View)',
+              valueColor: AppColors.primary,
+              onTap: () => launchUrl(
+                Uri.parse(
+                  'https://www.google.com/maps/search/?api=1&query=${customer.lat},${customer.lng}',
+                ),
+                mode: LaunchMode.externalApplication,
+              ),
+            )
+          else if (_primaryGpsPoint(customer) != null)
             Builder(
               builder: (context) {
                 final p = _primaryGpsPoint(customer)!;
@@ -1631,3 +1796,65 @@ class _ErrorDetail extends ConsumerWidget {
     );
   }
 }
+
+class _MissingGpsBanner extends StatelessWidget {
+  const _MissingGpsBanner({
+    required this.customer,
+    required this.t,
+    required this.onRegister,
+  });
+  final Customer customer;
+  final T t;
+  final VoidCallback onRegister;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(AppTokens.radius),
+        border: Border.all(color: const Color(0xFFFCD34D)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.location_off, color: Color(0xFFD97706), size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'No GPS Registered',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: Color(0xFF92400E),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'Field collection verification requires registered coordinates.',
+                  style: TextStyle(fontSize: 11, color: Color(0xFFB45309)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          FilledButton.icon(
+            onPressed: onRegister,
+            icon: const Icon(Icons.my_location, size: 14),
+            label: const Text('Register', style: TextStyle(fontSize: 12)),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFD97706),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+

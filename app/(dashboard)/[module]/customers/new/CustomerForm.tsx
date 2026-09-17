@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { saveCustomer } from '../actions';
 import Modal from '@/components/Modal';
+import LocationPickerModal from '@/components/map/LocationPickerModal';
 import { createRoute } from '../../settings/actions';
 import { usePathname, useRouter } from 'next/navigation';
 import { compressFormDataImages } from '@/lib/imageCompression';
@@ -129,6 +130,22 @@ export default function CustomerForm({ appType, routes: initialRoutes, customer,
       );
     } else {
       alert('Geolocation is not supported by your browser.');
+    }
+  };
+
+  const [isMapModalOpen, setIsMapModalOpen] = useState(false);
+
+  const handleLocationPicked = (result: { lat: number; lng: number; address?: string }) => {
+    setMainLat(result.lat.toFixed(6));
+    setMainLng(result.lng.toFixed(6));
+    if (result.address) {
+      if (!mainAddress.trim()) {
+        setMainAddress(result.address);
+      } else if (mainAddress.trim() !== result.address.trim()) {
+        if (typeof window !== 'undefined' && window.confirm(`Update address text with detected map address?\n\n"${result.address}"`)) {
+          setMainAddress(result.address);
+        }
+      }
     }
   };
 
@@ -269,16 +286,28 @@ export default function CustomerForm({ appType, routes: initialRoutes, customer,
                     <span className="material-icons-outlined" style={{ fontSize: '18px', color: 'var(--primary)' }}>pin_drop</span>
                     {dict.customers.registeredGpsLocation || 'Registered GPS Coordinates (Geofence)'}
                   </label>
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '.78rem', padding: '4px 10px' }}
-                    onClick={captureMainGps}
-                    title="Capture current device GPS"
-                  >
-                    <span className="material-icons-outlined" style={{ fontSize: '16px' }}>my_location</span>
-                    {dict.customers.captureLocation || 'Capture Location'}
-                  </button>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '.78rem', padding: '4px 10px' }}
+                      onClick={() => setIsMapModalOpen(true)}
+                      title="Search place or drag pin on map"
+                    >
+                      <span className="material-icons-outlined" style={{ fontSize: '16px', color: 'var(--primary)' }}>map</span>
+                      Pin on Map
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '.78rem', padding: '4px 10px' }}
+                      onClick={captureMainGps}
+                      title="Capture current device GPS"
+                    >
+                      <span className="material-icons-outlined" style={{ fontSize: '16px' }}>my_location</span>
+                      {dict.customers.captureLocation || 'Capture Location'}
+                    </button>
+                  </div>
                 </div>
                 <div className="form-row" style={{ marginBottom: 0 }}>
                   <div className="form-group" style={{ marginBottom: 0 }}>
@@ -681,6 +710,18 @@ export default function CustomerForm({ appType, routes: initialRoutes, customer,
             </div>
           </form>
         </Modal>
+      )}
+
+      {isMapModalOpen && (
+        <LocationPickerModal
+          isOpen={isMapModalOpen}
+          onClose={() => setIsMapModalOpen(false)}
+          onConfirm={handleLocationPicked}
+          initialLat={mainLat ? parseFloat(mainLat) : null}
+          initialLng={mainLng ? parseFloat(mainLng) : null}
+          initialAddress={mainAddress}
+          title={dict.customers?.pinOnMap || 'Pin Customer Location on Map'}
+        />
       )}
 
     </div>

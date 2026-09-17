@@ -109,6 +109,8 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
   bool _showCompany = false;
   final _picker = ImagePicker();
   String? _kycStatus;
+  double? _lat;
+  double? _lng;
 
   bool get _isEdit => widget.editCustomer != null;
 
@@ -120,6 +122,8 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
       _nameCtrl.text = c.name;
       _phoneCtrl.text = c.phone;
       _addressCtrl.text = c.address ?? '';
+      _lat = c.lat;
+      _lng = c.lng;
       _routeId = c.routeId;
       _panCtrl.text = c.pan ?? '';
       _emailCtrl.text = c.email ?? '';
@@ -428,6 +432,8 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
       if (n != null) m['monthlyIncome'] = n;
     }
     if (logoUrl != null) m['companyLogo'] = logoUrl;
+    if (_lat != null) m['lat'] = _lat;
+    if (_lng != null) m['lng'] = _lng;
     final cps = _collectionPoints
         .where((cp) =>
             cp.name.text.trim().isNotEmpty && cp.address.text.trim().isNotEmpty,)
@@ -803,6 +809,86 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                     ),
                   ),
 
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(AppTokens.radiusSmall),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  _lat != null && _lng != null ? Icons.pin_drop : Icons.location_off,
+                                  size: 18,
+                                  color: _lat != null && _lng != null ? AppColors.primary : AppColors.warning,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  _lat != null && _lng != null
+                                      ? '${_lat!.toStringAsFixed(6)}, ${_lng!.toStringAsFixed(6)}'
+                                      : 'No GPS coordinates registered',
+                                  style: AppTypography.caption.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color: _lat != null && _lng != null ? AppColors.textPrimary : AppColors.warning,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (_lat != null && _lng != null)
+                              InkWell(
+                                onTap: () => setState(() {
+                                  _lat = null;
+                                  _lng = null;
+                                }),
+                                child: const Padding(
+                                  padding: EdgeInsets.all(4),
+                                  child: Icon(Icons.clear, size: 16, color: AppColors.textLight),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: _pickMapForPrimary,
+                                icon: const Icon(Icons.map_outlined, size: 16),
+                                label: Text(t.x('btn.pin_on_map')),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.primary,
+                                  side: const BorderSide(color: AppColors.primary),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: _useGpsForPrimary,
+                                icon: const Icon(Icons.my_location, size: 16),
+                                label: Text(t.x('btn.use_my_gps')),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.primary,
+                                  side: const BorderSide(color: AppColors.primary),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
                   if (_isEdit) ...[
                     const SizedBox(height: 16),
                     _LabeledField(
@@ -1014,6 +1100,63 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _useGpsForPrimary() async {
+    final pos = await ref.read(gpsServiceProvider).currentOrLastKnown();
+    if (pos == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(T.of(ref).x('coll.location_off'))),
+        );
+      }
+      return;
+    }
+    setState(() {
+      _lat = pos.latitude;
+      _lng = pos.longitude;
+    });
+    // Auto-fill the address if it is currently blank
+    if (_addressCtrl.text.trim().isEmpty) {
+      final address = await ref
+          .read(geocodingServiceProvider)
+          .reverse(pos.latitude, pos.longitude);
+      if (mounted && address != null && address.isNotEmpty) {
+        setState(() {
+          _addressCtrl.text = address;
+        });
+      }
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('GPS: ${pos.latitude.toStringAsFixed(6)}, ${pos.longitude.toStringAsFixed(6)}'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    }
+  }
+
+  Future<void> _pickMapForPrimary() async {
+    final picked = await Navigator.of(context).push<PickedLocation>(
+      MaterialPageRoute(
+        builder: (_) => LocationPickerScreen(
+          initialLat: _lat,
+          initialLng: _lng,
+          title: T.of(ref).x('btn.pin_on_map'),
+        ),
+      ),
+    );
+    if (picked == null) return;
+    setState(() {
+      _lat = picked.lat;
+      _lng = picked.lng;
+      if (_addressCtrl.text.trim().isEmpty &&
+          picked.address != null &&
+          picked.address!.isNotEmpty) {
+        _addressCtrl.text = picked.address!;
+      }
+    });
   }
 
   Future<void> _fillGpsForPoint(_CollectionPointEntry cp) async {
