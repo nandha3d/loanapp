@@ -4,6 +4,8 @@ import { requireMobileContext } from '@/lib/api/v1-auth';
 import {
   isGpsTrackingEnabled,
   normalizeGpsBody,
+  recordCollectionLocationPing,
+  verifyAndPersistCollectionLocation,
 } from '@/lib/gps/locationVerifier';
 import { recordActualLoanCollection } from '@/lib/collectionWrite';
 import { CollectLoanSchema } from '@/lib/schemas/collectionEntry';
@@ -57,6 +59,29 @@ export async function POST(req: NextRequest) {
         gps: gpsCapture,
       },
     );
+
+    if (gpsTrackingEnabled && result.entryId && result.customerId) {
+      try {
+        await Promise.all([
+          verifyAndPersistCollectionLocation({
+            entryId: result.entryId,
+            tenantId: ctx.tenantId,
+            customerId: result.customerId,
+            latitude: gpsCapture.latitude,
+            longitude: gpsCapture.longitude,
+            isMocked: gpsCapture.isMocked,
+          }),
+          recordCollectionLocationPing({
+            tenantId: ctx.tenantId,
+            agentId: ctx.userId,
+            branchId: result.branchId ?? null,
+            capture: gpsCapture,
+          }),
+        ]);
+      } catch (error) {
+        console.error('GPS verification failed in loan collect:', error);
+      }
+    }
 
     return ok(result);
   } catch (e: unknown) {

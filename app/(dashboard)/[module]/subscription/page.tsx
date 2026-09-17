@@ -313,7 +313,7 @@ export default async function MySubscriptionPage() {
             },
             {
               key: 'foreclosureEnabled',
-              name: 'Foreclosure & Early Settlement',
+              name: 'Preclose & Early Settlement',
               icon: 'lock_open',
               desc: 'Calculate precise early closing amounts, apply discretionary waivers, and generate settlement PDFs.',
               active: Boolean(sub?.foreclosureEnabled),

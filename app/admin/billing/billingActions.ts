@@ -35,6 +35,7 @@ export async function updateSubscription(formData: FormData) {
     const kycEnabled = formData.get('kycEnabled') === 'true';
     const gpsTrackingEnabled = formData.get('gpsTrackingEnabled') === 'true';
     const premiumAccountingEnabled = formData.get('premiumAccountingEnabled') === 'true';
+    const foreclosureEnabled = formData.get('foreclosureEnabled') === 'true';
     const bureauPullsIncluded = parseInt(formData.get('bureauPullsIncluded') as string) || 0;
     const selectedAddons = addonKeysFromSubscriptionFlags({
       whatsappSmsEnabled,
@@ -75,6 +76,7 @@ export async function updateSubscription(formData: FormData) {
       bureauEnabled,
       bureauPullsIncluded,
       npaEnabled,
+      foreclosureEnabled,
       kycEnabled,
       gpsTrackingEnabled,
       premiumAccountingEnabled,

@@ -1190,6 +1190,10 @@ export default function UsersClient({
                 <input type="checkbox" name="premiumAccountingEnabled" value="true" defaultChecked={activeSub?.premiumAccountingEnabled || false} />
                 💎 Allow Premium Accounting (double-entry, GST, Tally export)
               </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                <input type="checkbox" name="foreclosureEnabled" value="true" defaultChecked={activeSub?.foreclosureEnabled || false} />
+                Allow Preclose &amp; Early Settlement (Settlement Letters, Discretionary Discounts)
+              </label>
             </div>
           </div>
           <div className="form-actions">

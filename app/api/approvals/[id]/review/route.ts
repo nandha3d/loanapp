@@ -5,7 +5,7 @@ import { ADMIN_API_ROLES, isApiError, requireApiContext } from '@/lib/apiAuth';
 import { apiError, apiSuccess } from '@/lib/utils';
 import { encryptAadharNumber } from '@/lib/pii';
 
-const CUSTOMER_EDIT_ALLOW_LIST = new Set(['name', 'phone', 'address', 'aadharNumber', 'kycStatus', 'photo']);
+const CUSTOMER_EDIT_ALLOW_LIST = new Set(['name', 'phone', 'address', 'aadharNumber', 'kycStatus', 'photo', 'lat', 'lng']);
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -40,8 +40,36 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             : value;
         }
       }
+      if (safeChanges.lat != null && safeChanges.lng != null) {
+        safeChanges.geocodedAt = new Date();
+      }
       if (Object.keys(safeChanges).length > 0) {
         await prisma.customer.update({ where: { id: approval.entityId }, data: safeChanges });
+        if (safeChanges.lat != null && safeChanges.lng != null) {
+          try {
+            await prisma.customerGeocode.upsert({
+              where: { customerId: approval.entityId },
+              update: {
+                latitude: Number(safeChanges.lat),
+                longitude: Number(safeChanges.lng),
+                accuracy: 'manual',
+                rawAddress: (safeChanges.address as string) || customer.address || '',
+                geocodedAt: new Date(),
+              },
+              create: {
+                customerId: approval.entityId,
+                tenantId: context.tenantId,
+                latitude: Number(safeChanges.lat),
+                longitude: Number(safeChanges.lng),
+                accuracy: 'manual',
+                source: 'manual',
+                rawAddress: (safeChanges.address as string) || customer.address || '',
+              },
+            });
+          } catch (err) {
+            console.error('CustomerGeocode upsert on review failed:', err);
+          }
+        }
       }
     }
 

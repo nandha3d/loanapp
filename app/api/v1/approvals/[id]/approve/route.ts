@@ -12,7 +12,7 @@ import { hasFinancialActivity } from '@/lib/repayments';
 import { disburseFromAgent, disburseFromBranch } from '@/lib/wallet';
 
 const CUSTOMER_EDIT_ALLOW_LIST = new Set([
-  'name', 'phone', 'address', 'aadharNumber', 'kycStatus', 'photo',
+  'name', 'phone', 'address', 'aadharNumber', 'kycStatus', 'photo', 'lat', 'lng',
 ]);
 
 const LOAN_EDIT_ALLOW_LIST = new Set([
@@ -91,10 +91,39 @@ export async function PATCH(
                 : value;
             }
           }
+          if (safeChanges.lat != null && safeChanges.lng != null) {
+            safeChanges.geocodedAt = new Date();
+          }
           await tx.customer.update({
             where: { id: request.entityId },
             data: safeChanges,
           });
+          if (safeChanges.lat != null && safeChanges.lng != null) {
+            try {
+              const cust = await tx.customer.findUnique({ where: { id: request.entityId }, select: { address: true } });
+              await tx.customerGeocode.upsert({
+                where: { customerId: request.entityId },
+                update: {
+                  latitude: Number(safeChanges.lat),
+                  longitude: Number(safeChanges.lng),
+                  accuracy: 'manual',
+                  rawAddress: (safeChanges.address as string) || cust?.address || '',
+                  geocodedAt: new Date(),
+                },
+                create: {
+                  customerId: request.entityId,
+                  tenantId: ctx.tenantId,
+                  latitude: Number(safeChanges.lat),
+                  longitude: Number(safeChanges.lng),
+                  accuracy: 'manual',
+                  source: 'manual',
+                  rawAddress: (safeChanges.address as string) || cust?.address || '',
+                },
+              });
+            } catch (err) {
+              console.error('CustomerGeocode upsert on approval failed:', err);
+            }
+          }
         } else if (request.requestType === 'edit_collection') {
           const rawChanges = JSON.parse(request.requestedChanges);
           const requestedAmount = rawChanges.requestedAmount;

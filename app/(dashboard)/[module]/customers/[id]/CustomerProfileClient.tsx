@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from '@/components/layout/DashboardLink';
 import { formatCurrency, formatDate, getBadgeClass, getInitials, calcPercentage } from '@/lib/utils';
 import { submitEditRequest } from '@/app/(dashboard)/[module]/approvals/actions';
-import { resetCustomerPassword } from '@/app/(dashboard)/[module]/customers/actions';
+import { resetCustomerPassword, updateCustomerGpsAction } from '@/app/(dashboard)/[module]/customers/actions';
 import { calculateCreditScore } from '@/lib/creditScore';
 import { getCreditScoreGaugePresentation } from '@/lib/creditScoreGauge';
 import { useRegisterBreadcrumbLabel } from '@/components/layout/BreadcrumbLabelContext';
@@ -85,6 +85,56 @@ export default function CustomerProfileClient({
   const [editRequestModal, setEditRequestModal] = useState(false);
   const [editRequestLoading, setEditRequestLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+
+  const [gpsModalOpen, setGpsModalOpen] = useState(false);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [gpsLat, setGpsLat] = useState<string>(customer.lat != null ? String(customer.lat) : '');
+  const [gpsLng, setGpsLng] = useState<string>(customer.lng != null ? String(customer.lng) : '');
+  const [gpsReason, setGpsReason] = useState<string>('Location coordinates update');
+
+  const captureDeviceGps = () => {
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setGpsLat(pos.coords.latitude.toFixed(6));
+          setGpsLng(pos.coords.longitude.toFixed(6));
+        },
+        () => alert('Failed to capture location. Please ensure location access is enabled in your browser.')
+      );
+    } else {
+      alert('Geolocation is not supported by your browser.');
+    }
+  };
+
+  const handleUpdateGps = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!gpsLat || !gpsLng) {
+      alert('Please provide valid latitude and longitude coordinates.');
+      return;
+    }
+    setGpsLoading(true);
+    try {
+      const fd = new FormData();
+      fd.set('customerId', customer.id);
+      fd.set('customerCode', customer.customerCode);
+      fd.set('lat', gpsLat);
+      fd.set('lng', gpsLng);
+      fd.set('reason', gpsReason);
+
+      const res = await updateCustomerGpsAction(fd);
+      if (res.success) {
+        alert((res as any).message || 'GPS location updated successfully');
+        setGpsModalOpen(false);
+        router.refresh();
+      } else {
+        alert((res as any).error || 'Failed to update GPS location');
+      }
+    } catch (err: any) {
+      alert(err?.message || 'An error occurred while updating GPS location');
+    } finally {
+      setGpsLoading(false);
+    }
+  };
 
   const [kycLoading, setKycLoading] = useState(false);
   const [aadhaarInput, setAadhaarInput] = useState('');
@@ -300,7 +350,50 @@ export default function CustomerProfileClient({
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span className="material-icons-outlined" style={{ fontSize: '16px' }}>location_on</span> {customer.route?.name || d.noRoute}</span>
               <span><span className={getBadgeClass(customer.kycStatus)} style={{textTransform:'capitalize', padding: '2px 10px', borderRadius: '4px'}}>{customer.kycStatus}</span></span>
             </div>
-            <p style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginTop: '6px' }}>{customer.address}</p>
+            <p style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginTop: '6px', marginBottom: '2px' }}>{customer.address}</p>
+            {customer.lat != null && customer.lng != null ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', fontSize: '.8rem', flexWrap: 'wrap' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--primary)', fontWeight: 600 }}>
+                  <span className="material-icons-outlined" style={{ fontSize: '15px' }}>pin_drop</span>
+                  {customer.lat.toFixed(5)}, {customer.lng.toFixed(5)}
+                </span>
+                <a
+                  href={`https://www.google.com/maps?q=${customer.lat},${customer.lng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-ghost btn-sm"
+                  style={{ padding: '2px 8px', fontSize: '.75rem', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                >
+                  <span className="material-icons-outlined" style={{ fontSize: '13px' }}>open_in_new</span>
+                  View on Map
+                </a>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setGpsModalOpen(true)}
+                  style={{ padding: '2px 8px', fontSize: '.75rem', display: 'inline-flex', alignItems: 'center', gap: '3px', color: 'var(--primary)' }}
+                >
+                  <span className="material-icons-outlined" style={{ fontSize: '13px' }}>my_location</span>
+                  {userRole === 'agent' ? 'Request GPS Update' : 'Update GPS'}
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', fontSize: '.8rem', flexWrap: 'wrap' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--warning)', fontWeight: 500 }}>
+                  <span className="material-icons-outlined" style={{ fontSize: '15px' }}>location_off</span>
+                  No GPS coordinates registered
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setGpsModalOpen(true)}
+                  style={{ padding: '2px 8px', fontSize: '.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                >
+                  <span className="material-icons-outlined" style={{ fontSize: '14px' }}>my_location</span>
+                  {userRole === 'agent' ? 'Request GPS Registration' : 'Register GPS Location'}
+                </button>
+              </div>
+            )}
           </div>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
             {userRole !== 'agent' && (
@@ -993,6 +1086,16 @@ export default function CustomerProfileClient({
                   <label className="form-label">{d.aadhaarNumber}</label>
                   <input type="text" name="aadharNumber" className="form-control" defaultValue={customer.aadharNumber} />
                 </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div className="form-group">
+                    <label className="form-label">Latitude</label>
+                    <input type="number" step="any" name="lat" className="form-control" defaultValue={customer.lat != null ? customer.lat : ''} placeholder="e.g. 13.0827" />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Longitude</label>
+                    <input type="number" step="any" name="lng" className="form-control" defaultValue={customer.lng != null ? customer.lng : ''} placeholder="e.g. 80.2707" />
+                  </div>
+                </div>
                 <div className="form-group">
                   <label className="form-label">{d.kycStatus}</label>
                   <select name="kycStatus" className="form-control" defaultValue={customer.kycStatus}>
@@ -1010,6 +1113,107 @@ export default function CustomerProfileClient({
                 <button type="button" className="btn btn-secondary" onClick={() => setEditRequestModal(false)}>{d.cancel}</button>
                 <button type="submit" className="btn btn-primary" disabled={editRequestLoading}>
                   {editRequestLoading ? d.submitting : d.submit}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* GPS Location Update / Request Modal */}
+      {gpsModalOpen && (
+        <div className="modal-overlay show" onClick={(e) => { if (e.target === e.currentTarget) setGpsModalOpen(false); }}>
+          <div className="modal" style={{ maxWidth: '480px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-icons-outlined" style={{ color: 'var(--primary)' }}>pin_drop</span>
+                <h3 style={{ margin: 0 }}>
+                  {userRole === 'agent' ? 'Request GPS Location Update' : 'Update Customer GPS Location'}
+                </h3>
+              </div>
+              <button className="modal-close material-icons-outlined" onClick={() => setGpsModalOpen(false)}>close</button>
+            </div>
+            <form onSubmit={handleUpdateGps}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <p style={{ fontSize: '.85rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                  {userRole === 'agent'
+                    ? 'As an agent, your GPS coordinate update will be submitted as an approval request for administrator review.'
+                    : 'Set or update the primary GPS coordinates used to verify field collection locations for this customer.'}
+                </p>
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={captureDeviceGps}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <span className="material-icons-outlined" style={{ fontSize: '15px' }}>my_location</span>
+                    Capture Current Location
+                  </button>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: '.8rem', fontWeight: 600 }}>Latitude *</label>
+                    <input
+                      type="number"
+                      step="any"
+                      className="form-control"
+                      value={gpsLat}
+                      onChange={(e) => setGpsLat(e.target.value)}
+                      placeholder="e.g. 13.0827"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: '.8rem', fontWeight: 600 }}>Longitude *</label>
+                    <input
+                      type="number"
+                      step="any"
+                      className="form-control"
+                      value={gpsLng}
+                      onChange={(e) => setGpsLng(e.target.value)}
+                      placeholder="e.g. 80.2707"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {gpsLat && gpsLng && !isNaN(Number(gpsLat)) && !isNaN(Number(gpsLng)) && (
+                  <div style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>
+                    <a
+                      href={`https://www.google.com/maps?q=${gpsLat},${gpsLng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                    >
+                      <span className="material-icons-outlined" style={{ fontSize: '13px' }}>open_in_new</span>
+                      Preview coordinates on Google Maps
+                    </a>
+                  </div>
+                )}
+
+                <div className="form-group">
+                  <label className="form-label" style={{ fontSize: '.8rem', fontWeight: 600 }}>
+                    Reason / Notes {userRole === 'agent' && <span style={{ color: 'var(--danger)' }}>*</span>}
+                  </label>
+                  <textarea
+                    className="form-control"
+                    rows={2}
+                    value={gpsReason}
+                    onChange={(e) => setGpsReason(e.target.value)}
+                    required={userRole === 'agent'}
+                    placeholder="Reason for updating GPS coordinates"
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setGpsModalOpen(false)}>
+                  {d.cancel}
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={gpsLoading}>
+                  {gpsLoading ? 'Submitting...' : userRole === 'agent' ? 'Submit for Approval' : 'Save Location'}
                 </button>
               </div>
             </form>

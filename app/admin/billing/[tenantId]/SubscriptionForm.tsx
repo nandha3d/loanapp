@@ -201,6 +201,15 @@ export default function SubscriptionForm({
             />
             💎 Allow Premium Accounting (double-entry, GST, Tally export)
           </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              name="foreclosureEnabled"
+              value="true"
+              defaultChecked={subscription?.foreclosureEnabled || false}
+            />
+            Allow Preclose & Early Settlement (Settlement Letters, Discretionary Discounts)
+          </label>
         </div>
       </div>
 

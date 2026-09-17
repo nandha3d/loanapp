@@ -94,7 +94,7 @@ export async function getSuperadminProfile(userId: string, tenantId: string) {
     { key: 'receiptPdfAllowed', label: 'Receipt PDFs', enabled: Boolean(subscription?.receiptPdfAllowed) },
     { key: 'bureauEnabled', label: 'Credit Bureau', enabled: Boolean(subscription?.bureauEnabled) },
     { key: 'npaEnabled', label: 'NPA Engine', enabled: Boolean(subscription?.npaEnabled) },
-    { key: 'foreclosureEnabled', label: 'Foreclosure', enabled: Boolean(subscription?.foreclosureEnabled) },
+    { key: 'foreclosureEnabled', label: 'Preclose & Early Settlement', enabled: Boolean(subscription?.foreclosureEnabled) },
     { key: 'kycEnabled', label: 'Aadhaar/Video KYC', enabled: Boolean(subscription?.kycEnabled) },
     { key: 'gpsTrackingEnabled', label: 'GPS Tracking', enabled: Boolean(subscription?.gpsTrackingEnabled) },
     { key: 'premiumAccountingEnabled', label: 'Premium Accounting', enabled: Boolean(subscription?.premiumAccountingEnabled) },

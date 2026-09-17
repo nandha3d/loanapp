@@ -179,6 +179,10 @@ export async function POST(req: NextRequest) {
         companyLogo?: string;
         designation?: string;
         preferredCollectionTime?: string;
+        lat?: number | string | null;
+        lng?: number | string | null;
+        latitude?: number | string | null;
+        longitude?: number | string | null;
         collectionPoints?: Array<{
           name?: string;
           address?: string;
@@ -233,6 +237,17 @@ export async function POST(req: NextRequest) {
     body.monthlyIncome === undefined || body.monthlyIncome === null || body.monthlyIncome === ''
       ? null
       : Number(body.monthlyIncome);
+
+  const rawLat = body.lat ?? body.latitude;
+  const rawLng = body.lng ?? body.longitude;
+  const customerLat =
+    rawLat !== undefined && rawLat !== null && rawLat !== '' && Number.isFinite(Number(rawLat))
+      ? Number(rawLat)
+      : null;
+  const customerLng =
+    rawLng !== undefined && rawLng !== null && rawLng !== '' && Number.isFinite(Number(rawLng))
+      ? Number(rawLng)
+      : null;
 
   try {
     const branding = await getBranding(ctx.tenantId);
@@ -341,6 +356,21 @@ export async function POST(req: NextRequest) {
             companyLogo: body.companyLogo ?? null,
             designation: body.designation ?? null,
             preferredCollectionTime: body.preferredCollectionTime ?? null,
+            lat: customerLat,
+            lng: customerLng,
+            geocodedAt: customerLat != null && customerLng != null ? new Date() : null,
+            geocode: customerLat != null && customerLng != null
+              ? {
+                  create: {
+                    tenantId: ctx.tenantId,
+                    latitude: customerLat,
+                    longitude: customerLng,
+                    accuracy: 'manual',
+                    source: 'manual',
+                    rawAddress: body.address ?? '',
+                  },
+                }
+              : undefined,
             kycDocuments: body.kycDocs && body.kycDocs.length > 0
               ? {
                   create: body.kycDocs.map((d) => ({

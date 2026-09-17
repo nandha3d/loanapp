@@ -114,6 +114,23 @@ export default function CustomerForm({ appType, routes: initialRoutes, customer,
   };
 
   const [mainAddress, setMainAddress] = useState(customer?.address || '');
+  const [mainLat, setMainLat] = useState<string>(customer?.lat != null ? String(customer.lat) : '');
+  const [mainLng, setMainLng] = useState<string>(customer?.lng != null ? String(customer.lng) : '');
+
+  const captureMainGps = () => {
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          setMainLat(pos.coords.latitude.toFixed(6));
+          setMainLng(pos.coords.longitude.toFixed(6));
+          alert(`GPS coordinates captured: ${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`);
+        },
+        () => alert('Failed to get GPS location. Please ensure location permissions are granted in your browser.')
+      );
+    } else {
+      alert('Geolocation is not supported by your browser.');
+    }
+  };
 
   // --- Route create handler ---
   const handleCreateRoute = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -245,6 +262,55 @@ export default function CustomerForm({ appType, routes: initialRoutes, customer,
               <div className="form-group">
                 <label className="form-label">{dict.customers.address}</label>
                 <textarea name="address" className="form-control" rows={2} placeholder="Complete postal address" value={mainAddress} onChange={e => setMainAddress(e.target.value)} style={{ fontSize: '1rem', padding: '12px' }} />
+              </div>
+              <div style={{ marginBottom: '16px', padding: '12px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                  <label className="form-label" style={{ margin: 0, fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span className="material-icons-outlined" style={{ fontSize: '18px', color: 'var(--primary)' }}>pin_drop</span>
+                    {dict.customers.registeredGpsLocation || 'Registered GPS Coordinates (Geofence)'}
+                  </label>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '.78rem', padding: '4px 10px' }}
+                    onClick={captureMainGps}
+                    title="Capture current device GPS"
+                  >
+                    <span className="material-icons-outlined" style={{ fontSize: '16px' }}>my_location</span>
+                    {dict.customers.captureLocation || 'Capture Location'}
+                  </button>
+                </div>
+                <div className="form-row" style={{ marginBottom: 0 }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ fontSize: '.8rem', color: 'var(--text-secondary)' }}>Latitude</label>
+                    <input
+                      type="number"
+                      step="any"
+                      name="lat"
+                      className="form-control"
+                      placeholder="e.g. 11.33963"
+                      value={mainLat}
+                      onChange={e => setMainLat(e.target.value)}
+                      style={{ fontSize: '.9rem', padding: '8px 10px' }}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ fontSize: '.8rem', color: 'var(--text-secondary)' }}>Longitude</label>
+                    <input
+                      type="number"
+                      step="any"
+                      name="lng"
+                      className="form-control"
+                      placeholder="e.g. 77.71883"
+                      value={mainLng}
+                      onChange={e => setMainLng(e.target.value)}
+                      style={{ fontSize: '.9rem', padding: '8px 10px' }}
+                    />
+                  </div>
+                </div>
+                <small style={{ display: 'block', marginTop: '6px', color: 'var(--text-secondary)', fontSize: '.75rem' }}>
+                  Used to verify field collections within the 200m geofence radius.
+                </small>
               </div>
               <div className="form-row" style={{ marginBottom: 0 }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>

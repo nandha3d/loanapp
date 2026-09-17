@@ -484,6 +484,9 @@ export type ActualLoanCollectionResult = {
   posted: { instalmentId: string; instalmentNo: number; applied: number }[];
   applied: number;
   leftover: number;
+  entryId?: string | null;
+  customerId?: string;
+  branchId?: string | null;
 };
 
 /**
@@ -647,7 +650,14 @@ export async function recordActualLoanCollection(
         }
       }
 
-      return { posted, applied: rec.applied, leftover: Math.max(0, amount - rec.applied) };
+      return {
+        posted,
+        applied: rec.applied,
+        leftover: Math.max(0, amount - rec.applied),
+        entryId: firstEntryId,
+        customerId: loan.customerId,
+        branchId: loan.branchId,
+      };
     },
     { timeout: 30000, maxWait: 15000 },
   );

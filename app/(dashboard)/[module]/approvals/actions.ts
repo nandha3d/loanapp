@@ -16,7 +16,7 @@ import { getActiveBranchId } from '@/lib/branch';
 
 // Fields an agent is allowed to request changes to on a customer record
 const CUSTOMER_EDIT_ALLOW_LIST = new Set([
-  'name', 'phone', 'address', 'aadharNumber', 'kycStatus', 'photo',
+  'name', 'phone', 'address', 'aadharNumber', 'kycStatus', 'photo', 'lat', 'lng',
 ]);
 
 // Fields allowed for loan edit requests
@@ -128,10 +128,41 @@ export async function reviewRequest(formData: FormData) {
             }
           }
 
+          if (safeChanges.lat != null && safeChanges.lng != null) {
+            safeChanges.lat = Number(safeChanges.lat);
+            safeChanges.lng = Number(safeChanges.lng);
+            safeChanges.geocodedAt = new Date();
+          }
           await tx.customer.update({
             where: { id: request.entityId, tenantId },
             data: safeChanges,
           });
+          if (safeChanges.lat != null && safeChanges.lng != null) {
+            try {
+              const cust = await tx.customer.findUnique({ where: { id: request.entityId }, select: { address: true } });
+              await tx.customerGeocode.upsert({
+                where: { customerId: request.entityId },
+                update: {
+                  latitude: Number(safeChanges.lat),
+                  longitude: Number(safeChanges.lng),
+                  accuracy: 'manual',
+                  rawAddress: (safeChanges.address as string) || cust?.address || '',
+                  geocodedAt: new Date(),
+                },
+                create: {
+                  customerId: request.entityId,
+                  tenantId,
+                  latitude: Number(safeChanges.lat),
+                  longitude: Number(safeChanges.lng),
+                  accuracy: 'manual',
+                  source: 'manual',
+                  rawAddress: (safeChanges.address as string) || cust?.address || '',
+                },
+              });
+            } catch (err) {
+              console.error('CustomerGeocode upsert in reviewRequest failed:', err);
+            }
+          }
         } else if (request.requestType === 'edit_collection') {
           const rawChanges = JSON.parse(request.requestedChanges);
           const requestedAmount = COLLECTION_EDIT_ALLOW_LIST.has('requestedAmount') 
@@ -394,7 +425,7 @@ export async function approveCustomerCreation(customerId: string) {
 }
 
 // Fields an agent is allowed to request edits for
-const EDIT_REQUEST_FIELDS = ['name', 'phone', 'address', 'aadharNumber', 'kycStatus'];
+const EDIT_REQUEST_FIELDS = ['name', 'phone', 'address', 'aadharNumber', 'kycStatus', 'lat', 'lng'];
 
 /**
  * Submitted by an agent from the customer profile page.
@@ -420,15 +451,24 @@ export async function submitEditRequest(formData: FormData) {
   // Verify customer belongs to this tenant
   const customer = await prisma.customer.findFirst({
     where: { id: customerId, tenantId, appType },
-    select: { id: true, name: true, phone: true, address: true, aadharNumber: true, kycStatus: true, branchId: true },
+    select: { id: true, name: true, phone: true, address: true, aadharNumber: true, kycStatus: true, branchId: true, lat: true, lng: true },
   });
   if (!customer) return { success: false, error: 'Customer not found' };
 
   // Collect only the allowed changed fields from the form
-  const requestedChanges: Record<string, string> = {};
+  const requestedChanges: Record<string, any> = {};
   for (const field of EDIT_REQUEST_FIELDS) {
     const val = formData.get(field) as string | null;
     if (field === 'aadharNumber' && isMaskedAadharNumber(val)) continue;
+    if (field === 'lat' || field === 'lng') {
+      if (val !== null && val.trim() !== '') {
+        const num = Number(val);
+        if (!isNaN(num) && num !== (customer as any)[field]) {
+          requestedChanges[field] = num;
+        }
+      }
+      continue;
+    }
     const existingValue = field === 'aadharNumber'
       ? decryptAadharNumber(customer.aadharNumber)
       : (customer as any)[field];

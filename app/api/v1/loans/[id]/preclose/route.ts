@@ -16,6 +16,15 @@ export async function POST(
     return fail('Unauthorized', 403);
   }
 
+  const sub = await prisma.tenantSubscription.findUnique({
+    where: { tenantId: ctx.tenantId },
+    select: { foreclosureEnabled: true },
+  });
+
+  if (!sub?.foreclosureEnabled) {
+    return fail('Preclose & Early Settlement add-on is not active under your plan subscription.', 403);
+  }
+
   const { id } = await params;
 
   let body: Record<string, unknown>;
@@ -28,6 +37,8 @@ export async function POST(
   const amount = Number(body.amount);
   const paymentMode = typeof body.paymentMode === 'string' ? body.paymentMode : 'cash';
   const remarks = typeof body.remarks === 'string' ? body.remarks : '';
+  const discount = typeof body.discount === 'number' && Number.isFinite(body.discount) ? Math.max(0, body.discount) : 0;
+  const markChequesReturned = body.markChequesReturned === true;
 
   if (isNaN(amount) || amount <= 0) {
     return fail('Invalid amount', 400);
@@ -54,7 +65,7 @@ export async function POST(
 
   try {
     await prisma.$transaction(async (tx) => {
-      await precloseLoanInTx(tx, ctx, loan, { amount, paymentMode, remarks });
+      await precloseLoanInTx(tx, ctx, loan, { amount, paymentMode, remarks, discount, markChequesReturned });
     });
 
     return ok({ success: true });

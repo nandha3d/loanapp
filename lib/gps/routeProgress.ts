@@ -70,7 +70,7 @@ export async function getRouteProgressForBranch(input: {
       lastSeenMinutes !== null && lastSeenMinutes >= 120 ? 'not_moved_2h' : null,
       lastSeenMinutes !== null && lastSeenMinutes >= 30 ? 'offline_30m' : null,
       mismatchCount >= 3 ? 'multiple_mismatches' : null,
-    ].filter(Boolean);
+    ].filter((x): x is string => Boolean(x));
 
     return {
       agentId: agent.id,
@@ -85,6 +85,8 @@ export async function getRouteProgressForBranch(input: {
         lng: ping.lng,
         time: ping.receivedAt,
         type: ping.pingType,
+        accuracyM: ping.accuracyM,
+        isMocked: ping.isMocked,
       })),
       collectionPoints: agentEntries
         .filter((entry) => entry.lat !== null && entry.lng !== null)

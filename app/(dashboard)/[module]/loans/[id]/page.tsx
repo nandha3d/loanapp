@@ -53,6 +53,7 @@ export default async function LoanDetailPage({
   const isReceiptPdfAllowed = sub?.receiptPdfAllowed || false;
   const isReceiptPdfActive = await getSetting(tenantId, 'receipt_pdf_active', 'false') === 'true';
   const receiptPdfEnabled = isReceiptPdfAllowed && isReceiptPdfActive;
+  const foreclosureEnabled = sub?.foreclosureEnabled || false;
 
   // Tenant's own UPI (for the in-modal pay QR)
   const upiId = await getSetting(tenantId, 'upi_id', '');
@@ -158,6 +159,7 @@ export default async function LoanDetailPage({
       goldServicing={goldServicing}
       agentPrecloseEnabled={agentPrecloseEnabled}
       precloseRequest={precloseRequest}
+      foreclosureEnabled={foreclosureEnabled}
     />
     {hp && (
       <HpCustomer360

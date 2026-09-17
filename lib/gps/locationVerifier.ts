@@ -276,6 +276,19 @@ export async function verifyAndPersistCollectionLocation(input: {
     });
     if (customer?.lat != null && customer?.lng != null) {
       borrowerPoint = { latitude: customer.lat, longitude: customer.lng };
+    } else {
+      const cp = await prisma.customerCollectionPoint.findFirst({
+        where: {
+          customerId: input.customerId,
+          latitude: { not: null },
+          longitude: { not: null },
+        },
+        orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+        select: { latitude: true, longitude: true },
+      });
+      if (cp?.latitude != null && cp?.longitude != null) {
+        borrowerPoint = { latitude: cp.latitude, longitude: cp.longitude };
+      }
     }
   }
 

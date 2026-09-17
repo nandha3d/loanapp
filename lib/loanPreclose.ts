@@ -8,7 +8,7 @@ export async function precloseLoanInTx(
   tx: Prisma.TransactionClient,
   ctx: { tenantId: string; userId: string },
   loan: { id: string; appType: string; branchId: string | null; customerId: string; customer: { name: string } },
-  input: { amount: number; paymentMode: string; remarks: string },
+  input: { amount: number; paymentMode: string; remarks: string; discount?: number; notes?: string; markChequesReturned?: boolean },
 ) {
   const id = loan.id;
   const { amount, paymentMode, remarks } = input;
@@ -183,8 +183,31 @@ export async function precloseLoanInTx(
     data: {
       status: 'closed',
       closedAt: new Date(),
+      closureType: 'foreclosure',
+      foreclosureAmount: amount,
+      foreclosureDiscount: input.discount || 0,
+      foreclosureById: ctx.userId,
     },
   });
+
+  // Settle any pending penalties for the loan
+  await tx.penalty.updateMany({
+    where: { loanId: id, status: 'pending' },
+    data: {
+      status: 'settled',
+      settledAt: new Date(),
+      settledById: ctx.userId,
+      notes: `Preclose settlement.${input.remarks ? ' ' + input.remarks : ''}`.trim(),
+    },
+  });
+
+  // Return security cheques if requested
+  if (input.markChequesReturned) {
+    await tx.securityCheque.updateMany({
+      where: { loanId: id, status: 'active' },
+      data: { status: 'returned' },
+    });
+  }
 
   // Write to AuditLog
   await tx.auditLog.create({
@@ -198,6 +221,7 @@ export async function precloseLoanInTx(
         action: 'preclose',
         amount,
         paymentMode,
+        discount: input.discount || 0,
         allocations: allocationsDesc.join(', '),
       }),
     },

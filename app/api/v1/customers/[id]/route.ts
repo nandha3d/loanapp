@@ -41,9 +41,11 @@ const CUSTOMER_UPDATE_FIELDS = [
   'preferredCollectionTime',
   'profilePhoto',
   'companyLogo',
+  'lat',
+  'lng',
 ] as const;
 // Numeric fields coerced from the request body.
-const CUSTOMER_NUMERIC_FIELDS = new Set(['monthlyIncome']);
+const CUSTOMER_NUMERIC_FIELDS = new Set(['monthlyIncome', 'lat', 'lng']);
 
 async function findScopedCustomer(id: string, ctx: MobileTokenClaims) {
   const where: any = {
@@ -218,11 +220,65 @@ export async function PATCH(
       };
     }
 
+    // Agents cannot edit customer details directly — must submit an approval request (matching loan edit).
+    if (ctx.role === 'agent') {
+      const request = await prisma.approvalRequest.create({
+        data: {
+          tenantId: ctx.tenantId,
+          appType: ctx.appType,
+          requestType: 'customer_edit',
+          entityType: 'customer',
+          entityId: existing.id,
+          requestedById: ctx.userId,
+          requestedChanges: JSON.stringify(data),
+          reason: (body.reason as string) || 'Customer profile / GPS update requested by agent',
+          status: 'pending',
+        },
+      });
+
+      return ok({
+        ...existing,
+        pendingApproval: true,
+        approvalRequestId: request.id,
+        message: 'Customer edit request submitted for admin approval',
+      });
+    }
+
+    if (data.lat !== undefined && data.lng !== undefined && data.lat !== null && data.lng !== null) {
+      data.geocodedAt = new Date();
+    }
+
     const updated = await prisma.customer.update({
       where: { id: existing.id },
       data,
       include: { collectionPoints: true, guarantors: true },
     });
+
+    if (data.lat != null && data.lng != null) {
+      try {
+        await prisma.customerGeocode.upsert({
+          where: { customerId: existing.id },
+          update: {
+            latitude: Number(data.lat),
+            longitude: Number(data.lng),
+            accuracy: 'manual',
+            rawAddress: (data.address as string) || existing.address || '',
+            geocodedAt: new Date(),
+          },
+          create: {
+            customerId: existing.id,
+            tenantId: ctx.tenantId,
+            latitude: Number(data.lat),
+            longitude: Number(data.lng),
+            accuracy: 'manual',
+            source: 'manual',
+            rawAddress: (data.address as string) || existing.address || '',
+          },
+        });
+      } catch (err) {
+        console.error('CustomerGeocode upsert failed:', err);
+      }
+    }
 
     await writeAudit({
       tenantId: ctx.tenantId,

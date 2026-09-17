@@ -166,6 +166,7 @@ export default function LoanDetailClient({
   goldServicing = null,
   agentPrecloseEnabled = false,
   precloseRequest = null,
+  foreclosureEnabled = false,
 }: {
   loan: any;
   currencySymbol: string;
@@ -178,6 +179,7 @@ export default function LoanDetailClient({
   goldServicing?: any;
   agentPrecloseEnabled?: boolean;
   precloseRequest?: { status: string; reviewNotes: string | null } | null;
+  foreclosureEnabled?: boolean;
 }) {
   const d = dict.loanDetail;
   const router = useRouter();
@@ -382,6 +384,9 @@ export default function LoanDetailClient({
   const [renewModal, setRenewModal] = useState(false);
   const [precloseModal, setPrecloseModal] = useState(false);
   const [chequeReturned, setChequeReturned] = useState(false);
+  const [foreclosureCalc, setForeclosureCalc] = useState<any>(null);
+  const [foreclosureDiscount, setForeclosureDiscount] = useState<number>(0);
+  const [foreclosureLoading, setForeclosureLoading] = useState<boolean>(false);
   const [loading, setLoading] = useState(false);
 
   // ── Interest-Only servicing ────────────────────────────────────────────────
@@ -699,18 +704,61 @@ export default function LoanDetailClient({
     }
   };
 
+  const handleOpenPreclose = async () => {
+    setForeclosureLoading(true);
+    setPrecloseModal(true);
+    setForeclosureDiscount(0);
+    setChequeReturned(false);
+    setPayMode('cash');
+    setPayRemarks('Preclosure Full Settlement');
+    try {
+      const res = await fetch(`/api/loans/${loan.id}/foreclosure-calc?discount=0`);
+      const json = await res.json();
+      if (json.success && json.data) {
+        setForeclosureCalc(json.data);
+        setPayAmount(json.data.totalSettlementAmount);
+      } else {
+        setForeclosureCalc(null);
+        setPayAmount(outstanding);
+      }
+    } catch (err) {
+      console.error('Failed to calculate foreclosure preview', err);
+      setForeclosureCalc(null);
+      setPayAmount(outstanding);
+    } finally {
+      setForeclosureLoading(false);
+    }
+  };
+
+  const handleDiscountChange = async (val: number) => {
+    setForeclosureDiscount(val);
+    try {
+      const res = await fetch(`/api/loans/${loan.id}/foreclosure-calc?discount=${val}`);
+      const json = await res.json();
+      if (json.success && json.data) {
+        setForeclosureCalc(json.data);
+        setPayAmount(json.data.totalSettlementAmount);
+      }
+    } catch (err) {
+      console.error('Failed to update discount', err);
+    }
+  };
+
   const handlePrecloseLoan = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (payAmount < outstanding) {
-      alert(`Preclose requires the full outstanding amount of ${formatCurrency(outstanding, currencySymbol)}`);
+    const minRequired = foreclosureCalc ? foreclosureCalc.totalSettlementAmount : outstanding;
+    if (payAmount < minRequired) {
+      alert(`Preclose requires the full settlement amount of ${formatCurrency(minRequired, currencySymbol)}`);
       return;
     }
     setLoading(true);
     const fd = new FormData();
     fd.set('loanId', loan.id);
     fd.set('amount', String(payAmount));
+    fd.set('discount', String(foreclosureDiscount || 0));
     fd.set('paymentMode', payMode);
     fd.set('remarks', payRemarks);
+    fd.set('markChequesReturned', chequeReturned ? '1' : '0');
 
     const result = await precloseLoanAdmin(fd);
     setLoading(false);
@@ -1399,12 +1447,21 @@ export default function LoanDetailClient({
                         }}>{d.fullClosure}</button>
                       </>
                     ) : (
-                      <button className="btn btn-warning" style={{ background: '#F59E0B', color: '#fff', border: 'none' }} onClick={() => {
-                        setPayAmount(outstanding);
-                        setPayMode('cash');
-                        setPayRemarks('Preclosure Full Settlement');
-                        setPrecloseModal(true);
-                      }}>{d.precloseAndSettle}</button>
+                      foreclosureEnabled ? (
+                        <button className="btn btn-warning" style={{ background: '#F59E0B', color: '#fff', border: 'none' }} onClick={handleOpenPreclose}>
+                          {d.precloseAndSettle}
+                        </button>
+                      ) : (
+                        <button
+                          className="btn btn-secondary"
+                          style={{ opacity: 0.6, cursor: 'not-allowed', background: 'var(--border)', color: 'var(--text-secondary)' }}
+                          disabled
+                          title={d.precloseAddonRequired || 'Requires Preclose & Early Settlement add-on'}
+                        >
+                          <span className="material-icons-outlined" style={{ fontSize: '14px', verticalAlign: 'middle', marginRight: '4px' }}>lock</span>
+                          {d.precloseAndSettle}
+                        </button>
+                      )
                     )}
                     <button className="btn btn-danger" onClick={() => setCloseModal(true)}>{d.closeLoan}</button>
                     <button className="btn btn-secondary" onClick={() => setRenewModal(true)}>{d.renewLoan}</button>
@@ -1780,46 +1837,139 @@ export default function LoanDetailClient({
 
       {/* Preclose Loan Modal */}
       {precloseModal && (
-        <div className="modal-overlay show" onClick={(e) => { if (e.target === e.currentTarget) setPrecloseModal(false); }}>
-          <div className="modal">
+        <div className="modal-overlay show" onClick={(e) => { if (e.target === e.currentTarget && !loading) setPrecloseModal(false); }}>
+          <div className="modal" style={{ maxWidth: '540px', width: '100%' }}>
             <div className="modal-header">
-              <h3>⚡ {d.preclose}</h3>
-              <button className="modal-close material-icons-outlined" onClick={() => setPrecloseModal(false)}>close</button>
+              <h3>⚡ {d.precloseAndEarlySettlement || d.preclose}</h3>
+              <button className="modal-close material-icons-outlined" onClick={() => setPrecloseModal(false)} disabled={loading}>close</button>
             </div>
             <div className="modal-body">
               {duesPendingBox}
 
-              <div style={{ background: '#FFFBEB', borderRadius: 'var(--radius-sm)', padding: '16px', marginBottom: '16px', border: '1px solid #FCD34D' }}>
-                <p style={{ fontSize: '.9rem', fontWeight: 600, color: '#92400E' }}>{d.preclosureFullSettlement}</p>
-                <p style={{ fontSize: '.82rem', color: '#B45309', marginTop: '6px' }}>
-                  {d.preclosureDescStart} <strong>{formatCurrency(outstanding, currencySymbol)}</strong>{d.preclosureDescEnd} <strong>{d.closedUpper}</strong>.
+              <div style={{ background: '#FFFBEB', borderRadius: 'var(--radius-sm)', padding: '12px 14px', marginBottom: '14px', border: '1px solid #FCD34D' }}>
+                <p style={{ fontSize: '.88rem', fontWeight: 600, color: '#92400E', margin: 0 }}>{d.preclosureFullSettlement}</p>
+                <p style={{ fontSize: '.8rem', color: '#B45309', marginTop: '4px', margin: 0 }}>
+                  {d.preclosureDescStart} <strong>{formatCurrency(payAmount, currencySymbol)}</strong>{d.preclosureDescEnd} <strong>{d.closedUpper}</strong>.
                 </p>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Preclosure Total ({currencySymbol})</label>
-                <input type="number" className="form-control" style={{ fontSize: '1.1rem', padding: '12px' }} value={payAmount} onChange={(e) => setPayAmount(Number(e.target.value))} min={0} disabled />
-              </div>
-              <div className="form-group">
-                <label className="form-label">{d.paymentMode}</label>
-                <select className="form-control" style={{ fontSize: '1rem', padding: '12px' }} value={payMode} onChange={(e) => setPayMode(e.target.value)}>
-                  <option value="cash">{d.cash}</option>
-                  <option value="upi">{d.upi}</option>
-                  <option value="cheque">{d.cheque}</option>
-                  <option value="bank_transfer">{d.bankTransfer}</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">{d.remarksReference}</label>
-                <input type="text" className="form-control" style={{ fontSize: '1rem', padding: '12px' }} value={payRemarks} onChange={(e) => setPayRemarks(e.target.value)} />
-              </div>
+              {foreclosureLoading ? (
+                <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-secondary)' }}>
+                  Calculating settlement...
+                </div>
+              ) : (
+                <>
+                  {foreclosureCalc && (
+                    <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', overflow: 'hidden', marginBottom: '14px' }}>
+                      {foreclosureCalc.lineItems?.map((item: any, i: number) => (
+                        <div
+                          key={i}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '7px 12px',
+                            borderBottom: i < foreclosureCalc.lineItems.length - 1 ? '1px solid var(--border)' : 'none',
+                            background: item.highlight ? 'rgba(245, 158, 11, 0.08)' : 'transparent',
+                            fontWeight: item.highlight ? 600 : 400,
+                            fontSize: '.82rem',
+                          }}
+                        >
+                          <span style={{ color: item.highlight ? 'var(--text)' : 'var(--text-secondary)' }}>{item.label}</span>
+                          <span
+                            style={{
+                              fontWeight: item.highlight ? 700 : 500,
+                              color: item.amount < 0 ? 'var(--success, #059669)' : item.highlight ? '#D97706' : 'var(--text)',
+                            }}
+                          >
+                            {item.amount < 0 ? '− ' : ''}{formatCurrency(Math.abs(item.amount), currencySymbol)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="form-group" style={{ marginBottom: '12px' }}>
+                    <label className="form-label" style={{ fontSize: '.82rem', fontWeight: 600 }}>
+                      {d.settlementDiscount || 'Settlement Discount / Rebate'} ({currencySymbol}) — optional
+                    </label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      style={{ fontSize: '.95rem', padding: '10px' }}
+                      value={foreclosureDiscount || ''}
+                      min={0}
+                      max={foreclosureCalc ? foreclosureCalc.principalOutstanding + foreclosureCalc.netPenaltyDue : outstanding}
+                      placeholder="0"
+                      onChange={(e) => handleDiscountChange(Number(e.target.value) || 0)}
+                    />
+                    <span style={{ fontSize: '.72rem', color: 'var(--text-secondary)', marginTop: '2px', display: 'block' }}>
+                      Reduces final settlement total by waiving accrued penalties or discounting balance.
+                    </span>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: '12px' }}>
+                    <label className="form-label" style={{ fontSize: '.82rem', fontWeight: 600 }}>
+                      {d.settlementAmount || 'Total Settlement Amount'} ({currencySymbol})
+                    </label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      style={{ fontSize: '1.1rem', fontWeight: 700, padding: '10px', color: '#D97706', background: 'var(--bg)' }}
+                      value={formatCurrency(payAmount, currencySymbol)}
+                      disabled
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: '12px' }}>
+                    <label className="form-label" style={{ fontSize: '.82rem', fontWeight: 600 }}>{d.paymentMode}</label>
+                    <select className="form-control" style={{ fontSize: '.95rem', padding: '10px' }} value={payMode} onChange={(e) => setPayMode(e.target.value)}>
+                      <option value="cash">{d.cash}</option>
+                      <option value="upi">{d.upi}</option>
+                      <option value="cheque">{d.cheque}</option>
+                      <option value="bank_transfer">{d.bankTransfer}</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: '12px' }}>
+                    <label className="form-label" style={{ fontSize: '.82rem', fontWeight: 600 }}>{d.remarksReference}</label>
+                    <input type="text" className="form-control" style={{ fontSize: '.95rem', padding: '10px' }} value={payRemarks} onChange={(e) => setPayRemarks(e.target.value)} />
+                  </div>
+
+                  {loan.customer?.securityCheques?.some((c: any) => c.status === 'active') && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                      <input
+                        type="checkbox"
+                        id="preclose-cheque-returned"
+                        checked={chequeReturned}
+                        onChange={(e) => setChequeReturned(e.target.checked)}
+                      />
+                      <label htmlFor="preclose-cheque-returned" style={{ fontSize: '.82rem', cursor: 'pointer' }}>
+                        {d.securityChequesReturned || 'Confirm security cheques have been returned to customer'}
+                      </label>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setPrecloseModal(false)}>{d.cancel}</button>
-              <button className="btn btn-warning" style={{ background: '#F59E0B', color: '#fff', border: 'none' }} onClick={handlePrecloseLoan} disabled={loading || payAmount < outstanding}>
-                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>done_all</span>
-                {loading ? 'Processing...' : 'Settle & Close'}
-              </button>
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button className="btn btn-secondary" onClick={() => setPrecloseModal(false)} disabled={loading}>{d.cancel}</button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <a
+                  href={`/api/loans/${loan.id}/settlement-letter?discount=${foreclosureDiscount || 0}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-secondary"
+                  style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                >
+                  <span className="material-icons-outlined" style={{ fontSize: '15px' }}>picture_as_pdf</span>
+                  {d.previewLetter || 'Preview Letter'}
+                </a>
+                <button className="btn btn-warning" style={{ background: '#F59E0B', color: '#fff', border: 'none' }} onClick={handlePrecloseLoan} disabled={loading || foreclosureLoading}>
+                  <span className="material-icons-outlined" style={{ fontSize: '16px' }}>done_all</span>
+                  {loading ? 'Processing...' : 'Settle & Close'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

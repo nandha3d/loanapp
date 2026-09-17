@@ -311,6 +311,8 @@ export async function precloseLoanAdmin(formData: FormData) {
     const amount = Number(formData.get('amount'));
     const paymentMode = formData.get('paymentMode') as string || 'cash';
     const remarks = formData.get('remarks') as string || '';
+    const discount = Number(formData.get('discount') || formData.get('foreclosureDiscount') || '0');
+    const markChequesReturned = formData.get('markChequesReturned') === '1' || formData.get('markChequesReturned') === 'true';
 
     const loanRes = await apiFetch<any>(`/loans/${loanId}`, apiContext);
     if (loanRes.error) return { success: false, error: loanRes.error };
@@ -318,7 +320,7 @@ export async function precloseLoanAdmin(formData: FormData) {
 
     const res = await apiFetch<any>(`/loans/${loanId}/preclose`, {
       method: 'POST',
-      body: JSON.stringify({ amount, paymentMode, remarks }),
+      body: JSON.stringify({ amount, paymentMode, remarks, discount, markChequesReturned }),
       ...apiContext,
     });
 
@@ -327,6 +329,8 @@ export async function precloseLoanAdmin(formData: FormData) {
     if (loanCode) {
       revalidatePath(`/loans/${loanCode}`);
     }
+    revalidatePath('/loans');
+    revalidatePath('/dashboard');
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err.message || 'Preclose failed' };

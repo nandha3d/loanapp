@@ -17,7 +17,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     });
 
     if (!subscription?.foreclosureEnabled) {
-      return apiError('Foreclosure add-on is not active under your plan subscription.', 403);
+      return apiError('Preclose & Early Settlement add-on is not active under your plan subscription.', 403);
     }
 
     const { searchParams } = new URL(req.url);

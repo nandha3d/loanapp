@@ -65,12 +65,26 @@ function timeAgo(iso: string | null): string {
   return `${Math.floor(mins / 60)} h ${mins % 60} m ago`;
 }
 
-export default function LiveMapClient({ currencySymbol = '₹' }: { currencySymbol?: string }) {
+export type AgentTrail = {
+  agentId: string;
+  agentName: string;
+  path: Array<{ lat: number; lng: number; time?: string | Date; type?: string }>;
+};
+
+export default function LiveMapClient({
+  currencySymbol = '₹',
+  agentPaths = [],
+}: {
+  currencySymbol?: string;
+  agentPaths?: AgentTrail[];
+}) {
   const mapDivRef = useRef<HTMLDivElement | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const markersRef = useRef<Map<string, any>>(new Map());
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const polylinesRef = useRef<Map<string, any>>(new Map());
   const fittedRef = useRef(false);
   const [state, setState] = useState<'loading' | 'ready' | 'unavailable'>('loading');
   const [agents, setAgents] = useState<LiveAgent[]>([]);
@@ -131,6 +145,34 @@ export default function LiveMapClient({ currencySymbol = '₹' }: { currencySymb
     }
   }, [currencySymbol]);
 
+  // Render polyline movement trails when map is ready
+  useEffect(() => {
+    const L = window.L;
+    const map = mapRef.current;
+    if (!L || !map || state !== 'ready') return;
+
+    for (const poly of polylinesRef.current.values()) {
+      map.removeLayer(poly);
+    }
+    polylinesRef.current.clear();
+
+    const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f97316', '#10b981'];
+    agentPaths.forEach((ap, idx) => {
+      if (ap.path && ap.path.length >= 2) {
+        const color = colors[idx % colors.length];
+        const latLngs = ap.path.map((p) => [p.lat, p.lng]);
+        const polyline = L.polyline(latLngs, {
+          color,
+          weight: 3,
+          opacity: 0.75,
+          dashArray: '5, 7',
+        }).addTo(map);
+        polyline.bindTooltip(`${ap.agentName} trail (${ap.path.length} pings)`);
+        polylinesRef.current.set(ap.agentId, polyline);
+      }
+    });
+  }, [agentPaths, state]);
+
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setInterval> | null = null;
@@ -155,6 +197,10 @@ export default function LiveMapClient({ currencySymbol = '₹' }: { currencySymb
     return () => {
       cancelled = true;
       if (timer) clearInterval(timer);
+      for (const poly of polylinesRef.current.values()) {
+        mapRef.current?.removeLayer(poly);
+      }
+      polylinesRef.current.clear();
       if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
       markersRef.current.clear();
       fittedRef.current = false;
