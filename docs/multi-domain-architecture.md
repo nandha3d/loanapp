@@ -1,4 +1,4 @@
-# LoanTrack — Two-Domain Architecture (SaaS + Standalone Client)
+# ZoloFund — Two-Domain Architecture (SaaS + Standalone Client)
 
 > One codebase + one MySQL database serves **two products** that differ only by
 > **host** and per-tenant **license**:

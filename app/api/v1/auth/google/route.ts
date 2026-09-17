@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { generateTenantSlug } from '@/lib/slug';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { issueMobileToken } from '@/lib/api/v1-auth';
+import { issueMobileToken, loginWindowFailure } from '@/lib/api/v1-auth';
 import { calculateVerticalSubscriptionPricing, normalizeSelectedModules } from '@/lib/pricing';
 
 export async function POST(req: NextRequest) {
@@ -54,6 +54,9 @@ export async function POST(req: NextRequest) {
       if (existingUser.tenant.status !== 'active') {
         return fail('Account tenant is inactive', 403);
       }
+
+      const windowFailure = loginWindowFailure(existingUser);
+      if (windowFailure) return windowFailure;
 
       // If user exists, this is a LOGIN flow. Complete the login and return token.
       const token = await issueMobileToken({

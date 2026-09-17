@@ -91,7 +91,7 @@ export default async function CustomersPage({
               <th>{dict.customersList.phone}</th>
               <th>{dict.customersList.route}</th>
               <th>{dict.customersList.score}</th>
-              <th>{dict.customersList.activeLoan}</th>
+              {appType !== 'chitfunds' && <th>{dict.customersList.activeLoan}</th>}
               <th>{dict.customersList.status}</th>
               <th>{dict.customersList.action}</th>
             </tr>
@@ -103,7 +103,7 @@ export default async function CustomersPage({
               
               return (
                 <tr key={c.id}>
-                  <td>
+                  <td data-label={dict.customersList.customerId}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <div className="profile-avatar" style={{ width: '32px', height: '32px', fontSize: '.75rem', flexShrink: 0 }}>
                         {c.profilePhoto ? (
@@ -115,10 +115,10 @@ export default async function CustomersPage({
                       <strong>{c.customerCode}</strong>
                     </div>
                   </td>
-                  <td>{c.name}</td>
-                  <td>{c.phone}</td>
-                  <td>{c.route?.name || '—'}</td>
-                  <td>
+                  <td data-label={dict.customersList.name}>{c.name}</td>
+                  <td data-label={dict.customersList.phone}>{c.phone}</td>
+                  <td data-label={dict.customersList.route}>{c.route?.name || '—'}</td>
+                  <td data-label={dict.customersList.score}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <span style={{ 
                         fontWeight: 700, 
@@ -131,25 +131,27 @@ export default async function CustomersPage({
                       </span>
                     </div>
                   </td>
-                  <td>
-                    {activeLoan ? (
-                      <>
-                        <Link href={`/loans/${activeLoan.loanCode}`}>{activeLoan.loanCode}</Link>
-                        <br />
-                        <span style={{fontSize:'.75rem', color:'var(--text-light)'}}>
-                          {formatCurrency(Number(activeLoan.principal), currencySymbol)}
-                        </span>
-                      </>
-                    ) : (
-                      <span style={{color:'var(--text-light)'}}>{dict.customersList.none}</span>
-                    )}
-                  </td>
-                  <td>
+                  {appType !== 'chitfunds' && (
+                    <td data-label={dict.customersList.activeLoan}>
+                      {activeLoan ? (
+                        <>
+                          <Link href={`/loans/${activeLoan.loanCode}`}>{activeLoan.loanCode}</Link>
+                          <br />
+                          <span style={{fontSize:'.75rem', color:'var(--text-light)'}}>
+                            {formatCurrency(Number(activeLoan.principal), currencySymbol)}
+                          </span>
+                        </>
+                      ) : (
+                        <span style={{color:'var(--text-light)'}}>{dict.customersList.none}</span>
+                      )}
+                    </td>
+                  )}
+                  <td data-label={dict.customersList.status}>
                     <span className={getBadgeClass(c.status)} style={{textTransform:'capitalize'}}>
                       {c.status === 'pending_review' ? dict.approvals.pendingReview : c.status}
                     </span>
                   </td>
-                  <td>
+                  <td data-label={dict.customersList.action}>
                     <Link href={`/customers/${c.customerCode}`} className="btn btn-ghost btn-sm">{dict.customersList.view}</Link>
                     {userRole !== 'agent' && (
                       <Link href={`/customers/new?edit=${c.id}`} className="btn btn-ghost btn-sm">{dict.customersList.edit}</Link>
@@ -160,7 +162,7 @@ export default async function CustomersPage({
             })}
             {customers.length === 0 && (
               <tr>
-                <td colSpan={8} style={{textAlign:'center', padding:'32px', color:'var(--text-light)'}}>
+                <td colSpan={appType !== 'chitfunds' ? 8 : 7} style={{textAlign:'center', padding:'32px', color:'var(--text-light)'}}>
                   {dict.customersList.noCustomers}
                 </td>
               </tr>

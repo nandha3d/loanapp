@@ -10,7 +10,7 @@ import { BreadcrumbJsonLd } from '../_components/JsonLd';
 export const metadata = buildMetadata({
   title: 'Micro Lending, Gold Loan, Chit Fund & Auto Finance Software',
   description:
-    'Explore the LoanTrack platform — micro lending, auto finance, gold loan and chit fund software, plus GPS collection, agent wallets, eKYC, double-entry accounting and a native mobile app.',
+    'Explore the ZoloFund platform — micro lending, auto finance, gold loan and chit fund software, plus GPS collection, agent wallets, eKYC, double-entry accounting and a native mobile app.',
   path: '/products',
   keywords: ['micro lending software', 'gold loan software', 'chit fund software', 'auto finance software', 'vehicle loan software'],
 });
@@ -18,7 +18,7 @@ export const metadata = buildMetadata({
 const MODULE_ROWS = [
   {
     ic: Coins, v: 'mk-ic--amber', t: 'Micro Lending',
-    d: 'The core of LoanTrack — small-ticket personal loans on daily, weekly or monthly cycles with intelligent instalment scheduling.',
+    d: 'The core of ZoloFund — small-ticket personal loans on daily, weekly or monthly cycles with intelligent instalment scheduling.',
     points: ['Smart payment allocation (penalty → interest → principal)', 'Foreclosure & early-settlement calculator', 'Guarantor and security-cheque management', 'Configurable penalty and grace rules'],
   },
   {

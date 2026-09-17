@@ -26,28 +26,23 @@ async function getOrCreateDailyCollectionForBorrower(
   branchId: string | null,
   routeId: string | null
 ): Promise<string> {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const today = new Date(`${yyyy}-${mm}-${dd}T00:00:00.000Z`);
 
-  // Check if daily collection already exists for this agent on this date
-  const existing = await tx.dailyCollection.findFirst({
+  const daily = await tx.dailyCollection.upsert({
     where: {
-      tenantId,
-      appType,
-      agentId,
-      date: today,
+      tenantId_appType_agentId_date: {
+        tenantId,
+        appType,
+        agentId,
+        date: today,
+      },
     },
-    select: { id: true },
-  });
-
-  if (existing) {
-    return existing.id;
-  }
-
-  const newId = randomUUID();
-  const created = await tx.dailyCollection.create({
-    data: {
-      id: newId,
+    update: {},
+    create: {
       tenantId,
       appType,
       agentId,
@@ -59,9 +54,10 @@ async function getOrCreateDailyCollectionForBorrower(
       entriesCount: 0,
       status: 'open',
     },
+    select: { id: true },
   });
 
-  return created.id;
+  return daily.id;
 }
 
 /**

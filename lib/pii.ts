@@ -6,21 +6,22 @@ function normalizeAadharNumber(value: string): string {
   return value.replace(/\D/g, '');
 }
 
-function getEncryptionKey(rawKey = process.env.PII_ENCRYPTION_KEY): Buffer {
-  if (!rawKey) {
-    throw new Error('PII_ENCRYPTION_KEY is required to encrypt or decrypt Aadhaar numbers.');
+function getEncryptionKey(rawKey?: string): Buffer {
+  const effectiveKey = rawKey || process.env.PII_ENCRYPTION_KEY || process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
+  if (!effectiveKey) {
+    throw new Error('PII_ENCRYPTION_KEY is required to encrypt or decrypt sensitive data.');
   }
 
-  if (/^[a-f0-9]{64}$/i.test(rawKey)) {
-    return Buffer.from(rawKey, 'hex');
+  if (/^[a-f0-9]{64}$/i.test(effectiveKey)) {
+    return Buffer.from(effectiveKey, 'hex');
   }
 
-  const utf8Key = Buffer.from(rawKey, 'utf8');
+  const utf8Key = Buffer.from(effectiveKey, 'utf8');
   if (utf8Key.length === 32) {
     return utf8Key;
   }
 
-  return crypto.createHash('sha256').update(rawKey).digest();
+  return crypto.createHash('sha256').update(effectiveKey).digest();
 }
 
 export function encryptAadharNumber(value: string | null | undefined, rawKey?: string): string | null {
@@ -107,7 +108,7 @@ export function decryptField(value: string | null | undefined, rawKey?: string):
     return value;
   }
 
-  const [, version, ivValue, tagValue, encryptedValue] = value.split(':');
+  const [, , version, ivValue, tagValue, encryptedValue] = value.split(':');
   if (version !== 'v1' || !ivValue || !tagValue || !encryptedValue) {
     throw new Error('Unsupported field encryption payload.');
   }

@@ -1,20 +1,22 @@
 'use server';
 
+import { LOAN_PRECLOSE_REQUEST } from '@/lib/loanPreclosePolicy';
+import { reviewLoanPrecloseRequest } from '@/lib/loanPrecloseRequests';
+
 import prisma from '@/lib/db';
 import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth';
 import { decryptAadharNumber, encryptAadharNumber, isMaskedAadharNumber } from '@/lib/pii';
-import { submitCollectionEntry } from '@/app/(dashboard)/[module]/collection/actions';
+import { correctInstalmentPaymentInTx } from '@/lib/collectionWrite';
 import { calculateLoanPreview } from '@/lib/loanCalculator';
-import { findApprovalNotificationTarget } from '@/lib/approvalNotifications';
 import { notifyUser } from '@/lib/notify/userNotify';
 import { modulePath } from '@/types/modules';
 import { getActiveBranchId } from '@/lib/branch';
 
 // Fields an agent is allowed to request changes to on a customer record
 const CUSTOMER_EDIT_ALLOW_LIST = new Set([
-  'name', 'phone', 'address', 'aadharNumber', 'kycStatus', 'photo',
+  'name', 'phone', 'address', 'aadharNumber', 'kycStatus', 'photo', 'lat', 'lng',
 ]);
 
 // Fields allowed for loan edit requests
@@ -45,6 +47,17 @@ export async function reviewRequest(formData: FormData) {
   const reviewNotes = formData.get('reviewNotes') as string;
 
   try {
+    const precloseRequest = await prisma.approvalRequest.findFirst({
+      where: { id: requestId, tenantId, appType, requestType: LOAN_PRECLOSE_REQUEST }, select: { id: true },
+    });
+    if (precloseRequest) {
+      const result = await reviewLoanPrecloseRequest({ tenantId, appType, userId, role: userRole,
+        branchId: await getActiveBranchId() }, requestId, action, reviewNotes || '');
+      revalidatePath(modulePath(appType, '/approvals'));
+      revalidatePath(modulePath(appType, '/loans'), 'layout');
+      return result;
+    }
+    const branchId = await getActiveBranchId();
     const result = await prisma.$transaction(async (tx) => {
       // 1. Atomically claim the request by updating status to approved/rejected
       const updateResult = await tx.approvalRequest.updateMany({
@@ -115,24 +128,62 @@ export async function reviewRequest(formData: FormData) {
             }
           }
 
+          if (safeChanges.lat != null && safeChanges.lng != null) {
+            safeChanges.lat = Number(safeChanges.lat);
+            safeChanges.lng = Number(safeChanges.lng);
+            safeChanges.geocodedAt = new Date();
+          }
           await tx.customer.update({
             where: { id: request.entityId, tenantId },
             data: safeChanges,
           });
+          if (safeChanges.lat != null && safeChanges.lng != null) {
+            try {
+              const cust = await tx.customer.findUnique({ where: { id: request.entityId }, select: { address: true } });
+              await tx.customerGeocode.upsert({
+                where: { customerId: request.entityId },
+                update: {
+                  latitude: Number(safeChanges.lat),
+                  longitude: Number(safeChanges.lng),
+                  accuracy: 'manual',
+                  rawAddress: (safeChanges.address as string) || cust?.address || '',
+                  geocodedAt: new Date(),
+                },
+                create: {
+                  customerId: request.entityId,
+                  tenantId,
+                  latitude: Number(safeChanges.lat),
+                  longitude: Number(safeChanges.lng),
+                  accuracy: 'manual',
+                  source: 'manual',
+                  rawAddress: (safeChanges.address as string) || cust?.address || '',
+                },
+              });
+            } catch (err) {
+              console.error('CustomerGeocode upsert in reviewRequest failed:', err);
+            }
+          }
         } else if (request.requestType === 'edit_collection') {
           const rawChanges = JSON.parse(request.requestedChanges);
           const requestedAmount = COLLECTION_EDIT_ALLOW_LIST.has('requestedAmount') 
             ? rawChanges.requestedAmount 
             : undefined;
           
-          if (requestedAmount === undefined) {
-            throw new Error('Invalid collection edit request: missing requestedAmount');
+          if (requestedAmount === undefined || isNaN(Number(requestedAmount)) || Number(requestedAmount) < 0) {
+            throw new Error('Invalid collection edit request: missing or invalid requestedAmount');
           }
           
-          const fd = new FormData();
-          fd.set('instalmentId', request.entityId);
-          fd.set('receivedAmount', String(requestedAmount));
-          await submitCollectionEntry(fd);
+          await correctInstalmentPaymentInTx(tx, {
+            tenantId,
+            appType,
+            userId,
+            branchId,
+            role: userRole,
+          }, {
+            instalmentId: request.entityId,
+            correctedAmount: Number(requestedAmount),
+            remarks: `Approved collection edit request: ${reviewNotes || request.reason || ''}`.trim(),
+          });
         } else if (request.requestType === 'loan_edit' && request.entityType === 'loan') {
           // Verify target loan belongs to this tenant+appType
           const loan = await tx.loan.findFirst({
@@ -374,7 +425,7 @@ export async function approveCustomerCreation(customerId: string) {
 }
 
 // Fields an agent is allowed to request edits for
-const EDIT_REQUEST_FIELDS = ['name', 'phone', 'address', 'aadharNumber', 'kycStatus'];
+const EDIT_REQUEST_FIELDS = ['name', 'phone', 'address', 'aadharNumber', 'kycStatus', 'lat', 'lng'];
 
 /**
  * Submitted by an agent from the customer profile page.
@@ -400,15 +451,24 @@ export async function submitEditRequest(formData: FormData) {
   // Verify customer belongs to this tenant
   const customer = await prisma.customer.findFirst({
     where: { id: customerId, tenantId, appType },
-    select: { id: true, name: true, phone: true, address: true, aadharNumber: true, kycStatus: true, branchId: true },
+    select: { id: true, name: true, phone: true, address: true, aadharNumber: true, kycStatus: true, branchId: true, lat: true, lng: true },
   });
   if (!customer) return { success: false, error: 'Customer not found' };
 
   // Collect only the allowed changed fields from the form
-  const requestedChanges: Record<string, string> = {};
+  const requestedChanges: Record<string, any> = {};
   for (const field of EDIT_REQUEST_FIELDS) {
     const val = formData.get(field) as string | null;
     if (field === 'aadharNumber' && isMaskedAadharNumber(val)) continue;
+    if (field === 'lat' || field === 'lng') {
+      if (val !== null && val.trim() !== '') {
+        const num = Number(val);
+        if (!isNaN(num) && num !== (customer as any)[field]) {
+          requestedChanges[field] = num;
+        }
+      }
+      continue;
+    }
     const existingValue = field === 'aadharNumber'
       ? decryptAadharNumber(customer.aadharNumber)
       : (customer as any)[field];
@@ -448,28 +508,26 @@ export async function submitEditRequest(formData: FormData) {
     },
   });
 
-  // Notify admin that there's a new customer edit request
-  const notifBranchId = agentBranchId || customer.branchId;
-  const targetUserId = await findApprovalNotificationTarget({
+  // Notify everyone who can review (branch admins + tenant superadmins) so the
+  // request never lands only on one inbox. Both branches are passed, not one
+  // collapsed value: the customer takes its ROUTE's branch, which need not be
+  // the filing agent's, and NOTIF-6 wants the admins of both told. The filer's
+  // branch only counts when the filer is an AGENT — an admin or superadmin
+  // files for every branch, and pinging their own branch's admin about all of
+  // them is the cross-branch noise this call used to generate.
+  const { notifyApprovers } = await import('@/lib/notify/approvers');
+  await notifyApprovers({
     tenantId,
+    branchId: customer.branchId,
+    requesterBranchId: agentBranchId,
+    requesterRole: userRole,
     appType,
-    agentId: userId,
-    branchId: notifBranchId,
+    type: 'customer_edit_review',
+    icon: 'rate_review',
+    title: 'Customer edit pending review',
+    message: `Agent requested edits for customer ${customer.name}.`,
+    link: modulePath(appType, '/approvals'),
   });
-  await prisma.systemNotification.create({
-    data: {
-      tenantId,
-      branchId: notifBranchId,
-      targetUserId,
-      appType,
-      type: 'customer_edit_review',
-      icon: 'rate_review',
-      title: 'Customer edit pending review',
-      message: `Agent requested edits for customer ${customer.name}.`,
-      link: modulePath(appType, '/approvals'),
-      targetRole: 'admin',
-    },
-  }).catch(() => {});
 
   revalidatePath(`/customers/${customerId}`);
   revalidatePath('/approvals');
@@ -501,7 +559,7 @@ export async function reviewPendingLoan(formData: FormData) {
 
   const loan = await prisma.loan.findFirst({
     where: { id: loanId, tenantId, status: 'pending_review' },
-    select: { id: true, loanCode: true, branchId: true, createdById: true, disbursed: true },
+    select: { id: true, loanCode: true, branchId: true, createdById: true, disbursed: true, startDate: true },
   });
 
   if (!loan) {
@@ -515,35 +573,65 @@ export async function reviewPendingLoan(formData: FormData) {
         where: { id: loanId },
         data: { status: newStatus },
       });
-
       if (action === 'approve') {
         const { disburseFromAgent, disburseFromBranch } = await import('@/lib/wallet');
         let isAgent = false;
+        let autoRelease = true;
         
         if (loan.createdById) {
           const creator = await tx.user.findUnique({
             where: { id: loan.createdById },
-            select: { role: true },
+            select: { role: true, autoReleaseFloat: true },
           });
           isAgent = creator?.role === 'agent';
+          // autoReleaseFloat is an AGENT-only toggle. Non-agent creators always
+          // auto-release (original privilege) so admin-created loans aren't
+          // accidentally blocked by the agent permission default.
+          autoRelease = isAgent ? creator!.autoReleaseFloat !== false : true;
         }
 
-        const disburseAmt = Number(loan.disbursed);
-        if (isAgent && loan.createdById) {
-          await disburseFromAgent(tx, {
-            tenantId,
-            agentId: loan.createdById,
-            amount: disburseAmt,
-            loanId: loan.id,
-            byUserId: userId,
-          });
-        } else if (loan.branchId) {
-          await disburseFromBranch(tx, {
-            tenantId,
-            branchId: loan.branchId,
-            amount: disburseAmt,
-            loanId: loan.id,
-            byUserId: userId,
+        // An agent's float ALWAYS drops by the net disbursed when their loan is
+        // approved (the cash was handed to the customer); not gated by
+        // autoReleaseFloat. Admin/branch loans honour autoRelease (always true).
+        const shouldDisburse = isAgent ? true : autoRelease;
+        if (shouldDisburse) {
+          const disburseAmt = Number(loan.disbursed);
+          if (isAgent && loan.createdById) {
+            await disburseFromAgent(tx, {
+              tenantId,
+              appType,
+              agentId: loan.createdById,
+              amount: disburseAmt,
+              loanId: loan.id,
+              byUserId: userId,
+            });
+          } else if (loan.branchId) {
+            await disburseFromBranch(tx, {
+              tenantId,
+              appType,
+              branchId: loan.branchId,
+              amount: disburseAmt,
+              loanId: loan.id,
+              byUserId: userId,
+            });
+          }
+          // Record the cash leaving the books (drives the capital balance). At
+          // creation this is posted only for already-active loans, so approved
+          // loans need it here too.
+          await tx.accountEntry.create({
+            data: {
+              tenantId,
+              appType,
+              branchId: loan.branchId || undefined,
+              entryDate: loan.startDate || new Date(),
+              type: 'loan_disburse',
+              category: 'cash',
+              amount: disburseAmt,
+              description: `Loan ${loan.loanCode} disbursed to customer`,
+              referenceId: loan.id,
+              referenceType: 'loan',
+              createdBy: loan.createdById || userId,
+            },
           });
         }
       }
@@ -642,6 +730,109 @@ export async function rejectCustomerCreation(customerId: string, reviewNotes?: s
 
   revalidatePath('/customers');
   revalidatePath('/dashboard');
+  revalidatePath('/approvals');
+  return { success: true };
+}
+
+export async function approveVehicleCreation(vehicleId: string) {
+  const session = await auth();
+  const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  const userId = session?.user?.id;
+  const userRole = (session?.user as any)?.role;
+  if (userRole === 'agent') return { success: false, error: 'Unauthorized' };
+
+  const vehicle = await prisma.vehicle.findFirst({
+    where: { id: vehicleId, tenantId, status: 'pending_review' },
+    select: {
+      id: true,
+      registrationNo: true,
+      customer: { select: { agentId: true, branchId: true, name: true } },
+    },
+  });
+  if (!vehicle) return { success: false, error: 'Vehicle not found or not in pending review' };
+
+  await prisma.vehicle.update({ where: { id: vehicleId }, data: { status: 'active' } });
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId: tenantId!,
+      userId,
+      action: 'approve',
+      entityType: 'vehicle',
+      entityId: vehicleId,
+      newValue: JSON.stringify({ action: 'approve_creation', status: 'active' }),
+    },
+  });
+
+  // Notify the filing agent (the vehicle's customer's agent).
+  if (vehicle.customer?.agentId) {
+    await notifyUser({
+      tenantId,
+      branchId: vehicle.customer.branchId,
+      appType,
+      targetUserId: vehicle.customer.agentId,
+      targetRole: 'agent',
+      type: 'vehicle_approved',
+      icon: 'check_circle',
+      title: 'Vehicle approved',
+      message: `Vehicle ${vehicle.registrationNo} has been approved and is now active.`,
+      link: modulePath(appType, '/vehicles'),
+    });
+  }
+
+  revalidatePath('/vehicles');
+  revalidatePath('/approvals');
+  return { success: true };
+}
+
+export async function rejectVehicleCreation(vehicleId: string, reviewNotes?: string) {
+  const session = await auth();
+  const tenantId = await getDefaultTenantId();
+  const appType = await getUserAppType();
+  const userId = session?.user?.id;
+  const userRole = (session?.user as any)?.role;
+  if (userRole === 'agent') return { success: false, error: 'Unauthorized' };
+
+  const vehicle = await prisma.vehicle.findFirst({
+    where: { id: vehicleId, tenantId, status: 'pending_review' },
+    select: {
+      id: true,
+      registrationNo: true,
+      customer: { select: { agentId: true, branchId: true, name: true } },
+    },
+  });
+  if (!vehicle) return { success: false, error: 'Vehicle not found or not in pending review' };
+
+  await prisma.vehicle.update({ where: { id: vehicleId }, data: { status: 'inactive' } });
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId: tenantId!,
+      userId,
+      action: 'reject',
+      entityType: 'vehicle',
+      entityId: vehicleId,
+      newValue: JSON.stringify({ action: 'reject_creation', status: 'inactive', reviewNotes }),
+    },
+  });
+
+  if (vehicle.customer?.agentId) {
+    await notifyUser({
+      tenantId,
+      branchId: vehicle.customer.branchId,
+      appType,
+      targetUserId: vehicle.customer.agentId,
+      targetRole: 'agent',
+      type: 'vehicle_rejected',
+      icon: 'cancel',
+      title: 'Vehicle rejected',
+      message: `Vehicle ${vehicle.registrationNo} was not approved.${reviewNotes ? ` Note: ${reviewNotes}` : ''}`,
+      link: modulePath(appType, '/vehicles'),
+    });
+  }
+
+  revalidatePath('/vehicles');
   revalidatePath('/approvals');
   return { success: true };
 }

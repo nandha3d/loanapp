@@ -6,6 +6,7 @@ class Endpoints {
 
   // Dashboard
   static const String dashboard = '/dashboard';
+  static const String dashboardChits = '/dashboard/chits';
 
   // Upload
   static const String upload = '/upload';
@@ -21,6 +22,14 @@ class Endpoints {
   static const String refreshToken = '/auth/refresh';
   static const String googleAuth = '/auth/google';
   static const String pricing = '/pricing';
+  static const String profile = '/profile';
+  static const String profilePasswordOtp = '/profile/password/otp';
+  static const String profilePasswordChange = '/profile/password/change';
+  // Generic self-service account (non-superadmin roles) — separate from the
+  // superadmin-only /profile endpoints above.
+  static const String account = '/account';
+  static const String accountPasswordOtp = '/account/password/otp';
+  static const String accountPasswordChange = '/account/password/change';
 
   // Customers
   static const String customers = '/customers';
@@ -33,12 +42,22 @@ class Endpoints {
   static String loanInstalments(String id) => '/loans/$id/instalments';
   static const String newLoan = '/loans/new';
 
+  // Gold pledge module
+  static const String goldMaster = '/gold/master';
+  static const String goldConfig = '/gold/config';
+  static const String goldRate = '/gold/rate';
+  static const String goldReports = '/gold/reports';
+  static String goldServicing(String loanId) => '/gold/loans/$loanId/servicing';
+
   // Collection
   static const String collectionToday = '/collection/today';
   static String collectionByDate(String date) => '/collection/$date';
   static const String collectionEntry = '/collection/entry';
+  static const String collectionCollect = '/collection/collect';
   static const String collectionProofPhoto = '/collection/proof/photo';
   static const String collectionProofQr = '/collection/proof/qr';
+  static String customerCollectionReceipt(String customerId) =>
+      '/customers/$customerId/collection-receipt';
 
   // mCollect — route batch collection runs
   static const String runOpen = '/collection/run/open';
@@ -47,12 +66,14 @@ class Endpoints {
   static String runClose(String id) => '/collection/run/$id/close';
   static String runReconcile(String id) => '/collection/run/$id/reconcile';
   // mCollect — digital self-pay
+  static const String selfPayQueue = '/collection/self-pay';
   static const String selfPayLink = '/collection/self-pay/link';
   // Per-tenant payment gateway config
   static const String paymentGateway = '/settings/payment-gateway';
   static String receipt(String entryId) => '/receipts/$entryId';
   static String agentCollections(String agentId) =>
       '/gps/agent/$agentId/collections';
+  static String gpsHistory(String agentId) => '/gps/history/$agentId';
 
   // Wallet (agent cash float)
   static const String walletMe = '/wallet/me';
@@ -81,9 +102,56 @@ class Endpoints {
   static String chit(String id) => '/chits/$id';
   static String chitMembers(String id) => '/chits/$id/members';
   static String chitAuctions(String id) => '/chits/$id/auctions';
+  static String chitPayments(String id) => '/chits/$id/payments';
+  static String chitActivate(String id) => '/chits/$id/activate';
+  static String chitMember(String id, String memberId) =>
+      '/chits/$id/members/$memberId';
+  static String chitMemberAgreement(String id, String memberId) =>
+      '/chits/$id/members/$memberId/agreement';
+  static String chitAuctionBids(String id, String auctionId) =>
+      '/chits/$id/auctions/$auctionId/bids';
+  static String chitAuctionAttendance(String id, String auctionId) =>
+      '/chits/$id/auctions/$auctionId/attendance';
+  static String chitAuctionConfirm(String id, String auctionId) =>
+      '/chits/$id/auctions/$auctionId/confirm';
+  static String chitAuctionSecurity(String id, String auctionId) =>
+      '/chits/$id/auctions/$auctionId/security';
+  static String chitAuctionSecurityDocuments(String id, String auctionId) =>
+      '/chits/$id/auctions/$auctionId/security/documents';
+  static String chitAuctionSecurityDocument(
+          String id, String auctionId, String documentId) =>
+      '/chits/$id/auctions/$auctionId/security/documents/$documentId';
+  static String chitAuctionPayout(String id, String auctionId) =>
+      '/chits/$id/auctions/$auctionId/payout';
+  static String chitAuctionLive(String id, String auctionId) =>
+      '/chits/$id/auctions/$auctionId/live';
+  static String chitAuctionRoom(String id, String auctionId) =>
+      '/chits/$id/auctions/$auctionId/room';
+  static String chitAuctionDraw(String id, String auctionId) =>
+      '/chits/$id/auctions/$auctionId/draw';
+  static String chitAuctionTimeline(String id, String auctionId) =>
+      '/chits/$id/auctions/$auctionId/timeline';
+  static String chitAuctionSummary(String id, String auctionId) =>
+      '/chits/$id/auctions/$auctionId/summary';
+  static String chitAuctionReschedule(String id, String auctionId) =>
+      '/chits/$id/auctions/$auctionId/reschedule';
+  // Staff review queue for customer "I've paid" claims (audit 03 parity).
+  static const String chitPaymentIntents = '/chits/payment-intents';
+  static String chitPaymentIntent(String intentId) =>
+      '/chits/payment-intents/$intentId';
+  static String chitReceiptReverse(String receiptId) =>
+      '/chits/receipts/$receiptId/reverse';
+  static String chitPenalties(String id) => '/chits/$id/penalties';
+  static String chitPenaltyPay(String id, String penaltyId) =>
+      '/chits/$id/penalties/$penaltyId/pay';
+  static String chitPenaltyWaive(String id, String penaltyId) =>
+      '/chits/$id/penalties/$penaltyId/waive';
 
   // Settings
   static const String settings = '/settings';
+  static const String integrations = '/settings/integrations';
+  // Tenant colour theme (readable by every role, unlike /settings)
+  static const String theme = '/theme';
   static const String routes = '/routes';
   static const String packages = '/packages';
   static const String agents = '/agents';
@@ -142,4 +210,79 @@ class Endpoints {
   static const String npaLoans = '/npa/loans';
   static const String npaHistory = '/npa/history';
   static const String npaUpgrade = '/npa/upgrade';
+
+  // NACH (e-mandate auto-debit)
+  static String nachLoan(String loanId) => '/nach/loan/$loanId';
+  static const String nachMandate = '/nach/mandate';
+  static String nachMandateCancel(String id) => '/nach/mandate/$id';
+
+  // Full analytics (consolidated endpoint for mobile)
+  static const String analyticsFull = '/analytics/full';
+
+  // Chit CRUD extensions
+  static String chitCancel(String id) => '/chits/$id/cancel';
+  static String chitSubscriptions(String id) => '/chits/$id/subscriptions';
+  static String chitSubscriptionMiss(String subId) =>
+      '/chits/subscriptions/$subId/miss';
+
+  // Live chit auction (poker-table live bidding)
+  static String chitAuctionOpen(String id, int period) =>
+      '/chits/$id/auctions/$period/open';
+  static String chitAuctionBid(String id, int period) =>
+      '/chits/$id/auctions/$period/bid';
+  static String chitAuctionPass(String id, int period) =>
+      '/chits/$id/auctions/$period/pass';
+  static String chitAuctionUndo(String id, int period) =>
+      '/chits/$id/auctions/$period/undo';
+  static String chitAuctionRetract(String id, int period) =>
+      '/chits/$id/auctions/$period/retract';
+  static String chitAuctionState(String id, int period) =>
+      '/chits/$id/auctions/$period/state';
+  static String chitAuctionClose(String id, int period) =>
+      '/chits/$id/auctions/$period/close';
+  static String chitAuctionSchedule(String id, String auctionId) =>
+      '/chits/$id/auctions/$auctionId/schedule';
+  // Live-room chat + admission (M2). Period-based, System-B convention.
+  static String chitAuctionMessages(String id, String auctionId) =>
+      '/chits/$id/auctions/$auctionId/messages';
+  static String chitAuctionJoin(String id, int period) =>
+      '/chits/$id/auctions/$period/join';
+  static String chitAuctionAdmit(String id, int period) =>
+      '/chits/$id/auctions/$period/admit';
+  // Staff waiting-room admit/deny, auction-cuid based (canonical live-room family).
+  static String chitAuctionAdmission(String id, String auctionId) =>
+      '/chits/$id/auctions/$auctionId/admission';
+
+  // Dashboard extended fields
+  static const String dashboardVerifyUpi = '/collection/verify';
+  static const String dashboardCollectCash = '/collection/verify';
+
+  // Borrower portal
+  static const String borrowerLogin = '/borrower/auth/login';
+  static const String borrowerVerify = '/borrower/auth/verify';
+  static const String borrowerPortal = '/borrower/portal';
+  static const String borrowerLoans = '/borrower/loans';
+  static const String borrowerPay = '/borrower/pay';
+  static const String borrowerLogout = '/borrower/auth/logout';
+
+  // Borrower/customer self-service live chit auction
+  static String borrowerChitAuctionLive(String groupId, String auctionId) =>
+      '/borrower/chits/$groupId/auctions/$auctionId/live';
+  static String borrowerChitAuctionJoin(String groupId, String auctionId) =>
+      '/borrower/chits/$groupId/auctions/$auctionId/join';
+  static String borrowerChitAuctionBids(String groupId, String auctionId) =>
+      '/borrower/chits/$groupId/auctions/$auctionId/bids';
+  static String borrowerChitAuctionMessages(String groupId, String auctionId) =>
+      '/borrower/chits/$groupId/auctions/$auctionId/messages';
+  static String borrowerChitAuctionTimeline(String groupId, String auctionId) =>
+      '/borrower/chits/$groupId/auctions/$auctionId/timeline';
+  static String borrowerChitAuctionSummary(String groupId, String auctionId) =>
+      '/borrower/chits/$groupId/auctions/$auctionId/summary';
+
+  // Doc 22b/19: grouped contributions + payment proof intents, borrower upload.
+  static const String borrowerUpload = '/borrower/upload';
+  static const String borrowerChitContributions = '/borrower/chits/contributions';
+  static const String borrowerChitPaymentIntents = '/borrower/chits/payment-intents';
+  // Loan statement PDF (raw bytes, audit 03 parity with the web portal).
+  static const String borrowerStatement = '/borrower/statement';
 }

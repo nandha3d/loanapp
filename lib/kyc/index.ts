@@ -35,7 +35,7 @@ export async function startAadhaarOtpKyc(
   });
   if (!customer) throw new Error('Customer not found');
 
-  const result = await initiateAadhaarOtp(aadhaarNumber, customer.name);
+  const result = await initiateAadhaarOtp(tenantId, aadhaarNumber, customer.name);
   if (!result.success) throw new Error(result.error);
 
   // Store the KYC session
@@ -80,7 +80,7 @@ export async function confirmAadhaarOtp(
     throw new Error('OTP has expired. Please initiate a new request.');
   }
 
-  const result = await verifyAadhaarOtp(session.digioRequestId, otp);
+  const result = await verifyAadhaarOtp(tenantId, session.digioRequestId, otp);
   if (!result.success) {
     await prisma.kycSession.update({
       where: { id: sessionId },
@@ -166,6 +166,7 @@ export async function startVideoKyc(
   if (!customer) throw new Error('Customer not found');
 
   const result = await createVideoKycSession({
+    tenantId,
     customerName:  customer.name,
     customerPhone: customer.phone,
     referenceId:   customer.customerCode,

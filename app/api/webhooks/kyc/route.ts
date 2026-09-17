@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
 
   let signatureValid = false;
   try {
-    signatureValid = verifyDigioWebhook(body, signature);
+    signatureValid = await verifyDigioWebhook(body, signature);
   } catch {
     signatureValid = false;
   }

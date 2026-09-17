@@ -1,8 +1,10 @@
 import { getAffiliateConfig } from '@/lib/affiliate';
 import AffiliateLandingClient from './AffiliateLandingClient';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
-  title: 'Affiliate Program | LoanTrack',
+  title: 'Affiliate Program | ZoloFund',
   description: 'Refer lending businesses and earn recurring rewards.',
 };
 

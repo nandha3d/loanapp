@@ -13,10 +13,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const isDeveloper = ctx.role.toLowerCase() === 'developer';
     const users = await prisma.user.findMany({
       where: {
-        tenantId: ctx.role === 'developer' ? undefined : ctx.tenantId,
+        tenantId: isDeveloper ? undefined : ctx.tenantId,
         deletedAt: null,
+        ...(isDeveloper ? {} : { role: { notIn: ['developer', 'DEVELOPER'] } }),
       },
       select: {
         id: true,
@@ -60,7 +62,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { manageMasterUser } = await import('@/app/admin/actions');
+    const isDeveloper = ctx.role.toLowerCase() === 'developer';
+    if (!isDeveloper && body.role && body.role.toLowerCase() === 'developer') {
+      return fail('Forbidden: Only developers can create or assign developer role', 403);
+    }
+    const { manageMasterUser, manageBranchAgent } = await import('@/app/admin/actions');
+    // Server actions normally read the NextAuth cookie session; mobile auth is
+    // a Bearer token, so pass the verified context as the acting user.
+    const actor = { id: ctx.userId, role: ctx.role, tenantId: ctx.tenantId };
 
     const formData = new FormData();
     if (body.id) formData.append('id', body.id);
@@ -76,7 +85,11 @@ export async function POST(req: NextRequest) {
       body.branchIds.forEach((id: string) => formData.append('branchIds', id));
     }
 
-    const res = await manageMasterUser(formData);
+    // Branch admins manage agents through the branch-scoped action; the
+    // master action is superadmin/developer only.
+    const res = ctx.role === 'admin'
+      ? await manageBranchAgent(formData, actor)
+      : await manageMasterUser(formData, actor);
     if (res.success) {
       return ok(res);
     } else {

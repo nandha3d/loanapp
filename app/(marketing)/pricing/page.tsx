@@ -4,50 +4,51 @@ import { Check, Arrow } from '../_components/icons';
 
 import { buildMetadata } from '../_components/seo';
 import { FaqJsonLd, BreadcrumbJsonLd } from '../_components/JsonLd';
+import { getPublicPricing, type PublicPlan } from '@/lib/planCatalog';
+
+// Pricing is read from the catalog at request time — never hardcoded here.
+export const dynamic = 'force-dynamic';
 
 export const metadata = buildMetadata({
   title: 'Pricing — Loan Management Software Plans from ₹0',
   description:
-    'Simple, transparent pricing for LoanTrack loan management software. Start free, then scale to Basic, Business or Enterprise. No setup fees, no lock-in.',
+    'Simple, transparent pricing for ZoloFund loan management software. Start free, then scale to Collector, Basic, Business or Enterprise. No setup fees, no lock-in.',
   path: '/pricing',
   keywords: ['loan management software pricing', 'affordable loan software', 'microfinance software price', 'loan software cost India'],
 });
 
-const PLANS = [
-  {
-    name: 'Free', price: '₹0', period: 'forever',
-    desc: 'For solo financiers getting started with digital collection.',
-    feats: ['Up to 25 active loans', '1 agent · 1 branch', 'Micro-lending module', 'GPS collection & receipts', 'Basic reports'],
-    cta: 'Start Free', feat: false,
-  },
-  {
-    name: 'Basic', price: '₹999', period: '/mo + GST',
-    desc: 'For growing lenders ready to add a second product line.',
-    feats: ['Up to 200 active loans', '10 agents · 2 branches', 'Micro-lending + Auto Finance', 'GPS & agent wallets', 'Premium add-ons optional'],
-    cta: 'Choose Basic', feat: false,
-  },
-  {
-    name: 'Business', price: '₹2,999', period: '/mo + GST',
-    desc: 'For multi-branch operations running all four modules.',
-    feats: ['Up to 1,000 active loans', '50 agents · 5 branches', 'All four lending modules', 'Premium accounting & KYC', 'WhatsApp & SMS notifications'],
-    cta: 'Choose Business', feat: true,
-  },
-  {
-    name: 'Enterprise', price: '₹7,999', period: '/mo + GST',
-    desc: 'For NBFCs needing scale, compliance and full add-ons.',
-    feats: ['Unlimited loans', 'Unlimited agents & branches', 'All modules + premium included', 'Credit bureau & NPA engine', '15-day full-feature trial'],
-    cta: 'Talk to Sales', feat: false,
-  },
-];
+// Plan featured on the grid (visual emphasis only). Configurable, not a price.
+const FEATURED_PLAN = 'business';
+
+/** Map a catalog row to the pricing-card view model. No prices live here. */
+function toCard(p: PublicPlan) {
+  const isFree = p.monthlyPrice === 0;
+  const isEnterprise = p.plan === 'enterprise';
+  const priceLabel = isFree ? '₹0' : `₹${p.monthlyPrice.toLocaleString('en-IN')}`;
+  const period = isFree ? 'forever' : '/mo + GST';
+  const cta = p.plan === 'free' ? 'Start Free' : isEnterprise ? 'Talk to Sales' : `Choose ${p.displayName}`;
+  return {
+    name: p.displayName,
+    price: priceLabel,
+    period,
+    desc: p.description ?? '',
+    feats: p.features,
+    cta,
+    feat: p.plan === FEATURED_PLAN,
+  };
+}
 
 const FAQ = [
-  { q: 'Is there a free plan?', a: 'Yes — the Free plan supports up to 25 active loans forever, with no card required. Upgrade only when you grow.' },
+  { q: 'Is there a free plan?', a: 'Yes — the Free plan is free forever, with no card required. Upgrade only when you grow.' },
   { q: 'What are premium add-ons?', a: 'Optional modules like double-entry accounting, Aadhaar eKYC, credit-bureau pulls, GPS tracking and the foreclosure calculator. They are included on Enterprise.' },
   { q: 'Do prices include GST?', a: 'Paid plans are billed in INR plus 18% GST. Billing is monthly via Razorpay with a plan-dependent grace period.' },
   { q: 'Can I switch modules later?', a: 'Absolutely. Enable or disable lending modules per branch at any time as your business changes.' },
 ];
 
-export default function PricingPage() {
+export default async function PricingPage() {
+  const { plans } = await getPublicPricing();
+  const cards = plans.map(toCard);
+
   return (
     <>
       <FaqJsonLd items={FAQ} />
@@ -66,7 +67,7 @@ export default function PricingPage() {
       <section className="mk-section">
         <div className="mk-container">
           <div className="mk-price-grid">
-            {PLANS.map((p) => (
+            {cards.map((p) => (
               <div className={`mk-price${p.feat ? ' mk-price--feat' : ''}`} key={p.name}>
                 <h3 className="mk-h3">{p.name}</h3>
                 <div className="mk-price__amt"><b>{p.price}</b><span>{p.period}</span></div>

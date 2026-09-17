@@ -1,10 +1,12 @@
 import { auth } from '@/lib/auth';
+import { unstable_rethrow } from 'next/navigation';
 
 export default async function MonitorBanner() {
   let session = null;
   try {
     session = await auth();
   } catch (error) {
+    unstable_rethrow(error);
     console.error('[MonitorBanner] Session verification failed:', error);
   }
   

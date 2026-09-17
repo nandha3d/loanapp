@@ -41,7 +41,7 @@ export default function ContactPage() {
               <h2 className="mk-h2">We&apos;re here to help</h2>
               <p className="mk-lead" style={{ marginTop: 14 }}>
                 Whether you run one collection line or a multi-branch NBFC, we&apos;ll show
-                you exactly how LoanTrack fits your operation.
+                you exactly how ZoloFund fits your operation.
               </p>
               <div className="mk-contact__list">
                 {CONTACTS.map((c) => (

@@ -3,13 +3,22 @@ import { redirect } from 'next/navigation';
 import AppSelectorClient from './AppSelectorClient';
 import prisma from '@/lib/db';
 import { getDefaultTenantId } from '@/lib/tenant';
-import { modulePath, normalizeModuleList } from '@/types/modules';
-import { getSubscription, isTenantSubscriptionExpired } from '@/lib/subscription';
-import SubscriptionExpiredModal from '@/components/layout/SubscriptionExpiredModal';
+import { mergeModuleLists, modulePath, normalizeModuleList } from '@/types/modules';
+import { getSubscription, getTenantSubscriptionAccessState } from '@/lib/subscription';
+import SubscriptionPaywall from '@/components/layout/SubscriptionPaywall';
 
 import { headers } from 'next/headers';
 
-export default async function SuperAdminPortal() {
+type PortalSearchParams = {
+  moduleAccess?: string;
+  module?: string;
+};
+
+export default async function SuperAdminPortal({
+  searchParams,
+}: {
+  searchParams?: Promise<PortalSearchParams>;
+}) {
   const session = await auth();
 
   if (!session?.user) {
@@ -44,12 +53,33 @@ export default async function SuperAdminPortal() {
   } catch (err) {
     // No default tenant found
   }
+
+  if (tenantId && role !== 'developer') {
+    const subscription = await getSubscription(tenantId);
+    const access = getTenantSubscriptionAccessState(subscription);
+    if (access.blocked) {
+      return <SubscriptionPaywall access={access} role={role} />;
+    }
+  }
   
   let enabledModules: string[] = [];
   
   if (role === 'admin' || role === 'agent') {
     const { getActiveModules } = await import('@/lib/branch');
     enabledModules = await getActiveModules();
+  } else if (role === 'superadmin' && tenantId) {
+    const branches = await prisma.branch.findMany({
+      where: { tenantId, superadminId: (session.user as any).id, status: 'active' },
+      select: { enabledModules: true },
+    });
+    enabledModules = mergeModuleLists(...branches.map((branch) => branch.enabledModules));
+    if (enabledModules.length === 0) {
+      const subscription = await prisma.tenantSubscription.findUnique({
+        where: { tenantId },
+        select: { enabledModules: true },
+      });
+      enabledModules = normalizeModuleList(subscription?.enabledModules);
+    }
   } else if (tenantId) {
     const subscription = await prisma.tenantSubscription.findUnique({
       where: { tenantId },
@@ -64,19 +94,22 @@ export default async function SuperAdminPortal() {
     redirect(modulePath('microlending', '/dashboard'));
   }
 
-  let isExpired = false;
-  if (tenantId && role !== 'developer') {
-    const sub = await getSubscription(tenantId);
-    isExpired = isTenantSubscriptionExpired(sub);
-  }
+  const resolvedSearchParams = await searchParams;
+  const moduleAccess = resolvedSearchParams?.moduleAccess;
+  const accessNotice =
+    moduleAccess === 'denied'
+      ? 'That module is not enabled for your active branch or account.'
+      : moduleAccess === 'invalid'
+        ? 'That application link is no longer valid.'
+        : null;
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
-      {isExpired && <SubscriptionExpiredModal isExpired={isExpired} role={role} />}
       <AppSelectorClient 
         userName={session.user.name || 'Admin'} 
         userRole={role} 
         enabledModules={enabledModules} 
+        accessNotice={accessNotice}
       />
     </div>
   );

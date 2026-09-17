@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { verifySync } from 'otplib';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { issueMobileToken, issueRefreshToken } from '@/lib/api/v1-auth';
+import { issueMobileToken, issueRefreshToken, loginWindowFailure } from '@/lib/api/v1-auth';
 import { checkRateLimit, getClientIp, routeKey, loginUserKey } from '@/lib/rateLimit';
 
 /**
@@ -39,6 +39,9 @@ export async function POST(req: NextRequest) {
     }
     const { valid } = verifySync({ token: body.code, secret: user.totpSecret });
     if (!valid) return fail('Invalid code', 401);
+
+    const windowFailure = loginWindowFailure(user);
+    if (windowFailure) return windowFailure;
 
     const token = await issueMobileToken({ userId: user.id, tenantId: user.tenantId, branchId: user.branchId, role: user.role, appType: user.appType });
     const refreshToken = await issueRefreshToken(user.id, user.tenantId).catch(() => null);

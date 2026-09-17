@@ -71,10 +71,67 @@ jobs:
           UPLOAD_DIR="$UP" node diag-photos.cjs
           rm -f diag-photos.cjs
           echo
+          echo "=== overdue loan consistency check ==="
+          cat > diag-loans.cjs <<'EOF2'
+          const { PrismaClient } = require('@prisma/client');
+          const p = new PrismaClient();
+          const day = (d) => new Date(d).toISOString().slice(0, 10);
+          (async () => {
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            const loans = await p.loan.findMany({
+              where: { status: { in: ['active', 'overdue'] } },
+              select: {
+                id: true, loanCode: true, status: true, totalCollected: true,
+                instalments: { select: { status: true, dueAmount: true, receivedAmount: true, dueDate: true } },
+              },
+              take: 15,
+            });
+            for (const l of loans) {
+              const past = l.instalments.filter((i) => new Date(i.dueDate) < today);
+              const pastUnpaid = past.filter((i) => Number(i.receivedAmount) < Number(i.dueAmount));
+              const sumReceived = l.instalments.reduce((s, i) => s + Number(i.receivedAmount), 0);
+              const byStatus = {};
+              for (const i of l.instalments) byStatus[i.status] = (byStatus[i.status] || 0) + 1;
+              const overdueAmt = pastUnpaid.reduce((s, i) => s + (Number(i.dueAmount) - Number(i.receivedAmount)), 0);
+              console.log(
+                l.loanCode, '| loan.status:', l.status,
+                '| totalCollected:', Number(l.totalCollected),
+                '| sum(inst.received):', sumReceived,
+                '| inst by status:', JSON.stringify(byStatus),
+                '| past-due unpaid:', pastUnpaid.length, 'amt:', overdueAmt,
+                pastUnpaid.length ? '| first unpaid due ' + day(pastUnpaid[0].dueDate) : '',
+              );
+              const pays = await p.payment.aggregate({ where: { loanId: l.id }, _sum: { amount: true }, _count: true }).catch(() => null);
+              if (pays) console.log('   payments:', pays._count, 'sum:', Number(pays._sum.amount || 0));
+            }
+            await p.$disconnect();
+          })().catch((e) => { console.error('ERR', e.message); process.exit(1); });
+          EOF2
+          node diag-loans.cjs
+          rm -f diag-loans.cjs
+          echo
           echo "=== local API responses ==="
           curl -s -o /dev/null -w "files route, no auth (expect 401): %{http_code}\n" http://127.0.0.1:3000/api/files/x/y.jpg
           curl -s -o /dev/null -w "files route, bad bearer (expect 401): %{http_code}\n" -H "Authorization: Bearer garbage" http://127.0.0.1:3000/api/files/x/y.jpg
           echo
           echo "=== pm2 ==="
           pm2 ls || true
+          echo
+          echo "=== network reachability (why the phone can't connect) ==="
+          echo -n "server public IP: "; curl -s -m 10 https://api.ipify.org || curl -s -m 10 https://ifconfig.me || echo "unknown"
+          echo
+          echo "APK is baked to reach: 187.127.177.121"
+          echo -n "node on :3000 (expect 401/200): "; curl -s -o /dev/null -w "%{http_code}\n" -m 8 http://127.0.0.1:3000/api/v1/pricing || echo "DOWN"
+          echo -n "nginx :80 -> API (login path, expect 400/401/405): "; curl -s -o /dev/null -w "%{http_code}\n" -m 8 -X POST http://127.0.0.1/api/v1/auth/login || echo "DOWN"
+          echo "listening sockets on :80 / :443 / :3000:"; (ss -ltnp 2>/dev/null || netstat -ltnp 2>/dev/null) | grep -E ':80 |:443 |:3000 ' || echo "  (none found)"
+          echo "nginx service:"; systemctl is-active nginx 2>/dev/null || echo "  unknown"
+          echo "nginx server_name(s):"; grep -rhoE 'server_name[^;]+;' /etc/nginx/sites-enabled/ /etc/nginx/conf.d/ 2>/dev/null | sort -u || echo "  none"
+          echo -n "NEXT_PUBLIC_APP_URL: "; grep -E '^NEXT_PUBLIC_APP_URL=' /home/loantrack/app/.env 2>/dev/null | cut -d= -f2- || echo "  unset"
+          echo -n "NEXT_PUBLIC_ROOT_DOMAIN: "; grep -E '^NEXT_PUBLIC_ROOT_DOMAIN=' /home/loantrack/app/.env 2>/dev/null | cut -d= -f2- || echo "  unset"
+          for d in trade.animazon.in app.animazon.in; do
+            echo -n "https://$d/api/v1/auth/login (expect 400/401/405): "
+            curl -s -o /dev/null -w "%{http_code}" -m 12 -X POST "https://$d/api/v1/auth/login" 2>/dev/null || echo -n "FAIL"
+            echo -n "  | cert: "
+            echo | timeout 10 openssl s_client -servername "$d" -connect "$d:443" 2>/dev/null | openssl x509 -noout -subject 2>/dev/null || echo "no cert"
+          done
           REMOTE

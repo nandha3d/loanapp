@@ -1,10 +1,10 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:loantrack/core/network/dio_client.dart';
-import 'package:loantrack/data/models/analytics.dart';
-import 'package:loantrack/data/models/route_model.dart';
-import 'package:loantrack/shared/constants/endpoints.dart';
+import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/data/models/analytics.dart';
+import 'package:zolofund/data/models/route_model.dart';
+import 'package:zolofund/shared/constants/endpoints.dart';
 
 class SettingsService {
   SettingsService(this._dio);
@@ -88,6 +88,21 @@ class SettingsService {
   Future<void> saveGateway(Map<String, dynamic> patch) async {
     await _dio.post<Map<String, dynamic>>(Endpoints.paymentGateway,
         data: patch,);
+  }
+
+  Future<Map<String, dynamic>> integrations() async {
+    final res = await _dio.get<Map<String, dynamic>>(Endpoints.integrations);
+    return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
+  }
+
+  Future<Map<String, dynamic>> saveIntegrations(
+    Map<String, dynamic> patch,
+  ) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.integrations,
+      data: patch,
+    );
+    return unwrapEnvelope(res, (dynamic d) => d as Map<String, dynamic>);
   }
 }
 

@@ -44,6 +44,6 @@ export default async function NewCustomerPage({
     }
   }
 
-  return <CustomerForm routes={routes} agents={agents} customer={customer} dict={dict} viewerRole={userRole} />;
+  return <CustomerForm appType={appType} routes={routes} agents={agents} customer={customer} dict={dict} viewerRole={userRole} />;
 }
 

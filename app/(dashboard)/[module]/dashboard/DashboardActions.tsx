@@ -1,58 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { collectAgentCash, verifyUpiPayment, bulkVerifyUpiPayments } from '../collection/actions';
+import { verifyUpiPayment, bulkVerifyUpiPayments } from '../collection/actions';
 import { formatCurrency } from '@/lib/utils';
 
-export function CollectCashButton({ routeId, agentId, pendingAmount, currencySymbol }: {
-  routeId: string;
-  agentId: string;
-  pendingAmount: number;
-  currencySymbol: string;
-}) {
-  const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState(false);
-
-  if (pendingAmount <= 0) return <span style={{ color: 'var(--text-light)', fontSize: '.8rem' }}>—</span>;
-  if (done) return (
-    <span style={{ color: 'var(--success)', fontSize: '.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-      <span className="material-icons-outlined" style={{ fontSize: 16 }}>check_circle</span> Collected
-    </span>
-  );
-
-  return (
-    <button
-      className="btn btn-sm"
-      disabled={loading}
-      onClick={async () => {
-        if (!confirm(`Collect ${formatCurrency(pendingAmount, currencySymbol)} cash from this agent?`)) return;
-        setLoading(true);
-        const res = await collectAgentCash(routeId, agentId);
-        if (res.success) setDone(true);
-        else alert(res.error || 'Failed to collect cash');
-        setLoading(false);
-      }}
-      style={{
-        background: 'linear-gradient(135deg, #27AE60, #2ECC71)',
-        color: '#fff',
-        border: 'none',
-        padding: '6px 14px',
-        fontSize: '.78rem',
-        fontWeight: 700,
-        borderRadius: '8px',
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '5px',
-        transition: 'all .2s',
-        opacity: loading ? 0.6 : 1,
-      }}
-    >
-      <span className="material-icons-outlined" style={{ fontSize: 16 }}>{loading ? 'hourglass_empty' : 'account_balance_wallet'}</span>
-      {loading ? 'Collecting...' : 'Collect Cash'}
-    </button>
-  );
-}
+// CollectCashButton removed — field cash settlement now lives in the Agent
+// Wallet handover flow (wallet page), not the dashboard route table.
 
 export function VerifyUpiButton({ entryId, amount, currencySymbol }: {
   entryId: string;

@@ -1,0 +1,3997 @@
+<title>Gold Loan Test Register</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Public+Sans:wght@400;500;600;700&family=Zilla+Slab:wght@600;700&display=swap">
+<style>
+  /* A statutory register, read as a control panel: the verdict is carried by an
+     edge stripe and a chip, so state reads before any word does. */
+  :root {
+    --ground: #eceee9; --sheet: #ffffff; --sheet-2: #e4e7e2;
+    --ink: #141917; --ink-soft: #5b6662; --rule: #cdd4ce;
+    --accent: #7a5312;
+    --pass: #1b6b3a; --pass-bg: #e0efe5;
+    --fail: #a12a20; --fail-bg: #f8e6e3;
+    --notrun: #59636b; --notrun-bg: #e6e9e6;
+    --manual: #8a5b12; --manual-bg: #f5eddd;
+    --skip: #4e5a58; --skip-bg: #e5e9e7;
+    --display: "Zilla Slab", Georgia, serif;
+    --body: "Public Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0d1211; --sheet: #141a19; --sheet-2: #1a2220;
+      --ink: #e4e9e6; --ink-soft: #93a09b; --rule: #293331;
+      --accent: #d8a34a;
+      --pass: #54c98a; --pass-bg: #102c1d;
+      --fail: #ff8b80; --fail-bg: #351a18;
+      --notrun: #95a09f; --notrun-bg: #1f2827;
+      --manual: #dfae5c; --manual-bg: #2c2516;
+      --skip: #93a09b; --skip-bg: #1e2725;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0d1211; --sheet: #141a19; --sheet-2: #1a2220;
+    --ink: #e4e9e6; --ink-soft: #93a09b; --rule: #293331;
+    --accent: #d8a34a;
+    --pass: #54c98a; --pass-bg: #102c1d;
+    --fail: #ff8b80; --fail-bg: #351a18;
+    --notrun: #95a09f; --notrun-bg: #1f2827;
+    --manual: #dfae5c; --manual-bg: #2c2516;
+    --skip: #93a09b; --skip-bg: #1e2725;
+  }
+
+  * { box-sizing: border-box; }
+  body { background: var(--ground); color: var(--ink); font-family: var(--body); line-height: 1.5; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 40px 20px 80px; display: flex; flex-direction: column; gap: 28px; }
+
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow { margin: 0; font-size: .72rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+  h1 { margin: 0; font-family: var(--display); font-weight: 700; font-size: clamp(1.9rem, 4vw, 2.6rem); text-wrap: balance; }
+  .runmeta { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: .82rem; color: var(--ink-soft); }
+  .runmeta code, .runmeta time { font-family: var(--mono); font-size: .78rem; color: var(--ink); }
+
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+  .tile { background: var(--sheet); border: 1px solid var(--rule); border-radius: 3px; padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; }
+  .tile .n { font-family: var(--mono); font-weight: 700; font-size: 1.7rem; font-variant-numeric: tabular-nums; }
+  .tile .l { font-size: .74rem; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); }
+  .t-passed .n { color: var(--pass); } .t-failed .n { color: var(--fail); }
+  .t-notrun .n { color: var(--notrun); } .t-manual .n { color: var(--manual); } .t-skipped .n { color: var(--skip); }
+
+  .bar { display: flex; height: 8px; border-radius: 2px; overflow: hidden; background: var(--sheet-2); }
+  .bar i { display: block; height: 100%; }
+  .b-passed { background: var(--pass); } .b-failed { background: var(--fail); }
+  .b-manual { background: var(--manual); } .b-notrun { background: var(--notrun); } .b-skipped { background: var(--skip); }
+  .rate { margin: -18px 0 0; font-size: .86rem; color: var(--ink-soft); }
+  .rate b { font-family: var(--mono); color: var(--ink); }
+
+  .failures { background: var(--sheet); border: 1px solid var(--rule); border-left: 3px solid var(--fail); border-radius: 3px; padding: 18px 22px; }
+  .failures h2 { margin: 0 0 12px; font-family: var(--display); font-size: 1.15rem; }
+  .failures ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .failures a { color: var(--ink); text-decoration: none; font-weight: 600; }
+  .failures a:hover { color: var(--accent); }
+  .failures .why { margin: 2px 0 0; font-family: var(--mono); font-size: .76rem; color: var(--fail); overflow-wrap: anywhere; }
+
+  .filters { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    background: var(--ground); padding: 10px 0; border-bottom: 1px solid var(--rule); }
+  .filters input { flex: 1 1 220px; min-width: 180px; font: inherit; font-size: .86rem; padding: 7px 11px;
+    background: var(--sheet); color: var(--ink); border: 1px solid var(--rule); border-radius: 3px; }
+  .filters input:focus-visible, .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .chip { font: inherit; font-size: .76rem; font-weight: 600; padding: 6px 11px; border-radius: 999px; cursor: pointer;
+    background: var(--sheet); color: var(--ink-soft); border: 1px solid var(--rule); }
+  .chip[aria-pressed="true"] { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+
+  section.area { display: flex; flex-direction: column; gap: 6px; }
+  section.area > h2 { margin: 14px 0 2px; font-family: var(--display); font-size: 1.05rem; display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; }
+  .areachips { display: inline-flex; gap: 6px; }
+  .areachip { font-family: var(--mono); font-size: .68rem; font-weight: 500; padding: 2px 7px; border-radius: 2px; }
+  .ac-passed { background: var(--pass-bg); color: var(--pass); }
+  .ac-failed { background: var(--fail-bg); color: var(--fail); }
+  .ac-manual { background: var(--manual-bg); color: var(--manual); }
+  .ac-notrun { background: var(--notrun-bg); color: var(--notrun); }
+  .ac-skipped { background: var(--skip-bg); color: var(--skip); }
+
+  details.case { background: var(--sheet); border: 1px solid var(--rule); border-left: 3px solid var(--notrun); border-radius: 2px; }
+  details.case[data-verdict="passed"] { border-left-color: var(--pass); }
+  details.case[data-verdict="failed"] { border-left-color: var(--fail); }
+  details.case[data-verdict="manual"] { border-left-color: var(--manual); }
+  details.case[data-verdict="skipped"] { border-left-color: var(--skip); }
+  details.case + details.case { margin-top: 4px; }
+  summary { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; padding: 9px 14px; cursor: pointer; }
+  summary::-webkit-details-marker { display: none; }
+  summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .cid { font-family: var(--mono); font-size: .76rem; font-weight: 700; color: var(--accent); }
+  .ctitle { flex: 1 1 320px; font-size: .9rem; }
+  .cmeta { display: inline-flex; gap: 8px; align-items: baseline; margin-left: auto; }
+  .dur, .pri { font-family: var(--mono); font-size: .7rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  .pri-P0 { color: var(--fail); font-weight: 700; }
+  .verdict { font-size: .7rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 2px 8px; border-radius: 2px; }
+  .v-passed { background: var(--pass-bg); color: var(--pass); }
+  .v-failed { background: var(--fail-bg); color: var(--fail); }
+  .v-manual { background: var(--manual-bg); color: var(--manual); }
+  .v-notrun { background: var(--notrun-bg); color: var(--notrun); }
+  .v-skipped { background: var(--skip-bg); color: var(--skip); }
+
+  .cbody { padding: 4px 16px 16px; border-top: 1px solid var(--rule); display: flex; flex-direction: column; gap: 12px; }
+  .cbody h4 { margin: 12px 0 4px; font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); }
+  .cbody ol, .cbody ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; font-size: .86rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 4px 28px; }
+  .tag { font-size: .66rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-soft); margin-right: 8px; }
+  .pre, .where { margin: 0; font-size: .82rem; color: var(--ink-soft); }
+  .where code { font-family: var(--mono); font-size: .76rem; color: var(--ink); }
+  .rules { margin: 0; display: flex; flex-wrap: wrap; gap: 5px; }
+  .rule { font-family: var(--mono); font-size: .68rem; padding: 2px 7px; border: 1px solid var(--rule); border-radius: 2px; color: var(--ink-soft); }
+  pre.err { margin: 0; padding: 12px 14px; background: var(--fail-bg); color: var(--fail); border-radius: 2px;
+    font-family: var(--mono); font-size: .76rem; line-height: 1.45; white-space: pre-wrap; overflow-x: auto; }
+
+  .empty { display: none; padding: 40px 0; text-align: center; color: var(--ink-soft); font-size: .9rem; }
+  body.filtering .empty.on { display: block; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">ZoloFund · Gold Loan</p>
+    <h1>Gold Loan Test Register</h1>
+    <ul class="runmeta">
+      <li><code>137</code> cases · <code>19</code> areas</li>
+      <li>Valuation, RBI loan-to-value ceilings and pledge servicing coverage</li>
+      <li>Database <code>loantrack_qa</code></li>
+      <li>Runner <code>Playwright</code></li>
+      <li>Last run <time>2026-09-03 03:43:30</time></li>
+      <li>Page built <time>2026-09-03 04:38:15</time></li>
+    </ul>
+  </header>
+
+  <div class="summary">
+    <div class="tile t-passed"><span class="n">58</span><span class="l">Passed</span></div>
+    <div class="tile t-failed"><span class="n">3</span><span class="l">Failed</span></div>
+    <div class="tile t-notrun"><span class="n">74</span><span class="l">Not run</span></div>
+    <div class="tile t-manual"><span class="n">2</span><span class="l">Manual</span></div>
+    <div class="tile t-skipped"><span class="n">0</span><span class="l">Skipped</span></div>
+  </div>
+
+  <div class="bar">
+    <i class="b-passed" style="width:42.34%"></i><i class="b-failed" style="width:2.19%"></i><i class="b-notrun" style="width:54.01%"></i><i class="b-manual" style="width:1.46%"></i><i class="b-skipped" style="width:0.00%"></i>
+  </div>
+  <p class="rate">Pass rate over executed cases: <b>95%</b> (58 of 61)</p>
+
+  <section class="failures">
+    <h2>What went wrong</h2>
+    <ol>
+      <li>
+        <a href="#GL-022"><span class="cid">GL-022</span> An unrecognised karat does not silently value as 22K</a>
+        <p class="why">Error: &quot;9K&quot; resolves to the 22K constant (0.916). A 9K ornament appraised at 22K is over-valued by more than half, and nothing on the pledge records that a fallback was used — an unknown purity must be refused, or valued at its own fineness</p>
+        <p class="rules"><span class="rule">GOLD-2</span></p>
+      </li><li>
+        <a href="#GL-165"><span class="cid">GL-165</span> A month-end pledge does not gain or lose a month in February</a>
+        <p class="why">Error: elapsedMonthsDays walks its anchor with setMonth, which overflows a short month: Jan 31 + 1 month lands on Mar 3, the walk-back then lands on Feb 3, and the pledge is measured from the 3rd rather than from the day the metal came in</p>
+        
+      </li><li>
+        <a href="#GL-207"><span class="cid">GL-207</span> Advancing a month-end date does not skip a month</a>
+        <p class="why">Error: advanceByMonths uses setMonth with no day clamping, so 31 January + 1 month overflows to 2026-03-03. A pledge anchored to a month end loses February every year it runs, and the borrower is billed from the wrong date</p>
+        
+      </li>
+    </ol>
+  </section>
+
+  <div class="filters">
+    <input id="q" type="search" placeholder="Filter by id, title, area or rule…" aria-label="Filter cases">
+    <button class="chip" data-v="all" aria-pressed="true">All</button>
+    <button class="chip" data-v="failed" aria-pressed="false">Failed</button>
+    <button class="chip" data-v="passed" aria-pressed="false">Passed</button>
+    <button class="chip" data-v="notrun" aria-pressed="false">Not run</button>
+    <button class="chip" data-v="manual" aria-pressed="false">Manual</button>
+  </div>
+
+  <main>
+    <section class="area" data-area="Module Access &amp; Gating">
+      <h2>Module Access &amp; Gating <span class="areachips"><span class="areachip ac-notrun">5 not run</span></span></h2>
+      <details class="case" id="GL-001" data-verdict="notrun" data-search="gl-001 registering with goldloan selected entitles the tenant to the module module access &amp; gating scope-4">
+  <summary>
+    <span class="cid">GL-001</span>
+    <span class="ctitle">Registering with goldloan selected entitles the tenant to the module</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Register a tenant with selectedModules [&quot;goldloan&quot;]</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Tenant, owner and Head Office branch created</li><li>The subscription snapshot carries goldloan</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">SCOPE-4</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-002" data-verdict="notrun" data-search="gl-002 gold pages load for an entitled tenant module access &amp; gating scope-4">
+  <summary>
+    <span class="cid">GL-002</span>
+    <span class="ctitle">Gold pages load for an entitled tenant</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Log in as the owner and open the gold loan list</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The page renders</li><li>No redirect to /portal or /dashboard</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">SCOPE-4</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-003" data-verdict="notrun" data-search="gl-003 a tenant without the module is refused the gold api module access &amp; gating scope-4 role-4">
+  <summary>
+    <span class="cid">GL-003</span>
+    <span class="ctitle">A tenant without the module is refused the gold API</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Call the gold rate and config routes with a token from a tenant that has no goldloan</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Non-2xx, or empty</li><li>Never another tenant’s rate master</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">SCOPE-4</span><span class="rule">ROLE-4</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-004" data-verdict="notrun" data-search="gl-004 gold loans are stamped with apptype goldloan module access &amp; gating scope-1">
+  <summary>
+    <span class="cid">GL-004</span>
+    <span class="ctitle">Gold loans are stamped with appType goldloan</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Originate a pledge and read the row</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>appType is goldloan</li><li>The loan never appears under a microlending query</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">SCOPE-1</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-005" data-verdict="notrun" data-search="gl-005 every gold endpoint refuses an unauthenticated caller module access &amp; gating role-4 x-13">
+  <summary>
+    <span class="cid">GL-005</span>
+    <span class="ctitle">Every gold endpoint refuses an unauthenticated caller</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P2">P2</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Call the gold rate, config, master and reports routes with no token</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>HTTP 401 on each</li><li>No rate or pledge data in any body</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">ROLE-4</span><span class="rule">X-13</span></p>
+    
+    
+  </div>
+</details>
+    </section>
+<section class="area" data-area="Karat &amp; Fineness">
+      <h2>Karat &amp; Fineness <span class="areachips"><span class="areachip ac-passed">2 passed</span><span class="areachip ac-failed">1 failed</span><span class="areachip ac-notrun">1 not run</span></span></h2>
+      <details class="case" id="GL-020" data-verdict="passed" data-search="gl-020 each supported karat maps to its physical fineness karat &amp; fineness">
+  <summary>
+    <span class="cid">GL-020</span>
+    <span class="ctitle">Each supported karat maps to its physical fineness</span>
+    <span class="cmeta">
+      <span class="dur">9ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Resolve the fineness for 24K, 23K, 22K, 21K, 20K, 18K, 14K and 10K</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>1.0, 0.958, 0.916, 0.875, 0.833, 0.75, 0.585 and 0.417 respectively</li><li>These are physical constants, not tunable business values</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:35 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-021" data-verdict="passed" data-search="gl-021 karat lookup ignores case and surrounding whitespace karat &amp; fineness">
+  <summary>
+    <span class="cid">GL-021</span>
+    <span class="ctitle">Karat lookup ignores case and surrounding whitespace</span>
+    <span class="cmeta">
+      <span class="dur">3ms</span>
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Resolve &quot;  22k  &quot; and &quot;22K&quot;</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Both give 0.916</li><li>What an operator types with a stray space values the same as what they meant</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:48 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-022" data-verdict="failed" data-search="gl-022 an unrecognised karat does not silently value as 22k karat &amp; fineness gold-2">
+  <summary>
+    <span class="cid">GL-022</span>
+    <span class="ctitle">An unrecognised karat does not silently value as 22K</span>
+    <span class="cmeta">
+      <span class="dur">4ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-failed">Failed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    <p class="pre"><span class="tag">Pre</span>finenessFor falls back to the 22K constant for any key it does not know</p>
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Resolve the fineness for &quot;9K&quot;, then for &quot;&quot; and &quot;gold&quot;</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The unknown purity is refused, or valued at its own fineness</li><li>A 9K ornament appraised at 22K over-values the pledge by more than half — the fallback must not be silent</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-2</span></p>
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:54 · observed 2026-09-03 03:43:30</p>
+    <pre class="err">Error: &quot;9K&quot; resolves to the 22K constant (0.916). A 9K ornament appraised at 22K is over-valued by more than half, and nothing on the pledge records that a fallback was used — an unknown purity must be refused, or valued at its own fineness
+
+expect(received).not.toBe(expected) // Object.is equality
+
+Expected: not 0.916</pre>
+  </div>
+</details>
+<details class="case" id="GL-023" data-verdict="notrun" data-search="gl-023 the karat table is not reachable from configuration karat &amp; fineness">
+  <summary>
+    <span class="cid">GL-023</span>
+    <span class="ctitle">The karat table is not reachable from configuration</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P2">P2</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Search for a settings key that overrides a fineness factor</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>None exists</li><li>Purity is physics; the rate and the LTV are the tunable parts</li></ul>
+      </div>
+    </div>
+    
+    
+    
+  </div>
+</details>
+    </section>
+<section class="area" data-area="Valuation">
+      <h2>Valuation <span class="areachips"><span class="areachip ac-passed">8 passed</span><span class="areachip ac-manual">1 manual</span></span></h2>
+      <details class="case" id="GL-035" data-verdict="passed" data-search="gl-035 the reference pledge produces the worked figures valuation">
+  <summary>
+    <span class="cid">GL-035</span>
+    <span class="ctitle">The reference pledge produces the worked figures</span>
+    <span class="cmeta">
+      <span class="dur">10ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Value 50g of 22K at ₹7000/g pure with LTV 75</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>assessedValue 320600</li><li>eligibleAmount 240450</li><li>finenessUsed 0.916</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:66 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-036" data-verdict="passed" data-search="gl-036 the rate given is the rate for pure gold, adjusted by purity valuation">
+  <summary>
+    <span class="cid">GL-036</span>
+    <span class="ctitle">The rate given is the rate for PURE gold, adjusted by purity</span>
+    <span class="cmeta">
+      <span class="dur">3ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Value 50g of 24K and 50g of 22K at the same ₹7000/g</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>24K values at 350000 and 22K at 320600</li><li>A 22K ornament is worth 91.6% of the pure-gold rate, never the full rate</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:73 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-037" data-verdict="passed" data-search="gl-037 assessed value scales linearly with weight valuation">
+  <summary>
+    <span class="cid">GL-037</span>
+    <span class="ctitle">Assessed value scales linearly with weight</span>
+    <span class="cmeta">
+      <span class="dur">3ms</span>
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Value 10g, 50g and 100g at the same rate and purity</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>64120, 320600 and 641200</li><li>No step, cap or discount is applied by weight</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:81 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-038" data-verdict="passed" data-search="gl-038 a zero or negative weight values at zero rather than throwing valuation">
+  <summary>
+    <span class="cid">GL-038</span>
+    <span class="ctitle">A zero or negative weight values at zero rather than throwing</span>
+    <span class="cmeta">
+      <span class="dur">4ms</span>
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Value 0g, then −10g</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>assessedValue 0 and eligibleAmount 0 for both</li><li>The calculator clamps rather than throwing — the form shows a zero, not a crash</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:87 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-039" data-verdict="passed" data-search="gl-039 a zero or negative rate values at zero valuation">
+  <summary>
+    <span class="cid">GL-039</span>
+    <span class="ctitle">A zero or negative rate values at zero</span>
+    <span class="cmeta">
+      <span class="dur">2ms</span>
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Value the reference at rate 0, then at −7000</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>assessedValue 0 for both</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:95 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-040" data-verdict="passed" data-search="gl-040 the ltv percent is clamped to 0–100 valuation">
+  <summary>
+    <span class="cid">GL-040</span>
+    <span class="ctitle">The LTV percent is clamped to 0–100</span>
+    <span class="cmeta">
+      <span class="dur">2ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Value the reference at LTV 150, then at −20</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>150 clamps to 100, giving an eligible amount equal to the assessed value</li><li>−20 clamps to 0</li><li>No configuration can lend more than the metal is worth</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:101 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-041" data-verdict="passed" data-search="gl-041 assessed value and eligible amount are whole rupees valuation">
+  <summary>
+    <span class="cid">GL-041</span>
+    <span class="ctitle">Assessed value and eligible amount are whole rupees</span>
+    <span class="cmeta">
+      <span class="dur">2ms</span>
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Value a weight that produces a fractional result</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Both figures are integers</li><li>A pledge receipt never quotes paise on the appraisal</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:108 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-042" data-verdict="passed" data-search="gl-042 a fractional weight is valued exactly valuation">
+  <summary>
+    <span class="cid">GL-042</span>
+    <span class="ctitle">A fractional weight is valued exactly</span>
+    <span class="cmeta">
+      <span class="dur">1ms</span>
+      <span class="pri pri-P2">P2</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Value 12.345g of 22K at ₹7000/g</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The result matches weight × rate × fineness rounded once, with no accumulated drift</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:114 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-043" data-verdict="manual" data-search="gl-043 the valuation shown on the form matches the one that is stored valuation">
+  <summary>
+    <span class="cid">GL-043</span>
+    <span class="ctitle">The valuation shown on the form matches the one that is stored</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P2">P2</span>
+      <span class="verdict v-manual">Manual</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Fill the pledge form and submit</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The appraisal on screen equals the appraisal on the loan row</li><li>The operator never signs a figure the system then changes</li></ul>
+      </div>
+    </div>
+    
+    
+    
+  </div>
+</details>
+    </section>
+<section class="area" data-area="Ornament Lines">
+      <h2>Ornament Lines <span class="areachips"><span class="areachip ac-passed">8 passed</span><span class="areachip ac-notrun">3 not run</span></span></h2>
+      <details class="case" id="GL-055" data-verdict="passed" data-search="gl-055 net weight is gross less wastage ornament lines gold-2">
+  <summary>
+    <span class="cid">GL-055</span>
+    <span class="ctitle">Net weight is gross less wastage</span>
+    <span class="cmeta">
+      <span class="dur">6ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Resolve a line of 12.5g gross with 0.5g wastage</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>netWeightGrams 12</li><li>value = 12 × the line rate</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-2</span></p>
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:120 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-056" data-verdict="passed" data-search="gl-056 an explicit net weight overrides the derived one ornament lines gold-2">
+  <summary>
+    <span class="cid">GL-056</span>
+    <span class="ctitle">An explicit net weight overrides the derived one</span>
+    <span class="cmeta">
+      <span class="dur">2ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Resolve a line of 12.5g gross, 0.5g wastage and an explicit net of 11g</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>netWeightGrams 11</li><li>The appraiser’s own measurement wins over the arithmetic</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-2</span></p>
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:127 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-057" data-verdict="passed" data-search="gl-057 wastage larger than the gross weight floors the net at zero ornament lines gold-2">
+  <summary>
+    <span class="cid">GL-057</span>
+    <span class="ctitle">Wastage larger than the gross weight floors the net at zero</span>
+    <span class="cmeta">
+      <span class="dur">2ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Resolve a line of 5g gross with 8g wastage</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>netWeightGrams 0 and value 0</li><li>A negative weight never reaches a valuation</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-2</span></p>
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:135 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-058" data-verdict="notrun" data-search="gl-058 net weight must be positive and no greater than gross ornament lines gold-2">
+  <summary>
+    <span class="cid">GL-058</span>
+    <span class="ctitle">Net weight must be positive and no greater than gross</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Submit a pledge line whose net weight exceeds its gross weight</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Refused</li><li>An ornament cannot contain more metal than it weighs</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-2</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-059" data-verdict="notrun" data-search="gl-059 both weights are required on every line ornament lines gold-2">
+  <summary>
+    <span class="cid">GL-059</span>
+    <span class="ctitle">Both weights are required on every line</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Submit a line with no gross weight, then one with no net</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Both refused</li><li>A pledge with an unweighed ornament is not a pledge</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-2</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-060" data-verdict="passed" data-search="gl-060 quantity defaults to one and is a whole number ornament lines">
+  <summary>
+    <span class="cid">GL-060</span>
+    <span class="ctitle">Quantity defaults to one and is a whole number</span>
+    <span class="cmeta">
+      <span class="dur">3ms</span>
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Resolve lines with no quantity, quantity 0, quantity 2.7 and quantity −1</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>All resolve to 1 except 2.7, which floors to 2</li><li>Half an ornament is not a thing</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:141 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-061" data-verdict="passed" data-search="gl-061 header totals are the sum of the lines ornament lines gold-2">
+  <summary>
+    <span class="cid">GL-061</span>
+    <span class="ctitle">Header totals are the sum of the lines</span>
+    <span class="cmeta">
+      <span class="dur">3ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Total three lines of differing weights and rates</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Quantity, gross, wastage, net and value each sum across the lines</li><li>Weights are carried to three decimals, values to whole rupees</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-2</span></p>
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:148 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-062" data-verdict="notrun" data-search="gl-062 itemised lines are authoritative over the header totals ornament lines gold-2">
+  <summary>
+    <span class="cid">GL-062</span>
+    <span class="ctitle">Itemised lines are authoritative over the header totals</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Submit a pledge whose header net weight disagrees with the sum of its lines</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The stored pledge follows the lines</li><li>A header figure typed by hand never overrides what was weighed</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-2</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-063" data-verdict="passed" data-search="gl-063 an empty line list totals to zero without throwing ornament lines">
+  <summary>
+    <span class="cid">GL-063</span>
+    <span class="ctitle">An empty line list totals to zero without throwing</span>
+    <span class="cmeta">
+      <span class="dur">2ms</span>
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Total an empty list of ornaments</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Every total is 0</li><li>The form renders a zero state rather than an error</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:162 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-064" data-verdict="passed" data-search="gl-064 weight totals do not accumulate floating-point drift ornament lines">
+  <summary>
+    <span class="cid">GL-064</span>
+    <span class="ctitle">Weight totals do not accumulate floating-point drift</span>
+    <span class="cmeta">
+      <span class="dur">1ms</span>
+      <span class="pri pri-P2">P2</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Total twenty lines of 0.001g each</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The total reads 0.02 exactly</li><li>Three-decimal rounding is applied once at the total, not per line</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:172 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-065" data-verdict="passed" data-search="gl-065 each line records its own rate ornament lines">
+  <summary>
+    <span class="cid">GL-065</span>
+    <span class="ctitle">Each line records its own rate</span>
+    <span class="cmeta">
+      <span class="dur">1ms</span>
+      <span class="pri pri-P2">P2</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Total two lines at different rates per gram</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Each line values at its own rate</li><li>A mixed-purity pledge is not flattened to one rate</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:177 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+    </section>
+<section class="area" data-area="LTV Tiers &amp; Ceiling">
+      <h2>LTV Tiers &amp; Ceiling <span class="areachips"><span class="areachip ac-passed">13 passed</span><span class="areachip ac-notrun">1 not run</span></span></h2>
+      <details class="case" id="GL-080" data-verdict="passed" data-search="gl-080 a consumption loan up to ₹2.5l sits in the 85% tier ltv tiers &amp; ceiling gold-1">
+  <summary>
+    <span class="cid">GL-080</span>
+    <span class="ctitle">A consumption loan up to ₹2.5L sits in the 85% tier</span>
+    <span class="cmeta">
+      <span class="dur">2ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Resolve the maximum LTV for 100000, then for exactly 250000</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>85% for both — the boundary is inclusive</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-1</span></p>
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:186 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-081" data-verdict="passed" data-search="gl-081 above ₹2.5l and up to ₹5l the ceiling is 80% ltv tiers &amp; ceiling gold-1">
+  <summary>
+    <span class="cid">GL-081</span>
+    <span class="ctitle">Above ₹2.5L and up to ₹5L the ceiling is 80%</span>
+    <span class="cmeta">
+      <span class="dur">1ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Resolve the maximum LTV for 250001, then for exactly 500000</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>80% for both</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-1</span></p>
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:191 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-082" data-verdict="passed" data-search="gl-082 above ₹5l the ceiling is 75% ltv tiers &amp; ceiling gold-1">
+  <summary>
+    <span class="cid">GL-082</span>
+    <span class="ctitle">Above ₹5L the ceiling is 75%</span>
+    <span class="cmeta">
+      <span class="dur">1ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Resolve the maximum LTV for 500001 and for 2000000</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>75% for both</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-1</span></p>
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:196 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-083" data-verdict="passed" data-search="gl-083 the tier is decided by the borrower’s total exposure, not this loan alone ltv tiers &amp; ceiling gold-1">
+  <summary>
+    <span class="cid">GL-083</span>
+    <span class="ctitle">The tier is decided by the borrower’s TOTAL exposure, not this loan alone</span>
+    <span class="cmeta">
+      <span class="dur">2ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Validate a 220000 bullet exposure with 400000 already outstanding</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The combined 620000 lands in the 75% tier</li><li>A borrower cannot stay in the 85% tier by splitting one pledge into several</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-1</span></p>
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:220 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-084" data-verdict="passed" data-search="gl-084 a requested ltv above the ceiling is clamped, never honoured ltv tiers &amp; ceiling gold-1">
+  <summary>
+    <span class="cid">GL-084</span>
+    <span class="ctitle">A requested LTV above the ceiling is clamped, never honoured</span>
+    <span class="cmeta">
+      <span class="dur">2ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Validate with a requested LTV of 90 where the tier allows 85</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>appliedLtvPercent 85</li><li>A ceiling is never raised from configuration</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-1</span></p>
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:232 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-085" data-verdict="passed" data-search="gl-085 a requested ltv below the ceiling is honoured ltv tiers &amp; ceiling gold-1">
+  <summary>
+    <span class="cid">GL-085</span>
+    <span class="ctitle">A requested LTV below the ceiling is honoured</span>
+    <span class="cmeta">
+      <span class="dur">2ms</span>
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Validate with a requested LTV of 60 where the tier allows 85</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>appliedLtvPercent 60</li><li>A branch may lend more conservatively than the regulator requires</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-1</span></p>
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:238 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-086" data-verdict="passed" data-search="gl-086 a zero or negative requested ltv is refused ltv tiers &amp; ceiling gold-1">
+  <summary>
+    <span class="cid">GL-086</span>
+    <span class="ctitle">A zero or negative requested LTV is refused</span>
+    <span class="cmeta">
+      <span class="dur">4ms</span>
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Validate with a requested LTV of 0, then −5</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Both refused with the LTV message</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-1</span></p>
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:250 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-087" data-verdict="passed" data-search="gl-087 a bullet pledge is measured on what is repayable at maturity ltv tiers &amp; ceiling gold-1">
+  <summary>
+    <span class="cid">GL-087</span>
+    <span class="ctitle">A bullet pledge is measured on what is repayable at maturity</span>
+    <span class="cmeta">
+      <span class="dur">2ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Validate a bullet pledge of 200000 principal repaying 220000</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>exposureForLtv 220000, not 200000</li><li>The interest a bullet accrues is part of the exposure the collateral must cover</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-1</span></p>
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:208 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-088" data-verdict="passed" data-search="gl-088 an amortising pledge is measured on principal ltv tiers &amp; ceiling gold-1">
+  <summary>
+    <span class="cid">GL-088</span>
+    <span class="ctitle">An amortising pledge is measured on principal</span>
+    <span class="cmeta">
+      <span class="dur">1ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Validate the same figures as an amortising product</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>exposureForLtv 200000</li><li>A reducing balance is not the same risk as a bullet</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-1</span></p>
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:215 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-089" data-verdict="passed" data-search="gl-089 an exposure above the eligible amount is refused with both figures ltv tiers &amp; ceiling gold-1">
+  <summary>
+    <span class="cid">GL-089</span>
+    <span class="ctitle">An exposure above the eligible amount is refused with both figures</span>
+    <span class="cmeta">
+      <span class="dur">2ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Validate a 330000 bullet exposure against a 320600 appraisal</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Refused, naming the exposure and the eligible amount</li><li>The operator can see the gap without doing the arithmetic</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-1</span></p>
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:259 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-090" data-verdict="passed" data-search="gl-090 exposure exactly at the eligible amount is accepted ltv tiers &amp; ceiling gold-1">
+  <summary>
+    <span class="cid">GL-090</span>
+    <span class="ctitle">Exposure exactly at the eligible amount is accepted</span>
+    <span class="cmeta">
+      <span class="dur">2ms</span>
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Validate an exposure equal to assessedValue × appliedLtv</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Accepted — the ceiling is inclusive</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-1</span></p>
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:269 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-091" data-verdict="passed" data-search="gl-091 the eligible amount rounds down to the paisa ltv tiers &amp; ceiling gold-1">
+  <summary>
+    <span class="cid">GL-091</span>
+    <span class="ctitle">The eligible amount rounds DOWN to the paisa</span>
+    <span class="cmeta">
+      <span class="dur">2ms</span>
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Validate an appraisal whose LTV product carries a fraction</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The eligible amount never rounds up</li><li>Rounding up would sanction a rupee the ceiling does not allow</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-1</span></p>
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:282 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-092" data-verdict="passed" data-search="gl-092 a negative existing exposure is floored at zero ltv tiers &amp; ceiling gold-1">
+  <summary>
+    <span class="cid">GL-092</span>
+    <span class="ctitle">A negative existing exposure is floored at zero</span>
+    <span class="cmeta">
+      <span class="dur">1ms</span>
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Validate with an existing exposure of −100000</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Treated as zero</li><li>A negative cannot be used to buy headroom under the ceiling</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-1</span></p>
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:292 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-093" data-verdict="notrun" data-search="gl-093 exposure is recomputed inside the transaction, not trusted from the request ltv tiers &amp; ceiling gold-1">
+  <summary>
+    <span class="cid">GL-093</span>
+    <span class="ctitle">Exposure is recomputed inside the transaction, not trusted from the request</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Originate a second pledge for a borrower who already holds one, claiming zero existing exposure</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The server reads the borrower’s live active and pending gold loans</li><li>The claimed figure is ignored</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-1</span></p>
+    
+    
+  </div>
+</details>
+    </section>
+<section class="area" data-area="Origination Validation">
+      <h2>Origination Validation <span class="areachips"><span class="areachip ac-passed">4 passed</span><span class="areachip ac-notrun">2 not run</span></span></h2>
+      <details class="case" id="GL-110" data-verdict="passed" data-search="gl-110 a zero or negative assessed value is refused origination validation">
+  <summary>
+    <span class="cid">GL-110</span>
+    <span class="ctitle">A zero or negative assessed value is refused</span>
+    <span class="cmeta">
+      <span class="dur">2ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Validate with an assessed value of 0, then −1</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Refused with &quot;Assessed collateral value must be greater than zero.&quot;</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:301 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-111" data-verdict="passed" data-search="gl-111 a zero or negative principal is refused origination validation">
+  <summary>
+    <span class="cid">GL-111</span>
+    <span class="ctitle">A zero or negative principal is refused</span>
+    <span class="cmeta">
+      <span class="dur">2ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Validate with a requested principal of 0, then −1</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Refused with the principal message</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:309 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-112" data-verdict="passed" data-search="gl-112 a zero total payable is refused origination validation">
+  <summary>
+    <span class="cid">GL-112</span>
+    <span class="ctitle">A zero total payable is refused</span>
+    <span class="cmeta">
+      <span class="dur">1ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Validate with a total payable at maturity of 0</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Refused</li><li>A pledge that repays nothing is not a loan</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:317 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-113" data-verdict="passed" data-search="gl-113 a non-numeric money field is refused, not coerced origination validation">
+  <summary>
+    <span class="cid">GL-113</span>
+    <span class="ctitle">A non-numeric money field is refused, not coerced</span>
+    <span class="cmeta">
+      <span class="dur">1ms</span>
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Validate with an assessed value of &quot;three lakh&quot;</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Refused rather than treated as zero</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>01-valuation.spec.ts</code>:323 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-114" data-verdict="notrun" data-search="gl-114 every validation refusal surfaces as a 400 through the api origination validation api-4">
+  <summary>
+    <span class="cid">GL-114</span>
+    <span class="ctitle">Every validation refusal surfaces as a 400 through the API</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Send each invalid pledge through the origination route</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>HTTP 400 with the validator’s own message</li><li>Never a 500</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">API-4</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-115" data-verdict="notrun" data-search="gl-115 the persisted loan carries the validated figures, not the claimed ones origination validation gold-1 gold-4">
+  <summary>
+    <span class="cid">GL-115</span>
+    <span class="ctitle">The persisted loan carries the validated figures, not the claimed ones</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Originate claiming an LTV and an eligible amount that flatter the borrower</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The stored loan carries what validateGoldOrigination returned</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-1</span><span class="rule">GOLD-4</span></p>
+    
+    
+  </div>
+</details>
+    </section>
+<section class="area" data-area="Policy Snapshot">
+      <h2>Policy Snapshot <span class="areachips"><span class="areachip ac-notrun">4 not run</span></span></h2>
+      <details class="case" id="GL-130" data-verdict="notrun" data-search="gl-130 the applied policy is snapshotted on the loan and the collateral policy snapshot gold-4">
+  <summary>
+    <span class="cid">GL-130</span>
+    <span class="ctitle">The applied policy is snapshotted on the loan and the collateral</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Originate a pledge and read both rows</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Both carry the policy id RBI_GOLD_SILVER_2025_V1</li><li>Both carry maximumLtvPercent, appliedLtvPercent and exposureForLtv</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-4</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-131" data-verdict="notrun" data-search="gl-131 a later rate movement never restates an originated pledge policy snapshot gold-4">
+  <summary>
+    <span class="cid">GL-131</span>
+    <span class="ctitle">A later rate movement never restates an originated pledge</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Originate at ₹7000/g, change the rate setting to ₹6000/g, re-read the loan</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The appraisal, the eligible amount and the applied LTV are unchanged</li><li>A pledge is priced on the day it was made</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-4</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-132" data-verdict="notrun" data-search="gl-132 the snapshot survives a repledge as its own record policy snapshot gold-4">
+  <summary>
+    <span class="cid">GL-132</span>
+    <span class="ctitle">The snapshot survives a repledge as its own record</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Repledge an existing pledge at a new rate</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The new pledge carries its own snapshot</li><li>The original snapshot is not overwritten</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-4</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-133" data-verdict="notrun" data-search="gl-133 the snapshot records the tier that was applied, not just the requested ltv policy snapshot gold-4">
+  <summary>
+    <span class="cid">GL-133</span>
+    <span class="ctitle">The snapshot records the tier that was applied, not just the requested LTV</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Originate where the request asked for 90 and the tier allowed 85</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>maximumLtvPercent 85 and appliedLtvPercent 85 are both stored</li><li>An auditor can see the ceiling that bound the decision</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-4</span></p>
+    
+    
+  </div>
+</details>
+    </section>
+<section class="area" data-area="Collateral Requirement">
+      <h2>Collateral Requirement <span class="areachips"><span class="areachip ac-notrun">4 not run</span></span></h2>
+      <details class="case" id="GL-145" data-verdict="notrun" data-search="gl-145 a goldloan origination without collateral is refused outright collateral requirement gold-3">
+  <summary>
+    <span class="cid">GL-145</span>
+    <span class="ctitle">A goldloan origination without collateral is refused outright</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>POST a goldloan origination with no ornament lines and no collateral block</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Refused</li><li>Collateral is not optional for this module</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-3</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-146" data-verdict="notrun" data-search="gl-146 the collateral row is written in the same transaction as the loan collateral requirement gold-3 db-8">
+  <summary>
+    <span class="cid">GL-146</span>
+    <span class="ctitle">The collateral row is written in the same transaction as the loan</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Force the collateral insert to fail</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>No loan, no schedule and no collateral survive</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-3</span><span class="rule">DB-8</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-147" data-verdict="notrun" data-search="gl-147 collateral cannot be detached from a live pledge collateral requirement">
+  <summary>
+    <span class="cid">GL-147</span>
+    <span class="ctitle">Collateral cannot be detached from a live pledge</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Attempt to delete the collateral of an active gold loan</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Refused</li><li>An unsecured gold loan is a contradiction</li></ul>
+      </div>
+    </div>
+    
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-148" data-verdict="notrun" data-search="gl-148 another module may originate without gold collateral collateral requirement gold-3">
+  <summary>
+    <span class="cid">GL-148</span>
+    <span class="ctitle">Another module may originate without gold collateral</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Originate a micro-lending loan with no collateral</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Accepted</li><li>The requirement is scoped to the goldloan module, not applied globally</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-3</span></p>
+    
+    
+  </div>
+</details>
+    </section>
+<section class="area" data-area="Pledge Interest — Full Month">
+      <h2>Pledge Interest — Full Month <span class="areachips"><span class="areachip ac-passed">9 passed</span><span class="areachip ac-failed">1 failed</span></span></h2>
+      <details class="case" id="GL-160" data-verdict="passed" data-search="gl-160 a partial month is billed as a full month pledge interest — full month">
+  <summary>
+    <span class="cid">GL-160</span>
+    <span class="ctitle">A partial month is billed as a full month</span>
+    <span class="cmeta">
+      <span class="dur">4ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    <p class="pre"><span class="tag">Pre</span>The competitor behaviour this mirrors: one month of interest for 23 days</p>
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Charge a 200000 pledge at 2% a month from 1 Jan to 24 Jan</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>months 0, extraDays 23, monthsCharged 1</li><li>interestDue 4000 — a full month</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>02-pledge-interest.spec.ts</code>:31 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-161" data-verdict="passed" data-search="gl-161 a brand-new pledge still owes its first month pledge interest — full month">
+  <summary>
+    <span class="cid">GL-161</span>
+    <span class="ctitle">A brand-new pledge still owes its first month</span>
+    <span class="cmeta">
+      <span class="dur">2ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Charge the reference pledge from a date to that same date</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>months 0, extraDays 0, monthsCharged 1</li><li>interestDue 4000 — the first month is earned on the day the metal is taken in</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>02-pledge-interest.spec.ts</code>:39 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-162" data-verdict="passed" data-search="gl-162 exact whole months are not rounded up pledge interest — full month">
+  <summary>
+    <span class="cid">GL-162</span>
+    <span class="ctitle">Exact whole months are not rounded up</span>
+    <span class="cmeta">
+      <span class="dur">3ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Charge from 1 Jan to 1 Mar</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>months 2, extraDays 0, monthsCharged 2</li><li>interestDue 8000 — nobody pays a third month for a two-month pledge</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>02-pledge-interest.spec.ts</code>:47 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-163" data-verdict="passed" data-search="gl-163 whole months plus a day bills the extra month pledge interest — full month">
+  <summary>
+    <span class="cid">GL-163</span>
+    <span class="ctitle">Whole months plus a day bills the extra month</span>
+    <span class="cmeta">
+      <span class="dur">3ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Charge from 1 Jan to 2 Mar</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>months 2, extraDays 1, monthsCharged 3</li><li>interestDue 12000</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>02-pledge-interest.spec.ts</code>:55 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-164" data-verdict="passed" data-search="gl-164 the month boundary is anchored on the pledge day, not the calendar pledge interest — full month">
+  <summary>
+    <span class="cid">GL-164</span>
+    <span class="ctitle">The month boundary is anchored on the pledge day, not the calendar</span>
+    <span class="cmeta">
+      <span class="dur">2ms</span>
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Charge from 15 Jan to 14 Feb, then to 15 Feb</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The first is 0 months and 30 days; the second is exactly 1 month</li><li>A pledge taken mid-month runs mid-month to mid-month</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>02-pledge-interest.spec.ts</code>:63 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-165" data-verdict="failed" data-search="gl-165 a month-end pledge does not gain or lose a month in february pledge interest — full month">
+  <summary>
+    <span class="cid">GL-165</span>
+    <span class="ctitle">A month-end pledge does not gain or lose a month in February</span>
+    <span class="cmeta">
+      <span class="dur">4ms</span>
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-failed">Failed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Charge from 31 Jan to 28 Feb, then to 1 Mar</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The elapsed period is reported honestly for both</li><li>A short month does not silently add a billable month</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>02-pledge-interest.spec.ts</code>:71 · observed 2026-09-03 03:43:30</p>
+    <pre class="err">Error: elapsedMonthsDays walks its anchor with setMonth, which overflows a short month: Jan 31 + 1 month lands on Mar 3, the walk-back then lands on Feb 3, and the pledge is measured from the 3rd rather than from the day the metal came in
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: 28
+Received: 25</pre>
+  </div>
+</details>
+<details class="case" id="GL-166" data-verdict="passed" data-search="gl-166 a backwards period charges nothing rather than throwing pledge interest — full month">
+  <summary>
+    <span class="cid">GL-166</span>
+    <span class="ctitle">A backwards period charges nothing rather than throwing</span>
+    <span class="cmeta">
+      <span class="dur">9ms</span>
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Charge from 1 Mar to 1 Jan</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>months 0 and extraDays 0</li><li>A clock skew never produces a negative bill</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>02-pledge-interest.spec.ts</code>:83 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-167" data-verdict="passed" data-search="gl-167 the monthly interest is the rate applied to the principal pledge interest — full month">
+  <summary>
+    <span class="cid">GL-167</span>
+    <span class="ctitle">The monthly interest is the rate applied to the principal</span>
+    <span class="cmeta">
+      <span class="dur">4ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Charge 200000 at 2%, then at 0%, then at 1.5%</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>4000, 0 and 3000 a month</li><li>The rate is per month, not per annum</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>02-pledge-interest.spec.ts</code>:88 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-168" data-verdict="passed" data-search="gl-168 a zero or negative principal owes no interest pledge interest — full month">
+  <summary>
+    <span class="cid">GL-168</span>
+    <span class="ctitle">A zero or negative principal owes no interest</span>
+    <span class="cmeta">
+      <span class="dur">4ms</span>
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Charge 0, then −200000</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>monthlyInterest 0 and interestDue 0 for both</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>02-pledge-interest.spec.ts</code>:97 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-169" data-verdict="passed" data-search="gl-169 interest is quoted in whole rupees pledge interest — full month">
+  <summary>
+    <span class="cid">GL-169</span>
+    <span class="ctitle">Interest is quoted in whole rupees</span>
+    <span class="cmeta">
+      <span class="dur">3ms</span>
+      <span class="pri pri-P2">P2</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Charge a principal and rate that produce a fraction</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Both the monthly figure and the total are integers</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>02-pledge-interest.spec.ts</code>:105 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+    </section>
+<section class="area" data-area="Pledge Interest — Prorated">
+      <h2>Pledge Interest — Prorated <span class="areachips"><span class="areachip ac-passed">5 passed</span></span></h2>
+      <details class="case" id="GL-180" data-verdict="passed" data-search="gl-180 prorated billing charges the part month as a fraction pledge interest — prorated">
+  <summary>
+    <span class="cid">GL-180</span>
+    <span class="ctitle">Prorated billing charges the part month as a fraction</span>
+    <span class="cmeta">
+      <span class="dur">3ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Charge the reference from 1 Jan to 16 Mar under the prorated rule</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>monthsCharged 2.5 (two months and fifteen days)</li><li>interestDue 10000</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>02-pledge-interest.spec.ts</code>:112 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-181" data-verdict="passed" data-search="gl-181 the two rules disagree by design, and the setting decides which applies pledge interest — prorated">
+  <summary>
+    <span class="cid">GL-181</span>
+    <span class="ctitle">The two rules disagree by design, and the setting decides which applies</span>
+    <span class="cmeta">
+      <span class="dur">3ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Charge the same 23-day period under both rules</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>full charges a whole month; prorated charges 23/30 of one</li><li>The rounding rule is configurable, so an admin changes behaviour, not a developer</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>02-pledge-interest.spec.ts</code>:120 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-182" data-verdict="passed" data-search="gl-182 a prorated brand-new pledge owes nothing yet pledge interest — prorated">
+  <summary>
+    <span class="cid">GL-182</span>
+    <span class="ctitle">A prorated brand-new pledge owes nothing yet</span>
+    <span class="cmeta">
+      <span class="dur">2ms</span>
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Charge from a date to that same date under the prorated rule</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>monthsCharged 0 and interestDue 0</li><li>Unlike the full-month rule, proration earns interest only as time passes</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>02-pledge-interest.spec.ts</code>:131 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-183" data-verdict="passed" data-search="gl-183 proration uses a thirty-day month pledge interest — prorated">
+  <summary>
+    <span class="cid">GL-183</span>
+    <span class="ctitle">Proration uses a thirty-day month</span>
+    <span class="cmeta">
+      <span class="dur">2ms</span>
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Charge 15 extra days, then 30 extra days</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>0.5 and 1.0 of a month respectively</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>02-pledge-interest.spec.ts</code>:137 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-184" data-verdict="passed" data-search="gl-184 the prorated total is still rounded to whole rupees pledge interest — prorated">
+  <summary>
+    <span class="cid">GL-184</span>
+    <span class="ctitle">The prorated total is still rounded to whole rupees</span>
+    <span class="cmeta">
+      <span class="dur">2ms</span>
+      <span class="pri pri-P2">P2</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Charge a period whose prorated interest carries a fraction</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The stored interest is an integer</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>02-pledge-interest.spec.ts</code>:142 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+    </section>
+<section class="area" data-area="Servicing &amp; Redemption">
+      <h2>Servicing &amp; Redemption <span class="areachips"><span class="areachip ac-passed">6 passed</span><span class="areachip ac-failed">1 failed</span><span class="areachip ac-notrun">3 not run</span></span></h2>
+      <details class="case" id="GL-200" data-verdict="passed" data-search="gl-200 the servicing summary reports what the pledge owes right now servicing &amp; redemption">
+  <summary>
+    <span class="cid">GL-200</span>
+    <span class="ctitle">The servicing summary reports what the pledge owes right now</span>
+    <span class="cmeta">
+      <span class="dur">9ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Summarise a 200000 pledge at 2% paid up to 1 Jan, valued on 24 Jan</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>monthlyInterest 4000, monthsDue 1, interestDue 4000</li><li>redemptionAmount 204000</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>02-pledge-interest.spec.ts</code>:148 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-201" data-verdict="passed" data-search="gl-201 the redemption amount is principal plus interest plus penalty servicing &amp; redemption">
+  <summary>
+    <span class="cid">GL-201</span>
+    <span class="ctitle">The redemption amount is principal plus interest plus penalty</span>
+    <span class="cmeta">
+      <span class="dur">2ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Summarise with a 1500 penalty outstanding</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>redemptionAmount 205500</li><li>Each head is reported separately as well as summed</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>02-pledge-interest.spec.ts</code>:164 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-202" data-verdict="passed" data-search="gl-202 a negative penalty or principal never reduces the redemption below its parts servicing &amp; redemption">
+  <summary>
+    <span class="cid">GL-202</span>
+    <span class="ctitle">A negative penalty or principal never reduces the redemption below its parts</span>
+    <span class="cmeta">
+      <span class="dur">2ms</span>
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Summarise with a penalty of −5000 and again with a principal of −1000</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Each negative is floored at zero</li><li>A redemption quote cannot be talked down by a negative input</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>02-pledge-interest.spec.ts</code>:180 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-203" data-verdict="notrun" data-search="gl-203 servicing never recomputes money at the call site servicing &amp; redemption">
+  <summary>
+    <span class="cid">GL-203</span>
+    <span class="ctitle">Servicing never recomputes money at the call site</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Compare the API servicing response against computeServicing for the same inputs</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Identical figures</li><li>The route reads the helper rather than doing its own arithmetic</li></ul>
+      </div>
+    </div>
+    
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-204" data-verdict="passed" data-search="gl-204 an interest payment covers whole and fractional months servicing &amp; redemption">
+  <summary>
+    <span class="cid">GL-204</span>
+    <span class="ctitle">An interest payment covers whole and fractional months</span>
+    <span class="cmeta">
+      <span class="dur">1ms</span>
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Apply 12000 against a 4000 monthly interest, then 6000</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>3 months and 1.5 months respectively</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>02-pledge-interest.spec.ts</code>:193 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-205" data-verdict="passed" data-search="gl-205 a payment against a zero monthly interest covers nothing servicing &amp; redemption">
+  <summary>
+    <span class="cid">GL-205</span>
+    <span class="ctitle">A payment against a zero monthly interest covers nothing</span>
+    <span class="cmeta">
+      <span class="dur">1ms</span>
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Apply 12000 where the monthly interest is 0</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>0 months covered</li><li>No division by zero</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>02-pledge-interest.spec.ts</code>:198 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-206" data-verdict="passed" data-search="gl-206 the interest-paid-upto date advances by the months a payment covered servicing &amp; redemption">
+  <summary>
+    <span class="cid">GL-206</span>
+    <span class="ctitle">The interest-paid-upto date advances by the months a payment covered</span>
+    <span class="cmeta">
+      <span class="dur">2ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Advance 1 Jan by 1 month, then by 1.5 months</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>1 Feb, and 16 Feb</li><li>A fractional month advances by roughly thirty days</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>02-pledge-interest.spec.ts</code>:202 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-207" data-verdict="failed" data-search="gl-207 advancing a month-end date does not skip a month servicing &amp; redemption">
+  <summary>
+    <span class="cid">GL-207</span>
+    <span class="ctitle">Advancing a month-end date does not skip a month</span>
+    <span class="cmeta">
+      <span class="dur">5ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-failed">Failed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    <p class="pre"><span class="tag">Pre</span>advanceByMonths uses setMonth with no day clamping, and setMonth overflows a short month</p>
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Advance 31 January by one month</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>28 February (or 29 in a leap year), never 3 March</li><li>A pledge anchored to a month end must not lose February every year it runs</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>02-pledge-interest.spec.ts</code>:210 · observed 2026-09-03 03:43:30</p>
+    <pre class="err">Error: advanceByMonths uses setMonth with no day clamping, so 31 January + 1 month overflows to 2026-03-03. A pledge anchored to a month end loses February every year it runs, and the borrower is billed from the wrong date
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: &quot;2026-02-28&quot;
+Received: &quot;2026-03-03&quot;</pre>
+  </div>
+</details>
+<details class="case" id="GL-208" data-verdict="notrun" data-search="gl-208 paying interest twice in one day does not advance the date twice servicing &amp; redemption db-11">
+  <summary>
+    <span class="cid">GL-208</span>
+    <span class="ctitle">Paying interest twice in one day does not advance the date twice</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Post the same interest receipt twice</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The paid-upto date moves once</li><li>One receipt, one advance</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">DB-11</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-209" data-verdict="notrun" data-search="gl-209 a cash interest payment moves float; a upi one does not servicing &amp; redemption money-17">
+  <summary>
+    <span class="cid">GL-209</span>
+    <span class="ctitle">A cash interest payment moves float; a UPI one does not</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Post an interest receipt in cash, then in UPI</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The cash leg credits the collecting float and the cash book</li><li>The UPI leg reaches the books but not the drawer</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">MONEY-17</span></p>
+    
+    
+  </div>
+</details>
+    </section>
+<section class="area" data-area="Part Payment &amp; Closure">
+      <h2>Part Payment &amp; Closure <span class="areachips"><span class="areachip ac-passed">3 passed</span><span class="areachip ac-notrun">4 not run</span></span></h2>
+      <details class="case" id="GL-220" data-verdict="passed" data-search="gl-220 a part payment reduces the outstanding principal part payment &amp; closure">
+  <summary>
+    <span class="cid">GL-220</span>
+    <span class="ctitle">A part payment reduces the outstanding principal</span>
+    <span class="cmeta">
+      <span class="dur">8ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Apply 50000 against a 200000 pledge</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Outstanding 150000</li><li>Interest from that point is charged on the reduced principal</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>02-pledge-interest.spec.ts</code>:219 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-221" data-verdict="passed" data-search="gl-221 a part payment never drives the principal below zero part payment &amp; closure">
+  <summary>
+    <span class="cid">GL-221</span>
+    <span class="ctitle">A part payment never drives the principal below zero</span>
+    <span class="cmeta">
+      <span class="dur">2ms</span>
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Apply 250000 against a 200000 pledge</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Outstanding 0, not −50000</li><li>The excess is surfaced as an advance or refused, never as a negative balance</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>02-pledge-interest.spec.ts</code>:223 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-222" data-verdict="passed" data-search="gl-222 a zero or negative part payment changes nothing part payment &amp; closure">
+  <summary>
+    <span class="cid">GL-222</span>
+    <span class="ctitle">A zero or negative part payment changes nothing</span>
+    <span class="cmeta">
+      <span class="dur">3ms</span>
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-passed">Passed</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Apply 0, then −50000</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The outstanding is unchanged in both cases</li></ul>
+      </div>
+    </div>
+    
+    <p class="where"><span class="tag">Spec</span><code>02-pledge-interest.spec.ts</code>:227 · observed 2026-09-03 03:43:30</p>
+    
+  </div>
+</details>
+<details class="case" id="GL-223" data-verdict="notrun" data-search="gl-223 redeeming in full closes the pledge and releases the ornaments part payment &amp; closure">
+  <summary>
+    <span class="cid">GL-223</span>
+    <span class="ctitle">Redeeming in full closes the pledge and releases the ornaments</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Pay the quoted redemption amount</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Loan closed</li><li>The collateral is marked released with its date and the releasing officer</li><li>The closure is audited</li></ul>
+      </div>
+    </div>
+    
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-224" data-verdict="notrun" data-search="gl-224 a short redemption does not release the ornaments part payment &amp; closure">
+  <summary>
+    <span class="cid">GL-224</span>
+    <span class="ctitle">A short redemption does not release the ornaments</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Pay one rupee less than the quote</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The pledge stays open and the collateral stays held</li><li>Metal is not returned for less than the debt without an explicit waiver</li></ul>
+      </div>
+    </div>
+    
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-225" data-verdict="notrun" data-search="gl-225 a released pledge cannot be redeemed again part payment &amp; closure">
+  <summary>
+    <span class="cid">GL-225</span>
+    <span class="ctitle">A released pledge cannot be redeemed again</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Redeem a closed pledge</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Refused</li><li>No second receipt and no second release</li></ul>
+      </div>
+    </div>
+    
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-226" data-verdict="notrun" data-search="gl-226 closure posts to the cash book and the gl part payment &amp; closure acc-6">
+  <summary>
+    <span class="cid">GL-226</span>
+    <span class="ctitle">Closure posts to the cash book and the GL</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Redeem and read the accounting rows</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Principal and interest are posted to their own heads</li><li>The journal balances</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">ACC-6</span></p>
+    
+    
+  </div>
+</details>
+    </section>
+<section class="area" data-area="Repledge">
+      <h2>Repledge <span class="areachips"><span class="areachip ac-notrun">6 not run</span></span></h2>
+      <details class="case" id="GL-240" data-verdict="notrun" data-search="gl-240 a repledge settles the old pledge and opens a new one repledge">
+  <summary>
+    <span class="cid">GL-240</span>
+    <span class="ctitle">A repledge settles the old pledge and opens a new one</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Repledge an active pledge at the current rate</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The original is closed with a repledge closure type</li><li>The new pledge carries the same ornaments and its own appraisal</li></ul>
+      </div>
+    </div>
+    
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-241" data-verdict="notrun" data-search="gl-241 a repledge is re-validated against the ltv ceiling repledge gold-1">
+  <summary>
+    <span class="cid">GL-241</span>
+    <span class="ctitle">A repledge is re-validated against the LTV ceiling</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Repledge for more than the current tier allows</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Refused</li><li>A repledge is a new sanction, not a renewal that inherits an old ceiling</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-1</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-242" data-verdict="notrun" data-search="gl-242 the borrower’s other pledges count toward the repledge tier repledge gold-1">
+  <summary>
+    <span class="cid">GL-242</span>
+    <span class="ctitle">The borrower’s other pledges count toward the repledge tier</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Repledge for a borrower holding a second active gold loan</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The combined exposure decides the tier</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-1</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-243" data-verdict="notrun" data-search="gl-243 interest owed to the moment of repledge is settled or carried explicitly repledge">
+  <summary>
+    <span class="cid">GL-243</span>
+    <span class="ctitle">Interest owed to the moment of repledge is settled or carried explicitly</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Repledge a pledge carrying two months of unpaid interest</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The interest is either collected or added to the new principal, and which one is recorded</li><li>It is never dropped</li></ul>
+      </div>
+    </div>
+    
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-244" data-verdict="notrun" data-search="gl-244 a repledge is atomic repledge db-8">
+  <summary>
+    <span class="cid">GL-244</span>
+    <span class="ctitle">A repledge is atomic</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Force the new-pledge insert to fail</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The original pledge is still open and still holds its collateral</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">DB-8</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-245" data-verdict="notrun" data-search="gl-245 a closed pledge cannot be repledged repledge">
+  <summary>
+    <span class="cid">GL-245</span>
+    <span class="ctitle">A closed pledge cannot be repledged</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Repledge a redeemed pledge</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Refused</li></ul>
+      </div>
+    </div>
+    
+    
+    
+  </div>
+</details>
+    </section>
+<section class="area" data-area="Rate Master &amp; Settings">
+      <h2>Rate Master &amp; Settings <span class="areachips"><span class="areachip ac-notrun">9 not run</span></span></h2>
+      <details class="case" id="GL-260" data-verdict="notrun" data-search="gl-260 the pure-gold rate comes from settings, never from code rate master &amp; settings">
+  <summary>
+    <span class="cid">GL-260</span>
+    <span class="ctitle">The pure-gold rate comes from settings, never from code</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Read the gold config for a tenant with no rate configured</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The rate reads as unset rather than defaulting to a hardcoded market price</li><li>A pledge cannot be valued until an admin has entered a rate</li></ul>
+      </div>
+    </div>
+    
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-261" data-verdict="notrun" data-search="gl-261 each tenant reads its own rate rate master &amp; settings scope-1">
+  <summary>
+    <span class="cid">GL-261</span>
+    <span class="ctitle">Each tenant reads its own rate</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Set different rates on two tenants and read both configs</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Each sees only its own</li><li>One office’s rate never values another office’s metal</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">SCOPE-1</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-262" data-verdict="notrun" data-search="gl-262 a non-numeric rate reads as unset rather than as zero rate master &amp; settings">
+  <summary>
+    <span class="cid">GL-262</span>
+    <span class="ctitle">A non-numeric rate reads as unset rather than as zero</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Store &quot;seven thousand&quot; as the rate and read the config</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The rate is null</li><li>A zero rate would appraise every pledge at nothing and lend nothing, silently</li></ul>
+      </div>
+    </div>
+    
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-263" data-verdict="notrun" data-search="gl-263 changing the rate takes effect on the next valuation, not on stored ones rate master &amp; settings gold-4">
+  <summary>
+    <span class="cid">GL-263</span>
+    <span class="ctitle">Changing the rate takes effect on the next valuation, not on stored ones</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Value a pledge, change the rate, value a new pledge</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The new pledge uses the new rate</li><li>The stored one is untouched</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-4</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-264" data-verdict="notrun" data-search="gl-264 the default ltv is a setting, and the ceiling still binds it rate master &amp; settings gold-1">
+  <summary>
+    <span class="cid">GL-264</span>
+    <span class="ctitle">The default LTV is a setting, and the ceiling still binds it</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Set the default LTV to 95 and originate</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The applied LTV is the regulatory ceiling, not 95</li><li>Configuration can lower the LTV, never raise it</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-1</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-265" data-verdict="notrun" data-search="gl-265 only an admin or above can change a rate rate master &amp; settings role-4">
+  <summary>
+    <span class="cid">GL-265</span>
+    <span class="ctitle">Only an admin or above can change a rate</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Update the gold rate as an agent</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Refused server-side</li><li>The number that prices every pledge is not a field-editable one</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">ROLE-4</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-266" data-verdict="notrun" data-search="gl-266 a rate change is audited with its actor and its previous value rate master &amp; settings">
+  <summary>
+    <span class="cid">GL-266</span>
+    <span class="ctitle">A rate change is audited with its actor and its previous value</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P2">P2</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Change the rate and read the audit trail</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Old and new values are both recorded with who changed them</li></ul>
+      </div>
+    </div>
+    
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-267" data-verdict="notrun" data-search="gl-267 field visibility hides a field without changing what is stored rate master &amp; settings">
+  <summary>
+    <span class="cid">GL-267</span>
+    <span class="ctitle">Field visibility hides a field without changing what is stored</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P2">P2</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Hide a field through gold_field_visibility and read a pledge</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The field is absent from the form but its stored value is untouched</li></ul>
+      </div>
+    </div>
+    
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-268" data-verdict="notrun" data-search="gl-268 the silver rate and the gold rate are separate settings rate master &amp; settings">
+  <summary>
+    <span class="cid">GL-268</span>
+    <span class="ctitle">The silver rate and the gold rate are separate settings</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P2">P2</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Set only the gold rate and read the config</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The silver rate stays unset</li><li>One metal’s price never stands in for another’s</li></ul>
+      </div>
+    </div>
+    
+    
+    
+  </div>
+</details>
+    </section>
+<section class="area" data-area="Branch &amp; Tenant Isolation">
+      <h2>Branch &amp; Tenant Isolation <span class="areachips"><span class="areachip ac-notrun">6 not run</span></span></h2>
+      <details class="case" id="GL-280" data-verdict="notrun" data-search="gl-280 the pledge list is branch-scoped branch &amp; tenant isolation scope-3">
+  <summary>
+    <span class="cid">GL-280</span>
+    <span class="ctitle">The pledge list is branch-scoped</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>List gold loans as an HQ admin with an Erode pledge present</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Only HQ pledges</li><li>A superadmin across branches sees both</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">SCOPE-3</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-281" data-verdict="notrun" data-search="gl-281 a pledge id from another tenant returns 404, not 403 branch &amp; tenant isolation api-5 x-12">
+  <summary>
+    <span class="cid">GL-281</span>
+    <span class="ctitle">A pledge id from another tenant returns 404, not 403</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Read a tenant-B gold loan with a tenant-A token</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>HTTP 404 — existence is not confirmed</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">API-5</span><span class="rule">X-12</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-282" data-verdict="notrun" data-search="gl-282 servicing and redemption refuse a pledge from another branch branch &amp; tenant isolation scope-3">
+  <summary>
+    <span class="cid">GL-282</span>
+    <span class="ctitle">Servicing and redemption refuse a pledge from another branch</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Call servicing and redemption on the Erode pledge while HQ is active</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Both return 404</li><li>The Erode ledger and cash position are untouched</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">SCOPE-3</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-283" data-verdict="notrun" data-search="gl-283 money lands in the branch that owns the pledge branch &amp; tenant isolation scope-3 money-17">
+  <summary>
+    <span class="cid">GL-283</span>
+    <span class="ctitle">Money lands in the branch that owns the pledge</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Collect interest on an Erode pledge while HQ is the active branch</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The Erode pool moves, not HQ</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">SCOPE-3</span><span class="rule">MONEY-17</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-284" data-verdict="notrun" data-search="gl-284 gold postings carry the goldloan apptype branch &amp; tenant isolation scope-1">
+  <summary>
+    <span class="cid">GL-284</span>
+    <span class="ctitle">Gold postings carry the goldloan appType</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Read the account entries the journey created</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Every entry is stamped goldloan</li><li>None appears in another module’s ledger</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">SCOPE-1</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-285" data-verdict="notrun" data-search="gl-285 a soft-deleted pledge disappears from lists and reports branch &amp; tenant isolation db-4">
+  <summary>
+    <span class="cid">GL-285</span>
+    <span class="ctitle">A soft-deleted pledge disappears from lists and reports</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Soft-delete a pledge and re-read the list and the reports</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>It is gone from both</li><li>Its receipts survive in the ledger</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">DB-4</span></p>
+    
+    
+  </div>
+</details>
+    </section>
+<section class="area" data-area="RBAC">
+      <h2>RBAC <span class="areachips"><span class="areachip ac-notrun">5 not run</span></span></h2>
+      <details class="case" id="GL-300" data-verdict="notrun" data-search="gl-300 an agent cannot originate a pledge without the bypass flag rbac role-5">
+  <summary>
+    <span class="cid">GL-300</span>
+    <span class="ctitle">An agent cannot originate a pledge without the bypass flag</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Originate as an agent with bypassLoanApproval false</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Held for approval rather than going live</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">ROLE-5</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-301" data-verdict="notrun" data-search="gl-301 an agent cannot release collateral rbac role-4">
+  <summary>
+    <span class="cid">GL-301</span>
+    <span class="ctitle">An agent cannot release collateral</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Attempt a release as an agent</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Refused server-side</li><li>Handing back the metal is not a field decision</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">ROLE-4</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-302" data-verdict="notrun" data-search="gl-302 an agent cannot reach analytics, reports or settings rbac role-4">
+  <summary>
+    <span class="cid">GL-302</span>
+    <span class="ctitle">An agent cannot reach analytics, reports or settings</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Request each blocked page and its API as an agent</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Every handler refuses, not merely the nav</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">ROLE-4</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-303" data-verdict="notrun" data-search="gl-303 a deactivated staff account cannot authenticate rbac auth-4">
+  <summary>
+    <span class="cid">GL-303</span>
+    <span class="ctitle">A deactivated staff account cannot authenticate</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Deactivate a user and attempt web and API login</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Both refused</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">AUTH-4</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-304" data-verdict="notrun" data-search="gl-304 a discount or waiver on redemption needs approval rbac role-4">
+  <summary>
+    <span class="cid">GL-304</span>
+    <span class="ctitle">A discount or waiver on redemption needs approval</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Redeem with an interest waiver as a branch admin</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Either refused or routed to an approver</li><li>Waiving interest on a secured loan is never a silent single click</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">ROLE-4</span></p>
+    
+    
+  </div>
+</details>
+    </section>
+<section class="area" data-area="Accounting &amp; Float">
+      <h2>Accounting &amp; Float <span class="areachips"><span class="areachip ac-notrun">6 not run</span></span></h2>
+      <details class="case" id="GL-320" data-verdict="notrun" data-search="gl-320 a cash disbursement debits the branch pool accounting &amp; float money-17">
+  <summary>
+    <span class="cid">GL-320</span>
+    <span class="ctitle">A cash disbursement debits the branch pool</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Originate a pledge with a cash payout and read the pool</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The pool falls by the disbursed amount</li><li>A wallet transaction records it</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">MONEY-17</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-321" data-verdict="notrun" data-search="gl-321 a bank disbursement does not move physical cash accounting &amp; float money-17">
+  <summary>
+    <span class="cid">GL-321</span>
+    <span class="ctitle">A bank disbursement does not move physical cash</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Originate with a bank payout</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The GL records the disbursement</li><li>The cash pool is unchanged</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">MONEY-17</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-322" data-verdict="notrun" data-search="gl-322 a disbursement larger than the pool is refused, not overdrawn accounting &amp; float money-16 x-14">
+  <summary>
+    <span class="cid">GL-322</span>
+    <span class="ctitle">A disbursement larger than the pool is refused, not overdrawn</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Attempt a cash payout above the pool balance</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Refused as insufficient float with a 409</li><li>No pledge, no collateral row and no schedule are left behind</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">MONEY-16</span><span class="rule">X-14</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-323" data-verdict="notrun" data-search="gl-323 interest and principal post to their own heads accounting &amp; float acc-6">
+  <summary>
+    <span class="cid">GL-323</span>
+    <span class="ctitle">Interest and principal post to their own heads</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Collect interest, then redeem, and read the entries</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Interest income and principal recovery are separate entries</li><li>The journal balances after each</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">ACC-6</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-324" data-verdict="notrun" data-search="gl-324 a locked accounting period refuses a backdated pledge posting accounting &amp; float">
+  <summary>
+    <span class="cid">GL-324</span>
+    <span class="ctitle">A locked accounting period refuses a backdated pledge posting</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Lock the period and post a receipt dated inside it</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Refused with a period-lock conflict</li></ul>
+      </div>
+    </div>
+    
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-325" data-verdict="notrun" data-search="gl-325 float never goes negative anywhere in the journey accounting &amp; float money-16">
+  <summary>
+    <span class="cid">GL-325</span>
+    <span class="ctitle">Float never goes negative anywhere in the journey</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Read every branch pool and agent float at the end of the run</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Every balance is zero or above</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">MONEY-16</span></p>
+    
+    
+  </div>
+</details>
+    </section>
+<section class="area" data-area="Security &amp; Negative">
+      <h2>Security &amp; Negative <span class="areachips"><span class="areachip ac-notrun">7 not run</span><span class="areachip ac-manual">1 manual</span></span></h2>
+      <details class="case" id="GL-340" data-verdict="notrun" data-search="gl-340 sql-shaped payloads in ornament descriptions are inert security &amp; negative">
+  <summary>
+    <span class="cid">GL-340</span>
+    <span class="ctitle">SQL-shaped payloads in ornament descriptions are inert</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Store a drop-table string as an ornament description</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Stored literally</li><li>The table still exists</li></ul>
+      </div>
+    </div>
+    
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-341" data-verdict="notrun" data-search="gl-341 script payloads in text fields do not execute security &amp; negative">
+  <summary>
+    <span class="cid">GL-341</span>
+    <span class="ctitle">Script payloads in text fields do not execute</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Store a script tag in an ornament description and open the pledge</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Rendered as text on the staff screen</li></ul>
+      </div>
+    </div>
+    
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-342" data-verdict="notrun" data-search="gl-342 no gold response carries a password hash, token or secret security &amp; negative x-13">
+  <summary>
+    <span class="cid">GL-342</span>
+    <span class="ctitle">No gold response carries a password hash, token or secret</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Read the pledge, collateral, rate and report payloads</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>None of them carries a hash, token or secret</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">X-13</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-343" data-verdict="notrun" data-search="gl-343 a negative amount cannot reverse money through a receipt route security &amp; negative x-14">
+  <summary>
+    <span class="cid">GL-343</span>
+    <span class="ctitle">A negative amount cannot reverse money through a receipt route</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Post an interest receipt of a negative amount</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Refused</li><li>No float and no ledger row moves</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">X-14</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-344" data-verdict="notrun" data-search="gl-344 extremely large weights or rates do not overflow the money columns security &amp; negative">
+  <summary>
+    <span class="cid">GL-344</span>
+    <span class="ctitle">Extremely large weights or rates do not overflow the money columns</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Value a pledge at 1e308 grams, then at 1e308 per gram</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Refused by validation, or clamped</li><li>No Infinity is persisted</li></ul>
+      </div>
+    </div>
+    
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-345" data-verdict="notrun" data-search="gl-345 malformed json is refused cleanly security &amp; negative">
+  <summary>
+    <span class="cid">GL-345</span>
+    <span class="ctitle">Malformed JSON is refused cleanly</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>POST a broken body to each gold write route</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>A 4xx with a validation message</li><li>No stack trace and no 500</li></ul>
+      </div>
+    </div>
+    
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-346" data-verdict="notrun" data-search="gl-346 error messages do not disclose internals security &amp; negative">
+  <summary>
+    <span class="cid">GL-346</span>
+    <span class="ctitle">Error messages do not disclose internals</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P2">P2</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Trigger a failure on each gold write route</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>No Prisma code, table name or file path in any response</li></ul>
+      </div>
+    </div>
+    
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-347" data-verdict="manual" data-search="gl-347 an ornament photo upload rejects a disallowed type security &amp; negative">
+  <summary>
+    <span class="cid">GL-347</span>
+    <span class="ctitle">An ornament photo upload rejects a disallowed type</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P2">P2</span>
+      <span class="verdict v-manual">Manual</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Upload an .exe as an ornament photo</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Refused</li><li>No document row is created</li></ul>
+      </div>
+    </div>
+    
+    
+    
+  </div>
+</details>
+    </section>
+<section class="area" data-area="Concurrency &amp; Reports">
+      <h2>Concurrency &amp; Reports <span class="areachips"><span class="areachip ac-notrun">8 not run</span></span></h2>
+      <details class="case" id="GL-360" data-verdict="notrun" data-search="gl-360 two simultaneous originations for one borrower both respect the ceiling concurrency &amp; reports gold-1">
+  <summary>
+    <span class="cid">GL-360</span>
+    <span class="ctitle">Two simultaneous originations for one borrower both respect the ceiling</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Fire two pledges at once that individually fit the tier but together exceed it</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The combined exposure is enforced</li><li>The ceiling is re-validated inside the transaction, so the second is refused</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">GOLD-1</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-361" data-verdict="notrun" data-search="gl-361 two simultaneous redemptions release the metal once concurrency &amp; reports">
+  <summary>
+    <span class="cid">GL-361</span>
+    <span class="ctitle">Two simultaneous redemptions release the metal once</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P0">P0</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Fire two redemptions at once</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>One succeeds and one is refused</li><li>One release record, one set of postings</li></ul>
+      </div>
+    </div>
+    
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-362" data-verdict="notrun" data-search="gl-362 two simultaneous interest receipts do not double-advance the paid-upto date concurrency &amp; reports db-11">
+  <summary>
+    <span class="cid">GL-362</span>
+    <span class="ctitle">Two simultaneous interest receipts do not double-advance the paid-upto date</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Fire two interest receipts at once</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The date advances by what was actually collected, once</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">DB-11</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-363" data-verdict="notrun" data-search="gl-363 the pledge report totals match the underlying rows concurrency &amp; reports">
+  <summary>
+    <span class="cid">GL-363</span>
+    <span class="ctitle">The pledge report totals match the underlying rows</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Run the gold report after a known set of pledges and redemptions</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Outstanding principal, held weight and accrued interest match the rows</li></ul>
+      </div>
+    </div>
+    
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-364" data-verdict="notrun" data-search="gl-364 the held-weight total matches the sum of unreleased collateral concurrency &amp; reports">
+  <summary>
+    <span class="cid">GL-364</span>
+    <span class="ctitle">The held-weight total matches the sum of unreleased collateral</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P1">P1</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Redeem one of three pledges and re-run the report</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The released ornaments leave the held-weight total</li><li>The vault figure is one an auditor could weigh</li></ul>
+      </div>
+    </div>
+    
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-365" data-verdict="notrun" data-search="gl-365 reports are branch-scoped and closed to agents concurrency &amp; reports scope-3 role-4">
+  <summary>
+    <span class="cid">GL-365</span>
+    <span class="ctitle">Reports are branch-scoped and closed to agents</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P2">P2</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Run the gold report under each branch, then as an agent</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Each branch sees only its own</li><li>The agent is refused by the handler</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">SCOPE-3</span><span class="rule">ROLE-4</span></p>
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-366" data-verdict="notrun" data-search="gl-366 an empty branch reports zeroes, not errors concurrency &amp; reports">
+  <summary>
+    <span class="cid">GL-366</span>
+    <span class="ctitle">An empty branch reports zeroes, not errors</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P2">P2</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Run every gold report on a branch with no pledges</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>Zero totals render</li><li>No division by zero and no NaN</li></ul>
+      </div>
+    </div>
+    
+    
+    
+  </div>
+</details>
+<details class="case" id="GL-367" data-verdict="notrun" data-search="gl-367 the pledge list is paginated, not unbounded concurrency &amp; reports api-3">
+  <summary>
+    <span class="cid">GL-367</span>
+    <span class="ctitle">The pledge list is paginated, not unbounded</span>
+    <span class="cmeta">
+      
+      <span class="pri pri-P2">P2</span>
+      <span class="verdict v-notrun">Not run</span>
+    </span>
+  </summary>
+  <div class="cbody">
+    
+    <div class="grid">
+      <div>
+        <h4>Steps</h4>
+        <ol><li>Request the pledge list with a limit</li></ol>
+      </div>
+      <div>
+        <h4>Expected</h4>
+        <ul><li>The limit is honoured</li><li>A large vault does not return in one page</li></ul>
+      </div>
+    </div>
+    <p class="rules"><span class="rule">API-3</span></p>
+    
+    
+  </div>
+</details>
+    </section>
+    <p class="empty on">No case matches this filter.</p>
+  </main>
+</div>
+
+<script>
+(function () {
+  var q = document.getElementById('q');
+  var chips = Array.prototype.slice.call(document.querySelectorAll('.chip'));
+  var cases = Array.prototype.slice.call(document.querySelectorAll('details.case'));
+  var sections = Array.prototype.slice.call(document.querySelectorAll('section.area'));
+  var verdict = 'all';
+
+  function apply() {
+    var term = q.value.trim().toLowerCase();
+    var shown = 0;
+    cases.forEach(function (el) {
+      var okV = verdict === 'all' || el.dataset.verdict === verdict;
+      var okQ = !term || el.dataset.search.indexOf(term) !== -1;
+      var show = okV && okQ;
+      el.hidden = !show;
+      if (show) shown++;
+    });
+    sections.forEach(function (s) {
+      var any = Array.prototype.some.call(s.querySelectorAll('details.case'), function (el) { return !el.hidden; });
+      s.hidden = !any;
+    });
+    document.body.classList.toggle('filtering', shown === 0);
+  }
+
+  q.addEventListener('input', apply);
+  chips.forEach(function (c) {
+    c.addEventListener('click', function () {
+      verdict = c.dataset.v;
+      chips.forEach(function (o) { o.setAttribute('aria-pressed', String(o === c)); });
+      apply();
+    });
+  });
+  apply();
+})();
+</script>

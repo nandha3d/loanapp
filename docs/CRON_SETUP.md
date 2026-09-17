@@ -1,6 +1,6 @@
 # Cron & Scheduled Jobs Setup
 
-The LoanTrack application relies on scheduled background jobs (cron) to handle recurring logic like penalty accruals, NPA classifications, and billing automation.
+The ZoloFund application relies on scheduled background jobs (cron) to handle recurring logic like penalty accruals, NPA classifications, and billing automation.
 
 Since the application uses a REST-based cron trigger pattern rather than an embedded Node.js scheduler (to support serverless and cPanel/Hostinger deployments), you must configure external cron jobs using your hosting provider.
 

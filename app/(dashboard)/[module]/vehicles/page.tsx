@@ -6,7 +6,9 @@ import { requireModule } from '@/lib/moduleGate';
 import { formatDate } from '@/lib/utils';
 import Link from '@/components/layout/DashboardLink';
 import { getDictionary } from '@/lib/i18n';
-import { modulePath } from '@/types/modules';
+import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
+import { getActiveBranchId } from '@/lib/branch';
+import { branchScopeWhere } from '@/lib/branchScope';
 
 export default async function VehiclesPage({
   searchParams,
@@ -35,13 +37,23 @@ export default async function VehiclesPage({
   const userRole = (session?.user as any)?.role;
 
   if (!session) redirect('/login');
-  if (userRole === 'agent') redirect(modulePath(appType, '/collection'));
+
+  // Agents may view the registry, scoped to their own customers' vehicles.
+  // Everyone else is scoped to the active branch. A vehicle has no branch column
+  // of its own, so it inherits its CUSTOMER's branch — the same rule the
+  // approvals queue applies (SCOPE-3).
+  const activeBranchId = await getActiveBranchId();
+  const customerScope =
+    userRole === 'agent'
+      ? buildAgentCustomerAccessWhere({ userId: session.user!.id as string })
+      : branchScopeWhere(activeBranchId);
+  const agentScope = Object.keys(customerScope).length ? { customer: customerScope } : {};
 
   const resolvedParams = await searchParams;
   const q = resolvedParams.q || '';
   const filter = resolvedParams.filter || ''; // '' | 'repo' | 'insurance_expiring'
 
-  const where: any = { tenantId, appType };
+  const where: any = { tenantId, appType, ...agentScope };
   if (q) {
     where.OR = [
       { registrationNo: { contains: q } },
@@ -72,11 +84,12 @@ export default async function VehiclesPage({
           loan: { select: { id: true, loanCode: true, status: true } },
         },
       }),
-      prisma.vehicle.count({ where: { tenantId, appType, repoFlag: true } }),
+      prisma.vehicle.count({ where: { tenantId, appType, ...agentScope, repoFlag: true } }),
       prisma.vehicle.count({
         where: {
           tenantId,
           appType,
+          ...agentScope,
           insuranceExpiry: { lte: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), gte: new Date() },
         },
       }),

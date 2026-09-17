@@ -5,7 +5,7 @@ import { buildMetadata } from '../_components/seo';
 export const metadata = buildMetadata({
   title: 'Contact & Request a Demo — Loan Tracking Software',
   description:
-    'Request a demo of LoanTrack loan tracking software or get in touch with our team. See how GPS collection, multi-module lending and accounting fit your business.',
+    'Request a demo of ZoloFund loan tracking software or get in touch with our team. See how GPS collection, multi-module lending and accounting fit your business.',
   path: '/contact',
   keywords: ['loan software demo', 'loan management software demo', 'loan tracking software contact'],
 });

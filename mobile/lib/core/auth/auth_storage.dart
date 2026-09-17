@@ -9,18 +9,22 @@ class AuthStorage {
   static const _kRefreshToken = 'refresh_token';
   static const _kTenantSlug = 'tenant_slug';
   static const _kBranchId = 'branch_id';
+  static const _kAppType = 'app_type';
   static const _kPendingTotpUser = 'pending_totp_user';
+  static const _kUserJson = 'user_json';
 
   final FlutterSecureStorage _storage;
 
   Future<void> saveSession({
     required String token,
     required String tenantSlug,
+    required String appType,
     String? branchId,
     String? refreshToken,
   }) async {
     await _storage.write(key: _kToken, value: token);
     await _storage.write(key: _kTenantSlug, value: tenantSlug);
+    await _storage.write(key: _kAppType, value: appType);
     if (branchId != null) {
       await _storage.write(key: _kBranchId, value: branchId);
     }
@@ -43,11 +47,24 @@ class AuthStorage {
   Future<String?> readRefreshToken() => _storage.read(key: _kRefreshToken);
   Future<String?> readTenantSlug() => _storage.read(key: _kTenantSlug);
   Future<String?> readBranchId() => _storage.read(key: _kBranchId);
+  Future<String?> readAppType() => _storage.read(key: _kAppType);
+
+  Future<void> saveActiveAppType(String appType) =>
+      _storage.write(key: _kAppType, value: appType);
+
+  /// Cached profile of the signed-in user (JSON) — lets the app boot to the
+  /// dashboard offline / on a slow network instead of bouncing to login while
+  /// a valid token + refresh token still exist.
+  Future<void> saveUserJson(String json) =>
+      _storage.write(key: _kUserJson, value: json);
+  Future<String?> readUserJson() => _storage.read(key: _kUserJson);
 
   Future<void> savePendingTotpUser(String username) =>
       _storage.write(key: _kPendingTotpUser, value: username);
-  Future<String?> readPendingTotpUser() => _storage.read(key: _kPendingTotpUser);
-  Future<void> clearPendingTotpUser() => _storage.delete(key: _kPendingTotpUser);
+  Future<String?> readPendingTotpUser() =>
+      _storage.read(key: _kPendingTotpUser);
+  Future<void> clearPendingTotpUser() =>
+      _storage.delete(key: _kPendingTotpUser);
 
   Future<void> clear() async {
     await _storage.deleteAll();
@@ -57,7 +74,14 @@ class AuthStorage {
 final authStorageProvider = Provider<AuthStorage>((ref) {
   return AuthStorage(
     const FlutterSecureStorage(
-      aOptions: AndroidOptions(encryptedSharedPreferences: true),
+      // resetOnError: after a reinstall, Android may restore the encrypted
+      // prefs file via auto-backup while the Keystore key is gone, so reads
+      // throw and the FIRST login silently fails until the user clears app
+      // data. resetOnError wipes the corrupt store and retries automatically.
+      aOptions: AndroidOptions(
+        encryptedSharedPreferences: true,
+        resetOnError: true,
+      ),
       iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
     ),
   );

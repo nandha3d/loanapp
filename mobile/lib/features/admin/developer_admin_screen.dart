@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:loantrack/core/auth/auth_controller.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/services/admin_service.dart';
+import 'package:zolofund/core/auth/auth_controller.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/services/admin_service.dart';
 
 final _developerRequestsProvider =
     FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
@@ -21,10 +21,6 @@ class DeveloperAdminScreen extends ConsumerWidget {
     final requestCounts = ref.watch(_developerRequestsProvider);
     final modulePending = requestCounts.maybeWhen(
       data: (data) => _pendingCount(data['moduleRequests']),
-      orElse: () => 0,
-    );
-    final branchPending = requestCounts.maybeWhen(
-      data: (data) => _pendingCount(data['branchRequests']),
       orElse: () => 0,
     );
 
@@ -162,15 +158,6 @@ class DeveloperAdminScreen extends ConsumerWidget {
               color: AppColors.warning,
               onTap: () {
                 context.go('/admin/module-requests');
-              },
-            ),
-            const SizedBox(height: 8),
-            _QueueTile(
-              label: 'Branch Extension Requests',
-              count: branchPending,
-              color: AppColors.info,
-              onTap: () {
-                context.go('/admin/branch-requests');
               },
             ),
           ],

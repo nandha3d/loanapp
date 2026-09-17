@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
 
     const { agentBalance } = await depositToOffice({
       tenantId: ctx.tenantId,
+      appType: ctx.appType,
       agentId: ctx.userId,
       branchId,
       amount,

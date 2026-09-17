@@ -9,7 +9,7 @@ import { BreadcrumbJsonLd } from '../_components/JsonLd';
 export const metadata = buildMetadata({
   title: 'NBFC, Microfinance & Daily Collection Software Solutions',
   description:
-    'LoanTrack solutions for NBFCs, micro-lenders, chit-fund companies and gold financiers — RBI-aligned loan management with daily field collection, multi-branch operations and GPS tracking.',
+    'ZoloFund solutions for NBFCs, micro-lenders, chit-fund companies and gold financiers — RBI-aligned loan management with daily field collection, multi-branch operations and GPS tracking.',
   path: '/solutions',
   keywords: ['NBFC software', 'microfinance software India', 'daily collection software', 'loan collection software'],
 });
@@ -52,7 +52,7 @@ export default function SolutionsPage() {
           <span className="mk-eyebrow">Solutions</span>
           <h1 className="mk-h1">Made for the way you lend</h1>
           <p className="mk-lead">
-            Whether you run a single collection line or a multi-branch NBFC, LoanTrack
+            Whether you run a single collection line or a multi-branch NBFC, ZoloFund
             adapts to your products, your team and your compliance needs.
           </p>
         </div>
@@ -87,7 +87,7 @@ export default function SolutionsPage() {
       <section className="mk-section mk-section--dark">
         <div className="mk-container">
           <div className="mk-section-head">
-            <span className="mk-eyebrow">Why LoanTrack</span>
+            <span className="mk-eyebrow">Why ZoloFund</span>
             <h2 className="mk-h2">A modern alternative to legacy tools</h2>
           </div>
           <div className="mk-grid mk-grid--3">
@@ -102,7 +102,7 @@ export default function SolutionsPage() {
         </div>
       </section>
 
-      <CtaBand title="Find the right fit for your business" text="Tell us how you lend and we'll show you exactly how LoanTrack maps to your operation." />
+      <CtaBand title="Find the right fit for your business" text="Tell us how you lend and we'll show you exactly how ZoloFund maps to your operation." />
     </>
   );
 }

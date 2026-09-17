@@ -18,18 +18,19 @@ export default async function AdminUsersPage() {
   const defaultAppType = await getUserAppType();
 
   // If developer, we want to see all tenants/users
-  let userWhere: any = userRole === 'developer' ? {} : { tenantId };
-  if (userRole !== 'developer') {
-    userWhere.role = { not: 'developer' };
+  const isDeveloper = userRole?.toLowerCase() === 'developer';
+  let userWhere: any = isDeveloper ? {} : { tenantId };
+  if (!isDeveloper) {
+    userWhere.role = { notIn: ['developer', 'DEVELOPER'] };
   }
 
-  let branchWhere: any = userRole === 'developer' ? {} : { tenantId };
+  let branchWhere: any = isDeveloper ? {} : { tenantId };
 
   if (userRole === 'superadmin') {
     branchWhere.superadminId = session?.user?.id;
     userWhere = {
       tenantId,
-      role: { not: 'developer' },
+      role: { notIn: ['developer', 'DEVELOPER'] },
       OR: [
         { id: session?.user?.id },
         {
@@ -85,6 +86,7 @@ export default async function AdminUsersPage() {
         name: superadmin.name,
         username: superadmin.username,
         phone: superadmin.phone,
+        email: superadmin.email,
         status: superadmin.status,
         subscription: saSubscription,
         branches: ownedBranches.map((branch) => ({
@@ -111,6 +113,8 @@ export default async function AdminUsersPage() {
       users={users}
       branches={branches}
       viewerRole={userRole}
+      viewerId={(session?.user as any)?.id ?? ''}
+      viewerIsPrimaryAdmin={!!(session?.user as any)?.isPrimaryAdmin}
       defaultAppType={defaultAppType}
       subscription={currentSubscription}
       planModules={planModules}

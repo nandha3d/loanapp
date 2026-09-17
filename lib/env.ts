@@ -84,4 +84,17 @@ export function validateEnv(): void {
       `[ENV_VALIDATE] Recommended env vars not set: ${missingRec.join(', ')}`,
     );
   }
+
+  // Outbound email (account verification + password reset). Not fatal — the app
+  // runs without it — but signup/reset mail silently won't send, so warn loudly
+  // in production so a misconfigured deploy is obvious in the logs.
+  const smtpMissing = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'].filter(
+    (k) => !process.env[k] || process.env[k]!.trim() === '',
+  );
+  if (smtpMissing.length > 0) {
+    console.warn(
+      `[ENV_VALIDATE] SMTP not configured (${smtpMissing.join(', ')}). ` +
+        `Account-verification and password-reset emails will NOT be sent until these are set.`,
+    );
+  }
 }

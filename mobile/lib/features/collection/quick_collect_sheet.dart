@@ -1,49 +1,123 @@
-import 'package:loantrack/core/currency/currency_controller.dart';
+import 'package:zolofund/features/collection/collection_screen.dart';
+import 'package:zolofund/core/currency/currency_controller.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
-import 'package:loantrack/core/a11y/voice_assist.dart';
-import 'package:loantrack/data/services/upload_service.dart';
-import 'package:loantrack/features/collection/qr_scan_screen.dart';
-import 'package:loantrack/core/gps/gps_service.dart';
-import 'package:loantrack/core/l10n/language_controller.dart';
-import 'package:loantrack/core/network/api_exception.dart';
-import 'package:loantrack/core/network/authed_image.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/local/collection_queue.dart';
-import 'package:loantrack/data/models/collection_entry.dart';
-import 'package:loantrack/data/services/collection_service.dart';
-import 'package:loantrack/data/services/payment_service.dart';
+import 'package:zolofund/core/a11y/voice_assist.dart';
+import 'package:zolofund/data/services/upload_service.dart';
+import 'package:zolofund/features/collection/qr_scan_screen.dart';
+import 'package:zolofund/core/gps/gps_service.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/l10n/app_strings.dart';
+import 'package:zolofund/core/network/api_exception.dart';
+import 'package:zolofund/core/network/authed_image.dart';
+import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/local/collection_queue.dart';
+import 'package:zolofund/data/models/collection_entry.dart';
+import 'package:zolofund/data/services/collection_service.dart';
+import 'package:zolofund/data/services/payment_service.dart';
+import 'package:zolofund/features/collection/voice_entry_controller.dart';
+import 'package:zolofund/features/collection/voice_amount_parser.dart';
 
 class QuickCollectSheet extends ConsumerStatefulWidget {
-  const QuickCollectSheet({super.key, required this.row});
+  const QuickCollectSheet({super.key, required this.row, this.scopeRows});
   final CollectionRow row;
+  final List<CollectionRow>? scopeRows;
 
   @override
   ConsumerState<QuickCollectSheet> createState() => _QuickCollectSheetState();
 }
 
 class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
-  late String _amount =
-      widget.row.outstanding.round().toString();
+  late String _amount = '0';
   String _mode = 'cash';
   String _proofMode = 'cash'; // cash | photo | qr
   bool _submitting = false;
   String? _error;
 
-  double get _value => double.tryParse(_amount) ?? 0;
+  double _todayDue = 0;
+  double _overdueDue = 0;
+  CollectionRow? _todayInstalment;
+  CollectionRow? _overdueInstalment;
+  bool _selectedToday = true;
+  List<CollectionRow> _customerRows = [];
 
-  String _idempotencyKey() {
+  double get _value => double.tryParse(_amount) ?? 0;
+  double get _totalDue => _todayDue + _overdueDue;
+
+  @override
+  void initState() {
+    super.initState();
+    _initCustomerDues();
+  }
+
+  void _initCustomerDues() {
+    try {
+      final rows = widget.scopeRows ??
+          ref.read(collectionTodayProvider).value ??
+          const <CollectionRow>[];
+      // Scope to the tapped LOAN (not the whole customer) so a payment never
+      // bleeds across a customer's separate loans — matches the web popup.
+      _customerRows = rows
+          .where((r) => r.loanId == widget.row.loanId && !r.isResolved)
+          .toList();
+
+      final todayRows = _customerRows.where((r) => r.isTodayBucket).toList();
+      final overdueRows =
+          _customerRows.where((r) => r.isOverdueBucket).toList();
+
+      _todayDue = todayRows.fold<double>(0.0, (s, r) => s + r.outstanding);
+      _overdueDue = overdueRows.fold<double>(0.0, (s, r) => s + r.outstanding);
+
+      if (todayRows.isNotEmpty) {
+        _todayInstalment = todayRows.first;
+      }
+      if (overdueRows.isNotEmpty) {
+        _overdueInstalment = overdueRows.first;
+      }
+    } catch (_) {}
+
+    if (_todayDue == 0 && _overdueDue == 0) {
+      if (widget.row.isTodayBucket) {
+        _todayDue = widget.row.outstanding;
+        _todayInstalment = widget.row;
+      } else {
+        _overdueDue = widget.row.outstanding;
+        _overdueInstalment = widget.row;
+      }
+      _customerRows = [widget.row];
+    }
+
+    // Default selection: today's due if there is one, else the full total
+    // (pure overdue catch-up). The chosen card just presets the amount; Actual
+    // still records the final payment on the collection-date row.
+    _selectedToday = _todayDue > 0;
+    final defaultAmt = _selectedToday ? _todayDue : _totalDue;
+    _amount = defaultAmt.round().toString();
+  }
+
+  void _onSelectToday(bool today) {
+    setState(() {
+      _selectedToday = today;
+      _amount = (today ? _todayDue : _totalDue).round().toString();
+    });
+  }
+
+  String _idempotencyKey(String instalmentId, double amount) {
     final today = DateTime.now();
     final date =
         '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-    return '$date:${widget.row.instalmentId}';
+    // Amount is part of the key so two genuinely different partial payments to
+    // the same instalment on the same day aren't mistaken for a duplicate retry.
+    return '$date:$instalmentId:${amount.toStringAsFixed(2)}';
   }
 
   void _press(String key) {
@@ -78,6 +152,41 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
     ref.speak('${_speakAmount(v)} entered');
   }
 
+  /// Voice entry: listen, parse the spoken amount + mode into the form, then
+  /// read it back for confirmation. Never auto-submits — the agent still taps
+  /// Confirm. Synonyms come from i18n so they are translatable, not hardcoded.
+  Future<void> _startVoiceEntry() async {
+    final t = T.of(ref);
+    final lang = ref.read(languageProvider).code;
+    final modeSynonyms = <String, List<String>>{
+      'cash': t.x('voice.kw.cash').split(','),
+      'upi': t.x('voice.kw.upi').split(','),
+      'bank': t.x('voice.kw.bank').split(','),
+    };
+    await ref.read(voiceEntryProvider.notifier).listen(
+      lang,
+      onFinal: (text) {
+        final res = parseVoiceEntry(text, modeSynonyms: modeSynonyms);
+        if (!mounted) return;
+        setState(() {
+          _error = null;
+          if (res.hasAmount) _amount = res.amount!.round().toString();
+          if (res.mode != null) _mode = res.mode!;
+        });
+        if (res.hasAmount) {
+          final modeSpoken = res.mode != null ? ', ${res.mode}' : '';
+          ref.speak(
+              '${_speakAmount(res.amount!)}$modeSpoken. ${t.x('voice.entry.confirm')}');
+        } else {
+          ref.speak(t.x('voice.entry.notUnderstood'));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(t.x('voice.entry.notUnderstood'))),
+          );
+        }
+      },
+    );
+  }
+
   Future<void> _submit() async {
     final t = T.of(ref);
     final amt = _value;
@@ -90,19 +199,46 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
       _error = null;
     });
 
-    final key = _idempotencyKey();
     final today = DateTime.now();
     final sync = ref.read(collectionSyncProvider);
     final svc = ref.read(collectionServiceProvider);
     final queue = ref.read(collectionQueueProvider);
 
     try {
+      final customerRows = _customerRows.isEmpty ? [widget.row] : _customerRows;
+
+      // Actual collection: keep the entered money on the collection-date row.
+      // Distributed schedule is only a projection, so the offline queue also
+      // stores one actual payment instead of splitting it across due rows.
+      final targetInst = _todayInstalment ??
+          (widget.row.isTodayBucket
+              ? widget.row
+              : (_overdueInstalment ?? widget.row));
+
+      // Never collect more than the total outstanding across the loaded dues.
+      final totalRoom = customerRows.fold<double>(
+        0,
+        (s, r) => s + (r.outstanding > 0 ? r.outstanding : 0),
+      );
+      final appliedTotal = amt > totalRoom ? totalRoom : amt;
+
+      if (appliedTotal <= 0) {
+        setState(() {
+          _submitting = false;
+          _error = t.x('err.enter_valid_amount');
+        });
+        return;
+      }
+
       if (!sync.online) {
         await queue.add(
           QueuedCollection(
-            idempotencyKey: key,
-            instalmentId: widget.row.instalmentId,
-            receivedAmount: amt,
+            idempotencyKey: _idempotencyKey(
+              targetInst.instalmentId,
+              appliedTotal,
+            ),
+            instalmentId: targetInst.instalmentId,
+            receivedAmount: appliedTotal,
             paymentMode: _mode,
             collectionDate: today,
             status: 'pending',
@@ -115,15 +251,20 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(t.x('sync.saved_offline'))),
         );
-        Navigator.of(context).pop();
+        refreshCollectionViews(ref);
+        Navigator.of(context).pop(true);
         return;
       }
 
-      // Best-effort device location so the entry is geo-stamped + verified
-      // server-side (same as web). Never blocks the collection if unavailable.
+      // Best-effort device location capture. Short timeout + medium accuracy —
+      // this blocks payment submission, and a full high-accuracy fix can take
+      // 10s+ indoors; a coarse fix tagged on the entry is good enough.
       Map<String, dynamic>? gps;
       try {
-        final pos = await ref.read(gpsServiceProvider).currentPosition();
+        final pos = await ref.read(gpsServiceProvider).currentPosition(
+              accuracy: LocationAccuracy.medium,
+              timeout: const Duration(seconds: 4),
+            );
         if (pos != null) {
           gps = {
             'status': 'captured',
@@ -132,7 +273,6 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
             'accuracy': pos.accuracy,
             'altitude': pos.altitude,
             'timestamp': pos.timestamp.toIso8601String(),
-            // Fake-GPS provider flag - server marks entry mock_location.
             'isMocked': pos.isMocked,
           };
         } else {
@@ -142,23 +282,52 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
         gps = {'status': 'not_captured'};
       }
 
-      await svc.submit(
-        instalmentId: widget.row.instalmentId,
-        receivedAmount: amt,
-        paymentMode: _mode,
-        idempotencyKey: key,
-        gps: gps,
-      );
+      // ONE loan-level submit — the server records the amount on the
+      // collection-date row for Actual. No client-side splitting.
+      try {
+        // No client key — the server derives a stable date-row key from
+        // (agent, instalment, amount, day), exactly like the web popup.
+        await svc.collectLoan(
+          loanId: widget.row.loanId,
+          amount: appliedTotal,
+          paymentMode: _mode,
+          gps: gps,
+        );
+      } catch (e) {
+        if (e is ApiException) rethrow;
+        // Network error: queue the same actual-date payment to replay online.
+        await queue.add(
+          QueuedCollection(
+            idempotencyKey: _idempotencyKey(
+              targetInst.instalmentId,
+              appliedTotal,
+            ),
+            instalmentId: targetInst.instalmentId,
+            receivedAmount: appliedTotal,
+            paymentMode: _mode,
+            collectionDate: today,
+            status: 'pending',
+            customerName: widget.row.customerName,
+            loanCode: widget.row.loanCode,
+          ),
+        );
+        await ref.read(collectionSyncProvider.notifier).refresh();
+        if (!mounted) return;
+        setState(() => _error = '${t.x('sync.saved_offline_err')}: $e');
+        return;
+      }
 
-      ref.speak('Collected ${_speakAmount(amt)}');
+      ref.speak('Collected ${_speakAmount(appliedTotal)}');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${t.x('msg.collected_from')} ₹${amt.round()} — ${widget.row.customerName}'),
+          content: Text(
+              '${t.x('msg.collected_from')} ₹${appliedTotal.round()} — ${widget.row.customerName}'),
           backgroundColor: AppColors.success,
         ),
       );
-      Navigator.of(context).pop();
+      refreshCollectionViews(ref);
+      Navigator.of(context).pop(true);
     } catch (e) {
       final isServerReject = e is ApiException &&
           e.statusCode != null &&
@@ -168,10 +337,13 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
         if (!mounted) return;
         setState(() => _error = e.message);
       } else {
+        final targetInst = (_todayInstalment != null && _selectedToday)
+            ? _todayInstalment!
+            : (_overdueInstalment ?? widget.row);
         await queue.add(
           QueuedCollection(
-            idempotencyKey: key,
-            instalmentId: widget.row.instalmentId,
+            idempotencyKey: _idempotencyKey(targetInst.instalmentId, amt),
+            instalmentId: targetInst.instalmentId,
             receivedAmount: amt,
             paymentMode: _mode,
             collectionDate: today,
@@ -214,17 +386,23 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
       final up = await ref
           .read(uploadServiceProvider)
           .uploadFile(File(shot.path), contentType: 'image/jpeg');
+      final targetInst = (_todayInstalment != null && _selectedToday)
+          ? _todayInstalment!
+          : (_overdueInstalment ?? widget.row);
       await ref.read(collectionServiceProvider).submitPhotoProof(
-            instalmentId: widget.row.instalmentId,
+            instalmentId: targetInst.instalmentId,
             amount: amt,
             paymentMode: _mode,
             photoUrl: up.url,
           );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.x('proof.photo_sent')), backgroundColor: AppColors.success),
+        SnackBar(
+            content: Text(t.x('proof.photo_sent')),
+            backgroundColor: AppColors.success),
       );
-      Navigator.of(context).pop();
+      refreshCollectionViews(ref);
+      Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
@@ -241,9 +419,12 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
     );
     if (done == true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.x('proof.qr_done')), backgroundColor: AppColors.success),
+        SnackBar(
+            content: Text(t.x('proof.qr_done')),
+            backgroundColor: AppColors.success),
       );
-      Navigator.of(context).pop();
+      refreshCollectionViews(ref);
+      Navigator.of(context).pop(true);
     }
   }
 
@@ -251,11 +432,6 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
   Widget build(BuildContext context) {
     final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
-
-    final due = widget.row.dueAmount;
-    final outstanding = widget.row.outstanding;
-    final isOver = _value > outstanding;
-    final isPartial = _value > 0 && _value < outstanding;
 
     return DraggableScrollableSheet(
       initialChildSize: 0.92,
@@ -286,16 +462,31 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
               const SizedBox(height: 14),
               _HeaderRow(row: widget.row, fmt: fmt),
               const SizedBox(height: 14),
+              _SplitDueCards(
+                todayDue: _todayDue,
+                totalDue: _totalDue,
+                selectedToday: _selectedToday,
+                onSelectToday: _onSelectToday,
+                fmt: fmt,
+                t: t,
+              ),
+              const SizedBox(height: 14),
               _AmountDisplay(
                 value: _value,
-                outstanding: outstanding,
-                isOver: isOver,
-                isPartial: isPartial,
+                totalDue: _totalDue,
+                t: t,
+              ),
+              const SizedBox(height: 10),
+              _VoiceEntryButton(
+                listening: ref.watch(voiceEntryProvider).listening,
+                transcript: ref.watch(voiceEntryProvider).transcript,
+                onTap: _submitting ? null : _startVoiceEntry,
+                t: t,
               ),
               const SizedBox(height: 12),
               _QuickAmountRow(
-                outstanding: outstanding,
-                due: due,
+                outstanding: _selectedToday ? _todayDue : _totalDue,
+                due: _selectedToday ? _todayDue : _totalDue,
                 onPick: _quickSet,
               ),
               const SizedBox(height: 16),
@@ -320,7 +511,8 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
               const SizedBox(height: 16),
               Text(
                 t.x('proof.label'),
-                style: AppTypography.label.copyWith(color: AppColors.textSecondary),
+                style: AppTypography.label
+                    .copyWith(color: AppColors.textSecondary),
               ),
               const SizedBox(height: 8),
               Row(
@@ -335,7 +527,9 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
                           onSelected: (_) => setState(() => _proofMode = m),
                           selectedColor: AppColors.primaryLight,
                           labelStyle: TextStyle(
-                            color: _proofMode == m ? AppColors.primaryDark : AppColors.textSecondary,
+                            color: _proofMode == m
+                                ? AppColors.primaryDark
+                                : AppColors.textSecondary,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -345,8 +539,11 @@ class _QuickCollectSheetState extends ConsumerState<QuickCollectSheet> {
               ),
               if (_proofMode == 'qr') ...[
                 const SizedBox(height: 8),
-                Text(t.x('proof.qr_help'),
-                    style: AppTypography.caption.copyWith(color: AppColors.textLight),),
+                Text(
+                  t.x('proof.qr_help'),
+                  style: AppTypography.caption
+                      .copyWith(color: AppColors.textLight),
+                ),
               ],
               if (_error != null) ...[
                 const SizedBox(height: 12),
@@ -455,20 +652,28 @@ class _HeaderRow extends ConsumerWidget {
         Container(
           width: 48,
           height: 48,
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: AppColors.primaryLight,
             shape: BoxShape.circle,
+            image: row.customerPhoto != null && row.customerPhoto!.isNotEmpty
+                ? DecorationImage(
+                    image: authedImage(ref, row.customerPhoto!),
+                    fit: BoxFit.cover,
+                  )
+                : null,
           ),
           alignment: Alignment.center,
-          child: Text(
-            row.customerName.isEmpty
-                ? '—'
-                : row.customerName[0].toUpperCase(),
-            style: AppTypography.heroLabel.copyWith(
-              color: AppColors.primaryDark,
-              fontSize: 18,
-            ),
-          ),
+          child: row.customerPhoto != null && row.customerPhoto!.isNotEmpty
+              ? null
+              : Text(
+                  row.customerName.isEmpty
+                      ? '—'
+                      : row.customerName[0].toUpperCase(),
+                  style: AppTypography.heroLabel.copyWith(
+                    color: AppColors.primaryDark,
+                    fontSize: 18,
+                  ),
+                ),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -500,32 +705,30 @@ class _HeaderRow extends ConsumerWidget {
 class _AmountDisplay extends ConsumerWidget {
   const _AmountDisplay({
     required this.value,
-    required this.outstanding,
-    required this.isOver,
-    required this.isPartial,
+    required this.totalDue,
+    required this.t,
   });
-  final double value, outstanding;
-  final bool isOver, isPartial;
+  final double value, totalDue;
+  final T t;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final t = T.of(ref);
     final fmt = ref.watch(currencyFmtProvider);
     final Color color;
     final String hint;
-    if (isOver) {
-      color = AppColors.warning;
-      hint = '${t.x('coll.above_outstanding')} ${fmt.format(outstanding)}';
-    } else if (isPartial) {
-      color = AppColors.info;
-      hint =
-          '${t.x('coll.partial_remaining')}: ${fmt.format(outstanding - value)}';
-    } else if (value == outstanding && value > 0) {
+
+    // Actual stores the payment on the collection-date row; this hint only
+    // explains how much of the loaded due total the entered amount clears.
+    if (value <= 0) {
+      color = AppColors.textPrimary;
+      hint = '${t.x('coll.outstanding_label')} ${fmt.format(totalDue)}';
+    } else if (value >= totalDue) {
       color = AppColors.success;
       hint = t.x('coll.settles_full');
     } else {
-      color = AppColors.textPrimary;
-      hint = '${t.x('coll.outstanding_label')} ${fmt.format(outstanding)}';
+      color = AppColors.info;
+      hint =
+          '${t.x('coll.partial_remaining')}: ${fmt.format(totalDue - value)}';
     }
 
     return Container(
@@ -839,8 +1042,13 @@ class _UpiQrSection extends ConsumerWidget {
       ),
       error: (_, __) => const SizedBox.shrink(),
       data: (qr) {
-        if (qr.qrUrl == null && qr.upiId == null) return const SizedBox.shrink();
-        final imageUrl = qr.qrUrl;
+        if (qr.qrUrl == null && qr.upiId == null)
+          return const SizedBox.shrink();
+        // mediaBaseUrlProvider respects the runtime server-URL override;
+        // kDefaultBaseUrl is only the compile-time fallback.
+        final imageUrl = qr.qrUrl != null
+            ? absoluteMediaUrl(ref.watch(mediaBaseUrlProvider), qr.qrUrl)
+            : null;
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -888,6 +1096,50 @@ class _UpiQrSection extends ConsumerWidget {
   }
 }
 
+// ───────────────────────────── Voice entry button ───────────────────
+
+class _VoiceEntryButton extends StatelessWidget {
+  const _VoiceEntryButton({
+    required this.listening,
+    required this.transcript,
+    required this.onTap,
+    required this.t,
+  });
+  final bool listening;
+  final String transcript;
+  final VoidCallback? onTap;
+  final T t;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = listening ? AppColors.danger : AppColors.primary;
+    final label = listening
+        ? (transcript.isEmpty ? t.x('voice.entry.listening') : transcript)
+        : t.x('voice.entry.start');
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: color,
+          side: BorderSide(color: color),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        icon:
+            Icon(listening ? Icons.mic : Icons.mic_none_rounded, color: color),
+        label: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTypography.bodyLarge.copyWith(color: color),
+        ),
+      ),
+    );
+  }
+}
+
 // ───────────────────────────── Voice helper ─────────────────────────
 
 String _speakAmount(double amount) {
@@ -902,4 +1154,113 @@ String _speakAmount(double amount) {
     return '$k thousand rupees';
   }
   return '$rounded rupees';
+}
+
+// ───────────────────────────── Split due cards ───────────────────────
+
+class _SplitDueCards extends StatelessWidget {
+  const _SplitDueCards({
+    required this.todayDue,
+    required this.totalDue,
+    required this.selectedToday,
+    required this.onSelectToday,
+    required this.fmt,
+    required this.t,
+  });
+  final double todayDue;
+  final double totalDue;
+  final bool selectedToday;
+  final ValueChanged<bool> onSelectToday;
+  final NumberFormat fmt;
+  final T t;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _DueCard(
+            title: t.x('coll.btn_today'),
+            amount: todayDue,
+            selected: selectedToday,
+            onTap: () => onSelectToday(true),
+            fmt: fmt,
+            activeColor: AppColors.primary,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _DueCard(
+            title: t.x('coll.total_due'),
+            amount: totalDue,
+            selected: !selectedToday,
+            onTap: () => onSelectToday(false),
+            fmt: fmt,
+            activeColor: AppColors.danger,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DueCard extends StatelessWidget {
+  const _DueCard({
+    required this.title,
+    required this.amount,
+    required this.selected,
+    required this.onTap,
+    required this.fmt,
+    required this.activeColor,
+  });
+  final String title;
+  final double amount;
+  final bool selected;
+  final VoidCallback onTap;
+  final NumberFormat fmt;
+  final Color activeColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? activeColor.withAlpha(20) : AppColors.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected ? activeColor : AppColors.border,
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: AppTypography.caption.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: selected ? activeColor : AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                fmt.format(amount),
+                style: AppTypography.bodyLarge.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color:
+                      amount > 0 ? AppColors.textPrimary : AppColors.textLight,
+                  fontSize: 18,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

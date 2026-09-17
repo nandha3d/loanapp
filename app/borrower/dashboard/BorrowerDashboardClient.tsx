@@ -4,6 +4,7 @@ import { useState, useEffect, Fragment } from 'react';
 import { submitBorrowerRepayment } from './actions';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import PasswordInput from '@/components/ui/PasswordInput';
 
 interface BorrowerDashboardClientProps {
   loans: any[];
@@ -1825,7 +1826,10 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                           {paymentSettings?.upiQrUrl ? "Scan Lender's Verified QR Code" : "Scan to Pay via UPI App"}
                         </span>
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '4px', fontFamily: 'monospace' }}>
-                          UPI ID: {paymentSettings?.upiId || 'loantrack@ybl'} • ₹{parseFloat(paymentAmount).toLocaleString('en-IN')}
+                          {/* Never show a placeholder VPA — a real payment to it would be lost. */}
+                          {paymentSettings?.upiId
+                            ? <>UPI ID: {paymentSettings.upiId} • ₹{parseFloat(paymentAmount).toLocaleString('en-IN')}</>
+                            : <>UPI not configured — contact your branch • ₹{parseFloat(paymentAmount).toLocaleString('en-IN')}</>}
                         </div>
                       </div>
                     </div>
@@ -1935,8 +1939,7 @@ export default function BorrowerDashboardClient({ loans, initialLoanId, paymentS
                           </div>
                           <div className="form-group" style={{ margin: 0 }}>
                             <label className="form-label" style={{ fontSize: '0.75rem' }}>CVV</label>
-                            <input
-                              type="password"
+                            <PasswordInput
                               className="form-control"
                               maxLength={3}
                               placeholder="***"

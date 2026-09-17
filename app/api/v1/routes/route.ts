@@ -3,32 +3,28 @@ import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
 import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 
-function routeBranchScope(ctx: { role: string; branchId: string | null }) {
-  const branchWhere = scopedBranchWhere(ctx as any);
-  if (!branchWhere.branchId) return {};
-  return { OR: [{ branchId: branchWhere.branchId }, { branchId: null }] };
-}
-
 export async function GET(req: NextRequest) {
   const auth = await requireMobileContext(req);
   if (auth.response) return auth.response;
   const ctx = auth.context;
 
   try {
+    const where: any = {
+      tenantId: ctx.tenantId,
+      appType: ctx.appType,
+    };
+
+    if (ctx.role === 'agent') {
+      where.OR = [
+        { assignedAgentId: ctx.userId },
+        { routeAgents: { some: { agentId: ctx.userId } } },
+      ];
+    } else {
+      Object.assign(where, scopedBranchWhere(ctx));
+    }
+
     const routes = await prisma.route.findMany({
-      where: {
-        tenantId: ctx.tenantId,
-        appType: ctx.appType,
-        ...routeBranchScope(ctx),
-        ...(ctx.role === 'agent'
-          ? {
-              OR: [
-                { assignedAgentId: ctx.userId },
-                { routeAgents: { some: { agentId: ctx.userId } } },
-              ],
-            }
-          : {}),
-      },
+      where,
       include: {
         assignedAgent: { select: { id: true, name: true, phone: true } },
         _count: { select: { customers: true } },
@@ -53,13 +49,40 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     if (!body.name?.trim()) return fail('Route name required', 400);
 
+    const branchId =
+      ctx.role === 'admin'
+        ? ctx.branchId
+        : (body.branchId ?? ctx.branchId ?? null);
+
+    if (branchId) {
+      const branch = await prisma.branch.findFirst({
+        where: { id: branchId, tenantId: ctx.tenantId },
+        select: { id: true },
+      });
+      if (!branch) return fail('Invalid branch', 400);
+    }
+
+    if (body.assignedAgentId) {
+      const agentWhere: any = {
+        id: body.assignedAgentId,
+        tenantId: ctx.tenantId,
+        role: 'agent',
+        status: 'active',
+      };
+      if (branchId) {
+        agentWhere.branchId = branchId;
+      }
+      const agent = await prisma.user.findFirst({
+        where: agentWhere,
+        select: { id: true },
+      });
+      if (!agent) return fail('Assigned agent not found in branch', 400);
+    }
+
     const route = await prisma.route.create({
       data: {
         tenantId: ctx.tenantId,
-        branchId:
-          ctx.role === 'admin'
-            ? ctx.branchId
-            : (body.branchId ?? ctx.branchId ?? null),
+        branchId,
         name: body.name.trim(),
         assignedAgentId: body.assignedAgentId ?? null,
         appType: ctx.appType,

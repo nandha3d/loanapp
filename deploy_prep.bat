@@ -48,7 +48,7 @@ if /i "%DB_MODE%"=="dbpush" if not "%ALLOW_DBPUSH%"=="1" (
 )
 
 echo ========================================================
-echo LoanTrack Hostinger Build + Deploy
+echo ZoloFund Hostinger Build + Deploy
 echo ========================================================
 echo Project:      %ROOT%
 echo Remote SSH:   ssh -p %REMOTE_PORT% %REMOTE_USER%@%REMOTE_HOST%

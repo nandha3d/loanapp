@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateDeveloperCredentials } from './actions';
+import PasswordInput from '@/components/ui/PasswordInput';
 
 type Props = {
   user: {
@@ -214,8 +215,7 @@ export default function SettingsClient({ user, stats }: Props) {
                   </h4>
                   <div className="form-group">
                     <label className="form-label">Current Password</label>
-                    <input
-                      type="password"
+                    <PasswordInput
                       name="currentPassword"
                       className="form-control"
                       placeholder="Enter current password"
@@ -224,8 +224,7 @@ export default function SettingsClient({ user, stats }: Props) {
                   </div>
                   <div className="form-group">
                     <label className="form-label">New Password</label>
-                    <input
-                      type="password"
+                    <PasswordInput
                       name="newPassword"
                       className="form-control"
                       placeholder="Enter new password"
@@ -234,8 +233,7 @@ export default function SettingsClient({ user, stats }: Props) {
                   </div>
                   <div className="form-group" style={{ marginBottom: 0 }}>
                     <label className="form-label">Confirm New Password</label>
-                    <input
-                      type="password"
+                    <PasswordInput
                       name="confirmPassword"
                       className="form-control"
                       placeholder="Re-enter new password"
@@ -253,6 +251,29 @@ export default function SettingsClient({ user, stats }: Props) {
               </button>
             </div>
           </form>
+        </div>
+      </div>
+
+      {/* Payment Gateway Settings Card */}
+      <div className="card fade-up">
+        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+            <span className="material-icons-outlined" style={{ fontSize: '20px', color: 'var(--primary)' }}>payment</span>
+            Payment Gateway Configuration
+          </h3>
+          <a
+            href="/admin/settings/payment"
+            className="btn btn-secondary"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem' }}
+          >
+            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>settings</span>
+            Manage Payment Settings
+          </a>
+        </div>
+        <div style={{ padding: '0 20px 20px' }}>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', margin: '0 0 12px' }}>
+            Configure Razorpay API Key ID, Key Secret, Webhook Secret, and live/test mode dynamically without hardcoding values in .env files.
+          </p>
         </div>
       </div>
     </div>

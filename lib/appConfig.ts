@@ -1,7 +1,7 @@
 // App type configuration for multi-app architecture
 // Each admin is assigned to one appType and only sees that application
 
-export type AppType = 'microlending' | 'autofinance' | 'chitfunds' | 'goldloan';
+export type AppType = 'microlending' | 'autofinance' | 'chitfunds' | 'goldloan' | 'property' | 'productfinance';
 
 export interface AppConfig {
   id: AppType;
@@ -64,6 +64,30 @@ export const APP_CONFIGS: Record<AppType, AppConfig> = {
     primaryLight: '#FFF8E7',
     accentColor: '#DAA520',
     logoText: ['Gold', 'Loan'],
+  },
+  property: {
+    id: 'property',
+    name: 'Property Loan',
+    shortName: 'PL',
+    icon: 'home_work',
+    description: 'Property-backed lending with mortgage document management and release tracking.',
+    primaryColor: '#7D3C98',
+    primaryDark: '#5B2C6F',
+    primaryLight: '#F5EEF8',
+    accentColor: '#A569BD',
+    logoText: ['Property', 'Loan'],
+  },
+  productfinance: {
+    id: 'productfinance',
+    name: 'Product Finance',
+    shortName: 'PF',
+    icon: 'shopping_bag',
+    description: 'Consumer-durable and product financing with dealer and EMI tracking.',
+    primaryColor: '#16A085',
+    primaryDark: '#117A65',
+    primaryLight: '#E8F8F5',
+    accentColor: '#1ABC9C',
+    logoText: ['Product', 'Finance'],
   },
 };
 

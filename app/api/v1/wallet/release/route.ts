@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { requireMobileContext } from '@/lib/api/v1-auth';
+import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { releaseToAgent } from '@/lib/wallet';
 import { writeAudit } from '@/lib/audit';
 
@@ -29,13 +29,14 @@ export async function POST(req: NextRequest) {
     }
 
     const agent = await prisma.user.findFirst({
-      where: { id: agentId, tenantId: ctx.tenantId, role: 'agent', status: 'active' },
+      where: { id: agentId, tenantId: ctx.tenantId, role: 'agent', status: 'active', ...scopedBranchWhere(ctx) },
       select: { id: true, branchId: true },
     });
     if (!agent) return fail('Agent not found', 404);
 
     const { agentBalance } = await releaseToAgent({
       tenantId: ctx.tenantId,
+      appType: ctx.appType,
       agentId,
       branchId: agent.branchId ?? ctx.branchId ?? null,
       amount,

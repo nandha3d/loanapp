@@ -1,4 +1,4 @@
-# LoanTrack — Detailed User Stories & Web→Mobile Parity
+# ZoloFund — Detailed User Stories & Web→Mobile Parity
 
 **Date:** 2026-06-01
 **Author:** generated from full route + feature audit (web `app/**` vs mobile `mobile/lib/features/**` vs API `app/api/v1/**`).

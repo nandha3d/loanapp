@@ -1,9 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import 'package:loantrack/core/l10n/app_strings.dart';
-import 'package:loantrack/core/l10n/language_controller.dart';
-import 'package:loantrack/data/services/settings_service.dart';
+import 'package:zolofund/core/l10n/app_strings.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/data/services/settings_service.dart';
 
 class CurrencyController extends StateNotifier<String> {
   CurrencyController(this._settings) : super('₹') {

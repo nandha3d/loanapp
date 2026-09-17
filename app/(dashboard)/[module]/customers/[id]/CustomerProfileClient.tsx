@@ -4,9 +4,11 @@ import { useState } from 'react';
 import Link from '@/components/layout/DashboardLink';
 import { formatCurrency, formatDate, getBadgeClass, getInitials, calcPercentage } from '@/lib/utils';
 import { submitEditRequest } from '@/app/(dashboard)/[module]/approvals/actions';
-import { resetCustomerPassword } from '@/app/(dashboard)/[module]/customers/actions';
+import { resetCustomerPassword, updateCustomerGpsAction } from '@/app/(dashboard)/[module]/customers/actions';
+import LocationPickerModal from '@/components/map/LocationPickerModal';
 import { calculateCreditScore } from '@/lib/creditScore';
 import { getCreditScoreGaugePresentation } from '@/lib/creditScoreGauge';
+import { useRegisterBreadcrumbLabel } from '@/components/layout/BreadcrumbLabelContext';
 
 const CreditScoreGauge = ({ score, grade }: { score: number, grade: string }) => {
   const gauge = getCreditScoreGaugePresentation(score, grade);
@@ -44,6 +46,10 @@ export default function CustomerProfileClient({
   dict,
   kycEnabled = false,
   tenantKycMethod = 'manual_upload',
+  loansEnabled = true,
+  appType,
+  chitSummary,
+  chitMemberships = [],
 }: {
   customer: any;
   currencySymbol: string;
@@ -51,13 +57,86 @@ export default function CustomerProfileClient({
   dict: any;
   kycEnabled?: boolean;
   tenantKycMethod?: string;
+  loansEnabled?: boolean;
+  appType: string;
+  chitSummary?: {
+    activeChits: number;
+    totalContributed: number;
+    outstandingSubscriptionDue: number;
+    prizedChits: number;
+  };
+  chitMemberships?: Array<{
+    id: string;
+    groupId: string;
+    groupCode: string | null;
+    groupName: string;
+    groupStatus: string;
+    ticket: string;
+    subscriberStatus: string;
+    contributed: number;
+    outstandingSubscriptionDue: number;
+    hasWon: boolean;
+  }>;
 }) {
   const router = useRouter();
+  useRegisterBreadcrumbLabel(customer.customerCode, customer.name);
   const d = dict.customerProfile;
-  const [activeTab, setActiveTab] = useState('loans');
+  const isChit = appType === 'chitfunds';
+  const [activeTab, setActiveTab] = useState(isChit ? 'chits' : loansEnabled ? 'loans' : 'kyc');
   const [editRequestModal, setEditRequestModal] = useState(false);
   const [editRequestLoading, setEditRequestLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+
+  const [gpsModalOpen, setGpsModalOpen] = useState(false);
+  const [mapPickerOpen, setMapPickerOpen] = useState(false);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [gpsLat, setGpsLat] = useState<string>(customer.lat != null ? String(customer.lat) : '');
+  const [gpsLng, setGpsLng] = useState<string>(customer.lng != null ? String(customer.lng) : '');
+  const [gpsReason, setGpsReason] = useState<string>('Location coordinates update');
+
+  const captureDeviceGps = () => {
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setGpsLat(pos.coords.latitude.toFixed(6));
+          setGpsLng(pos.coords.longitude.toFixed(6));
+        },
+        () => alert('Failed to capture location. Please ensure location access is enabled in your browser.')
+      );
+    } else {
+      alert('Geolocation is not supported by your browser.');
+    }
+  };
+
+  const handleUpdateGps = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!gpsLat || !gpsLng) {
+      alert('Please provide valid latitude and longitude coordinates.');
+      return;
+    }
+    setGpsLoading(true);
+    try {
+      const fd = new FormData();
+      fd.set('customerId', customer.id);
+      fd.set('customerCode', customer.customerCode);
+      fd.set('lat', gpsLat);
+      fd.set('lng', gpsLng);
+      fd.set('reason', gpsReason);
+
+      const res = await updateCustomerGpsAction(fd);
+      if (res.success) {
+        alert((res as any).message || 'GPS location updated successfully');
+        setGpsModalOpen(false);
+        router.refresh();
+      } else {
+        alert((res as any).error || 'Failed to update GPS location');
+      }
+    } catch (err: any) {
+      alert(err?.message || 'An error occurred while updating GPS location');
+    } finally {
+      setGpsLoading(false);
+    }
+  };
 
   const [kycLoading, setKycLoading] = useState(false);
   const [aadhaarInput, setAadhaarInput] = useState('');
@@ -236,7 +315,7 @@ export default function CustomerProfileClient({
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '16px', marginBottom: '8px' }}>
               <h1 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 900 }}>{customer.name}</h1>
               <div style={{ fontSize: '1rem', color: 'var(--text-light)', fontWeight: 600 }}>[{customer.customerCode}]</div>
-              <div style={{ 
+              {!isChit && <div style={{
                 display: 'flex', alignItems: 'center', gap: '6px', 
                 background: score >= 750 ? '#DCFCE7' : score >= 650 ? '#FEF3C7' : '#FEE2E2',
                 color: score >= 750 ? '#166534' : score >= 650 ? '#92400E' : '#991B1B',
@@ -245,14 +324,78 @@ export default function CustomerProfileClient({
               }}>
                 <span className="material-icons-outlined" style={{ fontSize: '16px' }}>stars</span>
                 {grade}
-              </div>
+              </div>}
             </div>
             <div className="profile-meta" style={{ display: 'flex', gap: '20px', fontSize: '.9rem', color: 'var(--text-secondary)' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span className="material-icons-outlined" style={{ fontSize: '16px' }}>phone</span> {customer.phone}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span className="material-icons-outlined" style={{ fontSize: '16px' }}>phone</span> {customer.phone}
+                {customer.phone && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '2px', marginLeft: '4px' }}>
+                    <a href={`tel:${customer.phone}`} title="Call" style={{ display: 'flex', color: 'var(--success, #16a34a)' }}>
+                      <span className="material-icons-outlined" style={{ fontSize: '18px' }}>call</span>
+                    </a>
+                    <a href={`sms:${customer.phone}`} title="Message" style={{ display: 'flex', color: 'var(--info, #2563eb)' }}>
+                      <span className="material-icons-outlined" style={{ fontSize: '18px' }}>sms</span>
+                    </a>
+                    <a
+                      href={`https://wa.me/${String(customer.phone).replace(/\D/g, '').replace(/^(\d{10})$/, '91$1')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="WhatsApp"
+                      style={{ display: 'flex', color: '#25D366' }}
+                    >
+                      <span className="material-icons-outlined" style={{ fontSize: '18px' }}>chat</span>
+                    </a>
+                  </span>
+                )}
+              </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span className="material-icons-outlined" style={{ fontSize: '16px' }}>location_on</span> {customer.route?.name || d.noRoute}</span>
               <span><span className={getBadgeClass(customer.kycStatus)} style={{textTransform:'capitalize', padding: '2px 10px', borderRadius: '4px'}}>{customer.kycStatus}</span></span>
             </div>
-            <p style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginTop: '6px' }}>{customer.address}</p>
+            <p style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginTop: '6px', marginBottom: '2px' }}>{customer.address}</p>
+            {customer.lat != null && customer.lng != null ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', fontSize: '.8rem', flexWrap: 'wrap' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--primary)', fontWeight: 600 }}>
+                  <span className="material-icons-outlined" style={{ fontSize: '15px' }}>pin_drop</span>
+                  {customer.lat.toFixed(5)}, {customer.lng.toFixed(5)}
+                </span>
+                <a
+                  href={`https://www.google.com/maps?q=${customer.lat},${customer.lng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-ghost btn-sm"
+                  style={{ padding: '2px 8px', fontSize: '.75rem', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                >
+                  <span className="material-icons-outlined" style={{ fontSize: '13px' }}>open_in_new</span>
+                  View on Map
+                </a>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setGpsModalOpen(true)}
+                  style={{ padding: '2px 8px', fontSize: '.75rem', display: 'inline-flex', alignItems: 'center', gap: '3px', color: 'var(--primary)' }}
+                >
+                  <span className="material-icons-outlined" style={{ fontSize: '13px' }}>my_location</span>
+                  {userRole === 'agent' ? 'Request GPS Update' : 'Update GPS'}
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', fontSize: '.8rem', flexWrap: 'wrap' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--warning)', fontWeight: 500 }}>
+                  <span className="material-icons-outlined" style={{ fontSize: '15px' }}>location_off</span>
+                  No GPS coordinates registered
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setGpsModalOpen(true)}
+                  style={{ padding: '2px 8px', fontSize: '.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                >
+                  <span className="material-icons-outlined" style={{ fontSize: '14px' }}>my_location</span>
+                  {userRole === 'agent' ? 'Request GPS Registration' : 'Register GPS Location'}
+                </button>
+              </div>
+            )}
           </div>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
             {userRole !== 'agent' && (
@@ -277,7 +420,16 @@ export default function CustomerProfileClient({
                 <span className="material-icons-outlined" style={{ fontSize: '14px' }}>edit_note</span> {d.requestEdit}
               </button>
             )}
-            {userRole !== 'agent' && (
+            <a
+              href={`/api/customers/${customer.id}/collection-receipt`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-secondary btn-sm"
+            >
+              <span className="material-icons-outlined" style={{ fontSize: '14px' }}>receipt_long</span>
+              {d.collectionReceipt || 'Collection Receipt'}
+            </a>
+            {userRole !== 'agent' && loansEnabled && (
               <Link href={`/loans/new?customerId=${customer.id}`} className="btn btn-primary btn-sm">
                 <span className="material-icons-outlined" style={{ fontSize: '14px' }}>add</span> {d.newLoan}
               </Link>
@@ -286,8 +438,29 @@ export default function CustomerProfileClient({
         </div>
       </div>
 
-      {/* Credit Summary Bar */}
+      {/* Module-aware customer summary */}
       <div className="stats-grid" style={{ marginBottom: '20px', gridTemplateColumns: 'repeat(4, 1fr)' }}>
+        {isChit ? (
+          <>
+            <div className="card" style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{chitSummary?.activeChits ?? 0}</div>
+              <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>Active Chits</div>
+            </div>
+            <div className="card" style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--success)' }}>{formatCurrency(chitSummary?.totalContributed ?? 0, currencySymbol)}</div>
+              <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>Total Contributed</div>
+            </div>
+            <div className="card" style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--warning)' }}>{formatCurrency(chitSummary?.outstandingSubscriptionDue ?? 0, currencySymbol)}</div>
+              <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>Outstanding Subscription Due</div>
+            </div>
+            <div className="card" style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{chitSummary?.prizedChits ?? 0}</div>
+              <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>Prized Chits</div>
+            </div>
+          </>
+        ) : (
+          <>
         <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px' }}>
           <CreditScoreGauge score={score} grade={grade} />
         </div>
@@ -303,19 +476,60 @@ export default function CustomerProfileClient({
           <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{stats.activeLoans} / {stats.closedLoans}</div>
           <div style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>{d.activeClosedLoans}</div>
         </div>
+          </>
+        )}
       </div>
 
       {/* Tabs */}
       <div className="card">
         <div className="tabs">
-          <div className={`tab ${activeTab === 'loans' ? 'active' : ''}`} onClick={() => setActiveTab('loans')}>{d.loanHistory}</div>
+          {isChit && (
+            <div className={`tab ${activeTab === 'chits' ? 'active' : ''}`} onClick={() => setActiveTab('chits')}>Chit Memberships</div>
+          )}
+          {loansEnabled && (
+            <div className={`tab ${activeTab === 'loans' ? 'active' : ''}`} onClick={() => setActiveTab('loans')}>{d.loanHistory}</div>
+          )}
           <div className={`tab ${activeTab === 'kyc' ? 'active' : ''}`} onClick={() => setActiveTab('kyc')}>{d.kycDocuments}</div>
-          <div className={`tab ${activeTab === 'cheques' ? 'active' : ''}`} onClick={() => setActiveTab('cheques')}>{d.securityCheques}</div>
-          <div className={`tab ${activeTab === 'guarantors' ? 'active' : ''}`} onClick={() => setActiveTab('guarantors')}>{d.guarantors}</div>
+          {!isChit && <div className={`tab ${activeTab === 'cheques' ? 'active' : ''}`} onClick={() => setActiveTab('cheques')}>{d.securityCheques}</div>}
+          {!isChit && <div className={`tab ${activeTab === 'guarantors' ? 'active' : ''}`} onClick={() => setActiveTab('guarantors')}>{d.guarantors}</div>}
         </div>
 
+        {isChit && (
+          <div className={`tab-content ${activeTab === 'chits' ? 'active' : ''}`}>
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Group</th>
+                    <th>Ticket</th>
+                    <th>Subscriber Status</th>
+                    <th>Contributed</th>
+                    <th>Outstanding</th>
+                    <th>Prized</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {chitMemberships.map((membership) => (
+                    <tr key={membership.id}>
+                      <td><Link href={`/chits/${membership.groupId}`}><strong>{membership.groupCode || membership.groupName}</strong></Link></td>
+                      <td>{membership.ticket}</td>
+                      <td><span className={getBadgeClass(membership.subscriberStatus)} style={{ textTransform: 'capitalize' }}>{membership.subscriberStatus}</span></td>
+                      <td>{formatCurrency(membership.contributed, currencySymbol)}</td>
+                      <td>{formatCurrency(membership.outstandingSubscriptionDue, currencySymbol)}</td>
+                      <td>{membership.hasWon ? 'Yes' : 'No'}</td>
+                    </tr>
+                  ))}
+                  {chitMemberships.length === 0 && (
+                    <tr><td colSpan={6} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-light)' }}>No chit memberships found.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {/* Loans Tab */}
-        <div className={`tab-content ${activeTab === 'loans' ? 'active' : ''}`}>
+        {loansEnabled && <div className={`tab-content ${activeTab === 'loans' ? 'active' : ''}`}>
           <div className="table-wrapper">
             <table>
               <thead>
@@ -364,7 +578,7 @@ export default function CustomerProfileClient({
               </tbody>
             </table>
           </div>
-        </div>
+        </div>}
 
         {/* KYC Tab */}
         <div className={`tab-content ${activeTab === 'kyc' ? 'active' : ''}`}>
@@ -874,6 +1088,16 @@ export default function CustomerProfileClient({
                   <label className="form-label">{d.aadhaarNumber}</label>
                   <input type="text" name="aadharNumber" className="form-control" defaultValue={customer.aadharNumber} />
                 </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div className="form-group">
+                    <label className="form-label">Latitude</label>
+                    <input type="number" step="any" name="lat" className="form-control" defaultValue={customer.lat != null ? customer.lat : ''} placeholder="e.g. 13.0827" />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Longitude</label>
+                    <input type="number" step="any" name="lng" className="form-control" defaultValue={customer.lng != null ? customer.lng : ''} placeholder="e.g. 80.2707" />
+                  </div>
+                </div>
                 <div className="form-group">
                   <label className="form-label">{d.kycStatus}</label>
                   <select name="kycStatus" className="form-control" defaultValue={customer.kycStatus}>
@@ -896,6 +1120,134 @@ export default function CustomerProfileClient({
             </form>
           </div>
         </div>
+      )}
+
+      {/* GPS Location Update / Request Modal */}
+      {gpsModalOpen && (
+        <div className="modal-overlay show" onClick={(e) => { if (e.target === e.currentTarget) setGpsModalOpen(false); }}>
+          <div className="modal" style={{ maxWidth: '480px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-icons-outlined" style={{ color: 'var(--primary)' }}>pin_drop</span>
+                <h3 style={{ margin: 0 }}>
+                  {userRole === 'agent' ? 'Request GPS Location Update' : 'Update Customer GPS Location'}
+                </h3>
+              </div>
+              <button className="modal-close material-icons-outlined" onClick={() => setGpsModalOpen(false)}>close</button>
+            </div>
+            <form onSubmit={handleUpdateGps}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <p style={{ fontSize: '.85rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                  {userRole === 'agent'
+                    ? 'As an agent, your GPS coordinate update will be submitted as an approval request for administrator review.'
+                    : 'Set or update the primary GPS coordinates used to verify field collection locations for this customer.'}
+                </p>
+
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setMapPickerOpen(true)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <span className="material-icons-outlined" style={{ fontSize: '15px', color: 'var(--primary)' }}>map</span>
+                    Pin on Map
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={captureDeviceGps}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <span className="material-icons-outlined" style={{ fontSize: '15px' }}>my_location</span>
+                    Capture Current Location
+                  </button>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: '.8rem', fontWeight: 600 }}>Latitude *</label>
+                    <input
+                      type="number"
+                      step="any"
+                      className="form-control"
+                      value={gpsLat}
+                      onChange={(e) => setGpsLat(e.target.value)}
+                      placeholder="e.g. 13.0827"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: '.8rem', fontWeight: 600 }}>Longitude *</label>
+                    <input
+                      type="number"
+                      step="any"
+                      className="form-control"
+                      value={gpsLng}
+                      onChange={(e) => setGpsLng(e.target.value)}
+                      placeholder="e.g. 80.2707"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {gpsLat && gpsLng && !isNaN(Number(gpsLat)) && !isNaN(Number(gpsLng)) && (
+                  <div style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>
+                    <a
+                      href={`https://www.google.com/maps?q=${gpsLat},${gpsLng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                    >
+                      <span className="material-icons-outlined" style={{ fontSize: '13px' }}>open_in_new</span>
+                      Preview coordinates on Google Maps
+                    </a>
+                  </div>
+                )}
+
+                <div className="form-group">
+                  <label className="form-label" style={{ fontSize: '.8rem', fontWeight: 600 }}>
+                    Reason / Notes {userRole === 'agent' && <span style={{ color: 'var(--danger)' }}>*</span>}
+                  </label>
+                  <textarea
+                    className="form-control"
+                    rows={2}
+                    value={gpsReason}
+                    onChange={(e) => setGpsReason(e.target.value)}
+                    required={userRole === 'agent'}
+                    placeholder="Reason for updating GPS coordinates"
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setGpsModalOpen(false)}>
+                  {d.cancel}
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={gpsLoading}>
+                  {gpsLoading ? 'Submitting...' : userRole === 'agent' ? 'Submit for Approval' : 'Save Location'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {mapPickerOpen && (
+        <LocationPickerModal
+          isOpen={mapPickerOpen}
+          onClose={() => setMapPickerOpen(false)}
+          onConfirm={(result) => {
+            setGpsLat(result.lat.toFixed(6));
+            setGpsLng(result.lng.toFixed(6));
+            if (result.address) {
+              setGpsReason(`Pin on map: ${result.address}`);
+            }
+          }}
+          initialLat={gpsLat ? parseFloat(gpsLat) : customer.lat}
+          initialLng={gpsLng ? parseFloat(gpsLng) : customer.lng}
+          initialAddress={customer.address}
+          title={`Pin GPS Location for ${customer.name}`}
+        />
       )}
     </>
   );

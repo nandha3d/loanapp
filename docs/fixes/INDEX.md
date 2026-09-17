@@ -1,4 +1,4 @@
-# LoanTrack — Audit Fix Tracker
+# ZoloFund — Audit Fix Tracker
 
 > Source: `docs/audit-report-2026-06-10.html`  
 > Each file below is a self-contained instruction set for an AI coding agent.
@@ -28,7 +28,7 @@
 | [HARD-01](HARD-01-currency-symbol.md) | Replace `"₹"` hardcode with `AppSetting.currency_symbol` | 🟠 HIGH | DONE |
 | [HARD-02](HARD-02-fiscal-year-start.md) | Read fiscal-year start month from tenant `AppSetting` | 🟠 HIGH | DONE |
 | [HARD-03](HARD-03-account-codes.md) | Read GL account codes from `accountingSettings.postingOverrides` | 🟠 HIGH | DONE |
-| [HARD-04](HARD-04-brand-name.md) | Replace `"LoanTrack"` brand from `AppSetting.brand_name` | 🟡 MEDIUM | DONE |
+| [HARD-04](HARD-04-brand-name.md) | Replace `"ZoloFund"` brand from `AppSetting.brand_name` | 🟡 MEDIUM | DONE |
 | [HARD-05](HARD-05-nach-config.md) | NACH retry days / max retries / horizon → `AppSetting` keys | 🟡 MEDIUM | DONE |
 
 ## Feature Gaps

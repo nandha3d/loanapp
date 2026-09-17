@@ -1,16 +1,18 @@
+import { LOAN_PRECLOSE_REQUEST } from '@/lib/loanPreclosePolicy';
+import { PrecloseRequestError, reviewLoanPrecloseRequest, precloseApprovalVisibility } from '@/lib/loanPrecloseRequests';
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/db';
 import { ok, fail } from '@/lib/api/v1-envelope';
-import { requireMobileContext } from '@/lib/api/v1-auth';
+import { requireMobileContext, scopedBranchWhere } from '@/lib/api/v1-auth';
 import { encryptAadharNumber } from '@/lib/pii';
-import { submitCollectionEntry } from '@/app/(dashboard)/[module]/collection/actions';
+import { correctInstalmentPaymentInTx } from '@/lib/collectionWrite';
 import { calculateLoanPreview } from '@/lib/loanCalculator';
 import { calculateEndDate } from '@/lib/utils';
 import { hasFinancialActivity } from '@/lib/repayments';
 import { disburseFromAgent, disburseFromBranch } from '@/lib/wallet';
 
 const CUSTOMER_EDIT_ALLOW_LIST = new Set([
-  'name', 'phone', 'address', 'aadharNumber', 'kycStatus', 'photo',
+  'name', 'phone', 'address', 'aadharNumber', 'kycStatus', 'photo', 'lat', 'lng',
 ]);
 
 const LOAN_EDIT_ALLOW_LIST = new Set([
@@ -42,9 +44,30 @@ export async function PATCH(
     const note = body.note ? String(body.note) : null;
 
     // A. Check if this is a general approval request
+    const requestWhere: any = {
+      id,
+      tenantId: ctx.tenantId,
+      appType: ctx.appType,
+      status: 'pending',
+    };
+    if (ctx.branchId && ctx.role === 'admin') {
+      if (ctx.appType !== 'microlending') {
+        requestWhere.requestedBy = { branchId: ctx.branchId };
+      } else {
+        requestWhere.OR = [
+          { requestType: { not: LOAN_PRECLOSE_REQUEST }, requestedBy: { branchId: ctx.branchId } },
+          await precloseApprovalVisibility(ctx.tenantId, ctx.appType, ctx.branchId),
+        ];
+      }
+    }
+
     const request = await prisma.approvalRequest.findFirst({
-      where: { id, tenantId: ctx.tenantId, appType: ctx.appType, status: 'pending' },
+      where: requestWhere,
     });
+
+    if (request?.requestType === LOAN_PRECLOSE_REQUEST) {
+      return ok(await reviewLoanPrecloseRequest(ctx, id, 'approve', note ?? ''));
+    }
 
     if (request) {
       const result = await prisma.$transaction(async (tx) => {
@@ -68,20 +91,59 @@ export async function PATCH(
                 : value;
             }
           }
+          if (safeChanges.lat != null && safeChanges.lng != null) {
+            safeChanges.geocodedAt = new Date();
+          }
           await tx.customer.update({
             where: { id: request.entityId },
             data: safeChanges,
           });
+          if (safeChanges.lat != null && safeChanges.lng != null) {
+            try {
+              const cust = await tx.customer.findUnique({ where: { id: request.entityId }, select: { address: true } });
+              await tx.customerGeocode.upsert({
+                where: { customerId: request.entityId },
+                update: {
+                  latitude: Number(safeChanges.lat),
+                  longitude: Number(safeChanges.lng),
+                  accuracy: 'manual',
+                  rawAddress: (safeChanges.address as string) || cust?.address || '',
+                  geocodedAt: new Date(),
+                },
+                create: {
+                  customerId: request.entityId,
+                  tenantId: ctx.tenantId,
+                  latitude: Number(safeChanges.lat),
+                  longitude: Number(safeChanges.lng),
+                  accuracy: 'manual',
+                  source: 'manual',
+                  rawAddress: (safeChanges.address as string) || cust?.address || '',
+                },
+              });
+            } catch (err) {
+              console.error('CustomerGeocode upsert on approval failed:', err);
+            }
+          }
         } else if (request.requestType === 'edit_collection') {
           const rawChanges = JSON.parse(request.requestedChanges);
           const requestedAmount = rawChanges.requestedAmount;
-          const fd = new FormData();
-          fd.set('instalmentId', request.entityId);
-          fd.set('receivedAmount', String(requestedAmount));
-          await submitCollectionEntry(fd);
+          if (requestedAmount === undefined || isNaN(Number(requestedAmount)) || Number(requestedAmount) < 0) {
+            throw new Error('Invalid collection edit request: missing or invalid requestedAmount');
+          }
+          await correctInstalmentPaymentInTx(tx, {
+            tenantId: ctx.tenantId,
+            appType: ctx.appType,
+            userId: ctx.userId,
+            branchId: ctx.branchId,
+            role: ctx.role,
+          }, {
+            instalmentId: request.entityId,
+            correctedAmount: Number(requestedAmount),
+            remarks: `Approved collection edit request: ${note || request.reason || ''}`.trim(),
+          });
         } else if (request.requestType === 'loan_edit' && request.entityType === 'loan') {
           const loan = await tx.loan.findFirst({
-            where: { id: request.entityId, tenantId: ctx.tenantId },
+            where: { id: request.entityId, tenantId: ctx.tenantId, appType: ctx.appType, ...scopedBranchWhere(ctx) },
             include: { guarantor: true },
           });
           if (!loan) throw new Error('Target loan not found');
@@ -220,7 +282,7 @@ export async function PATCH(
 
     // B. Check if this is a pending customer creation
     const customer = await prisma.customer.findFirst({
-      where: { id, tenantId: ctx.tenantId, appType: ctx.appType, status: 'pending_review' },
+      where: { id, tenantId: ctx.tenantId, appType: ctx.appType, status: 'pending_review', ...scopedBranchWhere(ctx) },
     });
 
     if (customer) {
@@ -263,7 +325,7 @@ export async function PATCH(
 
     // C. Check if this is a pending loan request
     const loan = await prisma.loan.findFirst({
-      where: { id, tenantId: ctx.tenantId, appType: ctx.appType, status: 'pending_review' },
+      where: { id, tenantId: ctx.tenantId, appType: ctx.appType, status: 'pending_review', ...scopedBranchWhere(ctx) },
     });
 
     if (loan) {
@@ -287,6 +349,7 @@ export async function PATCH(
           if (isAgent && loan.createdById) {
             await disburseFromAgent(tx, {
               tenantId: ctx.tenantId,
+              appType: ctx.appType,
               agentId: loan.createdById,
               amount: disburseAmt,
               loanId: loan.id,
@@ -295,6 +358,7 @@ export async function PATCH(
           } else if (loan.branchId) {
             await disburseFromBranch(tx, {
               tenantId: ctx.tenantId,
+              appType: ctx.appType,
               branchId: loan.branchId,
               amount: disburseAmt,
               loanId: loan.id,
@@ -342,6 +406,6 @@ export async function PATCH(
 
     return fail('Approval target not found or already processed', 404);
   } catch (e: any) {
-    return fail(e?.message ?? 'Review failed', 500);
+    return fail(e?.message ?? 'Review failed', e instanceof PrecloseRequestError ? e.status : 500);
   }
 }

@@ -47,19 +47,28 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         receivedAmount: true,
         paymentMode: true,
         submittedAt: true,
-        customer: { select: { name: true, customerCode: true } },
+        lat: true,
+        lng: true,
+        customerId: true,
+        customer: { select: { name: true, customerCode: true, profilePhoto: true } },
       },
     });
 
     return ok(
       entries.map((e) => ({
         id: e.id,
+        customerId: e.customerId,
         customerName: e.customer?.name ?? '—',
         customerCode: e.customer?.customerCode ?? '',
+        customerPhoto: e.customer?.profilePhoto ?? null,
         dueAmount: Number(e.dueAmount),
         receivedAmount: Number(e.receivedAmount),
         paymentMode: e.paymentMode,
         submittedAt: e.submittedAt,
+        // Where the entry was collected — powers the photo pins on the
+        // agent-tracking map.
+        lat: e.lat,
+        lng: e.lng,
       })),
     );
   } catch (e: any) {

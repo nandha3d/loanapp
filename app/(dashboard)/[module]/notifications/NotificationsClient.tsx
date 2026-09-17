@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { markNotificationRead, markAllNotificationsRead } from './actions';
 import { useRouter } from 'next/navigation';
 import { useDashboardPath } from '@/components/layout/useDashboardPath';
+import { formatNotificationTime } from '@/lib/utils';
 
 
 const iconColorMap: Record<string, string> = {
@@ -21,15 +22,8 @@ const defaultIconMap: Record<string, string> = {
 };
 
 function timeAgo(dateStr: string, d: any): string {
-  const now = new Date();
-  const date = new Date(dateStr);
-  const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-  if (diff < 60) return d.justNow;
-  if (diff < 3600) return `${Math.floor(diff / 60)} ${d.minutesAgo}`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} ${d.hoursAgo}`;
-  if (diff < 172800) return d.yesterday;
-  return `${Math.floor(diff / 86400)} ${d.daysAgo}`;
+  // <24h → relative; older → exact date & time (so it's not just "5 days ago").
+  return formatNotificationTime(dateStr, { justNow: d.justNow, minutesAgo: d.minutesAgo, hoursAgo: d.hoursAgo });
 }
 
 export default function NotificationsClient({

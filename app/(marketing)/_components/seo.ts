@@ -6,7 +6,7 @@ import type { Metadata } from 'next';
  * canonical URLs, sitemap and Open Graph tags all resolve to the live domain.
  */
 export const siteConfig = {
-  name: 'LoanTrack',
+  name: 'ZoloFund',
   // Falls back to APP_URL, then a sensible production placeholder.
   url: (
     process.env.NEXT_PUBLIC_SITE_URL ||
@@ -15,8 +15,8 @@ export const siteConfig = {
   ).replace(/\/$/, ''),
   tagline: 'Loan Tracking & Field Collection Software',
   description:
-    'LoanTrack is all-in-one loan tracking and management software for micro-lending, auto finance, gold loans and chit funds — with GPS field collection, agent wallets, KYC and accounting. Built for Indian lenders in 6 languages.',
-  twitter: '@loantrack',
+    'ZoloFund is all-in-one loan tracking and management software for micro-lending, auto finance, gold loans and chit funds — with GPS field collection, agent wallets, KYC and accounting. Built for Indian lenders in 6 languages.',
+  twitter: '@zolofund',
   locale: 'en_IN',
 };
 
@@ -61,7 +61,7 @@ export const OG_IMAGE = {
   url: '/og.png',
   width: 1200,
   height: 630,
-  alt: 'LoanTrack — Loan Tracking & Field Collection Software',
+  alt: 'ZoloFund — Loan Tracking & Field Collection Software',
 };
 
 export function buildMetadata({ title, description, path, keywords = [] }: BuildArgs): Metadata {

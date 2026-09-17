@@ -3,12 +3,121 @@
 import { apiFetch } from '@/lib/api-client/index';
 import { getApiRequestContext } from '@/lib/api-client/server';
 import { revalidatePath } from 'next/cache';
-import { submitCollectionEntry, requestCollectionEdit } from '@/app/(dashboard)/[module]/collection/actions';
+import { submitCollectionEntry, submitLoanCollection, requestCollectionEdit } from '@/app/(dashboard)/[module]/collection/actions';
+
+import { auth } from '@/lib/auth';
+import { getCurrentTenantId, getUserAppType } from '@/lib/tenant';
+import { getActiveBranchId } from '@/lib/branch';
+import { modulePath } from '@/types/modules';
+import { correctInstalmentPayment } from '@/lib/collectionWrite';
 
 export { requestCollectionEdit };
 
 export async function markInstalmentPaid(formData: FormData) {
   return submitCollectionEntry(formData);
+}
+
+export async function correctInstalmentPaymentAction(formData: FormData) {
+  const instalmentId = formData.get('instalmentId') as string;
+  const rawAmount = formData.get('correctedAmount') ?? formData.get('receivedAmount');
+  const correctedAmount = Number(rawAmount);
+  const paymentMode = (formData.get('paymentMode') as string) || 'cash';
+  const remarks = (formData.get('remarks') as string) || null;
+  const clientAppType = (formData.get('appType') as string) || null;
+  const clientLoanCode = (formData.get('loanCode') as string) || null;
+
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, error: 'Unauthorized' };
+    }
+    const role = session.user.role;
+    if (!['admin', 'superadmin', 'developer'].includes(role)) {
+      return { success: false, error: 'Only administrators can directly correct payments. Please submit an edit request.' };
+    }
+    const tenantId = await getCurrentTenantId();
+    const appType = clientAppType || (await getUserAppType());
+    const branchId = await getActiveBranchId();
+
+    const result = await correctInstalmentPayment({
+      tenantId,
+      appType,
+      userId: session.user.id,
+      branchId,
+      role,
+    }, {
+      instalmentId,
+      correctedAmount,
+      paymentMode,
+      remarks,
+    });
+
+    const targetLoanCode = result?.loanCode || clientLoanCode;
+    revalidatePath('/loans');
+    revalidatePath('/collection');
+    revalidatePath(modulePath(appType, '/loans'));
+    revalidatePath(modulePath(appType, '/collection'));
+    if (targetLoanCode) {
+      revalidatePath(`/loans/${targetLoanCode}`);
+      revalidatePath(modulePath(appType, `/loans/${targetLoanCode}`));
+    }
+    if (result?.loanId) {
+      revalidatePath(`/loans/${result.loanId}`);
+      revalidatePath(modulePath(appType, `/loans/${result.loanId}`));
+    }
+
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message || 'Failed to correct instalment payment' };
+  }
+}
+
+// Record a bank repledge against a gold loan.
+export async function recordBankRepledge(loanId: string, data: Record<string, unknown>) {
+  try {
+    const apiContext = await getApiRequestContext();
+    const res = await apiFetch<any>(`/gold/loans/${loanId}/repledge`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      ...apiContext,
+    });
+    if (res?.error) return { error: res.error };
+    revalidatePath('/loans');
+    return { success: true, data: res?.data ?? res };
+  } catch (e: any) {
+    return { error: e?.message || 'Failed to record repledge' };
+  }
+}
+
+// Record a gold pledge servicing event (interest / part-payment / redemption)
+// via the servicing API, then refresh the loan detail.
+export async function recordGoldServicing(
+  loanId: string,
+  action: 'interest' | 'part' | 'redeem' | 'takeover',
+  amount: number,
+  paymentMode: string = 'cash',
+) {
+  try {
+    const apiContext = await getApiRequestContext();
+    const res = await apiFetch<any>(`/gold/loans/${loanId}/servicing`, {
+      method: 'POST',
+      body: JSON.stringify({ action, amount, paymentMode }),
+      ...apiContext,
+    });
+    if (res?.error) return { error: res.error };
+    revalidatePath('/loans');
+    return { success: true, data: res?.data ?? res };
+  } catch (e: any) {
+    return { error: e?.message || 'Failed to record servicing' };
+  }
+}
+
+/**
+ * Loan-wide collection from the loan page — same engine as the collection page
+ * popup: records the amount on the collection-date row for Actual.
+ */
+export async function markLoanCollection(formData: FormData) {
+  return submitLoanCollection(formData);
 }
 
 export async function waiveLoanPenalty(formData: FormData) {
@@ -149,6 +258,52 @@ export async function renewLoan(formData: FormData) {
   }
 }
 
+/**
+ * Interest-Only principal servicing. `action` is 'part' (prepay some principal,
+ * which re-prices the remaining monthly dues) or 'close' (settle the outstanding
+ * principal plus any interest already due and close the loan).
+ */
+async function serviceInterestOnlyPrincipal(formData: FormData, action: 'part' | 'close') {
+  try {
+    const apiContext = await getApiRequestContext();
+    const loanId = formData.get('loanId') as string;
+
+    const loanRes = await apiFetch<any>(`/loans/${loanId}`, apiContext);
+    if (loanRes.error) return { success: false, error: loanRes.error };
+    const loanCode = loanRes.data?.loanCode;
+
+    const res = await apiFetch<any>(`/loans/${loanId}/principal`, {
+      method: 'POST',
+      body: JSON.stringify({
+        action,
+        // Ignored by the API on 'close' — it always settles the full amount itself
+        // so a stale figure in the browser can't under-collect.
+        amount: Number(formData.get('amount')) || 0,
+        paymentMode: (formData.get('paymentMode') as string) || 'cash',
+        remarks: (formData.get('remarks') as string) || '',
+      }),
+      ...apiContext,
+    });
+
+    if (res.error) return { success: false, error: res.error };
+
+    if (loanCode) revalidatePath(`/loans/${loanCode}`);
+    revalidatePath('/loans');
+    revalidatePath('/dashboard');
+    return { success: true, data: res.data };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Principal payment failed' };
+  }
+}
+
+export async function partPayPrincipal(formData: FormData) {
+  return serviceInterestOnlyPrincipal(formData, 'part');
+}
+
+export async function fullCloseLoan(formData: FormData) {
+  return serviceInterestOnlyPrincipal(formData, 'close');
+}
+
 export async function precloseLoanAdmin(formData: FormData) {
   try {
     const apiContext = await getApiRequestContext();
@@ -156,6 +311,8 @@ export async function precloseLoanAdmin(formData: FormData) {
     const amount = Number(formData.get('amount'));
     const paymentMode = formData.get('paymentMode') as string || 'cash';
     const remarks = formData.get('remarks') as string || '';
+    const discount = Number(formData.get('discount') || formData.get('foreclosureDiscount') || '0');
+    const markChequesReturned = formData.get('markChequesReturned') === '1' || formData.get('markChequesReturned') === 'true';
 
     const loanRes = await apiFetch<any>(`/loans/${loanId}`, apiContext);
     if (loanRes.error) return { success: false, error: loanRes.error };
@@ -163,7 +320,7 @@ export async function precloseLoanAdmin(formData: FormData) {
 
     const res = await apiFetch<any>(`/loans/${loanId}/preclose`, {
       method: 'POST',
-      body: JSON.stringify({ amount, paymentMode, remarks }),
+      body: JSON.stringify({ amount, paymentMode, remarks, discount, markChequesReturned }),
       ...apiContext,
     });
 
@@ -172,8 +329,24 @@ export async function precloseLoanAdmin(formData: FormData) {
     if (loanCode) {
       revalidatePath(`/loans/${loanCode}`);
     }
+    revalidatePath('/loans');
+    revalidatePath('/dashboard');
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err.message || 'Preclose failed' };
   }
+}
+
+export async function requestLoanPreclose(formData: FormData) {
+  try {
+    const apiContext = await getApiRequestContext();
+    const res = await apiFetch<any>('/approvals', {
+      ...apiContext, method: 'POST',
+      body: JSON.stringify({ requestType: 'loan_preclose', entityType: 'loan', entityId: formData.get('loanId'),
+        requestedChanges: { amount: Number(formData.get('amount')), paymentMode: formData.get('paymentMode'), remarks: formData.get('remarks') || '' },
+        reason: formData.get('reason') }),
+    });
+    if (res.error) return { success: false, error: res.error };
+    return { success: true };
+  } catch { return { success: false, error: null }; }
 }

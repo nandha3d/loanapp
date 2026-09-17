@@ -10,7 +10,7 @@ As a **developer**, I want a **System Settings** screen in the mobile app exposi
 - **Web reference:** `app/(dashboard)/[module]/settings/SettingsClient.tsx:208-300`. The `system` tab is rendered **only when `currentUser.role === 'developer'`**. Fields + appSetting keys + defaults:
   | Field | key | default | control |
   |---|---|---|---|
-  | App Name | `app_name` | `LoanTrack` | text |
+  | App Name | `app_name` | `ZoloFund` | text |
   | Currency | `currency` | `INR` | text |
   | Currency Symbol | `currency_symbol` | `₹` | text |
   | Timezone | `timezone` | `Asia/Kolkata` | select: `Asia/Kolkata`, `UTC` |

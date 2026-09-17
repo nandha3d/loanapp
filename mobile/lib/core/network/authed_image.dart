@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:crypto/crypto.dart';
@@ -11,24 +10,18 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
-import 'package:loantrack/core/network/dio_client.dart';
-
-/// Server file paths (e.g. `/api/files/<tenant>/<name>`) come back relative.
-/// Resolve them against the API origin (base URL minus the `/api/v1` path).
-String resolveApiFileUrl(String url) {
-  if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  final origin = Uri.parse(kDefaultBaseUrl).origin;
-  return url.startsWith('/') ? '$origin$url' : '$origin/$url';
-}
+import 'package:zolofund/core/network/dio_client.dart';
 
 /// [ImageProvider] that fetches through the shared Dio client so the
 /// Authorization / tenant headers (and the 401 refresh flow) apply to image
 /// requests. Plain [NetworkImage] cannot load `/api/files/...` — the route
-/// requires auth and the stored paths are server-relative.
+/// requires auth, so even an absolutized URL comes back 401 without the
+/// Bearer token.
 class AuthedImageProvider extends ImageProvider<AuthedImageProvider> {
-  AuthedImageProvider(String url, this._dio, {this.scale = 1.0})
-      : url = resolveApiFileUrl(url);
+  AuthedImageProvider(this.url, this._dio, {this.scale = 1.0});
 
+  /// Absolute URL — resolve relative server paths with [absoluteMediaUrl]
+  /// before constructing (the [authedImage] helper does this for you).
   final String url;
   final Dio _dio;
   final double scale;
@@ -105,7 +98,23 @@ class AuthedImageProvider extends ImageProvider<AuthedImageProvider> {
       }
     }
     final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
-    return decode(buffer);
+    // Cap the decoded bitmap at 800px on the longest side. Uploaded photos are
+    // 1200-1600px+; decoding them full-size costs 8-16 MB of RAM *each* while
+    // they render as 24-64px avatars in lists — dozens of them at once is what
+    // OOM-killed the app. 800px stays sharper than any layout slot we render
+    // into while bounding each decode to ≤ ~2.5 MB.
+    return decode(buffer, getTargetSize: (int intrinsicW, int intrinsicH) {
+      const maxDim = 800;
+      if (intrinsicW <= maxDim && intrinsicH <= maxDim) {
+        return ui.TargetImageSize(width: intrinsicW, height: intrinsicH);
+      }
+      final scale =
+          intrinsicW >= intrinsicH ? maxDim / intrinsicW : maxDim / intrinsicH;
+      return ui.TargetImageSize(
+        width: (intrinsicW * scale).round(),
+        height: (intrinsicH * scale).round(),
+      );
+    });
   }
 
   @override
@@ -116,6 +125,10 @@ class AuthedImageProvider extends ImageProvider<AuthedImageProvider> {
   int get hashCode => Object.hash(url, scale);
 }
 
-/// Convenience: authed [ImageProvider] for a server file URL.
-ImageProvider authedImage(WidgetRef ref, String url) =>
-    AuthedImageProvider(url, ref.read(dioProvider));
+/// Authed [ImageProvider] for a server media URL (relative or absolute).
+/// Resolves against [mediaBaseUrlProvider], which respects the runtime
+/// server-URL override.
+ImageProvider authedImage(WidgetRef ref, String url) {
+  final resolved = absoluteMediaUrl(ref.read(mediaBaseUrlProvider), url);
+  return AuthedImageProvider(resolved, ref.read(dioProvider));
+}

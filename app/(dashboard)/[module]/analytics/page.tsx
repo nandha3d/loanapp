@@ -6,8 +6,14 @@ import { getActiveBranchId } from '@/lib/branch';
 import { getAnalyticsData } from './actions';
 import AnalyticsClient from './AnalyticsClient';
 import ReportsClient from '../reports/ReportsClient';
+import ReportShell from '@/components/reports/ReportShell';
+import GoldReportsPanel from '../reports/GoldReportsPanel';
+import Link from '@/components/layout/DashboardLink';
+import { serverFetch } from '@/lib/api-client/server';
 import { getDictionary } from '@/lib/i18n';
 import { modulePath } from '@/types/modules';
+import { getReportsForAppType } from '@/lib/reports/catalog';
+import type { AppType } from '@/lib/appConfig';
 
 export default async function AnalyticsPage({
   searchParams,
@@ -160,8 +166,10 @@ export default async function AnalyticsPage({
     totalPrincipal: newLoans.reduce((s, l) => s + Number(l.principal), 0),
   };
 
+  // SCOPE-12: the agent-performance table is branch work. Tenant-wide, a
+  // superadmin on one branch saw every branch's agents and their numbers.
   const agents = await prisma.user.findMany({
-    where: { tenantId, appType, role: 'agent', status: 'active' },
+    where: { tenantId, appType, role: 'agent', status: 'active', ...(activeBranchId ? { branchId: activeBranchId } : {}) },
     select: { id: true, name: true },
   });
 
@@ -186,7 +194,7 @@ export default async function AnalyticsPage({
       const hitRate = expected > 0 ? Math.round((collected / expected) * 100) : 0;
 
       const routes = await prisma.route.findMany({
-        where: { tenantId, appType, routeAgents: { some: { agentId: agent.id } }, status: 'active' },
+        where: { tenantId, appType, routeAgents: { some: { agentId: agent.id } }, status: 'active', ...(activeBranchId ? { branchId: activeBranchId } : {}) },
         select: { name: true },
       });
 
@@ -202,10 +210,167 @@ export default async function AnalyticsPage({
     })
   );
 
+  // SCOPE-12: the route filter offers only the active branch's routes.
   const allRoutes = await prisma.route.findMany({
-    where: { tenantId, appType, status: 'active' },
+    where: { tenantId, appType, status: 'active', ...(activeBranchId ? { branchId: activeBranchId } : {}) },
     orderBy: { name: 'asc' },
   });
+
+  const subscription = await prisma.tenantSubscription.findUnique({
+    where: { tenantId }
+  });
+
+  const reportSlug = resolvedParams.report || '';
+
+  if (reportSlug) {
+    const filterConfig: Record<string, string[]> = {
+      'loan-register': ['date', 'branch', 'agent', 'loanType', 'status', 'frequency', 'amount'],
+      'loan-status-report': ['branch', 'loanType'],
+      'loan-type-report': ['branch', 'loanType'],
+      'loan-maturity-report': ['branch', 'loanType'],
+      'daily-collection': ['date', 'branch', 'agent', 'paymentMode'],
+      'collection-efficiency': ['date', 'branch', 'agent'],
+      'agent-collection-report': ['date', 'branch', 'agent'],
+      'route-collection-report': ['date', 'branch'],
+      'todays-emi-report': ['branch', 'agent'],
+      'customer-register': ['branch', 'agent'],
+      'customer-loan-history': ['customer'],
+      'repeat-borrowers': ['branch'],
+      'inactive-customers': ['branch'],
+      'top-borrowers': ['branch'],
+      'agent-performance': ['date', 'branch', 'agent'],
+      'agent-attendance': ['date', 'branch', 'agent'],
+      'missed-visit-report': ['date', 'branch', 'agent'],
+      'commission-report': ['date', 'branch', 'agent'],
+      'cash-flow': ['date', 'branch'],
+      'disbursement': ['date', 'branch', 'loanType'],
+      'interest-income': ['date', 'branch'],
+      'penalty-income-report': ['date', 'branch'],
+      'outstanding-balance': ['branch', 'loanType'],
+      'profit-report': ['date', 'branch'],
+      'branch-performance': ['date'],
+      'branch-comparison': ['date'],
+      'gps-route': ['date', 'branch', 'agent'],
+      'travel-distance': ['date', 'branch', 'agent'],
+      'customer-visit-history': ['date', 'customer'],
+      'missed-gps-checkin': ['date', 'branch'],
+      'notification-report': ['date'],
+      'audit-activity': ['date', 'branch', 'agent', 'status'],
+      'login-history-report': ['date'],
+      'payment-by-mode': ['date', 'branch', 'paymentMode'],
+      'failed-payments': ['date', 'branch'],
+      'refund-report': ['date', 'branch'],
+      'duplicate-payments': ['date', 'branch'],
+      'cancelled-payments': ['date', 'branch'],
+      'npa-classification-report': ['branch'],
+      'wallet-float-ledger': ['date', 'branch'],
+      'day-book': ['date', 'branch'],
+      'cash-book': ['date', 'branch'],
+      'ledger-report': ['date', 'branch'],
+      'bank-book': ['date', 'branch'],
+      'chit-cash-flow': ['date', 'branch', 'groupId'],
+      'chit-group-portfolio': ['branch', 'status', 'groupId'],
+      'chit-group-ledger': ['branch', 'status', 'groupId'],
+      'chit-subscriber-ledger': ['branch', 'status', 'groupId'],
+      'chit-auction-register': ['branch', 'status', 'groupId'],
+      'auction-bid-history': ['date', 'branch', 'groupId'],
+      'chit-subscription-due': ['branch', 'groupId'],
+    };
+
+    const titleConfig: Record<string, string> = {
+      'loan-register': 'Loan Register',
+      'daily-collection': 'Daily Collection Report',
+      'outstanding-balance': 'Outstanding Balance Report',
+      'aging': 'Aging Analysis',
+      'customer-loan-history': 'Customer Loan History',
+      'emi-schedule': 'EMI Schedule',
+      'agent-performance': 'Agent Performance',
+      'collection-efficiency': 'Collection Efficiency',
+      'disbursement': 'Disbursement Report',
+      'cash-flow': 'Cash Flow Summary',
+      'payment-by-mode': 'Payment by Mode',
+      'gps-route': 'GPS Route Log',
+      'audit-activity': 'Audit Activity Log',
+      'npa-classification-report': 'NPA Classification Report',
+      'wallet-float-ledger': 'Wallet Float Ledger',
+      'missed-gps-checkin': 'Missed GPS Check-in',
+    };
+
+    const supportedFilters = filterConfig[reportSlug] || ['date', 'branch', 'agent'];
+    const title = titleConfig[reportSlug] || reportSlug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+    return (
+      <div style={{ padding: '20px' }}>
+        <div style={{ marginBottom: '20px' }}>
+          <Link
+            href="/analytics"
+            className="btn btn-secondary btn-sm"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+          >
+            <span className="material-icons-outlined" style={{ fontSize: '16px' }}>arrow_back</span>
+            Back to Reports & Analytics
+          </Link>
+        </div>
+        <ReportShell
+          slug={reportSlug}
+          title={title}
+          supportedFilters={supportedFilters}
+          initialFilters={{
+            from: fromStr,
+            to: toStr,
+            branchId: activeBranchId || '',
+            agentId,
+            routeId,
+            customerId: resolvedParams.customerId || '',
+            loanType: resolvedParams.loanType || '',
+            status: resolvedParams.status || '',
+            frequency: resolvedParams.frequency || '',
+            paymentMode: resolvedParams.paymentMode || '',
+            paymentStatus: resolvedParams.paymentStatus || '',
+            loanId: resolvedParams.loanId || '',
+          }}
+          dict={dict}
+          subscription={subscription}
+        />
+      </div>
+    );
+  }
+
+  let goldSummary: any = null, goldPending: any = null, goldOrnaments: any = null;
+  if (appType === 'goldloan') {
+    try {
+      const [s, p, o] = await Promise.all([
+        serverFetch<any>('/gold/reports?type=summary').catch(() => null),
+        serverFetch<any>('/gold/reports?type=pending').catch(() => null),
+        serverFetch<any>('/gold/reports?type=ornaments').catch(() => null),
+      ]);
+      goldSummary = s?.data ?? null;
+      goldPending = p?.data ?? null;
+      goldOrnaments = o?.data ?? null;
+    } catch { /* tolerate pre-migration */ }
+  }
+
+  const reportsForApp = getReportsForAppType(appType as AppType, {
+    premiumAccountingEnabled: Boolean(subscription?.premiumAccountingEnabled),
+  });
+  const reportCategories = Array.from(
+    reportsForApp.reduce((categories, report) => {
+      const reports = categories.get(report.category) ?? [];
+      reports.push({ slug: report.slug, name: report.name });
+      categories.set(report.category, reports);
+      return categories;
+    }, new Map<string, { slug: string; name: string }[]>()),
+    ([category, reports]) => ({ category, reports }),
+  );
+
+  const accountingLinks = subscription?.premiumAccountingEnabled
+    ? [
+        { href: '/accounting/premium/pnl', name: 'Income Statement (P&L)' },
+        { href: '/accounting/premium/trial-balance', name: 'Trial Balance' },
+        { href: '/accounting/premium/journal', name: 'Journal Report' },
+        { href: '/accounting/premium/tax', name: 'GST Report' },
+      ]
+    : [];
 
   return (
     <div>
@@ -216,17 +381,70 @@ export default async function AnalyticsPage({
             Reports & Analytics
           </h2>
           <p style={{ margin: '4px 0 0', fontSize: '.85rem', color: 'var(--text-secondary)' }}>
-            Portfolio intelligence, risk monitoring, operational insights, and custom reporting.
+            Portfolio intelligence, risk monitoring, operational insights, and comprehensive reporting suite.
           </p>
         </div>
       </div>
       
       <AnalyticsClient data={serialized} currencySymbol={branding.currencySymbol} dict={dict} />
       
-      <div style={{ marginTop: '40px', borderTop: '1px solid var(--border)', paddingTop: '32px' }}>
+      <div style={{ marginTop: '40px' }}>
+        <h3 style={{ marginBottom: '20px', fontSize: '1.3rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-primary)' }}>
+          <span className="material-icons-outlined" style={{ color: 'var(--primary)' }}>library_books</span>
+          All Reports Center
+        </h3>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px', marginBottom: '32px' }}>
+          {reportCategories.map((cat) => (
+            <div className="card" key={cat.category} style={{ padding: '20px', display: 'flex', flexDirection: 'column' }}>
+              <h4 style={{ margin: '0 0 14px', fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {cat.category}
+              </h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {cat.reports.map((rep) => (
+                  <Link
+                    key={rep.slug}
+                    href={`/analytics?report=${rep.slug}`}
+                    className="btn btn-secondary btn-sm"
+                    style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '8px 12px' }}
+                  >
+                    <span className="material-icons-outlined" style={{ fontSize: '16px', marginRight: '8px', color: 'var(--primary)' }}>description</span>
+                    {rep.name}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {accountingLinks.length > 0 && (
+          <div className="card" style={{ marginBottom: '32px', padding: '20px' }}>
+            <h4 style={{ margin: '0 0 14px', fontSize: '1.05rem', fontWeight: 700 }}>📊 Financial Statements</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '10px' }}>
+              {accountingLinks.map((l) => (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  className="btn btn-secondary btn-sm"
+                  style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '8px 12px' }}
+                >
+                  <span className="material-icons-outlined" style={{ fontSize: '16px', marginRight: '8px' }}>account_balance</span>
+                  {l.name}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {appType === 'goldloan' && (
+          <GoldReportsPanel summary={goldSummary} pending={goldPending} ornaments={goldOrnaments} currencySymbol={currencySymbol} />
+        )}
+      </div>
+
+      <div style={{ marginTop: '32px', borderTop: '1px solid var(--border)', paddingTop: '32px' }}>
         <h3 style={{ marginBottom: '20px', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span className="material-icons-outlined" style={{ color: 'var(--primary)' }}>assessment</span>
-          Custom Date Reports
+          Custom Date Summaries
         </h3>
         <ReportsClient
           collectionEfficiency={{ expected: totalExpected, collected: totalCollected, efficiency }}
@@ -239,7 +457,7 @@ export default async function AnalyticsPage({
           currencySymbol={currencySymbol}
           filters={{ from: fromStr, to: toStr, routeId, agentId }}
           dict={dict}
-          subscription={null}
+          subscription={subscription}
         />
       </div>
     </div>

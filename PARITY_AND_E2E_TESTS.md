@@ -222,7 +222,7 @@ test('WAL-01 OUT non-admin blocked', async ({ page }) => {
 ### Mobile — integration_test (`integration_test/collection_test.dart`)
 ```dart
 testWidgets('COLL-01 collect today due credits float', (t) async {
-  await t.pumpWidget(const ProviderScope(child: LoanTrackApp()));
+  await t.pumpWidget(const ProviderScope(child: ZoloFundApp()));
   await login(t, 'karthik', 'agent123');
   await t.tap(find.text('Collection')); await t.pumpAndSettle();
   await t.tap(find.text("Today's due").first); await t.pumpAndSettle();

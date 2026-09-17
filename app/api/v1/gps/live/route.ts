@@ -16,9 +16,13 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Fetch all agents in the tenant
+    // Fetch all agents in the tenant (scoped by branch for branch admin)
+    const agentWhere: any = { tenantId: ctx.tenantId, role: 'agent', status: 'active' };
+    if (ctx.branchId && ctx.role === 'admin') {
+      agentWhere.branchId = ctx.branchId;
+    }
     const agents = await prisma.user.findMany({
-      where: { tenantId: ctx.tenantId, role: 'agent', status: 'active' },
+      where: agentWhere,
       select: { id: true, name: true, phone: true },
     });
 
@@ -59,12 +63,16 @@ export async function GET(req: NextRequest) {
     // Today's collection per agent (collected today, count of entries).
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
+    const entryWhere: any = {
+      tenantId: ctx.tenantId,
+      agentId: { in: agents.map((a) => a.id) },
+      submittedAt: { gte: todayStart },
+    };
+    if (ctx.appType) {
+      entryWhere.loan = { appType: ctx.appType };
+    }
     const entries = await prisma.collectionEntry.findMany({
-      where: {
-        tenantId: ctx.tenantId,
-        agentId: { in: agents.map((a) => a.id) },
-        submittedAt: { gte: todayStart },
-      },
+      where: entryWhere,
       select: { agentId: true, receivedAmount: true },
     });
     const collMap = new Map<string, { total: number; count: number }>();

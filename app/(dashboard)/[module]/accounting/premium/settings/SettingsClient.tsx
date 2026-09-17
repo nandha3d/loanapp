@@ -210,7 +210,7 @@ export default function SettingsClient({ settings: initial, bankAccounts, cashAc
                 <AcInput value={form.tallyConnectorUrl} onChange={e => set('tallyConnectorUrl', e.target.value)} placeholder="http://localhost:9000" />
               </AcField>
               <AcField label="Tally company name">
-                <AcInput value={form.tallyCompanyName} onChange={e => set('tallyCompanyName', e.target.value)} placeholder="LoanTrack Books" />
+                <AcInput value={form.tallyCompanyName} onChange={e => set('tallyCompanyName', e.target.value)} placeholder="ZoloFund Books" />
               </AcField>
               <AcAlert type="warning">Tally connector requires Tally Prime running on a reachable host. Not suitable for cloud installs.</AcAlert>
             </div>

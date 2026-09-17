@@ -5,35 +5,69 @@ import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { getSupabaseBrowser, isSupabaseAuthEnabled } from '@/lib/supabase/browser';
+import { currentOriginWithBasePath, withBasePath } from '@/lib/public-path';
+import { normalizeLocalCallbackUrl } from '@/lib/auth/callback-url';
+import PasswordInput from '@/components/ui/PasswordInput';
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const rawCallbackUrl = searchParams.get('callbackUrl') || '/';
-  const callbackUrl = rawCallbackUrl.startsWith('/') ? rawCallbackUrl : '/';
+  const callbackUrl = normalizeLocalCallbackUrl(searchParams.get('callbackUrl'));
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   // Registration is hidden on a client's standalone domain.
   const [registerAllowed, setRegisterAllowed] = useState(true);
+  const [standaloneDomain, setStandaloneDomain] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendMsg, setResendMsg] = useState('');
 
   useEffect(() => {
     fetch('/api/host/registration')
       .then((r) => r.json())
-      .then((d) => setRegisterAllowed(d?.allowed !== false))
+      .then((d) => {
+        setRegisterAllowed(d?.allowed !== false);
+        setStandaloneDomain(Boolean(d?.standalone));
+      })
       .catch(() => {});
   }, []);
 
-  const notice = searchParams.get('registerPending')
-      ? 'Account created! Check your email and click the activation link before signing in.'
+  const registerPending = !!searchParams.get('registerPending');
+  const emailSent = searchParams.get('emailSent') !== '0';
+  const pendingEmail = searchParams.get('email') || '';
+  const notice = registerPending
+      ? (emailSent
+          ? 'Account created! Check your email and click the activation link before signing in.'
+          : 'Account created — but we could not send the verification email. Use “Resend verification email” below.')
     : searchParams.get('verified')
       ? 'Email verified — you can sign in now.'
     : searchParams.get('reset')
       ? 'Password updated — sign in with your new password.'
     : '';
   const verifyError = searchParams.get('verifyError') || '';
+
+  const handleResend = async () => {
+    setResendMsg('');
+    const target = pendingEmail || window.prompt('Enter the email you registered with:')?.trim();
+    if (!target) return;
+    setResending(true);
+    try {
+      const res = await fetch('/api/auth/resend-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: target }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setResendMsg(data?.message || 'If an unverified account exists for that email, a new verification link has been sent.');
+    } catch {
+      setResendMsg('Could not reach the server. Please try again.');
+    } finally {
+      setResending(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,11 +78,21 @@ function LoginForm() {
       const result = await signIn('credentials', {
         username,
         password,
+        // The authorize() callback reads this to pick the JWT lifetime:
+        // 30 days when remembered, 24h otherwise (lib/auth.ts).
+        rememberMe: String(rememberMe),
         redirect: false,
       });
 
       if (result?.error) {
-        setError('Invalid credentials. If you just registered, verify your email using the activation link we sent before signing in.');
+        // NextAuth surfaces the authorize() failure on `code` or `error`
+        // depending on the path taken, so check both.
+        const reason = `${(result as { code?: string }).code ?? ''} ${result.error}`;
+        setError(
+          reason.includes('LOGIN_WINDOW_CLOSED')
+            ? 'Your account is outside its allowed login hours. Contact your administrator if you need access now.'
+            : 'Invalid credentials. If you just registered, verify your email using the activation link we sent before signing in.',
+        );
         setLoading(false);
         return;
       }
@@ -86,7 +130,7 @@ function LoginForm() {
       const supabase = getSupabaseBrowser();
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: `${window.location.origin}/auth/callback?intent=login` },
+        options: { redirectTo: `${currentOriginWithBasePath()}/auth/callback?intent=login` },
       });
       if (error) setError(error.message || 'Google sign-in failed.');
     } catch (e: any) {
@@ -108,7 +152,7 @@ function LoginForm() {
     <div className="login-wrapper">
       <div className="login-card">
         <div className="login-logo">
-          <img src="/assets/logo.svg" alt="LoanTrack" />
+          <img src={withBasePath('/assets/logo.svg')} alt="ZoloFund" />
           <h1>Loan<span>Track</span></h1>
         </div>
         <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '.85rem', marginBottom: '28px' }}>
@@ -120,6 +164,21 @@ function LoginForm() {
             {notice}
           </div>
         )}
+        {registerPending && (
+          <div style={{ textAlign: 'center', marginBottom: '14px', fontSize: '.8rem' }}>
+            <button
+              type="button"
+              onClick={handleResend}
+              disabled={resending}
+              style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: resending ? 'default' : 'pointer', fontWeight: 600, textDecoration: 'underline' }}
+            >
+              {resending ? 'Sending…' : 'Resend verification email'}
+            </button>
+            {resendMsg && (
+              <div style={{ color: 'var(--text-secondary)', marginTop: '6px' }}>{resendMsg}</div>
+            )}
+          </div>
+        )}
         {(error || verifyError) && (
           <div className="login-error">
             <span className="material-icons-outlined" style={{ fontSize: '16px' }}>error</span>
@@ -129,12 +188,12 @@ function LoginForm() {
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="form-label" htmlFor="username">Username / Phone</label>
+            <label className="form-label" htmlFor="username">Username / Phone / Email</label>
             <input
               type="text"
               id="username"
               className="form-control"
-              placeholder="Enter username or phone"
+              placeholder="Enter username, phone, or email"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
@@ -143,8 +202,7 @@ function LoginForm() {
           </div>
           <div className="form-group">
             <label className="form-label" htmlFor="password">Password</label>
-            <input
-              type="password"
+            <PasswordInput
               id="password"
               className="form-control"
               placeholder="Enter password"
@@ -156,9 +214,13 @@ function LoginForm() {
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
             <label className="checkbox-label">
-              <input type="checkbox" defaultChecked /> Remember me
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+              /> Remember me
             </label>
-            <a href="/forgot-password" style={{ color: 'var(--primary)', fontWeight: 600, fontSize: '.82rem' }}>
+            <a href={withBasePath('/forgot-password')} style={{ color: 'var(--primary)', fontWeight: 600, fontSize: '.82rem' }}>
               Forgot password?
             </a>
           </div>
@@ -173,7 +235,7 @@ function LoginForm() {
           </button>
         </form>
 
-        {isSupabaseAuthEnabled() && (<>
+        {isSupabaseAuthEnabled() && !standaloneDomain && (<>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '18px 0' }}>
           <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
           <span style={{ fontSize: '.72rem', color: 'var(--text-light)' }}>OR</span>
@@ -191,7 +253,7 @@ function LoginForm() {
 
         {registerAllowed && (
           <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '.85rem', color: 'var(--text-secondary)' }}>
-            New to LoanTrack? <a href="/register" style={{ color: 'var(--primary)', fontWeight: 600 }}>Register Business</a>
+            New to ZoloFund? <a href={withBasePath('/register')} style={{ color: 'var(--primary)', fontWeight: 600 }}>Register Business</a>
           </p>
         )}
       </div>

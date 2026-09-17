@@ -6,6 +6,7 @@ import { getRouteProgressForBranch } from '@/lib/gps/routeProgress';
 import { getDictionary } from '@/lib/i18n';
 import { getSetting } from '@/lib/tenant';
 import LiveMapClient from './LiveMapClient';
+import AgentMovementTable from './AgentMovementTable';
 
 function statusColor(status: string) {
   if (status === 'verified') return 'var(--success)';
@@ -60,7 +61,14 @@ export default async function RouteTrackerPage() {
         </div>
       </div>
 
-      <LiveMapClient currencySymbol={currencySymbol} />
+      <LiveMapClient
+        currencySymbol={currencySymbol}
+        agentPaths={agents.map((a) => ({
+          agentId: a.agentId,
+          agentName: a.agentName,
+          path: a.path,
+        }))}
+      />
 
       <div className="stats-grid">
         <div className="stat-card">
@@ -92,48 +100,7 @@ export default async function RouteTrackerPage() {
         </div>
       </div>
 
-      <div className="card">
-        <div className="card-header">
-          <h3>{d.agentMovement}</h3>
-        </div>
-        <div className="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>{d.agent}</th>
-                <th>{d.lastSeen}</th>
-                <th>{d.collections}</th>
-                <th>{d.routePoints}</th>
-                <th>{d.alerts}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {agents.map((agent) => (
-                <tr key={agent.agentId}>
-                  <td><strong>{agent.agentName}</strong></td>
-                  <td>
-                    {agent.minutesSinceLastPing === null
-                      ? d.noGpsToday
-                      : `${agent.minutesSinceLastPing} ${d.minAgo}`}
-                  </td>
-                  <td>{agent.collectionsDoneToday}</td>
-                  <td>{agent.path.length}</td>
-                  <td>
-                    {agent.alerts.length ? agent.alerts.join(', ') : '-'}
-                  </td>
-                </tr>
-              ))}
-              {agents.length === 0 && (
-                <tr>
-                  <td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: 'var(--text-light)' }}>
-                    {d.noActiveAgents}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <AgentMovementTable agents={agents} dict={dict} />
 
       <div className="card">
         <div className="card-header">

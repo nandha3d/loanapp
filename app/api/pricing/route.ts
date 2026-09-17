@@ -21,11 +21,20 @@ export async function GET() {
       })
     ]);
 
-    // Parse JSON string features field back into actual array objects for client
-    const formattedPlans = plans.map(p => ({
-      ...p,
-      features: JSON.parse(p.features)
-    }));
+    // Parse JSON string features field safely back into actual array objects for client
+    const formattedPlans = plans.map(p => {
+      let features: string[] = [];
+      try {
+        const parsed = typeof p.features === 'string' ? JSON.parse(p.features) : p.features;
+        features = Array.isArray(parsed) ? parsed.map(String) : [];
+      } catch {
+        features = [];
+      }
+      return {
+        ...p,
+        features
+      };
+    });
 
     return NextResponse.json(
       {
@@ -34,7 +43,14 @@ export async function GET() {
         modules: withStandardVerticalBases(modules),
         addons
       },
-      { status: 200 }
+      {
+        status: 200,
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        }
+      }
     );
   } catch (err: any) {
     console.error('[PRICING_API_ERROR]', err);

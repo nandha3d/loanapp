@@ -6,7 +6,6 @@ import {
   requireMobileContext,
   scopedBranchWhere,
 } from '@/lib/api/v1-auth';
-import { getAgentRouteIds } from '@/lib/access';
 import {
   decryptAadharNumber,
   encryptAadharNumber,
@@ -14,6 +13,7 @@ import {
 } from '@/lib/pii';
 import { writeAudit } from '@/lib/audit';
 import { calculateCreditScore } from '@/lib/creditScore';
+import { buildAgentCustomerAccessWhere } from '@/lib/loanPolicy';
 
 const CUSTOMER_UPDATE_FIELDS = [
   'name',
@@ -38,23 +38,30 @@ const CUSTOMER_UPDATE_FIELDS = [
   'companyPhone',
   'companyEmail',
   'designation',
+  'preferredCollectionTime',
   'profilePhoto',
   'companyLogo',
+  'lat',
+  'lng',
 ] as const;
 // Numeric fields coerced from the request body.
-const CUSTOMER_NUMERIC_FIELDS = new Set(['monthlyIncome']);
+const CUSTOMER_NUMERIC_FIELDS = new Set(['monthlyIncome', 'lat', 'lng']);
 
 async function findScopedCustomer(id: string, ctx: MobileTokenClaims) {
   const where: any = {
     OR: [{ id }, { customerCode: id }],
     tenantId: ctx.tenantId,
     appType: ctx.appType,
-    ...scopedBranchWhere(ctx),
   };
   if (ctx.role === 'agent') {
-    const routeIds = await getAgentRouteIds(ctx.userId);
-    if (routeIds.length === 0) return null;
-    where.routeId = { in: routeIds };
+    // Agents scope by customer-linkage only, NOT branch (a branch pin 404s their
+    // own customers whose branchId is null or differs from the agent's branch).
+    where.AND = [buildAgentCustomerAccessWhere({ userId: ctx.userId })];
+  } else {
+    // AND, not a spread: this object already matches on `OR: [{id}, {code}]`
+    // and a second top-level key would be fine today, but keeping the scope in
+    // AND keeps list and detail identical no matter what either grows into.
+    where.AND = [scopedBranchWhere(ctx)];
   }
   return prisma.customer.findFirst({
     where,
@@ -139,6 +146,20 @@ export async function PATCH(
       }
     }
 
+    // Route drives the collecting agent: when the route is (re)assigned, derive
+    // the agent from the route's primary agent and inherit the route's branch.
+    // (The per-customer agent picker was removed — assignment lives in Settings.)
+    if (typeof data.routeId === 'string' && data.routeId) {
+      const route = await prisma.route.findFirst({
+        where: { id: data.routeId, tenantId: ctx.tenantId, appType: ctx.appType },
+        select: { assignedAgentId: true, branchId: true },
+      });
+      if (route) {
+        data.agentId = route.assignedAgentId ?? (data.agentId as string | null) ?? null;
+        if (route.branchId) data.branchId = route.branchId;
+      }
+    }
+
     if (Array.isArray(body.collectionPoints)) {
       const num = (v: unknown) =>
         v === undefined || v === null || v === '' ? null : Number(v);
@@ -199,11 +220,65 @@ export async function PATCH(
       };
     }
 
+    // Agents cannot edit customer details directly — must submit an approval request (matching loan edit).
+    if (ctx.role === 'agent') {
+      const request = await prisma.approvalRequest.create({
+        data: {
+          tenantId: ctx.tenantId,
+          appType: ctx.appType,
+          requestType: 'customer_edit',
+          entityType: 'customer',
+          entityId: existing.id,
+          requestedById: ctx.userId,
+          requestedChanges: JSON.stringify(data),
+          reason: (body.reason as string) || 'Customer profile / GPS update requested by agent',
+          status: 'pending',
+        },
+      });
+
+      return ok({
+        ...existing,
+        pendingApproval: true,
+        approvalRequestId: request.id,
+        message: 'Customer edit request submitted for admin approval',
+      });
+    }
+
+    if (data.lat !== undefined && data.lng !== undefined && data.lat !== null && data.lng !== null) {
+      data.geocodedAt = new Date();
+    }
+
     const updated = await prisma.customer.update({
       where: { id: existing.id },
       data,
       include: { collectionPoints: true, guarantors: true },
     });
+
+    if (data.lat != null && data.lng != null) {
+      try {
+        await prisma.customerGeocode.upsert({
+          where: { customerId: existing.id },
+          update: {
+            latitude: Number(data.lat),
+            longitude: Number(data.lng),
+            accuracy: 'manual',
+            rawAddress: (data.address as string) || existing.address || '',
+            geocodedAt: new Date(),
+          },
+          create: {
+            customerId: existing.id,
+            tenantId: ctx.tenantId,
+            latitude: Number(data.lat),
+            longitude: Number(data.lng),
+            accuracy: 'manual',
+            source: 'manual',
+            rawAddress: (data.address as string) || existing.address || '',
+          },
+        });
+      } catch (err) {
+        console.error('CustomerGeocode upsert failed:', err);
+      }
+    }
 
     await writeAudit({
       tenantId: ctx.tenantId,
@@ -222,4 +297,51 @@ export async function PATCH(
   } catch (e: any) {
     return fail(e?.message ?? 'Customer update failed', 500);
   }
+}
+
+/**
+ * DELETE /api/v1/customers/[id] — soft-delete (sets deletedAt + status
+ * 'inactive'), same convention every read query already filters on
+ * (`deletedAt: null`). Blocked while the customer has any non-closed loan —
+ * a customer with money still outstanding must be settled first, not erased.
+ */
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const auth = await requireMobileContext(req);
+  if (auth.response) return auth.response;
+  const ctx = auth.context;
+
+  if (!['admin', 'superadmin', 'developer'].includes(ctx.role)) {
+    return fail('Forbidden', 403);
+  }
+
+  const { id } = await params;
+  const existing = await findScopedCustomer(id, ctx);
+  if (!existing) return fail('Customer not found', 404);
+
+  const hasOpenLoan = existing.loans.some(
+    (l) => l.status !== 'closed' && l.status !== 'rejected',
+  );
+  if (hasOpenLoan) {
+    return fail('This customer has an open loan — close or settle it before deleting.', 409);
+  }
+
+  await prisma.customer.update({
+    where: { id: existing.id },
+    data: { deletedAt: new Date(), status: 'inactive' },
+  });
+
+  await writeAudit({
+    tenantId: ctx.tenantId,
+    userId: ctx.userId,
+    action: 'delete',
+    entityType: 'customer',
+    entityId: existing.id,
+    oldValue: { status: existing.status },
+    newValue: { deletedAt: true, status: 'inactive' },
+  });
+
+  return ok({ deleted: true });
 }

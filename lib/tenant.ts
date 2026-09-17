@@ -84,7 +84,7 @@ export async function getUserAppType(): Promise<string> {
   const role = user?.role;
 
   const headerStore = await headers();
-  const pathname = headerStore.get('x-loantrack-path') || '';
+  const pathname = headerStore.get('x-zolofund-path') || '';
   const { module, page } = parseModulePath(pathname);
 
   if (module) {
@@ -225,8 +225,8 @@ export const getCurrentTenantId = cache(async (): Promise<string> => {
   const user = session?.user as SessionUserContext | undefined;
   const headerStore = await headers();
   const requestedTenantId = await getTenantIdFromHost(headerStore.get('host'));
-  const pathname = headerStore.get('x-loantrack-path') || '';
-  const { page } = parseModulePath(pathname);
+  const pathname = headerStore.get('x-zolofund-path') || '';
+  const { module, page } = parseModulePath(pathname);
 
   if (!isTenantHostAllowedForSession({
     requestedTenantId,
@@ -240,11 +240,17 @@ export const getCurrentTenantId = cache(async (): Promise<string> => {
     ? user.tenantId
     : requestedTenantId || user?.tenantId || await getFallbackDefaultTenantId();
 
+  const isServerAction = Boolean(headerStore.get('next-action'));
+  const isBillingPath = pathname.startsWith('/portal/billing') || page.startsWith('/subscription');
+  // UI layouts render the payment wall/redirect before their children. Server
+  // Actions remain guarded even when they originate from one of those routes.
+  const isProtectedUiShell = !isServerAction && (
+    Boolean(module) || pathname.startsWith('/portal') || pathname.startsWith('/admin')
+  );
+
   if (
-    !page.startsWith('/subscription') &&
-    !pathname.startsWith('/portal') &&
-    !pathname.startsWith('/admin') &&
-    !page.startsWith('/branch-requests')
+    !TENANT_BYPASS_ROLES.has(user?.role || '') &&
+    (isServerAction || (!isBillingPath && !isProtectedUiShell))
   ) {
     await assertTenantSubscriptionAccess(tenantId);
   }
@@ -283,7 +289,7 @@ export async function setSetting(tenantId: string, key: string, value: string, g
 export async function getBranding(tenantId: string) {
   const settings = await getTenantSettings(tenantId);
   return {
-    appName: settings['app_name'] || 'LoanTrack',
+    appName: settings['app_name'] || 'ZoloFund',
     appTagline: settings['app_tagline'] || 'Micro-Lending Management System',
     logoUrl: settings['logo_url'] || '/assets/logo.svg',
     primaryColor: settings['primary_color'] || '#F5A623',
@@ -307,6 +313,6 @@ export async function getTenantName(tenantId: string): Promise<string> {
     where: { id: tenantId },
     select: { name: true }
   });
-  return tenant?.name || 'LoanTrack';
+  return tenant?.name || 'ZoloFund';
 }
 

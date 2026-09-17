@@ -157,39 +157,39 @@ function normalisePhone(phone: string): string | null {
 function buildMessage(event: NotificationEvent, data: Record<string, string>, lang: string = 'en'): string {
   const messages: Record<NotificationEvent, Record<string, string>> = {
     payment_received: {
-      en: `Hi ${data.name}, payment of ₹${data.amount} received for loan ${data.loanCode} on ${data.date}. Balance: ₹${data.balance}. -LoanTrack`,
-      ta: `வணக்கம் ${data.name}, கடன் ${data.loanCode} க்கு ₹${data.amount} பெறப்பட்டது ${data.date}. மீதி: ₹${data.balance}. -LoanTrack`,
-      hi: `नमस्ते ${data.name}, ऋण ${data.loanCode} के लिए ₹${data.amount} प्राप्त हुआ ${data.date}। शेष: ₹${data.balance}। -LoanTrack`,
+      en: `Hi ${data.name}, payment of ₹${data.amount} received for loan ${data.loanCode} on ${data.date}. Balance: ₹${data.balance}. -ZoloFund`,
+      ta: `வணக்கம் ${data.name}, கடன் ${data.loanCode} க்கு ₹${data.amount} பெறப்பட்டது ${data.date}. மீதி: ₹${data.balance}. -ZoloFund`,
+      hi: `नमस्ते ${data.name}, ऋण ${data.loanCode} के लिए ₹${data.amount} प्राप्त हुआ ${data.date}। शेष: ₹${data.balance}। -ZoloFund`,
     },
     payment_due_reminder: {
-      en: `Hi ${data.name}, ₹${data.amount} is due for loan ${data.loanCode} on ${data.date}. Pay on time to avoid penalty. -LoanTrack`,
-      ta: `வணக்கம் ${data.name}, ${data.date} அன்று கடன் ${data.loanCode} க்கு ₹${data.amount} செலுத்த வேண்டும். -LoanTrack`,
-      hi: `नमस्ते ${data.name}, ${data.date} को ऋण ${data.loanCode} के लिए ₹${data.amount} देय है। -LoanTrack`,
+      en: `Hi ${data.name}, ₹${data.amount} is due for loan ${data.loanCode} on ${data.date}. Pay on time to avoid penalty. -ZoloFund`,
+      ta: `வணக்கம் ${data.name}, ${data.date} அன்று கடன் ${data.loanCode} க்கு ₹${data.amount} செலுத்த வேண்டும். -ZoloFund`,
+      hi: `नमस्ते ${data.name}, ${data.date} को ऋण ${data.loanCode} के लिए ₹${data.amount} देय है। -ZoloFund`,
     },
     loan_disbursed: {
-      en: `Hi ${data.name}, loan ${data.loanCode} of ₹${data.amount} has been disbursed. First instalment due: ${data.firstDue}. -LoanTrack`,
-      ta: `வணக்கம் ${data.name}, ₹${data.amount} கடன் ${data.loanCode} வழங்கப்பட்டது. முதல் தவணை: ${data.firstDue}. -LoanTrack`,
-      hi: `नमस्ते ${data.name}, ₹${data.amount} का ऋण ${data.loanCode} स्वीकृत हुआ। पहली किस्त: ${data.firstDue}। -LoanTrack`,
+      en: `Hi ${data.name}, loan ${data.loanCode} of ₹${data.amount} has been disbursed. First instalment due: ${data.firstDue}. -ZoloFund`,
+      ta: `வணக்கம் ${data.name}, ₹${data.amount} கடன் ${data.loanCode} வழங்கப்பட்டது. முதல் தவணை: ${data.firstDue}. -ZoloFund`,
+      hi: `नमस्ते ${data.name}, ₹${data.amount} का ऋण ${data.loanCode} स्वीकृत हुआ। पहली किस्त: ${data.firstDue}। -ZoloFund`,
     },
     loan_overdue: {
-      en: `Hi ${data.name}, loan ${data.loanCode} is overdue by ${data.days} days. Penalty: ₹${data.penalty}. Contact your agent immediately. -LoanTrack`,
-      ta: `வணக்கம் ${data.name}, கடன் ${data.loanCode} ${data.days} நாட்கள் தாமதமாகியுள்ளது. அபராதம்: ₹${data.penalty}. -LoanTrack`,
-      hi: `नमस्ते ${data.name}, ऋण ${data.loanCode} ${data.days} दिन अतिदेय है। जुर्माना: ₹${data.penalty}। -LoanTrack`,
+      en: `Hi ${data.name}, loan ${data.loanCode} is overdue by ${data.days} days. Penalty: ₹${data.penalty}. Contact your agent immediately. -ZoloFund`,
+      ta: `வணக்கம் ${data.name}, கடன் ${data.loanCode} ${data.days} நாட்கள் தாமதமாகியுள்ளது. அபராதம்: ₹${data.penalty}. -ZoloFund`,
+      hi: `नमस्ते ${data.name}, ऋण ${data.loanCode} ${data.days} दिन अतिदेय है। जुर्माना: ₹${data.penalty}। -ZoloFund`,
     },
     loan_closed: {
-      en: `Hi ${data.name}, loan ${data.loanCode} is now fully closed. Thank you for your timely payments! -LoanTrack`,
-      ta: `வணக்கம் ${data.name}, கடன் ${data.loanCode} முழுமையாக மூடப்பட்டது. நன்றி! -LoanTrack`,
-      hi: `नमस्ते ${data.name}, ऋण ${data.loanCode} पूरी तरह बंद हो गया। धन्यवाद! -LoanTrack`,
+      en: `Hi ${data.name}, loan ${data.loanCode} is now fully closed. Thank you for your timely payments! -ZoloFund`,
+      ta: `வணக்கம் ${data.name}, கடன் ${data.loanCode} முழுமையாக மூடப்பட்டது. நன்றி! -ZoloFund`,
+      hi: `नमस्ते ${data.name}, ऋण ${data.loanCode} पूरी तरह बंद हो गया। धन्यवाद! -ZoloFund`,
     },
     penalty_accrued: {
-      en: `Hi ${data.name}, a penalty of ₹${data.penalty} has been added to loan ${data.loanCode} for ${data.days} missed days. -LoanTrack`,
-      ta: `வணக்கம் ${data.name}, கடன் ${data.loanCode} க்கு ₹${data.penalty} அபராதம் சேர்க்கப்பட்டது. -LoanTrack`,
-      hi: `नमस्ते ${data.name}, ऋण ${data.loanCode} पर ₹${data.penalty} जुर्माना जोड़ा गया। -LoanTrack`,
+      en: `Hi ${data.name}, a penalty of ₹${data.penalty} has been added to loan ${data.loanCode} for ${data.days} missed days. -ZoloFund`,
+      ta: `வணக்கம் ${data.name}, கடன் ${data.loanCode} க்கு ₹${data.penalty} அபராதம் சேர்க்கப்பட்டது. -ZoloFund`,
+      hi: `नमस्ते ${data.name}, ऋण ${data.loanCode} पर ₹${data.penalty} जुर्माना जोड़ा गया। -ZoloFund`,
     },
     collection_summary: {
-      en: `${data.name}, today's collection: ₹${data.collected} / ₹${data.expected} (${data.pct}%). Pending: ${data.pending} customers. -LoanTrack`,
-      ta: `${data.name}, இன்றைய வசூல்: ₹${data.collected} / ₹${data.expected} (${data.pct}%). -LoanTrack`,
-      hi: `${data.name}, आज का संग्रह: ₹${data.collected} / ₹${data.expected} (${data.pct}%)। -LoanTrack`,
+      en: `${data.name}, today's collection: ₹${data.collected} / ₹${data.expected} (${data.pct}%). Pending: ${data.pending} customers. -ZoloFund`,
+      ta: `${data.name}, இன்றைய வசூல்: ₹${data.collected} / ₹${data.expected} (${data.pct}%). -ZoloFund`,
+      hi: `${data.name}, आज का संग्रह: ₹${data.collected} / ₹${data.expected} (${data.pct}%)। -ZoloFund`,
     },
   };
   const l = ['en', 'ta', 'hi'].includes(lang) ? lang : 'en';

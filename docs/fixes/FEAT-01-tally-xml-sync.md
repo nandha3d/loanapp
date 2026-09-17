@@ -8,7 +8,7 @@
 
 ## Background
 
-Tally ERP (TallyPrime) is the dominant accounting software in India. LoanTrack's premium accounting module stores journal entries in its own GL, but most accountants need data in Tally. The sync exports JournalEntry + JournalLine records as Tally XML that can be imported via the Tally XML import gateway.
+Tally ERP (TallyPrime) is the dominant accounting software in India. ZoloFund's premium accounting module stores journal entries in its own GL, but most accountants need data in Tally. The sync exports JournalEntry + JournalLine records as Tally XML that can be imported via the Tally XML import gateway.
 
 Tally XML format:
 ```xml

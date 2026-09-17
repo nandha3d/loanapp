@@ -7,7 +7,7 @@ import {
   recordCollectionLocationPing,
   verifyAndPersistCollectionLocation,
 } from '@/lib/gps/locationVerifier';
-import { submitCollectionEntry } from '@/lib/collectionWrite';
+import { submitCollectionEntry, correctInstalmentPayment } from '@/lib/collectionWrite';
 import { CollectionEntrySchema } from '@/lib/schemas/collectionEntry';
 
 function errorMessage(error: unknown): string {
@@ -92,3 +92,55 @@ export async function POST(req: NextRequest) {
     return fail(msg || 'Collection failed', 500);
   }
 }
+
+/**
+ * Direct instalment payment correction (admin/superadmin/developer only).
+ * Agents must submit an edit_collection approval request.
+ */
+export async function PATCH(req: NextRequest) {
+  const auth = await requireMobileContext(req);
+  if (auth.response) return auth.response;
+  const ctx = auth.context;
+
+  if (!['admin', 'superadmin', 'developer'].includes(ctx.role)) {
+    return fail('Forbidden: agents must submit an edit_collection approval request', 403);
+  }
+
+  try {
+    const rawBody = await req.json().catch(() => null);
+    if (!rawBody || typeof rawBody !== 'object') {
+      return fail('Invalid request body', 400);
+    }
+    const instalmentId = String(rawBody.instalmentId || '');
+    const rawAmount = rawBody.correctedAmount ?? rawBody.receivedAmount;
+    const correctedAmount = Number(rawAmount);
+    const paymentMode = rawBody.paymentMode ? String(rawBody.paymentMode) : undefined;
+    const remarks = rawBody.remarks ? String(rawBody.remarks) : undefined;
+
+    if (!instalmentId || isNaN(correctedAmount) || correctedAmount < 0) {
+      return fail('Invalid instalmentId or correctedAmount', 400);
+    }
+
+    const result = await correctInstalmentPayment({
+      tenantId: ctx.tenantId,
+      appType: ctx.appType,
+      userId: ctx.userId,
+      branchId: ctx.branchId,
+      role: ctx.role,
+    }, {
+      instalmentId,
+      correctedAmount,
+      paymentMode,
+      remarks,
+    });
+
+    return ok(result);
+  } catch (e: unknown) {
+    const msg = errorMessage(e);
+    if (msg === 'invalid_amount') return fail('Invalid amount', 400);
+    if (msg === 'not_found') return fail('Instalment not found', 404);
+    if (msg === 'forbidden') return fail('Forbidden', 403);
+    return fail(msg || 'Payment correction failed', 500);
+  }
+}
+

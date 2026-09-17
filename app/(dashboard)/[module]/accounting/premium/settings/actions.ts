@@ -118,7 +118,9 @@ export async function migrateBasicAccountingData(): Promise<{ ok: boolean; impor
 
   const tenantId = await getDefaultTenantId();
 
-  // Load all basic entries
+  // SCOPE-9: deliberately tenant-wide, NOT branch-scoped. This rebuilds the
+  // whole double-entry journal from the cash ledger; rebuilding one branch's
+  // slice would produce an unbalanced book. Do not add a branch filter here.
   const entries = await prisma.accountEntry.findMany({ where: { tenantId }, orderBy: { entryDate: 'asc' } });
   if (entries.length === 0) return { ok: true, imported: 0, skipped: 0 };
 

@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ZoloFund — Two-Domain Architecture</title>
+<style>
+  :root{
+    --accent:#F5A623; --accent-dk:#b9770f; --ink:#1f2937; --muted:#64748b;
+    --line:#e5e7eb; --bg:#ffffff; --card:#f8fafc; --navy:#1e3c72;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{
+    font-family:'Segoe UI',system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink); margin:0; line-height:1.55; font-size:14px; background:var(--bg);
+  }
+  .page{max-width:880px;margin:0 auto;padding:32px 40px}
+  h1,h2,h3{line-height:1.25;color:var(--ink)}
+  h2{font-size:22px;margin:0 0 4px;padding-bottom:8px;border-bottom:3px solid var(--accent)}
+  h2 .num{color:var(--accent);font-weight:800;margin-right:8px}
+  h3{font-size:16px;margin:22px 0 6px;color:var(--accent-dk)}
+  p{margin:8px 0}
+  a{color:var(--accent-dk);text-decoration:none}
+  code{font-family:'Cascadia Code',Consolas,Menlo,monospace;font-size:.86em;
+    background:#eef2f7;padding:1px 6px;border-radius:5px;color:#0f172a}
+  table{border-collapse:collapse;width:100%;margin:12px 0;font-size:13px}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:var(--navy);color:#fff;font-weight:600}
+  tr:nth-child(even) td{background:var(--card)}
+  blockquote{margin:14px 0;padding:12px 16px;background:#fff7ec;
+    border-left:4px solid var(--accent);border-radius:0 8px 8px 0;color:#5b4a2e}
+  blockquote p{margin:4px 0}
+  .diagram{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:16px;margin:14px 0;text-align:center;page-break-inside:avoid}
+  .mermaid{display:flex;justify-content:center}
+  ul,ol{margin:8px 0 8px 0;padding-left:22px}
+  li{margin:4px 0}
+  section{page-break-before:always;padding-top:6px}
+  section:first-of-type{page-break-before:auto}
+  .files{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:14px 18px;font-size:12.5px}
+  .files code{background:#1e293b;color:#fde68a}
+  .files h3{color:#fbbf24;margin-top:14px}
+
+  /* Cover */
+  .cover{height:96vh;display:flex;flex-direction:column;justify-content:center;
+    page-break-after:always;text-align:center}
+  .cover .brand{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:30px}
+  .cover .logo{width:54px;height:54px;border-radius:14px;background:var(--accent);
+    display:flex;align-items:center;justify-content:center;color:#fff;font-size:28px}
+  .cover h1{font-size:40px;margin:0 0 10px;letter-spacing:-.5px}
+  .cover .sub{color:var(--muted);font-size:17px;margin-bottom:36px}
+  .cover table{max-width:760px;margin:0 auto;font-size:13.5px}
+  .cover .meta{margin-top:34px;color:var(--muted);font-size:12.5px}
+  .pill{display:inline-block;background:var(--accent);color:#fff;border-radius:999px;
+    padding:3px 12px;font-size:12px;font-weight:600}
+
+  @page{size:A4;margin:14mm}
+  @media print{.page{padding:0;max-width:100%}}
+</style>
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({
+    startOnLoad:true, theme:'base', securityLevel:'loose',
+    flowchart:{useMaxWidth:true,htmlLabels:true,curve:'basis'},
+    themeVariables:{
+      primaryColor:'#fff7ec', primaryBorderColor:'#F5A623', primaryTextColor:'#1f2937',
+      lineColor:'#94a3b8', fontFamily:'Segoe UI, sans-serif', fontSize:'13px'
+    }
+  });
+  // Signal for headless PDF capture once all diagrams render.
+  window.addEventListener('load', async () => {
+    try { await mermaid.run(); } catch(e){}
+    document.body.setAttribute('data-mermaid','done');
+  });
+</script>
+</head>
+<body>
+<div class="page">
+
+  <!-- ───────── COVER ───────── -->
+  <div class="cover">
+    <div class="brand">
+      <div class="logo">🏦</div>
+      <div style="font-size:30px;font-weight:800">Loan<span style="color:var(--accent)">Track</span></div>
+    </div>
+    <h1>Two-Domain Architecture</h1>
+    <div class="sub">One codebase &amp; one database — SaaS + Standalone Client</div>
+    <table>
+      <thead><tr><th></th><th>Host</th><th>Model</th><th>Registration</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Our SaaS</strong></td><td><code>app.animazon.in</code></td><td>Multi-tenant, paid subscription</td><td>Full 5-step, anyone</td></tr>
+        <tr><td><strong>Client standalone</strong></td><td><code>loan.samuraibuiness.in</code></td><td>Single tenant, <strong>lifetime</strong> (no billing)</td><td>Details-only, first signup claims &amp; locks</td></tr>
+      </tbody>
+    </table>
+    <div class="meta">
+      <span class="pill">Architecture Reference</span><br/><br/>
+      Mobile API for both served over the VPS IP <code>187.127.177.121</code> (JWT carries the tenant).
+    </div>
+  </div>
+
+  <!-- ───────── 1 ───────── -->
+  <section>
+    <h2><span class="num">1</span>High-level architecture</h2>
+    <div class="diagram"><pre class="mermaid">
+flowchart TB
+    subgraph Clients
+      A1[Browser - app.animazon.in]
+      A2[Browser - loan.samuraibuiness.in]
+      A3[Mobile app - 187.127.177.121/api/v1]
+    end
+    subgraph VPS["Hostinger VPS (187.127.177.121)"]
+      NG[nginx<br/>server blocks + SSL]
+      PM[PM2: loanapp<br/>Next.js standalone :3000]
+      DB[(MySQL<br/>all tenants)]
+    end
+    SB[Supabase Auth<br/>Google OAuth + email links]
+    A1 -->|HTTPS| NG
+    A2 -->|HTTPS| NG
+    A3 -->|HTTP| NG
+    NG -->|proxy_pass Host: host| PM
+    PM --> DB
+    A1 -. browser auth .-> SB
+    A2 -. browser auth .-> SB
+    PM -. verify token .-> SB
+    </pre></div>
+    <p><strong>Key idea:</strong> nginx forwards the original <code>Host</code> header. The app resolves <em>which tenant</em> from that host. Same process, same DB — behaviour forks on host + license.</p>
+  </section>
+
+  <!-- ───────── 2 ───────── -->
+  <section>
+    <h2><span class="num">2</span>Host → Tenant resolution (the core fork)</h2>
+    <p>Every request resolves a tenant from the <code>Host</code> header. Custom domain is checked <strong>before</strong> the subdomain logic, so a reserved first label (e.g. <code>loan.*</code>) can't shadow it.</p>
+    <div class="diagram"><pre class="mermaid">
+flowchart TD
+    H[Incoming Host header] --> N[normalize: lowercase, strip port]
+    N --> IP{IP / localhost?}
+    IP -->|yes| NULL[no host tenant -> use session tenant<br/>mobile: tenant from JWT]
+    IP -->|no| CD{matches a tenant.customDomain?}
+    CD -->|yes, active| T1[Tenant = that client<br/>loan.samuraibuiness.in -> Samurai]
+    CD -->|no| ROOT{ends with our root domain?}
+    ROOT -->|subdomain slug| T2[Tenant = slug lookup]
+    ROOT -->|app.animazon.in / unknown| NULL
+    </pre></div>
+    <ul>
+      <li>Code: <code>getTenantIdFromHost()</code> and <code>getCustomDomainTenantId()</code> in <code>lib/tenant.ts</code>; login path mirrors this in <code>resolveLoginTenantId()</code> (<code>lib/auth.ts</code>).</li>
+      <li><code>NEXT_PUBLIC_ROOT_DOMAIN</code> is <strong>empty</strong> in prod → cookies stay <strong>host-only</strong>, so a session on <code>loan.samuraibuiness.in</code> is never sent to <code>app.animazon.in</code>.</li>
+    </ul>
+  </section>
+
+  <!-- ───────── 3 ───────── -->
+  <section>
+    <h2><span class="num">3</span>SaaS domain — <code>app.animazon.in</code></h2>
+
+    <h3>3.1 Registration (full, multi-tenant)</h3>
+    <div class="diagram"><pre class="mermaid">
+flowchart TD
+    R0[/register] --> R1[Step 1: Details<br/>business, owner, phone, email, username, password]
+    R1 --> R2[Step 2: Verticals/modules]
+    R2 --> R3[Step 3: Plan<br/>free / basic / business / enterprise]
+    R3 --> R4[Step 4: Add-ons]
+    R4 --> R5[Step 5: Review + Terms]
+    R5 --> API[POST /api/register/email]
+    API --> NT[Create NEW tenant + HQ branch<br/>+ subscription from plan catalog<br/>+ owner superadmin status=pending]
+    NT --> V[Supabase magic-link -> verify email]
+    V --> ACT[status pending -> active]
+    ACT --> LOGIN[Login -> portal]
+    </pre></div>
+
+    <h3>3.2 Login (subscription enforced)</h3>
+    <div class="diagram"><pre class="mermaid">
+flowchart TD
+    L0[/login] --> L1{method}
+    L1 -->|username + password| C[NextAuth Credentials<br/>MySQL bcrypt]
+    L1 -->|Continue with Google| G[Supabase OAuth -> /auth/callback<br/>-> signIn supabase]
+    C --> S[Session: role, tenantId, apiToken]
+    G --> S
+    S --> GATE{assertTenantSubscriptionAccess}
+    GATE -->|active| P[Portal / module dashboards]
+    GATE -->|trial/period expired| BLK[Blocked -> billing/upgrade]
+    </pre></div>
+    <ul><li>Subscription gates live in <code>lib/subscription.ts</code> (<code>assertTenantSubscriptionAccess</code>, <code>checkLimit</code>) and are called from <code>getCurrentTenantId()</code> (<code>lib/tenant.ts</code>).</li></ul>
+
+    <h3>3.3 Developer "Open account" (no-login tenant access)</h3>
+    <p>Replaces the old "Monitor Mode". A developer enters any tenant without logging in; a sticky banner shows which account.</p>
+    <div class="diagram"><pre class="mermaid">
+flowchart TD
+    D0[Developer @ /admin/users] --> D1[Click Open on a client]
+    D1 --> D2[POST /api/developer/monitor<br/>sets monitor-token cookie]
+    D2 --> D3[Session impersonates tenant superadmin<br/>middleware routes as superadmin]
+    D3 --> BAN[Sticky banner:<br/>You are inside Business Name developer view]
+    BAN --> OPS[Browse / operate the tenant]
+    OPS --> EX[Exit to Admin -> /api/developer/monitor/exit<br/>clears cookie -> app.animazon.in/admin/users]
+    </pre></div>
+    <ul>
+      <li>Banner: <code>components/MonitorBanner.tsx</code> (shows <code>tenant.name</code>).</li>
+      <li>Exit redirect uses <code>APP_URL</code> (not the internal <code>localhost:3000</code>).</li>
+    </ul>
+  </section>
+
+  <!-- ───────── 4 ───────── -->
+  <section>
+    <h2><span class="num">4</span>Client standalone — <code>loan.samuraibuiness.in</code></h2>
+
+    <h3>4.1 Registration policy per host</h3>
+    <div class="diagram"><pre class="mermaid">
+flowchart TD
+    Q[GET /api/host/registration] --> C1{host maps to a customDomain tenant?}
+    C1 -->|yes| LOCK[allowed=false -> /register redirects to /login<br/>Register link hidden, APIs 403]
+    C1 -->|no| C2{isStandaloneDomainHost?<br/>real domain, not our SaaS host}
+    C2 -->|yes| SIMPLE[simpleMode=true -> Details-only form<br/>first signup CLAIMS the domain]
+    C2 -->|no| FULL[normal full registration - SaaS]
+    </pre></div>
+
+    <h3>4.2 Self-claim signup (Details-only → lifetime owner → lock)</h3>
+    <div class="diagram"><pre class="mermaid">
+flowchart TD
+    S0[loan.samuraibuiness.in/register<br/>Details only] --> S1[Create Business]
+    S1 --> API[POST /api/register/email<br/>host = loan.samuraibuiness.in]
+    API --> CLAIM{isStandaloneDomainHost &&<br/>domain unclaimed?}
+    CLAIM -->|yes| MK[Create tenant:<br/>customDomain = host<br/>plan = lifetime<br/>ALL 4 modules, unlimited<br/>add-ons OFF<br/>owner superadmin status=pending]
+    MK --> VER[Supabase magic-link -> verify email]
+    VER --> ACT[status -> active = lifetime owner]
+    ACT --> LCK[Domain now has a customDomain tenant<br/>-> registration AUTO-LOCKS]
+    LCK --> DONE[Only this owner can sign in here]
+    </pre></div>
+    <blockquote><p>After the claim, <code>/api/host/registration</code> returns <code>allowed=false</code> for that host — no second business / superadmin can ever self-register. Extra owners are added <strong>in-app only</strong> (see §6).</p></blockquote>
+
+    <h3>4.3 Login (scoped to the one tenant)</h3>
+    <div class="diagram"><pre class="mermaid">
+flowchart TD
+    L0[loan.samuraibuiness.in/login] --> RES[resolveLoginTenantId<br/>customDomain -> Samurai tenant]
+    RES --> U[User lookup scoped to that tenant only]
+    U --> OK{valid + active?}
+    OK -->|yes| P[Portal - their data, all 4 modules]
+    OK -->|cross-tenant user| NO[Rejected - an app.animazon.in user<br/>cannot log in here]
+    </pre></div>
+  </section>
+
+  <!-- ───────── 5 ───────── -->
+  <section>
+    <h2><span class="num">5</span>Lifetime license model (time-only)</h2>
+    <div class="diagram"><pre class="mermaid">
+flowchart LR
+    SUB[plan == lifetime] --> A[assertTenantSubscriptionAccess<br/>RETURNS EARLY -> never expires, never billed]
+    SUB --> B[checkLimit + feature flags<br/>STILL enforced from the row]
+    B --> ADMIN[Edit modules / limits / add-ons<br/>in /admin/billing per tenant]
+    SUB --> UI[Billing page shows Lifetime card<br/>no upgrade, checkout blocked]
+    </pre></div>
+    <ul><li>"Lifetime" = unlimited <strong>time</strong> only. Features, modules and limits remain controlled per-tenant in the admin billing panel (<code>lib/subscription.ts</code>, <code>lib/plans.ts</code>).</li></ul>
+  </section>
+
+  <!-- ───────── 6 ───────── -->
+  <section>
+    <h2><span class="num">6</span>Multiple owners (co-owner), in-app only</h2>
+    <div class="diagram"><pre class="mermaid">
+flowchart TD
+    O0[Superadmin @ /admin/users -> New User] --> O1[Role = Co-Owner Super Admin]
+    O1 --> O2[manageMasterUser]
+    O2 --> O3{actor is developer?}
+    O3 -->|developer + superadmin role| NEWB[Create NEW tenant - onboarding a business]
+    O3 -->|superadmin + superadmin role| CO[CO-OWNER in the SAME account<br/>linked to all its branches<br/>no new tenant]
+    </pre></div>
+    <p>Created <strong>inside the app</strong> only — never via public registration (blocked on client domains). Logic in <code>manageMasterUser</code> (<code>app/admin/actions.ts</code>).</p>
+  </section>
+
+  <!-- ───────── 7 ───────── -->
+  <section>
+    <h2><span class="num">7</span>Supabase auth bridge (both domains)</h2>
+    <p>Supabase is an <strong>auth broker</strong> only (Google OAuth + email magic-link). MySQL keeps users/passwords; NextAuth issues the session.</p>
+    <div class="diagram"><pre class="mermaid">
+sequenceDiagram
+    participant B as Browser
+    participant SB as Supabase
+    participant APP as App (/auth/callback)
+    participant NA as NextAuth (supabase)
+    participant DB as MySQL
+    B->>SB: Google OAuth / email magic-link
+    SB-->>B: redirect to /auth/callback?code=...
+    B->>APP: exchange code -> access_token
+    APP->>NA: signIn(supabase, access_token)
+    NA->>SB: verify token (admin.getUser)
+    NA->>DB: find/activate user (scoped to host tenant)
+    NA-->>B: app session (role, tenantId, apiToken)
+    </pre></div>
+    <ul><li>Browser ↔ Supabase calls require the Supabase origin in the app's CSP <code>connect-src</code> (<code>next.config.ts</code>) and the domain in Supabase's redirect allowlist.</li></ul>
+  </section>
+
+  <!-- ───────── 8 ───────── -->
+  <section>
+    <h2><span class="num">8</span>Infra &amp; config reference</h2>
+    <table>
+      <thead><tr><th>Concern</th><th>SaaS (app.animazon.in)</th><th>Client (loan.samuraibuiness.in)</th></tr></thead>
+      <tbody>
+        <tr><td>nginx</td><td><code>server_name app.animazon.in</code> (default_server)</td><td><code>server_name loan.samuraibuiness.in</code> (samurai.conf)</td></tr>
+        <tr><td>SSL</td><td>certbot</td><td>certbot (separate cert)</td></tr>
+        <tr><td>DNS</td><td>A → 187.127.177.121</td><td>A → 187.127.177.121</td></tr>
+        <tr><td>Tenant resolution</td><td>subdomain/slug or session</td><td><code>tenant.customDomain</code> exact match</td></tr>
+        <tr><td>Registration</td><td>full, all plans</td><td>Details-only, claims lifetime, then locked</td></tr>
+        <tr><td>Cookie domain</td><td>host-only (ROOT_DOMAIN empty)</td><td>host-only</td></tr>
+        <tr><td>Supabase allowlist</td><td><code>https://app.animazon.in/**</code></td><td><code>https://loan.samuraibuiness.in/**</code></td></tr>
+        <tr><td>CORS (CORS_EXTRA_ORIGINS)</td><td>n/a (same-origin)</td><td><code>https://loan.samuraibuiness.in</code></td></tr>
+      </tbody>
+    </table>
+
+    <div class="files">
+      <h3 style="margin-top:0">Key files</h3>
+      <ul>
+        <li>Tenant/host: <code>lib/tenant.ts</code> (getTenantIdFromHost, getCustomDomainTenantId, isStandaloneDomainHost)</li>
+        <li>Auth/session: <code>lib/auth.ts</code> (resolveLoginTenantId, supabase provider, apiToken refresh, monitor session)</li>
+        <li>Subscription/lifetime: <code>lib/subscription.ts</code>, <code>lib/plans.ts</code></li>
+        <li>Registration: <code>app/register/page.tsx</code>, <code>app/api/register/email|google/route.ts</code>, <code>app/api/host/registration/route.ts</code></li>
+        <li>Supabase: <code>lib/supabase/{server,browser}.ts</code>, <code>app/auth/callback/page.tsx</code></li>
+        <li>Developer access: <code>app/admin/users/UsersClient.tsx</code>, <code>app/api/developer/monitor/*</code>, <code>components/MonitorBanner.tsx</code></li>
+      </ul>
+      <h3>Onboarding a NEW standalone client</h3>
+      <ol>
+        <li>Client buys domain → add DNS <strong>A record</strong> <code>→ 187.127.177.121</code>.</li>
+        <li>Add nginx <code>server</code> block for the host → <code>certbot --nginx -d &lt;host&gt;</code>.</li>
+        <li>Add <code>&lt;host&gt;</code> to Supabase redirect allowlist + <code>CORS_EXTRA_ORIGINS</code>.</li>
+        <li>Client visits <code>https://&lt;host&gt;/register</code> → Details-only → first signup <strong>auto-claims</strong> lifetime + all modules + locks.</li>
+        <li>Tune modules/limits/add-ons in <code>/admin/billing</code> if needed.</li>
+      </ol>
+    </div>
+  </section>
+
+</div>
+</body>
+</html>

@@ -12,7 +12,7 @@ NBFCs and microfinance companies registered under GST must file:
 - **GSTR-1** — outward supply (loan processing fees, late penalties, service charges)
 - **GSTR-3B** — summary return with net tax liability
 
-LoanTrack's accounting module records these as JournalEntries with GL accounts. The export format must match the GSTN portal's CSV upload format or the JSON API format for direct upload.
+ZoloFund's accounting module records these as JournalEntries with GL accounts. The export format must match the GSTN portal's CSV upload format or the JSON API format for direct upload.
 
 **Tax applicability in NBFC/MFI:**
 - Processing fees: 18% GST (CGST 9% + SGST 9% for intra-state, or IGST 18% for inter-state)

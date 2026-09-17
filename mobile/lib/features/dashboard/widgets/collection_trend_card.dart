@@ -2,14 +2,14 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:loantrack/core/l10n/language_controller.dart';
-import 'package:loantrack/core/theme/app_colors.dart';
-import 'package:loantrack/core/theme/app_tokens.dart';
-import 'package:loantrack/core/theme/app_typography.dart';
-import 'package:loantrack/data/models/analytics.dart';
-import 'package:loantrack/data/services/analytics_service.dart';
-import 'package:loantrack/shared/widgets/empty_state.dart';
-import 'package:loantrack/shared/widgets/skeleton.dart';
+import 'package:zolofund/core/l10n/language_controller.dart';
+import 'package:zolofund/core/theme/app_colors.dart';
+import 'package:zolofund/core/theme/app_tokens.dart';
+import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/data/models/analytics.dart';
+import 'package:zolofund/data/services/analytics_service.dart';
+import 'package:zolofund/shared/widgets/empty_state.dart';
+import 'package:zolofund/shared/widgets/skeleton.dart';
 
 final trendRangeProvider = StateProvider<int>((ref) => 7);
 

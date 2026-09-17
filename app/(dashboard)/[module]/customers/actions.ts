@@ -1,6 +1,6 @@
 'use server';
 
-import { apiFetch } from '@/lib/api-client/index';
+import { apiFetch, ApiError } from '@/lib/api-client/index';
 import {
   getApiRequestContext,
   type ApiRequestContext,
@@ -9,6 +9,7 @@ import { getUserAppType } from '@/lib/tenant';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { modulePath } from '@/types/modules';
+import { auth } from '@/lib/auth';
 
 async function uploadFileHelper(file: File, context: ApiRequestContext): Promise<string | null> {
   if (!file || file.size === 0) return null;
@@ -48,6 +49,11 @@ export async function saveCustomer(formData: FormData) {
   const companyPhone = (formData.get('companyPhone') as string) || null;
   const companyEmail = (formData.get('companyEmail') as string) || null;
   const designation = (formData.get('designation') as string) || null;
+  const preferredCollectionTime = (formData.get('preferredCollectionTime') as string) || null;
+  const latRaw = formData.get('lat') as string | null;
+  const lngRaw = formData.get('lng') as string | null;
+  const lat = latRaw && latRaw.trim() !== '' && !isNaN(Number(latRaw)) ? Number(latRaw) : undefined;
+  const lng = lngRaw && lngRaw.trim() !== '' && !isNaN(Number(lngRaw)) ? Number(lngRaw) : undefined;
   const isPopup = formData.get('isPopup') === 'true';
 
   try {
@@ -143,6 +149,9 @@ export async function saveCustomer(formData: FormData) {
       companyPhone,
       companyEmail,
       designation,
+      preferredCollectionTime,
+      lat,
+      lng,
       photoUrl: photoUrl || undefined,
       companyLogo: companyLogoUrl || undefined,
       kycDocs,
@@ -182,6 +191,18 @@ export async function saveCustomer(formData: FormData) {
     if (e.message && e.message.includes('NEXT_REDIRECT')) {
       throw e;
     }
+    if (e instanceof ApiError && e.status === 409) {
+      try {
+        const parsed = JSON.parse(e.body);
+        if (parsed.code === 'CUSTOMER_ALREADY_EXISTS') {
+          return {
+            success: false,
+            error: 'CUSTOMER_ALREADY_EXISTS',
+            customer: parsed.data?.customer,
+          };
+        }
+      } catch {}
+    }
     return { success: false, error: e.message || 'Failed to save customer' };
   }
 }
@@ -213,6 +234,60 @@ export async function requestCustomerEdit(customerId: string, requestedChanges: 
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message || 'Failed to submit customer edit request' };
+  }
+}
+
+export async function updateCustomerGpsAction(formData: FormData) {
+  const customerId = formData.get('customerId') as string;
+  const customerCode = formData.get('customerCode') as string;
+  const latRaw = formData.get('lat') as string;
+  const lngRaw = formData.get('lng') as string;
+  const reason = (formData.get('reason') as string) || 'Update registered GPS location';
+
+  if (!customerId || !latRaw || !lngRaw) {
+    return { success: false, error: 'Customer ID and valid coordinates are required' };
+  }
+
+  const lat = Number(latRaw);
+  const lng = Number(lngRaw);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    return { success: false, error: 'Invalid coordinates' };
+  }
+
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, error: 'Unauthorized' };
+    }
+    const role = (session.user as any).role;
+    const appType = await getUserAppType();
+
+    // If agent: file approval request (mirroring loan edit)
+    if (role === 'agent') {
+      const res = await requestCustomerEdit(customerId, { lat, lng }, reason);
+      if (!res.success) return res;
+      return { success: true, pendingApproval: true, message: 'GPS location update request submitted for admin review' };
+    }
+
+    // If admin / superadmin / developer: update directly via API
+    const apiContext = await getApiRequestContext();
+    const res = await apiFetch<any>(`/customers/${customerId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ lat, lng }),
+      ...apiContext,
+    });
+
+    if (res.error) {
+      return { success: false, error: res.error };
+    }
+
+    revalidatePath(modulePath(appType, '/customers'));
+    if (customerCode) {
+      revalidatePath(modulePath(appType, `/customers/${customerCode}`));
+    }
+    return { success: true, pendingApproval: false, message: 'Customer GPS location updated successfully' };
+  } catch (e: any) {
+    return { success: false, error: e.message || 'Failed to update GPS location' };
   }
 }
 

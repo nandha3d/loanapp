@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
     formData.append('kycEnabled', String(body.kycEnabled === true));
     formData.append('gpsTrackingEnabled', String(body.gpsTrackingEnabled === true));
     formData.append('premiumAccountingEnabled', String(body.premiumAccountingEnabled === true));
+    formData.append('foreclosureEnabled', String(body.foreclosureEnabled === true));
     formData.append('bureauPullsIncluded', String(body.bureauPullsIncluded ?? 0));
     if (body.trialEndsAt) formData.append('trialEndsAt', body.trialEndsAt);
     if (body.currentPeriodEnd) formData.append('currentPeriodEnd', body.currentPeriodEnd);
