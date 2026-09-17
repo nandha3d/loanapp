@@ -23,6 +23,7 @@ import 'package:zolofund/core/gps/gps_service.dart';
 import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/data/models/user.dart';
 import 'package:zolofund/data/services/upload_service.dart';
+import 'package:zolofund/data/services/geocoding_service.dart';
 
 // ── Providers ──────────────────────────────────────────────────────────────
 
@@ -814,7 +815,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: AppColors.background,
-                      borderRadius: BorderRadius.circular(AppTokens.radiusSmall),
+                      borderRadius: BorderRadius.circular(AppTokens.radiusSm),
                       border: Border.all(color: AppColors.border),
                     ),
                     child: Column(
@@ -865,7 +866,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                                 label: Text(t.x('btn.pin_on_map')),
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: AppColors.primary,
-                                  side: const BorderSide(color: AppColors.primary),
+                                  side: BorderSide(color: AppColors.primary),
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                                 ),
                               ),
@@ -878,7 +879,7 @@ class _NewCustomerScreenState extends ConsumerState<NewCustomerScreen> {
                                 label: Text(t.x('btn.use_my_gps')),
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: AppColors.primary,
-                                  side: const BorderSide(color: AppColors.primary),
+                                  side: BorderSide(color: AppColors.primary),
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                                 ),
                               ),

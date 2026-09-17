@@ -227,8 +227,10 @@ class _LocationPickerScreenState extends ConsumerState<LocationPickerScreen> {
                           const Divider(height: 1, color: AppColors.border),
                       itemBuilder: (_, i) => ListTile(
                         dense: true,
-                        leading: Icon(Icons.place_outlined,
-                            color: AppColors.primary),
+                        leading: Icon(
+                          Icons.place_outlined,
+                          color: AppColors.primary,
+                        ),
                         title: Text(
                           _results[i].displayName,
                           style: AppTypography.caption,

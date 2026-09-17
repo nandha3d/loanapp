@@ -122,12 +122,12 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.pin_drop, color: AppColors.primary, size: 24),
+                  Icon(Icons.pin_drop, color: AppColors.primary, size: 24),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Register GPS for ${customer.name}',
-                      style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.bold),
+                      style: AppTypography.sectionTitle,
                     ),
                   ),
                 ],
@@ -145,7 +145,7 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                     color: AppColors.primary.withAlpha(25),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(Icons.my_location, color: AppColors.primary),
+                  child: Icon(Icons.my_location, color: AppColors.primary),
                 ),
                 title: Text(t.x('btn.use_my_gps'), style: const TextStyle(fontWeight: FontWeight.w600)),
                 subtitle: const Text('Capture device GPS location right now'),
