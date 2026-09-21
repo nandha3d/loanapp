@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import 'package:zolofund/core/l10n/language_controller.dart';
-import 'package:zolofund/core/network/dio_client.dart';
+import 'package:zolofund/core/network/api_exception.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
@@ -128,6 +128,18 @@ class _ApprovalCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final fmt = DateFormat('dd MMM yyyy, hh:mm a');
     final t = T.of(ref);
+
+    bool insufficientFloat = false;
+    String? floatWarning;
+    try {
+      if (approval.payload.isNotEmpty && approval.payload != '{}') {
+        final data = jsonDecode(approval.payload);
+        if (data is Map<String, dynamic>) {
+          insufficientFloat = data['insufficientFloat'] == true;
+          floatWarning = data['floatWarning'] as String?;
+        }
+      }
+    } catch (_) {}
 
     String entityLabel;
     if (approval.entityType == 'customer') {
@@ -400,6 +412,7 @@ class _ApprovalCard extends ConsumerWidget {
       }
     }
   }
+}
 
 class _Tag extends StatelessWidget {
   const _Tag({required this.label, required this.color, required this.bg});
