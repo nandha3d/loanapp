@@ -119,7 +119,7 @@ export default function AnalyticsClient({ data, currencySymbol, dict }: { data: 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 0' }}>
             {data.collectionFunnel.map((step, i) => {
               const maxCount = Math.max(1, data.collectionFunnel[0]?.count || 1);
-              const pct = Math.max(8, (step.count / maxCount) * 100);
+              const pct = step.count > 0 ? Math.max(4, Math.min(100, (step.count / maxCount) * 100)) : 0;
               return (
                 <div key={i}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.78rem', fontWeight: 600, marginBottom: 4, color: 'var(--text-primary)' }}>
@@ -249,7 +249,7 @@ export default function AnalyticsClient({ data, currencySymbol, dict }: { data: 
               ];
               const maxVal = Math.max(1, ...freqItems.map(f => f.value));
               return freqItems.map((f, i) => {
-                const pct = Math.max(8, (f.value / maxVal) * 100);
+                const pct = f.value > 0 ? Math.max(4, Math.min(100, (f.value / maxVal) * 100)) : 0;
                 return (
                   <div key={i}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.78rem', fontWeight: 600, marginBottom: 4, color: 'var(--text-primary)' }}>

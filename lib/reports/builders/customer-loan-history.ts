@@ -5,7 +5,34 @@ export async function buildCustomerLoanHistory(params: ReportBuilderParams): Pro
   const { tenantId, appType, customerId, status, from, to } = params;
 
   if (!customerId) {
-    throw new Error('Customer ID is required for Customer Loan History report');
+    return {
+      title: 'reports.customerLoanHistory.title',
+      columns: [
+        { key: 'loanCode', label: 'reports.col.loanNo', align: 'left', type: 'text' },
+        { key: 'loanType', label: 'reports.col.loanType', align: 'left', type: 'badge' },
+        { key: 'disbursed', label: 'reports.col.disbursed', align: 'right', type: 'currency', total: true },
+        { key: 'totalCollected', label: 'reports.col.repaid', align: 'right', type: 'currency', total: true },
+        { key: 'outstanding', label: 'reports.col.outstanding', align: 'right', type: 'currency', total: true },
+        { key: 'startDate', label: 'reports.col.startDate', align: 'center', type: 'date' },
+        { key: 'endOrClosed', label: 'reports.col.endOrClosed', align: 'center', type: 'date' },
+        { key: 'status', label: 'reports.col.status', align: 'center', type: 'badge' },
+      ],
+      rows: [],
+      totals: {
+        disbursed: 0,
+        totalCollected: 0,
+        outstanding: 0,
+      },
+      kpis: [
+        { label: 'totalLoans', value: 0 },
+        { label: 'totalDisbursedLifetime', value: 0 },
+        { label: 'totalRepaidLifetime', value: 0 },
+        { label: 'currentOutstanding', value: 0 },
+      ],
+      meta: {
+        currencySymbol: '₹',
+      },
+    };
   }
 
   const dateFrom = from ? new Date(from) : undefined;

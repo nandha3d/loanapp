@@ -51,7 +51,12 @@ export default function ReportsClient({
       from = m.toISOString().split('T')[0];
     }
 
-    window.location.href = `/reports?from=${from}&to=${to}&routeId=${filters.routeId}&agentId=${filters.agentId}`;
+    const params = new URLSearchParams(window.location.search);
+    params.set('from', from);
+    params.set('to', to);
+    if (filters.routeId) params.set('routeId', filters.routeId); else params.delete('routeId');
+    if (filters.agentId) params.set('agentId', filters.agentId); else params.delete('agentId');
+    window.location.href = `${window.location.pathname}?${params.toString()}`;
   };
 
   return (
@@ -81,7 +86,7 @@ export default function ReportsClient({
         {/* Export Buttons */}
         <div style={{ display: 'flex', gap: '8px', marginTop: '12px', borderTop: '1px solid var(--border)', paddingTop: '12px', flexWrap: 'wrap' }}>
           <a
-            href={`/api/export/collections?from=${filters.from}&to=${filters.to}`}
+            href={`/api/export/collections?from=${filters.from}&to=${filters.to}${filters.routeId ? `&routeId=${filters.routeId}` : ''}${filters.agentId ? `&agentId=${filters.agentId}` : ''}`}
             className="btn btn-secondary btn-sm"
             download
           >
@@ -158,7 +163,7 @@ export default function ReportsClient({
               <span>{collectionEfficiency.efficiency}%</span>
             </div>
             <div className="progress" style={{ width: '100%', height: '12px' }}>
-              <div className="progress-fill" style={{ width: `${Math.min(collectionEfficiency.efficiency, 100)}%` }} />
+              <div className="progress-fill" style={{ width: `${Math.min(100, Math.max(0, collectionEfficiency.efficiency))}%` }} />
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.72rem', color: 'var(--text-light)', marginTop: '6px' }}>
               <span>{d.gap}: {formatCurrency(collectionEfficiency.expected - collectionEfficiency.collected, currencySymbol)}</span>
@@ -241,7 +246,7 @@ export default function ReportsClient({
               {d.netOutstanding}: <strong style={{ color: 'var(--danger)' }}>{formatCurrency(penaltyReport.accrued - penaltyReport.settled - penaltyReport.waived, currencySymbol)}</strong>
             </div>
             <div className="progress" style={{ width: '100%', height: '8px', marginTop: '8px' }}>
-              <div className="progress-fill" style={{ width: `${penaltyReport.accrued > 0 ? calcPercentage(penaltyReport.settled + penaltyReport.waived, penaltyReport.accrued) : 0}%`, background: 'var(--success)' }} />
+              <div className="progress-fill" style={{ width: `${Math.min(100, Math.max(0, penaltyReport.accrued > 0 ? calcPercentage(penaltyReport.settled + penaltyReport.waived, penaltyReport.accrued) : 0))}%`, background: 'var(--success)' }} />
             </div>
             <div style={{ fontSize: '.72rem', color: 'var(--text-light)', marginTop: '4px' }}>
               {penaltyReport.accrued > 0 ? calcPercentage(penaltyReport.settled + penaltyReport.waived, penaltyReport.accrued) : 0}% {d.resolved}
@@ -289,7 +294,7 @@ export default function ReportsClient({
                   <td>{a.hitRate}%</td>
                   <td>
                     <div className="progress" style={{ width: '120px' }}>
-                      <div className="progress-fill" style={{ width: `${a.hitRate}%` }} />
+                      <div className="progress-fill" style={{ width: `${Math.min(100, Math.max(0, a.hitRate))}%` }} />
                     </div>
                   </td>
                 </tr>

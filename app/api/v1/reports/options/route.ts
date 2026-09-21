@@ -9,19 +9,19 @@ export async function GET(req: Request) {
     if ('response' in authResult && authResult.response) return authResult.response;
     const context = 'context' in authResult ? authResult.context : (authResult as any);
 
-    const { tenantId, appType } = context;
+    const { tenantId, appType, branchId } = context;
 
-    const [branches, agents, loans, payments, chitGroups] = await Promise.all([
+    const [branches, agents, loans, payments, chitGroups, customers] = await Promise.all([
       prisma.branch.findMany({
         where: { tenantId },
         select: { id: true, name: true },
       }),
       prisma.user.findMany({
-        where: { tenantId, appType, role: 'agent', status: 'active' },
+        where: { tenantId, appType, role: 'agent', status: 'active', ...(branchId ? { branchId } : {}) },
         select: { id: true, name: true },
       }),
       prisma.loan.findMany({
-        where: { tenantId, appType },
+        where: { tenantId, appType, ...(branchId ? { branchId } : {}) },
         select: { loanType: true, status: true, frequency: true },
       }),
       prisma.payment.findMany({
@@ -30,11 +30,17 @@ export async function GET(req: Request) {
       }),
       appType === 'chitfunds'
         ? prisma.chitGroup.findMany({
-            where: { tenantId, appType, deletedAt: null },
+            where: { tenantId, appType, deletedAt: null, ...(branchId ? { branchId } : {}) },
             select: { id: true, name: true, groupCode: true },
             orderBy: { name: 'asc' },
           })
         : Promise.resolve([]),
+      prisma.customer.findMany({
+        where: { tenantId, appType, status: 'active', ...(branchId ? { branchId } : {}) },
+        select: { id: true, name: true, customerCode: true },
+        orderBy: { name: 'asc' },
+        take: 200,
+      }),
     ]);
 
     const loanTypes = Array.from(new Set(loans.map(l => l.loanType).filter(Boolean)));
@@ -50,6 +56,7 @@ export async function GET(req: Request) {
       frequencies,
       paymentModes,
       chitGroups: chitGroups.map((g) => ({ id: g.id, name: g.groupCode ? `${g.name} (${g.groupCode})` : g.name })),
+      customers: customers.map((c) => ({ id: c.id, name: `${c.name} (${c.customerCode})` })),
     });
   } catch (error: any) {
     return apiError(error.message, 500);

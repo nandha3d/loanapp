@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/db';
 import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
+import { getActiveBranchId } from '@/lib/branch';
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -15,8 +16,14 @@ export async function GET(req: NextRequest) {
 
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
+  const activeBranchId = await getActiveBranchId();
+  const branchId = searchParams.get('branchId') || activeBranchId;
 
-  const where: any = { tenantId, appType };
+  const where: any = {
+    tenantId,
+    appType,
+    ...(branchId ? { branchId } : {}),
+  };
   if (statusFilter) where.status = statusFilter;
 
   const loans = await prisma.loan.findMany({

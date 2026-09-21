@@ -53,6 +53,7 @@ export default function FilterBar({ supportedFilters, filters: initialFilters, o
   const [frequencies, setFrequencies] = useState<string[]>([]);
   const [paymentModes, setPaymentModes] = useState<string[]>([]);
   const [chitGroups, setChitGroups] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
 
   // Fetch filter options dynamically
   useEffect(() => {
@@ -69,6 +70,7 @@ export default function FilterBar({ supportedFilters, filters: initialFilters, o
             setFrequencies(data.data.frequencies || []);
             setPaymentModes(data.data.paymentModes || []);
             setChitGroups(data.data.chitGroups || []);
+            setCustomers(data.data.customers || []);
           }
         }
       } catch (err) {
@@ -146,6 +148,14 @@ export default function FilterBar({ supportedFilters, filters: initialFilters, o
           <select name="agentId" className="form-control" style={{ width: 'auto' }} value={filters.agentId} onChange={handleChange}>
             <option value="">{d.allAgents || 'All Agents'}</option>
             {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+        )}
+
+        {/* Customer select */}
+        {isSupported('customer') && (
+          <select name="customerId" className="form-control" style={{ width: 'auto' }} value={filters.customerId} onChange={handleChange}>
+            <option value="">{d.allCustomers || 'Select Customer'}</option>
+            {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         )}
 

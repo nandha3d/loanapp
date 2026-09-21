@@ -12,7 +12,7 @@ import Link from '@/components/layout/DashboardLink';
 import { serverFetch } from '@/lib/api-client/server';
 import { getDictionary } from '@/lib/i18n';
 import { modulePath } from '@/types/modules';
-import { getReportsForAppType } from '@/lib/reports/catalog';
+import { getReportsForAppType, getReportDefinitionForAppType } from '@/lib/reports/catalog';
 import type { AppType } from '@/lib/appConfig';
 
 export default async function AnalyticsPage({
@@ -229,9 +229,21 @@ export default async function AnalyticsPage({
       'loan-type-report': ['branch', 'loanType'],
       'loan-maturity-report': ['branch', 'loanType'],
       'daily-collection': ['date', 'branch', 'agent', 'paymentMode'],
+      'date-wise-collection': ['date', 'branch', 'agent'],
+      'agent-wise-collection': ['date', 'branch', 'agent'],
+      'area-wise-collection': ['date', 'branch'],
+      'customer-collection-history': ['customer', 'date'],
+      'collection-mode-report': ['date', 'branch', 'paymentMode'],
+      'missed-collection-report': ['date', 'branch', 'agent'],
+      'partial-payment-report': ['date', 'branch', 'agent'],
+      'advance-payment-report': ['date', 'branch', 'agent'],
       'collection-efficiency': ['date', 'branch', 'agent'],
-      'agent-collection-report': ['date', 'branch', 'agent'],
-      'route-collection-report': ['date', 'branch'],
+      'aging': ['branch'],
+      'high-risk-customers': ['branch'],
+      'chronic-defaulters': ['branch'],
+      'npa-classification-report': ['branch'],
+      'emi-schedule': ['customer'],
+      'upcoming-emi-report': ['date', 'branch', 'agent'],
       'todays-emi-report': ['branch', 'agent'],
       'customer-register': ['branch', 'agent'],
       'customer-loan-history': ['customer'],
@@ -262,12 +274,22 @@ export default async function AnalyticsPage({
       'refund-report': ['date', 'branch'],
       'duplicate-payments': ['date', 'branch'],
       'cancelled-payments': ['date', 'branch'],
-      'npa-classification-report': ['branch'],
       'wallet-float-ledger': ['date', 'branch'],
       'day-book': ['date', 'branch'],
       'cash-book': ['date', 'branch'],
       'ledger-report': ['date', 'branch'],
       'bank-book': ['date', 'branch'],
+      'vehicle-hypothecation-report': ['branch'],
+      'insurance-expiry-report': ['date', 'branch'],
+      'seizure-repo-report': ['date', 'branch'],
+      'gold-pledge-register': ['date', 'branch'],
+      'gold-maturity-auction': ['date', 'branch'],
+      'gold-released-redeemed': ['date', 'branch'],
+      'gold-bank-repledge-report': ['date', 'branch'],
+      'property-collateral-register': ['branch'],
+      'property-mortgage-status': ['branch'],
+      'product-finance-register': ['branch'],
+      'product-repossession-report': ['date', 'branch'],
       'chit-cash-flow': ['date', 'branch', 'groupId'],
       'chit-group-portfolio': ['branch', 'status', 'groupId'],
       'chit-group-ledger': ['branch', 'status', 'groupId'],
@@ -275,6 +297,14 @@ export default async function AnalyticsPage({
       'chit-auction-register': ['branch', 'status', 'groupId'],
       'auction-bid-history': ['date', 'branch', 'groupId'],
       'chit-subscription-due': ['branch', 'groupId'],
+      'chit-group-report': ['branch', 'status'],
+      'chit-auction-report': ['date', 'branch', 'groupId'],
+      'chit-agreement-pending-report': ['branch', 'groupId'],
+      'chit-dividend-register': ['date', 'branch', 'groupId'],
+      'chit-payout-report': ['date', 'branch', 'groupId'],
+      'chit-receipt-register': ['date', 'branch', 'groupId'],
+      'chit-security-pending-report': ['branch', 'groupId'],
+      'vacant-chit-report': ['branch', 'groupId'],
     };
 
     const titleConfig: Record<string, string> = {
@@ -297,7 +327,8 @@ export default async function AnalyticsPage({
     };
 
     const supportedFilters = filterConfig[reportSlug] || ['date', 'branch', 'agent'];
-    const title = titleConfig[reportSlug] || reportSlug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    const repDef = getReportDefinitionForAppType(appType as AppType, reportSlug);
+    const title = repDef?.name || titleConfig[reportSlug] || reportSlug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
     return (
       <div style={{ padding: '20px' }}>
@@ -328,6 +359,9 @@ export default async function AnalyticsPage({
             paymentMode: resolvedParams.paymentMode || '',
             paymentStatus: resolvedParams.paymentStatus || '',
             loanId: resolvedParams.loanId || '',
+            groupId: resolvedParams.groupId || '',
+            minAmount: resolvedParams.minAmount || '',
+            maxAmount: resolvedParams.maxAmount || '',
           }}
           dict={dict}
           subscription={subscription}

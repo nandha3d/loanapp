@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/db';
 import { getDefaultTenantId, getUserAppType } from '@/lib/tenant';
+import { getActiveBranchId } from '@/lib/branch';
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -10,11 +11,19 @@ export async function GET(req: NextRequest) {
     return new NextResponse('Unauthorized', { status: 401 });
   }
 
+  const { searchParams } = req.nextUrl;
   const tenantId = await getDefaultTenantId();
   const appType = await getUserAppType();
+  const activeBranchId = await getActiveBranchId();
+  const branchId = searchParams.get('branchId') || activeBranchId;
 
   const overdueLoans = await prisma.loan.findMany({
-    where: { tenantId, appType, status: { in: ['overdue', 'active'] } },
+    where: {
+      tenantId,
+      appType,
+      ...(branchId ? { branchId } : {}),
+      status: { in: ['overdue', 'active'] },
+    },
     include: {
       customer: { select: { name: true, customerCode: true, phone: true, address: true } },
       penalties: { where: { status: 'pending' } },

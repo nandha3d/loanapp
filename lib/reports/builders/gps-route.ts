@@ -13,7 +13,12 @@ export async function buildGpsRoute(params: ReportBuilderParams): Promise<Report
   if (!targetAgentId) {
     // Fallback to the first agent if not specified
     const firstAgent = await prisma.user.findFirst({
-      where: { tenantId, appType, role: 'agent' },
+      where: {
+        tenantId,
+        appType,
+        role: 'agent',
+        ...(branchId ? { branchId } : {}),
+      },
       select: { id: true },
     });
     if (firstAgent) {
@@ -22,7 +27,30 @@ export async function buildGpsRoute(params: ReportBuilderParams): Promise<Report
   }
 
   if (!targetAgentId) {
-    throw new Error('Agent ID is required for GPS Route report');
+    return {
+      title: 'reports.gpsRoute.title',
+      columns: [
+        { key: 'seq', label: 'reports.col.seq', align: 'center', type: 'number' },
+        { key: 'gpsCapturedAt', label: 'reports.col.time', align: 'center', type: 'date' },
+        { key: 'customerName', label: 'reports.col.customer', align: 'left', type: 'text' },
+        { key: 'coords', label: 'reports.col.coords', align: 'left', type: 'text' },
+        { key: 'distanceFromCustomerM', label: 'reports.col.distFromCust', align: 'right', type: 'number' },
+        { key: 'locationStatus', label: 'reports.col.geoStatus', align: 'center', type: 'badge' },
+        { key: 'receivedAmount', label: 'reports.col.collected', align: 'right', type: 'currency', total: true },
+      ],
+      rows: [],
+      totals: {
+        receivedAmount: 0,
+      },
+      kpis: [
+        { label: 'totalStops', value: 0 },
+        { label: 'onLocationPercentage', value: '0%' },
+        { label: 'totalCollected', value: 0 },
+      ],
+      meta: {
+        currencySymbol: '₹',
+      },
+    };
   }
 
   const entries = await prisma.collectionEntry.findMany({
@@ -30,7 +58,10 @@ export async function buildGpsRoute(params: ReportBuilderParams): Promise<Report
       agentId: targetAgentId,
       submittedAt: { gte: dateFrom, lte: dateTo },
       tenantId,
-      collection: { appType },
+      collection: {
+        appType,
+        ...(branchId ? { branchId } : {}),
+      },
     },
     include: {
       customer: { select: { name: true } },

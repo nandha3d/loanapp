@@ -19,7 +19,53 @@ export async function buildEmiSchedule(params: ReportBuilderParams): Promise<Rep
   }
 
   if (!targetLoanId) {
-    throw new Error('Loan ID or Customer ID is required for EMI Schedule report');
+    const defaultLoan = await prisma.loan.findFirst({
+      where: {
+        tenantId,
+        appType,
+        ...(params.branchId ? { branchId: params.branchId } : {}),
+        status: { in: ['active', 'overdue'] },
+      },
+      orderBy: { startDate: 'desc' },
+      select: { id: true },
+    });
+    if (defaultLoan) {
+      targetLoanId = defaultLoan.id;
+    }
+  }
+
+  const emptyPayload: ReportPayload = {
+    title: 'reports.emiSchedule.title',
+    columns: [
+      { key: 'instalmentNo', label: 'reports.col.instalmentNo', align: 'center', type: 'number' },
+      { key: 'dueDate', label: 'reports.col.dueDate', align: 'center', type: 'date' },
+      { key: 'receivedAt', label: 'reports.col.paidDate', align: 'center', type: 'date' },
+      { key: 'delay', label: 'reports.col.delay', align: 'right', type: 'number' },
+      { key: 'dueAmount', label: 'reports.col.due', align: 'right', type: 'currency', total: true },
+      { key: 'receivedAmount', label: 'reports.col.paid', align: 'right', type: 'currency', total: true },
+      { key: 'penalty', label: 'reports.col.penalty', align: 'right', type: 'currency', total: true },
+      { key: 'balance', label: 'reports.col.balance', align: 'right', type: 'currency' },
+      { key: 'status', label: 'reports.col.status', align: 'center', type: 'badge' },
+    ],
+    rows: [],
+    totals: {
+      dueAmount: 0,
+      receivedAmount: 0,
+      penalty: 0,
+    },
+    kpis: [
+      { label: 'totalInstalments', value: 0 },
+      { label: 'paidInstalments', value: 0 },
+      { label: 'missedInstalments', value: 0 },
+      { label: 'totalPenaltyApplied', value: 0 },
+    ],
+    meta: {
+      currencySymbol: '₹',
+    },
+  };
+
+  if (!targetLoanId) {
+    return emptyPayload;
   }
 
   // Fetch loan details and its instalments
@@ -41,7 +87,7 @@ export async function buildEmiSchedule(params: ReportBuilderParams): Promise<Rep
   });
 
   if (!loan) {
-    throw new Error(`Loan with ID '${targetLoanId}' not found`);
+    return emptyPayload;
   }
 
   const penaltyMap = new Map<number, number>();

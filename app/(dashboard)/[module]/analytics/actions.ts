@@ -88,7 +88,7 @@ export async function getAnalyticsData(
   const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
   const weekStart = new Date(today); weekStart.setDate(weekStart.getDate() - 6);
   const prevWeekStart = new Date(today); prevWeekStart.setDate(prevWeekStart.getDate() - 13);
-  const next7 = new Date(today); next7.setDate(next7.getDate() + 7);
+  const next7 = new Date(today); next7.setDate(next7.getDate() + 8);
   const next30 = new Date(today); next30.setDate(next30.getDate() + 30);
 
   const bf = branchId ? { branchId } : {};
@@ -373,7 +373,7 @@ export async function getAnalyticsData(
   // 9. Cashflow forecast 7d
   const cashflowForecast7d: ForecastDay[] = [];
   let cumulative = 0;
-  for (let i = 1; i <= 6; i++) {
+  for (let i = 1; i <= 7; i++) {
     const d = new Date(today); d.setDate(today.getDate() + i);
     const dk = getLocalDateString(d);
     const dayAmt = future7dInstalments

@@ -5,7 +5,27 @@ export async function buildCustomerCollectionHistory(params: ReportBuilderParams
   const { tenantId, appType, customerId, from, to, loanId, paymentMode } = params;
 
   if (!customerId) {
-    throw new Error('Customer ID is required for Customer Collection History report');
+    return {
+      title: 'reports.customerHistory.title',
+      columns: [
+        { key: 'date', label: 'reports.col.date', align: 'left', type: 'date' },
+        { key: 'loanCode', label: 'reports.col.loanCode', align: 'left', type: 'text' },
+        { key: 'amount', label: 'reports.col.amount', align: 'right', type: 'currency', total: true },
+        { key: 'paymentMode', label: 'reports.col.mode', align: 'center', type: 'badge' },
+        { key: 'paymentType', label: 'reports.col.type', align: 'center', type: 'badge' },
+        { key: 'agentName', label: 'reports.col.agent', align: 'left', type: 'text' },
+        { key: 'balance', label: 'reports.col.balance', align: 'right', type: 'currency' },
+      ],
+      rows: [],
+      totals: { amount: 0 },
+      kpis: [
+        { label: 'totalPaid', value: 0 },
+        { label: 'loansCount', value: 0 },
+        { label: 'lastPaymentDate', value: '—' },
+        { label: 'outstandingAcrossLoans', value: 0 },
+      ],
+      meta: { currencySymbol: '₹' },
+    };
   }
 
   const dateFrom = from ? new Date(from) : undefined;
