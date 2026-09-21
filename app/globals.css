@@ -51,7 +51,7 @@ a:hover { text-decoration: underline; }
 .login-wrapper::after { content: ''; position: absolute; width: 400px; height: 400px; background: radial-gradient(circle, rgba(245,166,35,.1) 0%, transparent 70%); bottom: -50px; left: -50px; }
 .login-card { background: var(--surface); border-radius: 16px; padding: 48px 40px; width: 420px; max-width: 90vw; box-shadow: var(--shadow-lg); position: relative; z-index: 1; animation: fadeUp .5s ease; }
 .login-logo { display: flex; align-items: center; gap: 12px; justify-content: center; margin-bottom: 32px; }
-.login-logo img { width: 44px; height: 44px; }
+.login-logo img { height: 48px; width: auto; max-width: 100%; object-fit: contain; }
 .login-logo h1 { font-size: 1.6rem; font-weight: 700; color: var(--text); }
 .login-logo span { color: var(--primary); }
 .login-error { background: #FEE2E2; color: #991B1B; padding: 10px 14px; border-radius: var(--radius-sm); font-size: .82rem; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
@@ -60,7 +60,7 @@ a:hover { text-decoration: underline; }
 .app-layout { display: flex; min-height: 100vh; }
 .sidebar { width: var(--sidebar-w); background: var(--sidebar-bg); color: #fff; position: fixed; top: 0; left: 0; height: 100vh; z-index: 50; display: flex; flex-direction: column; transition: transform var(--transition); overflow: hidden; }
 .sidebar-brand { display: flex; align-items: center; gap: 12px; padding: 20px 24px; border-bottom: 1px solid rgba(255,255,255,.08); flex-shrink: 0; }
-.sidebar-brand img { width: 36px; height: 36px; }
+.sidebar-brand img { height: 32px; width: auto; max-width: 100%; object-fit: contain; }
 .sidebar-brand h2 { font-size: 1.15rem; font-weight: 700; white-space: nowrap; }
 .sidebar-brand span { color: var(--primary); }
 .sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }

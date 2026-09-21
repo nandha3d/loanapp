@@ -117,6 +117,8 @@ export function isPublicPath(pathname: string): boolean {
     pathname === '/sitemap.xml' ||
     pathname === '/robots.txt' ||
     pathname === '/og.png' ||
+    pathname === '/logo.png' ||
+    pathname === '/apple-touch-icon.png' ||
     pathname.includes('opengraph-image') ||
     pathname.includes('twitter-image') ||
     PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))

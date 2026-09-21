@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { getAppConfig } from '@/lib/appConfig';
 import { MODULE_ROUTES, parseModulePath, prefixDashboardHref, type ModuleKey } from '@/types/modules';
+import AppLogo from '@/components/ui/AppLogo';
 
 interface NavItem {
   section?: string;
@@ -161,19 +162,32 @@ export default function Sidebar({
           (Settings → Theme) wins over the static per-module palette. */}
       <aside className={`sidebar ${isOpen ? 'open' : ''}`} id="sidebar">
         <div className="sidebar-brand" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <img
-            src="/logo.png"
-            alt="ZoloFund"
-            style={{ height: '36px', width: 'auto', objectFit: 'contain', flexShrink: 0 }}
-          />
-          <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'inherit', lineHeight: 1.2, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+          <Link
+            href={prefixDashboardHref('/dashboard', hrefModule)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: '#fff', maxWidth: '100%' }}
+            onClick={() => document.getElementById('sidebar')?.classList.remove('open')}
+          >
+            <AppLogo
+              variant="horizontal"
+              theme="dark"
+              height={32}
+              style={{ flexShrink: 0, width: 'auto' }}
+            />
+            <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.2)', flexShrink: 0 }} />
+            <span style={{
+              fontSize: '0.76rem',
+              fontWeight: 700,
+              color: 'inherit',
+              lineHeight: 1.2,
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              whiteSpace: 'nowrap',
+              textOverflow: 'ellipsis',
+              overflow: 'hidden',
+            }}>
               {appConfig.name}
             </span>
-            <span style={{ fontSize: '0.70rem', opacity: 0.65, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              ZoloFund
-            </span>
-          </div>
+          </Link>
         </div>
 
         <nav className="sidebar-nav">

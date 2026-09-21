@@ -105,7 +105,7 @@ flutter:
     - assets/videos/
 
 flutter_launcher_icons:
-  android: false
+  android: true
   ios: true
   image_path: "assets/images/app_icon.png"
   remove_alpha_ios: true

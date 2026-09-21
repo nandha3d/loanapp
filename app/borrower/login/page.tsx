@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import PasswordInput from '@/components/ui/PasswordInput';
+import AppLogo from '@/components/ui/AppLogo';
 
 interface TestAccount {
   loanCode: string;
@@ -237,16 +238,9 @@ export default function BorrowerLoginPage() {
   return (
     <div className="login-wrapper" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', gap: '24px', padding: '20px', justifyContent: 'center', alignItems: 'center', background: 'radial-gradient(circle at top right, #111827, #030712)' }}>
       <div className="login-card" style={{ width: '100%', maxWidth: '440px', padding: '40px 32px', background: 'rgba(17, 24, 39, 0.7)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '24px', boxShadow: '0 20px 40px rgba(0,0,0,0.4)', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }}>
-        <div className="login-logo" style={{ marginBottom: '32px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ background: 'linear-gradient(135deg, var(--primary), var(--primary-dark))', padding: '10px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)' }}>
-            <span className="material-icons-outlined" style={{ fontSize: '28px', color: '#fff' }}>account_balance_wallet</span>
-          </div>
-          <div>
-            <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, color: '#fff', display: 'flex', alignItems: 'center', gap: '4px', letterSpacing: '-0.5px' }}>
-              Loan<span style={{ color: 'var(--primary)' }}>Track</span>
-            </h1>
-            <p style={{ margin: 0, fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '1px' }}>Borrower Self-Service</p>
-          </div>
+        <div className="login-logo" style={{ marginBottom: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+          <AppLogo variant="horizontal" theme="dark" height={52} />
+          <p style={{ margin: 0, fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '1px' }}>Borrower Self-Service</p>
         </div>
 
         {error && (

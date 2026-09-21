@@ -4,6 +4,7 @@ import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/models/user.dart';
+import 'package:zolofund/shared/widgets/app_logo.dart';
 
 /// Universal module header title widget: shows the official ZoloFund logo
 /// paired with a clear, prominent module title identifier across all modules.
@@ -34,10 +35,8 @@ class ModuleAppBarTitle extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Image.asset(
-          'assets/images/logo.png',
-          height: logoHeight,
-          fit: BoxFit.contain,
+        AppLogo.square(
+          size: logoHeight,
         ),
         const SizedBox(width: 8),
         Container(

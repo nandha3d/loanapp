@@ -36,7 +36,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <head>
-        <link rel="icon" href={withBasePath('/assets/logo.svg')} />
+        <link rel="icon" href={withBasePath('/assets/logo-square-dark.png')} media="(prefers-color-scheme: dark)" />
+        <link rel="icon" href={withBasePath('/assets/logo-square-light.png')} media="(prefers-color-scheme: light)" />
+        <link rel="icon" href={withBasePath('/assets/logo.svg')} type="image/svg+xml" />
+        <link rel="apple-touch-icon" href={withBasePath('/apple-touch-icon.png')} />
         <link
           rel="preload"
           href={withBasePath('/fonts/MaterialIconsOutlined-Regular.woff2')}

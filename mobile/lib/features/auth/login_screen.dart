@@ -14,6 +14,7 @@ import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/shared/widgets/app_button.dart';
+import 'package:zolofund/shared/widgets/app_logo.dart';
 import 'package:zolofund/shared/widgets/app_text_field.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -295,10 +296,8 @@ class _LoginCard extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Center(
-            child: Image.asset(
-              'assets/images/logo.png',
-              height: 56,
-              fit: BoxFit.contain,
+            child: AppLogo.horizontal(
+              height: 52,
             ),
           ),
           const SizedBox(height: 32),

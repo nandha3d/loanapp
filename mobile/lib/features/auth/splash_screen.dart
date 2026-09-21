@@ -8,6 +8,7 @@ import 'package:zolofund/core/auth/auth_controller.dart';
 import 'package:zolofund/core/router/app_router.dart';
 import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
+import 'package:zolofund/shared/widgets/app_logo.dart';
 
 /// Shown while the auth stage is bootstrapping, playing the official
 /// ZoloFund animated splash video with seamless transition into the app.
@@ -129,10 +130,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Image.asset(
-                      'assets/images/logo.png',
-                      height: 84,
-                      fit: BoxFit.contain,
+                    const AppLogo.horizontal(
+                      isDark: true,
+                      height: 72,
                     ),
                     const SizedBox(height: 32),
                     SizedBox(

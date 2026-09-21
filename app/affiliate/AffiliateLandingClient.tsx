@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import AppLogo from '@/components/ui/AppLogo';
 
 type AffiliateConfig = {
   threshold: number;
@@ -85,20 +86,22 @@ export default function AffiliateLandingClient({ config }: { config: AffiliateCo
         {/* Header Branding */}
         <header style={{
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: '12px',
+          gap: '8px',
           marginBottom: '50px',
         }}>
-          <img src="/assets/logo.svg" alt="ZoloFund" style={{ width: '40px', height: '40px' }} />
-          <h2 style={{
-            fontSize: '1.8rem',
-            fontWeight: 800,
-            margin: 0,
-            letterSpacing: '-0.5px',
+          <AppLogo variant="horizontal" theme="dark" height={52} />
+          <span style={{
+            fontSize: '0.85rem',
+            color: '#E94560',
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '1.5px',
           }}>
-            Loan<span style={{ color: '#E94560' }}>Track</span> Affiliate
-          </h2>
+            Affiliate Partner Program
+          </span>
         </header>
 
         {/* Hero Section */}

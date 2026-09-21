@@ -8,6 +8,7 @@ import 'package:zolofund/core/l10n/language_controller.dart';
 import 'package:zolofund/core/network/dio_client.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/shared/constants/endpoints.dart';
+import 'package:zolofund/shared/widgets/app_logo.dart';
 
 /// Immersive app-selector landing — the mobile twin of the web `/portal`
 /// page. Superadmins/admins land here after login: a dark gradient hub with
@@ -310,10 +311,9 @@ class _TopBar extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Image.asset(
-                'assets/images/logo.png',
+              const AppLogo.horizontal(
+                isDark: true,
                 height: 32,
-                fit: BoxFit.contain,
               ),
               const SizedBox(width: 8),
               Container(
@@ -368,10 +368,9 @@ class _Header extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Image.asset(
-            'assets/images/logo.png',
+          const AppLogo.horizontal(
+            isDark: true,
             height: 52,
-            fit: BoxFit.contain,
           ),
           const SizedBox(height: 12),
           Text(

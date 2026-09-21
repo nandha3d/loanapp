@@ -8,6 +8,7 @@ import { calculateVerticalSubscriptionPricing } from '@/lib/pricing';
 import { getSupabaseBrowser, isSupabaseAuthEnabled } from '@/lib/supabase/browser';
 import { withBasePath } from '@/lib/public-path';
 import PasswordInput from '@/components/ui/PasswordInput';
+import AppLogo from '@/components/ui/AppLogo';
 
 type AvailabilityFieldState = {
   checking: boolean;
@@ -421,9 +422,8 @@ function RegisterForm() {
       <div className="login-card" style={{ maxWidth: '750px', width: '100%' }}>
         
         {/* Header */}
-        <div className="login-logo" style={{ marginBottom: '16px' }}>
-          <img src={withBasePath('/assets/logo.svg')} alt="ZoloFund" />
-          <h1>Loan<span>Track</span></h1>
+        <div className="login-logo" style={{ justifyContent: 'center', marginBottom: '16px' }}>
+          <AppLogo variant="horizontal" theme="light" height={48} />
         </div>
         <h2 style={{ textAlign: 'center', fontSize: '1.2rem', marginBottom: '8px', color: 'var(--text-primary)' }}>
           Register Your Lending Business

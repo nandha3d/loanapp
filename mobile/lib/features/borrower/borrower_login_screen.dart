@@ -7,6 +7,7 @@ import 'package:zolofund/core/theme/app_colors.dart';
 import 'package:zolofund/core/theme/app_tokens.dart';
 import 'package:zolofund/core/theme/app_typography.dart';
 import 'package:zolofund/data/services/borrower_service.dart';
+import 'package:zolofund/shared/widgets/app_logo.dart';
 
 /// Borrower login screen — phone + OTP flow (same as web borrower/login).
 class BorrowerLoginScreen extends ConsumerStatefulWidget {
@@ -115,10 +116,8 @@ class _BorrowerLoginScreenState extends ConsumerState<BorrowerLoginScreen> {
               children: [
                 // Logo / Branding
                 Center(
-                  child: Image.asset(
-                    'assets/images/logo.png',
-                    height: 60,
-                    fit: BoxFit.contain,
+                  child: AppLogo.horizontal(
+                    height: 56,
                   ),
                 ),
                 const SizedBox(height: 24),

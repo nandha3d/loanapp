@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import PasswordInput from '@/components/ui/PasswordInput';
+import AppLogo from '@/components/ui/AppLogo';
 import { useRouter } from 'next/navigation';
 import { withBasePath } from '@/lib/public-path';
 
@@ -44,9 +45,8 @@ export default function ResetPasswordPage() {
   return (
     <div className="login-wrapper">
       <div className="login-card">
-        <div className="login-logo">
-          <img src={withBasePath('/assets/logo.svg')} alt="ZoloFund" />
-          <h1>Loan<span>Track</span></h1>
+        <div className="login-logo" style={{ justifyContent: 'center', marginBottom: '16px' }}>
+          <AppLogo variant="horizontal" theme="light" height={48} />
         </div>
         <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '.85rem', marginBottom: '24px' }}>
           Choose a new password

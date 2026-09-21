@@ -5,6 +5,7 @@ import { selectApp } from './actions';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import { modulePath, normalizeModuleList } from '@/types/modules';
+import AppLogo from '@/components/ui/AppLogo';
 
 export default function AppSelectorClient({ 
   userName, 
@@ -59,11 +60,7 @@ export default function AppSelectorClient({
 
       <div style={{ textAlign: 'center', marginBottom: '36px' }}>
         <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
-          <img
-            src="/logo.png"
-            alt="ZoloFund"
-            style={{ height: '64px', width: 'auto', objectFit: 'contain' }}
-          />
+          <AppLogo variant="horizontal" theme="dark" height={60} />
         </div>
         <div>
           <span style={{

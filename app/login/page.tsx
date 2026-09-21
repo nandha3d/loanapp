@@ -8,6 +8,7 @@ import { getSupabaseBrowser, isSupabaseAuthEnabled } from '@/lib/supabase/browse
 import { currentOriginWithBasePath, withBasePath } from '@/lib/public-path';
 import { normalizeLocalCallbackUrl } from '@/lib/auth/callback-url';
 import PasswordInput from '@/components/ui/PasswordInput';
+import AppLogo from '@/components/ui/AppLogo';
 
 function LoginForm() {
   const router = useRouter();
@@ -151,9 +152,8 @@ function LoginForm() {
   return (
     <div className="login-wrapper">
       <div className="login-card">
-        <div className="login-logo">
-          <img src={withBasePath('/assets/logo.svg')} alt="ZoloFund" />
-          <h1>Loan<span>Track</span></h1>
+        <div className="login-logo" style={{ justifyContent: 'center', marginBottom: '16px' }}>
+          <AppLogo variant="horizontal" theme="light" height={48} />
         </div>
         <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '.85rem', marginBottom: '28px' }}>
           Micro-Lending Management System

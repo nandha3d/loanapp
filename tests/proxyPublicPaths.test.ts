@@ -4,6 +4,12 @@ import { normalizeLocalCallbackUrl } from '../lib/auth/callback-url';
 
 assert.equal(isPublicPath('/fonts/MaterialIconsOutlined-Regular.otf'), true);
 assert.equal(isPublicPath('/assets/logo.svg'), true);
+assert.equal(isPublicPath('/assets/logo-horizontal-dark.png'), true);
+assert.equal(isPublicPath('/assets/logo-horizontal-light.png'), true);
+assert.equal(isPublicPath('/assets/logo-square-dark.png'), true);
+assert.equal(isPublicPath('/assets/logo-square-light.png'), true);
+assert.equal(isPublicPath('/logo.png'), true);
+assert.equal(isPublicPath('/apple-touch-icon.png'), true);
 assert.equal(isPublicPath('/dashboard'), false);
 
 assert.equal(getRoleRedirectTarget('/loans', 'agent'), null);
