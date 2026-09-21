@@ -94,6 +94,7 @@ class User {
     this.branchId,
     this.tenantSlug,
     this.biometricLockRequired = false,
+    this.gpsTrackingEnabled = false,
   });
 
   final String id;
@@ -117,6 +118,9 @@ class User {
   /// app gate a stored session behind the biometric lock screen.
   final bool biometricLockRequired;
 
+  /// Whether the tenant subscribed to GPS tracking add-on.
+  final bool gpsTrackingEnabled;
+
   bool hasModule(String module) => enabledModules.contains(module);
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -137,6 +141,7 @@ class User {
               .toList(growable: false),
       tenantSlug: json['tenantSlug'] as String?,
       biometricLockRequired: (json['biometricLockRequired'] as bool?) ?? false,
+      gpsTrackingEnabled: (json['gpsTrackingEnabled'] as bool?) ?? false,
     );
   }
 
@@ -154,5 +159,6 @@ class User {
         'enabledModules': enabledModules,
         'tenantSlug': tenantSlug,
         'biometricLockRequired': biometricLockRequired,
+        'gpsTrackingEnabled': gpsTrackingEnabled,
       };
 }

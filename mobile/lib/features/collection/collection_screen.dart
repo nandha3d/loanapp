@@ -28,6 +28,7 @@ import 'package:zolofund/data/repositories/dashboard_repository.dart';
 import 'package:zolofund/data/services/collection_service.dart';
 import 'package:zolofund/features/collection/quick_collect_sheet.dart';
 import 'package:zolofund/features/collection/offline_banner.dart';
+import 'package:zolofund/features/collection/gps_enforcement_dialog.dart';
 import 'package:zolofund/shared/widgets/module_app_bar_title.dart';
 import 'package:zolofund/features/onboarding/location_permission_overlay.dart';
 import 'package:zolofund/shared/widgets/help_sheet.dart';
@@ -57,12 +58,14 @@ class CollectionScreen extends ConsumerStatefulWidget {
   ConsumerState<CollectionScreen> createState() => _CollectionScreenState();
 }
 
-class _CollectionScreenState extends ConsumerState<CollectionScreen> {
+class _CollectionScreenState extends ConsumerState<CollectionScreen>
+    with WidgetsBindingObserver {
   bool _nearest = false;
   bool _showMap = false;
   double? _agentLat;
   double? _agentLng;
   bool _locating = false;
+  bool _gpsDialogShowing = false;
 
   // GPS-aware sort: km between two coords (haversine), same as web.
   double _distanceKm(double lat1, double lon1, double lat2, double lon2) {
@@ -122,19 +125,51 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
   @override
   void initState() {
     super.initState();
-    // GPS-05: live-track the agent while the collection screen is open (the
-    // stream stops on dispose â€” battery-friendly). These pings feed the admin
-    // tracking map (/gps/live). Permission is requested inside the pinger.
-    final user = ref.read(authControllerProvider).user;
-    if (user?.role == UserRole.agent) {
-      ref.read(gpsPingerProvider).start();
-    }
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkGpsRequirement();
+    });
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     ref.read(gpsPingerProvider).stop();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkGpsRequirement();
+    }
+  }
+
+  Future<void> _checkGpsRequirement() async {
+    if (!mounted || _gpsDialogShowing) return;
+    final user = ref.read(authControllerProvider).user;
+    if (user?.role != UserRole.agent) return;
+
+    if (user?.gpsTrackingEnabled == true) {
+      final status = await ref.read(gpsServiceProvider).checkGpsStatus();
+      if (!status.isFullyEnabled && mounted) {
+        _gpsDialogShowing = true;
+        try {
+          await showGpsEnforcementDialog(
+            context,
+            onGpsEnabled: () {
+              ref.read(gpsPingerProvider).start();
+            },
+          );
+        } finally {
+          _gpsDialogShowing = false;
+        }
+      } else if (status.isFullyEnabled) {
+        ref.read(gpsPingerProvider).start();
+      }
+    } else {
+      ref.read(gpsPingerProvider).start();
+    }
   }
 
   @override
@@ -424,12 +459,21 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     return m;
   }
 
-  void _openQuickCollect(
+  Future<void> _openQuickCollect(
     BuildContext context,
     CollectionRow row,
     List<CollectionRow> all,
-  ) {
+  ) async {
     if (row.isResolved) return;
+    final user = ref.read(authControllerProvider).user;
+    if (user?.role == UserRole.agent && user?.gpsTrackingEnabled == true) {
+      final status = await ref.read(gpsServiceProvider).checkGpsStatus();
+      if (!status.isFullyEnabled) {
+        await _checkGpsRequirement();
+        return;
+      }
+    }
+    if (!context.mounted) return;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1461,8 +1505,18 @@ class _CollectionCard extends ConsumerWidget {
   final String filter;
   final String? distanceLabel;
 
-  void _collect(BuildContext context, WidgetRef ref, CollectionRow row) {
+  Future<void> _collect(BuildContext context, WidgetRef ref, CollectionRow row) async {
+    final user = ref.read(authControllerProvider).user;
+    if (user?.role == UserRole.agent && user?.gpsTrackingEnabled == true) {
+      final status = await ref.read(gpsServiceProvider).checkGpsStatus();
+      if (!status.isFullyEnabled) {
+        if (!context.mounted) return;
+        await showGpsEnforcementDialog(context);
+        return;
+      }
+    }
     ref.speak('${row.customerName}, ${fmt.format(row.outstanding)}');
+    if (!context.mounted) return;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,

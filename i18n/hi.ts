@@ -490,6 +490,12 @@ export const hi = {
     overdueInstalmentsLabel: 'अतिदेय किस्तें',
     correctAmount: 'सही राशि',
     locationStamped: 'सबमिट करने पर स्थान दर्ज होगा',
+    gpsWarningTitle: 'GPS ट्रैकिंग आवश्यक है',
+    gpsWarningDesc: 'वसूली के लिए आपके संगठन को GPS ट्रैकिंग की आवश्यकता है। आज भुगतान एकत्र करने के लिए आपको अपने ब्राउज़र और डिवाइस सेटिंग्स में स्थान सक्षम करना होगा।',
+    gpsStepBrowser: 'ब्राउज़र एड्रेस बार में लॉक / साइट सेटिंग्स आइकन पर क्लिक करें और स्थान को "Allow" (अनुमति दें) पर सेट करें।',
+    gpsStepDevice: 'सुनिश्चित करें कि आपके डिवाइस सिस्टम सेटिंग्स में Location / GPS चालू है।',
+    gpsCheckAgain: 'पुनः जांचें',
+    gpsBackToDashboard: 'डैशबोर्ड पर वापस जाएं',
   },
   affiliatePage: {
     title: 'संबद्ध भागीदार नेटवर्क',

@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   // goldloan) — drives the mobile portal module cards, mirroring web /portal.
   const subscription = await prisma.tenantSubscription.findUnique({
     where: { tenantId: user.tenantId },
-    select: { enabledModules: true },
+    select: { enabledModules: true, gpsTrackingEnabled: true },
   });
   let verticals: string[] = [];
   try {
@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
   return ok({
     verticals,
     biometricLockRequired,
+    gpsTrackingEnabled: Boolean(subscription?.gpsTrackingEnabled),
     id: user.id,
     name: user.name,
     phone: user.phone,

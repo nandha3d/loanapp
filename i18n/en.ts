@@ -490,6 +490,12 @@ export const en = {
     overdueInstalmentsLabel: 'Overdue Instalments',
     correctAmount: 'Correct Amount',
     locationStamped: 'Location will be stamped on submit',
+    gpsWarningTitle: 'GPS Tracking Required',
+    gpsWarningDesc: 'Your organization requires GPS tracking for collection. You must enable location access in your browser and device settings to collect payments today.',
+    gpsStepBrowser: 'Click the site information / lock icon in your browser address bar and set Location to "Allow".',
+    gpsStepDevice: 'Ensure Location / GPS is turned ON in your device system settings.',
+    gpsCheckAgain: 'Check Location Again',
+    gpsBackToDashboard: 'Return to Dashboard',
   },
   affiliatePage: {
     title: 'Affiliate Partner Network',

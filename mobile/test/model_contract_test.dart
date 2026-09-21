@@ -26,12 +26,14 @@ void main() {
         'totpEnabled': true,
         'enabledModules': ['customers', 'collection'],
         'tenantSlug': 'qa',
+        'gpsTrackingEnabled': true,
       });
 
       expect(user.role, UserRole.agent);
       expect(user.totpEnabled, isTrue);
       expect(user.hasModule('collection'), isTrue);
       expect(user.tenantSlug, 'qa');
+      expect(user.gpsTrackingEnabled, isTrue);
     });
 
     test('MOB-MODEL-002 customer parses KYC, route, agent, and credit score',

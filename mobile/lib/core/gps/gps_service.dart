@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:permission_handler/permission_handler.dart' hide ServiceStatus;
 
 /// GPS-04/05: low-overhead location helper.
 /// Battery-friendly: explicit one-shot reads + opt-in stream during collection.
@@ -37,6 +37,32 @@ class GpsService {
   /// Current permission tier, for banners/status checks — does not prompt.
   Future<LocationPermission> currentPermission() =>
       Geolocator.checkPermission();
+
+  /// Detailed status check for GPS enforcement: checks both hardware service
+  /// and app permission status.
+  Future<({bool serviceEnabled, LocationPermission permission, bool isFullyEnabled})>
+      checkGpsStatus() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    final perm = await Geolocator.checkPermission();
+    final isFullyEnabled = serviceEnabled &&
+        (perm == LocationPermission.whileInUse ||
+            perm == LocationPermission.always);
+    return (
+      serviceEnabled: serviceEnabled,
+      permission: perm,
+      isFullyEnabled: isFullyEnabled,
+    );
+  }
+
+  Future<bool> isLocationServiceEnabled() =>
+      Geolocator.isLocationServiceEnabled();
+
+  Future<bool> openLocationSettings() => Geolocator.openLocationSettings();
+
+  Future<bool> openAppSettingsScreen() => openAppSettings();
+
+  Stream<ServiceStatus> serviceStatusStream() =>
+      Geolocator.getServiceStatusStream();
 
   Future<Position?> currentPosition({
     LocationAccuracy accuracy = LocationAccuracy.high,

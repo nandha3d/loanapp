@@ -243,6 +243,44 @@ export default function CollectionClient({
   const modalRef = useRef<HTMLDivElement>(null);
   const todayISO = useMemo(() => getIstDateStr(new Date()), []);
 
+  const [gpsBlocked, setGpsBlocked] = useState(false);
+  const [gpsChecking, setGpsChecking] = useState(false);
+  const [gpsReady, setGpsReady] = useState(false);
+
+  const verifyGpsStatus = useCallback(() => {
+    if (!gpsTrackingEnabled || agentRole !== 'agent') {
+      setGpsBlocked(false);
+      setGpsReady(true);
+      return;
+    }
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setGpsBlocked(true);
+      setGpsReady(false);
+      return;
+    }
+    setGpsChecking(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setAgentLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+        setGpsReady(true);
+        setGpsBlocked(false);
+        setGpsChecking(false);
+      },
+      () => {
+        setGpsBlocked(true);
+        setGpsReady(false);
+        setGpsChecking(false);
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 },
+    );
+  }, [gpsTrackingEnabled, agentRole]);
+
+  useEffect(() => {
+    if (gpsTrackingEnabled && agentRole === 'agent') {
+      verifyGpsStatus();
+    }
+  }, [gpsTrackingEnabled, agentRole, verifyGpsStatus]);
+
   // Browser-agent tracking: agents using the mobile-browser view (not the APK)
   // stream location pings while this page is open, so they show up on the
   // Agent Tracking map/log exactly like app users. Batched and flushed every
@@ -252,6 +290,10 @@ export default function CollectionClient({
     const buffer: { lat: number; lng: number; accuracyM?: number; speedMps?: number; capturedAt?: string }[] = [];
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
+        if (gpsBlocked) {
+          setGpsBlocked(false);
+          setGpsReady(true);
+        }
         buffer.push({
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
@@ -261,7 +303,12 @@ export default function CollectionClient({
         });
         if (buffer.length > 100) buffer.splice(0, buffer.length - 100);
       },
-      () => {}, // denied/unavailable — entry-level GPS capture still applies
+      () => {
+        if (gpsTrackingEnabled && agentRole === 'agent') {
+          setGpsBlocked(true);
+          setGpsReady(false);
+        }
+      },
       { enableHighAccuracy: false, maximumAge: 15000 },
     );
     const flush = setInterval(() => {
@@ -275,7 +322,7 @@ export default function CollectionClient({
       navigator.geolocation.clearWatch(watchId);
       clearInterval(flush);
     };
-  }, [agentRole]);
+  }, [agentRole, gpsTrackingEnabled, gpsBlocked]);
 
   // DEF-031 / DEF-032: Trap focus within modal and close on Escape
   useEffect(() => {
@@ -620,6 +667,10 @@ export default function CollectionClient({
   };
 
   const openModal = (instalment: CollectionRow) => {
+    if (gpsTrackingEnabled && agentRole === 'agent' && !gpsReady) {
+      verifyGpsStatus();
+      return;
+    }
     const isPaid = instalment.receivedAmount > 0;
     if (isPaid) {
       // Edit/correction path stays single-instalment (admin edits, or agent edit
@@ -2064,6 +2115,84 @@ export default function CollectionClient({
         </div>
         );
       })()}
+
+      {gpsBlocked && (
+        <div className="modal-backdrop" style={{ zIndex: 1050 }}>
+          <div className="modal" style={{ maxWidth: '460px', textAlign: 'center' }}>
+            <div className="modal-body" style={{ padding: '28px 24px' }}>
+              <div style={{
+                width: '60px',
+                height: '60px',
+                borderRadius: '50%',
+                background: 'rgba(234, 179, 8, 0.15)',
+                color: 'var(--warning, #eab308)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px',
+              }}>
+                <span className="material-icons-outlined" style={{ fontSize: '36px' }}>location_off</span>
+              </div>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '8px', color: 'var(--text-primary)' }}>
+                {dict.collection?.gpsWarningTitle || 'GPS Tracking Required'}
+              </h3>
+              <p style={{ fontSize: '.88rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '20px' }}>
+                {dict.collection?.gpsWarningDesc || 'Your organization requires GPS tracking for collection. You must enable location access in your browser and device settings to collect payments today.'}
+              </p>
+
+              <div style={{
+                background: 'var(--bg-subtle, #f8fafc)',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                padding: '14px',
+                textAlign: 'left',
+                marginBottom: '20px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+              }}>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <span className="material-icons-outlined" style={{ fontSize: '18px', color: 'var(--primary)', marginTop: '2px' }}>lock</span>
+                  <div style={{ fontSize: '.82rem', color: 'var(--text-primary)', lineHeight: 1.4 }}>
+                    <strong>Step 1: </strong>
+                    {dict.collection?.gpsStepBrowser || 'Click the site information / lock icon in your browser address bar and set Location to "Allow".'}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <span className="material-icons-outlined" style={{ fontSize: '18px', color: 'var(--primary)', marginTop: '2px' }}>my_location</span>
+                  <div style={{ fontSize: '.82rem', color: 'var(--text-primary)', lineHeight: 1.4 }}>
+                    <strong>Step 2: </strong>
+                    {dict.collection?.gpsStepDevice || 'Ensure Location / GPS is turned ON in your device system settings.'}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={verifyGpsStatus}
+                  disabled={gpsChecking}
+                  style={{ width: '100%', justifyContent: 'center', padding: '10px' }}
+                >
+                  <span className="material-icons-outlined" style={{ fontSize: '18px' }}>
+                    {gpsChecking ? 'sync' : 'refresh'}
+                  </span>
+                  {gpsChecking ? 'Checking...' : (dict.collection?.gpsCheckAgain || 'Check Location Again')}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => router.push('/dashboard')}
+                  style={{ width: '100%', justifyContent: 'center', color: 'var(--text-secondary)' }}
+                >
+                  {dict.collection?.gpsBackToDashboard || 'Return to Dashboard'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
